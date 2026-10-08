@@ -102,3 +102,26 @@ def scanned(src: Path, dst: Path, dpi: int = 200) -> Path:
     pages = convert_from_path(str(src), dpi=dpi, grayscale=True)
     pages[0].save(dst, save_all=True, append_images=pages[1:], resolution=dpi)
     return dst
+
+
+SCANNER_LABEL = "Kopie scanner 3"  # under MIN_TEXT_CHARS, like a copier's or e-stamp's text layer
+
+
+def scanned_with_label(src: Path, dst: Path, dpi: int = 200) -> Path:
+    """Scanned copy where every page also carries a short digital text label ("thin" pages).
+
+    Trap: OCRmyPDF's skip_text treats such pages as already having text and skips them, so
+    the scanned content would be lost.
+    """
+    from pdf2image import convert_from_path
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen.canvas import Canvas
+
+    c = Canvas(str(dst), pagesize=A4)
+    for img in convert_from_path(str(src), dpi=dpi, grayscale=True):
+        c.drawImage(ImageReader(img), 0, 0, width=A4[0], height=A4[1])
+        c.setFont("Helvetica", 6)
+        c.drawString(A4[0] - 90, 12, SCANNER_LABEL)
+        c.showPage()
+    c.save()
+    return dst
