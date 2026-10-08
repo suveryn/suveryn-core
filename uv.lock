@@ -3046,7 +3046,7 @@ requires-dist = [
     { name = "ocrmypdf", specifier = ">=16.0" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "pypdfium2", specifier = ">=4.30" },
+    { name = "pypdfium2", specifier = ">=5.0" },
     { name = "sentence-transformers", specifier = ">=3.0" },
     { name = "suveryn-engine", editable = "packages/engine" },
 ]
