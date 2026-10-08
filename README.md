@@ -12,7 +12,8 @@ Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) works
 |---|---|
 | `packages/engine` | Model backend client (llama-server), answer/citation schema |
 | `packages/api-gateway` | FastAPI app: `POST /v1/chat`, `GET /health` |
-| `packages/chat`, `rag`, `mcp-host`, `connectors`, `playbooks` | Placeholders, built in later slices |
+| `packages/rag` | Document ingestion (`ocr_fast` extraction, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations. See [packages/rag/README.md](packages/rag/README.md) |
+| `packages/chat`, `mcp-host`, `connectors`, `playbooks` | Placeholders, built in later slices |
 
 ## Run locally
 
@@ -27,7 +28,7 @@ Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) works
    ```bash
    ssh -N -L 8080:127.0.0.1:8080 root@<gpu-host> -p <ssh-port>
    ```
-3. Install and start the gateway:
+3. Install and start the gateway. `uv sync` installs only what the gateway needs; on the GPU machine, `uv sync --all-packages` adds `rag` with Docling and PyTorch:
    ```bash
    uv sync
    uv run suveryn-gateway
