@@ -1,4 +1,8 @@
-"""Command-line entry points for development (ingest, retrieve, forget)."""
+"""Command-line entry points for development (ingest, retrieve, forget).
+
+These print to the terminal of whoever runs them. ``suveryn-retrieve`` prints passages of the
+stored documents, i.e. confidential text; don't redirect its output into shared logs.
+"""
 
 import argparse
 import json
@@ -8,6 +12,7 @@ from .config import RagSettings
 
 
 def ingest_main() -> None:
+    """``suveryn-ingest file.pdf [...]``: ingest PDFs; print id, status, warnings and timings per file (no text)."""
     ap = argparse.ArgumentParser(prog="suveryn-ingest", description="Extract, chunk, embed and store PDF documents.")
     ap.add_argument("pdf", nargs="+")
     a = ap.parse_args()
@@ -26,6 +31,7 @@ def ingest_main() -> None:
 
 
 def retrieve_main() -> None:
+    """``suveryn-retrieve "question" [-k 5] [--document id]``: print the best passages as citations (JSON)."""
     ap = argparse.ArgumentParser(prog="suveryn-retrieve", description="Return the chunks most relevant to a question.")
     ap.add_argument("question")
     ap.add_argument("-k", type=int, default=5)
@@ -43,6 +49,7 @@ def retrieve_main() -> None:
 
 
 def forget_main() -> None:
+    """``suveryn-forget <document-id>``: delete a document and its chunks (see ``Store.delete_document`` caveat)."""
     ap = argparse.ArgumentParser(prog="suveryn-forget", description="Delete a document and all of its chunks.")
     ap.add_argument("document_id", type=uuid.UUID)
     a = ap.parse_args()

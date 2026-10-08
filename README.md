@@ -8,6 +8,9 @@ Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) works
 
 ## Packages
 
+For reviewers: [docs/architecture.md](docs/architecture.md) describes the data flow, where confidential data lives, the invariants the code must keep, design decisions with their evidence, known limitations and a review checklist.
+
+
 | Package | Status |
 |---|---|
 | `packages/engine` | Model backend client (llama-server), answer/citation schema |

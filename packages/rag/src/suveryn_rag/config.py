@@ -14,13 +14,21 @@ def _default_jobs() -> int:
 
 @dataclass(frozen=True)
 class RagSettings:
+    """All tunables of the ingestion and retrieval pipeline. Immutable; build with ``from_env()``."""
+
     database_url: str = ""
     # Multilingual (Dutch/French/English) embedding model used in the October 2026 benchmark.
+    # Changing the model after documents were stored needs re-ingestion: stored vectors from
+    # another model aren't comparable, and a different dimension won't fit the vector column.
     embedding_model: str = "BAAI/bge-m3"
     embedding_dim: int = 1024
     device: str = "cuda"
     ocr_languages: str = "nld+fra+eng"
+    # Defaults to every core this process may use. The benchmark found 8 cores the sweet spot
+    # (16 cores only gave 1.3x more); appliances should set SUVERYN_OCR_JOBS explicitly.
     ocr_jobs: int = field(default_factory=_default_jobs)
+    # 384 tokens: big enough to hold a full article of a deed, small enough that a citation
+    # points at a specific passage.
     chunk_max_tokens: int = 384
     # Private scratch space for intermediate files (searchable PDFs, OCR work files).
     # Never /tmp: a searchable copy of a document is the full confidential document.
@@ -28,6 +36,7 @@ class RagSettings:
 
     @classmethod
     def from_env(cls) -> "RagSettings":
+        """Read the ``SUVERYN_*`` variables listed in the package README; unset ones keep their default."""
         d = cls()
         return cls(
             database_url=os.environ.get("SUVERYN_DATABASE_URL", d.database_url),

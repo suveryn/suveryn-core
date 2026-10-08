@@ -8,6 +8,8 @@ from .integrity import IntegrityWarning, norm, page_coverage, split_furniture
 
 @dataclass
 class Chunk:
+    """A passage as stored: its text, the pages it comes from and its section headings."""
+
     index: int
     text: str            # the chunk's own text, returned as the cited passage
     embed_text: str      # text with section headings prepended, used for the embedding
@@ -19,6 +21,8 @@ class Chunk:
 
 @dataclass
 class ChunkResult:
+    """Chunks plus the integrity warnings raised while making them."""
+
     chunks: list[Chunk]
     warnings: list[IntegrityWarning] = field(default_factory=list)
 
@@ -45,6 +49,8 @@ def _page(item) -> int | None:
 
 
 class Chunker:
+    """Docling's HybridChunker, sized with the embedding model's own tokenizer, plus the integrity checks."""
+
     def __init__(self, embedding_model: str, max_tokens: int):
         from docling.chunking import HybridChunker
         from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
@@ -54,6 +60,12 @@ class Chunker:
         self._chunker = HybridChunker(tokenizer=tok)
 
     def chunk(self, document, page_texts: list[str]) -> ChunkResult:
+        """Chunk a Docling document; guarantee that no body text or real content is silently lost.
+
+        ``page_texts`` is the PDF text layer per page (``Extraction.page_texts``), used as the
+        independent reference for the page coverage check. Recovered text is appended as extra
+        chunks after the regular ones, so chunk order is not strictly reading order.
+        """
         from docling_core.types.doc import ContentLayer
 
         raw = list(self._chunker.chunk(dl_doc=document))

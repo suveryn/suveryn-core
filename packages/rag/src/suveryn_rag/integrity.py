@@ -28,18 +28,22 @@ MIN_MISSING_WORDS = 3      # ignore tiny shortfalls (hyphenation, stray OCR mark
 
 @dataclass(frozen=True)
 class IntegrityWarning:
+    """Something a reviewer of the document should know: where, what kind, and a text-free detail."""
+
     page: int | None
     kind: str     # "text_recovered" | "furniture_restored" | "page_coverage_low"
     detail: str
 
     @property
     def needs_review(self) -> bool:
+        """True if this warning should put the document in ``needs_review``."""
         # Recovered or restored text is kept, so the document is complete; a coverage
         # shortfall means text may be missing, which a person has to check.
         return self.kind == "page_coverage_low"
 
 
 def norm(text: str) -> str:
+    """Lower-case, NFKC-normalised text with typographic dashes, quotes and the low comma (U+201A) unified."""
     text = unicodedata.normalize("NFKC", text).lower()
     text = text.replace("’", "'").replace("‚", ",").replace("—", "-").replace("–", "-")
     return re.sub(r"\s+", " ", text).strip()
@@ -52,6 +56,7 @@ def words(text: str) -> set[str]:
 
 
 def is_page_number(text: str) -> bool:
+    """True for "3", "Pagina 3", "pagina 3 van 8", "Page 2 of 5", "p. 4", "- 7 -" and similar."""
     return bool(PAGE_NUMBER.match(text.strip()))
 
 
