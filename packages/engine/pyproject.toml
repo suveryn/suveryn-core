@@ -1,0 +1,16 @@
+[project]
+name = "suveryn-engine"
+version = "0.1.0"
+description = "Sūveryn engine: model backend client, prompt assembly and the answer/citation schema"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/suveryn_engine"]
