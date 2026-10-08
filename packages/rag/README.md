@@ -5,8 +5,12 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
 ## Pipeline
 
 1. **Extraction (`extract.py`)** uses the `ocr_fast` approach from the October 2026 benchmark:
-   - Pages with a usable text layer (at least 50 characters) are not OCR'd; their exact text is kept.
-   - Every other page is OCR'd in parallel by OCRmyPDF (Tesseract, `nld+fra+eng`). This includes scans with a thin digital layer such as a copier label or e-stamp, which OCRmyPDF's `skip_text` would wrongly skip.
+   - Pages with a usable text layer (at least 50 characters) and no large images are not OCR'd; their exact text is kept.
+   - OCRmyPDF (Tesseract, `nld+fra+eng`) runs in parallel, in `redo_ocr` mode, on:
+     - scans, including scans with a thin digital layer such as a copier label or e-stamp, which OCRmyPDF's `skip_text` would wrongly skip;
+     - born-digital pages whose images cover at least 10% of the page, such as a pasted-in scan.
+
+     `redo_ocr` keeps visible digital text exactly and reads only what is drawn as an image. Small images (logos, signatures, stamps; 1–5% of a page) don't trigger OCR, so text inside them is not read.
    - Docling then reads the text layer with `do_ocr=False`, running only its layout and table models on the GPU.
 2. **Chunking (`chunking.py`)** uses Docling's HybridChunker (384 tokens). Each chunk keeps the pages it comes from (`page_start`, `page_end`) and its section headings.
 3. **Embeddings (`embed.py`)** use `BAAI/bge-m3` (1024 dimensions, multilingual), in fp16 on the GPU.
@@ -62,10 +66,11 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 
 - `test_integrity.py` and `test_units.py` are fast unit tests.
 - `test_store.py` checks storage and search against a real pgvector database.
-- `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:
+- `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It also includes a soil report that exists only as a pasted-in image. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:
   - no lost text, and dropped furniture
   - an intact cadastral reference
   - the right passage with the right page in the top 5 for every question, and the buried arrears in the top 3
+  - the pasted-in scan's text read, with only that page OCR'd in the born-digital variant
   - an empty work directory and status `ok`
 
 The database and end-to-end tests are skipped without `SUVERYN_TEST_DATABASE_URL`. All rag tests are skipped where this package is not installed (plain `uv sync` installs only the gateway).

@@ -32,6 +32,7 @@ class IngestResult:
     timings: dict[str, float]
     status: str = "ok"  # "ok" or "needs_review"
     warnings: list[dict] = field(default_factory=list)
+    mixed_pages: int = 0  # of the OCR'd pages: digital text plus large images (e.g. a pasted-in scan)
 
 
 @dataclass
@@ -98,7 +99,8 @@ class Rag:
         doc_id = self.store.add_document(pdf.name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
         ex.timings["store"] = time.perf_counter() - t
         status, warnings = self.store.document_status(doc_id)
-        return IngestResult(doc_id, pdf.name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings)
+        return IngestResult(doc_id, pdf.name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,
+                            ex.mixed_pages)
 
     def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None) -> list[RetrievedChunk]:
         """Return the ``k`` passages most relevant to ``question``, best first.

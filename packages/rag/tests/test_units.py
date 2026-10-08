@@ -49,3 +49,16 @@ def test_private_workdir_removed_on_error(tmp_path):
         (d / "partial.pdf").write_bytes(b"x")
         raise RuntimeError("OCR failed")
     assert not d.exists()
+
+
+def test_plan_ocr_scans_thin_and_mixed_pages():
+    pytest.importorskip("pypdfium2")
+    from suveryn_rag.extract import PageProfile, plan_ocr
+
+    profiles = [PageProfile(chars=2400, image_share=0.02),  # born-digital with a logo: keep
+                PageProfile(chars=0, image_share=1.0),       # plain scan: OCR
+                PageProfile(chars=15, image_share=1.0),      # scan with a copier label: OCR
+                PageProfile(chars=1800, image_share=0.18),   # digital text + pasted-in scan: OCR images
+                PageProfile(chars=1900, image_share=0.0)]    # pure text: keep
+    assert plan_ocr(profiles) == [2, 3, 4]
+    assert [p.is_mixed for p in profiles] == [False, False, False, True, False]
