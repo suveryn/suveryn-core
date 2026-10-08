@@ -1,4 +1,13 @@
-"""Async client for an OpenAI-compatible llama.cpp server (llama-server)."""
+"""Async client for an OpenAI-compatible llama.cpp server (llama-server).
+
+The model server is a separate runtime (installed by suveryn-appliance); this client only
+talks HTTP to it. Nothing here is specific to one model: Qwen3.8-27B is the default and
+Mistral Small 3.2 24B works unchanged, because the served model is read from the server.
+
+Data handling: prompts and answers pass through this client but are never logged or stored
+here. Error messages may include up to 200 characters of the backend's error body (llama-server
+error texts, e.g. "context size exceeded"), which the gateway passes on to the caller.
+"""
 
 import json
 import uuid
@@ -18,20 +27,30 @@ class BackendError(RuntimeError):
 
 @dataclass
 class BackendHealth:
+    """Result of a health probe; ``status`` is "ok", "loading", "error" or "unreachable"."""
+
     reachable: bool
-    status: str  # "ok", "loading" or "unreachable"
+    status: str
     model: str | None = None
-    detail: str | None = None
+    detail: str | None = None  # exception class or HTTP status, never request content
 
 
 @dataclass
 class StreamChunk:
+    """One parsed server-sent event from llama-server: a piece of text, the finish reason, or usage."""
+
     text: str = ""
     finish_reason: str | None = None
     usage: Usage | None = None
 
 
 class LlamaServerClient:
+    """Talks to one llama-server instance.
+
+    ``transport`` exists for tests: they inject an ``httpx.MockTransport`` instead of a real
+    server. One instance is shared by the whole gateway (it holds a connection pool).
+    """
+
     def __init__(self, settings: LLMSettings, transport: httpx.AsyncBaseTransport | None = None):
         self.settings = settings
         self._http = httpx.AsyncClient(
@@ -42,9 +61,15 @@ class LlamaServerClient:
         self._model: str | None = None
 
     async def aclose(self) -> None:
+        """Close the connection pool (called when the gateway shuts down)."""
         await self._http.aclose()
 
     async def health(self) -> BackendHealth:
+        """Probe ``/health``. Never raises: an unreachable server is a status, not an error.
+
+        llama-server answers 503 while it is still loading the model, which can take tens of
+        seconds after a start; that is reported as "loading" rather than as a failure.
+        """
         try:
             r = await self._http.get("/health", timeout=5.0)
         except httpx.HTTPError as e:
@@ -56,7 +81,11 @@ class LlamaServerClient:
         return BackendHealth(reachable=True, status="ok", model=await self.model_name())
 
     async def model_name(self) -> str:
-        """Name of the model llama-server is serving, e.g. 'Qwen3.8-27B-UD-Q4_K_M.gguf'."""
+        """Name of the model llama-server is serving, e.g. 'Qwen3.8-27B-UD-Q4_K_M.gguf'.
+
+        Cached after the first successful lookup. Falls back to ``settings.default_model`` if
+        the server can't be asked, so a response always names a model.
+        """
         if self._model is None:
             try:
                 r = await self._http.get("/v1/models", timeout=5.0)
@@ -73,7 +102,10 @@ class LlamaServerClient:
             "max_tokens": req.max_tokens,
             "temperature": req.temperature,
             "stream": stream,
-            # Reuse the cached prompt prefix across turns (document text first, question last).
+            # Reuse the cached prompt prefix across turns: a follow-up question on the same
+            # document was ~6x faster in the benchmark (document text first, question last).
+            # The cache lives in llama-server's GPU and RAM memory and contains personal data;
+            # its retention/encryption is an open design item (development context §11.5).
             "cache_prompt": True,
         }
         if stream:
@@ -81,6 +113,7 @@ class LlamaServerClient:
         return payload
 
     async def complete(self, req: ChatRequest) -> ChatResponse:
+        """Ask for a whole answer at once. Raises ``BackendError`` if the server fails."""
         try:
             r = await self._http.post("/v1/chat/completions", json=self._payload(req, stream=False))
         except httpx.HTTPError as e:
@@ -99,6 +132,12 @@ class LlamaServerClient:
         )
 
     async def stream(self, req: ChatRequest) -> AsyncIterator[StreamChunk]:
+        """Yield the answer as it is generated.
+
+        Text chunks come first; the finish reason and token usage arrive in the last events.
+        Raises ``BackendError`` on connection failures or a non-200 response, possibly after
+        some text has already been yielded; the caller must handle a partial answer.
+        """
         try:
             async with self._http.stream("POST", "/v1/chat/completions", json=self._payload(req, stream=True)) as r:
                 if r.status_code != 200:

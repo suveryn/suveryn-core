@@ -21,12 +21,14 @@ from .store import Store
 
 @dataclass
 class IngestResult:
+    """What happened to one document. ``warnings`` say where text was recovered or may be missing."""
+
     document_id: uuid.UUID
     filename: str
     pages: int
     ocr_pages: int
     chunks: int
-    already_present: bool
+    already_present: bool  # the same file (by SHA-256) was ingested before; nothing was redone
     timings: dict[str, float]
     status: str = "ok"  # "ok" or "needs_review"
     warnings: list[dict] = field(default_factory=list)
@@ -34,12 +36,15 @@ class IngestResult:
 
 @dataclass
 class RetrievedChunk:
+    """One search hit: the passage as a citation, its fused rank score and the document's file name."""
+
     citation: Citation
-    score: float
+    score: float  # only meaningful for ordering within one query
     filename: str
 
 
 def sha256_of(path: Path) -> str:
+    """Content hash used to recognise a document that was already ingested."""
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
@@ -48,6 +53,14 @@ def sha256_of(path: Path) -> str:
 
 
 class Rag:
+    """Entry point for ingestion and retrieval.
+
+    Loads the embedding model (and, unless ``load_extractor=False``, Docling and the chunker
+    tokenizer) on construction; that takes ~20-40 s, so create one instance per process and
+    reuse it. Retrieval-only processes pass ``load_extractor=False`` to skip Docling.
+    Not thread-safe for ingestion (see ``Extractor``).
+    """
+
     def __init__(self, settings: RagSettings | None = None, *, load_extractor: bool = True):
         self.settings = settings or RagSettings.from_env()
         self.embedder = Embedder(self.settings.embedding_model, self.settings.device)
@@ -56,9 +69,17 @@ class Rag:
         self._chunker = Chunker(self.settings.embedding_model, self.settings.chunk_max_tokens) if load_extractor else None
 
     def close(self) -> None:
+        """Close the database connection."""
         self.store.close()
 
     def ingest(self, pdf: Path) -> IngestResult:
+        """Extract, chunk, embed and store one PDF; return its id, status and warnings.
+
+        Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
+        again. The document is stored in one transaction, so a failure leaves nothing behind.
+        A ``needs_review`` status means text may be missing (see ``integrity``); the document is
+        still stored and searchable.
+        """
         pdf = Path(pdf)
         digest = sha256_of(pdf)
         existing = self.store.find_by_sha256(digest)
@@ -80,6 +101,14 @@ class Rag:
         return IngestResult(doc_id, pdf.name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings)
 
     def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None) -> list[RetrievedChunk]:
+        """Return the ``k`` passages most relevant to ``question``, best first.
+
+        ``document_id`` restricts the search to one document. ``source.page`` is the first page
+        of the passage; ``source.location`` gives the full page range and section heading.
+        Callers that generate answers should pass several hits to the model, not only the
+        first: on real deeds the right passage was at #1 for 15 of 19 questions and in the
+        top 3 for all 19.
+        """
         query = self.embedder.embed([question])[0]
         return [
             RetrievedChunk(
@@ -91,4 +120,9 @@ class Rag:
         ]
 
     def forget(self, document_id: uuid.UUID) -> bool:
+        """Delete a document and all its chunks. Returns False if it didn't exist.
+
+        PostgreSQL keeps deleted rows on disk until vacuumed (and in its write-ahead log for a
+        while); see ``Store.delete_document``.
+        """
         return self.store.delete_document(document_id)

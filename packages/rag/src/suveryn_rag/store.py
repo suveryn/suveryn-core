@@ -29,6 +29,7 @@ MAX_TERM_SHARE = 0.2  # keyword terms found in more than this share of chunks ar
 
 
 def schema_sql(dim: int) -> str:
+    """Idempotent DDL: creates the tables and indexes, and adds columns introduced later (ADD COLUMN IF NOT EXISTS)."""
     return f"""
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS documents (
@@ -62,6 +63,8 @@ CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 
 @dataclass
 class StoredChunk:
+    """One search hit as read from the database."""
+
     document_id: uuid.UUID
     filename: str
     chunk_index: int
@@ -75,6 +78,12 @@ class StoredChunk:
 
 
 class Store:
+    """One database connection (autocommit; explicit transactions where several writes belong together).
+
+    Creates or upgrades its tables on connect, so it needs CREATE rights on the database. The
+    pgvector extension must be available on the server (installed by suveryn-appliance).
+    """
+
     def __init__(self, database_url: str, dim: int):
         if not database_url:
             raise ValueError("SUVERYN_DATABASE_URL is not set")
@@ -84,14 +93,22 @@ class Store:
         self._conn.execute(schema_sql(dim))
 
     def close(self) -> None:
+        """Close the database connection."""
         self._conn.close()
 
     def find_by_sha256(self, sha256: str) -> uuid.UUID | None:
+        """Id of the document with this content hash, if it was ingested before."""
         row = self._conn.execute("SELECT id FROM documents WHERE sha256 = %s", (sha256,)).fetchone()
         return row[0] if row else None
 
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                      embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
+        """Store a document and its chunks in one transaction (all or nothing).
+
+        Status is ``needs_review`` if any warning means text may be missing; recovered or
+        restored text alone keeps it ``ok``. The file name is stored too and may itself be
+        personal data (e.g. a client's name).
+        """
         warnings = warnings or []
         status = "needs_review" if any(w.needs_review for w in warnings) else "ok"
         with self._conn.transaction():
@@ -110,10 +127,18 @@ class Store:
         return doc_id
 
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
+        """(status, warnings) of a stored document, or None if it doesn't exist."""
         row = self._conn.execute("SELECT status, warnings FROM documents WHERE id = %s", (document_id,)).fetchone()
         return (row[0], row[1]) if row else None
 
     def delete_document(self, document_id: uuid.UUID) -> bool:
+        """Delete a document; its chunks go with it (ON DELETE CASCADE).
+
+        Review note: this makes the text unreachable, not unrecoverable. PostgreSQL keeps dead
+        rows in the table files until VACUUM rewrites them, and changes stay in the write-ahead
+        log for a while. Secure deletion (encryption at rest, crypto-shredding or a scheduled
+        VACUUM FULL) is an open design item (development context §11.5).
+        """
         return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
 
     def _keyword_query(self, question: str, document_id: uuid.UUID | None) -> str | None:
@@ -130,6 +155,20 @@ class Store:
 
     def search(self, query: np.ndarray, k: int, document_id: uuid.UUID | None = None,
                question: str | None = None) -> list[StoredChunk]:
+        """Hybrid search: up to ``CANDIDATES`` hits from each ranking, fused, best ``k`` returned.
+
+        A chunk's score is 1/(60 + rank) summed over the rankings it appears in, so a chunk
+        found by both rises to the top. Without ``question`` this is plain vector search.
+
+        Review notes:
+        - The SQL is assembled with f-strings, but only from constants and fixed fragments;
+          the question vector, document id, keyword query and k are always bound parameters.
+          Keyword terms are ``\\w+`` tokens (``query_terms``), also passed as parameters.
+        - With ``document_id`` set, pgvector's HNSW index filters *after* its approximate
+          search; in a large multi-document database a small document can then return fewer
+          than ``CANDIDATES`` vector hits. The keyword ranking is exact. Revisit (e.g. raise
+          ``hnsw.ef_search`` or use iterative scans) when databases grow.
+        """
         scope = "AND c.document_id = %(doc)s" if document_id else ""
         tsq = self._keyword_query(question, document_id) if question else None
         keyword_cte = (f"""kw AS (
