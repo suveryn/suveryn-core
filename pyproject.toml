@@ -1,0 +1,27 @@
+[project]
+name = "suveryn-core"
+version = "0.1.0"
+description = "Sūveryn core: engine, chat, RAG, MCP host and API gateway (uv workspace root)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "suveryn-engine",
+    "suveryn-api-gateway",
+]
+
+[tool.uv.workspace]
+members = ["packages/engine", "packages/api-gateway"]
+
+[tool.uv.sources]
+suveryn-engine = { workspace = true }
+suveryn-api-gateway = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "anyio>=4.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/engine/tests", "packages/api-gateway/tests"]
+addopts = "-q"
