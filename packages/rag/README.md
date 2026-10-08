@@ -10,8 +10,20 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
    - Docling then reads the text layer with `do_ocr=False`, running only its layout and table models on the GPU.
 2. **Chunking (`chunking.py`)** uses Docling's HybridChunker (384 tokens). Each chunk keeps the pages it comes from (`page_start`, `page_end`) and its section headings.
 3. **Embeddings (`embed.py`)** use `BAAI/bge-m3` (1024 dimensions, multilingual), in fp16 on the GPU.
-4. **Storage (`store.py`)** uses PostgreSQL with pgvector: the tables `documents` and `chunks`, with an HNSW cosine index. Deleting a document deletes its chunks.
-5. **Retrieval (`pipeline.py`)** returns the closest chunks as the engine's `Citation` objects, with `source = {document_id, page, location}`. `location` reads like `p. 3-4 · Artikel 2 - Koopprijs`.
+4. **Storage (`store.py`)** uses PostgreSQL with pgvector: the tables `documents` and `chunks`, with an HNSW cosine index and a full-text index. Deleting a document deletes its chunks.
+5. **Retrieval (`store.py`, `pipeline.py`)** is hybrid. Vector similarity is merged with PostgreSQL keyword search through Reciprocal Rank Fusion. Query words found in more than 20% of the chunks are left out of the keyword part, so specific terms ("huurachterstand", "vierde rang", "1563") outweigh boilerplate. Results come back as the engine's `Citation` objects, with `source = {document_id, page, location}`. `location` reads like `p. 3-4 · Artikel 2 - Koopprijs`.
+
+## No silent text loss (`integrity.py`)
+
+Real deeds showed that text can disappear between the PDF and the stored chunks. Three safeguards prevent that, or make it visible:
+
+| Safeguard | What it catches | Result |
+|---|---|---|
+| Completeness | Body text the chunker left out, e.g. a closing heading with nothing after it ("Voor eensluidend afschrift") | Kept as a separate chunk (`origin = text_recovered`) |
+| Footer rule | Content the layout model labelled as header/footer | Only page numbers and text that repeats on at least half the pages are dropped; the rest is kept (`origin = furniture_restored`) |
+| Page coverage | Any other loss: each page's PDF text layer is compared with the stored text for that page | Below 95% of the page's words: a `page_coverage_low` warning, and status `needs_review` |
+
+Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings` (page, kind, detail). `suveryn-ingest` prints both.
 
 PostgreSQL and pgvector are provisioned outside this repository (by `suveryn-appliance`). This package only connects to them, and creates its own tables.
 
@@ -48,4 +60,12 @@ Settings come from environment variables:
 SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 ```
 
-The pgvector test is skipped without a database. All rag tests are skipped where this package is not installed (plain `uv sync` installs only the gateway).
+- `test_integrity.py` and `test_units.py` are fast unit tests.
+- `test_store.py` checks storage and search against a real pgvector database.
+- `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It runs that deed through the full pipeline, born-digital and as a scan. It requires:
+  - no lost text, and dropped furniture
+  - an intact cadastral reference
+  - the right passage with the right page in the top 5 for every question, and the buried arrears in the top 3
+  - an empty work directory and status `ok`
+
+The database and end-to-end tests are skipped without `SUVERYN_TEST_DATABASE_URL`. All rag tests are skipped where this package is not installed (plain `uv sync` installs only the gateway).

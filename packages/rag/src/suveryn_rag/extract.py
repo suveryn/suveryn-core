@@ -25,7 +25,18 @@ class Extraction:
     document: object  # docling_core DoclingDocument
     pages: int
     ocr_pages: int
+    # Per-page text of the PDF text layer Docling read (OCR output for scans), kept in memory
+    # only, for the page coverage check.
+    page_texts: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
+
+
+def text_layer(pdf: Path) -> list[str]:
+    doc = pdfium.PdfDocument(str(pdf))
+    try:
+        return [doc[i].get_textpage().get_text_range() for i in range(len(doc))]
+    finally:
+        doc.close()
 
 
 def pages_with_text(pdf: Path) -> list[bool]:
@@ -68,4 +79,6 @@ class Extractor:
             t = time.perf_counter()
             document = self._converter.convert(source).document
             timings["layout"] = time.perf_counter() - t
-        return Extraction(document=document, pages=len(has_text), ocr_pages=ocr_pages, timings=timings)
+            page_texts = text_layer(source)
+        return Extraction(document=document, pages=len(has_text), ocr_pages=ocr_pages, page_texts=page_texts,
+                          timings=timings)

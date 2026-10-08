@@ -7,7 +7,7 @@ into ``ChatResponse.citations`` with ``source`` filled in (document, page, locat
 import hashlib
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from suveryn_engine import Citation, SourceRef
@@ -28,6 +28,8 @@ class IngestResult:
     chunks: int
     already_present: bool
     timings: dict[str, float]
+    status: str = "ok"  # "ok" or "needs_review"
+    warnings: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -61,18 +63,21 @@ class Rag:
         digest = sha256_of(pdf)
         existing = self.store.find_by_sha256(digest)
         if existing:
-            return IngestResult(existing, pdf.name, 0, 0, 0, True, {})
+            status, warnings = self.store.document_status(existing)
+            return IngestResult(existing, pdf.name, 0, 0, 0, True, {}, status, warnings)
         ex = self._extractor.extract(pdf)
         t = time.perf_counter()
-        chunks = self._chunker.chunk(ex.document)
+        result = self._chunker.chunk(ex.document, ex.page_texts)
+        chunks = result.chunks
         ex.timings["chunk"] = time.perf_counter() - t
         t = time.perf_counter()
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()
-        doc_id = self.store.add_document(pdf.name, digest, ex.pages, ex.ocr_pages, chunks, vectors)
+        doc_id = self.store.add_document(pdf.name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
         ex.timings["store"] = time.perf_counter() - t
-        return IngestResult(doc_id, pdf.name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings)
+        status, warnings = self.store.document_status(doc_id)
+        return IngestResult(doc_id, pdf.name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings)
 
     def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None) -> list[RetrievedChunk]:
         query = self.embedder.embed([question])[0]
@@ -82,7 +87,7 @@ class Rag:
                     document_id=str(r.document_id), page=r.page_start,
                     location=location_label(r.page_start, r.page_end, r.headings))),
                 score=r.score, filename=r.filename)
-            for r in self.store.search(query, k, document_id)
+            for r in self.store.search(query, k, document_id, question=question)
         ]
 
     def forget(self, document_id: uuid.UUID) -> bool:
