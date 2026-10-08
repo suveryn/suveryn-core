@@ -4,6 +4,7 @@ No auth, RAG or document handling yet. Those come in later slices.
 """
 
 import json
+import os
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -41,7 +42,12 @@ def create_app(client: LlamaServerClient | None = None) -> FastAPI:
         yield
         await app.state.llm.aclose()
 
-    app = FastAPI(title="Sūveryn API", version="0.1.0", lifespan=lifespan)
+    # FastAPI's /docs and /redoc pages load scripts, styles and fonts from public CDNs, which breaks
+    # air-gapped installs and contacts third parties. Off unless explicitly enabled for development.
+    # The OpenAPI schema itself (/openapi.json) is served locally and stays available.
+    docs = os.environ.get("SUVERYN_API_DOCS") == "1"
+    app = FastAPI(title="Sūveryn API", version="0.1.0", lifespan=lifespan,
+                  docs_url="/docs" if docs else None, redoc_url=None)
 
     @app.get("/health", response_model=HealthResponse,
              responses={503: {"model": HealthResponse, "description": "Model backend not ready"}})

@@ -92,6 +92,13 @@ def test_empty_messages_rejected(make_client):
         assert c.post("/v1/chat", json={"messages": []}).status_code == 422
 
 
+def test_no_cdn_docs_pages_by_default(make_client):
+    with make_client(fake_backend()) as c:
+        assert c.get("/docs").status_code == 404
+        assert c.get("/redoc").status_code == 404
+        assert c.get("/openapi.json").status_code == 200
+
+
 def test_health_ok(make_client):
     with make_client(fake_backend()) as c:
         r = c.get("/health")
