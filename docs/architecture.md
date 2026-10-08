@@ -30,7 +30,8 @@ The chat endpoint does not use retrieval yet. Connecting the two, and checking a
                        ┌──────────────────────── packages/rag ────────────────────────┐
 PDF ──► extract.py ──► chunking.py + integrity.py ──► embed.py ──► store.py (PostgreSQL + pgvector)
         │ ocr_fast: OCR    │ HybridChunker, page numbers,     │ bge-m3      │ documents, chunks,
-        │ pages <50 chars, │ headings; completeness, footer   │ 1024-dim    │ HNSW + full-text index
+        │ pages <50 chars  │ headings; completeness, footer   │ 1024-dim    │ HNSW + full-text index
+        │ or ≥10% images,  │
         │ OCRmyPDF in      │ rule, page coverage → status     │             │
         │ parallel, Docling│ and warnings                     │             ▼
         │ layout on GPU    │                                  │      pipeline.retrieve(question)
@@ -79,7 +80,8 @@ Reviewers: check changes against these.
 | Python backend, FastAPI, uv workspace | Development context §3; the validated document pipeline is Python-native |
 | Qwen3.8-27B default, Mistral Small 3.2 24B as the faster alternative; nothing model-specific in code | Benchmark: Qwen made fewer legal errors on real deeds; Mistral is 20–40% faster |
 | `ocr_fast`: skip text pages, OCRmyPDF in parallel, Docling on the text layer | Benchmark: 3.7–8× faster than Docling calling Tesseract per page |
-| OCR every page with less than 50 characters of text (`force_ocr` on those pages only), not OCRmyPDF's `skip_text` | `skip_text` skips a scanned page that carries a thin digital label (copier, e-stamp); its content was lost. Covered by the `scanned-thin-text` regression variant |
+| OCR every page with less than 50 characters of text, not OCRmyPDF's `skip_text` | `skip_text` skips a scanned page that carries a thin digital label (copier, e-stamp); its content was lost. Covered by the `scanned-thin-text` regression variant |
+| Also OCR born-digital pages whose raster images cover at least 10% of the page, with `redo_ocr` (keeps digital text, reads only the images) | A pasted-in scan's text was never read. Covered by the trap deed's pasted-in soil report; logos/signatures/stamps cover 1–5% (real deed: 2.6%), so they don't trigger OCR |
 | bge-m3 embeddings | Multilingual (Dutch, French, English), as Belgian deeds are |
 | 384-token chunks with page provenance | Citations must point at a specific passage and page |
 | Hybrid retrieval (vector + full-text, RRF), very common query words ignored | Real deeds: right passage at #1 went from 12/19 to 15/19, top 3 from 17/19 to 19/19; a buried tenant arrears went from #9 to #1 |
@@ -91,7 +93,7 @@ Reviewers: check changes against these.
 
 | Limitation | Impact | Planned |
 |---|---|---|
-| A page with a substantial digital text layer *and* a scanned image with other text (e.g. a born-digital page with a pasted-in scan) counts as born-digital | The text inside the image is not read | Detect large images on text pages and OCR those regions |
+| Text inside small images (under 10% of the page) on born-digital pages is not read, e.g. a stamp image bearing the notary's name | Small amounts of text can be missing; the page coverage check can't see it (the text was never in the text layer) | Lower the threshold per document type once real deeds show what's needed (real born-digital deed: one 2.6% image, page 8) |
 | Identifiers are not validated (amounts in words vs figures, check digits, cadastral pattern) | A garbled number would be stored and cited as is | Design point 3 (entities table) |
 | Model answers are not checked against sources | The model can misspell names or miscalculate (seen in the benchmark) | Slice 3: answer check, "unverified" marking |
 | Deleted documents remain recoverable until VACUUM | Weak deletion guarantee | Crypto-shredding with encryption at rest (§11.5) |
@@ -110,7 +112,7 @@ Reviewers: check changes against these.
 ## 8. Review checklist
 
 - [ ] Does the change keep the invariants in §4? Especially no temp files outside `private_workdir`, no document text in logs, and bound SQL parameters.
-- [ ] If it touches extraction or chunking: does `test_e2e.py` still pass in all three variants (born-digital, scanned, scanned with a thin text layer)?
+- [ ] If it touches extraction or chunking: does `test_e2e.py` still pass in all three variants (born-digital with a pasted-in scan, scanned, scanned with a thin text layer)?
 - [ ] If it changes retrieval: are hit@1/3/5 and page accuracy on the regression set at least as good as before?
 - [ ] Does anything new reach the network at runtime?
 - [ ] Is every new place where document text is stored listed in §3?

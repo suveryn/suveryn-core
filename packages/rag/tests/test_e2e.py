@@ -4,7 +4,8 @@ Docling/bge-m3. The scanned variants also need poppler (pdf2image): a plain scan
 pages carry a short digital label ("thin" text layer) that must not stop OCR.
 
 Quality bar:
-- every page of a scan is OCR'd, also under a thin digital text layer;
+- every page of a scan is OCR'd, also under a thin digital text layer; in the born-digital
+  deed exactly the page with the pasted-in scan, and its text is read;
 - no text lost: the closing heading and the footer-area content line are stored;
 - real furniture dropped: the running header and page numbers are not in any chunk;
 - the cadastral reference comes through intact;
@@ -63,8 +64,9 @@ def test_trap_deed(rag, tmp_path, kind):
     true_pages = text_layer(found["born-digital"])  # page truth from the generated text
     r = rag.ingest(pdf)
     try:
-        # Every page of a scan must be OCR'd, also when a thin digital label sits on top of it.
-        assert r.ocr_pages == (0 if kind == "born-digital" else r.pages), f"{kind}: {r.ocr_pages}/{r.pages} pages OCR'd"
+        # Every page of a scan must be OCR'd, also when a thin digital label sits on top of it;
+        # in the born-digital deed only the page with the pasted-in scan.
+        assert r.ocr_pages == (1 if kind == "born-digital" else r.pages), f"{kind}: {r.ocr_pages}/{r.pages} pages OCR'd"
         rows = rag.store._conn.execute(
             "SELECT text, page_start, page_end, headings, origin FROM chunks WHERE document_id = %s", (r.document_id,)
         ).fetchall()
@@ -75,13 +77,16 @@ def test_trap_deed(rag, tmp_path, kind):
         assert norm("Kenmerk TST/2026/0042") not in stored, "running header not dropped"
         assert not any(re.fullmatch(r"\s*pagina \d+\s*", norm(t)) for t, *_ in rows), "page number stored as a chunk"
         assert re.search(r"sectie k, nummer 4182", stored), "cadastral reference garbled"
+        assert "minerale olie" in stored, "text of the pasted-in scan not read"
+        assert norm(trap_deed.PASTED_SCAN_HEADING) in stored, "digital text on the mixed page lost"
         assert all(ps is not None for _, ps, *_ in rows), "chunk without page number"
         assert r.status == "ok", f"document flagged: {r.warnings}"
         assert not any(rag.settings.work_dir.rglob("*")), "files left in the work directory"
 
         for item in trap_deed.QUESTIONS:
             expect = norm(item["expect"])
-            pages = [p for p, text in enumerate(true_pages, 1) if expect in norm(text)]
+            anchor = norm(item.get("page_anchor", item["expect"]))
+            pages = [p for p, text in enumerate(true_pages, 1) if anchor in norm(text)]
             hits = rag.retrieve(item["q"], k=5, document_id=r.document_id)
             rank = next((i for i, h in enumerate(hits, 1) if expect in norm(h.citation.text)), None)
             assert rank, f"{kind}: no passage with {item['expect']!r} in top 5 for {item['q']!r}"

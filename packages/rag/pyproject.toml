@@ -7,7 +7,7 @@ dependencies = [
     "suveryn-engine",
     "docling>=2.40",
     "ocrmypdf>=16.0",
-    "pypdfium2>=4.30",
+    "pypdfium2>=5.0",
     "sentence-transformers>=3.0",
     "psycopg[binary]>=3.2",
     "pgvector>=0.3",
