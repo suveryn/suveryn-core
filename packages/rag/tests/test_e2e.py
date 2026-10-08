@@ -1,8 +1,10 @@
 """End-to-end regression test with planted traps (see trap_deed.py). Runs on the GPU machine:
 needs suveryn-rag installed (uv sync --all-packages), a database (SUVERYN_TEST_DATABASE_URL) and
-Docling/bge-m3. The scanned variant also needs poppler (pdf2image).
+Docling/bge-m3. The scanned variants also need poppler (pdf2image): a plain scan, and a scan whose
+pages carry a short digital label ("thin" text layer) that must not stop OCR.
 
 Quality bar:
+- every page of a scan is OCR'd, also under a thin digital text layer;
 - no text lost: the closing heading and the footer-area content line are stored;
 - real furniture dropped: the running header and page numbers are not in any chunk;
 - the cadastral reference comes through intact;
@@ -48,18 +50,21 @@ def variants(tmp_path):
     out = [("born-digital", born)]
     if shutil.which("pdftoppm"):
         out.append(("scanned", trap_deed.scanned(born, tmp_path / "trap_scan.pdf")))
+        out.append(("scanned-thin-text", trap_deed.scanned_with_label(born, tmp_path / "trap_thin.pdf")))
     return out
 
 
-@pytest.mark.parametrize("kind", ["born-digital", "scanned"])
+@pytest.mark.parametrize("kind", ["born-digital", "scanned", "scanned-thin-text"])
 def test_trap_deed(rag, tmp_path, kind):
     found = dict(variants(tmp_path))
     if kind not in found:
-        pytest.skip("pdftoppm not available for the scanned variant")
+        pytest.skip("pdftoppm not available for the scanned variants")
     pdf = found[kind]
     true_pages = text_layer(found["born-digital"])  # page truth from the generated text
     r = rag.ingest(pdf)
     try:
+        # Every page of a scan must be OCR'd, also when a thin digital label sits on top of it.
+        assert r.ocr_pages == (0 if kind == "born-digital" else r.pages), f"{kind}: {r.ocr_pages}/{r.pages} pages OCR'd"
         rows = rag.store._conn.execute(
             "SELECT text, page_start, page_end, headings, origin FROM chunks WHERE document_id = %s", (r.document_id,)
         ).fetchall()

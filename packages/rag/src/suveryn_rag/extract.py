@@ -1,19 +1,21 @@
 """Text extraction with the `ocr_fast` approach from the October 2026 benchmark.
 
-1. Pages that already have a text layer (born-digital PDFs) are not OCR'd.
-2. Scanned pages are OCR'd in parallel across CPU cores by OCRmyPDF (one Tesseract process
-   per page), producing a searchable PDF in a private work directory.
+1. Pages with a usable text layer (born-digital, at least MIN_TEXT_CHARS characters) are not
+   OCR'd; their exact text is kept.
+2. Every other page is OCR'd in parallel across CPU cores by OCRmyPDF (one Tesseract process
+   per page), producing a searchable PDF in a private work directory. This includes "thin"
+   pages: scans that carry a few words of digital text, such as a copier label or a digital
+   stamp. They are OCR'd completely (``force_ocr``, rendered to an image first), because
+   OCRmyPDF's own ``skip_text`` would skip any page with *any* text and the scanned content
+   would be lost. Selected pages only (``pages``); the rest of the file is passed through.
 3. Docling reads that text layer (do_ocr=False) and runs only its GPU layout/table models.
 
 This was 3.7-8x faster than letting Docling call Tesseract page by page (38-page scanned
 report: 90 s -> 25 s on 8 cores).
 
-Known limitation (review): the decision which pages get OCR'd is OCRmyPDF's ``skip_text``,
-which skips every page that has *any* text layer. A scanned page that carries a few words of
-digital text (e.g. a copier label or digital stamp) is therefore not OCR'd, and its scanned
-content is missing; the page coverage check can't see this, because it compares against that
-same thin text layer. ``pages_with_text`` already identifies such pages (< MIN_TEXT_CHARS);
-OCR'ing them selectively is a planned fix.
+Remaining limitation (review): a page with a substantial digital text layer *and* a scanned
+image carrying other text (e.g. a born-digital page with a pasted-in scan) is treated as
+born-digital, so the text inside the image is not read.
 """
 
 import time
@@ -87,22 +89,24 @@ class Extractor:
 
         t0 = time.perf_counter()
         has_text = pages_with_text(pdf)
-        ocr_pages = len(has_text) - sum(has_text)
+        to_ocr = [i + 1 for i, ok in enumerate(has_text) if not ok]  # 1-based, as OCRmyPDF expects
         timings = {"classify": time.perf_counter() - t0}
         with private_workdir(self.settings.work_dir) as work:
             source = pdf
-            if ocr_pages:
+            if to_ocr:
                 t = time.perf_counter()
                 source = work / "searchable.pdf"
-                # skip_text: leave pages with a text layer alone (see the module docstring for the
-                # limitation); output_type="pdf" and optimize=0 skip slow PDF/A conversion and
-                # image recompression, which the pipeline doesn't need.
+                # pages + force_ocr: OCR exactly the pages without a usable text layer, including
+                # thin ones (see module docstring), and pass all other pages through untouched.
+                # output_type="pdf" and optimize=0 skip slow PDF/A conversion and image
+                # recompression, which the pipeline doesn't need.
                 ocrmypdf.ocr(pdf, source, language=self.settings.ocr_languages.split("+"), jobs=self.settings.ocr_jobs,
-                             skip_text=True, output_type="pdf", optimize=0, progress_bar=False, tesseract_timeout=180)
+                             pages=",".join(map(str, to_ocr)), force_ocr=True, output_type="pdf", optimize=0,
+                             progress_bar=False, tesseract_timeout=180)
                 timings["ocr"] = time.perf_counter() - t
             t = time.perf_counter()
             document = self._converter.convert(source).document
             timings["layout"] = time.perf_counter() - t
             page_texts = text_layer(source)
-        return Extraction(document=document, pages=len(has_text), ocr_pages=ocr_pages, page_texts=page_texts,
+        return Extraction(document=document, pages=len(has_text), ocr_pages=len(to_ocr), page_texts=page_texts,
                           timings=timings)
