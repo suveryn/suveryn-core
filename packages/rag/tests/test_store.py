@@ -30,7 +30,8 @@ def test_add_search_and_forget():
         hits = store.search(unit(2), k=2, document_id=doc)
         top = hits[0]
         assert top.chunk_index == 2
-        assert (top.page_start, top.headings, round(top.score, 3)) == (3, ["Artikel 2"], 1.0)
+        assert (top.page_start, top.headings, top.origin, round(top.similarity, 3)) == (3, ["Artikel 2"], "chunker", 1.0)
+        assert store.document_status(doc) == ("ok", [])
     finally:
         assert store.delete_document(doc)
         assert store.search(unit(2), k=5, document_id=doc) == []

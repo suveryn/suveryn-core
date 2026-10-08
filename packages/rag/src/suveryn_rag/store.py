@@ -1,9 +1,18 @@
-"""PostgreSQL + pgvector storage for documents and their chunks.
+"""PostgreSQL + pgvector storage for documents and their chunks, with hybrid retrieval.
 
 PostgreSQL itself is provisioned outside suveryn-core (suveryn-appliance); this module only
-connects to it and creates its own tables if they don't exist yet.
+connects to it and creates or upgrades its own tables.
+
+Retrieval combines two rankings with Reciprocal Rank Fusion:
+- vector similarity (bge-m3 embeddings, HNSW index), good at meaning and paraphrase;
+- keyword match (PostgreSQL full-text, 'simple' configuration so Dutch, French and English
+  words and numbers are matched as written), good at exact terms such as "huurachterstand",
+  "vierde rang" or "1563" that the vector ranking can bury under boilerplate.
+Query words that occur in a large share of the chunks are left out of the keyword query, so
+common words don't drown out the rare, specific ones.
 """
 
+import json
 import uuid
 from dataclasses import dataclass
 
@@ -12,6 +21,11 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from .chunking import Chunk
+from .integrity import IntegrityWarning, query_terms
+
+RRF_K = 60            # standard Reciprocal Rank Fusion constant
+CANDIDATES = 30       # candidates taken from each ranking before fusion
+MAX_TERM_SHARE = 0.2  # keyword terms found in more than this share of chunks are ignored
 
 
 def schema_sql(dim: int) -> str:
@@ -25,6 +39,8 @@ CREATE TABLE IF NOT EXISTS documents (
     ocr_pages   integer NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'ok';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS warnings jsonb NOT NULL DEFAULT '[]';
 CREATE TABLE IF NOT EXISTS chunks (
     id           bigserial PRIMARY KEY,
     document_id  uuid NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -36,8 +52,11 @@ CREATE TABLE IF NOT EXISTS chunks (
     embedding    vector({dim}) NOT NULL,
     UNIQUE (document_id, chunk_index)
 );
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'chunker';
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
 CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 """
 
 
@@ -50,7 +69,9 @@ class StoredChunk:
     page_start: int | None
     page_end: int | None
     headings: list[str]
-    score: float  # cosine similarity, 1.0 = identical direction
+    origin: str
+    score: float       # fused rank score (higher is better), only comparable within one query
+    similarity: float  # cosine similarity to the question, 1.0 = identical direction
 
 
 class Store:
@@ -69,29 +90,69 @@ class Store:
         row = self._conn.execute("SELECT id FROM documents WHERE sha256 = %s", (sha256,)).fetchone()
         return row[0] if row else None
 
-    def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int,
-                     chunks: list[Chunk], embeddings: np.ndarray) -> uuid.UUID:
+    def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
+                     embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
+        warnings = warnings or []
+        status = "needs_review" if any(w.needs_review for w in warnings) else "ok"
         with self._conn.transaction():
             doc_id = self._conn.execute(
-                "INSERT INTO documents (filename, sha256, pages, ocr_pages) VALUES (%s, %s, %s, %s) RETURNING id",
-                (filename, sha256, pages, ocr_pages)).fetchone()[0]
+                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings)"
+                " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                (filename, sha256, pages, ocr_pages, status,
+                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]))).fetchone()[0]
             with self._conn.cursor() as cur:
                 cur.executemany(
-                    "INSERT INTO chunks (document_id, chunk_index, text, page_start, page_end, headings, embedding)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    [(doc_id, c.index, c.text, c.page_start, c.page_end, c.headings, e)
+                    "INSERT INTO chunks (document_id, chunk_index, text, page_start, page_end, headings, origin,"
+                    " embedding, tsv) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, to_tsvector('simple', %s))",
+                    [(doc_id, c.index, c.text, c.page_start, c.page_end, c.headings, c.origin, e,
+                      c.text + " " + " ".join(c.headings))
                      for c, e in zip(chunks, embeddings, strict=True)])
         return doc_id
+
+    def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
+        row = self._conn.execute("SELECT status, warnings FROM documents WHERE id = %s", (document_id,)).fetchone()
+        return (row[0], row[1]) if row else None
 
     def delete_document(self, document_id: uuid.UUID) -> bool:
         return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
 
-    def search(self, query: np.ndarray, k: int, document_id: uuid.UUID | None = None) -> list[StoredChunk]:
-        where, params = ("WHERE c.document_id = %s", [document_id]) if document_id else ("", [])
-        rows = self._conn.execute(
-            f"SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings,"
-            f"       1 - (c.embedding <=> %s) AS score"
-            f"  FROM chunks c JOIN documents d ON d.id = c.document_id {where}"
-            f" ORDER BY c.embedding <=> %s LIMIT %s",
-            [query, *params, query, k]).fetchall()
-        return [StoredChunk(*r[:6], list(r[6] or []), float(r[7])) for r in rows]
+    def _keyword_query(self, question: str, document_id: uuid.UUID | None) -> str | None:
+        """OR-query of the question's specific terms, leaving out terms that occur in many chunks."""
+        terms = query_terms(question)
+        if not terms:
+            return None
+        scope, params = ("WHERE document_id = %s", [document_id]) if document_id else ("", [])
+        counts = ", ".join("count(*) FILTER (WHERE tsv @@ to_tsquery('simple', %s))" for _ in terms)
+        row = self._conn.execute(f"SELECT count(*), {counts} FROM chunks {scope}", [*terms, *params]).fetchone()
+        total, shares = row[0], row[1:]
+        kept = [t for t, n in zip(terms, shares) if total and 0 < n <= max(1, MAX_TERM_SHARE * total)]
+        return " | ".join(kept) or None
+
+    def search(self, query: np.ndarray, k: int, document_id: uuid.UUID | None = None,
+               question: str | None = None) -> list[StoredChunk]:
+        scope = "AND c.document_id = %(doc)s" if document_id else ""
+        tsq = self._keyword_query(question, document_id) if question else None
+        keyword_cte = (f"""kw AS (
+              SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
+                FROM chunks c, to_tsquery('simple', %(tsq)s) q
+               WHERE c.tsv @@ q {scope}
+               ORDER BY ts_rank_cd(c.tsv, q) DESC LIMIT {CANDIDATES})"""
+                       if tsq else "kw AS (SELECT NULL::bigint AS id, NULL::bigint AS r WHERE false)")
+        rows = self._conn.execute(f"""
+            WITH vec AS (
+              SELECT c.id, row_number() OVER (ORDER BY c.embedding <=> %(q)s) AS r
+                FROM chunks c WHERE true {scope}
+               ORDER BY c.embedding <=> %(q)s LIMIT {CANDIDATES}),
+            {keyword_cte}
+            SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
+                   COALESCE(1.0 / ({RRF_K} + vec.r), 0) + COALESCE(1.0 / ({RRF_K} + kw.r), 0) AS score,
+                   1 - (c.embedding <=> %(q)s) AS similarity
+              FROM chunks c
+              JOIN documents d ON d.id = c.document_id
+              LEFT JOIN vec ON vec.id = c.id
+              LEFT JOIN kw ON kw.id = c.id
+             WHERE vec.id IS NOT NULL OR kw.id IS NOT NULL
+             ORDER BY score DESC, similarity DESC
+             LIMIT %(k)s""", {"q": query, "doc": document_id, "tsq": tsq, "k": k}).fetchall()
+        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
+                for r in rows]

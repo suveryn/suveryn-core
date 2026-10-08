@@ -21,6 +21,8 @@ suveryn-rag = { workspace = true }
 dev = [
     "pytest>=8.3",
     "anyio>=4.6",
+    "reportlab>=4.0",
+    "pdf2image>=1.17",
 ]
 
 [tool.pytest.ini_options]
