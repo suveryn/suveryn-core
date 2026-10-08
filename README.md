@@ -33,6 +33,8 @@ Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) works
    uv run suveryn-gateway
    ```
    It listens on `http://127.0.0.1:8000`. Settings come from environment variables: `SUVERYN_LLM_BASE_URL` (default `http://127.0.0.1:8080`), `SUVERYN_HOST`, `SUVERYN_PORT`, `SUVERYN_LLM_TIMEOUT_S`.
+
+   The interactive API pages (`/docs`, `/redoc`) are off by default, because FastAPI loads them from public CDNs, which doesn't work air-gapped and contacts third parties. Set `SUVERYN_API_DOCS=1` to turn on `/docs` on a connected development machine. The schema at `/openapi.json` is always available and is served locally.
 4. Run the tests (no GPU needed; they use a fake backend):
    ```bash
    uv run pytest
