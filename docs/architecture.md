@@ -29,8 +29,8 @@ The chat endpoint does not use retrieval yet. Connecting the two, and checking a
 ```
                        ┌──────────────────────── packages/rag ────────────────────────┐
 PDF ──► extract.py ──► chunking.py + integrity.py ──► embed.py ──► store.py (PostgreSQL + pgvector)
-        │ ocr_fast:        │ HybridChunker, page numbers,     │ bge-m3      │ documents, chunks,
-        │ skip text pages, │ headings; completeness, footer   │ 1024-dim    │ HNSW + full-text index
+        │ ocr_fast: OCR    │ HybridChunker, page numbers,     │ bge-m3      │ documents, chunks,
+        │ pages <50 chars, │ headings; completeness, footer   │ 1024-dim    │ HNSW + full-text index
         │ OCRmyPDF in      │ rule, page coverage → status     │             │
         │ parallel, Docling│ and warnings                     │             ▼
         │ layout on GPU    │                                  │      pipeline.retrieve(question)
@@ -79,6 +79,7 @@ Reviewers: check changes against these.
 | Python backend, FastAPI, uv workspace | Development context §3; the validated document pipeline is Python-native |
 | Qwen3.8-27B default, Mistral Small 3.2 24B as the faster alternative; nothing model-specific in code | Benchmark: Qwen made fewer legal errors on real deeds; Mistral is 20–40% faster |
 | `ocr_fast`: skip text pages, OCRmyPDF in parallel, Docling on the text layer | Benchmark: 3.7–8× faster than Docling calling Tesseract per page |
+| OCR every page with less than 50 characters of text (`force_ocr` on those pages only), not OCRmyPDF's `skip_text` | `skip_text` skips a scanned page that carries a thin digital label (copier, e-stamp); its content was lost. Covered by the `scanned-thin-text` regression variant |
 | bge-m3 embeddings | Multilingual (Dutch, French, English), as Belgian deeds are |
 | 384-token chunks with page provenance | Citations must point at a specific passage and page |
 | Hybrid retrieval (vector + full-text, RRF), very common query words ignored | Real deeds: right passage at #1 went from 12/19 to 15/19, top 3 from 17/19 to 19/19; a buried tenant arrears went from #9 to #1 |
@@ -90,7 +91,7 @@ Reviewers: check changes against these.
 
 | Limitation | Impact | Planned |
 |---|---|---|
-| Scanned pages that carry a few words of digital text (copier label, digital stamp) are not OCR'd: OCRmyPDF `skip_text` skips any page with a text layer | That page's scanned content is missing, and the page coverage check can't see it | OCR pages with less than `MIN_TEXT_CHARS` selectively |
+| A page with a substantial digital text layer *and* a scanned image with other text (e.g. a born-digital page with a pasted-in scan) counts as born-digital | The text inside the image is not read | Detect large images on text pages and OCR those regions |
 | Identifiers are not validated (amounts in words vs figures, check digits, cadastral pattern) | A garbled number would be stored and cited as is | Design point 3 (entities table) |
 | Model answers are not checked against sources | The model can misspell names or miscalculate (seen in the benchmark) | Slice 3: answer check, "unverified" marking |
 | Deleted documents remain recoverable until VACUUM | Weak deletion guarantee | Crypto-shredding with encryption at rest (§11.5) |
@@ -101,7 +102,7 @@ Reviewers: check changes against these.
 ## 7. How to verify
 
 - **Fast tests, any machine:** `uv sync && uv run pytest`. These are the gateway and engine tests; rag tests are skipped.
-- **Full tests on the GPU machine:** `uv sync --all-packages`, then `SUVERYN_TEST_DATABASE_URL=… uv run pytest`. This runs the rag units, pgvector storage and the end-to-end trap deed (`packages/rag/tests/test_e2e.py`), born-digital and scanned.
+- **Full tests on the GPU machine:** `uv sync --all-packages`, then `SUVERYN_TEST_DATABASE_URL=… uv run pytest`. This runs the rag units, pgvector storage and the end-to-end trap deed (`packages/rag/tests/test_e2e.py`) as a born-digital PDF, a scan, and a scan with a thin digital text layer.
 - **By hand:**
   - `uv run suveryn-gateway`, then `curl` against `/health` and `/v1/chat` (see the root README)
   - `uv run suveryn-ingest`, `suveryn-retrieve`, `suveryn-forget` (see `packages/rag/README.md`)
@@ -109,7 +110,7 @@ Reviewers: check changes against these.
 ## 8. Review checklist
 
 - [ ] Does the change keep the invariants in §4? Especially no temp files outside `private_workdir`, no document text in logs, and bound SQL parameters.
-- [ ] If it touches extraction or chunking: does `test_e2e.py` still pass, born-digital and scanned?
+- [ ] If it touches extraction or chunking: does `test_e2e.py` still pass in all three variants (born-digital, scanned, scanned with a thin text layer)?
 - [ ] If it changes retrieval: are hit@1/3/5 and page accuracy on the regression set at least as good as before?
 - [ ] Does anything new reach the network at runtime?
 - [ ] Is every new place where document text is stored listed in §3?
