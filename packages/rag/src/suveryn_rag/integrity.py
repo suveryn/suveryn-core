@@ -103,7 +103,7 @@ def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int
         coverage = 1 - len(missing) / len(ref)
         if coverage < COVERAGE_THRESHOLD and len(missing) >= MIN_MISSING_WORDS:
             warnings.append(IntegrityWarning(p, "page_coverage_low",
-                                    f"{coverage:.0%} of the page's words found in stored text; {len(missing)} missing"))
+                                    f"{coverage:.1%} of the page's words found in stored text; {len(missing)} missing"))
     return warnings
 
 

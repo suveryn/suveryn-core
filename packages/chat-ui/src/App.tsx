@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteDocument, getHealth, getJob, listDocuments, streamChat, uploadDocument,
+  deleteDocument, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   type Health, type Job, type StoredDocument, type WireMessage,
 } from "./api";
 import { Composer } from "./components/Composer";
@@ -58,7 +58,8 @@ export default function App() {
       }));
       const apply = (a: Attachment): Attachment => {
         const j = a.jobId ? updates.get(a.jobId) : undefined;
-        return j ? { ...a, status: j.status, documentId: j.document_id ?? undefined, error: j.error ?? undefined } : a;
+        return j ? { ...a, status: j.status, documentId: j.document_id ?? undefined, error: j.error ?? undefined,
+                     reviewPages: reviewPages(j.warnings) } : a;
       };
       setPending((p) => p.map(apply));
       setTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
@@ -100,7 +101,8 @@ export default function App() {
 
   const addDocument = (d: StoredDocument) => {
     if (pending.some((a) => a.documentId === d.id)) return;
-    setPending((p) => [...p, { key: nextId(), filename: d.filename, status: d.status === "needs_review" ? "needs_review" : "ready", documentId: d.id }]);
+    setPending((p) => [...p, { key: nextId(), filename: d.filename, status: d.status === "needs_review" ? "needs_review" : "ready",
+                               documentId: d.id, reviewPages: reviewPages(d.warnings) }]);
   };
 
   const send = async (text: string) => {

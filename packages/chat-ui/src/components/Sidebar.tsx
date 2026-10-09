@@ -1,6 +1,7 @@
 import { AlertTriangle, FileText, Loader2, Plus, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
-import type { Job, StoredDocument } from "../api";
+import { reviewPages, type Job, type StoredDocument } from "../api";
+import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 
 type Props = {
@@ -38,12 +39,15 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
           {documents.map((d) => (
             <li key={d.id} className="doc">
               <button type="button" className="doc-use" onClick={() => onUse(d)} disabled={inConversation.has(d.id)}
-                      title={inConversation.has(d.id) ? "Already in this conversation" : "Use in this conversation"}>
+                      title={inConversation.has(d.id) ? "Already in this conversation" :
+                             d.status === "needs_review" ? `Use in this conversation. ${reviewHint(reviewPages(d.warnings))}` :
+                             "Use in this conversation"}>
                 {d.status === "needs_review" ? <AlertTriangle size={15} aria-hidden /> : <FileText size={15} aria-hidden />}
                 <span className="doc-name">{d.filename}</span>
                 <span className="doc-meta">
                   {d.pages} {d.pages === 1 ? "page" : "pages"}
-                  {d.status === "needs_review" && " · check needed"}
+                  {d.status === "needs_review" &&
+                    (reviewPages(d.warnings).length ? ` · check ${pageList(reviewPages(d.warnings))}` : " · check needed")}
                   {inConversation.has(d.id) && " · in use"}
                 </span>
               </button>
