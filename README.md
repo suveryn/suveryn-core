@@ -1,4 +1,4 @@
-# sūveryn-core (AGPL-3.0)
+# sūveryn-core (AGPL-3.0-or-later)
 
 Engine, chat, RAG, MCP host, API gateway — plus bundled official connectors
 and playbooks, and the [models manifest](models/manifest.json) (metadata only; weights are never
@@ -77,3 +77,12 @@ With `"stream": true` it returns Server-Sent Events: `delta` events (`{"text": "
 **Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). See [packages/chat](packages/chat/README.md#calculations).
 
 Documents: `POST /v1/documents` (multipart PDF upload, returns a job), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `DELETE /v1/documents/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
+
+## Licence
+
+`suveryn-core` is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version: SPDX `AGPL-3.0-or-later`. The full text is in [LICENSE](LICENSE).
+
+Not covered by it:
+
+- the Sūveryn name and mark ([trademark policy](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md)); the copies in `packages/chat-ui` are explained in [its brand README](packages/chat-ui/src/brand/README.md);
+- third-party software and models, each under its own licence ([UI notices](packages/chat-ui/public/THIRD-PARTY-NOTICES.txt), [models](models/manifest.json)). On a GPU machine, PyTorch installs NVIDIA's CUDA libraries, which are proprietary and redistributed under NVIDIA's licence; see [docs/architecture.md](docs/architecture.md#5-decisions-and-their-evidence).

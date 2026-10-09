@@ -3,6 +3,7 @@ name = "suveryn-rag"
 version = "0.1.0"
 description = "Sūveryn RAG: document extraction (ocr_fast), chunking, embeddings, pgvector store and retrieval"
 requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "suveryn-engine",
     "docling>=2.40",
