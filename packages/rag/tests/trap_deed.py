@@ -58,9 +58,10 @@ def _filler(rng: random.Random, n: int) -> str:
 
 def _pasted_scan(width_pt: float, height_pt: float, font_path: str | None):
     """The soil report as a grey 300 dpi raster image, like a scanned page pasted into a document."""
-    from PIL import Image as PILImage, ImageDraw, ImageFont
+    from PIL import Image as PILImage
+    from PIL import ImageDraw, ImageFont
 
-    px = lambda pt: int(pt / 72 * 300)  # noqa: E731
+    px = lambda pt: int(pt / 72 * 300)
     img = PILImage.new("L", (px(width_pt), px(height_pt)), 248)
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype(font_path, 54) if font_path else ImageFont.load_default(size=54)

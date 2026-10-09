@@ -3,17 +3,26 @@ name = "suveryn-api-gateway"
 version = "0.1.0"
 description = "Sūveryn API gateway: HTTP surface over the engine"
 requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "suveryn-engine",
+    "suveryn-chat",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",  # file uploads (POST /v1/documents)
 ]
+
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
 
 [project.scripts]
 suveryn-gateway = "suveryn_api_gateway.main:run"
 
 [tool.uv.sources]
 suveryn-engine = { workspace = true }
+suveryn-chat = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

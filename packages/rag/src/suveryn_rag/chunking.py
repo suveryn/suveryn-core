@@ -3,7 +3,15 @@ without silently losing text (see ``integrity``)."""
 
 from dataclasses import dataclass, field
 
-from .integrity import IntegrityWarning, norm, page_coverage, split_furniture
+from .integrity import (
+    MIN_MISSING_WORDS,
+    IntegrityWarning,
+    lines_with,
+    missing_words,
+    norm,
+    page_coverage,
+    split_furniture,
+)
 
 
 @dataclass
@@ -16,7 +24,7 @@ class Chunk:
     page_start: int | None
     page_end: int | None
     headings: list[str]
-    origin: str = "chunker"  # "chunker", or "text_recovered" / "furniture_restored" (see integrity)
+    origin: str = "chunker"  # "chunker", or "text_recovered" / "furniture_restored" / "text_layer_recovered" (see integrity)
 
 
 @dataclass
@@ -53,7 +61,9 @@ class Chunker:
 
     def __init__(self, embedding_model: str, max_tokens: int):
         from docling.chunking import HybridChunker
-        from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+        from docling_core.transforms.chunker.tokenizer.huggingface import (
+            HuggingFaceTokenizer,
+        )
         from transformers import AutoTokenizer
 
         tok = HuggingFaceTokenizer(tokenizer=AutoTokenizer.from_pretrained(embedding_model), max_tokens=max_tokens)
@@ -64,7 +74,8 @@ class Chunker:
 
         ``page_texts`` is the PDF text layer per page (``Extraction.page_texts``), used as the
         independent reference for the page coverage check. Recovered text is appended as extra
-        chunks after the regular ones, so chunk order is not strictly reading order.
+        chunks after the regular ones, so chunk order is not strictly reading order;
+        ``Store.document_chunks`` restores reading order by page.
         """
         from docling_core.types.doc import ContentLayer
 
@@ -100,7 +111,19 @@ class Chunker:
                                 headings=[], origin=kind))
             warnings.append(IntegrityWarning(page, kind, f"{len(text)} characters kept as a separate chunk"))
 
-        # 3. Page coverage against the PDF text layer.
-        warnings += page_coverage(page_texts, [(c.page_start, c.page_end, c.text + " " + " ".join(c.headings))
-                                               for c in chunks], dropped)
+        # 3. Recover from the PDF text layer: lines with words that no stored text contains (e.g. table
+        #    cells the table model couldn't place) are kept as a chunk for that page.
+        stored = lambda: [(c.page_start, c.page_end, c.text + " " + " ".join(c.headings)) for c in chunks]
+        for page, (_, missing) in missing_words(page_texts, stored(), dropped).items():
+            if len(missing) < MIN_MISSING_WORDS:
+                continue  # hyphenation or punctuation differences, not lost text
+            text = lines_with(page_texts[page - 1], missing)
+            if text:
+                chunks.append(Chunk(index=len(chunks), text=text, embed_text=text, page_start=page, page_end=page,
+                                    headings=[], origin="text_layer_recovered"))
+                warnings.append(IntegrityWarning(page, "text_layer_recovered",
+                                                 f"{len(missing)} words recovered from the PDF text layer"))
+
+        # 4. Page coverage: anything still missing after recovery means the document needs review.
+        warnings += page_coverage(page_texts, stored(), dropped)
         return ChunkResult(chunks, warnings)

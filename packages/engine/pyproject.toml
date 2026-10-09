@@ -3,10 +3,16 @@ name = "suveryn-engine"
 version = "0.1.0"
 description = "Sūveryn engine: model backend client, prompt assembly and the answer/citation schema"
 requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "httpx>=0.27",
     "pydantic>=2.8",
 ]
+
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
 
 [build-system]
 requires = ["hatchling"]

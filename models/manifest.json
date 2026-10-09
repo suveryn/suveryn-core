@@ -1,0 +1,53 @@
+{
+  "description": "Models validated for suveryn-core: where to get them, the exact file or revision, and their licence. Metadata only; weights are never committed. The LLM files are served by llama-server (installed by https://github.com/suveryn/suveryn-appliance); the other models are loaded by packages/rag from the local Hugging Face cache (HF_HOME), filled once with `uv run suveryn-fetch-models`. Revisions and checksums are those used in the October 2026 benchmark and development environment (https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md).",
+  "models": [
+    {
+      "id": "qwen3.8-27b",
+      "role": "llm",
+      "default": true,
+      "source": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
+      "file": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+      "sha256": "322e194ff79741c7baa497c240f677f54b201b0efab44ca8e50f122b39123482",
+      "size_bytes": 16464440224,
+      "base_model": "https://huggingface.co/Qwen/Qwen3.8-27B",
+      "license": "Apache-2.0",
+      "llama_server_args": "-ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 4 -kvu -c 65536 -cram 32768 --jinja --chat-template-kwargs '{\"enable_thinking\":false}'"
+    },
+    {
+      "id": "mistral-small-3.2-24b",
+      "role": "llm",
+      "default": false,
+      "source": "https://huggingface.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+      "file": "Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf",
+      "sha256": "a3cc56310807ed0d145eaf9f018ccda9ae7ad8edb41ec870aa2454b0d4700b3c",
+      "size_bytes": 14333922848,
+      "base_model": "https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "license": "Apache-2.0",
+      "llama_server_args": "-ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 4 -kvu -c 65536 -cram 32768"
+    },
+    {
+      "id": "bge-m3",
+      "role": "embedding",
+      "source": "https://huggingface.co/BAAI/bge-m3",
+      "revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "license": "MIT",
+      "used_by": "packages/rag (embed.py, chunking.py tokenizer); SUVERYN_EMBEDDING_MODEL"
+    },
+    {
+      "id": "docling-layout-heron",
+      "role": "document layout",
+      "source": "https://huggingface.co/docling-project/docling-layout-heron",
+      "revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8",
+      "license": "Apache-2.0",
+      "used_by": "packages/rag (extract.py, via Docling)"
+    },
+    {
+      "id": "docling-models",
+      "role": "table structure (TableFormer)",
+      "source": "https://huggingface.co/docling-project/docling-models",
+      "revision": "v2.3.0 (fc0f2d45e2218ea24bce5045f58a389aed16dc23)",
+      "license": "CDLA-Permissive-2.0 AND Apache-2.0",
+      "used_by": "packages/rag (extract.py, via Docling)"
+    }
+  ]
+}

@@ -5,9 +5,8 @@ import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-
 from suveryn_api_gateway.app import create_app
-from suveryn_engine import LLMSettings, LlamaServerClient
+from suveryn_engine import LlamaServerClient, LLMSettings
 
 MODEL = "Qwen3.8-27B-UD-Q4_K_M.gguf"
 
@@ -46,7 +45,8 @@ def unreachable_backend():
 @pytest.fixture
 def make_client():
     def _make(transport):
-        return TestClient(create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=transport)))
+        return TestClient(create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=transport),
+                                     load_documents=False))
     return _make
 
 
@@ -104,6 +104,7 @@ def test_health_ok(make_client):
         r = c.get("/health")
     assert r.status_code == 200
     assert r.json()["backend"] == {"reachable": True, "status": "ok", "url": "http://llm", "model": MODEL, "detail": None}
+    assert r.json()["documents"] == {"status": "unavailable", "detail": None}
 
 
 def test_health_loading_is_503(make_client):

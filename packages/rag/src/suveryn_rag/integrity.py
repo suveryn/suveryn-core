@@ -1,6 +1,6 @@
 """Checks that no document text is silently lost between the PDF and the stored chunks.
 
-Three safeguards, prompted by losses seen on real deeds:
+Four safeguards, prompted by losses seen on real documents:
 
 1. Furniture rule: layout models label some text as page header/footer ("furniture") and
    drop it. Only text that really repeats (page numbers, a running title on most pages) may
@@ -8,9 +8,13 @@ Three safeguards, prompted by losses seen on real deeds:
 2. Completeness: every body text item must end up in a chunk. A heading with no text after
    it (e.g. a closing "Voor eensluidend afschrift") gets no chunk from the chunker, so it is
    recovered as a chunk of its own.
-3. Page coverage: the words of each page's PDF text layer are compared with the stored
-   chunks for that page. A shortfall is reported as a warning and puts the document in
-   ``needs_review``, because then text was lost in a way we don't recognise yet.
+3. Text-layer recovery (``missing_words``, ``lines_with``): lines of a page's PDF text layer that
+   hold words no stored chunk contains (e.g. table cells the table model couldn't place) are
+   kept verbatim as a chunk of their own.
+4. Page coverage: the words of each page's PDF text layer are compared with the stored
+   chunks for that page. A shortfall that remains after recovery is reported as a warning and
+   puts the document in ``needs_review``, because then text was lost in a way we don't
+   recognise yet.
 
 All functions here are pure (no Docling, no database), so they are cheap to test.
 """
@@ -31,7 +35,7 @@ class IntegrityWarning:
     """Something a reviewer of the document should know: where, what kind, and a text-free detail."""
 
     page: int | None
-    kind: str     # "text_recovered" | "furniture_restored" | "page_coverage_low"
+    kind: str     # "text_recovered" | "furniture_restored" | "text_layer_recovered" | "page_coverage_low"
     detail: str
 
     @property
@@ -66,7 +70,7 @@ def split_furniture(furniture: list[tuple[int, str]], n_pages: int) -> tuple[lis
     Dropped: page numbers, and text that (with digits ignored) recurs on at least half the
     pages, minimum two. Everything else is real content the layout model mislabelled.
     """
-    key = lambda t: re.sub(r"\d+", "#", norm(t))  # noqa: E731
+    key = lambda t: re.sub(r"\d+", "#", norm(t))
     pages_per_key: dict[str, set[int]] = {}
     for page, text in furniture:
         pages_per_key.setdefault(key(text), set()).add(page)
@@ -80,14 +84,14 @@ def split_furniture(furniture: list[tuple[int, str]], n_pages: int) -> tuple[lis
     return dropped, restored
 
 
-def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int | None, str]],
-                  dropped: list[tuple[int, str]]) -> list[IntegrityWarning]:
-    """Compare each page's text layer with the stored text that claims that page.
+def missing_words(page_texts: list[str], chunk_pages: list[tuple[int | None, int | None, str]],
+                  dropped: list[tuple[int, str]]) -> dict[int, tuple[set[str], set[str]]]:
+    """Per page: (words of its text layer, those not found in the stored text that claims the page).
 
     chunk_pages: (page_start, page_end, text incl. headings) per stored chunk.
     dropped: furniture that was legitimately dropped (its words are not counted as missing).
     """
-    warnings = []
+    out = {}
     for p, ref_text in enumerate(page_texts, 1):
         ref = words(ref_text)
         if not ref:
@@ -99,25 +103,38 @@ def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int
         for page, text in dropped:
             if page == p:
                 have |= words(text)
-        missing = ref - have
+        out[p] = (ref, ref - have)
+    return out
+
+
+def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int | None, str]],
+                  dropped: list[tuple[int, str]]) -> list[IntegrityWarning]:
+    """Compare each page's text layer with the stored text that claims that page."""
+    warnings = []
+    for p, (ref, missing) in missing_words(page_texts, chunk_pages, dropped).items():
         coverage = 1 - len(missing) / len(ref)
         if coverage < COVERAGE_THRESHOLD and len(missing) >= MIN_MISSING_WORDS:
             warnings.append(IntegrityWarning(p, "page_coverage_low",
-                                    f"{coverage:.0%} of the page's words found in stored text; {len(missing)} missing"))
+                                    f"{coverage:.1%} of the page's words found in stored text; {len(missing)} missing"))
     return warnings
 
 
+def lines_with(page_text: str, missing: set[str]) -> str:
+    """The text-layer lines of a page that contain any of the missing words, in reading order.
+
+    Used to recover text the layout or table model dropped (e.g. table cells it couldn't place):
+    the lines come straight from the PDF's text layer, so nothing is invented or reworded.
+    """
+    keep = [line.strip() for line in page_text.splitlines() if line.strip() and words(line) & missing]
+    return "\n".join(dict.fromkeys(keep))  # drop repeated lines, keep order
+
+
 # ---------------------------------------------------------------- keyword search helpers
-STOPWORDS = set("""
-wat welke welk wie waar wanneer hoe hoeveel waarom waarvoor is zijn er een de het van voor in op aan met door bij
-naar en of te die dat dit deze heeft hebben wordt worden kan mag moet ook nog niet geen als om tot uit over onder
-the an what which who whom when where how much many does do did is are was were be of to in for on and or with by at from
-le la les de des du un une quel quelle quels quelles qui que est et ou en au aux pour par sur dans
-""".split())
+STOPWORDS = set(["wat", "welke", "welk", "wie", "waar", "wanneer", "hoe", "hoeveel", "waarom", "waarvoor", "is", "zijn", "er", "een", "de", "het", "van", "voor", "in", "op", "aan", "met", "door", "bij", "naar", "en", "of", "te", "die", "dat", "dit", "deze", "heeft", "hebben", "wordt", "worden", "kan", "mag", "moet", "ook", "nog", "niet", "geen", "als", "om", "tot", "uit", "over", "onder", "the", "an", "what", "which", "who", "whom", "when", "where", "how", "much", "many", "does", "do", "did", "is", "are", "was", "were", "be", "of", "to", "in", "for", "on", "and", "or", "with", "by", "at", "from", "le", "la", "les", "de", "des", "du", "un", "une", "quel", "quelle", "quels", "quelles", "qui", "que", "est", "et", "ou", "en", "au", "aux", "pour", "par", "sur", "dans"])
 
 
 def query_terms(question: str) -> list[str]:
-    """Search terms from a question: no stopwords, no 1-letter tokens, order kept, no duplicates."""
+    """Search terms from a question: no stopwords, no words under 3 letters (numbers are kept), order kept, no duplicates."""
     seen, out = set(), []
     for t in re.findall(r"\w+", norm(question)):
         if (len(t) >= 3 or t.isdigit()) and t not in STOPWORDS and t not in seen:

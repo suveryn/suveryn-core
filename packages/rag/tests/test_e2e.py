@@ -27,11 +27,10 @@ pytest.importorskip("reportlab")
 URL = os.environ.get("SUVERYN_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not URL, reason="SUVERYN_TEST_DATABASE_URL not set")
 
-from suveryn_rag.config import RagSettings  # noqa: E402
-from suveryn_rag.extract import text_layer  # noqa: E402
-from suveryn_rag.integrity import norm  # noqa: E402
-
-import trap_deed  # noqa: E402
+import trap_deed
+from suveryn_rag.config import RagSettings
+from suveryn_rag.extract import text_layer
+from suveryn_rag.integrity import norm
 
 
 @pytest.fixture(scope="module")

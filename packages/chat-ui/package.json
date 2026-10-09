@@ -1,0 +1,38 @@
+{
+  "name": "suveryn-chat-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sūveryn chat interface (light theme product UI)",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suveryn/suveryn-core.git",
+    "directory": "packages/chat-ui"
+  },
+  "homepage": "https://github.com/suveryn/suveryn-core/tree/main/packages/chat-ui",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -b",
+    "prebuild": "node scripts/notices.mjs",
+    "notices": "node scripts/notices.mjs",
+    "brand:sync": "node scripts/brand-sync.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.54.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}
