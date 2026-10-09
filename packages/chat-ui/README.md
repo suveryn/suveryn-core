@@ -6,13 +6,13 @@ The Sūveryn chat interface: React, TypeScript and Vite, light theme. It talks o
 
 ```bash
 npm ci               # exactly the versions in package-lock.json
-npm run dev          # http://127.0.0.1:5173, proxies /v1 and /health to the gateway
+npm run dev          # http://localhost:5173, proxies /auth, /v1 and /health to the gateway
 ```
 
-The gateway address defaults to `http://127.0.0.1:8000`; override it with `SUVERYN_API=http://host:port npm run dev`. In development the gateway usually runs on the GPU machine and is reached through an SSH tunnel:
+Open it at **http://localhost:5173**: the gateway's `SUVERYN_PUBLIC_URL` and Keycloak's redirect URI use `localhost`. The gateway address defaults to `http://127.0.0.1:8000`; override it with `SUVERYN_API=http://host:port npm run dev`. In development the gateway usually runs on the GPU machine and is reached through an SSH tunnel:
 
 ```bash
-ssh -N -L 8000:127.0.0.1:8000 root@<gpu-host> -p <ssh-port>
+ssh -N -L 8000:127.0.0.1:8000 -L 8180:127.0.0.1:8180 root@<gpu-host> -p <ssh-port>   # gateway and Keycloak
 ```
 
 Other commands:
@@ -24,6 +24,7 @@ Other commands:
 
 ## The UI flow
 
+0. **Sign in.** Nothing is shown before sign-in except a sign-in screen with the tagline. *Sign in* goes to the office's Keycloak login page and back. The sidebar shows the signed-in user and *Sign out*, which also ends the Keycloak session. If a session ends (expired, or ended by an admin), the next request shows the sign-in screen again and the open conversation is closed.
 1. **Start.** The empty state shows the tagline, "AI for work that can't leave the premises". The sidebar lists the documents already on the server.
 2. **Attach.** The paperclip (or clicking a document in the sidebar) adds a PDF to the next message as an attachment chip. A new upload shows *Uploading…*, *Waiting…*, then *Reading…* while the server extracts it. Sending is paused until every attachment is read.
 3. **Ask.** The question appears in the user's bubble, with the attachment chips above it. The answer streams in below, with no bubble, marked by the teal brand mark.
