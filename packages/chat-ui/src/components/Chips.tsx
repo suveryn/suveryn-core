@@ -25,7 +25,11 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
         a.status === "needs_review" ? <AlertTriangle size={12} aria-hidden /> :
         <FileText size={12} aria-hidden />}
       <span className="chip-name">{a.filename}</span>
-      {STATUS_LABEL[a.status] && <span className="chip-status">{STATUS_LABEL[a.status]}</span>}
+      {STATUS_LABEL[a.status] && (
+        <span className="chip-status">
+          {a.status === "uploading" && a.progress !== undefined ? `Uploading… ${Math.floor(a.progress * 100)}%` : STATUS_LABEL[a.status]}
+        </span>
+      )}
       {onRemove && (
         <button type="button" className="chip-remove" onClick={onRemove} aria-label={`Remove ${a.filename}`}>
           <X size={12} />
