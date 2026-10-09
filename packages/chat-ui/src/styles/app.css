@@ -107,6 +107,13 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .copy-button { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--line);
                border-radius: var(--radius-pill); padding: 4px 10px; font-size: 12px; color: var(--text); cursor: pointer; }
 .copy-button:hover { background: var(--surface-alt); }
+.download { position: relative; display: inline-flex; }
+.download-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 10; display: flex; flex-direction: column;
+                 min-width: 160px; padding: var(--space-1); background: var(--bg); border: 1px solid var(--line);
+                 border-radius: var(--radius-md); box-shadow: 0 6px 24px rgba(2, 2, 5, 0.08); }
+.download-menu button { text-align: left; background: none; border: none; border-radius: var(--radius-sm);
+                        padding: 7px var(--space-3); font-size: 13px; color: var(--text); cursor: pointer; }
+.download-menu button:hover, .download-menu button:focus-visible { background: var(--surface-alt); }
 .source-text { margin: 0 0 var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line);
                font-size: 13.5px; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 

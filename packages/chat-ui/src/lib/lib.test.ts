@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { citedNumbers, stripMarkers, toBlocks } from "./answer";
-import { formatSource, formatSources, safeFileName, sourceFileName, sourcesDocument } from "./copy";
+import {
+  formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName, sourcesDocument, sourcesMarkdown,
+} from "./copy";
 import { modelName } from "./model";
 import { createSSEParser, type SSEEvent } from "./sse";
 
@@ -77,5 +79,20 @@ describe("downloading sources", () => {
     const doc = sourcesDocument("Wat is de koopprijs?", "[1] akte.pdf, p. 2\nTekst", new Date(2026, 9, 9, 15, 30));
     expect(doc.split("\n").slice(0, 3)).toEqual(["Sources cited by Sūveryn", "Question: Wat is de koopprijs?", "Date: 9 October 2026 at 15:30"]);
     expect(doc).toContain("[1] akte.pdf, p. 2\nTekst");
+  });
+});
+
+describe("Markdown downloads", () => {
+  const cit = { text: "De koopprijs bedraagt\nEUR 412.500,00 *exclusief* kosten.", source: { document_id: "d", page: 2, location: "p. 2 · Artikel 2" } };
+
+  it("quotes the passage under a reference heading, without altering the text", () => {
+    expect(formatSourceMarkdown(1, cit, "akte.pdf"))
+      .toBe("### [1] akte.pdf — p. 2 · Artikel 2\n\n> De koopprijs bedraagt\n> EUR 412.500,00 *exclusief* kosten.");
+    expect(sourceFileName(1, "akte.pdf", 2, "md")).toBe("source-1_akte_p2.md");
+  });
+
+  it("heads the all-sources file with the question and date", () => {
+    const md = sourcesMarkdown("Wat is de koopprijs?", [{ n: 1, citation: cit, filename: "akte.pdf" }], new Date(2026, 9, 9, 15, 30));
+    expect(md.startsWith("# Sources cited by Sūveryn\n\n**Question:** Wat is de koopprijs?  \n**Date:** 9 October 2026 at 15:30\n\n### [1]")).toBe(true);
   });
 });
