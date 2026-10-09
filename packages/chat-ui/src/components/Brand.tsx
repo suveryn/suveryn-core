@@ -1,6 +1,11 @@
+/**
+ * The Sūveryn mark in the UI: the header lockup and the assistant marker. The mark itself is
+ * src/brand/suveryn-icon.svg, copied from suveryn-brand (not AGPL; see src/brand/README.md).
+ * Brand rules: https://github.com/suveryn/suveryn-brand/blob/main/guidelines/brand-guidelines.md
+ */
 import icon from "../brand/suveryn-icon.svg";
 
-/** Header lockup: 30px icon, 22px wordmark, 12px gap (the Design System's fixed ratio). */
+/** Header lockup: 30px icon, 22px wordmark, 12px gap (the brand guidelines' fixed ratio). */
 export function Lockup() {
   return (
     <div className="lockup">
@@ -12,7 +17,7 @@ export function Lockup() {
 
 /**
  * Marks the assistant's turn instead of a message bubble: the brand mark's geometry as a teal
- * outline, as specified by the Design System's ChatMessage component.
+ * outline (brand guidelines: https://github.com/suveryn/suveryn-brand/blob/main/guidelines/brand-guidelines.md#a-named-interaction-pattern-no-assistant-bubble).
  */
 export function AssistantMark() {
   return (

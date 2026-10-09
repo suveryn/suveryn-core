@@ -1,8 +1,18 @@
-"""Sūveryn engine: model backend client, prompt assembly and the answer/citation schema."""
+"""Sūveryn engine: the model backend client (llama-server) and the request, answer, citation and calculation schema."""
 
 from .config import LLMSettings
 from .llm import BackendError, BackendHealth, LlamaServerClient, StreamChunk
-from .schemas import Calculation, ChatMessage, ChatRequest, ChatResponse, Citation, SourceRef, StreamDelta, StreamError, Usage
+from .schemas import (
+    Calculation,
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    Citation,
+    SourceRef,
+    StreamDelta,
+    StreamError,
+    Usage,
+)
 
 __all__ = [
     "BackendError", "BackendHealth", "Calculation", "ChatMessage", "ChatRequest", "ChatResponse", "Citation",

@@ -3,9 +3,11 @@ import { citedNumbers, stripMarkers, toBlocks } from "./answer";
 import {
   formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName, sourcesDocument, sourcesMarkdown,
 } from "./copy";
+import { conversationHistory } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { reviewPages } from "../api";
+import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
 
 describe("SSE parser", () => {
@@ -117,5 +119,20 @@ describe("documents that need review", () => {
     expect(reviewHint([1])).toContain("Ready to use. Some text on page 1 may not");
     expect(reviewHint([1, 3])).toContain("on pages 1, 3");
     expect(reviewHint([])).toContain("on some pages");
+  });
+});
+
+describe("conversation history", () => {
+  it("leaves out a question whose answer failed, so roles alternate", () => {
+    const turns = [
+      { id: "1", role: "user", text: "Vraag 1", attachments: [] },
+      { id: "2", role: "assistant", text: "Antwoord [1].", citations: [], status: "done", grounded: true },
+      { id: "3", role: "user", text: "Vraag 2", attachments: [] },
+      { id: "4", role: "assistant", text: "", citations: [], status: "error", grounded: true, error: "x" },
+    ] as Turn[];
+    expect(conversationHistory(turns)).toEqual([
+      { role: "user", content: "Vraag 1" },
+      { role: "assistant", content: "Antwoord." },
+    ]);
   });
 });

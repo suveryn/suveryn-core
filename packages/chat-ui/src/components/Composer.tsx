@@ -1,3 +1,8 @@
+/**
+ * The question box: text, the paperclip for PDFs, attachment chips and the model tag. Sending is
+ * disabled while the model is unavailable or an attachment is still being read; Enter sends,
+ * Shift+Enter starts a new line.
+ */
 import { ArrowUp, Paperclip } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import type { Attachment } from "../types";

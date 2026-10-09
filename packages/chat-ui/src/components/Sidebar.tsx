@@ -1,3 +1,7 @@
+/**
+ * The document library: stored documents, uploads in progress and failed uploads. A document in
+ * needs_review is usable but names the pages to check. Deleting asks for confirmation first.
+ */
 import { AlertTriangle, FileText, Loader2, Plus, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { reviewPages, type Job, type StoredDocument } from "../api";

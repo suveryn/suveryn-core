@@ -1,6 +1,6 @@
 """Checks that no document text is silently lost between the PDF and the stored chunks.
 
-Three safeguards, prompted by losses seen on real deeds:
+Four safeguards, prompted by losses seen on real documents:
 
 1. Furniture rule: layout models label some text as page header/footer ("furniture") and
    drop it. Only text that really repeats (page numbers, a running title on most pages) may
@@ -8,9 +8,13 @@ Three safeguards, prompted by losses seen on real deeds:
 2. Completeness: every body text item must end up in a chunk. A heading with no text after
    it (e.g. a closing "Voor eensluidend afschrift") gets no chunk from the chunker, so it is
    recovered as a chunk of its own.
-3. Page coverage: the words of each page's PDF text layer are compared with the stored
-   chunks for that page. A shortfall is reported as a warning and puts the document in
-   ``needs_review``, because then text was lost in a way we don't recognise yet.
+3. Text-layer recovery (``missing_words``, ``lines_with``): lines of a page's PDF text layer that
+   hold words no stored chunk contains (e.g. table cells the table model couldn't place) are
+   kept verbatim as a chunk of their own.
+4. Page coverage: the words of each page's PDF text layer are compared with the stored
+   chunks for that page. A shortfall that remains after recovery is reported as a warning and
+   puts the document in ``needs_review``, because then text was lost in a way we don't
+   recognise yet.
 
 All functions here are pure (no Docling, no database), so they are cheap to test.
 """
@@ -31,7 +35,7 @@ class IntegrityWarning:
     """Something a reviewer of the document should know: where, what kind, and a text-free detail."""
 
     page: int | None
-    kind: str     # "text_recovered" | "furniture_restored" | "page_coverage_low"
+    kind: str     # "text_recovered" | "furniture_restored" | "text_layer_recovered" | "page_coverage_low"
     detail: str
 
     @property
@@ -66,7 +70,7 @@ def split_furniture(furniture: list[tuple[int, str]], n_pages: int) -> tuple[lis
     Dropped: page numbers, and text that (with digits ignored) recurs on at least half the
     pages, minimum two. Everything else is real content the layout model mislabelled.
     """
-    key = lambda t: re.sub(r"\d+", "#", norm(t))  # noqa: E731
+    key = lambda t: re.sub(r"\d+", "#", norm(t))
     pages_per_key: dict[str, set[int]] = {}
     for page, text in furniture:
         pages_per_key.setdefault(key(text), set()).add(page)
@@ -126,16 +130,11 @@ def lines_with(page_text: str, missing: set[str]) -> str:
 
 
 # ---------------------------------------------------------------- keyword search helpers
-STOPWORDS = set("""
-wat welke welk wie waar wanneer hoe hoeveel waarom waarvoor is zijn er een de het van voor in op aan met door bij
-naar en of te die dat dit deze heeft hebben wordt worden kan mag moet ook nog niet geen als om tot uit over onder
-the an what which who whom when where how much many does do did is are was were be of to in for on and or with by at from
-le la les de des du un une quel quelle quels quelles qui que est et ou en au aux pour par sur dans
-""".split())
+STOPWORDS = set(["wat", "welke", "welk", "wie", "waar", "wanneer", "hoe", "hoeveel", "waarom", "waarvoor", "is", "zijn", "er", "een", "de", "het", "van", "voor", "in", "op", "aan", "met", "door", "bij", "naar", "en", "of", "te", "die", "dat", "dit", "deze", "heeft", "hebben", "wordt", "worden", "kan", "mag", "moet", "ook", "nog", "niet", "geen", "als", "om", "tot", "uit", "over", "onder", "the", "an", "what", "which", "who", "whom", "when", "where", "how", "much", "many", "does", "do", "did", "is", "are", "was", "were", "be", "of", "to", "in", "for", "on", "and", "or", "with", "by", "at", "from", "le", "la", "les", "de", "des", "du", "un", "une", "quel", "quelle", "quels", "quelles", "qui", "que", "est", "et", "ou", "en", "au", "aux", "pour", "par", "sur", "dans"])
 
 
 def query_terms(question: str) -> list[str]:
-    """Search terms from a question: no stopwords, no 1-letter tokens, order kept, no duplicates."""
+    """Search terms from a question: no stopwords, no words under 3 letters (numbers are kept), order kept, no duplicates."""
     seen, out = set(), []
     for t in re.findall(r"\w+", norm(question)):
         if (len(t) >= 3 or t.isdigit()) and t not in STOPWORDS and t not in seen:

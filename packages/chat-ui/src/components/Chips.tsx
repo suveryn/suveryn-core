@@ -1,3 +1,8 @@
+/**
+ * The three chip types, deliberately different components: attachment chips (outlined, on the
+ * user's turn, show upload and review state), citation chips (teal, under an answer, open a
+ * source) and the neutral model tag in the composer (a name, no vendor logo).
+ */
 import { AlertTriangle, Cpu, FileText, Loader2, X, XCircle } from "lucide-react";
 import type { Citation } from "../api";
 import { modelName } from "../lib/model";

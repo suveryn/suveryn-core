@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "description": "Sūveryn chat interface (light theme product UI)",
   "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suveryn/suveryn-core.git",
+    "directory": "packages/chat-ui"
+  },
+  "homepage": "https://github.com/suveryn/suveryn-core/tree/main/packages/chat-ui",
   "type": "module",
   "scripts": {
     "dev": "vite",

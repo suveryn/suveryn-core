@@ -6,9 +6,9 @@ import pytest
 
 pytest.importorskip("psycopg")
 pytest.importorskip("suveryn_rag")
-import numpy as np  # noqa: E402
-from suveryn_rag.chunking import Chunk  # noqa: E402
-from suveryn_rag.store import Store  # noqa: E402
+import numpy as np
+from suveryn_rag.chunking import Chunk
+from suveryn_rag.store import Store
 
 URL = os.environ.get("SUVERYN_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not URL, reason="SUVERYN_TEST_DATABASE_URL not set")

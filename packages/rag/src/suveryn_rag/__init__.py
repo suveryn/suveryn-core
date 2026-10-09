@@ -9,6 +9,6 @@ from . import offline
 
 offline.enforce()
 
-from .config import RagSettings  # noqa: E402
+from .config import RagSettings
 
 __all__ = ["RagSettings"]

@@ -3,8 +3,14 @@
 import pytest
 
 pytest.importorskip("suveryn_rag")
-from suveryn_rag.integrity import (  # noqa: E402
-    is_page_number, lines_with, missing_words, page_coverage, query_terms, split_furniture, words,
+from suveryn_rag.integrity import (
+    is_page_number,
+    lines_with,
+    missing_words,
+    page_coverage,
+    query_terms,
+    split_furniture,
+    words,
 )
 
 
