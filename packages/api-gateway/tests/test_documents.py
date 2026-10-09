@@ -8,6 +8,7 @@ from datetime import UTC
 import httpx
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
+from suveryn_api_gateway.auth import Authenticator
 from suveryn_engine import Citation, LlamaServerClient, LLMSettings, SourceRef
 
 DOC = str(uuid.uuid4())
@@ -77,7 +78,7 @@ def llm_transport(captured):
 
 def client(docs, captured=None):
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport(captured if captured is not None else []))
-    return TestClient(create_app(llm, documents=docs, load_documents=False))
+    return TestClient(create_app(llm, documents=docs, load_documents=False, auth=Authenticator.disabled()))
 
 
 ASK = {"messages": [{"role": "user", "content": "Wat is de koopprijs?"}], "document_ids": [DOC]}

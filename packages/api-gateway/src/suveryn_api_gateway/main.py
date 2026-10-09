@@ -48,11 +48,36 @@ def _running(pid: int) -> bool:
     return True
 
 
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def check_auth_settings(host: str) -> None:
+    """Refuse to start with sign-in turned off on anything but a loopback address.
+
+    ``SUVERYN_AUTH=off`` exists for development on one machine; on a network address it would
+    give anyone who can reach the port every document. Raises ``SystemExit``.
+    """
+    from .auth import AuthSettings
+
+    settings = AuthSettings.from_env()
+    if settings.disabled and host not in LOOPBACK:
+        raise SystemExit(f"SUVERYN_AUTH=off is only allowed on a loopback address, not {host}.")
+    if not settings.disabled and settings.public_url.startswith("http://") and host not in LOOPBACK:
+        print("warning: SUVERYN_PUBLIC_URL is http://; serve the UI over https on a network "
+              "(session cookies are only marked Secure with https)")
+
+
 def run() -> None:
-    """Start the gateway. Binds to 127.0.0.1 unless SUVERYN_HOST says otherwise: there is no auth yet."""
+    """Start the gateway. Binds to 127.0.0.1 unless SUVERYN_HOST says otherwise.
+
+    On a network address it should sit behind the appliance's TLS reverse proxy, with
+    ``SUVERYN_PUBLIC_URL`` set to the https URL people use.
+    """
+    host = os.environ.get("SUVERYN_HOST", "127.0.0.1")
+    check_auth_settings(host)
     private_tmp()
     uvicorn.run(
         "suveryn_api_gateway.app:app",
-        host=os.environ.get("SUVERYN_HOST", "127.0.0.1"),
+        host=host,
         port=int(os.environ.get("SUVERYN_PORT", "8000")),
     )
