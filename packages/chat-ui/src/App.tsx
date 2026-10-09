@@ -88,7 +88,8 @@ export default function App() {
       const key = nextId();
       setPending((p) => [...p, { key, filename: file.name, status: "uploading" }]);
       try {
-        const job = await uploadDocument(file);
+        const job = await uploadDocument(file, (fraction) =>
+          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))));
         setPending((p) => p.map((a) => (a.key === key ? { ...a, status: job.status, jobId: job.id } : a)));
         refreshDocuments();
       } catch (e) {

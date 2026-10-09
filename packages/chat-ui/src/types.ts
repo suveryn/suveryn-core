@@ -8,6 +8,7 @@ export type Attachment = {
   jobId?: string;
   documentId?: string;
   error?: string;
+  progress?: number; // upload progress, 0-1, while status is "uploading"
 };
 
 export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[] };

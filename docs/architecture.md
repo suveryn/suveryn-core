@@ -55,6 +55,7 @@ Deeds contain personal data (names, national register numbers, addresses, amount
 |---|---|---|---|---|
 | Original PDF | Whole document | Owned by the caller; `rag` only reads it | none needed by rag | — |
 | Private work directory (`SUVERYN_WORK_DIR`) | Searchable PDF and OCR work files | During one document's extraction only | `0700`; deleted on success and on error; `TMPDIR`/`tempfile` redirected so nothing goes to `/tmp` | — |
+| Gateway temp folder (`SUVERYN_WORK_DIR/tmp`) | Uploads while they are received (Starlette spools files over 1 MB to a temporary file) | During the request; folder emptied on start, removed on exit | `0700`; `TMPDIR`/`tempfile` point here instead of `/tmp` (`api-gateway/main.py`) | — |
 | Upload folder (`SUVERYN_WORK_DIR/uploads`) | Uploaded PDFs waiting for ingestion | Until their job ends (deleted on success and failure; folder removed on shutdown) | `0700` folder, `0600` files, random names | — |
 | Process memory | Docling document, page texts; upload jobs (file names, status) | During ingestion; jobs until the gateway restarts | — | — |
 | Browser memory (chat UI) | The conversation, cited passages | Until the tab is closed or *New chat* | Not written to browser storage | Server-side conversation history, if ever added, needs a retention design |
