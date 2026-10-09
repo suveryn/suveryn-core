@@ -1,4 +1,4 @@
-"""Command-line entry points for development (ingest, retrieve, forget).
+"""Command-line entry points: ingest, retrieve and forget (development), and fetch-models (set-up).
 
 These print to the terminal of whoever runs them. ``suveryn-retrieve`` prints passages of the
 stored documents, i.e. confidential text; don't redirect its output into shared logs.
@@ -61,3 +61,29 @@ def forget_main() -> None:
         print("deleted" if store.delete_document(a.document_id) else "not found")
     finally:
         store.close()
+
+
+def fetch_models_main() -> None:
+    """``suveryn-fetch-models``: download the embedding model and Docling's models into the local cache.
+
+    Run once when a machine is set up (needs internet access); everything else runs offline (see
+    ``offline``). Loads each model the same way the pipeline does, so exactly the files it needs
+    end up in ``HF_HOME``. Prints no document data; it reads no documents.
+    """
+    import os
+
+    from . import offline
+
+    os.environ["SUVERYN_ALLOW_DOWNLOADS"] = "1"
+    offline.enforce()
+    argparse.ArgumentParser(prog="suveryn-fetch-models", description=fetch_models_main.__doc__.splitlines()[0]).parse_args()
+    from .chunking import Chunker
+    from .embed import Embedder
+    from .extract import Extractor
+
+    settings = RagSettings.from_env()
+    Embedder(settings.embedding_model, settings.device)
+    Chunker(settings.embedding_model, settings.chunk_max_tokens)
+    Extractor(settings)
+    print(json.dumps({"embedding_model": settings.embedding_model, "docling": "layout and table models",
+                      "cache": os.environ.get("HF_HOME", "~/.cache/huggingface")}))
