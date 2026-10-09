@@ -1,9 +1,8 @@
 """Public request/response shapes for chat completions.
 
-Every answer carries a ``citations`` list from day one, so clients never have to be reshaped
-when sourcing arrives. Retrieval (``suveryn_rag``) already produces ``Citation`` objects with
-``source`` filled in (document, page, location); the chat endpoint does not use retrieval yet,
-so its answers still have ``citations: []``.
+Every answer carries a ``citations`` list. Plain answers have ``citations: []``. Answers to a
+request with ``document_ids`` are grounded in retrieved passages (``suveryn_chat``) and carry
+those passages as citations with ``source`` filled in (document, page, location).
 
 Review invariant: clients must treat ``source: null`` (and an empty ``citations`` list) as
 "unsourced" and show the answer as unverified. A number or fact without a source must never be
@@ -37,6 +36,9 @@ class ChatRequest(BaseModel):
     stream: bool = False
     max_tokens: int = Field(default=1024, ge=1, le=8192)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    # Stored documents to answer from. Empty: a plain, unsourced answer. Set: the answer is grounded
+    # in passages from these documents and cites them as [n] (see ChatResponse).
+    document_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
 class SourceRef(BaseModel):
@@ -66,6 +68,10 @@ class ChatResponse(BaseModel):
 
     ``model`` is the model file llama-server reports (e.g. ``Qwen3.8-27B-UD-Q4_K_M.gguf``), so a
     reviewer can always tell which model produced an answer.
+
+    Citation contract: in a grounded answer, the marker ``[n]`` in ``answer`` refers to
+    ``citations[n - 1]``. ``citations`` holds every passage the model was given, in that order;
+    a passage the answer never cites is still listed, so clients show only the cited ones.
     """
 
     id: str
