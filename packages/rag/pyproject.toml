@@ -13,6 +13,11 @@ dependencies = [
     "pgvector>=0.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
+
 [project.scripts]
 suveryn-ingest = "suveryn_rag.cli:ingest_main"
 suveryn-retrieve = "suveryn_rag.cli:retrieve_main"

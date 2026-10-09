@@ -1,3 +1,8 @@
+/**
+ * Copying and downloading cited passages. Everything happens in the browser; nothing is sent to
+ * the server. Review note: once copied or downloaded, confidential passages are on the user's
+ * clipboard or in their Downloads folder, outside Sūveryn's control (docs/architecture.md §3).
+ */
 import type { Citation } from "../api";
 
 /** One source as plain text: "[n] file.pdf, p. 3 · Artikel 4" and the passage on the next lines. */

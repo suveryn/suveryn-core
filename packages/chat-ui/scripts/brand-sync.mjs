@@ -33,6 +33,8 @@ const git = (...args) => execFileSync("git", ["-C", CACHE, ...args], { encoding:
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 const wanted = process.argv[2] ?? JSON.parse(readFileSync(LOCK, "utf8")).commit;
+// A commit, tag or branch name only: anything starting with "-" would be read by git as an option.
+if (!/^[\w][\w./-]*$/.test(wanted)) throw new Error(`not a commit, tag or branch name: ${wanted}`);
 rmSync(CACHE, { recursive: true, force: true });
 mkdirSync(CACHE, { recursive: true });
 git("init", "-q");

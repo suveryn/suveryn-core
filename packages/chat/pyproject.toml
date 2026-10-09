@@ -7,6 +7,11 @@ dependencies = [
     "suveryn-engine",
 ]
 
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
+
 [tool.uv.sources]
 suveryn-engine = { workspace = true }
 

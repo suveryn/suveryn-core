@@ -55,7 +55,10 @@ def grounded_messages(history: list[ChatMessage], question: str, citations: list
 
 
 def cited_numbers(answer: str, available: int) -> list[int]:
-    """Marker numbers used in the answer that refer to an existing excerpt, in order of first use."""
+    """Marker numbers used in the answer that refer to an existing excerpt, in order of first use.
+
+    Mirrors ``citedNumbers`` in chat-ui ``lib/answer.ts``; keep the two in step.
+    """
     seen: list[int] = []
     for m in _MARKER.finditer(answer):
         n = int(m.group(1))

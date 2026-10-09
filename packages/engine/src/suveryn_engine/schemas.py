@@ -6,13 +6,14 @@ those passages as citations with ``source`` filled in (document, page, location)
 
 Review invariant: clients must treat ``source: null`` (and an empty ``citations`` list) as
 "unsourced" and show the answer as unverified. A number or fact without a source must never be
-presented as established (development context §4: the model miscalculated a figure once and
-misspelled names it had read correctly).
+presented as established: in the hardware benchmark the model miscalculated a figure once and
+misspelled names it had read correctly
+(https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md).
 """
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 Role = Literal["system", "user", "assistant"]
 
@@ -21,7 +22,7 @@ class ChatMessage(BaseModel):
     """One turn of the conversation, in OpenAI chat format."""
 
     role: Role
-    content: str
+    content: str = Field(max_length=100_000)  # ~25k tokens: more than fits the model's context anyway
 
 
 class ChatRequest(BaseModel):
@@ -29,16 +30,23 @@ class ChatRequest(BaseModel):
 
     Limits are deliberately bounded: ``max_tokens`` up to 8192 keeps one request from occupying
     the GPU for minutes, and ``temperature`` defaults to 0 because notarial answers should be
-    reproducible rather than creative.
+    reproducible rather than creative. The last message must be the user's question; the
+    conversation is limited to 200 messages and each message to 100,000 characters.
     """
 
-    messages: list[ChatMessage] = Field(min_length=1)
+    messages: list[ChatMessage] = Field(min_length=1, max_length=200)
     stream: bool = False
     max_tokens: int = Field(default=1024, ge=1, le=8192)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     # Stored documents to answer from. Empty: a plain, unsourced answer. Set: the answer is grounded
     # in passages from these documents and cites them as [n] (see ChatResponse).
     document_ids: list[str] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def _ends_with_question(self) -> "ChatRequest":
+        if self.messages[-1].role != "user":
+            raise ValueError("the last message must be the user's question")
+        return self
 
 
 class SourceRef(BaseModel):
@@ -67,8 +75,8 @@ class Calculation(BaseModel):
     """A calculation in a grounded answer, computed exactly by the server (``suveryn_chat.calc``).
 
     The model only chooses the figures; the result is never the model's own arithmetic.
-    ``figures_not_in_sources`` lists figures that don't appear in the passages given, which a
-    reader should check. ``result`` is None (and ``error`` says why) if it couldn't be computed.
+    ``figures_not_in_sources`` lists figures that don't appear (as whole numbers) in the passages
+    the answer cites, which a reader should check. ``result`` is None (and ``error`` says why) if it couldn't be computed.
     """
 
     expression: str
@@ -104,6 +112,7 @@ class StreamDelta(BaseModel):
 
 
 class StreamError(BaseModel):
-    """Sent as SSE event ``error`` when the backend fails mid-stream."""
+    """Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,
+    document search is unavailable, or an unexpected server error occurred (reported generically)."""
 
     message: str

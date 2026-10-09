@@ -3,12 +3,12 @@
 import io
 import json
 import uuid
+from datetime import UTC
 
 import httpx
 from fastapi.testclient import TestClient
-
 from suveryn_api_gateway.app import create_app
-from suveryn_engine import Citation, LLMSettings, LlamaServerClient, SourceRef
+from suveryn_engine import Citation, LlamaServerClient, LLMSettings, SourceRef
 
 DOC = str(uuid.uuid4())
 
@@ -25,10 +25,13 @@ class FakeDocuments:
     """Stands in for suveryn_rag.service.DocumentService."""
 
     def __init__(self, state="ready"):
-        self.state, self.error, self.jobs, self.deleted, self.seen = state, None, {}, [], {}
+        self.state, self.error, self.jobs, self.deleted, self.seen, self.uploads = state, None, {}, [], {}, []
 
     def accept_upload(self, src, filename):
-        from suveryn_rag.service import UploadRejected  # noqa: F401 (only importable with rag installed)
+        self.uploads.append(filename)
+        from suveryn_rag.service import (
+            UploadRejected,  # noqa: F401 (only importable with rag installed)
+        )
 
     def job(self, job_id):
         return self.jobs.get(job_id)
@@ -37,9 +40,9 @@ class FakeDocuments:
         return [j for j in self.jobs.values() if j.status in ("queued", "processing", "failed")]
 
     def documents(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
         return [{"id": uuid.UUID(DOC), "filename": "akte.pdf", "pages": 5, "ocr_pages": 5, "status": "ok",
-                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=timezone.utc), "chunks": 12}]
+                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12}]
 
     def delete(self, document_id):
         self.deleted.append(document_id)
@@ -143,10 +146,11 @@ def test_document_endpoints_503_when_unavailable_or_starting():
 def test_upload_rejects_non_pdf():
     import pytest
     pytest.importorskip("suveryn_rag")
-    from suveryn_rag.config import RagSettings
-    from suveryn_rag.service import DocumentService
     import tempfile
     from pathlib import Path
+
+    from suveryn_rag.config import RagSettings
+    from suveryn_rag.service import DocumentService
 
     svc = DocumentService(RagSettings(work_dir=Path(tempfile.mkdtemp())))
     svc.state = "ready"  # don't load models; only the upload path is exercised
@@ -156,3 +160,42 @@ def test_upload_rejects_non_pdf():
         uploads = svc.settings.work_dir / "uploads"
         assert not any(uploads.iterdir())  # the rejected upload is not left behind
     assert not uploads.exists()  # and the upload folder is removed on shutdown
+
+
+def test_oversized_upload_is_refused_before_its_body_is_read():
+    from suveryn_api_gateway.app import MAX_UPLOAD_BYTES
+
+    docs = FakeDocuments()
+    with client(docs) as c:
+        r = c.post("/v1/documents", content=b"%PDF-", headers={"content-length": str(MAX_UPLOAD_BYTES * 2),
+                                                                  "content-type": "multipart/form-data; boundary=x"})
+    assert r.status_code == 413 and docs.uploads == []
+
+
+def test_last_message_must_be_the_question():
+    with client(FakeDocuments()) as c:
+        r = c.post("/v1/chat", json={"messages": [{"role": "user", "content": "Vraag"},
+                                                  {"role": "assistant", "content": "Antwoord"}]})
+    assert r.status_code == 422
+
+
+class BrokenDocuments(FakeDocuments):
+    def retrieve(self, question, document_ids, k):
+        raise RuntimeError("De koopprijs bedraagt EUR 412.500,00")  # an error message holding document text
+
+
+def test_unexpected_stream_error_is_generic_and_does_not_echo_content():
+    with client(BrokenDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
+        body = r.read().decode()
+    assert body.startswith("event: error") and "412.500" not in body
+
+
+class UnreachableDatabase(FakeDocuments):
+    def documents(self):
+        from suveryn_api_gateway.app import SearchUnavailable
+        raise SearchUnavailable("the document database can't be reached")
+
+
+def test_database_unreachable_is_503():
+    with client(UnreachableDatabase()) as c:
+        assert c.get("/v1/documents").status_code == 503

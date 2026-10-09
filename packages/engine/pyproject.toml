@@ -8,6 +8,11 @@ dependencies = [
     "pydantic>=2.8",
 ]
 
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

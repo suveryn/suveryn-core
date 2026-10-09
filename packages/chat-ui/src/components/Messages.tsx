@@ -1,3 +1,9 @@
+/**
+ * The conversation turns. Only the user's turn has a bubble; the assistant's reply has none and is
+ * marked by the teal brand-mark outline. Model output is rendered as React text only (lib/answer.ts),
+ * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
+ * "not sourced" notices that tell a reader what to check.
+ */
 import { AlertCircle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation } from "../api";

@@ -56,7 +56,7 @@ def forget_main() -> None:
     from .store import Store
 
     s = RagSettings.from_env()
-    store = Store(s.database_url, s.embedding_dim)
+    store = Store(s.database_url, s.embedding_dim)  # the configured dimension; only used to create tables if missing
     try:
         print("deleted" if store.delete_document(a.document_id) else "not found")
     finally:
