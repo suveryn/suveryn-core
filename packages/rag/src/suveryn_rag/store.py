@@ -90,10 +90,20 @@ class Store:
     def __init__(self, database_url: str, dim: int):
         if not database_url:
             raise ValueError("SUVERYN_DATABASE_URL is not set")
+        self._url = database_url
         self._conn = psycopg.connect(database_url, autocommit=True)
         self._conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(self._conn)
         self._conn.execute(schema_sql(dim))
+
+    def reconnect(self) -> None:
+        """Replace the connection with a new one (after PostgreSQL restarted or dropped it)."""
+        try:
+            self._conn.close()
+        except psycopg.Error:
+            pass
+        self._conn = psycopg.connect(self._url, autocommit=True)
+        register_vector(self._conn)
 
     def close(self) -> None:
         """Close the database connection."""
@@ -149,7 +159,7 @@ class Store:
         Review note: this makes the text unreachable, not unrecoverable. PostgreSQL keeps dead
         rows in the table files until VACUUM rewrites them, and changes stay in the write-ahead
         log for a while. Secure deletion (encryption at rest, crypto-shredding or a scheduled
-        VACUUM FULL) is an open design item (development context §11.5).
+        VACUUM FULL) is an open item (docs/architecture.md §6).
         """
         return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
 

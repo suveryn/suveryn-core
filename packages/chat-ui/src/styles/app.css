@@ -1,6 +1,6 @@
 /*
  * Sūveryn chat UI, light theme. Every colour, size and radius comes from tokens.css.
- * Patterns from the Design System that must not drift:
+ * Patterns from the brand guidelines that must not drift (https://github.com/suveryn/suveryn-brand/blob/main/guidelines/brand-guidelines.md):
  * - only the user's turn has a bubble; the assistant's reply sits on the page with a teal mark;
  * - attachment chips (outlined, on the user's turn) and citation chips (teal, on the reply) differ;
  * - text on accent uses --on-accent, never white;

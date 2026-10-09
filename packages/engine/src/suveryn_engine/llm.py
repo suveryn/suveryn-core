@@ -105,7 +105,7 @@ class LlamaServerClient:
             # Reuse the cached prompt prefix across turns: a follow-up question on the same
             # document was ~6x faster in the benchmark (document text first, question last).
             # The cache lives in llama-server's GPU and RAM memory and contains personal data;
-            # its retention/encryption is an open design item (development context §11.5).
+            # its retention/encryption is an open item (docs/architecture.md §6).
             "cache_prompt": True,
         }
         if stream:
@@ -120,14 +120,18 @@ class LlamaServerClient:
             raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
         if r.status_code != 200:
             raise BackendError(f"model backend returned HTTP {r.status_code}: {r.text[:200]}")
-        d = r.json()
-        choice = d["choices"][0]
-        u = d.get("usage") or {}
+        try:
+            d = r.json()
+            choice = d["choices"][0]
+            answer, finish_reason = choice["message"].get("content") or "", choice.get("finish_reason")
+            u = d.get("usage") or {}
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+            raise BackendError(f"model backend returned an unexpected answer: {type(e).__name__}") from e
         return ChatResponse(
             id=d.get("id") or f"chat-{uuid.uuid4().hex}",
             model=await self.model_name(),
-            answer=choice["message"].get("content") or "",
-            finish_reason=choice.get("finish_reason"),
+            answer=answer,
+            finish_reason=finish_reason,
             usage=Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0)),
         )
 

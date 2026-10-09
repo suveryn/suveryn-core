@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from suveryn_engine import ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
 
 from .calc import CalcRewriter, rewrite
-from .grounding import grounded_messages
+from .grounding import cited_numbers, grounded_messages
 
 # Passages to answer a question from, within the given documents:
 # (question, document_ids, k) -> ([(citation, filename), ...], complete). ``complete`` is True when
@@ -66,7 +66,8 @@ class ChatService:
         response = await self.llm.complete(prepared)
         if not req.document_ids:
             return response
-        text, calculations = rewrite(response.answer, _source(citations))
+        # Replacing calculations leaves the [n] markers as they are, so the cited passages are known up front.
+        text, calculations = rewrite(response.answer, _source(citations), _cited_sources(response.answer, citations))
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
 
     async def answer_stream(self, req: ChatRequest) -> AsyncIterator[Delta | Done]:
@@ -89,14 +90,20 @@ class ChatService:
         if calc and (rest := calc.flush()):
             parts.append(rest)
             yield Delta(rest)
-        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(),
-                                answer="".join(parts), citations=citations, calculations=calc.calculations if calc else [],
-                                finish_reason=finish_reason, usage=usage))
+        answer = "".join(parts)
+        calculations = calc.check_figures(_cited_sources(answer, citations)) if calc else []
+        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(), answer=answer,
+                                citations=citations, calculations=calculations, finish_reason=finish_reason, usage=usage))
 
 
 def _source(citations: list[Citation]) -> str:
-    """The passages' text, which calculation figures are checked against."""
+    """All passages' text (sets the decimal style of whole-number calculation results)."""
     return "\n".join(c.text for c in citations)
+
+
+def _cited_sources(answer: str, citations: list[Citation]) -> list[str]:
+    """The text of the passages the answer cites, which calculation figures are checked against."""
+    return [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
 
 
 class DocumentsUnavailable(RuntimeError):

@@ -1,3 +1,4 @@
+/** UI-side types for the conversation: turns and attachments. Wire types are in api.ts. */
 import type { Calculation, Citation, JobStatus } from "./api";
 
 /** A file attached to the user's turn. Lives on the user's message, never on the reply. */

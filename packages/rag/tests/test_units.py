@@ -8,8 +8,8 @@ from types import SimpleNamespace as NS
 import pytest
 
 pytest.importorskip("suveryn_rag")
-from suveryn_rag.chunking import chunk_pages, location_label  # noqa: E402
-from suveryn_rag.workspace import private_workdir  # noqa: E402
+from suveryn_rag.chunking import chunk_pages, location_label
+from suveryn_rag.workspace import private_workdir
 
 
 def fake_chunk(*page_lists):

@@ -5,9 +5,8 @@ import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-
 from suveryn_api_gateway.app import create_app
-from suveryn_engine import LLMSettings, LlamaServerClient
+from suveryn_engine import LlamaServerClient, LLMSettings
 
 MODEL = "Qwen3.8-27B-UD-Q4_K_M.gguf"
 

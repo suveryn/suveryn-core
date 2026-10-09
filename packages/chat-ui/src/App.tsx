@@ -1,3 +1,14 @@
+/**
+ * The chat application: owns all state and talks to the gateway (src/api.ts).
+ *
+ * - Server state (health, stored documents, upload jobs) is polled; uploads are tracked per
+ *   attachment until their job is ready.
+ * - The conversation lives only in this component's memory: nothing is written to browser
+ *   storage, and closing the tab or "New chat" discards it. Each question is sent with the
+ *   completed earlier turns (lib/history.ts) and every document used so far in the conversation.
+ * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
+ *   contract) and the turn shows an error instead.
+ */
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -7,7 +18,7 @@ import {
 import { Composer } from "./components/Composer";
 import { AssistantMessage, UserMessage } from "./components/Messages";
 import { Sidebar } from "./components/Sidebar";
-import { stripMarkers } from "./lib/answer";
+import { conversationHistory } from "./lib/history";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises";
@@ -111,9 +122,7 @@ export default function App() {
     const docIds = new Set(conversationDocs);
     for (const a of attachments) if (isReady(a) && a.documentId) docIds.add(a.documentId);
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0 };
-    const history: WireMessage[] = turns
-      .filter((t) => t.role === "user" || t.status === "done")
-      .map((t) => ({ role: t.role, content: t.role === "assistant" ? stripMarkers(t.text) : t.text }));
+    const history: WireMessage[] = conversationHistory(turns);
 
     setPending([]);
     setTurns((ts) => [...ts, user, reply]);
