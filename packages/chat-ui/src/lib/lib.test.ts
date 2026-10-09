@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { citedNumbers, stripMarkers, toBlocks } from "./answer";
+import { formatSource, formatSources } from "./copy";
 import { modelName } from "./model";
 import { createSSEParser, type SSEEvent } from "./sse";
 
@@ -46,5 +47,21 @@ describe("model tag", () => {
     expect(modelName("Qwen3.8-27B-UD-Q4_K_M.gguf")).toEqual({ full: "Qwen3.8-27B", family: "Qwen" });
     expect(modelName("Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf")).toEqual({ full: "Mistral Small 3.2", family: "Mistral" });
     expect(modelName(null)).toBeNull();
+  });
+});
+
+describe("copying sources", () => {
+  const c = (text: string, page: number, location: string | null) =>
+    ({ text, source: { document_id: "d", page, location } });
+
+  it("puts the reference above the passage", () => {
+    expect(formatSource(2, c("  De koopprijs bedraagt EUR 412.500,00.  ", 3, "p. 3 · Artikel 2"), "akte.pdf"))
+      .toBe("[2] akte.pdf, p. 3 · Artikel 2\nDe koopprijs bedraagt EUR 412.500,00.");
+  });
+
+  it("falls back to the page and numbers several sources like the answer's markers", () => {
+    expect(formatSources([{ n: 1, citation: c("A", 1, null), filename: "x.pdf" },
+                          { n: 3, citation: c("B", 4, null), filename: "y.pdf" }]))
+      .toBe("[1] x.pdf, p. 1\nA\n\n[3] y.pdf, p. 4\nB");
   });
 });

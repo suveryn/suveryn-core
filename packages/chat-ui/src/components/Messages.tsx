@@ -1,7 +1,8 @@
-import { AlertCircle } from "lucide-react";
-import { Fragment, useState } from "react";
+import { AlertCircle, Check, Copy } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import type { Citation } from "../api";
 import { citedNumbers, toBlocks } from "../lib/answer";
+import { copyText, formatSource, formatSources } from "../lib/copy";
 import type { AssistantTurn, UserTurn } from "../types";
 import { AssistantMark } from "./Brand";
 import { AttachmentChip, CitationChip } from "./Chips";
@@ -18,6 +19,23 @@ export function UserMessage({ turn }: { turn: UserTurn }) {
   );
 }
 
+/** A small ghost button that copies text and confirms it ("Copied") for two seconds. */
+function CopyButton({ text, label, what }: { text: string; label: string; what: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    if (state === "idle") return;
+    const t = setTimeout(() => setState("idle"), 2000);
+    return () => clearTimeout(t);
+  }, [state]);
+  return (
+    <button type="button" className="copy-button" aria-label={`Copy ${what}`}
+            onClick={async () => setState((await copyText(text)) ? "copied" : "failed")}>
+      {state === "copied" ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+      <span aria-live="polite">{state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy" : label}</span>
+    </button>
+  );
+}
+
 function SourceCard({ n, citation, filename }: { n: number; citation: Citation; filename: string }) {
   return (
     <div className="source-card" role="region" aria-label={`Source ${n}`}>
@@ -25,6 +43,7 @@ function SourceCard({ n, citation, filename }: { n: number; citation: Citation; 
         <span className="label">Source {n}</span>
         <span className="source-file">{filename}</span>
         <span className="source-where">{citation.source?.location ?? (citation.source?.page ? `p. ${citation.source.page}` : "")}</span>
+        <CopyButton text={formatSource(n, citation, filename)} label="Copy" what={`source ${n} with its reference`} />
       </div>
       <blockquote className="source-text">{citation.text}</blockquote>
       <p className="caption">The passage as it was read from the document. Check the original page before relying on it.</p>
@@ -81,6 +100,8 @@ export function AssistantMessage({ turn, filenames }: { turn: AssistantTurn; fil
               <CitationChip key={n} n={n} citation={turn.citations[n - 1]} filename={nameOf(turn.citations[n - 1])}
                             active={open === n} onClick={() => toggle(n)} />
             ))}
+            <CopyButton label="Copy sources" what="all cited sources"
+                        text={formatSources(cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })))} />
           </div>
         )}
 
