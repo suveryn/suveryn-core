@@ -48,7 +48,7 @@ class FakeDocuments:
     def retrieve(self, question, document_ids, k):
         self.seen = {"question": question, "document_ids": document_ids, "k": k}
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
-                          source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")]
+                          source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
     def stop(self):
         pass
@@ -91,6 +91,7 @@ def test_grounded_answer_carries_citations_and_prompt_has_question_last():
     assert docs.seen == {"question": "Wat is de koopprijs?", "document_ids": [DOC], "k": 6}
     sent = captured[-1]["messages"]
     assert sent[0]["role"] == "system" and sent[-1]["content"].endswith("QUESTION: Wat is de koopprijs?")
+    assert sent[-1]["content"].startswith("EXCERPTS (the complete text of the documents")
     assert "document_ids" not in captured[-1]  # never forwarded to the model server
 
 

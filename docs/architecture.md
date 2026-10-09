@@ -42,7 +42,7 @@ PDF ──► extract.py ──► chunking.py + integrity.py ──► embed.py
 
 browser (chat-ui) ──► api-gateway ──► POST /v1/documents ──► DocumentService queue ──► one worker: rag.ingest
                                     └─► POST /v1/chat {messages, document_ids}
-                                          └─► chat.ChatService ──► rag retrieve (6 passages) ──► numbered excerpts
+                                          └─► chat.ChatService ──► rag passages (whole doc if small, else 6 best) ──► numbered excerpts
                                                               ──► engine.LlamaServerClient ──► llama-server (Qwen3.8-27B)
                                           ◄── SSE: delta… then done {answer with [n], citations[n-1]} | error
 ```
@@ -92,6 +92,8 @@ Reviewers: check changes against these.
 | bge-m3 embeddings | Multilingual (Dutch, French, English), as Belgian deeds are |
 | 384-token chunks with page provenance | Citations must point at a specific passage and page |
 | Hybrid retrieval (vector + full-text, RRF), very common query words ignored | Real deeds: right passage at #1 went from 12/19 to 15/19, top 3 from 17/19 to 19/19; a buried tenant arrears went from #9 to #1 |
+| Small documents (≤ ~48,000 characters together) are given to the model whole; larger ones as the 6 best search hits | A general question about a short bank statement got 6 near-random passages, one of them a bare reference code, and the model rightly said the answer wasn't there. The benchmark showed whole-document answers work up to ~60 pages; the limit leaves room in the shared context for history and parallel users |
+| Chunks of fewer than three words are left out of the vector ranking (still found by keyword) | Their embeddings sit close to vague questions; a 40-character reference code took a passage slot |
 | Completeness check, footer rule, text-layer recovery, page coverage | Real deeds: a closing certification line and 14 short headings and fragments were silently lost before; on a real bank statement the table model dropped 4 words of a table, now recovered from the text layer |
 | `/docs` off by default | FastAPI loads it from public CDNs (development context §1, §8) |
 | Gateway binds to 127.0.0.1 | No auth until the Keycloak slice |

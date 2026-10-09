@@ -154,13 +154,16 @@ class DocumentService:
         with self._search_lock:
             return rag.forget(uuid.UUID(document_id))
 
-    def retrieve(self, question: str, document_ids: list[str], k: int) -> list[tuple[Citation, str]]:
-        """Best passages for the question within the given documents, as (citation, file name)."""
+    def retrieve(self, question: str, document_ids: list[str], k: int) -> tuple[list[tuple[Citation, str]], bool]:
+        """Passages to answer from, as (citation, file name), and whether they are the complete documents.
+
+        Small documents are given whole; larger ones give the ``k`` best search hits (``Rag.passages``).
+        """
         rag = self._require_ready()
         ids = [uuid.UUID(d) for d in document_ids]
         with self._search_lock:
-            hits = rag.retrieve(question, k=k, document_ids=ids)
-        return [(h.citation, h.filename) for h in hits]
+            hits, complete = rag.passages(question, ids, k)
+        return [(h.citation, h.filename) for h in hits], complete
 
     def stop(self) -> None:
         """Remove queued uploads that were never processed (on shutdown)."""
