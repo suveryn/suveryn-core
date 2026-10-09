@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { citedNumbers, stripMarkers, toBlocks } from "./answer";
-import { formatSource, formatSources } from "./copy";
+import { formatSource, formatSources, safeFileName, sourceFileName, sourcesDocument } from "./copy";
 import { modelName } from "./model";
 import { createSSEParser, type SSEEvent } from "./sse";
 
@@ -63,5 +63,19 @@ describe("copying sources", () => {
     expect(formatSources([{ n: 1, citation: c("A", 1, null), filename: "x.pdf" },
                           { n: 3, citation: c("B", 4, null), filename: "y.pdf" }]))
       .toBe("[1] x.pdf, p. 1\nA\n\n[3] y.pdf, p. 4\nB");
+  });
+});
+
+describe("downloading sources", () => {
+  it("makes safe, descriptive file names", () => {
+    expect(sourceFileName(1, "Akte Zwaluw/straat 13.pdf", 3)).toBe("source-1_Akte_Zwaluw_straat_13_p3.txt");
+    expect(safeFileName("Wat is de koopprijs?")).toBe("Wat_is_de_koopprijs");
+    expect(safeFileName("???")).toBe("source");
+  });
+
+  it("puts the question and date above the sources", () => {
+    const doc = sourcesDocument("Wat is de koopprijs?", "[1] akte.pdf, p. 2\nTekst", new Date(2026, 9, 9, 15, 30));
+    expect(doc.split("\n").slice(0, 3)).toEqual(["Sources cited by Sūveryn", "Question: Wat is de koopprijs?", "Date: 9 October 2026 at 15:30"]);
+    expect(doc).toContain("[1] akte.pdf, p. 2\nTekst");
   });
 });
