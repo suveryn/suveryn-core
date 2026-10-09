@@ -40,3 +40,32 @@ export async function copyText(text: string): Promise<boolean> {
     field.remove();
   }
 }
+
+/** A file name made of safe characters only: letters, digits, dot, dash, underscore. */
+export function safeFileName(name: string): string {
+  return name.normalize("NFKD").replace(/[^\w.-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").slice(0, 80) || "source";
+}
+
+/** File name for one source, e.g. "source-1_akte_p3.txt". */
+export function sourceFileName(n: number, filename: string, page: number | null | undefined): string {
+  const base = safeFileName(filename.replace(/\.pdf$/i, ""));
+  return `source-${n}_${base}${page ? `_p${page}` : ""}.txt`;
+}
+
+/** The text of an "all sources" download: question, date, then the sources. */
+export function sourcesDocument(question: string, sources: string, when: Date): string {
+  const stamp = when.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+  return `Sources cited by Sūveryn\nQuestion: ${question}\nDate: ${stamp}\n\n${sources}\n`;
+}
+
+/** Saves text as a UTF-8 .txt file through the browser. Nothing is sent to the server. */
+export function downloadText(filename: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
