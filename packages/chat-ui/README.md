@@ -60,7 +60,7 @@ From the [brand guidelines](https://github.com/suveryn/suveryn-brand/blob/main/g
 
 ## Licences
 
-- The code is AGPL-3.0, like the rest of `suveryn-core`.
+- The code is AGPL-3.0-or-later, like the rest of `suveryn-core`.
 - `src/brand/`, `public/favicon.svg` and `public/apple-touch-icon.png` hold the Sūveryn brand mark, which is **not** AGPL; see [src/brand/README.md](src/brand/README.md) and the [trademark policy](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md).
 - The fonts (`src/fonts/`, from `suveryn-brand`) are SIL Open Font Licence 1.1.
 - Bundled third-party software (React, Lucide, the fonts) is listed with its licence texts in [public/THIRD-PARTY-NOTICES.txt](public/THIRD-PARTY-NOTICES.txt), which `npm run build` regenerates.

@@ -3,6 +3,7 @@ name = "suveryn-api-gateway"
 version = "0.1.0"
 description = "Sūveryn API gateway: HTTP surface over the engine"
 requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "suveryn-engine",
     "suveryn-chat",

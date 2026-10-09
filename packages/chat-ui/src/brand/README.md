@@ -1,6 +1,6 @@
 # Brand assets: not covered by this repository's AGPL licence
 
-`suveryn-icon.svg` (here), `../../public/favicon.svg` and `../../public/apple-touch-icon.png` are copies of the Sūveryn brand mark from the [suveryn-brand](https://github.com/suveryn/suveryn-brand) repository, made by `scripts/brand-sync.mjs` at the commit recorded in `brand-lock.json`. The mark is all rights reserved and governed by suveryn-brand's [TRADEMARK_POLICY.md](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md); it is **not** licensed under AGPL-3.0 with the rest of `suveryn-core`.
+`suveryn-icon.svg` (here), `../../public/favicon.svg` and `../../public/apple-touch-icon.png` are copies of the Sūveryn brand mark from the [suveryn-brand](https://github.com/suveryn/suveryn-brand) repository, made by `scripts/brand-sync.mjs` at the commit recorded in `brand-lock.json`. The mark is all rights reserved and governed by suveryn-brand's [TRADEMARK_POLICY.md](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md); it is **not** licensed under AGPL-3.0-or-later with the rest of `suveryn-core`.
 
 Forks and redistributions must replace these files with their own mark unless the trademark policy allows otherwise. The UI degrades gracefully: the wordmark is plain text, and these are the only brand files. (The fonts in `../fonts/` come from `suveryn-brand` too, but are SIL Open Font Licence, not restricted.)
 

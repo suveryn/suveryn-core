@@ -3,6 +3,7 @@ name = "suveryn-chat"
 version = "0.1.0"
 description = "Sūveryn chat: grounded answers over retrieved passages, with numbered citations"
 requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "suveryn-engine",
 ]
