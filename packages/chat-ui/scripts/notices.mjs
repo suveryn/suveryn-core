@@ -3,13 +3,18 @@
 // with copies; the file is served next to the UI and included in every build.
 import { readFileSync, writeFileSync } from "node:fs";
 
-const bundled = ["react", "react-dom", "scheduler", "lucide-react",
-  "@fontsource/inter", "@fontsource/space-grotesk", "@fontsource/ibm-plex-mono"];
+const bundled = ["react", "react-dom", "scheduler", "lucide-react"];
+// Fonts come from suveryn-brand (scripts/brand-sync.mjs), each with its OFL.txt.
+const fonts = [["Inter", "Inter"], ["Space Grotesk", "SpaceGrotesk"], ["IBM Plex Mono", "IBMPlexMono"]];
 const parts = ["Third-party software bundled into the Sūveryn chat interface.\n"];
 for (const name of bundled) {
   const pkg = JSON.parse(readFileSync(`node_modules/${name}/package.json`, "utf8"));
   const licence = readFileSync(`node_modules/${name}/LICENSE`, "utf8").trim();
   parts.push(`${"=".repeat(72)}\n${name} ${pkg.version} (${pkg.license})\n${"=".repeat(72)}\n${licence}\n`);
 }
+for (const [family, dir] of fonts) {
+  const licence = readFileSync(`src/fonts/${dir}/OFL.txt`, "utf8").trim();
+  parts.push(`${"=".repeat(72)}\n${family} font (OFL-1.1)\n${"=".repeat(72)}\n${licence}\n`);
+}
 writeFileSync("public/THIRD-PARTY-NOTICES.txt", parts.join("\n"));
-console.log(`THIRD-PARTY-NOTICES.txt: ${bundled.length} packages`);
+console.log(`THIRD-PARTY-NOTICES.txt: ${bundled.length} packages, ${fonts.length} fonts`);

@@ -1,0 +1,25 @@
+/*
+ * The brand fonts, bundled from src/fonts (copied from suveryn-brand by scripts/brand-sync.mjs).
+ * SIL Open Font Licence 1.1; nothing is loaded from the internet. IBM Plex Mono is the wordmark only.
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter/Inter-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("../fonts/SpaceGrotesk/SpaceGrotesk-Variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../fonts/IBMPlexMono/IBMPlexMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
