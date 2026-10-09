@@ -46,21 +46,41 @@ export function safeFileName(name: string): string {
   return name.normalize("NFKD").replace(/[^\w.-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").slice(0, 80) || "source";
 }
 
+export type Format = "txt" | "md";
+
 /** File name for one source, e.g. "source-1_akte_p3.txt". */
-export function sourceFileName(n: number, filename: string, page: number | null | undefined): string {
+export function sourceFileName(n: number, filename: string, page: number | null | undefined, format: Format = "txt"): string {
   const base = safeFileName(filename.replace(/\.pdf$/i, ""));
-  return `source-${n}_${base}${page ? `_p${page}` : ""}.txt`;
+  return `source-${n}_${base}${page ? `_p${page}` : ""}.${format}`;
 }
+
+/**
+ * One source as Markdown: the reference as a heading, the passage as a block quote. The passage
+ * text itself is not altered (no escaping), so notarial wording stays exactly as stored.
+ */
+export function formatSourceMarkdown(n: number, citation: Citation, filename: string): string {
+  const where = citation.source?.location ?? (citation.source?.page ? `p. ${citation.source.page}` : "");
+  const quote = citation.text.trim().split("\n").map((l) => `> ${l}`.trimEnd()).join("\n");
+  return `### [${n}] ${filename}${where ? ` — ${where}` : ""}\n\n${quote}`;
+}
+
+const stamp = (when: Date) => when.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
 
 /** The text of an "all sources" download: question, date, then the sources. */
 export function sourcesDocument(question: string, sources: string, when: Date): string {
-  const stamp = when.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
-  return `Sources cited by Sūveryn\nQuestion: ${question}\nDate: ${stamp}\n\n${sources}\n`;
+  return `Sources cited by Sūveryn\nQuestion: ${question}\nDate: ${stamp(when)}\n\n${sources}\n`;
 }
 
-/** Saves text as a UTF-8 .txt file through the browser. Nothing is sent to the server. */
+/** The Markdown version of an "all sources" download. */
+export function sourcesMarkdown(question: string, items: { n: number; citation: Citation; filename: string }[], when: Date): string {
+  const body = items.map((i) => formatSourceMarkdown(i.n, i.citation, i.filename)).join("\n\n");
+  return `# Sources cited by Sūveryn\n\n**Question:** ${question}  \n**Date:** ${stamp(when)}\n\n${body}\n`;
+}
+
+/** Saves text as a UTF-8 .txt or .md file through the browser. Nothing is sent to the server. */
 export function downloadText(filename: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  const type = filename.endsWith(".md") ? "text/markdown;charset=utf-8" : "text/plain;charset=utf-8";
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
