@@ -2,9 +2,9 @@
  * The document library: stored documents, uploads in progress and failed uploads. A document in
  * needs_review is usable but names the pages to check. Deleting asks for confirmation first.
  */
-import { AlertTriangle, FileText, Loader2, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, FileText, Loader2, LogOut, Plus, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { reviewPages, type Job, type StoredDocument } from "../api";
+import { reviewPages, type Job, type Me, type StoredDocument } from "../api";
 import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 
@@ -17,10 +17,13 @@ type Props = {
   onNewChat: () => void;
   onUse: (doc: StoredDocument) => void;
   onDelete: (doc: StoredDocument) => void;
+  user: Me;
+  onSignOut: () => void;
 };
 
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
-export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete }: Props) {
+export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
+                         user, onSignOut }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
   return (
     <aside className="sidebar">
@@ -74,7 +77,13 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
         )}
       </section>
 
-      <p className="caption sidebar-foot">Documents and answers stay on this server.</p>
+      <div className="sidebar-foot">
+        <div className="user">
+          <span className="user-name" title={user.username}>{user.name}</span>
+          <button type="button" className="link" onClick={onSignOut}><LogOut size={14} aria-hidden /> Sign out</button>
+        </div>
+        <p className="caption">Documents and answers stay on this server.</p>
+      </div>
     </aside>
   );
 }

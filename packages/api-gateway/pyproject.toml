@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "python-multipart>=0.0.9",  # file uploads (POST /v1/documents)
+    "pyjwt[crypto]>=2.10",  # validating Keycloak's tokens (RS256 via cryptography)
 ]
 
 [project.urls]

@@ -1,6 +1,7 @@
 /**
  * The chat application: owns all state and talks to the gateway (src/api.ts).
  *
+ * - Nothing is shown before sign-in (App → SignIn); once signed in, Chat mounts.
  * - Server state (health, stored documents, upload jobs) is polled; uploads are tracked per
  *   attachment until their job is ready.
  * - The conversation lives only in this component's memory: nothing is written to browser
@@ -9,12 +10,13 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, LogIn } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
-  type Health, type Job, type StoredDocument, type WireMessage,
+  getMe, onSignedOut, signIn, signOut, type Health, type Job, type Me, type StoredDocument, type WireMessage,
 } from "./api";
+import { Lockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
 import { AssistantMessage, UserMessage } from "./components/Messages";
 import { Sidebar } from "./components/Sidebar";
@@ -25,7 +27,41 @@ const TAGLINE = "AI for work that can't leave the premises";
 let counter = 0;
 const nextId = () => `t${++counter}`;
 
+/**
+ * Sign-in gate: shows the sign-in screen until the gateway reports a signed-in user, and again
+ * when a session ends (any API call answering 401). The chat itself only mounts when signed in.
+ */
 export default function App() {
+  const [me, setMe] = useState<Me | null | undefined>(undefined); // undefined: still checking
+  const [ended, setEnded] = useState(false);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+
+  useEffect(() => {
+    onSignedOut(() => { setEnded(true); setMe(null); });
+    getMe().then(setMe).catch((e: Error) => { setUnavailable(e.message); setMe(null); });
+  }, []);
+
+  if (me === undefined) return null;
+  if (me === null) return <SignIn ended={ended} unavailable={unavailable} />;
+  return <Chat me={me} />;
+}
+
+function SignIn({ ended, unavailable }: { ended: boolean; unavailable: string | null }) {
+  return (
+    <main className="signin">
+      <Lockup />
+      <h1>{TAGLINE}</h1>
+      {ended && <p className="notice"><AlertCircle size={14} aria-hidden />
+        Your session has ended, so the conversation was closed. Sign in to continue.</p>}
+      {unavailable
+        ? <p className="notice notice-error"><AlertCircle size={14} aria-hidden /> Sign-in isn't available right now: {unavailable}</p>
+        : <button type="button" className="button-primary" onClick={signIn}><LogIn size={16} aria-hidden /> Sign in</button>}
+      <p className="caption">Your office's own sign-in. Documents and answers stay on this server.</p>
+    </main>
+  );
+}
+
+function Chat({ me }: { me: Me }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -172,7 +208,8 @@ export default function App() {
                  health.documents.status === "starting" ? "Document handling is starting…" :
                  health.documents.status === "unavailable" ? "Document handling isn't available on this server." :
                  health.documents.status === "failed" ? "Document handling failed to start." : null}
-               inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove} />
+               inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove}
+               user={me} onSignOut={signOut} />
 
       <main className="main">
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
