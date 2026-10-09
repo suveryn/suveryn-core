@@ -1,6 +1,6 @@
-import { AlertCircle, Check, ChevronDown, Copy, Download } from "lucide-react";
+import { AlertCircle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import type { Citation } from "../api";
+import type { Calculation, Citation } from "../api";
 import { citedNumbers, toBlocks } from "../lib/answer";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
@@ -134,6 +134,8 @@ export function AssistantMessage({ turn, question, filenames }: {
         })}
         {turn.status === "streaming" && <span className="caret" aria-hidden />}
 
+        {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
+
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])} />
         )}
@@ -161,5 +163,30 @@ export function AssistantMessage({ turn, question, filenames }: {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Says how a calculated figure was made: by the server, exactly, from figures the model copied
+ * from the sources (never the model's own arithmetic). Flags figures that aren't in the sources.
+ */
+function CalculationNote({ calc }: { calc: Calculation }) {
+  if (calc.result === null) {
+    return (
+      <p className="notice notice-error"><AlertCircle size={14} aria-hidden />
+        Couldn't calculate {calc.expression}: {calc.error}.</p>
+    );
+  }
+  const missing = calc.figures_not_in_sources;
+  return (
+    <p className={`notice${missing.length ? " notice-error" : ""}`}>
+      {missing.length ? <AlertCircle size={14} aria-hidden /> : <Calculator size={14} aria-hidden />}
+      <span>
+        Calculated by Sūveryn, not read from the documents: {calc.expression} = <strong>{calc.result}</strong>.
+        {missing.length > 0
+          ? ` Check ${missing.join(", ")}: ${missing.length === 1 ? "it doesn't" : "they don't"} appear in the sources.`
+          : " Every figure comes from the sources."}
+      </span>
+    </p>
   );
 }
