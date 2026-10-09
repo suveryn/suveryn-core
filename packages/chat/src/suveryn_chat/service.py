@@ -1,0 +1,110 @@
+"""The chat surface: plain answers, or answers grounded in the user's documents.
+
+Conversation state is kept by the client for now (it sends the earlier turns with each request);
+nothing about a conversation is stored server-side.
+"""
+
+import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
+
+from suveryn_engine import ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
+
+from .calc import CalcRewriter, rewrite
+from .grounding import cited_numbers, grounded_messages
+
+# Passages to answer a question from, within the given documents:
+# (question, document_ids, k) -> ([(citation, filename), ...], complete). ``complete`` is True when
+# the passages are the documents' whole text in reading order (small documents), False when they
+# are the ``k`` best search hits, best first.
+Retriever = Callable[[str, list[str], int], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
+
+PASSAGES = 6  # search hits for larger documents: the right passage was in the top 3 for all 19 real-deed questions
+
+
+@dataclass
+class Delta:
+    """A piece of answer text as it is generated."""
+
+    text: str
+
+
+@dataclass
+class Done:
+    """The complete answer, with its citations."""
+
+    response: ChatResponse
+
+
+class ChatService:
+    """Answers chat requests; grounds them in documents when ``document_ids`` is set.
+
+    Without ``document_ids`` the answer is a plain model answer and its ``citations`` list is
+    empty (unsourced). With them, the documents' passages (all of them for small documents, else
+    the best search hits) are numbered, the model is told to cite them as [n], and ``citations``
+    holds the passages so that [n] is ``citations[n-1]``.
+    """
+
+    def __init__(self, llm: LlamaServerClient, retriever: Retriever | None = None):
+        self.llm = llm
+        self.retriever = retriever
+
+    async def _prepare(self, req: ChatRequest) -> tuple[ChatRequest, list[Citation]]:
+        if not req.document_ids:
+            return req, []
+        if self.retriever is None:
+            raise DocumentsUnavailable("document search is not available on this server")
+        *history, last = req.messages
+        hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES)
+        citations = [c for c, _ in hits]
+        messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
+        return req.model_copy(update={"messages": messages}), citations
+
+    async def answer(self, req: ChatRequest) -> ChatResponse:
+        """Whole answer at once."""
+        prepared, citations = await self._prepare(req)
+        response = await self.llm.complete(prepared)
+        if not req.document_ids:
+            return response
+        # Replacing calculations leaves the [n] markers as they are, so the cited passages are known up front.
+        text, calculations = rewrite(response.answer, _source(citations), _cited_sources(response.answer, citations))
+        return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
+
+    async def answer_stream(self, req: ChatRequest) -> AsyncIterator[Delta | Done]:
+        """Answer text as it is generated, then the complete answer with citations.
+
+        Raises ``BackendError`` (possibly after some deltas) or ``DocumentsUnavailable``.
+        """
+        prepared, citations = await self._prepare(req)
+        # Grounded answers: calculation markers are replaced as they stream (see ``calc``).
+        calc = CalcRewriter(_source(citations)) if req.document_ids else None
+        parts: list[str] = []
+        finish_reason, usage = None, Usage()
+        async for chunk in self.llm.stream(prepared):
+            text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
+            if text:
+                parts.append(text)
+                yield Delta(text)
+            finish_reason = chunk.finish_reason or finish_reason
+            usage = chunk.usage or usage
+        if calc and (rest := calc.flush()):
+            parts.append(rest)
+            yield Delta(rest)
+        answer = "".join(parts)
+        calculations = calc.check_figures(_cited_sources(answer, citations)) if calc else []
+        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(), answer=answer,
+                                citations=citations, calculations=calculations, finish_reason=finish_reason, usage=usage))
+
+
+def _source(citations: list[Citation]) -> str:
+    """All passages' text (sets the decimal style of whole-number calculation results)."""
+    return "\n".join(c.text for c in citations)
+
+
+def _cited_sources(answer: str, citations: list[Citation]) -> list[str]:
+    """The text of the passages the answer cites, which calculation figures are checked against."""
+    return [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
+
+
+class DocumentsUnavailable(RuntimeError):
+    """A grounded answer was requested but document search isn't available on this server."""
