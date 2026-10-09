@@ -17,7 +17,8 @@ ssh -N -L 8000:127.0.0.1:8000 root@<gpu-host> -p <ssh-port>
 
 Other commands:
 
-- `npm test`: unit tests (SSE parsing, answer rendering, model names)
+- `npm test`: unit tests (SSE parsing, answer rendering, copy and download, and that the brand files match `suveryn-brand`)
+- `npm run brand:sync`: re-copy the brand files from `suveryn-brand` (see below)
 - `npm run typecheck`
 - `npm run build`: static files in `dist/`, plus `THIRD-PARTY-NOTICES.txt`
 
@@ -33,9 +34,20 @@ Other commands:
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.
 
+## Brand elements
+
+`suveryn-brand` is the single source of the mark, favicon, fonts and design tokens. `scripts/brand-sync.mjs` copies them in at a pinned commit and generates `src/styles/tokens.css` from `tokens/tokens.json`:
+
+```bash
+npm run brand:sync                 # re-sync at the commit in src/brand/brand-lock.json
+npm run brand:sync -- <commit>     # move to a newer brand commit
+```
+
+The copies are committed, so building never needs the internet. `src/brand/brand-lock.json` records the commit and a hash of each file, and `npm test` fails if one is edited by hand. Never edit `tokens.css` or the brand files directly; change `suveryn-brand` and re-sync.
+
 ## Design System rules this UI keeps
 
-- Light theme tokens only (`src/styles/tokens.css`, copied from the Design System).
+- Light theme tokens only (`src/styles/tokens.css`, generated from `suveryn-brand`).
 - Only the user's turn has a bubble. The assistant's reply is marked by the teal brand-mark outline.
 - Attachment chips (outlined, on the user's turn) and citation chips (teal, on the reply) are different components.
 - Text and icons on the accent colour use `--on-accent`, never white.
@@ -47,4 +59,5 @@ If the model is starting or unreachable, the composer says so and sending is dis
 
 - The code is AGPL-3.0, like the rest of `suveryn-core`.
 - `src/brand/` and `public/favicon.svg` hold the Sūveryn brand mark, which is **not** AGPL; see `src/brand/README.md`.
+- The fonts (`src/fonts/`, from `suveryn-brand`) are SIL Open Font Licence 1.1.
 - Bundled third-party software (React, Lucide, the fonts) is listed with its licence texts in `public/THIRD-PARTY-NOTICES.txt`, which `npm run build` regenerates.

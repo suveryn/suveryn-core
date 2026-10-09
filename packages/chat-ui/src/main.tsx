@@ -1,10 +1,5 @@
-// Fonts are bundled from local packages (SIL Open Font Licence); nothing is loaded from the internet.
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
-import "@fontsource/space-grotesk/600.css";
-import "@fontsource/ibm-plex-mono/500.css"; // the wordmark only
+// Fonts are bundled from src/fonts (SIL Open Font Licence); nothing is loaded from the internet.
+import "./styles/fonts.css";
 import "./styles/tokens.css";
 import "./styles/app.css";
 
