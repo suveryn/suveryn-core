@@ -57,12 +57,25 @@ export async function listDocuments(): Promise<{ documents: StoredDocument[]; jo
   return r.json();
 }
 
-export async function uploadDocument(file: File): Promise<Job> {
-  const form = new FormData();
-  form.append("file", file, file.name);
-  const r = await fetch("/v1/documents", { method: "POST", body: form });
-  if (!r.ok) throw new Error(await errorText(r));
-  return r.json();
+/**
+ * Uploads a PDF and resolves with its job. Uses XMLHttpRequest rather than fetch because only
+ * XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
+ */
+export function uploadDocument(file: File, onProgress?: (fraction: number) => void): Promise<Job> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/v1/documents");
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job);
+      else reject(new Error(typeof xhr.response?.detail === "string" ? xhr.response.detail : `HTTP ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error("the upload was interrupted"));
+    xhr.send(form);
+  });
 }
 
 export async function getJob(id: string): Promise<Job> {
