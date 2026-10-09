@@ -14,9 +14,11 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 | Package | Status |
 |---|---|
 | `packages/engine` | Model backend client (llama-server), answer/citation schema |
-| `packages/api-gateway` | FastAPI app: `POST /v1/chat`, `GET /health` |
+| `packages/chat` | Grounded answers with numbered citations (`[n]` → `citations[n-1]`) |
+| `packages/api-gateway` | FastAPI app: `POST /v1/chat`, `/v1/documents`, `GET /health` |
 | `packages/rag` | Document ingestion (`ocr_fast` extraction, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations. See [packages/rag/README.md](packages/rag/README.md) |
-| `packages/chat`, `mcp-host`, `connectors`, `playbooks` | Placeholders, built in later slices |
+| `packages/chat-ui` | The chat interface (React, TypeScript, Vite). See [packages/chat-ui/README.md](packages/chat-ui/README.md) |
+| `packages/mcp-host`, `connectors`, `playbooks` | Placeholders, built in later slices |
 
 ## Run locally
 

@@ -126,6 +126,15 @@ class Store:
                      for c, e in zip(chunks, embeddings, strict=True)])
         return doc_id
 
+    def list_documents(self) -> list[dict]:
+        """All stored documents, newest first: id, file name, pages, OCR'd pages, status, warnings, chunks, created."""
+        rows = self._conn.execute(
+            "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
+            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id)"
+            "  FROM documents d ORDER BY d.created_at DESC").fetchall()
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks")
+        return [dict(zip(keys, r)) for r in rows]
+
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
         """(status, warnings) of a stored document, or None if it doesn't exist."""
         row = self._conn.execute("SELECT status, warnings FROM documents WHERE id = %s", (document_id,)).fetchone()
@@ -141,12 +150,12 @@ class Store:
         """
         return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
 
-    def _keyword_query(self, question: str, document_id: uuid.UUID | None) -> str | None:
+    def _keyword_query(self, question: str, docs: list[uuid.UUID] | None) -> str | None:
         """OR-query of the question's specific terms, leaving out terms that occur in many chunks."""
         terms = query_terms(question)
         if not terms:
             return None
-        scope, params = ("WHERE document_id = %s", [document_id]) if document_id else ("", [])
+        scope, params = ("WHERE document_id = ANY(%s)", [docs]) if docs else ("", [])
         counts = ", ".join("count(*) FILTER (WHERE tsv @@ to_tsquery('simple', %s))" for _ in terms)
         row = self._conn.execute(f"SELECT count(*), {counts} FROM chunks {scope}", [*terms, *params]).fetchone()
         total, shares = row[0], row[1:]
@@ -154,11 +163,12 @@ class Store:
         return " | ".join(kept) or None
 
     def search(self, query: np.ndarray, k: int, document_id: uuid.UUID | None = None,
-               question: str | None = None) -> list[StoredChunk]:
+               question: str | None = None, document_ids: list[uuid.UUID] | None = None) -> list[StoredChunk]:
         """Hybrid search: up to ``CANDIDATES`` hits from each ranking, fused, best ``k`` returned.
 
         A chunk's score is 1/(60 + rank) summed over the rankings it appears in, so a chunk
         found by both rises to the top. Without ``question`` this is plain vector search.
+        ``document_id`` (one) or ``document_ids`` (several) restrict the search; neither: all documents.
 
         Review notes:
         - The SQL is assembled with f-strings, but only from constants and fixed fragments;
@@ -169,8 +179,9 @@ class Store:
           than ``CANDIDATES`` vector hits. The keyword ranking is exact. Revisit (e.g. raise
           ``hnsw.ef_search`` or use iterative scans) when databases grow.
         """
-        scope = "AND c.document_id = %(doc)s" if document_id else ""
-        tsq = self._keyword_query(question, document_id) if question else None
+        docs = [document_id] if document_id else (list(document_ids) if document_ids else None)
+        scope = "AND c.document_id = ANY(%(docs)s)" if docs else ""
+        tsq = self._keyword_query(question, docs) if question else None
         keyword_cte = (f"""kw AS (
               SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
                 FROM chunks c, to_tsquery('simple', %(tsq)s) q
@@ -192,6 +203,6 @@ class Store:
               LEFT JOIN kw ON kw.id = c.id
              WHERE vec.id IS NOT NULL OR kw.id IS NOT NULL
              ORDER BY score DESC, similarity DESC
-             LIMIT %(k)s""", {"q": query, "doc": document_id, "tsq": tsq, "k": k}).fetchall()
+             LIMIT %(k)s""", {"q": query, "docs": docs, "tsq": tsq, "k": k}).fetchall()
         return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
                 for r in rows]
