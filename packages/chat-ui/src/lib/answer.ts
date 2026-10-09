@@ -53,7 +53,7 @@ export function toBlocks(text: string, available: number): Block[] {
     const item = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/);
     const heading = line.match(/^#{1,6}\s+(.*)$/);
     if (item) blocks.push({ kind: "li", segments: inline(item[1], available) });
-    else blocks.push({ kind: "p", segments: inline(heading ? `**${heading[1]}**` : line, available) });
+    else blocks.push({ kind: "p", segments: inline(heading ? `**${heading[1].replaceAll("**", "")}**` : line, available) });
   }
   return blocks;
 }

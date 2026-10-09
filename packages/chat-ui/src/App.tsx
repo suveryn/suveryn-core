@@ -128,7 +128,7 @@ export default function App() {
         streamed += delta;
         update({ text: streamed });
       }, abort.current.signal);
-      update({ text: done.answer, citations: done.citations, status: "done", model: done.model });
+      update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [], status: "done", model: done.model });
     } catch (e) {
       // Gateway contract: after an error, discard any partial answer.
       update({ text: "", status: "error", error: (e as Error).message });

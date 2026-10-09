@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from suveryn_engine import ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
 
+from .calc import CalcRewriter, rewrite
 from .grounding import grounded_messages
 
 # Passages to answer a question from, within the given documents:
@@ -63,7 +64,10 @@ class ChatService:
         """Whole answer at once."""
         prepared, citations = await self._prepare(req)
         response = await self.llm.complete(prepared)
-        return response.model_copy(update={"citations": citations})
+        if not req.document_ids:
+            return response
+        text, calculations = rewrite(response.answer, _source(citations))
+        return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
 
     async def answer_stream(self, req: ChatRequest) -> AsyncIterator[Delta | Done]:
         """Answer text as it is generated, then the complete answer with citations.
@@ -71,16 +75,28 @@ class ChatService:
         Raises ``BackendError`` (possibly after some deltas) or ``DocumentsUnavailable``.
         """
         prepared, citations = await self._prepare(req)
+        # Grounded answers: calculation markers are replaced as they stream (see ``calc``).
+        calc = CalcRewriter(_source(citations)) if req.document_ids else None
         parts: list[str] = []
         finish_reason, usage = None, Usage()
         async for chunk in self.llm.stream(prepared):
-            if chunk.text:
-                parts.append(chunk.text)
-                yield Delta(chunk.text)
+            text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
+            if text:
+                parts.append(text)
+                yield Delta(text)
             finish_reason = chunk.finish_reason or finish_reason
             usage = chunk.usage or usage
+        if calc and (rest := calc.flush()):
+            parts.append(rest)
+            yield Delta(rest)
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(),
-                                answer="".join(parts), citations=citations, finish_reason=finish_reason, usage=usage))
+                                answer="".join(parts), citations=citations, calculations=calc.calculations if calc else [],
+                                finish_reason=finish_reason, usage=usage))
+
+
+def _source(citations: list[Citation]) -> str:
+    """The passages' text, which calculation figures are checked against."""
+    return "\n".join(c.text for c in citations)
 
 
 class DocumentsUnavailable(RuntimeError):

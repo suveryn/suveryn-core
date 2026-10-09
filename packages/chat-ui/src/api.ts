@@ -6,11 +6,19 @@ import { createSSEParser } from "./lib/sse";
 
 export type SourceRef = { document_id: string; page: number | null; location: string | null };
 export type Citation = { text: string; source: SourceRef | null };
+/** A calculation the server computed exactly; the model only chose the figures. */
+export type Calculation = {
+  expression: string;
+  result: string | null;              // null: it couldn't be computed (see error)
+  figures_not_in_sources: string[];   // figures to check: they don't appear in the passages given
+  error: string | null;
+};
 export type ChatResponse = {
   id: string;
   model: string;
   answer: string;
   citations: Citation[];
+  calculations: Calculation[];
   finish_reason: string | null;
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };

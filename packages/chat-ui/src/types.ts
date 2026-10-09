@@ -1,4 +1,4 @@
-import type { Citation, JobStatus } from "./api";
+import type { Calculation, Citation, JobStatus } from "./api";
 
 /** A file attached to the user's turn. Lives on the user's message, never on the reply. */
 export type Attachment = {
@@ -19,6 +19,7 @@ export type AssistantTurn = {
   role: "assistant";
   text: string;
   citations: Citation[];
+  calculations?: Calculation[];
   status: "streaming" | "done" | "error";
   grounded: boolean; // the request included documents
   error?: string;
