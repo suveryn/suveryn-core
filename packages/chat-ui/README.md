@@ -29,7 +29,8 @@ Other commands:
 3. **Ask.** The question appears in the user's bubble, with the attachment chips above it. The answer streams in below, with no bubble, marked by the teal brand mark.
 4. **Check the source.** Every `[n]` in the answer becomes a small teal marker. Clicking a marker, or a chip under *Sources*, opens the passage it came from: file name, page, section heading and the stored text. **Copy** in that panel copies the passage with its reference (`[1] file.pdf, p. 3 · Artikel 2` and the text below it); **Copy sources** copies every cited passage of the answer, numbered like the markers. **Download** next to each offers **Text (.txt)** or **Markdown (.md)** (one source: `source-1_akte_p3.txt`/`.md`; all sources: `sources_<question>.txt`/`.md`, headed by the question and the date). In Markdown the reference is a heading and the passage a block quote; the passage text is never altered. Both happen in the browser; nothing is sent to the server. The answer also shows a notice when it has no citations:
    - *No source is cited…* when documents were used but nothing was cited;
-   - *Not based on your documents…* when no documents were attached.
+   - *Not based on your documents…* when no documents were attached;
+   - *Calculated by Sūveryn, not read from the documents…* under an answer with a total or other calculation, which the server computed exactly from figures in the sources (with a warning if a figure isn't in them).
 5. **Follow up.** Later questions in the same conversation automatically use every document attached so far. *New chat* starts over. Deleting a document from the sidebar asks for confirmation first.
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.

@@ -63,6 +63,20 @@ class Usage(BaseModel):
     completion_tokens: int = 0
 
 
+class Calculation(BaseModel):
+    """A calculation in a grounded answer, computed exactly by the server (``suveryn_chat.calc``).
+
+    The model only chooses the figures; the result is never the model's own arithmetic.
+    ``figures_not_in_sources`` lists figures that don't appear in the passages given, which a
+    reader should check. ``result`` is None (and ``error`` says why) if it couldn't be computed.
+    """
+
+    expression: str
+    result: str | None
+    figures_not_in_sources: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
 class ChatResponse(BaseModel):
     """A complete answer. Returned as JSON, or as the final ``done`` event of a stream.
 
@@ -78,6 +92,7 @@ class ChatResponse(BaseModel):
     model: str
     answer: str
     citations: list[Citation] = Field(default_factory=list)
+    calculations: list[Calculation] = Field(default_factory=list)  # in the order they appear in ``answer``
     finish_reason: str | None = None  # "stop"; "length" means the answer was cut off at max_tokens
     usage: Usage = Field(default_factory=Usage)
 

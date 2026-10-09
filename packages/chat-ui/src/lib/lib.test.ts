@@ -32,6 +32,11 @@ describe("answer rendering", () => {
     ]);
   });
 
+  it("renders a heading the model already made bold without stray asterisks", () => {
+    const [p] = toBlocks("### 📝 **Writing & Editing**", 0);
+    expect(p.segments).toEqual([{ kind: "bold", text: "📝 Writing & Editing" }]);
+  });
+
   it("renders list items, bold text and headings without HTML", () => {
     const blocks = toBlocks("## Partijen\n- **Verkoper**: A [2]\n- Koper <b>x</b>", 2);
     expect(blocks.map((b) => b.kind)).toEqual(["p", "li", "li"]);
