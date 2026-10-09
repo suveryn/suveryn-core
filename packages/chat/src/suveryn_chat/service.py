@@ -12,11 +12,13 @@ from suveryn_engine import ChatRequest, ChatResponse, Citation, LlamaServerClien
 
 from .grounding import grounded_messages
 
-# Retrieves passages for a question within the given documents:
-# (question, document_ids, k) -> [(citation, filename), ...], best first.
-Retriever = Callable[[str, list[str], int], Awaitable[list[tuple[Citation, str]]]]
+# Passages to answer a question from, within the given documents:
+# (question, document_ids, k) -> ([(citation, filename), ...], complete). ``complete`` is True when
+# the passages are the documents' whole text in reading order (small documents), False when they
+# are the ``k`` best search hits, best first.
+Retriever = Callable[[str, list[str], int], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
 
-PASSAGES = 6  # the right passage was in the top 3 for all 19 real-deed questions; 6 leaves margin
+PASSAGES = 6  # search hits for larger documents: the right passage was in the top 3 for all 19 real-deed questions
 
 
 @dataclass
@@ -37,8 +39,9 @@ class ChatService:
     """Answers chat requests; grounds them in documents when ``document_ids`` is set.
 
     Without ``document_ids`` the answer is a plain model answer and its ``citations`` list is
-    empty (unsourced). With them, the best passages are retrieved and numbered, the model is told
-    to cite them as [n], and ``citations`` holds the passages so that [n] is ``citations[n-1]``.
+    empty (unsourced). With them, the documents' passages (all of them for small documents, else
+    the best search hits) are numbered, the model is told to cite them as [n], and ``citations``
+    holds the passages so that [n] is ``citations[n-1]``.
     """
 
     def __init__(self, llm: LlamaServerClient, retriever: Retriever | None = None):
@@ -51,9 +54,9 @@ class ChatService:
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits = await self.retriever(last.content, req.document_ids, PASSAGES)
+        hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES)
         citations = [c for c, _ in hits]
-        messages = grounded_messages(history, last.content, citations, [name for _, name in hits])
+        messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations
 
     async def answer(self, req: ChatRequest) -> ChatResponse:
