@@ -1,8 +1,11 @@
 """FastAPI application: chat (plain or grounded in documents, JSON or streamed), documents, health.
 
-Scope: no auth yet. Because there is no auth, the gateway binds to 127.0.0.1 by default (see
-``main.py``); exposing it on a network is only safe once Keycloak integration (provisioned by
-https://github.com/suveryn/suveryn-appliance) exists.
+Sign-in: every ``/v1/...`` request needs a signed-in user (see ``auth.py``): a session cookie set
+by the OIDC login with the local Keycloak, or a bearer access token. Requests that change something
+(POST, DELETE, ...) with a session cookie must also come from the UI's own origin (``Origin``
+header), which blocks cross-site request forgery on top of the SameSite cookie. ``/health``,
+``/auth/...`` and ``/openapi.json`` are public. Without sign-in configured the API answers 503;
+``SUVERYN_AUTH=off`` turns sign-in off for development on a loopback address only.
 
 Documents: available when ``suveryn-rag`` is installed (``uv sync --all-packages``, GPU machine)
 and ``SUVERYN_DATABASE_URL`` is set; otherwise the document endpoints answer 503 and chat works
@@ -25,7 +28,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import (
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from pydantic import BaseModel
 from suveryn_chat import ChatService, Delta, DocumentsUnavailable, Done
 from suveryn_engine import (
@@ -36,6 +44,15 @@ from suveryn_engine import (
     LLMSettings,
     StreamDelta,
     StreamError,
+)
+
+from .auth import (
+    LOGIN_COOKIE,
+    LOGIN_TTL_S,
+    Authenticator,
+    AuthError,
+    AuthSettings,
+    AuthUnavailable,
 )
 
 try:  # document handling is optional (suveryn-rag is installed on the GPU machine only)
@@ -70,12 +87,30 @@ class DocumentsStatus(BaseModel):
     detail: str | None = None
 
 
+class AuthStatus(BaseModel):
+    """State of sign-in: "ready", "unavailable" (Keycloak unreachable), "not_configured" or "disabled"."""
+
+    status: str
+    detail: str | None = None
+
+
 class HealthResponse(BaseModel):
     """Body of ``GET /health``."""
 
     status: str  # "ok" or "degraded" (model server not ready)
     backend: BackendStatus
     documents: DocumentsStatus
+    auth: AuthStatus
+
+
+class Me(BaseModel):
+    """The signed-in user, for the UI."""
+
+    username: str
+    name: str
+
+
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def _sse(event: str, payload: BaseModel) -> str:
@@ -96,12 +131,15 @@ def _default_documents():
     return service
 
 
-def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True) -> FastAPI:
+def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
+               auth: Authenticator | None = None) -> FastAPI:
     """Build the FastAPI app.
 
-    ``client`` and ``documents`` let tests inject a fake model server and a fake document
-    service; in production both are created from environment variables when the app starts.
+    ``client``, ``documents`` and ``auth`` let tests inject a fake model server, a fake document
+    service and a sign-in with a fake Keycloak; in production all are created from environment
+    variables when the app starts.
     """
+    authenticator = auth or Authenticator(AuthSettings.from_env())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -126,6 +164,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         app.state.chat = ChatService(app.state.llm, retriever)
         yield
         await app.state.llm.aclose()
+        await authenticator.aclose()
         if docs is not None:
             docs.stop()
 
@@ -135,6 +174,90 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     show_docs = os.environ.get("SUVERYN_API_DOCS") == "1"
     app = FastAPI(title="Sūveryn API", version="0.2.0", lifespan=lifespan,
                   docs_url="/docs" if show_docs else None, redoc_url=None)
+
+    app.state.auth = authenticator
+    settings = authenticator.settings
+
+    @app.middleware("http")
+    async def require_sign_in(request: Request, call_next):
+        """Gate ``/v1/...``: a valid session (plus same-origin for changes) or bearer token, else 401/403/503."""
+        if not request.url.path.startswith("/v1/") or not authenticator.enabled:
+            request.state.user = None
+            return await call_next(request)
+        header = request.headers.get("authorization", "")
+        try:
+            if header.lower().startswith("bearer "):
+                user = await authenticator.bearer_user(header[7:].strip())
+            else:
+                user = await authenticator.session_user(request.cookies.get(settings.session_cookie))
+                if user is not None and request.method in UNSAFE_METHODS:
+                    origin = request.headers.get("origin")
+                    if origin != settings.public_origin:
+                        return JSONResponse({"detail": "Request from another site refused."}, status_code=403)
+        except AuthUnavailable as e:
+            return JSONResponse({"detail": f"Sign-in is not available: {e}."}, status_code=503)
+        except AuthError:
+            user = None
+        if user is None:
+            return JSONResponse({"detail": "Sign in to continue."}, status_code=401,
+                                headers={"WWW-Authenticate": 'Bearer realm="suveryn"'})
+        request.state.user = user
+        return await call_next(request)
+
+    def _cookie(response: Response, name: str, value: str, max_age: int | None) -> None:
+        response.set_cookie(name, value, max_age=max_age, path="/", httponly=True, samesite="lax",
+                            secure=settings.secure_cookies)
+
+    @app.get("/auth/login", include_in_schema=False)
+    async def login(return_to: str = "/"):
+        """Start signing in: redirect to the Keycloak login page."""
+        try:
+            url, state = await authenticator.start_login(return_to)
+        except AuthUnavailable as e:
+            raise HTTPException(503, f"Sign-in is not available: {e}.") from e
+        response = RedirectResponse(url, status_code=303)
+        _cookie(response, LOGIN_COOKIE, state, LOGIN_TTL_S)
+        return response
+
+    @app.get("/auth/callback", include_in_schema=False)
+    async def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
+        """Keycloak sends the browser back here with a code; exchange it and start a session."""
+        if error or not code or not state:
+            raise HTTPException(400, "Sign-in was cancelled or failed. Close this page and sign in again.")
+        try:
+            session, return_to = await authenticator.finish_login(code, state, request.cookies.get(LOGIN_COOKIE))
+        except AuthError as e:
+            raise HTTPException(400, f"Sign-in failed: {e}.") from e
+        except AuthUnavailable as e:
+            raise HTTPException(503, f"Sign-in is not available: {e}.") from e
+        response = RedirectResponse(return_to, status_code=303)
+        response.delete_cookie(LOGIN_COOKIE, path="/")
+        _cookie(response, settings.session_cookie, session.id, None)  # a browser-session cookie
+        return response
+
+    @app.get("/auth/me", response_model=Me, responses={401: {"description": "Not signed in"}})
+    async def me(request: Request):
+        """The signed-in user (username and display name), or 401."""
+        if not authenticator.enabled:
+            return Me(username="dev", name="Development (sign-in off)")
+        try:
+            user = await authenticator.session_user(request.cookies.get(settings.session_cookie))
+        except AuthUnavailable as e:
+            raise HTTPException(503, f"Sign-in is not available: {e}.") from e
+        if user is None:
+            raise HTTPException(401, "Sign in to continue.")
+        return Me(username=user.username, name=user.name)
+
+    @app.post("/auth/logout")
+    async def logout(request: Request):
+        """End the session; ``logout_url`` ends the Keycloak session too (the UI navigates there)."""
+        origin = request.headers.get("origin")
+        if authenticator.enabled and origin is not None and origin != settings.public_origin:
+            raise HTTPException(403, "Request from another site refused.")
+        url = await authenticator.logout(request.cookies.get(settings.session_cookie))
+        response = JSONResponse({"logout_url": url})
+        response.delete_cookie(settings.session_cookie, path="/")
+        return response
 
     @app.exception_handler(SearchUnavailable)
     async def search_unavailable(request: Request, exc: SearchUnavailable):
@@ -177,6 +300,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                   model=h.model, detail=h.detail),
             documents=DocumentsStatus(status="unavailable" if docs is None else docs.state,
                                       detail=None if docs is None else docs.error),
+            auth=AuthStatus(**dict(zip(("status", "detail"), await authenticator.status(), strict=True))),
         )
         return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 

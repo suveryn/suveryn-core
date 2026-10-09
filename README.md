@@ -47,7 +47,8 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
    ```bash
    uv run pytest
    ```
-5. Run the chat UI (see [packages/chat-ui](packages/chat-ui/README.md)):
+5. For sign-in, run a development Keycloak as described in [packages/api-gateway/keycloak](packages/api-gateway/keycloak/README.md), or set `SUVERYN_AUTH=off` to work without it on your own machine.
+6. Run the chat UI (see [packages/chat-ui](packages/chat-ui/README.md)):
    ```bash
    cd packages/chat-ui && npm ci && npm run dev
    ```
@@ -61,6 +62,8 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 ```
 
 `documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code.
+
+Every `/v1/...` request needs a signed-in user: the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
 
 `POST /v1/chat` takes `{"messages": [{"role": "user", "content": "..."}], "document_ids": ["<uuid>"], "stream": false, "max_tokens": 1024, "temperature": 0}`. The last message must be the user's question. `document_ids` is optional: without it the answer is not grounded in any document.
 
