@@ -62,3 +62,10 @@ def test_plan_ocr_scans_thin_and_mixed_pages():
                 PageProfile(chars=1900, image_share=0.0)]    # pure text: keep
     assert plan_ocr(profiles) == [2, 3, 4]
     assert [p.is_mixed for p in profiles] == [False, False, False, True, False]
+
+
+def test_job_status_maps_document_status():
+    from suveryn_rag.service import job_status
+
+    assert job_status("ok") == "ready"
+    assert job_status("needs_review") == "needs_review"

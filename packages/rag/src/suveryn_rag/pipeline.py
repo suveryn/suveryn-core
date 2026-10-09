@@ -62,9 +62,11 @@ class Rag:
     Not thread-safe for ingestion (see ``Extractor``).
     """
 
-    def __init__(self, settings: RagSettings | None = None, *, load_extractor: bool = True):
+    def __init__(self, settings: RagSettings | None = None, *, load_extractor: bool = True,
+                 embedder: Embedder | None = None):
         self.settings = settings or RagSettings.from_env()
-        self.embedder = Embedder(self.settings.embedding_model, self.settings.device)
+        # Pass an existing embedder to share one model between instances (it is thread-safe).
+        self.embedder = embedder or Embedder(self.settings.embedding_model, self.settings.device)
         self.store = Store(self.settings.database_url, self.embedder.dim)
         self._extractor = Extractor(self.settings) if load_extractor else None
         self._chunker = Chunker(self.settings.embedding_model, self.settings.chunk_max_tokens) if load_extractor else None
@@ -73,20 +75,22 @@ class Rag:
         """Close the database connection."""
         self.store.close()
 
-    def ingest(self, pdf: Path) -> IngestResult:
+    def ingest(self, pdf: Path, filename: str | None = None) -> IngestResult:
         """Extract, chunk, embed and store one PDF; return its id, status and warnings.
 
         Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
         again. The document is stored in one transaction, so a failure leaves nothing behind.
         A ``needs_review`` status means text may be missing (see ``integrity``); the document is
-        still stored and searchable.
+        still stored and searchable. ``filename`` is the name to show for the document; it defaults
+        to the file's own name (uploads are stored under a random name).
         """
         pdf = Path(pdf)
+        name = filename or pdf.name
         digest = sha256_of(pdf)
         existing = self.store.find_by_sha256(digest)
         if existing:
             status, warnings = self.store.document_status(existing)
-            return IngestResult(existing, pdf.name, 0, 0, 0, True, {}, status, warnings)
+            return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
         ex = self._extractor.extract(pdf)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
@@ -96,16 +100,17 @@ class Rag:
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()
-        doc_id = self.store.add_document(pdf.name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
+        doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
         ex.timings["store"] = time.perf_counter() - t
         status, warnings = self.store.document_status(doc_id)
-        return IngestResult(doc_id, pdf.name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,
+        return IngestResult(doc_id, name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,
                             ex.mixed_pages)
 
-    def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None) -> list[RetrievedChunk]:
+    def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None,
+                 document_ids: list[uuid.UUID] | None = None) -> list[RetrievedChunk]:
         """Return the ``k`` passages most relevant to ``question``, best first.
 
-        ``document_id`` restricts the search to one document. ``source.page`` is the first page
+        ``document_id`` (one) or ``document_ids`` (several) restrict the search. ``source.page`` is the first page
         of the passage; ``source.location`` gives the full page range and section heading.
         Callers that generate answers should pass several hits to the model, not only the
         first: on real deeds the right passage was at #1 for 15 of 19 questions and in the
@@ -118,7 +123,7 @@ class Rag:
                     document_id=str(r.document_id), page=r.page_start,
                     location=location_label(r.page_start, r.page_end, r.headings))),
                 score=r.score, filename=r.filename)
-            for r in self.store.search(query, k, document_id, question=question)
+            for r in self.store.search(query, k, document_id, question=question, document_ids=document_ids)
         ]
 
     def forget(self, document_id: uuid.UUID) -> bool:

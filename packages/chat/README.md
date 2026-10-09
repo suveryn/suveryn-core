@@ -1,5 +1,27 @@
 # chat
 
-Chat API surface, streaming and conversation state.
+Turns a conversation into an answer: either a plain model answer, or one grounded in the user's documents with numbered citations.
 
-**Not built yet.** It comes in the chat-UI slice. Until then, the single chat endpoint lives in `api-gateway`, and its streaming and backend logic live in `engine`.
+| Module | Contents |
+|---|---|
+| `service.py` | `ChatService`: `answer()` (whole answer) and `answer_stream()` (`Delta` events, then one `Done`) |
+| `grounding.py` | Prompt assembly for grounded answers, and citation-marker parsing |
+
+## How a grounded answer is made
+
+1. The gateway passes the request's `document_ids` to the service.
+2. The service retrieves the 6 best passages for the last question, across those documents. This is the hybrid search from `packages/rag`.
+3. The model gets:
+   - instructions: answer only from the excerpts; cite every statement, name, number and date as `[n]`; copy figures exactly; don't calculate; say so if the answer isn't there;
+   - the earlier turns;
+   - the numbered excerpts;
+   - the question, last, so llama-server can reuse its prompt cache.
+4. The answer comes back with `citations` = those passages in the same order. **Marker `[n]` refers to `citations[n-1]`**: the positional contract the chat UI relies on. Passages the answer doesn't cite are still listed; clients show only the cited ones.
+
+Without `document_ids`, `citations` is empty and the answer must be shown as unverified.
+
+## Not here yet
+
+- **Conversation state:** the client sends the earlier turns with every request; nothing about a conversation is stored server-side.
+- **Answer checking:** verifying that every name, number and date in the answer appears in a cited passage (design point 5 in `docs/architecture.md`).
+- **Summaries queued at upload** (development context §4).

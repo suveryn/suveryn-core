@@ -1,0 +1,46 @@
+/*
+ * Sūveryn Design System tokens, light theme (the product UI).
+ * Values copied from the Design System's tokens.json; don't invent new colours here.
+ * Contrast rule: text and icons on `accent` (or teal) always use `on-accent`, never white.
+ */
+:root {
+  color-scheme: light;
+
+  /* colour */
+  --bg: #ffffff;
+  --surface: #fafafa;
+  --surface-alt: #f1f1f3;      /* user message bubble */
+  --line: rgba(2, 2, 5, 0.12);
+  --text: #020205;
+  --text-dim: rgba(2, 2, 5, 0.62);
+  --text-dimmer: rgba(2, 2, 5, 0.40);
+  --ink: #020205;
+  --accent: #fa5b35;
+  --accent-hover: #e14a2c;
+  --on-accent: var(--ink);
+  --teal: #3ad4ca;             /* decorative only: borders, washes, the assistant mark */
+  --teal-ink: #0f8a82;         /* teal as text or icon stroke: citations, verification */
+
+  /* type */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-wordmark: "IBM Plex Mono", ui-monospace, monospace; /* the wordmark only */
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 9999px;
+}

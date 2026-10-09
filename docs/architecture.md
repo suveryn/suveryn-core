@@ -15,14 +15,15 @@ The full product context (editions, network modes, licensing) is in the Sūveryn
 | Package | State | Responsibility |
 |---|---|---|
 | `packages/engine` | Built (slice 1) | Model server client, answer and citation schema |
-| `packages/api-gateway` | Built (slice 1) | HTTP API: `POST /v1/chat`, `GET /health` |
+| `packages/api-gateway` | Built (slices 1, 3) | HTTP API: `POST /v1/chat`, `/v1/documents` (upload, list, delete, job status), `GET /health` |
 | `packages/rag` | Built (slice 2) | Ingestion (extraction, chunking, embeddings, storage) and retrieval |
-| `packages/chat` | Placeholder | Conversation state, streaming chat surface (slice 3) |
+| `packages/chat` | Built (slice 3) | Grounded answers: retrieval → numbered excerpts → answer citing `[n]` |
+| `packages/chat-ui` | Built (slice 3) | React/TypeScript chat interface (light theme), static build served next to the API |
 | `packages/mcp-host`, `connectors`, `playbooks` | Placeholders | Later phases |
 
 Runtime services are **not** part of this repository. PostgreSQL with pgvector, Keycloak and the model server (llama.cpp `llama-server`) are installed and configured by `suveryn-appliance`. This repository only contains clients for them.
 
-The chat endpoint does not use retrieval yet. Connecting the two, and checking answers against their sources, is slice 3.
+Chat requests with `document_ids` are grounded in those documents and cite their passages. Answers are not yet *checked* against their sources (design point 5); the UI therefore marks unsourced answers and lets the user open every cited passage.
 
 ## 2. Data flow
 
@@ -39,8 +40,11 @@ PDF ──► extract.py ──► chunking.py + integrity.py ──► embed.py
    private work dir (0700), deleted after each document           {text, source: {document_id,
                                                                      page, location}}
 
-client ──► api-gateway /v1/chat ──► engine.LlamaServerClient ──► llama-server (Qwen3.8-27B default)
-           (JSON or SSE: delta… then done | error)              answer + citations: [] (slice 1)
+browser (chat-ui) ──► api-gateway ──► POST /v1/documents ──► DocumentService queue ──► one worker: rag.ingest
+                                    └─► POST /v1/chat {messages, document_ids}
+                                          └─► chat.ChatService ──► rag retrieve (6 passages) ──► numbered excerpts
+                                                              ──► engine.LlamaServerClient ──► llama-server (Qwen3.8-27B)
+                                          ◄── SSE: delta… then done {answer with [n], citations[n-1]} | error
 ```
 
 ## 3. Where confidential data lives
@@ -51,7 +55,9 @@ Deeds contain personal data (names, national register numbers, addresses, amount
 |---|---|---|---|---|
 | Original PDF | Whole document | Owned by the caller; `rag` only reads it | none needed by rag | — |
 | Private work directory (`SUVERYN_WORK_DIR`) | Searchable PDF and OCR work files | During one document's extraction only | `0700`; deleted on success and on error; `TMPDIR`/`tempfile` redirected so nothing goes to `/tmp` | — |
-| Process memory | Docling document, page texts | During ingestion | — | — |
+| Upload folder (`SUVERYN_WORK_DIR/uploads`) | Uploaded PDFs waiting for ingestion | Until their job ends (deleted on success and failure; folder removed on shutdown) | `0700` folder, `0600` files, random names | — |
+| Process memory | Docling document, page texts; upload jobs (file names, status) | During ingestion; jobs until the gateway restarts | — | — |
+| Browser memory (chat UI) | The conversation, cited passages | Until the tab is closed or *New chat* | Not written to browser storage | Server-side conversation history, if ever added, needs a retention design |
 | PostgreSQL `documents` | File name (may contain a client's name), hash, status, warnings | Until deleted | Database access control | Encryption at rest, retention (§11.5) |
 | PostgreSQL `chunks` | Document text, embeddings | Until deleted | Database access control | `DELETE` leaves data in table files until VACUUM and in the WAL for a while; secure deletion (crypto-shredding) is open |
 | llama-server prompt cache (GPU memory + RAM, `-cram`) | Prompts incl. document text | Until evicted or restart | none | Retention and encryption (§11.5) |
@@ -69,7 +75,7 @@ Reviewers: check changes against these.
 3. **Every stored chunk has a page number.** `source.page` is what lets a person verify an answer.
 4. **Unsourced means unverified.** `citations: []` or `source: null` must be shown to users as unverified, never as fact.
 5. **No document text in logs or in error messages we generate.** Backend error texts are passed on (truncated to 200 characters); they come from llama-server, not from documents.
-6. **No outbound network calls at runtime.** Air-gapped installs must work: no CDN assets (`/docs` is off by default), no telemetry. Model weights and the embedding model come from local disk.
+6. **No outbound network calls at runtime.** Air-gapped installs must work: no CDN assets (`/docs` is off by default), no telemetry. Model weights and the embedding model come from local disk. The chat UI bundles its fonts and icons and only calls its own origin.
 7. **SQL takes input only as bound parameters.** f-strings in `store.py` interpolate constants and fixed fragments only.
 8. **Ingestion is single-threaded per process** (process-wide `TMPDIR` redirection), and heavy work is queued. Two concurrent whole-document summaries failed in the benchmark.
 
@@ -95,7 +101,7 @@ Reviewers: check changes against these.
 |---|---|---|
 | Text inside small images (under 10% of the page) on born-digital pages is not read, e.g. a stamp image bearing the notary's name | Small amounts of text can be missing; the page coverage check can't see it (the text was never in the text layer) | Lower the threshold per document type once real deeds show what's needed (real born-digital deed: one 2.6% image, page 8) |
 | Identifiers are not validated (amounts in words vs figures, check digits, cadastral pattern) | A garbled number would be stored and cited as is | Design point 3 (entities table) |
-| Model answers are not checked against sources | The model can misspell names or miscalculate (seen in the benchmark) | Slice 3: answer check, "unverified" marking |
+| Model answers are not checked against sources | The model can misspell names or miscalculate (seen in the benchmark). The UI marks answers without citations as unverified and lets users open every cited passage, but a cited answer can still contain an uncited figure | Answer check: every name, number and date must appear in a cited passage |
 | Deleted documents remain recoverable until VACUUM | Weak deletion guarantee | Crypto-shredding with encryption at rest (§11.5) |
 | HNSW post-filtering when searching within one document | Fewer vector candidates in very large databases | Tune `hnsw.ef_search` or use iterative scans |
 | Page coverage threshold (95%) calibrated on 5 documents | May need tuning | Revisit with more real scans |

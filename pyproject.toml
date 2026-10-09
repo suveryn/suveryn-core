@@ -6,14 +6,16 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "suveryn-engine",
+    "suveryn-chat",
     "suveryn-api-gateway",
 ]
 
 [tool.uv.workspace]
-members = ["packages/engine", "packages/api-gateway", "packages/rag"]
+members = ["packages/engine", "packages/chat", "packages/api-gateway", "packages/rag"]
 
 [tool.uv.sources]
 suveryn-engine = { workspace = true }
+suveryn-chat = { workspace = true }
 suveryn-api-gateway = { workspace = true }
 suveryn-rag = { workspace = true }
 
@@ -26,5 +28,5 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/engine/tests", "packages/api-gateway/tests", "packages/rag/tests"]
+testpaths = ["packages/engine/tests", "packages/chat/tests", "packages/api-gateway/tests", "packages/rag/tests"]
 addopts = "-q"
