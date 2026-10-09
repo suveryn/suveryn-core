@@ -1,6 +1,7 @@
 import { AlertTriangle, Cpu, FileText, Loader2, X, XCircle } from "lucide-react";
 import type { Citation } from "../api";
 import { modelName } from "../lib/model";
+import { pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
 
 const STATUS_LABEL: Record<Attachment["status"], string> = {
@@ -8,7 +9,7 @@ const STATUS_LABEL: Record<Attachment["status"], string> = {
   queued: "Waiting…",
   processing: "Reading…",
   ready: "",
-  needs_review: "Check needed",
+  needs_review: "Ready · check needed",
   failed: "Couldn't be read",
 };
 
@@ -18,16 +19,18 @@ const STATUS_LABEL: Record<Attachment["status"], string> = {
  */
 export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () => void }) {
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
+  const label = a.status === "needs_review" && a.reviewPages?.length ? `Ready · check ${pageList(a.reviewPages)}` : STATUS_LABEL[a.status];
+  const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}` : (a.error ?? a.filename);
   return (
-    <span className="chip-attachment" title={a.error ?? a.filename}>
+    <span className="chip-attachment" title={title}>
       {busy ? <Loader2 size={12} className="spin" aria-hidden /> :
         a.status === "failed" ? <XCircle size={12} aria-hidden /> :
         a.status === "needs_review" ? <AlertTriangle size={12} aria-hidden /> :
         <FileText size={12} aria-hidden />}
       <span className="chip-name">{a.filename}</span>
-      {STATUS_LABEL[a.status] && (
+      {label && (
         <span className="chip-status">
-          {a.status === "uploading" && a.progress !== undefined ? `Uploading… ${Math.floor(a.progress * 100)}%` : STATUS_LABEL[a.status]}
+          {a.status === "uploading" && a.progress !== undefined ? `Uploading… ${Math.floor(a.progress * 100)}%` : label}
         </span>
       )}
       {onRemove && (

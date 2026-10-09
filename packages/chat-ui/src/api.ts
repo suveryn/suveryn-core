@@ -16,14 +16,17 @@ export type ChatResponse = {
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
 
 export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "failed";
-export type Job = { id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null };
+export type Warning = { page: number | null; kind: string; detail: string };
+export type Job = {
+  id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
+};
 export type StoredDocument = {
   id: string;
   filename: string;
   pages: number;
   ocr_pages: number;
   status: "ok" | "needs_review";
-  warnings: { page: number | null; kind: string; detail: string }[];
+  warnings: Warning[];
   created_at: string;
   chunks: number;
 };
@@ -124,4 +127,10 @@ export async function streamChat(
   if (failure) throw new Error(failure);
   if (!done) throw new Error("the connection closed before the answer was complete");
   return done;
+}
+
+/** Pages where text may be missing (the warnings that put a document in needs_review). */
+export function reviewPages(warnings: Warning[] | undefined): number[] {
+  const pages = (warnings ?? []).filter((w) => w.kind === "page_coverage_low" && w.page !== null).map((w) => w.page!);
+  return [...new Set(pages)].sort((a, b) => a - b);
 }
