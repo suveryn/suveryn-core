@@ -58,7 +58,18 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: 12px; }
 .link, .link-danger { background: none; border: none; padding: 2px; cursor: pointer; font-size: 12px; text-decoration: underline; }
 .link-danger { font-weight: 600; }
-.sidebar-foot { padding: 0 var(--space-1); color: var(--text-dimmer); }
+.sidebar-foot { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-1); color: var(--text-dimmer); }
+.sidebar-foot .caption { margin: 0; }
+.user { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--text); font-size: 13.5px; }
+.user-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.user .link { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); flex: 0 0 auto; }
+
+/* sign-in screen */
+.signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: var(--space-6); padding: var(--space-6) var(--space-4); text-align: center; background: var(--bg); }
+.signin h1 { font-size: clamp(24px, 4vw, 34px); line-height: 1.2; max-width: 22ch; }
+.signin .notice { justify-content: center; margin: 0; max-width: 46ch; }
+.signin .button-primary { min-width: 160px; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: 0 0 auto;
                background: none; border: none; border-radius: var(--radius-pill); color: var(--text-dim); cursor: pointer; }
 .icon-button:hover { background: var(--surface-alt); color: var(--text); }
@@ -166,7 +177,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
   /* the library keeps its height and scrolls itself, instead of collapsing in the short header */
   .library { flex: 0 0 auto; }
   .library ul { max-height: 22vh; }
-  .sidebar-foot { display: none; }
+  .sidebar-foot .caption { display: none; }
   .conversation { padding-inline: var(--space-4); }
   .composer-wrap { padding-inline: var(--space-4); }
   .model-full { display: none; }
