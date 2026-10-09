@@ -1,8 +1,8 @@
-import { AlertCircle, Check, Copy } from "lucide-react";
+import { AlertCircle, Check, Copy, Download } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import type { Citation } from "../api";
 import { citedNumbers, toBlocks } from "../lib/answer";
-import { copyText, formatSource, formatSources } from "../lib/copy";
+import { copyText, downloadText, formatSource, formatSources, safeFileName, sourceFileName, sourcesDocument } from "../lib/copy";
 import type { AssistantTurn, UserTurn } from "../types";
 import { AssistantMark } from "./Brand";
 import { AttachmentChip, CitationChip } from "./Chips";
@@ -36,6 +36,17 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
   );
 }
 
+/** A small ghost button that saves text as a .txt file. */
+function DownloadButton({ filename, text, what }: { filename: string; text: () => string; what: string }) {
+  return (
+    <button type="button" className="copy-button" aria-label={`Download ${what} as a text file`}
+            onClick={() => downloadText(filename, text())}>
+      <Download size={13} aria-hidden />
+      <span>Download</span>
+    </button>
+  );
+}
+
 function SourceCard({ n, citation, filename }: { n: number; citation: Citation; filename: string }) {
   return (
     <div className="source-card" role="region" aria-label={`Source ${n}`}>
@@ -43,7 +54,11 @@ function SourceCard({ n, citation, filename }: { n: number; citation: Citation; 
         <span className="label">Source {n}</span>
         <span className="source-file">{filename}</span>
         <span className="source-where">{citation.source?.location ?? (citation.source?.page ? `p. ${citation.source.page}` : "")}</span>
-        <CopyButton text={formatSource(n, citation, filename)} label="Copy" what={`source ${n} with its reference`} />
+        <span className="source-actions">
+          <CopyButton text={formatSource(n, citation, filename)} label="Copy" what={`source ${n} with its reference`} />
+          <DownloadButton filename={sourceFileName(n, filename, citation.source?.page)}
+                          text={() => formatSource(n, citation, filename) + "\n"} what={`source ${n}`} />
+        </span>
       </div>
       <blockquote className="source-text">{citation.text}</blockquote>
       <p className="caption">The passage as it was read from the document. Check the original page before relying on it.</p>
@@ -55,12 +70,15 @@ function SourceCard({ n, citation, filename }: { n: number; citation: Citation; 
  * The assistant's turn: no bubble, marked by the teal brand-mark outline. Citation markers [n]
  * become buttons that open the source (citations[n-1]); only cited sources are listed below.
  */
-export function AssistantMessage({ turn, filenames }: { turn: AssistantTurn; filenames: Map<string, string> }) {
+export function AssistantMessage({ turn, question, filenames }: {
+  turn: AssistantTurn; question: string; filenames: Map<string, string>;
+}) {
   const [open, setOpen] = useState<number | null>(null);
   const available = turn.citations.length;
   const cited = citedNumbers(turn.text, available);
   const nameOf = (c: Citation) => (c.source && filenames.get(c.source.document_id)) || "document";
   const toggle = (n: number) => setOpen((cur) => (cur === n ? null : n));
+  const allSources = formatSources(cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })));
 
   if (turn.status === "error") {
     return (
@@ -100,8 +118,9 @@ export function AssistantMessage({ turn, filenames }: { turn: AssistantTurn; fil
               <CitationChip key={n} n={n} citation={turn.citations[n - 1]} filename={nameOf(turn.citations[n - 1])}
                             active={open === n} onClick={() => toggle(n)} />
             ))}
-            <CopyButton label="Copy sources" what="all cited sources"
-                        text={formatSources(cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })))} />
+            <CopyButton label="Copy sources" what="all cited sources" text={allSources} />
+            <DownloadButton filename={`sources_${safeFileName(question)}.txt`} what="all cited sources"
+                            text={() => sourcesDocument(question, allSources, new Date())} />
           </div>
         )}
 

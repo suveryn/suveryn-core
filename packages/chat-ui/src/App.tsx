@@ -172,8 +172,9 @@ export default function App() {
               <p>Attach a deed or another PDF and ask about it. Answers cite the page they come from, so you can check every figure.</p>
             </div>
           ) : (
-            turns.map((t) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
-              <AssistantMessage key={t.id} turn={t} filenames={filenames} />))
+            turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
+              <AssistantMessage key={t.id} turn={t} filenames={filenames}
+                                question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""} />))
           )}
           <div ref={endRef} />
         </div>
