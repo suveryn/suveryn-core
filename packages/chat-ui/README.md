@@ -26,7 +26,7 @@ Other commands:
 1. **Start.** The empty state shows the tagline, "AI for work that can't leave the premises". The sidebar lists the documents already on the server.
 2. **Attach.** The paperclip (or clicking a document in the sidebar) adds a PDF to the next message as an attachment chip. A new upload shows *Uploading…*, *Waiting…*, then *Reading…* while the server extracts it. Sending is paused until every attachment is read.
 3. **Ask.** The question appears in the user's bubble, with the attachment chips above it. The answer streams in below, with no bubble, marked by the teal brand mark.
-4. **Check the source.** Every `[n]` in the answer becomes a small teal marker. Clicking a marker, or a chip under *Sources*, opens the passage it came from: file name, page, section heading and the stored text. The answer also shows a notice when it has no citations:
+4. **Check the source.** Every `[n]` in the answer becomes a small teal marker. Clicking a marker, or a chip under *Sources*, opens the passage it came from: file name, page, section heading and the stored text. **Copy** in that panel copies the passage with its reference (`[1] file.pdf, p. 3 · Artikel 2` and the text below it); **Copy sources** copies every cited passage of the answer, numbered like the markers. The answer also shows a notice when it has no citations:
    - *No source is cited…* when documents were used but nothing was cited;
    - *Not based on your documents…* when no documents were attached.
 5. **Follow up.** Later questions in the same conversation automatically use every document attached so far. *New chat* starts over. Deleting a document from the sidebar asks for confirmation first.
