@@ -92,7 +92,7 @@ Reviewers: check changes against these.
 | bge-m3 embeddings | Multilingual (Dutch, French, English), as Belgian deeds are |
 | 384-token chunks with page provenance | Citations must point at a specific passage and page |
 | Hybrid retrieval (vector + full-text, RRF), very common query words ignored | Real deeds: right passage at #1 went from 12/19 to 15/19, top 3 from 17/19 to 19/19; a buried tenant arrears went from #9 to #1 |
-| Completeness check, footer rule, page coverage | Real deeds: a closing certification line and 14 short headings and fragments were silently lost before |
+| Completeness check, footer rule, text-layer recovery, page coverage | Real deeds: a closing certification line and 14 short headings and fragments were silently lost before; on a real bank statement the table model dropped 4 words of a table, now recovered from the text layer |
 | `/docs` off by default | FastAPI loads it from public CDNs (development context §1, §8) |
 | Gateway binds to 127.0.0.1 | No auth until the Keycloak slice |
 

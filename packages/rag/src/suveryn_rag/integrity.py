@@ -80,14 +80,14 @@ def split_furniture(furniture: list[tuple[int, str]], n_pages: int) -> tuple[lis
     return dropped, restored
 
 
-def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int | None, str]],
-                  dropped: list[tuple[int, str]]) -> list[IntegrityWarning]:
-    """Compare each page's text layer with the stored text that claims that page.
+def missing_words(page_texts: list[str], chunk_pages: list[tuple[int | None, int | None, str]],
+                  dropped: list[tuple[int, str]]) -> dict[int, tuple[set[str], set[str]]]:
+    """Per page: (words of its text layer, those not found in the stored text that claims the page).
 
     chunk_pages: (page_start, page_end, text incl. headings) per stored chunk.
     dropped: furniture that was legitimately dropped (its words are not counted as missing).
     """
-    warnings = []
+    out = {}
     for p, ref_text in enumerate(page_texts, 1):
         ref = words(ref_text)
         if not ref:
@@ -99,12 +99,30 @@ def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int
         for page, text in dropped:
             if page == p:
                 have |= words(text)
-        missing = ref - have
+        out[p] = (ref, ref - have)
+    return out
+
+
+def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int | None, str]],
+                  dropped: list[tuple[int, str]]) -> list[IntegrityWarning]:
+    """Compare each page's text layer with the stored text that claims that page."""
+    warnings = []
+    for p, (ref, missing) in missing_words(page_texts, chunk_pages, dropped).items():
         coverage = 1 - len(missing) / len(ref)
         if coverage < COVERAGE_THRESHOLD and len(missing) >= MIN_MISSING_WORDS:
             warnings.append(IntegrityWarning(p, "page_coverage_low",
                                     f"{coverage:.1%} of the page's words found in stored text; {len(missing)} missing"))
     return warnings
+
+
+def lines_with(page_text: str, missing: set[str]) -> str:
+    """The text-layer lines of a page that contain any of the missing words, in reading order.
+
+    Used to recover text the layout or table model dropped (e.g. table cells it couldn't place):
+    the lines come straight from the PDF's text layer, so nothing is invented or reworded.
+    """
+    keep = [line.strip() for line in page_text.splitlines() if line.strip() and words(line) & missing]
+    return "\n".join(dict.fromkeys(keep))  # drop repeated lines, keep order
 
 
 # ---------------------------------------------------------------- keyword search helpers
