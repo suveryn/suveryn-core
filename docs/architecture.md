@@ -109,6 +109,7 @@ Reviewers: check changes against these.
 | Completeness check, footer rule, text-layer recovery, page coverage | Real deeds: a closing certification line and 14 short headings and fragments were silently lost before; on a real bank statement the table model dropped 4 words of a table, now recovered from the text layer |
 | Models load offline only; `suveryn-fetch-models` fills the cache at set-up | Left to their defaults, the Hugging Face libraries download models on first use and contact huggingface.co (with usage data) on every load |
 | Brand elements copied from suveryn-brand at a pinned commit, hashes in `brand-lock.json`, a test fails on drift | One source of truth for the mark, fonts and tokens; building must work without internet access |
+| NVIDIA's CUDA libraries (installed with PyTorch on the GPU machine) may ship in the appliance image | They are proprietary and redistributed under NVIDIA's licence, separate from the AGPL code; this was reviewed and accepted (October 2026). The appliance with a consumer (GeForce) GPU is for on-premise office use: NVIDIA's GeForce driver licence does not allow datacenter deployment, so a hosted or datacenter installation needs a datacenter-class GPU |
 | `/docs` off by default | FastAPI's docs pages load scripts and fonts from public CDNs, which breaks air-gapped installs and contacts third parties |
 | Gateway binds to 127.0.0.1; uploads limited by `Content-Length` before they are read | No authentication yet; an oversized upload must not fill the disk that holds the work folders |
 
