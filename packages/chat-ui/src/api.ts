@@ -42,7 +42,48 @@ export type Health = {
   status: "ok" | "degraded";
   backend: { reachable: boolean; status: string; model: string | null };
   documents: { status: "ready" | "starting" | "failed" | "unavailable"; detail: string | null };
+  auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
 };
+export type Me = { username: string; name: string };
+
+/**
+ * Sign-in. The gateway runs the OIDC login with Keycloak and keeps the tokens; the browser only
+ * holds an HttpOnly session cookie that fetch and XHR send automatically (same origin). A 401 from
+ * any API call means the session ended: the registered handler shows the sign-in screen.
+ */
+export class SignedOut extends Error {
+  constructor() { super("your session has ended; sign in again"); }
+}
+let signedOutHandler: () => void = () => {};
+export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
+
+async function responseError(r: Response): Promise<Error> {
+  if (r.status === 401) { signedOutHandler(); return new SignedOut(); }
+  return new Error(await errorText(r));
+}
+
+/** The signed-in user, or null if signed out. Throws if sign-in itself is unavailable. */
+export async function getMe(): Promise<Me | null> {
+  const r = await fetch("/auth/me");
+  if (r.status === 401) return null;
+  if (!r.ok) throw new Error(await errorText(r));
+  return r.json();
+}
+
+/** Goes to the Keycloak login page (through the gateway); comes back to the chat. */
+export function signIn(): void {
+  window.location.assign("/auth/login?return_to=/");
+}
+
+/** Ends the session in the gateway, then in Keycloak (its logout page sends the browser back). */
+export async function signOut(): Promise<void> {
+  let url: string | null = null;
+  try {
+    const r = await fetch("/auth/logout", { method: "POST" });
+    url = (await r.json()).logout_url ?? null;
+  } catch { /* the session is dropped anyway when it expires */ }
+  window.location.assign(url ?? "/");
+}
 
 async function errorText(r: Response): Promise<string> {
   try {
@@ -64,7 +105,7 @@ export async function getHealth(): Promise<Health | null> {
 
 export async function listDocuments(): Promise<{ documents: StoredDocument[]; jobs: Job[] }> {
   const r = await fetch("/v1/documents");
-  if (!r.ok) throw new Error(await errorText(r));
+  if (!r.ok) throw await responseError(r);
   return r.json();
 }
 
@@ -82,6 +123,7 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job);
+      else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
       else reject(new Error(typeof xhr.response?.detail === "string" ? xhr.response.detail : `HTTP ${xhr.status}`));
     };
     xhr.onerror = () => reject(new Error("the upload was interrupted"));
@@ -91,13 +133,13 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
 
 export async function getJob(id: string): Promise<Job> {
   const r = await fetch(`/v1/documents/jobs/${encodeURIComponent(id)}`);
-  if (!r.ok) throw new Error(await errorText(r));
+  if (!r.ok) throw await responseError(r);
   return r.json();
 }
 
 export async function deleteDocument(id: string): Promise<void> {
   const r = await fetch(`/v1/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!r.ok && r.status !== 404) throw new Error(await errorText(r));
+  if (!r.ok && r.status !== 404) throw await responseError(r);
 }
 
 /**
@@ -117,7 +159,7 @@ export async function streamChat(
     body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500 }),
     signal,
   });
-  if (!r.ok || !r.body) throw new Error(await errorText(r));
+  if (!r.ok || !r.body) throw await responseError(r);
   let done: ChatResponse | null = null;
   let failure: string | null = null;
   const parser = createSSEParser(({ event, data }) => {

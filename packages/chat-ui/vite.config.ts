@@ -10,7 +10,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: "127.0.0.1",
-    proxy: { "/v1": api, "/health": api },
+    // /auth: the sign-in routes; SUVERYN_PUBLIC_URL on the gateway must be this dev server's URL
+    // (http://localhost:5173), because Keycloak redirects the browser back to /auth/callback here.
+    proxy: { "/v1": api, "/health": api, "/auth": api },
   },
   build: { sourcemap: false, assetsInlineLimit: 0 },
   test: { environment: "node" },
