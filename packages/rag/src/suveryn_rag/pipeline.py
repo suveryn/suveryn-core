@@ -44,6 +44,22 @@ class RetrievedChunk:
     filename: str
 
 
+# Whole-document grounding limits. ~48,000 characters is ~14k tokens of Dutch or French: about 15-20
+# pages of a deed, leaving room in the shared 64k context for history, answer and parallel users.
+# The chunk cap keeps excerpt numbers within the two digits that citation markers ([n]) use.
+WHOLE_DOCUMENT_CHARS = 48_000
+WHOLE_DOCUMENT_CHUNKS = 99
+
+
+def _hit(r) -> RetrievedChunk:
+    """A stored chunk as a citation with its file name."""
+    return RetrievedChunk(
+        citation=Citation(text=r.text, source=SourceRef(
+            document_id=str(r.document_id), page=r.page_start,
+            location=location_label(r.page_start, r.page_end, r.headings))),
+        score=r.score, filename=r.filename)
+
+
 def sha256_of(path: Path) -> str:
     """Content hash used to recognise a document that was already ingested."""
     h = hashlib.sha256()
@@ -117,14 +133,19 @@ class Rag:
         top 3 for all 19.
         """
         query = self.embedder.embed([question])[0]
-        return [
-            RetrievedChunk(
-                citation=Citation(text=r.text, source=SourceRef(
-                    document_id=str(r.document_id), page=r.page_start,
-                    location=location_label(r.page_start, r.page_end, r.headings))),
-                score=r.score, filename=r.filename)
-            for r in self.store.search(query, k, document_id, question=question, document_ids=document_ids)
-        ]
+        return [_hit(r) for r in self.store.search(query, k, document_id, question=question, document_ids=document_ids)]
+
+    def passages(self, question: str, document_ids: list[uuid.UUID], k: int) -> tuple[list[RetrievedChunk], bool]:
+        """Passages to ground an answer on, and whether they are the documents' complete text.
+
+        Documents that together fit ``WHOLE_DOCUMENT_CHARS`` are given whole, in reading order:
+        a general question ("what is this deed about?") then sees everything instead of a few
+        passages that happen to rank well. Larger documents fall back to the ``k`` best search hits.
+        """
+        whole = self.store.document_chunks(document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS)
+        if whole:
+            return [_hit(r) for r in whole], True
+        return self.retrieve(question, k=k, document_ids=document_ids), False
 
     def forget(self, document_id: uuid.UUID) -> bool:
         """Delete a document and all its chunks. Returns False if it didn't exist.

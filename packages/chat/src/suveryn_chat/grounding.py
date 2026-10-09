@@ -34,12 +34,22 @@ def excerpt_block(citations: list[Citation], filenames: list[str]) -> str:
     return "\n\n".join(parts)
 
 
+# Tells the model what the excerpts cover, so it can answer general questions about a whole
+# document, and knows that "not found" means "not in the passages selected" when it is a selection.
+SCOPE_COMPLETE = "EXCERPTS (the complete text of the documents, in reading order):"
+SCOPE_SELECTED = "EXCERPTS (the passages of the documents that best match the question; not the whole text):"
+
+
 def grounded_messages(history: list[ChatMessage], question: str, citations: list[Citation],
-                      filenames: list[str]) -> list[ChatMessage]:
-    """Messages for a grounded answer: instructions, earlier turns, then excerpts and the question."""
+                      filenames: list[str], complete: bool = False) -> list[ChatMessage]:
+    """Messages for a grounded answer: instructions, earlier turns, then excerpts and the question.
+
+    ``complete`` says the excerpts are the documents' whole text rather than a search selection.
+    """
     excerpts = excerpt_block(citations, filenames) if citations else "(no matching passages were found)"
+    scope = SCOPE_COMPLETE if complete else SCOPE_SELECTED
     return [ChatMessage(role="system", content=GROUNDED_INSTRUCTIONS), *history,
-            ChatMessage(role="user", content=f"EXCERPTS:\n{excerpts}\n\nQUESTION: {question}")]
+            ChatMessage(role="user", content=f"{scope}\n{excerpts}\n\nQUESTION: {question}")]
 
 
 def cited_numbers(answer: str, available: int) -> list[int]:

@@ -26,6 +26,9 @@ from .integrity import IntegrityWarning, query_terms
 RRF_K = 60            # standard Reciprocal Rank Fusion constant
 CANDIDATES = 30       # candidates taken from each ranking before fusion
 MAX_TERM_SHARE = 0.2  # keyword terms found in more than this share of chunks are ignored
+# Chunks of one or two words (a reference code, a stray header) are too short to carry meaning, yet
+# their embeddings can sit close to a vague question. They stay findable by keyword, not by vector.
+MIN_WORDS_FOR_VECTOR = r"\S+\s+\S+\s+\S"
 
 
 def schema_sql(dim: int) -> str:
@@ -170,6 +173,9 @@ class Store:
         found by both rises to the top. Without ``question`` this is plain vector search.
         ``document_id`` (one) or ``document_ids`` (several) restrict the search; neither: all documents.
 
+        Chunks with fewer than three words are left out of the vector ranking (see
+        ``MIN_WORDS_FOR_VECTOR``); the keyword ranking still finds them.
+
         Review notes:
         - The SQL is assembled with f-strings, but only from constants and fixed fragments;
           the question vector, document id, keyword query and k are always bound parameters.
@@ -191,7 +197,7 @@ class Store:
         rows = self._conn.execute(f"""
             WITH vec AS (
               SELECT c.id, row_number() OVER (ORDER BY c.embedding <=> %(q)s) AS r
-                FROM chunks c WHERE true {scope}
+                FROM chunks c WHERE c.text ~ %(min_words)s {scope}
                ORDER BY c.embedding <=> %(q)s LIMIT {CANDIDATES}),
             {keyword_cte}
             SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
@@ -203,6 +209,27 @@ class Store:
               LEFT JOIN kw ON kw.id = c.id
              WHERE vec.id IS NOT NULL OR kw.id IS NOT NULL
              ORDER BY score DESC, similarity DESC
-             LIMIT %(k)s""", {"q": query, "docs": docs, "tsq": tsq, "k": k}).fetchall()
+             LIMIT %(k)s""", {"q": query, "docs": docs, "tsq": tsq, "k": k,
+                                                  "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
         return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
                 for r in rows]
+
+    def document_chunks(self, document_ids: list[uuid.UUID], max_chars: int, max_chunks: int) -> list[StoredChunk] | None:
+        """Every chunk of the documents in reading order, or None if they are larger than the limits.
+
+        Reading order: documents in the order given, then by first page, then chunk index (text
+        recovered by the integrity checks follows the regular chunks of its page). ``score`` and
+        ``similarity`` are 0: nothing was ranked.
+        """
+        size, count = self._conn.execute(
+            "SELECT coalesce(sum(length(text)), 0), count(*) FROM chunks WHERE document_id = ANY(%s)",
+            (document_ids,)).fetchone()
+        if size > max_chars or count > max_chunks:
+            return None
+        rows = self._conn.execute(
+            "SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin"
+            "  FROM chunks c JOIN documents d ON d.id = c.document_id"
+            " WHERE c.document_id = ANY(%(docs)s)"
+            " ORDER BY array_position(%(docs)s, c.document_id), c.page_start NULLS LAST, c.chunk_index",
+            {"docs": document_ids}).fetchall()
+        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], 0.0, 0.0) for r in rows]
