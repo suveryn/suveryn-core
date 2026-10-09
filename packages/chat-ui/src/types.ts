@@ -9,6 +9,7 @@ export type Attachment = {
   documentId?: string;
   error?: string;
   progress?: number; // upload progress, 0-1, while status is "uploading"
+  reviewPages?: number[]; // with status needs_review: pages where text may be missing
 };
 
 export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[] };

@@ -4,6 +4,8 @@ import {
   formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName, sourcesDocument, sourcesMarkdown,
 } from "./copy";
 import { modelName } from "./model";
+import { pageList, reviewHint } from "./review";
+import { reviewPages } from "../api";
 import { createSSEParser, type SSEEvent } from "./sse";
 
 describe("SSE parser", () => {
@@ -94,5 +96,21 @@ describe("Markdown downloads", () => {
   it("heads the all-sources file with the question and date", () => {
     const md = sourcesMarkdown("Wat is de koopprijs?", [{ n: 1, citation: cit, filename: "akte.pdf" }], new Date(2026, 9, 9, 15, 30));
     expect(md.startsWith("# Sources cited by Sūveryn\n\n**Question:** Wat is de koopprijs?  \n**Date:** 9 October 2026 at 15:30\n\n### [1]")).toBe(true);
+  });
+});
+
+describe("documents that need review", () => {
+  it("lists the pages where text may be missing, once each and in order", () => {
+    const w = (page: number | null, kind = "page_coverage_low") => ({ page, kind, detail: "" });
+    expect(reviewPages([w(3), w(1), w(3), w(2, "furniture_restored"), w(null)])).toEqual([1, 3]);
+    expect(reviewPages(undefined)).toEqual([]);
+  });
+
+  it("says the document is usable and where to check", () => {
+    expect(pageList([1])).toBe("p. 1");
+    expect(pageList([1, 3])).toBe("pp. 1, 3");
+    expect(reviewHint([1])).toContain("Ready to use. Some text on page 1 may not");
+    expect(reviewHint([1, 3])).toContain("on pages 1, 3");
+    expect(reviewHint([])).toContain("on some pages");
   });
 });
