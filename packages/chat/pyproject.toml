@@ -1,0 +1,24 @@
+[project]
+name = "suveryn-chat"
+version = "0.1.0"
+description = "Sūveryn chat: grounded answers over retrieved passages, with numbered citations"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+dependencies = [
+    "suveryn-engine",
+]
+
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
+
+[tool.uv.sources]
+suveryn-engine = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/suveryn_chat"]

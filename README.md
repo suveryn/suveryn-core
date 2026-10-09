@@ -1,10 +1,12 @@
-# sūveryn-core (AGPL-3.0)
+# sūveryn-core (AGPL-3.0-or-later)
 
 Engine, chat, RAG, MCP host, API gateway — plus bundled official connectors
-and playbooks, and the models manifest (metadata only; weights are never
+and playbooks, and the [models manifest](models/manifest.json) (metadata only; weights are never
 committed here).
 
-Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) workspace. Models are served by llama.cpp (`llama-server`).
+Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) workspace; React and TypeScript for the chat UI. Models are served by [llama.cpp](https://github.com/ggml-org/llama.cpp) (`llama-server`).
+
+Related repositories: [suveryn-docs](https://github.com/suveryn/suveryn-docs) (installation, administration, the [hardware benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md)), [suveryn-appliance](https://github.com/suveryn/suveryn-appliance) (OS image and runtime services: PostgreSQL, Keycloak, the model server), [suveryn-brand](https://github.com/suveryn/suveryn-brand) (mark, fonts, tokens), [suveryn-connector-sdk](https://github.com/suveryn/suveryn-connector-sdk) and [suveryn-connectors-registry](https://github.com/suveryn/suveryn-connectors-registry) (connectors).
 
 ## Packages
 
@@ -13,14 +15,16 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 | Package | Status |
 |---|---|
-| `packages/engine` | Model backend client (llama-server), answer/citation schema |
-| `packages/api-gateway` | FastAPI app: `POST /v1/chat`, `GET /health` |
-| `packages/rag` | Document ingestion (`ocr_fast` extraction, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations. See [packages/rag/README.md](packages/rag/README.md) |
-| `packages/chat`, `mcp-host`, `connectors`, `playbooks` | Placeholders, built in later slices |
+| [`packages/engine`](packages/engine/README.md) | Model backend client (llama-server); request, answer, citation and calculation schema |
+| [`packages/chat`](packages/chat/README.md) | Grounded answers with numbered citations (`[n]` → `citations[n-1]`) and server-side calculations |
+| [`packages/api-gateway`](packages/api-gateway/README.md) | FastAPI app: `POST /v1/chat`, `/v1/documents`, `GET /health` |
+| [`packages/rag`](packages/rag/README.md) | Document ingestion (`ocr_fast` extraction, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations |
+| [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) |
+| `packages/mcp-host`, `connectors`, `playbooks` | Placeholders for later phases |
 
 ## Run locally
 
-1. Start llama-server on the GPU machine. This is the configuration validated in the October 2026 benchmark. Qwen3.8-27B is the default; Mistral Small 3.2 24B also works (leave out the last line).
+1. Start llama-server on the GPU machine. This is the configuration validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md). The model files are listed, with their sources and checksums, in [models/manifest.json](models/manifest.json). Qwen3.8-27B is the default; Mistral Small 3.2 24B also works (leave out the last line).
    ```bash
    llama-server -m Qwen3.8-27B-UD-Q4_K_M.gguf \
      -ngl 99 -fa on -ctk q8_0 -ctv q8_0 \
@@ -43,23 +47,42 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
    ```bash
    uv run pytest
    ```
+5. Run the chat UI (see [packages/chat-ui](packages/chat-ui/README.md)):
+   ```bash
+   cd packages/chat-ui && npm ci && npm run dev
+   ```
 
 ## API
 
 `GET /health` returns 200 when the model backend is ready, and 503 when it is loading or unreachable:
 
 ```json
-{"status": "ok", "backend": {"reachable": true, "status": "ok", "url": "http://127.0.0.1:8080", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "detail": null}}
+{"status": "ok", "backend": {"reachable": true, "status": "ok", "url": "http://127.0.0.1:8080", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "detail": null}, "documents": {"status": "ready", "detail": null}}
 ```
 
-`POST /v1/chat` takes `{"messages": [{"role": "user", "content": "..."}], "stream": false, "max_tokens": 1024, "temperature": 0}`.
+`documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code.
+
+`POST /v1/chat` takes `{"messages": [{"role": "user", "content": "..."}], "document_ids": ["<uuid>"], "stream": false, "max_tokens": 1024, "temperature": 0}`. The last message must be the user's question. `document_ids` is optional: without it the answer is not grounded in any document.
 
 Without streaming it returns:
 
 ```json
-{"id": "...", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "answer": "...", "citations": [], "finish_reason": "stop", "usage": {"prompt_tokens": 48, "completion_tokens": 62}}
+{"id": "...", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "answer": "... [1] ...", "citations": [{"text": "...", "source": {"document_id": "...", "page": 3, "location": "p. 3 · Artikel 2"}}], "calculations": [], "finish_reason": "stop", "usage": {"prompt_tokens": 48, "completion_tokens": 62}}
 ```
 
 With `"stream": true` it returns Server-Sent Events: `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event (`{"message": "..."}`).
 
-**Citations.** Every answer has a `citations` list. Each entry is `{"text": "...", "source": null}` until RAG is wired in. Then `source` becomes `{"document_id": "...", "page": 3, "location": "art. 2"}`. Clients must treat `source: null` as unsourced. Until then the list is always empty, and answers are not grounded in any document.
+**Citations.** With `document_ids`, `citations` holds the passages the model was given, in order, and the marker `[n]` in `answer` refers to `citations[n-1]`; clients show only the cited ones. Without `document_ids`, `citations` is `[]`: the answer is unsourced and must be shown as unverified. A citation with `source: null` is unsourced too.
+
+**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). See [packages/chat](packages/chat/README.md#calculations).
+
+Documents: `POST /v1/documents` (multipart PDF upload, returns a job), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `DELETE /v1/documents/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
+
+## Licence
+
+`suveryn-core` is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version: SPDX `AGPL-3.0-or-later`. The full text is in [LICENSE](LICENSE).
+
+Not covered by it:
+
+- the Sūveryn name and mark ([trademark policy](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md)); the copies in `packages/chat-ui` are explained in [its brand README](packages/chat-ui/src/brand/README.md);
+- third-party software and models, each under its own licence ([UI notices](packages/chat-ui/public/THIRD-PARTY-NOTICES.txt), [models](models/manifest.json)). On a GPU machine, PyTorch installs NVIDIA's CUDA libraries, which are proprietary and redistributed under NVIDIA's licence; see [docs/architecture.md](docs/architecture.md#5-decisions-and-their-evidence).

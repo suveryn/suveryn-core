@@ -3,6 +3,7 @@ name = "suveryn-rag"
 version = "0.1.0"
 description = "Sūveryn RAG: document extraction (ocr_fast), chunking, embeddings, pgvector store and retrieval"
 requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "suveryn-engine",
     "docling>=2.40",
@@ -13,10 +14,16 @@ dependencies = [
     "pgvector>=0.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/suveryn/suveryn-core"
+Repository = "https://github.com/suveryn/suveryn-core"
+Documentation = "https://github.com/suveryn/suveryn-docs"
+
 [project.scripts]
 suveryn-ingest = "suveryn_rag.cli:ingest_main"
 suveryn-retrieve = "suveryn_rag.cli:retrieve_main"
 suveryn-forget = "suveryn_rag.cli:forget_main"
+suveryn-fetch-models = "suveryn_rag.cli:fetch_models_main"
 
 [tool.uv.sources]
 suveryn-engine = { workspace = true }

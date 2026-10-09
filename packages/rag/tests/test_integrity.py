@@ -3,8 +3,14 @@
 import pytest
 
 pytest.importorskip("suveryn_rag")
-from suveryn_rag.integrity import (  # noqa: E402
-    is_page_number, page_coverage, query_terms, split_furniture, words,
+from suveryn_rag.integrity import (
+    is_page_number,
+    lines_with,
+    missing_words,
+    page_coverage,
+    query_terms,
+    split_furniture,
+    words,
 )
 
 
@@ -50,3 +56,18 @@ def test_query_terms_drop_stopwords_keep_numbers():
     assert query_terms("Welke huurder heeft een huurachterstand?") == ["huurder", "huurachterstand"]
     assert query_terms("Van welk artikel wordt afgeweken, 1563?") == ["artikel", "afgeweken", "1563"]
     assert query_terms("What is the maximum pre-money valuation?") == ["maximum", "pre", "money", "valuation"]
+
+
+def test_lines_with_recovers_only_lines_holding_missing_words():
+    page = "Rekeningoverzicht\nRekeninghouder  Jansens Pieter\nPeriode 01/09 - 30/09\nSaldo EUR 1.234,56\nPeriode 01/09 - 30/09"
+    missing = {"jansens", "pieter", "periode"}
+    assert lines_with(page, missing) == "Rekeninghouder  Jansens Pieter\nPeriode 01/09 - 30/09"
+
+
+def test_missing_words_feeds_recovery_and_coverage():
+    pages = ["Tabel Rekeninghouder Jansens Pieter Periode september Saldo positief"]
+    stored = [(1, 1, "Tabel Saldo positief")]
+    ref, missing = missing_words(pages, stored, dropped=[])[1]
+    assert missing == {"rekeninghouder", "jansens", "pieter", "periode", "september"}
+    recovered = lines_with(pages[0], missing)
+    assert page_coverage(pages, stored + [(1, 1, recovered)], dropped=[]) == []

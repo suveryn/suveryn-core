@@ -8,8 +8,8 @@ from types import SimpleNamespace as NS
 import pytest
 
 pytest.importorskip("suveryn_rag")
-from suveryn_rag.chunking import chunk_pages, location_label  # noqa: E402
-from suveryn_rag.workspace import private_workdir  # noqa: E402
+from suveryn_rag.chunking import chunk_pages, location_label
+from suveryn_rag.workspace import private_workdir
 
 
 def fake_chunk(*page_lists):
@@ -62,3 +62,23 @@ def test_plan_ocr_scans_thin_and_mixed_pages():
                 PageProfile(chars=1900, image_share=0.0)]    # pure text: keep
     assert plan_ocr(profiles) == [2, 3, 4]
     assert [p.is_mixed for p in profiles] == [False, False, False, True, False]
+
+
+def test_job_status_maps_document_status():
+    from suveryn_rag.service import job_status
+
+    assert job_status("ok") == "ready"
+    assert job_status("needs_review") == "needs_review"
+
+
+def test_offline_by_default_and_only_fetch_may_download(monkeypatch):
+    from suveryn_rag import offline
+
+    for name in offline.OFFLINE:
+        monkeypatch.setenv(name, "0")  # also makes monkeypatch restore them afterwards
+    monkeypatch.delenv("SUVERYN_ALLOW_DOWNLOADS", raising=False)
+    offline.enforce()
+    assert all(os.environ[k] == v for k, v in offline.OFFLINE.items())  # overrides a contrary setting
+    monkeypatch.setenv("SUVERYN_ALLOW_DOWNLOADS", "1")
+    offline.enforce()
+    assert "HF_HUB_OFFLINE" not in os.environ and os.environ["HF_HUB_DISABLE_TELEMETRY"] == "1"
