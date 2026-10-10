@@ -45,6 +45,15 @@ export type Health = {
   auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
 };
 export type Me = { username: string; name: string };
+/** An installed model (GET /v1/models); only one is in GPU memory at a time. */
+export type ModelInfo = { id: string; loaded: boolean; default: boolean };
+
+/** The models installed on this appliance, with which one is loaded and which is the default. */
+export async function listModels(): Promise<ModelInfo[]> {
+  const r = await fetch("/v1/models");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
 
 /**
  * Sign-in. The gateway runs the OIDC login with Keycloak and keeps the tokens; the browser only
@@ -152,11 +161,12 @@ export async function streamChat(
   documentIds: string[],
   onDelta: (text: string) => void,
   signal?: AbortSignal,
+  model?: string | null,          // an id from listModels(); null or undefined: the default model
 ): Promise<ChatResponse> {
   const r = await fetch("/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500 }),
+    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500, ...(model ? { model } : {}) }),
     signal,
   });
   if (!r.ok || !r.body) throw await responseError(r);
