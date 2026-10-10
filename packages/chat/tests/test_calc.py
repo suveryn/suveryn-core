@@ -1,5 +1,5 @@
 import pytest
-from suveryn_chat.calc import CalcError, CalcRewriter, evaluate, rewrite
+from suveryn_chat.calc import CalcError, CalcRewriter, evaluate, rewrite, unverified_figures
 
 SOURCE = "Nettobedrag: + 6.507,11 EUR\nNettobedrag: + 6.417,42 EUR\n3.000 stukken aan 2,15 EUR"
 
@@ -77,3 +77,26 @@ def test_unclosed_brackets_are_released():
     r = CalcRewriter(SOURCE)
     out = r.feed("a [[ b " + "x" * 400) + r.flush()
     assert out == "a [[ b " + "x" * 400 and r.calculations == []
+
+
+DEED = "Kavel 1: 200.000,00 EUR. Kavel 2: 150.000,00 EUR. Verleden op 21.01.2026, artikel 3.2."
+
+
+@pytest.mark.parametrize("answer, flagged", [
+    ("Samen 350.000,00 EUR.", ["350.000,00"]),                       # worked out by the model itself
+    ("Kavel 1 is 200.000 EUR [1].", []),                             # same value as the passage's 200.000,00
+    ("Verleden op 21.01.2026, kavel 2, pagina 57, 3 kavels.", []),   # dates and small plain numbers aren't amounts
+    ("Artikel 3.2 [1].", []),                                        # as written in the passage
+    ("Ongeveer 12,5 % en 1.234.567 EUR.", ["12,5", "1.234.567"]),
+    ("Twee keer 350.000,00 en nog eens 350.000,00.", ["350.000,00"]),  # once each
+    ("Referentie 4182957.", ["4182957"]),                            # five digits or more are checked
+])
+def test_unverified_figures_in_the_answer_text(answer, flagged):
+    assert unverified_figures(answer, [], DEED) == flagged
+
+
+def test_system_calculations_and_the_users_own_figures_are_not_flagged():
+    r = CalcRewriter(DEED)
+    text = r.feed("Samen [[calc: 200.000,00 + 150.000,00]] EUR; dus 350.000,00 EUR in totaal.") + r.flush()
+    assert unverified_figures(text, r.calculations, DEED) == []
+    assert unverified_figures("Nee, 410.000 staat niet in de akte.", [], DEED, asked="Is het 410.000?") == []
