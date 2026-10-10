@@ -16,7 +16,8 @@ and ``SUVERYN_DATABASE_URL`` is set; otherwise the document endpoints answer 503
 without grounding.
 
 Data handling: request, answer and document text pass through but are not logged by this module.
-Uvicorn's access log records only method, path and status code. An unexpected error during a
+Uvicorn's access log records only method, path and status code: query strings are cut off
+(``StripQueryString``), since /auth/callback carries the sign-in code and state there. An unexpected error during a
 streamed answer is reported to the client as a generic ``error`` event and logged by exception type
 only, because exception messages can contain document text.
 
@@ -109,6 +110,24 @@ except ImportError:
         status = 415
 
 log = logging.getLogger("suveryn.gateway")
+
+
+class StripQueryString(logging.Filter):
+    """Drops the query string from uvicorn access-log lines.
+
+    /auth/callback?code=...&state=... would otherwise put the one-time sign-in code in the log. It is
+    useless without the PKCE verifier and expires within a minute, but secrets don't belong in logs.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
+            record.args = (*record.args[:2], record.args[2].split("?", 1)[0], *record.args[3:])
+        return True
+
+
+_access_log = logging.getLogger("uvicorn.access")
+if not any(isinstance(f, StripQueryString) for f in _access_log.filters):
+    _access_log.addFilter(StripQueryString())
 MULTIPART_OVERHEAD = 64 * 1024  # form boundaries and headers around the file
 
 
