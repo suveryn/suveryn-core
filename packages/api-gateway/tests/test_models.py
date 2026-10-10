@@ -68,3 +68,9 @@ def test_single_model_server_lists_its_one_model():
     with client(False, sent) as c:
         assert c.get("/v1/models").json() == [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf", "loaded": True, "default": True}]
         assert c.post("/v1/chat", json=CHAT).json()["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
+
+
+def test_health_names_the_default_model_in_router_mode():
+    """Not the first entry of the router's list (which may be an unloaded model)."""
+    with client(True, []) as c:
+        assert c.get("/health").json()["backend"]["model"] == QWEN
