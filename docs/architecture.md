@@ -76,7 +76,7 @@ Deeds contain personal data (names, national register numbers, addresses, amount
 | Process memory | Docling document, page texts; upload jobs (file names, status, error text up to 200 characters) | During ingestion; finished jobs for one hour, all jobs until restart | — | — |
 | Prompts sent to llama-server | The question, the history, and the excerpts: up to 48,000 characters of whole documents per question | During the request, then in the prompt cache (below) | Loopback connection | — |
 | llama-server prompt cache (GPU memory + RAM, `-cram`) | Prompts incl. document text | Until evicted or restart | none | Retention and encryption |
-| PostgreSQL `documents` | File name (may contain a client's name), hash, status, warnings | Until deleted | Database access control | Encryption at rest, retention |
+| PostgreSQL `documents` | File name (may contain a client's name), hash, status, warnings, owner (the uploader's Keycloak user id) | Until deleted | Database access control | Encryption at rest, retention |
 | PostgreSQL `chunks` | Document text, embeddings | Until deleted | Database access control | `DELETE` leaves data in table files until VACUUM and in the WAL for a while; secure deletion (crypto-shredding) is open |
 | Gateway memory: sessions | Per signed-in browser: user id, username, display name, ID/access/refresh tokens | Until logout, expiry, or a gateway restart | Never sent to the browser (it only holds an opaque, HttpOnly session id); not logged | A shared, encrypted session store if the gateway ever runs as several processes |
 | Keycloak database | User accounts, password hashes, TOTP secrets, sessions, login events | Managed by Keycloak | Keycloak's own (suveryn-appliance configures it; development uses `start-dev` with an H2 file) | Backup and encryption are appliance concerns |
@@ -97,11 +97,12 @@ Reviewers: check changes against these.
 4. **Unsourced means unverified.** `citations: []` or `source: null` must be shown to users as unverified, never as fact.
 5. **No document text in logs or in error messages we generate.** Backend error texts are passed on (truncated to 200 characters); they come from llama-server, not from documents. Unexpected errors during a stream are reported generically.
 6. **Nothing in `/v1` without a signed-in user.** Every `/v1` request needs a valid session or bearer token (`auth.py`); state-changing requests with a session cookie must also come from the UI's own origin. Tokens never reach the browser. Only Keycloak's own users (local accounts, optionally LDAP/AD federation and TOTP) can sign in: no social or online identity providers, in any tier or network mode. Sign-in can only be turned off (`SUVERYN_AUTH=off`) on a loopback address.
-7. **No outbound network calls at runtime.** Air-gapped installs must work: no CDN assets (`/docs` is off by default), no telemetry, no model downloads (`suveryn_rag.offline`). The gateway talks only to the local Keycloak. The chat UI bundles its fonts and icons and only calls its own origin.
-8. **SQL takes input only as bound parameters.** f-strings in `store.py` interpolate constants and fixed fragments only.
-9. **Ingestion is single-threaded per process** (process-wide `TMPDIR` redirection), and heavy work is queued. Two concurrent whole-document summaries failed in the benchmark.
-10. **The model's own arithmetic is never shown as a result.** Calculations are written as `[[calc: …]]` and computed by [`chat/calc.py`](../packages/chat/src/suveryn_chat/calc.py) with `Decimal` and a hand-written parser (never `eval`). A calculation that can't be done unambiguously is refused and shown as such, never guessed.
-11. **Positional citation contract.** `[n]` in `answer` is `citations[n-1]`. Markers have one or two digits (`grounding._MARKER`, `answer.ts` `MARKER`), so whole-document grounding is capped at 99 chunks (`WHOLE_DOCUMENT_CHUNKS`).
+7. **Users see only their own documents.** Every document, upload and job has an owner (the uploader's Keycloak user id). Listing, job status, deletion and grounded chat check it, and another user's document is answered with 404, like a missing one; the gateway checks before a chat starts and the retriever checks again before reading passages. De-duplication by file hash is per owner, so an upload never returns someone else's document. Documents without an owner (stored before owners existed, or by `suveryn-ingest` without `--owner`) are visible to no user.
+8. **No outbound network calls at runtime.** Air-gapped installs must work: no CDN assets (`/docs` is off by default), no telemetry, no model downloads (`suveryn_rag.offline`). The gateway talks only to the local Keycloak. The chat UI bundles its fonts and icons and only calls its own origin.
+9. **SQL takes input only as bound parameters.** f-strings in `store.py` interpolate constants and fixed fragments only.
+10. **Ingestion is single-threaded per process** (process-wide `TMPDIR` redirection), and heavy work is queued. Two concurrent whole-document summaries failed in the benchmark.
+11. **The model's own arithmetic is never shown as a result.** Calculations are written as `[[calc: …]]` and computed by [`chat/calc.py`](../packages/chat/src/suveryn_chat/calc.py) with `Decimal` and a hand-written parser (never `eval`). A calculation that can't be done unambiguously is refused and shown as such, never guessed.
+12. **Positional citation contract.** `[n]` in `answer` is `citations[n-1]`. Markers have one or two digits (`grounding._MARKER`, `answer.ts` `MARKER`), so whole-document grounding is capped at 99 chunks (`WHOLE_DOCUMENT_CHUNKS`).
 
 ## 5. Decisions and their evidence
 
@@ -140,7 +141,7 @@ Reviewers: check changes against these.
 | Whole-document grounding is limited in characters, not tokens; a long conversation history adds to it | A very long conversation about a near-limit document could exceed a slot's context share, and llama-server would refuse or truncate | Count tokens with the model's tokenizer |
 | Sessions live in the gateway's memory | A gateway restart signs everyone out (Keycloak's own session lets them back in quickly); several gateway processes would not share sessions | A shared session store when needed |
 | Revocation takes effect at the next token refresh | A user disabled or logged out in Keycloak keeps access for up to one access-token lifetime (5 minutes) | Keycloak back-channel logout to end sessions immediately |
-| All signed-in users see all documents | Documents are shared office-wide; there are no per-user or per-matter permissions, and no roles checked | Document ownership and roles (e.g. per matter), once the office's needs are clear |
+| Documents belong to their uploader only | No sharing between colleagues and no per-matter or role-based access yet; documents stored before owners existed are hidden from everyone (re-upload them) | Sharing per matter, and roles, once the office's needs are clear |
 | `/health` is public and names the model and llama-server URL | Minor information disclosure on a network | Limit the public part to the status code when the appliance exposes it |
 | The Keycloak login page uses Keycloak's default theme | Not branded | A sūveryn login theme (suveryn-appliance or a theme package) |
 | One model in GPU memory at a time | When people alternate between models, each switch makes the next question (anyone's) wait for a load, and the prompt cache starts empty | A 48 GB card (Heavy profile) can hold both: `--models-max 2` |
@@ -169,7 +170,7 @@ Reviewers: check changes against these.
 - [ ] If it changes grounding limits: do `WHOLE_DOCUMENT_CHARS` and the history still fit a slot's context share, and does the chunk cap keep markers to two digits?
 - [ ] If it touches `calc.py`: are mixed or ambiguous number styles refused rather than guessed, does every failure become a visible `[calculation not possible: …]`, and do the streamed and non-streamed paths give the same text?
 - [ ] If it touches the UI: is model output still rendered only as React text (no HTML), and is a partial answer discarded after an `error` event?
-- [ ] If it adds an endpoint: is it under `/v1` (signed-in only) or deliberately public, and does a state-changing endpoint keep the same-origin check?
+- [ ] If it adds an endpoint: is it under `/v1` (signed-in only) or deliberately public, does a state-changing endpoint keep the same-origin check, and does anything that touches documents pass the caller's owner (`owner_of`)?
 - [ ] If it touches `auth.py`: do the sign-in tests (`test_auth.py`) and `keycloak/live_login_check.py` still pass, and does no token, code or cookie reach the browser or a log?
 - [ ] Does anything new reach the network at runtime (including model or tokenizer loads)? Keycloak is the only service the gateway may call besides llama-server and PostgreSQL.
 - [ ] Is every new place where document text is stored or written (cache, temp file, download) listed in §3?

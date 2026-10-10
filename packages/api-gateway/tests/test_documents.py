@@ -15,42 +15,53 @@ DOC = str(uuid.uuid4())
 
 
 class FakeJob:
-    def __init__(self, filename):
+    def __init__(self, filename, owner="local-dev"):
         self.id, self.filename, self.status, self.document_id = uuid.uuid4().hex, filename, "queued", None
+        self.owner = owner
 
     def public(self):
         return {"id": self.id, "filename": self.filename, "status": self.status, "document_id": self.document_id}
 
 
 class FakeDocuments:
-    """Stands in for suveryn_rag.service.DocumentService."""
+    """Stands in for suveryn_rag.service.DocumentService, including per-owner isolation."""
 
-    def __init__(self, state="ready"):
+    def __init__(self, state="ready", owner="local-dev"):
         self.state, self.error, self.jobs, self.deleted, self.seen, self.uploads = state, None, {}, [], {}, []
+        self.docs = {DOC: owner}  # document id -> owner
 
-    def accept_upload(self, src, filename):
-        self.uploads.append(filename)
+    def accept_upload(self, src, filename, owner):
+        self.uploads.append((filename, owner))
         from suveryn_rag.service import (
             UploadRejected,  # noqa: F401 (only importable with rag installed)
         )
 
-    def job(self, job_id):
-        return self.jobs.get(job_id)
+    def job(self, job_id, owner):
+        job = self.jobs.get(job_id)
+        return job if job is not None and job.owner == owner else None
 
-    def pending_jobs(self):
-        return [j for j in self.jobs.values() if j.status in ("queued", "processing", "failed")]
+    def pending_jobs(self, owner):
+        return [j for j in self.jobs.values() if j.owner == owner and j.status in ("queued", "processing", "failed")]
 
-    def documents(self):
+    def documents(self, owner):
         from datetime import datetime
-        return [{"id": uuid.UUID(DOC), "filename": "akte.pdf", "pages": 5, "ocr_pages": 5, "status": "ok",
-                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12}]
+        return [{"id": uuid.UUID(d), "filename": "akte.pdf", "pages": 5, "ocr_pages": 5, "status": "ok",
+                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12}
+                for d, o in self.docs.items() if o == owner]
 
-    def delete(self, document_id):
+    def owns(self, document_ids, owner):
+        return all(self.docs.get(d) == owner for d in document_ids)
+
+    def delete(self, document_id, owner):
         self.deleted.append(document_id)
-        return document_id == DOC
+        if self.docs.get(document_id) != owner:
+            return False
+        del self.docs[document_id]
+        return True
 
-    def retrieve(self, question, document_ids, k):
-        self.seen = {"question": question, "document_ids": document_ids, "k": k}
+    def retrieve(self, question, document_ids, k, owner):
+        assert self.owns(document_ids, owner), "the gateway must never retrieve another owner's documents"
+        self.seen = {"question": question, "document_ids": document_ids, "k": k, "owner": owner}
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
@@ -92,7 +103,7 @@ def test_grounded_answer_carries_citations_and_prompt_has_question_last():
     body = r.json()
     assert body["answer"].endswith("[1].")
     assert body["citations"][0]["source"] == {"document_id": DOC, "page": 2, "location": "p. 2 · Artikel 2"}
-    assert docs.seen == {"question": "Wat is de koopprijs?", "document_ids": [DOC], "k": 6}
+    assert docs.seen == {"question": "Wat is de koopprijs?", "document_ids": [DOC], "k": 6, "owner": "local-dev"}
     sent = captured[-1]["messages"]
     assert sent[0]["role"] == "system" and sent[-1]["content"].endswith("QUESTION: Wat is de koopprijs?")
     assert sent[-1]["content"].startswith("EXCERPTS (the complete text of the documents")
@@ -116,8 +127,8 @@ def test_plain_chat_without_documents_is_unsourced():
 def test_grounded_chat_when_documents_unavailable_is_503():
     with client(None) as c:
         assert c.post("/v1/chat", json=ASK).status_code == 503
-        with c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
-            assert r.read().decode().startswith("event: error")
+        # streamed too: the ownership check runs before the stream starts, so it's a plain 503
+        assert c.post("/v1/chat", json={**ASK, "stream": True}).status_code == 503
 
 
 def test_bad_document_id_is_422():
@@ -181,7 +192,7 @@ def test_last_message_must_be_the_question():
 
 
 class BrokenDocuments(FakeDocuments):
-    def retrieve(self, question, document_ids, k):
+    def retrieve(self, question, document_ids, k, owner):
         raise RuntimeError("De koopprijs bedraagt EUR 412.500,00")  # an error message holding document text
 
 
@@ -192,7 +203,7 @@ def test_unexpected_stream_error_is_generic_and_does_not_echo_content():
 
 
 class UnreachableDatabase(FakeDocuments):
-    def documents(self):
+    def documents(self, owner):
         from suveryn_api_gateway.app import SearchUnavailable
         raise SearchUnavailable("the document database can't be reached")
 
