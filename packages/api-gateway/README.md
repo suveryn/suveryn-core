@@ -20,6 +20,8 @@ Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages
 | `DELETE /v1/documents/{id}` | Delete a document and its passages (204; 404 if unknown) |
 | `GET /openapi.json` | The API description, served locally |
 
+Documents are private to the user who uploaded them: every document endpoint, upload job and grounded chat sees only the caller's own, and another user's document gets 404, like a missing one (`owner_of` in `app.py`).
+
 Every `/v1/...` endpoint needs a signed-in user: 401 without one, 503 if sign-in isn't configured or Keycloak can't be reached.
 
 ## Sign-in

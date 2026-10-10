@@ -38,13 +38,21 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS documents (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     filename    text NOT NULL,
-    sha256      text NOT NULL UNIQUE,
+    sha256      text NOT NULL,
     pages       integer NOT NULL,
     ocr_pages   integer NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'ok';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS warnings jsonb NOT NULL DEFAULT '[]';
+-- Every document belongs to one user (the Keycloak "sub"). Documents stored before owners existed
+-- have owner NULL and are visible to no one (fail closed); see docs/architecture.md.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS owner text;
+-- A file is de-duplicated per owner only: the same PDF uploaded by two users is two documents, so
+-- an upload can never return another user's document.
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_sha256_key;
+CREATE UNIQUE INDEX IF NOT EXISTS documents_owner_sha256 ON documents (owner, sha256);
+CREATE INDEX IF NOT EXISTS documents_owner ON documents (owner);
 CREATE TABLE IF NOT EXISTS chunks (
     id           bigserial PRIMARY KEY,
     document_id  uuid NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -109,14 +117,20 @@ class Store:
         """Close the database connection."""
         self._conn.close()
 
-    def find_by_sha256(self, sha256: str) -> uuid.UUID | None:
-        """Id of the document with this content hash, if it was ingested before."""
-        row = self._conn.execute("SELECT id FROM documents WHERE sha256 = %s", (sha256,)).fetchone()
+    def find_by_sha256(self, sha256: str, owner: str | None) -> uuid.UUID | None:
+        """Id of this owner's document with this content hash, if they ingested it before.
+
+        Never another owner's document: de-duplication is per owner. ``owner=None`` matches only
+        documents without an owner (operator tools).
+        """
+        row = self._conn.execute("SELECT id FROM documents WHERE sha256 = %s AND owner IS NOT DISTINCT FROM %s",
+                                 (sha256, owner)).fetchone()
         return row[0] if row else None
 
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
-                     embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
-        """Store a document and its chunks in one transaction (all or nothing).
+                     embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
+                     owner: str | None = None) -> uuid.UUID:
+        """Store a document and its chunks in one transaction (all or nothing), owned by ``owner``.
 
         Status is ``needs_review`` if any warning means text may be missing; recovered or
         restored text alone keeps it ``ok``. The file name is stored too and may itself be
@@ -126,10 +140,10 @@ class Store:
         status = "needs_review" if any(w.needs_review for w in warnings) else "ok"
         with self._conn.transaction():
             doc_id = self._conn.execute(
-                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings)"
-                " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (filename, sha256, pages, ocr_pages, status,
-                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]))).fetchone()[0]
+                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner)).fetchone()[0]
             with self._conn.cursor() as cur:
                 cur.executemany(
                     "INSERT INTO chunks (document_id, chunk_index, text, page_start, page_end, headings, origin,"
@@ -139,12 +153,12 @@ class Store:
                      for c, e in zip(chunks, embeddings, strict=True)])
         return doc_id
 
-    def list_documents(self) -> list[dict]:
-        """All stored documents, newest first: id, file name, pages, OCR'd pages, status, warnings, chunks, created."""
+    def list_documents(self, owner: str) -> list[dict]:
+        """The owner's documents, newest first: id, file name, pages, OCR'd pages, status, warnings, chunks, created."""
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
             "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id)"
-            "  FROM documents d ORDER BY d.created_at DESC").fetchall()
+            "  FROM documents d WHERE d.owner = %s ORDER BY d.created_at DESC", (owner,)).fetchall()
         keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks")
         return [dict(zip(keys, r)) for r in rows]
 
@@ -153,15 +167,24 @@ class Store:
         row = self._conn.execute("SELECT status, warnings FROM documents WHERE id = %s", (document_id,)).fetchone()
         return (row[0], row[1]) if row else None
 
-    def delete_document(self, document_id: uuid.UUID) -> bool:
-        """Delete a document; its chunks go with it (ON DELETE CASCADE).
+    def owned(self, document_ids: list[uuid.UUID], owner: str) -> set[uuid.UUID]:
+        """Which of these documents belong to ``owner`` (the others don't exist or are someone else's)."""
+        rows = self._conn.execute("SELECT id FROM documents WHERE id = ANY(%s) AND owner = %s",
+                                  (list(document_ids), owner)).fetchall()
+        return {r[0] for r in rows}
+
+    def delete_document(self, document_id: uuid.UUID, owner: str | None = None) -> bool:
+        """Delete a document (only the owner's when ``owner`` is given); its chunks go with it (ON DELETE CASCADE).
 
         Review note: this makes the text unreachable, not unrecoverable. PostgreSQL keeps dead
         rows in the table files until VACUUM rewrites them, and changes stay in the write-ahead
         log for a while. Secure deletion (encryption at rest, crypto-shredding or a scheduled
         VACUUM FULL) is an open item (docs/architecture.md §6).
         """
-        return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
+        if owner is None:  # operator tools (suveryn-forget)
+            return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
+        return self._conn.execute("DELETE FROM documents WHERE id = %s AND owner = %s",
+                                  (document_id, owner)).rowcount > 0
 
     def _keyword_query(self, question: str, docs: list[uuid.UUID] | None) -> str | None:
         """OR-query of the question's specific terms, leaving out terms that occur in many chunks."""
