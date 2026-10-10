@@ -5,7 +5,8 @@ The model client and the shared answer schema.
 | Module | Contents |
 |---|---|
 | `schemas.py` | `ChatRequest`, `ChatResponse`, `Citation`, `SourceRef`, `Calculation`, `StreamStatus`, `StreamDelta`, `StreamError`: the API's request and answer shapes, shared with `chat` and `rag` |
-| `llm.py` | `LlamaServerClient`, an async client for llama-server: health, whole answers, streaming |
+| `llm.py` | `LlamaServerClient`, an async client for llama-server: health, whole answers, streaming. With `user=`, each call's token counts go to its `on_usage` hook |
+| `usage.py` | `UsageRecord` (user, kind, model, prompt/completion tokens; never text) and the `UsageRecorder` hook: token usage is captured here, once, for every model call (suveryn-tracker#7); the gateway stores it |
 | `config.py` | `LLMSettings` from `SUVERYN_LLM_BASE_URL`, `SUVERYN_LLM_DEFAULT_MODEL`, `SUVERYN_LLM_TIMEOUT_S` |
 
 Key points for reviewers:

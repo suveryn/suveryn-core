@@ -104,7 +104,7 @@ class ChatService:
     async def answer(self, req: ChatRequest, owner: str) -> ChatResponse:
         """Whole answer at once, grounded only in ``owner``'s documents."""
         prepared, citations = await self._prepare(req, owner)
-        response = await self.llm.complete(prepared)
+        response = await self.llm.complete(prepared, user=owner, kind="chat")
         if not req.document_ids:
             return response
         calc = CalcRewriter(_source(citations))
@@ -132,7 +132,7 @@ class ChatService:
         calc = CalcRewriter(_source(citations)) if req.document_ids else None
         parts: list[str] = []
         finish_reason, usage = None, Usage()
-        async for chunk in self.llm.stream(prepared):
+        async for chunk in self.llm.stream(prepared, user=owner, kind="chat"):
             text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
             if text:
                 parts.append(text)
