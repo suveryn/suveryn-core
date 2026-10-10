@@ -260,6 +260,41 @@ class CalcRewriter:
         self._figures.append(list(dict.fromkeys(figures)))
         return f"{expression} = {result}"
 
+    def cite_figures(self, answer: str, passages: list[str], cited: set[int]) -> str:
+        """Add ``[n]`` markers after each calculation result for figures no cited passage holds.
+
+        ``passages`` are all passages the model was given (``[n]`` is ``passages[n-1]``), ``cited``
+        the numbers the answer already cites. For each figure missing from the cited passages, the
+        fewest passages that hold them are added, so every figure of a calculation can be checked
+        at its source. A figure in none of the passages gets no marker and stays reported by
+        ``check_figures``. Run on the complete answer, before ``check_figures``.
+        """
+        pos = 0
+        for calc, figures in zip(self.calculations, self._figures, strict=True):
+            if calc.result is None:
+                continue
+            shown = f"{calc.expression} = {calc.result}"
+            at = answer.find(shown, pos)
+            if at == -1:
+                continue
+            pos = at + len(shown)
+            covered = "\n".join(passages[n - 1] for n in cited)
+            missing = [f for f in figures if f not in CONSTANTS and not found_in(f, covered)]
+            holders = {n: {f for f in missing if found_in(f, p)} for n, p in enumerate(passages, 1)}
+            added: list[int] = []
+            while missing:
+                n = max(holders, key=lambda k: (len(holders[k] & set(missing)), -k), default=None)
+                if n is None or not holders[n] & set(missing):
+                    break  # the rest is in no passage
+                added.append(n)
+                missing = [f for f in missing if f not in holders[n]]
+            if added:
+                markers = "".join(f"[{n}]" for n in sorted(added))
+                answer = answer[:pos] + " " + markers + answer[pos:]
+                pos += len(markers) + 1
+                cited = cited | set(added)
+        return answer
+
     def check_figures(self, cited_sources: list[str]) -> list[Calculation]:
         """Fill in ``figures_not_in_sources`` against the passages the answer cites; return the calculations."""
         text = "\n".join(cited_sources)
