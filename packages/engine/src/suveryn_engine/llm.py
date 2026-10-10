@@ -108,8 +108,15 @@ class LlamaServerClient:
         model file llama-server reports, e.g. 'Qwen3.8-27B-UD-Q4_K_M.gguf' (cached), falling back
         to ``settings.default_model``, so a response always names a model.
         """
-        if self._router or requested:
-            return requested or self.settings.default_model
+        if requested:
+            return requested
+        if self._router is None:
+            try:  # router mode answers /models; a single-model server doesn't
+                self._router = (await self._http.get("/models", timeout=5.0)).status_code == 200
+            except httpx.HTTPError:
+                return self.settings.default_model  # ask again next time
+        if self._router:
+            return self.settings.default_model
         if self._model is None:
             try:
                 r = await self._http.get("/v1/models", timeout=5.0)
