@@ -43,6 +43,14 @@ def test_rewrite_replaces_marker_and_checks_figures_against_sources():
     assert calcs[0].figures_not_in_sources == ["6.417,42"]  # only the cited passages count
 
 
+def test_share_as_percentage_is_exact_and_100_is_not_a_missing_figure():
+    text, calcs = rewrite("Aandeel: [[calc: 6.507,11 / (6.507,11 + 6.417,42) * 100]] % [1][2].", SOURCE)
+    assert calcs[0].result == "50,35" and calcs[0].error is None
+    assert calcs[0].figures_not_in_sources == []
+    _, calcs = rewrite("[[calc: 6.507,11 / 200]]", SOURCE)
+    assert calcs[0].figures_not_in_sources == ["200"]  # only the percentage factor is exempt
+
+
 def test_whole_number_division_uses_the_sources_decimal_separator():
     assert rewrite("[[calc: 1250 / 3]]", SOURCE)[0] == "1250 / 3 = 416,67"
 

@@ -8,9 +8,9 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 
-from suveryn_engine import BackendError, ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
+from suveryn_engine import BackendError, Calculation, ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
 
-from .calc import CalcRewriter, rewrite
+from .calc import CalcRewriter
 from .grounding import cited_numbers, grounded_messages
 
 # Passages to answer a question from, within the given documents of one user:
@@ -23,6 +23,17 @@ Retriever = Callable[[str, list[str], int, str], Awaitable[tuple[list[tuple[Cita
 # The fewest passages a larger document gives (the budget usually allows far more): the right passage
 # was in the top 3 for all 19 real-deed questions.
 PASSAGES = 6
+
+
+def search_text(messages) -> str:
+    """What to search the documents for: the last question, after the user's question before it.
+
+    A follow-up ("calculate it", "and the second plot?") names nothing to search for on its own;
+    searching for it alone gave the model unrelated passages. The earlier question brings its
+    subject along; the last question comes last, so its own terms still count.
+    """
+    asked = [m.content for m in messages if m.role == "user"]
+    return "\n".join(asked[-2:])
 
 
 @dataclass
@@ -69,7 +80,7 @@ class ChatService:
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES, owner)
+        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations, complete
@@ -96,8 +107,8 @@ class ChatService:
         response = await self.llm.complete(prepared)
         if not req.document_ids:
             return response
-        # Replacing calculations leaves the [n] markers as they are, so the cited passages are known up front.
-        text, calculations = rewrite(response.answer, _source(citations), _cited_sources(response.answer, citations))
+        calc = CalcRewriter(_source(citations))
+        text, calculations = _finish(calc, calc.feed(response.answer) + calc.flush(), citations)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
 
     async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Delta | Done]:
@@ -131,9 +142,18 @@ class ChatService:
             parts.append(rest)
             yield Delta(rest)
         answer = "".join(parts)
-        calculations = calc.check_figures(_cited_sources(answer, citations)) if calc else []
+        answer, calculations = _finish(calc, answer, citations) if calc else (answer, [])
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(req.model), answer=answer,
                                 citations=citations, calculations=calculations, finish_reason=finish_reason, usage=usage))
+
+
+def _finish(calc: CalcRewriter, answer: str, citations: list[Citation]) -> tuple[str, list[Calculation]]:
+    """Cite the sources of calculation figures the answer left uncited, then check every figure.
+
+    The streamed text doesn't have these added markers yet; the ``Done`` answer does, and replaces it.
+    """
+    answer = calc.cite_figures(answer, [c.text for c in citations], set(cited_numbers(answer, len(citations))))
+    return answer, calc.check_figures(_cited_sources(answer, citations))
 
 
 def _source(citations: list[Citation]) -> str:
@@ -142,8 +162,14 @@ def _source(citations: list[Citation]) -> str:
 
 
 def _cited_sources(answer: str, citations: list[Citation]) -> list[str]:
-    """The text of the passages the answer cites, which calculation figures are checked against."""
-    return [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
+    """The passages calculation figures are checked against: the ones the answer cites.
+
+    An answer that cites nothing (typically a follow-up such as "calculate it", whose earlier
+    answers the model sees without their markers) is checked against every passage it was given:
+    a figure that is in none of them is still reported, and the UI already says no source is cited.
+    """
+    cited = [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
+    return cited or [c.text for c in citations]
 
 
 class DocumentsUnavailable(RuntimeError):
