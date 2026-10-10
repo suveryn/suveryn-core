@@ -8,7 +8,7 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 
-from suveryn_engine import ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
+from suveryn_engine import BackendError, ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
 
 from .calc import CalcRewriter, rewrite
 from .grounding import cited_numbers, grounded_messages
@@ -31,6 +31,16 @@ class Delta:
 
 
 @dataclass
+class Status:
+    """A pipeline step before the first word (see ``StreamStatus``)."""
+
+    step: str
+    passages: int | None = None
+    complete: bool | None = None
+    model: str | None = None
+
+
+@dataclass
 class Done:
     """The complete answer, with its citations."""
 
@@ -50,16 +60,33 @@ class ChatService:
         self.llm = llm
         self.retriever = retriever
 
-    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation]]:
+    async def _retrieve(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], bool]:
+        """The grounded request, its passages, and whether they are the documents' complete text."""
         if not req.document_ids:
-            return req, []
+            return req, [], False
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
         hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES, owner)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
-        return req.model_copy(update={"messages": messages}), citations
+        return req.model_copy(update={"messages": messages}), citations, complete
+
+    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation]]:
+        prepared, citations, _ = await self._retrieve(req, owner)
+        return prepared, citations
+
+    async def _model_to_load(self, req: ChatRequest) -> str | None:
+        """The model that must be loaded before this answer can start, or None if it is loaded."""
+        try:
+            models = await self.llm.list_models()
+        except BackendError:
+            return None  # the request itself will report the problem
+        wanted = req.model or self.llm.settings.default_model
+        for m in models:
+            if m.id == wanted:
+                return None if m.loaded else m.id
+        return None
 
     async def answer(self, req: ChatRequest, owner: str) -> ChatResponse:
         """Whole answer at once, grounded only in ``owner``'s documents."""
@@ -71,12 +98,22 @@ class ChatService:
         text, calculations = rewrite(response.answer, _source(citations), _cited_sources(response.answer, citations))
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
 
-    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Delta | Done]:
-        """Answer text as it is generated, then the complete answer with citations.
+    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Delta | Done]:
+        """Status steps, then answer text as it is generated, then the complete answer with citations.
 
-        Raises ``BackendError`` (possibly after some deltas) or ``DocumentsUnavailable``.
+        Status steps are the pipeline's real stages, so a UI can say what is happening: searching
+        the documents, loading a model, reading the passages or writing. Raises ``BackendError``
+        (possibly after some deltas) or ``DocumentsUnavailable``.
         """
-        prepared, citations = await self._prepare(req, owner)
+        if req.document_ids:
+            yield Status("searching")
+        prepared, citations, complete = await self._retrieve(req, owner)
+        if loading := await self._model_to_load(req):
+            yield Status("loading_model", model=loading)
+        elif req.document_ids:
+            yield Status("reading", passages=len(citations), complete=complete)
+        else:
+            yield Status("writing")
         # Grounded answers: calculation markers are replaced as they stream (see ``calc``).
         calc = CalcRewriter(_source(citations)) if req.document_ids else None
         parts: list[str] = []
