@@ -158,6 +158,16 @@ def test_login_redirects_to_keycloak_with_pkce_state_and_nonce(client):
     assert cookie.startswith(f"{LOGIN_COOKIE}=") and "HttpOnly" in cookie and "SameSite=lax" in cookie
 
 
+def test_login_page_language_follows_the_ui(client):
+    """suveryn-tracker#8: the chat UI's language is passed to Keycloak as ui_locales; nothing else is."""
+    def ui_locales(query):
+        r = client.get(f"/auth/login{query}", follow_redirects=False)
+        return parse_qs(urlsplit(r.headers["location"]).query).get("ui_locales")
+    assert ui_locales("?lang=nl") == ["nl"] and ui_locales("?lang=fr") == ["fr"]
+    assert ui_locales("") is None and ui_locales("?lang=de") is None
+    assert ui_locales("?lang=nl%26prompt%3Dnone") is None  # no parameter injection
+
+
 def test_full_sign_in_gives_an_httponly_session_and_opens_the_api(client, kc):
     r = sign_in(client, kc, return_to="/?x=1")
     assert r.status_code == 303 and r.headers["location"] == "/?x=1"

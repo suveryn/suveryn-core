@@ -40,6 +40,19 @@ Other commands:
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.
 
+## Languages
+
+English (UK), Dutch and French (suveryn-tracker#8). Every string the interface shows is in a table per language in [`src/i18n/`](src/i18n/): [`en.ts`](src/i18n/en.ts) defines the keys, and [`nl.ts`](src/i18n/nl.ts) and [`fr.ts`](src/i18n/fr.ts) must have all of them. TypeScript checks that, so a missing translation fails the build, and a test checks that no text is empty. Components use `useT()`; plain functions use `t()`. No i18n library is used.
+
+- **Which language:** the one chosen in the language menu (sidebar foot and sign-in screen, remembered in this browser), else the browser's preferred language when it is one of the three, else English. `<html lang>` follows it. Keycloak's login page opens in the same language (`/auth/login?lang=nl` → `ui_locales=nl`).
+- **Dutch is formal** (*u/uw*); a test fails on *je/jij/jouw*. **French** uses *vous*.
+- **sūveryn** stays lower case except at the start of a sentence (also tested).
+- **The tagline** stays in English in every language, as on the website and the login page.
+- **Dates** follow the language (`en-GB`, `nl-BE`, `fr-BE`), also in downloaded sources.
+- **What stays English:** messages that come from the server (error details, a calculation's error) and model names. Answers are in the language of the question, whatever the interface language.
+
+To add a string: add it to `en.ts`, then to `nl.ts` and `fr.ts` (the build tells you where).
+
 ## Brand elements
 
 [suveryn-brand](https://github.com/suveryn/suveryn-brand) is the single source of the mark, favicon, fonts and design tokens. `scripts/brand-sync.mjs` copies them in at a pinned commit and generates `src/styles/tokens.css` from [`tokens/tokens.json`](https://github.com/suveryn/suveryn-brand/blob/main/tokens/tokens.json):
