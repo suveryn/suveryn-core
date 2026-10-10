@@ -8,9 +8,9 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 
-from suveryn_engine import BackendError, ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
+from suveryn_engine import BackendError, Calculation, ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
 
-from .calc import CalcRewriter, rewrite
+from .calc import CalcRewriter
 from .grounding import cited_numbers, grounded_messages
 
 # Passages to answer a question from, within the given documents of one user:
@@ -107,8 +107,8 @@ class ChatService:
         response = await self.llm.complete(prepared)
         if not req.document_ids:
             return response
-        # Replacing calculations leaves the [n] markers as they are, so the cited passages are known up front.
-        text, calculations = rewrite(response.answer, _source(citations), _cited_sources(response.answer, citations))
+        calc = CalcRewriter(_source(citations))
+        text, calculations = _finish(calc, calc.feed(response.answer) + calc.flush(), citations)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
 
     async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Delta | Done]:
@@ -142,9 +142,18 @@ class ChatService:
             parts.append(rest)
             yield Delta(rest)
         answer = "".join(parts)
-        calculations = calc.check_figures(_cited_sources(answer, citations)) if calc else []
+        answer, calculations = _finish(calc, answer, citations) if calc else (answer, [])
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(req.model), answer=answer,
                                 citations=citations, calculations=calculations, finish_reason=finish_reason, usage=usage))
+
+
+def _finish(calc: CalcRewriter, answer: str, citations: list[Citation]) -> tuple[str, list[Calculation]]:
+    """Cite the sources of calculation figures the answer left uncited, then check every figure.
+
+    The streamed text doesn't have these added markers yet; the ``Done`` answer does, and replaces it.
+    """
+    answer = calc.cite_figures(answer, [c.text for c in citations], set(cited_numbers(answer, len(citations))))
+    return answer, calc.check_figures(_cited_sources(answer, citations))
 
 
 def _source(citations: list[Citation]) -> str:
