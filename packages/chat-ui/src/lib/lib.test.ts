@@ -8,6 +8,8 @@ import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
 import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved } from "./conversations";
+import { rangeFor, today } from "./usage";
+import { LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { reviewPages } from "../api";
 import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
@@ -237,5 +239,29 @@ describe("figures to check (unverified_figures)", () => {
   });
   it("leaves text alone without flags", () => {
     expect(toBlocks("Samen 350.000,00 EUR.", 0)[0].segments).toEqual([{ kind: "text", text: "Samen 350.000,00 EUR." }]);
+  });
+});
+
+describe("usage periods (suveryn-tracker#7)", () => {
+  const now = new Date(2026, 9, 10, 14, 30);
+  it("presets are rolling windows ending now", () => {
+    expect(rangeFor("hour", now)).toEqual({ start: new Date(2026, 9, 10, 13, 30) }); // ends at the server's "now"
+    expect(rangeFor("week", now)!.start).toEqual(new Date(now.getTime() - 7 * 24 * 3_600_000));
+  });
+  it("a custom period covers whole local days, both ends included", () => {
+    expect(rangeFor("custom", now, "2026-10-01", "2026-10-03")).toEqual({ start: new Date(2026, 9, 1), end: new Date(2026, 9, 4) });
+    expect(rangeFor("custom", now, "2026-10-03", "2026-10-01")).toBeNull();
+    expect(rangeFor("custom", now, "", "2026-10-01")).toBeNull();
+  });
+  it("today starts at local midnight", () => {
+    expect(today(now)).toEqual({ start: new Date(2026, 9, 10) });
+  });
+});
+
+describe("straight to the login page", () => {
+  it("redirects, but not again within a minute (a sign-in that didn't complete would loop)", () => {
+    expect(shouldRedirect(1_000_000, null)).toBe(true);
+    expect(shouldRedirect(1_000_000, 1_000_000 - 5_000)).toBe(false);
+    expect(shouldRedirect(1_000_000, 1_000_000 - LOOP_WINDOW_MS - 1)).toBe(true);
   });
 });

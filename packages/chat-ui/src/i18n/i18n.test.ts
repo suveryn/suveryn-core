@@ -10,7 +10,7 @@ function texts(l: Lang): [string, string][] {
   return Object.entries(TABLES[l]).flatMap(([k, v]) => {
     if (typeof v === "string") return [[k, v] as [string, string]];
     const fn = v as (...a: unknown[]) => string;
-    const samples = ARRAYS[k] ? [ARRAYS[k], [[1]].concat()] : [["X", "Y", 3], [1, "Y", null]];
+    const samples = ARRAYS[k] ? [ARRAYS[k], [[1]].concat()] : [["X", "Y", 3], ["Y", 2, null]];
     return samples.map((args) => [k, fn(...(args as unknown[]))] as [string, string]);
   });
 }

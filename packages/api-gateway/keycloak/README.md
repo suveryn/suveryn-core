@@ -52,6 +52,22 @@ keycloak/bin/kcadm.sh set-password -r suveryn --username notaris.test
 
 Keep the secret and passwords in a `0600` file outside the repository.
 
+## Administrators
+
+The realm has one role, **`suveryn-admin`** (no one has it by default). It opens the chat UI's administration page: the office's token usage per user and the rates for its notional cost (suveryn-tracker#7). Because the `suveryn-chat` client has `fullScopeAllowed: false`, the realm maps the role to the client (`scopeMappings`), so it reaches the access token. To make someone an administrator: *Users → user → Role mapping → Assign role → suveryn-admin*, or
+
+```bash
+keycloak/bin/kcadm.sh add-roles -r suveryn --uusername <username> --rolename suveryn-admin
+```
+
+On a realm imported before this role existed, create it and map it once:
+
+```bash
+keycloak/bin/kcadm.sh create roles -r suveryn -s name=suveryn-admin
+RID=$(keycloak/bin/kcadm.sh get roles/suveryn-admin -r suveryn --fields id --format csv --noquotes)
+keycloak/bin/kcadm.sh create clients/$CID/scope-mappings/realm -r suveryn -b "[{\"id\":\"$RID\",\"name\":\"suveryn-admin\"}]"
+```
+
 ## Connect the gateway
 
 ```bash
