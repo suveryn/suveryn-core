@@ -1,6 +1,6 @@
 # chat-ui
 
-The Sūveryn chat interface: React, TypeScript and Vite, light theme. It talks only to the gateway on the same origin and loads nothing from the internet: fonts and icons are bundled.
+The sūveryn chat interface: React, TypeScript and Vite, light theme. It talks only to the gateway on the same origin and loads nothing from the internet: fonts and icons are bundled.
 
 ## Run it
 
@@ -28,7 +28,7 @@ Other commands:
 1. **Start.** The empty state shows the tagline, "AI for work that can't leave the premises". The sidebar lists the documents already on the server.
 2. **Attach.** The paperclip (or clicking a document in the sidebar) adds a PDF to the next message as an attachment chip. A new upload shows *Uploading…*, *Waiting…*, then *Reading…* while the server extracts it. Sending is paused until every attachment is read.
 3. **Ask.** The question appears in the user's bubble, with the attachment chips above it. The answer streams in below, with no bubble, marked by the teal brand mark.
-4. **Check the source.** Every `[n]` in the answer becomes a small teal marker. Clicking a marker, or a chip under *Sources*, opens the passage it came from: file name, page, section heading and the stored text. **Copy** in that panel copies the passage with its reference (`[1] file.pdf, p. 3 · Artikel 2` and the text below it); **Copy sources** copies every cited passage of the answer, numbered like the markers. **Download** next to each offers **Text (.txt)** or **Markdown (.md)** (one source: `source-1_akte_p3.txt`/`.md`; all sources: `sources_<question>.txt`/`.md`, headed by the question and the date). In Markdown the reference is a heading and the passage a block quote; the passage text is never altered. Both happen in the browser; nothing is sent to the server. Copied or downloaded passages are confidential and leave Sūveryn's control: they sit on the clipboard or in the Downloads folder until the user deletes them. The answer can also show these notices:
+4. **Check the source.** Every `[n]` in the answer becomes a small teal marker. Clicking a marker, or a chip under *Sources*, opens the passage it came from: file name, page, section heading and the stored text. **Copy** in that panel copies the passage with its reference (`[1] file.pdf, p. 3 · Artikel 2` and the text below it); **Copy sources** copies every cited passage of the answer, numbered like the markers. **Download** next to each offers **Text (.txt)** or **Markdown (.md)** (one source: `source-1_akte_p3.txt`/`.md`; all sources: `sources_<question>.txt`/`.md`, headed by the question and the date). In Markdown the reference is a heading and the passage a block quote; the passage text is never altered. Both happen in the browser; nothing is sent to the server. Copied or downloaded passages are confidential and leave sūveryn's control: they sit on the clipboard or in the Downloads folder until the user deletes them. The answer can also show these notices:
    - *No source is cited…* when documents were used but nothing was cited;
    - *Not based on your documents…* when no documents were attached;
    - *Calculated by sūveryn, not read from the documents…* under an answer with a total or other calculation, which the server computed exactly from figures in the sources (with a warning if a figure isn't in them).
