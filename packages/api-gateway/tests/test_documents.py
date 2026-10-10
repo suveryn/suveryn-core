@@ -116,7 +116,10 @@ def test_grounded_stream_ends_with_done_including_citations():
     with client(FakeDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
         blocks = r.read().decode().strip().split("\n\n")
     events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in blocks]
-    assert [e for e, _ in events] == ["delta", "done"]
+    assert [e for e, _ in events] == ["status", "status", "delta", "done"]
+    # the real steps: the documents are searched, then the model reads the passages it was given
+    assert events[0][1]["step"] == "searching"
+    assert (events[1][1]["step"], events[1][1]["passages"], events[1][1]["complete"]) == ("reading", 1, True)
     assert events[-1][1]["citations"][0]["source"]["page"] == 2
 
 
@@ -201,7 +204,8 @@ class BrokenDocuments(FakeDocuments):
 def test_unexpected_stream_error_is_generic_and_does_not_echo_content():
     with client(BrokenDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
         body = r.read().decode()
-    assert body.startswith("event: error") and "412.500" not in body
+    assert body.startswith("event: status") and "412.500" not in body
+    assert body.rstrip().split("\n\n")[-1].startswith("event: error")
 
 
 class UnreachableDatabase(FakeDocuments):

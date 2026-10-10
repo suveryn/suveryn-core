@@ -179,7 +179,7 @@ function Chat({ me }: { me: Me }) {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
         update({ text: streamed });
-      }, abort.current.signal, chosenModel);
+      }, abort.current.signal, chosenModel, (step) => update({ step }));
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [], status: "done", model: done.model });
     } catch (e) {
       // Gateway contract: after an error, discard any partial answer.

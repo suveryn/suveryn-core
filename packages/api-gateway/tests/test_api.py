@@ -71,7 +71,8 @@ def test_chat_stream_events(make_client):
         assert r.headers["content-type"].startswith("text/event-stream")
         events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:]))
                   for b in r.read().decode().strip().split("\n\n")]
-    assert [e for e, _ in events] == ["delta", "delta", "done"]
+    assert [e for e, _ in events] == ["status", "delta", "delta", "done"]
+    assert events[0][1]["step"] == "writing"  # a plain answer: no document search
     assert "".join(p["text"] for e, p in events if e == "delta") == "Een akte."
     done = events[-1][1]
     assert done["answer"] == "Een akte." and done["citations"] == [] and done["finish_reason"] == "stop"
@@ -86,7 +87,7 @@ def test_chat_backend_error_is_502(make_client):
 def test_stream_backend_error_event(make_client):
     with make_client(unreachable_backend()) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
         body = r.read().decode()
-    assert body.startswith("event: error")
+    assert body.startswith("event: status") and body.rstrip().split("\n\n")[-1].startswith("event: error")
 
 
 def test_empty_messages_rejected(make_client):
