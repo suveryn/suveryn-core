@@ -60,6 +60,7 @@
       "consentRequired": false,
       "fullScopeAllowed": false,
       "frontchannelLogout": false,
+      "baseUrl": "http://localhost:5173/",
       "redirectUris": ["http://localhost:5173/auth/callback"],
       "webOrigins": [],
       "attributes": {

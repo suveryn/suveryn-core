@@ -158,6 +158,13 @@ def test_login_redirects_to_keycloak_with_pkce_state_and_nonce(client):
     assert cookie.startswith(f"{LOGIN_COOKIE}=") and "HttpOnly" in cookie and "SameSite=lax" in cookie
 
 
+def test_dev_realm_client_has_a_base_url_for_back_to_application():
+    """Keycloak's error pages ("cookie not found", expired links) only show "Back to application"
+    when the client has a base URL; without it the user is stuck on the error page."""
+    [chat] = json.loads(REALM.read_text())["clients"]
+    assert chat["baseUrl"] == "http://localhost:5173/" == chat["attributes"]["post.logout.redirect.uris"]
+
+
 def test_login_page_language_follows_the_ui(client):
     """suveryn-tracker#8: the chat UI's language is passed to Keycloak as ui_locales; nothing else is."""
     def ui_locales(query):
