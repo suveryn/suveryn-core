@@ -7,7 +7,8 @@
 export type Segment =
   | { kind: "text"; text: string }
   | { kind: "bold"; text: string }
-  | { kind: "cite"; n: number };
+  | { kind: "cite"; n: number }
+  | { kind: "flag"; text: string; bold: boolean }; // a figure to check (ChatResponse.unverified_figures)
 
 export type Block = { kind: "p" | "li"; segments: Segment[] };
 
@@ -45,15 +46,35 @@ function inline(text: string, available: number): Segment[] {
   return out;
 }
 
-export function toBlocks(text: string, available: number): Block[] {
+/** Splits text and bold segments around the flagged figures, matched as whole numbers. */
+function flagFigures(segments: Segment[], flagged: string[]): Segment[] {
+  if (flagged.length === 0) return segments;
+  const escaped = flagged.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(`(?<![\\d.,])(?:${escaped.join("|")})(?![\\d]|[.,]\\d)`, "g");
+  return segments.flatMap((s): Segment[] => {
+    if (s.kind !== "text" && s.kind !== "bold") return [s];
+    const bold = s.kind === "bold";
+    const out: Segment[] = [];
+    let last = 0;
+    for (const m of s.text.matchAll(pattern)) {
+      if (m.index! > last) out.push({ kind: s.kind, text: s.text.slice(last, m.index) });
+      out.push({ kind: "flag", text: m[0], bold });
+      last = m.index! + m[0].length;
+    }
+    if (last < s.text.length) out.push({ kind: s.kind, text: s.text.slice(last) });
+    return out;
+  });
+}
+
+export function toBlocks(text: string, available: number, flagged: string[] = []): Block[] {
   const blocks: Block[] = [];
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
     const item = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/);
     const heading = line.match(/^#{1,6}\s+(.*)$/);
-    if (item) blocks.push({ kind: "li", segments: inline(item[1], available) });
-    else blocks.push({ kind: "p", segments: inline(heading ? `**${heading[1].replaceAll("**", "")}**` : line, available) });
+    if (item) blocks.push({ kind: "li", segments: flagFigures(inline(item[1], available), flagged) });
+    else blocks.push({ kind: "p", segments: flagFigures(inline(heading ? `**${heading[1].replaceAll("**", "")}**` : line, available), flagged) });
   }
   return blocks;
 }
