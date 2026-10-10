@@ -73,7 +73,7 @@ Without streaming it returns:
 {"id": "...", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "answer": "... [1] ...", "citations": [{"text": "...", "source": {"document_id": "...", "page": 3, "location": "p. 3 · Artikel 2"}}], "calculations": [], "finish_reason": "stop", "usage": {"prompt_tokens": 48, "completion_tokens": 62}}
 ```
 
-With `"stream": true` it returns Server-Sent Events: `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event (`{"message": "..."}`).
+With `"stream": true` it returns Server-Sent Events: first one or more `status` events naming what the server is doing (`searching`, `loading_model`, `reading`, `writing`), then `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event (`{"message": "..."}`).
 
 **Citations.** With `document_ids`, `citations` holds the passages the model was given, in order, and the marker `[n]` in `answer` refers to `citations[n-1]`; clients show only the cited ones. Without `document_ids`, `citations` is `[]`: the answer is unsourced and must be shown as unverified. A citation with `source: null` is unsourced too.
 
