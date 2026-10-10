@@ -265,7 +265,7 @@ class Store:
         index, whose approximate search would return only ``hnsw.ef_search`` rows.
         """
         tsq = self._keyword_query(question, document_ids)
-        keyword = ("COALESCE(1.0 / ({k} + (SELECT r FROM kw WHERE kw.id = c.id)), 0)".format(k=RRF_K)
+        keyword = (f"COALESCE(1.0 / ({RRF_K} + (SELECT r FROM kw WHERE kw.id = c.id)), 0)"
                    if tsq else "0")
         kw_cte = ("""kw AS (SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
                               FROM chunks c, to_tsquery('simple', %(tsq)s) q
