@@ -81,7 +81,7 @@ Deeds contain personal data (names, national register numbers, addresses, amount
 | Gateway memory: sessions | Per signed-in browser: user id, username, display name, ID/access/refresh tokens | Until logout, expiry, or a gateway restart | Never sent to the browser (it only holds an opaque, HttpOnly session id); not logged | A shared, encrypted session store if the gateway ever runs as several processes |
 | Keycloak database | User accounts, password hashes, TOTP secrets, sessions, login events | Managed by Keycloak | Keycloak's own (suveryn-appliance configures it; development uses `start-dev` with an H2 file) | Backup and encryption are appliance concerns |
 | Browser memory (chat UI) | The conversation, cited passages | Until the tab is closed or *New chat* | Not written to browser storage | Server-side conversation history, if ever added, needs a retention design |
-| User's clipboard and Downloads folder | Passages copied or downloaded (`.txt`/`.md`) from the chat UI | Until the user deletes them | Outside Sūveryn's control; done only on the user's click | Consider a notice in the UI |
+| User's clipboard and Downloads folder | Passages copied or downloaded (`.txt`/`.md`) from the chat UI | Until the user deletes them | Outside sūveryn's control; done only on the user's click | Consider a notice in the UI |
 | Logs | Gateway: method, path, status; unexpected stream errors by exception type only. rag: none | — | No document text is logged | Keep it that way |
 | Terminal output of `suveryn-retrieve` | Passages | Developer's terminal | — | Don't pipe into shared logs |
 
@@ -141,7 +141,7 @@ Reviewers: check changes against these.
 | Revocation takes effect at the next token refresh | A user disabled or logged out in Keycloak keeps access for up to one access-token lifetime (5 minutes) | Keycloak back-channel logout to end sessions immediately |
 | All signed-in users see all documents | Documents are shared office-wide; there are no per-user or per-matter permissions, and no roles checked | Document ownership and roles (e.g. per matter), once the office's needs are clear |
 | `/health` is public and names the model and llama-server URL | Minor information disclosure on a network | Limit the public part to the status code when the appliance exposes it |
-| The Keycloak login page uses Keycloak's default theme | Not branded | A Sūveryn login theme (suveryn-appliance or a theme package) |
+| The Keycloak login page uses Keycloak's default theme | Not branded | A sūveryn login theme (suveryn-appliance or a theme package) |
 | Upload jobs live in memory | After a gateway restart, polling an earlier job returns 404 (the stored document itself is safe) | Persist jobs if needed |
 | Chunks without page provenance are allowed (`page: null`) | Such a passage can't be traced to a page | Warn or put the document in `needs_review` |
 | Deleted documents remain recoverable until VACUUM | Weak deletion guarantee | Crypto-shredding with encryption at rest |
