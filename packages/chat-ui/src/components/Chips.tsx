@@ -1,11 +1,10 @@
 /**
- * The three chip types, deliberately different components: attachment chips (outlined, on the
- * user's turn, show upload and review state), citation chips (teal, under an answer, open a
- * source) and the neutral model tag in the composer (a name, no vendor logo).
+ * The two chip types, deliberately different components: attachment chips (outlined, on the
+ * user's turn, show upload and review state) and citation chips (teal, under an answer, open a
+ * source). The model badge is in ModelPicker.tsx.
  */
-import { AlertTriangle, Cpu, FileText, Loader2, X, XCircle } from "lucide-react";
+import { AlertTriangle, FileText, Loader2, X, XCircle } from "lucide-react";
 import type { Citation } from "../api";
-import { modelName } from "../lib/model";
 import { pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
 
@@ -63,14 +62,3 @@ export function CitationChip({ n, citation, filename, active, onClick }: {
 }
 
 /** Model tag in the composer: neutral on purpose (teal is reserved for citations). */
-export function ModelTag({ file }: { file: string | null }) {
-  const name = modelName(file);
-  if (!name) return null;
-  return (
-    <span className="chip-model" title={`Answers come from ${name.full}, running on this server`}>
-      <Cpu size={12} aria-hidden />
-      <span className="model-full">{name.full}</span>
-      <span className="model-family">{name.family}</span>
-    </span>
-  );
-}

@@ -18,7 +18,7 @@ from pathlib import PurePosixPath
 import httpx
 
 from .config import LLMSettings
-from .schemas import ChatRequest, ChatResponse, Usage
+from .schemas import ChatRequest, ChatResponse, ModelInfo, Usage
 
 
 class BackendError(RuntimeError):
@@ -59,6 +59,7 @@ class LlamaServerClient:
             transport=transport,
         )
         self._model: str | None = None
+        self._router: bool | None = None  # llama-server in router mode (several models, one at a time)
 
     async def aclose(self) -> None:
         """Close the connection pool (called when the gateway shuts down)."""
@@ -80,12 +81,42 @@ class LlamaServerClient:
             return BackendHealth(reachable=True, status="error", detail=f"HTTP {r.status_code}")
         return BackendHealth(reachable=True, status="ok", model=await self.model_name())
 
-    async def model_name(self) -> str:
-        """Name of the model llama-server is serving, e.g. 'Qwen3.8-27B-UD-Q4_K_M.gguf'.
+    async def list_models(self) -> list[ModelInfo]:
+        """The installed models and whether each is loaded.
 
-        Cached after the first successful lookup. Falls back to ``settings.default_model`` if
-        the server can't be asked, so a response always names a model.
+        llama-server in router mode lists its presets at ``/models`` with a status, and loads a
+        model on the first request for it (one at a time on a 24 GB card). A single-model
+        llama-server has no ``/models``; it serves exactly one model, always loaded.
+        Raises ``BackendError`` if the server can't be asked.
         """
+        try:
+            r = await self._http.get("/models", timeout=5.0)
+            if r.status_code == 200:
+                self._router = True
+                default = self.settings.default_model
+                return [ModelInfo(id=m["id"], loaded=(m.get("status") or {}).get("value") == "loaded",
+                                  default=m["id"] == default) for m in r.json()["data"]]
+            self._router = False
+            return [ModelInfo(id=await self.model_name(), loaded=True, default=True)]
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as e:
+            raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
+
+    async def model_name(self, requested: str | None = None) -> str:
+        """Name of the model that answers: the requested one, else the served or default one.
+
+        Router mode: the requested model, or ``settings.default_model``. Single-model mode: the
+        model file llama-server reports, e.g. 'Qwen3.8-27B-UD-Q4_K_M.gguf' (cached), falling back
+        to ``settings.default_model``, so a response always names a model.
+        """
+        if requested:
+            return requested
+        if self._router is None:
+            try:  # router mode answers /models; a single-model server doesn't
+                self._router = (await self._http.get("/models", timeout=5.0)).status_code == 200
+            except httpx.HTTPError:
+                return self.settings.default_model  # ask again next time
+        if self._router:
+            return self.settings.default_model
         if self._model is None:
             try:
                 r = await self._http.get("/v1/models", timeout=5.0)
@@ -102,6 +133,8 @@ class LlamaServerClient:
             "max_tokens": req.max_tokens,
             "temperature": req.temperature,
             "stream": stream,
+            # Router mode needs a model per request; a single-model server ignores the field.
+            "model": req.model or self.settings.default_model,
             # Reuse the cached prompt prefix across turns: a follow-up question on the same
             # document was ~6x faster in the benchmark (document text first, question last).
             # The cache lives in llama-server's GPU and RAM memory and contains personal data;
@@ -129,7 +162,7 @@ class LlamaServerClient:
             raise BackendError(f"model backend returned an unexpected answer: {type(e).__name__}") from e
         return ChatResponse(
             id=d.get("id") or f"chat-{uuid.uuid4().hex}",
-            model=await self.model_name(),
+            model=await self.model_name(req.model),
             answer=answer,
             finish_reason=finish_reason,
             usage=Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0)),

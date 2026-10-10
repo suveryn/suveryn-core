@@ -24,13 +24,11 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 ## Run locally
 
-1. Start llama-server on the GPU machine. This is the configuration validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md). The model files are listed, with their sources and checksums, in [models/manifest.json](models/manifest.json). Qwen3.8-27B is the default; Mistral Small 3.2 24B also works (leave out the last line).
+1. Start llama-server on the GPU machine in **router mode**, so people can choose the model per conversation. [models/llama-server-presets.example.ini](models/llama-server-presets.example.ini) holds the configuration validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md) for Qwen3.8-27B (the default) and Mistral Small 3.2 24B; adjust the model paths. The model files are listed, with their sources and checksums, in [models/manifest.json](models/manifest.json).
    ```bash
-   llama-server -m Qwen3.8-27B-UD-Q4_K_M.gguf \
-     -ngl 99 -fa on -ctk q8_0 -ctv q8_0 \
-     -np 4 -kvu -c 65536 -cram 32768 \
-     --jinja --chat-template-kwargs '{"enable_thinking":false}'
+   llama-server --models-preset models/llama-server-presets.example.ini --models-max 1 --host 127.0.0.1 --port 8080
    ```
+   `--models-max 1`: a 24 GB card holds one of these models at a time. A single-model llama-server (`llama-server -m <file> …`) still works; the chat then shows just that model.
 2. If llama-server runs on a remote GPU box, forward its port to your machine:
    ```bash
    ssh -N -L 8080:127.0.0.1:8080 root@<gpu-host> -p <ssh-port>
@@ -65,7 +63,9 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 Every `/v1/...` request needs a signed-in user: the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
 
-`POST /v1/chat` takes `{"messages": [{"role": "user", "content": "..."}], "document_ids": ["<uuid>"], "stream": false, "max_tokens": 1024, "temperature": 0}`. The last message must be the user's question. `document_ids` is optional: without it the answer is not grounded in any document.
+`GET /v1/models` lists the installed models: `[{"id": "qwen3.8-27b", "loaded": true, "default": true}, …]`.
+
+`POST /v1/chat` takes `{"messages": [{"role": "user", "content": "..."}], "document_ids": ["<uuid>"], "model": "<id>", "stream": false, "max_tokens": 1024, "temperature": 0}`. `model` is optional (default: the appliance's default model). The last message must be the user's question. `document_ids` is optional: without it the answer is not grounded in any document.
 
 Without streaming it returns:
 
