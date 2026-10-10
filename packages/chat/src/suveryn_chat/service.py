@@ -25,6 +25,17 @@ Retriever = Callable[[str, list[str], int, str], Awaitable[tuple[list[tuple[Cita
 PASSAGES = 6
 
 
+def search_text(messages) -> str:
+    """What to search the documents for: the last question, after the user's question before it.
+
+    A follow-up ("calculate it", "and the second plot?") names nothing to search for on its own;
+    searching for it alone gave the model unrelated passages. The earlier question brings its
+    subject along; the last question comes last, so its own terms still count.
+    """
+    asked = [m.content for m in messages if m.role == "user"]
+    return "\n".join(asked[-2:])
+
+
 @dataclass
 class Delta:
     """A piece of answer text as it is generated."""
@@ -69,7 +80,7 @@ class ChatService:
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES, owner)
+        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations, complete
@@ -142,8 +153,14 @@ def _source(citations: list[Citation]) -> str:
 
 
 def _cited_sources(answer: str, citations: list[Citation]) -> list[str]:
-    """The text of the passages the answer cites, which calculation figures are checked against."""
-    return [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
+    """The passages calculation figures are checked against: the ones the answer cites.
+
+    An answer that cites nothing (typically a follow-up such as "calculate it", whose earlier
+    answers the model sees without their markers) is checked against every passage it was given:
+    a figure that is in none of them is still reported, and the UI already says no source is cited.
+    """
+    cited = [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
+    return cited or [c.text for c in citations]
 
 
 class DocumentsUnavailable(RuntimeError):
