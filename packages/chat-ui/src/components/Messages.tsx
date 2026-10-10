@@ -188,7 +188,7 @@ function CalculationNote({ calc }: { calc: Calculation }) {
     <p className={`notice${missing.length ? " notice-error" : ""}`}>
       {missing.length ? <AlertCircle size={14} aria-hidden /> : <Calculator size={14} aria-hidden />}
       <span>
-        Calculated by Sūveryn, not read from the documents: {calc.expression} = <strong>{calc.result}</strong>.
+        Calculated by sūveryn, not read from the documents: {calc.expression} = <strong>{calc.result}</strong>.
         {missing.length > 0
           ? ` Check ${missing.join(", ")}: ${missing.length === 1 ? "it doesn't" : "they don't"} appear in the sources.`
           : " Every figure comes from the sources."}
