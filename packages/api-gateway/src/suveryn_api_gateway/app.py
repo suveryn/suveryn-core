@@ -1,5 +1,9 @@
 """FastAPI application: chat (plain or grounded in documents, JSON or streamed), documents, health.
 
+Ownership: documents, uploads and their jobs belong to the user who uploaded them (``owner_of``);
+every document endpoint and grounded chat sees only the caller's own, and another user's document
+is answered with 404, like a missing one.
+
 Sign-in: every ``/v1/...`` request needs a signed-in user (see ``auth.py``): a session cookie set
 by the OIDC login with the local Keycloak, or a bearer access token. Requests that change something
 (POST, DELETE, ...) with a session cookie must also come from the UI's own origin (``Origin``
@@ -57,9 +61,12 @@ from .auth import (
 )
 
 try:  # document handling is optional (suveryn-rag is installed on the GPU machine only)
-    from suveryn_rag.service import MAX_UPLOAD_BYTES, SearchUnavailable, UploadRejected
+    from suveryn_rag.service import MAX_UPLOAD_BYTES, DocumentNotFound, SearchUnavailable, UploadRejected
 except ImportError:
     MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+    class DocumentNotFound(LookupError):  # stand-in; never raised without suveryn-rag
+        pass
 
     class SearchUnavailable(RuntimeError):  # stand-in; never raised without suveryn-rag
         pass
@@ -112,6 +119,13 @@ class Me(BaseModel):
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+LOCAL_OWNER = "local-dev"  # owner of documents when sign-in is off (SUVERYN_AUTH=off, loopback only)
+
+
+def owner_of(request: Request) -> str:
+    """Whose documents this request may touch: the signed-in user's Keycloak id (``sub``)."""
+    user = getattr(request.state, "user", None)
+    return user.sub if user is not None else LOCAL_OWNER
 
 
 def _sse(event: str, payload: BaseModel) -> str:
@@ -154,11 +168,11 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
             private_tmp()
 
-        async def retriever(question: str, document_ids: list[str], k: int):
+        async def retriever(question: str, document_ids: list[str], k: int, owner: str):
             if docs is None or docs.state != "ready":
                 raise DocumentsUnavailable("document search is not available right now")
             try:
-                return await run_in_threadpool(docs.retrieve, question, document_ids, k)
+                return await run_in_threadpool(docs.retrieve, question, document_ids, k, owner)
             except SearchUnavailable as e:
                 raise DocumentsUnavailable(str(e)) from e
 
@@ -323,6 +337,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         200: {"content": {"text/event-stream": {}},
               "description": "With stream=true: SSE events `delta` ({text}), then `done` (a full ChatResponse) "
                              "or `error` ({message})."},
+        404: {"description": "A document id doesn't exist or belongs to another user"},
         422: {"description": "Invalid request, e.g. a malformed document id"},
         502: {"description": "Model backend unreachable or returned an error"},
         503: {"description": "Grounded answer requested but document search is unavailable"},
@@ -345,15 +360,24 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 raise HTTPException(502, str(e)) from e
             if req.model not in installed:
                 raise HTTPException(422, f"No such model on this appliance: {req.model!r}")
+        owner = owner_of(request)
+        if req.document_ids:
+            # Before anything streams: only the caller's own documents (another user's id is answered
+            # like a missing one). The retriever checks again when it reads the passages.
+            docs = _docs_or_503(request)
+            if not await run_in_threadpool(docs.owns, req.document_ids, owner):
+                raise HTTPException(404, "Unknown document.")
         chat_service: ChatService = request.app.state.chat
         if not req.stream:
             try:
-                return await chat_service.answer(req)
+                return await chat_service.answer(req, owner)
+            except DocumentNotFound as e:
+                raise HTTPException(404, "Unknown document.") from e
             except DocumentsUnavailable as e:
                 raise HTTPException(503, str(e)) from e
             except BackendError as e:
                 raise HTTPException(status_code=502, detail=str(e)) from e
-        return StreamingResponse(_stream(chat_service, req), media_type="text/event-stream",
+        return StreamingResponse(_stream(chat_service, req, owner), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.post("/v1/documents", status_code=202, responses={
@@ -364,26 +388,26 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         ``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests."""
         docs = _docs_or_503(request)
         try:
-            job = await run_in_threadpool(docs.accept_upload, file.file, file.filename or "document.pdf")
+            job = await run_in_threadpool(docs.accept_upload, file.file, file.filename or "document.pdf", owner_of(request))
         except UploadRejected as e:
             raise HTTPException(e.status, str(e)) from e
         return job.public()
 
     @app.get("/v1/documents/jobs/{job_id}")
     async def document_job(job_id: str, request: Request):
-        """State of an upload: queued, processing, ready, needs_review or failed."""
-        job = _docs_or_503(request).job(job_id)
+        """State of one of the caller's uploads: queued, processing, ready, needs_review or failed."""
+        job = _docs_or_503(request).job(job_id, owner_of(request))
         if job is None:
             raise HTTPException(404, "Unknown job.")
         return job.public()
 
     @app.get("/v1/documents")
     async def list_documents(request: Request):
-        """Stored documents (newest first) and uploads that are still being processed or failed."""
-        docs = _docs_or_503(request)
-        stored = await run_in_threadpool(docs.documents)
+        """The caller's stored documents (newest first) and their uploads still being processed or failed."""
+        docs, owner = _docs_or_503(request), owner_of(request)
+        stored = await run_in_threadpool(docs.documents, owner)
         return {"documents": [dict(d, id=str(d["id"]), created_at=d["created_at"].isoformat()) for d in stored],
-                "jobs": [j.public() for j in docs.pending_jobs()]}
+                "jobs": [j.public() for j in docs.pending_jobs(owner)]}
 
     @app.delete("/v1/documents/{document_id}", status_code=204)
     async def delete_document(document_id: str, request: Request):
@@ -393,14 +417,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             uuid.UUID(document_id)
         except ValueError:
             raise HTTPException(422, "Not a document id.") from None
-        if not await run_in_threadpool(docs.delete, document_id):
+        if not await run_in_threadpool(docs.delete, document_id, owner_of(request)):
             raise HTTPException(404, "Unknown document.")
         return Response(status_code=204)
 
     return app
 
 
-async def _stream(chat_service: ChatService, req: ChatRequest):
+async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
     """Translate the chat service's events into the gateway's SSE contract.
 
     Event order: zero or more ``delta`` events, then exactly one of ``done`` (a complete
@@ -408,13 +432,15 @@ async def _stream(chat_service: ChatService, req: ChatRequest):
     that saw ``delta`` events followed by ``error`` must discard the partial answer.
     """
     try:
-        async for event in chat_service.answer_stream(req):
+        async for event in chat_service.answer_stream(req, owner):
             if isinstance(event, Delta):
                 yield _sse("delta", StreamDelta(text=event.text))
             elif isinstance(event, Done):
                 yield _sse("done", event.response)
     except (BackendError, DocumentsUnavailable, json.JSONDecodeError) as e:
         yield _sse("error", StreamError(message=str(e)))
+    except DocumentNotFound:
+        yield _sse("error", StreamError(message="unknown document"))
     except Exception as e:  # noqa: BLE001 - the stream must end with an event; the client discards the partial answer
         log.error("chat stream failed: %s", type(e).__name__)  # the message may contain document text
         yield _sse("error", StreamError(message="the answer couldn't be completed because of a server error"))
