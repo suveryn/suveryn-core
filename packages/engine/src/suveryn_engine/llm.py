@@ -10,6 +10,7 @@ error texts, e.g. "context size exceeded"), which the gateway passes on to the c
 """
 
 import json
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -19,6 +20,9 @@ import httpx
 
 from .config import LLMSettings
 from .schemas import ChatRequest, ChatResponse, ModelInfo, Usage
+from .usage import Kind, UsageRecord, UsageRecorder
+
+log = logging.getLogger("suveryn.engine")
 
 
 class BackendError(RuntimeError):
@@ -49,10 +53,15 @@ class LlamaServerClient:
 
     ``transport`` exists for tests: they inject an ``httpx.MockTransport`` instead of a real
     server. One instance is shared by the whole gateway (it holds a connection pool).
+
+    ``on_usage`` receives the token counts of every call made for a user (``complete`` and
+    ``stream`` with ``user=``); see ``usage.py``.
     """
 
-    def __init__(self, settings: LLMSettings, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, settings: LLMSettings, transport: httpx.AsyncBaseTransport | None = None,
+                 on_usage: UsageRecorder | None = None):
         self.settings = settings
+        self.on_usage = on_usage
         self._http = httpx.AsyncClient(
             base_url=settings.base_url,
             timeout=httpx.Timeout(settings.timeout_s, connect=5.0),
@@ -145,8 +154,22 @@ class LlamaServerClient:
             payload["stream_options"] = {"include_usage": True}
         return payload
 
-    async def complete(self, req: ChatRequest) -> ChatResponse:
-        """Ask for a whole answer at once. Raises ``BackendError`` if the server fails."""
+    async def _record(self, user: str | None, kind: Kind, model: str | None, usage: Usage | None) -> None:
+        """Hand one call's token counts to ``on_usage``. Never raises: usage is informational."""
+        if self.on_usage is None or user is None or usage is None:
+            return
+        try:
+            name = await self.model_name(model)
+            await self.on_usage(UsageRecord(user=user, kind=kind, model=name,
+                                            prompt_tokens=usage.prompt_tokens, completion_tokens=usage.completion_tokens))
+        except Exception as e:  # noqa: BLE001 - recording must never break an answer
+            log.error("token usage not recorded: %s", type(e).__name__)
+
+    async def complete(self, req: ChatRequest, *, user: str | None = None, kind: Kind = "chat") -> ChatResponse:
+        """Ask for a whole answer at once. Raises ``BackendError`` if the server fails.
+
+        With ``user`` (the Keycloak user id), the call's token counts go to ``on_usage`` as ``kind``.
+        """
         try:
             r = await self._http.post("/v1/chat/completions", json=self._payload(req, stream=False))
         except httpx.HTTPError as e:
@@ -160,20 +183,25 @@ class LlamaServerClient:
             u = d.get("usage") or {}
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
             raise BackendError(f"model backend returned an unexpected answer: {type(e).__name__}") from e
+        usage = Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0))
+        await self._record(user, kind, req.model, usage if u else None)  # no counts reported: nothing to record
         return ChatResponse(
             id=d.get("id") or f"chat-{uuid.uuid4().hex}",
             model=await self.model_name(req.model),
             answer=answer,
             finish_reason=finish_reason,
-            usage=Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0)),
+            usage=usage,
         )
 
-    async def stream(self, req: ChatRequest) -> AsyncIterator[StreamChunk]:
+    async def stream(self, req: ChatRequest, *, user: str | None = None,
+                     kind: Kind = "chat") -> AsyncIterator[StreamChunk]:
         """Yield the answer as it is generated.
 
         Text chunks come first; the finish reason and token usage arrive in the last events.
         Raises ``BackendError`` on connection failures or a non-200 response, possibly after
-        some text has already been yielded; the caller must handle a partial answer.
+        some text has already been yielded; the caller must handle a partial answer. With
+        ``user``, the token counts go to ``on_usage`` when llama-server reports them (at the end;
+        a stream that breaks off before that is not recorded).
         """
         try:
             async with self._http.stream("POST", "/v1/chat/completions", json=self._payload(req, stream=True)) as r:
@@ -196,6 +224,7 @@ class LlamaServerClient:
                         u = d["usage"]
                         chunk.usage = Usage(prompt_tokens=u.get("prompt_tokens", 0),
                                             completion_tokens=u.get("completion_tokens", 0))
+                        await self._record(user, kind, req.model, chunk.usage)
                     if chunk.text or chunk.finish_reason or chunk.usage:
                         yield chunk
         except httpx.HTTPError as e:

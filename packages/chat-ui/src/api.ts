@@ -48,7 +48,7 @@ export type Health = {
   auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
   history: { status: "ready" | "failed" | "unavailable"; detail: string | null };
 };
-export type Me = { username: string; name: string };
+export type Me = { username: string; name: string; admin?: boolean }; // admin: may open the administration page
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing";
@@ -242,4 +242,45 @@ export async function deleteConversation(id: string): Promise<void> {
 export async function deleteAllConversations(): Promise<void> {
   const r = await fetch("/v1/conversations", { method: "DELETE" });
   if (!r.ok) throw await responseError(r);
+}
+
+/** Token counts (suveryn-tracker#7): counts only, never text. */
+export type UsageTotals = { requests: number; prompt_tokens: number; completion_tokens: number; total_tokens: number };
+export type UsageReport = {
+  start: string; end: string;
+  step: "5 minutes" | "1 hour" | "1 day" | "7 days" | "30 days";
+  totals: UsageTotals;
+  series: (UsageTotals & { start: string })[];
+  by_kind: Record<string, UsageTotals>;
+};
+export type Rates = { input_per_million: string; output_per_million: string; currency: string; updated_at?: string | null; updated_by?: string | null };
+export type UserUsage = { user_id: string; username: string | null; name: string | null; totals: UsageTotals; cost: string | null };
+export type OfficeUsageReport = UsageReport & { per_user: UserUsage[]; rates: Rates; cost: string };
+
+// Without an end, the server ends the range at its own "now": the browser's clock may run behind
+// the server's, and a range ending at the browser's "now" would miss the latest answers.
+const range = (start: Date, end?: Date) =>
+  `start=${encodeURIComponent(start.toISOString())}${end ? `&end=${encodeURIComponent(end.toISOString())}` : ""}`;
+
+/** The signed-in user's own token usage between two moments. */
+export async function getMyUsage(start: Date, end?: Date): Promise<UsageReport> {
+  const r = await fetch(`/v1/usage?${range(start, end)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Administrators: the office's usage, per user, with the notional cloud cost. */
+export async function getOfficeUsage(start: Date, end?: Date): Promise<OfficeUsageReport> {
+  const r = await fetch(`/v1/admin/usage?${range(start, end)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Administrators: change the rates the notional cost uses. */
+export async function setRates(rates: Pick<Rates, "input_per_million" | "output_per_million" | "currency">): Promise<Rates> {
+  const r = await fetch("/v1/admin/usage/rates", {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rates),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
 }

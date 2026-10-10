@@ -15,8 +15,10 @@ from .schemas import (
     StreamStatus,
     Usage,
 )
+from .usage import Kind, UsageRecord, UsageRecorder
 
 __all__ = [
     "BackendError", "BackendHealth", "Calculation", "ChatMessage", "ChatRequest", "ChatResponse", "Citation",
     "LLMSettings", "LlamaServerClient", "ModelInfo", "SourceRef", "StreamChunk", "StreamDelta", "StreamError", "StreamStatus", "Usage",
+    "Kind", "UsageRecord", "UsageRecorder",
 ]
