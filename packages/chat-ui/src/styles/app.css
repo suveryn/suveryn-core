@@ -92,10 +92,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer { min-width: 0; flex: 1; font-size: 13.5px; line-height: 1.6; }
 .answer p { margin: 0 0 var(--space-2); }
 .answer li { margin: 0 0 var(--space-1) 1.1em; padding-left: var(--space-1); }
-/* working indicator: three rounded squares (the brand mark's shape), bouncing in turn */
+/* working indicator: three outlined rounded squares (the brand mark's shape), bouncing in turn */
 .waiting { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-dim); font-size: 13.5px; }
-.waiting-dots { display: inline-flex; align-items: flex-end; gap: 4px; height: 12px; vertical-align: text-bottom; margin-left: 2px; }
-.waiting-dots i { width: 6px; height: 6px; border-radius: 1.5px; background: var(--text-dim);
+.waiting-dots { display: inline-flex; align-items: flex-end; gap: 4px; height: 13px; vertical-align: text-bottom; margin-left: 2px; }
+/* outlines with rounded corners, like the brand mark (radius about a quarter of the side) */
+.waiting-dots i { box-sizing: border-box; width: 7px; height: 7px; border-radius: 2px; border: 1.25px solid var(--text-dim);
                   animation: suv-bounce 1.2s ease-in-out infinite; }
 .waiting-dots i:nth-child(2) { animation-delay: 0.15s; }
 .waiting-dots i:nth-child(3) { animation-delay: 0.3s; }
