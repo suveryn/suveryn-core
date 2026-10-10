@@ -79,7 +79,7 @@ With `"stream": true` it returns Server-Sent Events: first one or more `status` 
 
 **Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). See [packages/chat](packages/chat/README.md#calculations).
 
-Documents: `POST /v1/documents` (multipart PDF upload, returns a job), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `DELETE /v1/documents/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
+Documents: `POST /v1/documents` (multipart PDF upload, returns a job), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `DELETE /v1/documents/{id}`. Saved conversations: `GET`/`DELETE /v1/conversations`, `GET`/`PUT`/`DELETE /v1/conversations/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
 
 ## Licence
 

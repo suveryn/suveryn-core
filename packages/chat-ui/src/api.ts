@@ -3,6 +3,7 @@
  * proxies them to the gateway. No other host is ever contacted.
  */
 import { createSSEParser } from "./lib/sse";
+import type { Turn } from "./types";
 
 export type SourceRef = { document_id: string; page: number | null; location: string | null };
 export type Citation = { text: string; source: SourceRef | null };
@@ -43,6 +44,7 @@ export type Health = {
   backend: { reachable: boolean; status: string; model: string | null };
   documents: { status: "ready" | "starting" | "failed" | "unavailable"; detail: string | null };
   auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
+  history: { status: "ready" | "failed" | "unavailable"; detail: string | null };
 };
 export type Me = { username: string; name: string };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
@@ -202,4 +204,40 @@ export async function streamChat(
 export function reviewPages(warnings: Warning[] | undefined): number[] {
   const pages = (warnings ?? []).filter((w) => w.kind === "page_coverage_low" && w.page !== null).map((w) => w.page!);
   return [...new Set(pages)].sort((a, b) => a - b);
+}
+
+/** A saved conversation in the list (GET /v1/conversations): no content, newest first. */
+export type ConversationSummary = { id: string; title: string; created_at: string; updated_at: string };
+export type SavedConversation = ConversationSummary & { turns: Turn[] };
+
+/** The signed-in user's saved conversations, most recently changed first. */
+export async function listConversations(): Promise<ConversationSummary[]> {
+  const r = await fetch("/v1/conversations");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function getConversation(id: string): Promise<SavedConversation> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Saves the whole conversation, replacing an earlier save under the same id. */
+export async function saveConversation(id: string, title: string, turns: Turn[]): Promise<void> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, turns }),
+  });
+  if (!r.ok) throw await responseError(r);
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!r.ok && r.status !== 404) throw await responseError(r);
+}
+
+/** Deletes every saved conversation of the signed-in user (the sign-out choice "Delete history"). */
+export async function deleteAllConversations(): Promise<void> {
+  const r = await fetch("/v1/conversations", { method: "DELETE" });
+  if (!r.ok) throw await responseError(r);
 }
