@@ -247,6 +247,53 @@ class Store:
         return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
                 for r in rows]
 
+    def best_chunks(self, query: np.ndarray, question: str, document_ids: list[uuid.UUID], max_chars: int,
+                    max_chunks: int, min_chunks: int) -> list[StoredChunk]:
+        """The documents' best-matching chunks that fit the limits, in reading order.
+
+        For documents too large to give whole: instead of a handful of search hits, the model gets
+        as much of the documents as the whole-document budget allows, chosen by relevance.
+
+        Every chunk of the documents is ranked exactly (no ``CANDIDATES`` cut-off and no HNSW
+        index, so no post-filtering loss): by vector similarity and by keyword match, fused as in
+        ``search``. Chunks are then taken best first while they fit ``max_chars`` and
+        ``max_chunks``; the best ``min_chunks`` are always taken. The result is returned in reading
+        order (as ``document_chunks``), with the fused score kept on each chunk.
+
+        Review note: the f-string interpolates constants only; query, documents and terms are
+        bound parameters. ``+ 0`` in the vector ordering keeps PostgreSQL from using the HNSW
+        index, whose approximate search would return only ``hnsw.ef_search`` rows.
+        """
+        tsq = self._keyword_query(question, document_ids)
+        keyword = ("COALESCE(1.0 / ({k} + (SELECT r FROM kw WHERE kw.id = c.id)), 0)".format(k=RRF_K)
+                   if tsq else "0")
+        kw_cte = ("""kw AS (SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
+                              FROM chunks c, to_tsquery('simple', %(tsq)s) q
+                             WHERE c.document_id = ANY(%(docs)s) AND c.tsv @@ q),""" if tsq else "")
+        rows = self._conn.execute(f"""
+            WITH {kw_cte}
+            vec AS (SELECT c.id, row_number() OVER (ORDER BY (c.embedding <=> %(q)s) + 0) AS r
+                      FROM chunks c WHERE c.document_id = ANY(%(docs)s) AND c.text ~ %(min_words)s)
+            SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
+                   COALESCE(1.0 / ({RRF_K} + (SELECT r FROM vec WHERE vec.id = c.id)), 0) + {keyword} AS score,
+                   1 - (c.embedding <=> %(q)s) AS similarity
+              FROM chunks c JOIN documents d ON d.id = c.document_id
+             WHERE c.document_id = ANY(%(docs)s)
+             ORDER BY score DESC, similarity DESC""",
+            {"q": query, "docs": document_ids, "tsq": tsq, "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
+        chosen, size = [], 0
+        for r in rows:
+            if len(chosen) >= max_chunks:
+                break
+            if len(chosen) >= min_chunks and size + len(r[3]) > max_chars:
+                continue  # a smaller, lower-ranked chunk may still fit
+            chosen.append(r)
+            size += len(r[3])
+        order = {d: i for i, d in enumerate(document_ids)}
+        chosen.sort(key=lambda r: (order[r[0]], r[4] if r[4] is not None else 1 << 30, r[2]))
+        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
+                for r in chosen]
+
     def document_chunks(self, document_ids: list[uuid.UUID], max_chars: int, max_chunks: int) -> list[StoredChunk] | None:
         """Every chunk of the documents in reading order, or None if they are larger than the limits.
 
