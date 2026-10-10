@@ -328,3 +328,16 @@ def test_sign_in_off_serves_only_this_machine(host, status):
                     client=(host, 50000)) as c:
         assert c.get("/v1/documents").status_code == status
         assert c.get("/health").status_code in (200, 503)  # public endpoints stay public
+
+
+def test_access_log_never_contains_the_sign_in_code():
+    """Code review 2026-10: uvicorn logged /auth/callback?code=...&state=... in full."""
+    import logging
+
+    from suveryn_api_gateway.app import StripQueryString
+
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', (
+        "127.0.0.1:5000", "GET", "/auth/callback?state=abc&code=SECRET-CODE", "1.1", 303), None)
+    assert StripQueryString().filter(record)
+    assert "SECRET-CODE" not in record.getMessage() and "/auth/callback" in record.getMessage()
+    assert any(isinstance(f, StripQueryString) for f in logging.getLogger("uvicorn.access").filters)
