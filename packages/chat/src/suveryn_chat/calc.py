@@ -31,6 +31,7 @@ from suveryn_engine import Calculation
 CALC = re.compile(r"\[\[\s*calc\s*:\s*(.*?)\s*\]\]", re.DOTALL | re.IGNORECASE)
 NUMBER = re.compile(r"\d+(?:[.,   ]\d+)*")
 GROUPING_SPACES = "   "
+CONSTANTS = {"100"}  # the factor of a percentage ("a / (a + b) * 100"), not a figure from a document
 MAX_MARKER = 300  # a "[[" not closed within this many characters is not a calculation
 MAX_PRODUCT_PLACES = 6
 
@@ -177,7 +178,7 @@ def _evaluate(expression: str, default_sep: str | None) -> tuple[str, list[str]]
         value = _Parser(tokens).parse()
         decimals = [len(f.rsplit(sep, 1)[1]) if sep and sep in f else 0 for f in figures]
         places = max(decimals)
-        if "*" in expression:
+        if "*" in expression and "/" not in expression:  # after a division the result is rounded anyway
             exact = max(0, -value.normalize().as_tuple().exponent)
             places = max(places, min(exact, MAX_PRODUCT_PLACES))
         if "/" in expression:
@@ -259,11 +260,46 @@ class CalcRewriter:
         self._figures.append(list(dict.fromkeys(figures)))
         return f"{expression} = {result}"
 
+    def cite_figures(self, answer: str, passages: list[str], cited: set[int]) -> str:
+        """Add ``[n]`` markers after each calculation result for figures no cited passage holds.
+
+        ``passages`` are all passages the model was given (``[n]`` is ``passages[n-1]``), ``cited``
+        the numbers the answer already cites. For each figure missing from the cited passages, the
+        fewest passages that hold them are added, so every figure of a calculation can be checked
+        at its source. A figure in none of the passages gets no marker and stays reported by
+        ``check_figures``. Run on the complete answer, before ``check_figures``.
+        """
+        pos = 0
+        for calc, figures in zip(self.calculations, self._figures, strict=True):
+            if calc.result is None:
+                continue
+            shown = f"{calc.expression} = {calc.result}"
+            at = answer.find(shown, pos)
+            if at == -1:
+                continue
+            pos = at + len(shown)
+            covered = "\n".join(passages[n - 1] for n in cited)
+            missing = [f for f in figures if f not in CONSTANTS and not found_in(f, covered)]
+            holders = {n: {f for f in missing if found_in(f, p)} for n, p in enumerate(passages, 1)}
+            added: list[int] = []
+            while missing:
+                n = max(holders, key=lambda k: (len(holders[k] & set(missing)), -k), default=None)
+                if n is None or not holders[n] & set(missing):
+                    break  # the rest is in no passage
+                added.append(n)
+                missing = [f for f in missing if f not in holders[n]]
+            if added:
+                markers = "".join(f"[{n}]" for n in sorted(added))
+                answer = answer[:pos] + " " + markers + answer[pos:]
+                pos += len(markers) + 1
+                cited = cited | set(added)
+        return answer
+
     def check_figures(self, cited_sources: list[str]) -> list[Calculation]:
         """Fill in ``figures_not_in_sources`` against the passages the answer cites; return the calculations."""
         text = "\n".join(cited_sources)
         for calc, figures in zip(self.calculations, self._figures, strict=True):
-            calc.figures_not_in_sources = [f for f in figures if not found_in(f, text)]
+            calc.figures_not_in_sources = [f for f in figures if f not in CONSTANTS and not found_in(f, text)]
         return self.calculations
 
 

@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
@@ -69,7 +70,7 @@ class FakeDocuments:
         pass
 
 
-def llm_transport(captured):
+def llm_transport(captured, text="De koopprijs is EUR 412.500,00 [1]."):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/models":
             return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf"}]})
@@ -79,7 +80,6 @@ def llm_transport(captured):
             return httpx.Response(404)
         body = json.loads(request.content)
         captured.append(body)
-        text = "De koopprijs is EUR 412.500,00 [1]."
         if body["stream"]:
             sse = "".join(f"data: {json.dumps(c)}\n\n" for c in [
                 {"choices": [{"delta": {"content": text}, "finish_reason": None}]},
@@ -110,6 +110,41 @@ def test_grounded_answer_carries_citations_and_prompt_has_question_last():
     assert sent[0]["role"] == "system" and sent[-1]["content"].endswith("QUESTION: Wat is de koopprijs?")
     assert sent[-1]["content"].startswith("EXCERPTS (the complete text of the documents")
     assert "document_ids" not in captured[-1]  # never forwarded to the model server
+
+
+def test_follow_up_searches_with_the_question_before_it():
+    """"bereken die" names nothing to search for; the earlier question brings its subject along."""
+    docs, captured = FakeDocuments(), []
+    follow_up = {"messages": [{"role": "user", "content": "Wat zijn de schattingsbedragen?"},
+                              {"role": "assistant", "content": "Kavel 1: EUR 412.500,00."},
+                              {"role": "user", "content": "bereken die"}], "document_ids": [DOC]}
+    with client(docs, captured) as c:
+        assert c.post("/v1/chat", json=follow_up).status_code == 200
+    assert docs.seen["question"] == "Wat zijn de schattingsbedragen?\nbereken die"
+    assert captured[-1]["messages"][-1]["content"].endswith("QUESTION: bereken die")  # the model gets the question as asked
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("answer, shown, missing", [
+    # The model cited nothing: the system adds the passage that holds the figures.
+    ("Samen [[calc: 412.500,00 + 412.500,00]] EUR.", "412.500,00 + 412.500,00 = 825.000,00 [1] EUR.", []),
+    # Already cited: nothing is added.
+    ("Samen [[calc: 412.500,00 + 412.500,00]] EUR [1].", "412.500,00 + 412.500,00 = 825.000,00 EUR [1].", []),
+    # An invented figure gets no source and is still reported; the real one gets its source.
+    ("Samen [[calc: 412.500,00 + 999,00]] EUR.", "412.500,00 + 999,00 = 413.499,00 [1] EUR.", ["999,00"]),
+    ("Samen [[calc: 999,00 + 1.000,00]] EUR.", "999,00 + 1.000,00 = 1.999,00 EUR.", ["999,00", "1.000,00"]),
+])
+def test_calculation_figures_are_cited_by_the_system_when_the_model_did_not(answer, shown, missing, stream):
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=answer))
+    with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=Authenticator.disabled())) as c:
+        if stream:
+            with c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
+                lines = [ln for ln in r.iter_lines() if ln.startswith("data:")]
+            body = json.loads(lines[-1][5:])  # the done event
+        else:
+            body = c.post("/v1/chat", json=ASK).json()
+    assert body["answer"] == "Samen " + shown
+    assert body["calculations"][0]["figures_not_in_sources"] == missing
 
 
 def test_grounded_stream_ends_with_done_including_citations():
