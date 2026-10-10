@@ -24,6 +24,11 @@ Conversations: each user's saved chat history (``conversations.py``), in the sam
 documents (``SUVERYN_DATABASE_URL``); without a database the conversation endpoints answer 503 and
 the UI keeps the conversation in memory only.
 
+Token usage: every model call's token counts (counts only), stored per user (``usage.py``). Each
+user can see their own (``/v1/usage``); administrators (Keycloak realm role ``suveryn-admin``) see the
+office's, per user, with a notional cloud cost (``/v1/admin/usage``). Informational only: nothing
+is ever limited because of it.
+
 Limits: an upload larger than ``MAX_UPLOAD_BYTES`` (by its ``Content-Length``) is refused with 413
 before its body is read, so it can't fill the disk; chat requests are bounded in ``ChatRequest``.
 """
@@ -32,7 +37,9 @@ import json
 import logging
 import os
 import uuid
+from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -54,6 +61,7 @@ from suveryn_engine import (
     StreamDelta,
     StreamError,
     StreamStatus,
+    UsageRecord,
 )
 
 from .auth import (
@@ -65,6 +73,7 @@ from .auth import (
     AuthUnavailable,
 )
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
+from .usage import AdminUsageReport, Rates, UsageReport, UsageSettings, UsageStore, parse_range
 from .conversations import (
     Conversation,
     ConversationIn,
@@ -115,11 +124,15 @@ class AuthStatus(BaseModel):
     detail: str | None = None
 
 
-class HistoryStatus(BaseModel):
-    """State of saved conversations: "ready", "failed" (database unreachable) or "unavailable" (no database)."""
+class StoreStatus(BaseModel):
+    """State of a database-backed feature (saved conversations, token usage): "ready", "failed"
+    (database unreachable) or "unavailable" (no database configured)."""
 
     status: str
     detail: str | None = None
+
+
+HistoryStatus = StoreStatus
 
 
 class HealthResponse(BaseModel):
@@ -129,7 +142,8 @@ class HealthResponse(BaseModel):
     backend: BackendStatus
     documents: DocumentsStatus
     auth: AuthStatus
-    history: HistoryStatus
+    history: StoreStatus
+    usage: StoreStatus
 
 
 class Me(BaseModel):
@@ -137,10 +151,12 @@ class Me(BaseModel):
 
     username: str
     name: str
+    admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 UI_LANGUAGES = {"en", "nl", "fr"}  # the chat UI's languages, passed on to Keycloak's login page
+ADMIN_ROLE = "suveryn-admin"  # Keycloak realm role for the administration page (usage per user, rates)
 LOCAL_OWNER = "local-dev"  # owner of documents when sign-in is off (SUVERYN_AUTH=off, loopback only)
 
 
@@ -168,40 +184,58 @@ def _default_documents():
     return service
 
 
-class History:
-    """The conversation store, connected on first use and again after a failure."""
+class Database:
+    """A database-backed store (conversations, token usage), connected on first use and again after a failure.
 
-    def __init__(self, store=None, settings: ConversationSettings | None = None):
-        self.store, self.settings, self.error = store, settings, None
+    ``store`` is an injected store (tests); otherwise ``connect`` makes one, and is None when no
+    database is configured.
+    """
+
+    def __init__(self, name: str, store=None, connect: Callable[[], object] | None = None):
+        self.name, self.store, self.connect, self.error = name, store, connect, None
 
     @property
     def configured(self) -> bool:
-        return self.store is not None or bool(self.settings and self.settings.database_url)
+        return self.store is not None or self.connect is not None
 
     def get(self):
         """The store, or None if there is no database or it can't be reached (``error`` says why)."""
-        if self.store is None and self.configured:
+        if self.store is None and self.connect is not None:
             try:
-                self.store = ConversationStore(self.settings)
+                self.store = self.connect()
                 self.error = None
             except Exception as e:  # noqa: BLE001 - reported in /health and as 503
                 self.error = f"the database can't be reached ({type(e).__name__})"
-                log.error("conversation store unavailable: %s", type(e).__name__)
+                log.error("%s store unavailable: %s", self.name, type(e).__name__)
         return self.store
 
-    def status(self) -> HistoryStatus:
+    def status(self) -> StoreStatus:
         if not self.configured:
-            return HistoryStatus(status="unavailable")
-        return HistoryStatus(status="ready") if self.store is not None else HistoryStatus(status="failed", detail=self.error)
+            return StoreStatus(status="unavailable")
+        return StoreStatus(status="ready") if self.store is not None else StoreStatus(status="failed", detail=self.error)
+
+
+def _connector(factory, settings):
+    """A ``Database.connect`` for ``factory(settings)``, or None without a database URL."""
+    return (lambda: factory(settings)) if settings.database_url else None
+
+
+def is_admin(request: Request, authenticator: Authenticator) -> bool:
+    """Administrators have the Keycloak realm role ``suveryn-admin``; with sign-in off (loopback
+    development only) the local user is one."""
+    if not authenticator.enabled:
+        return True
+    user = getattr(request.state, "user", None)
+    return user is not None and ADMIN_ROLE in user.roles
 
 
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
-               auth: Authenticator | None = None, conversations=None) -> FastAPI:
+               auth: Authenticator | None = None, conversations=None, usage=None) -> FastAPI:
     """Build the FastAPI app.
 
-    ``client``, ``documents``, ``auth`` and ``conversations`` let tests inject a fake model server,
-    a fake document service, a sign-in with a fake Keycloak and a conversation store; in production
-    all are created from environment variables when the app starts.
+    ``client``, ``documents``, ``auth``, ``conversations`` and ``usage`` let tests inject a fake model
+    server, a fake document service, a sign-in with a fake Keycloak, a conversation store and a
+    usage store; in production all are created from environment variables when the app starts.
     """
     authenticator = auth or Authenticator(AuthSettings.from_env())
 
@@ -226,18 +260,30 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 raise DocumentsUnavailable(str(e)) from e
 
         app.state.chat = ChatService(app.state.llm, retriever)
-        if conversations is not None:
-            app.state.history = History(conversations)
-        else:
-            app.state.history = History(settings=ConversationSettings.from_env() if load_documents else None)
-            await run_in_threadpool(app.state.history.get)
+        own_db = load_documents  # tests without documents don't connect to a database
+        app.state.history = Database("conversation", conversations, None if conversations is not None or not own_db
+                                     else _connector(ConversationStore, ConversationSettings.from_env()))
+        app.state.usage = Database("token usage", usage, None if usage is not None or not own_db
+                                   else _connector(UsageStore, UsageSettings.from_env()))
+        for db in (app.state.history, app.state.usage):
+            await run_in_threadpool(db.get)
+
+        async def record_usage(r: UsageRecord) -> None:
+            """The engine's usage hook: store the call's counts (lost, not retried, without a database)."""
+            store = app.state.usage.get()
+            if store is not None:
+                await run_in_threadpool(store.record, r)
+
+        if app.state.llm.on_usage is None:
+            app.state.llm.on_usage = record_usage
         yield
         await app.state.llm.aclose()
         await authenticator.aclose()
         if docs is not None:
             docs.stop()
-        if conversations is None and app.state.history.store is not None:
-            app.state.history.store.close()
+        for db, injected in ((app.state.history, conversations), (app.state.usage, usage)):
+            if injected is None and db.store is not None:
+                db.store.close()
 
     # FastAPI's /docs and /redoc pages load scripts, styles and fonts from public CDNs, which breaks
     # air-gapped installs and contacts third parties. Off unless explicitly enabled for development.
@@ -312,14 +358,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     async def me(request: Request):
         """The signed-in user (username and display name), or 401."""
         if not authenticator.enabled:
-            return Me(username="dev", name="Development (sign-in off)")
+            return Me(username="dev", name="Development (sign-in off)", admin=True)
         try:
             user = await authenticator.session_user(request.cookies.get(settings.session_cookie))
         except AuthUnavailable as e:
             raise HTTPException(503, f"Sign-in is not available: {e}.") from e
         if user is None:
             raise HTTPException(401, "Sign in to continue.")
-        return Me(username=user.username, name=user.name)
+        return Me(username=user.username, name=user.name, admin=ADMIN_ROLE in user.roles)
 
     @app.post("/auth/logout")
     async def logout(request: Request):
@@ -379,6 +425,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                       detail=None if docs is None else docs.error),
             auth=AuthStatus(**dict(zip(("status", "detail"), await authenticator.status(), strict=True))),
             history=request.app.state.history.status(),
+            usage=request.app.state.usage.status(),
         )
         return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
@@ -424,6 +471,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             if req.model not in installed:
                 raise HTTPException(422, f"No such model on this appliance: {req.model!r}")
         owner = owner_of(request)
+        await _remember_user(request)
         if req.document_ids:
             # Before anything streams: only the caller's own documents (another user's id is answered
             # like a missing one). The retriever checks again when it reads the passages.
@@ -485,7 +533,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         return Response(status_code=204)
 
     def _history_or_503(request: Request) -> ConversationStore:
-        history: History = request.app.state.history
+        history: Database = request.app.state.history
         if not history.configured:
             raise HTTPException(503, "Saved conversations are not available on this server.")
         store = history.get()
@@ -538,6 +586,68 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
         store = _history_or_503(request)
         return {"deleted": await run_in_threadpool(store.delete_all, owner_of(request))}
+
+    # ------------------------------------------------------------------ token usage (suveryn-tracker#7)
+    known_users: set[tuple[str, str, str]] = set()
+
+    async def _remember_user(request: Request) -> None:
+        """Keep the asker's username for the administrator's usage table (once per name change)."""
+        user = getattr(request.state, "user", None)
+        if user is None or (key := (user.sub, user.username, user.name)) in known_users:
+            return
+        store = request.app.state.usage.get()
+        if store is not None:
+            try:
+                await run_in_threadpool(store.remember_user, *key)
+                known_users.add(key)
+            except Exception as e:  # noqa: BLE001 - informational; never blocks a question
+                log.error("usage user not remembered: %s", type(e).__name__)
+
+    def _usage_or_503(request: Request) -> UsageStore:
+        db: Database = request.app.state.usage
+        if not db.configured:
+            raise HTTPException(503, "Token usage is not available on this server.")
+        store = db.get()
+        if store is None:
+            raise HTTPException(503, f"Token usage is not available right now: {db.error}.")
+        return store
+
+    def _admin_or_403(request: Request) -> None:
+        if not is_admin(request, authenticator):
+            raise HTTPException(403, "Only administrators can see this.")
+
+    def _range(start: datetime | None, end: datetime | None) -> tuple[datetime, datetime]:
+        try:
+            return parse_range(start, end)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+
+    @app.get("/v1/usage", response_model=UsageReport)
+    async def my_usage(request: Request, start: datetime | None = None, end: datetime | None = None):
+        """The caller's own token usage between ``start`` and ``end`` (ISO 8601 with a time zone;
+        default: the last 24 hours): totals, a series of buckets in local time, per kind. Never a colleague's."""
+        store, (a, b) = _usage_or_503(request), _range(start, end)
+        return await run_in_threadpool(store.report, a, b, owner_of(request))
+
+    @app.get("/v1/admin/usage", response_model=AdminUsageReport, responses={403: {"description": "Not an administrator"}})
+    async def office_usage(request: Request, start: datetime | None = None, end: datetime | None = None):
+        """Administrators: the office's token usage, per user and in total, with a notional cloud cost."""
+        _admin_or_403(request)
+        store, (a, b) = _usage_or_503(request), _range(start, end)
+        return await run_in_threadpool(store.admin_report, a, b)
+
+    @app.get("/v1/admin/usage/rates", response_model=Rates, responses={403: {"description": "Not an administrator"}})
+    async def usage_rates(request: Request):
+        """Administrators: the rates the notional cost uses, per million input and output tokens."""
+        _admin_or_403(request)
+        return await run_in_threadpool(_usage_or_503(request).rates)
+
+    @app.put("/v1/admin/usage/rates", response_model=Rates, responses={403: {"description": "Not an administrator"}})
+    async def set_usage_rates(rates: Rates, request: Request):
+        """Administrators: change the rates (e.g. to a cloud model the office would otherwise use)."""
+        _admin_or_403(request)
+        user = getattr(request.state, "user", None)
+        return await run_in_threadpool(_usage_or_503(request).set_rates, rates, user.username if user else "local-dev")
 
     return app
 

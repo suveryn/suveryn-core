@@ -70,7 +70,7 @@ class FakeDocuments:
         pass
 
 
-def llm_transport(captured, text="De koopprijs is EUR 412.500,00 [1]."):
+def llm_transport(captured, text="De koopprijs is EUR 412.500,00 [1].", usage: dict | None = None):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/models":
             return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf"}]})
@@ -83,9 +83,11 @@ def llm_transport(captured, text="De koopprijs is EUR 412.500,00 [1]."):
         if body["stream"]:
             sse = "".join(f"data: {json.dumps(c)}\n\n" for c in [
                 {"choices": [{"delta": {"content": text}, "finish_reason": None}]},
-                {"choices": [{"delta": {}, "finish_reason": "stop"}]}]) + "data: [DONE]\n\n"
+                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+                *([{"choices": [], "usage": usage}] if usage else [])]) + "data: [DONE]\n\n"
             return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
-        return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": text}, "finish_reason": "stop"}]})
+        return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": text}, "finish_reason": "stop"}],
+                                         **({"usage": usage} if usage else {})})
     return httpx.MockTransport(handler)
 
 

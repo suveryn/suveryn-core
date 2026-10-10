@@ -40,6 +40,10 @@ Other commands:
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.
 
+## Token usage
+
+The sidebar shows the signed-in user's own token count for today (*1.2k tokens today*); clicking it opens **Your usage**: requests and input, output and total tokens over the last hour, day, week or month, or chosen whole days, with a bar chart and a split by kind (suveryn-tracker#7). Only the user's own usage is shown, never a colleague's. Administrators (Keycloak role `suveryn-admin`) also get **Administration**: the office's usage in total and **per user**, the notional cost on a cloud API at editable rates per million input and output tokens (default $3 and $15), and who last changed them. Rolling periods end at the server's clock, not the browser's. Usage is informational only: nothing is ever limited because of it.
+
 ## Languages
 
 English (UK), Dutch and French (suveryn-tracker#8). Every string the interface shows is in a table per language in [`src/i18n/`](src/i18n/): [`en.ts`](src/i18n/en.ts) defines the keys, and [`nl.ts`](src/i18n/nl.ts) and [`fr.ts`](src/i18n/fr.ts) must have all of them. TypeScript checks that, so a missing translation fails the build, and a test checks that no text is empty. Components use `useT()`; plain functions use `t()`. No i18n library is used.

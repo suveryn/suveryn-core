@@ -19,7 +19,7 @@ import {
   deleteDocument, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations,
+  deleteAllConversations, getMyUsage,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
@@ -27,6 +27,8 @@ import { AssistantMessage, UserMessage } from "./components/Messages";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { Sidebar } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
+import { AdminView, UsageView } from "./components/UsageView";
+import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, newConversationId, toSaved } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { useT } from "./i18n";
@@ -87,6 +89,8 @@ function Chat({ me }: { me: Me }) {
   const [conversationId, setConversationId] = useState(newConversationId);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
+  const [view, setView] = useState<"chat" | "usage" | "admin">("chat");
+  const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -121,6 +125,12 @@ function Chat({ me }: { me: Me }) {
     try { setConversations(await listConversations()); } catch { /* the health check explains why */ }
   }, []);
   useEffect(() => { if (historyReady) refreshConversations(); }, [historyReady, refreshConversations]);
+
+  // The sidebar's usage counter: today's own tokens, refreshed after each answer.
+  useEffect(() => {
+    if (busy) return;
+    getMyUsage(today(new Date()).start).then((r) => setTokensToday(r.totals.total_tokens)).catch(() => setTokensToday(null));
+  }, [busy]);
 
   // Save the conversation whenever it changed and no answer is streaming.
   useEffect(() => {
@@ -231,6 +241,7 @@ function Chat({ me }: { me: Me }) {
   };
 
   const newChat = () => {
+    setView("chat");
     abort.current?.abort();
     setTurns([]);
     setPending([]);
@@ -297,12 +308,17 @@ function Chat({ me }: { me: Me }) {
                conversations={conversations} currentConversation={conversationId}
                historyNote={health === null || historyReady ? null :
                  health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
-               onOpenConversation={openConversation} onDeleteConversation={removeConversation} />
+               onOpenConversation={(id) => { setView("chat"); openConversation(id); }} onDeleteConversation={removeConversation}
+               tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
+               admin={me.admin ?? false} onOpenAdmin={() => setView("admin")} />
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
 
       <main className="main">
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
+        {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
+        {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} /></div>}
+        {view === "chat" && <>
         <div className="conversation">
           {turns.length === 0 ? (
             <div className="empty">
@@ -322,6 +338,7 @@ function Chat({ me }: { me: Me }) {
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
                   onSend={send} />
+        </>}
       </main>
     </div>
   );
