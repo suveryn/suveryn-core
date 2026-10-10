@@ -20,6 +20,10 @@ Uvicorn's access log records only method, path and status code. An unexpected er
 streamed answer is reported to the client as a generic ``error`` event and logged by exception type
 only, because exception messages can contain document text.
 
+Conversations: each user's saved chat history (``conversations.py``), in the same PostgreSQL as the
+documents (``SUVERYN_DATABASE_URL``); without a database the conversation endpoints answer 503 and
+the UI keeps the conversation in memory only.
+
 Limits: an upload larger than ``MAX_UPLOAD_BYTES`` (by its ``Content-Length``) is refused with 413
 before its body is read, so it can't fill the disk; chat requests are bounded in ``ChatRequest``.
 """
@@ -59,6 +63,14 @@ from .auth import (
     AuthError,
     AuthSettings,
     AuthUnavailable,
+)
+from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
+from .conversations import (
+    Conversation,
+    ConversationIn,
+    ConversationSettings,
+    ConversationStore,
+    ConversationSummary,
 )
 
 try:  # document handling is optional (suveryn-rag is installed on the GPU machine only)
@@ -103,6 +115,13 @@ class AuthStatus(BaseModel):
     detail: str | None = None
 
 
+class HistoryStatus(BaseModel):
+    """State of saved conversations: "ready", "failed" (database unreachable) or "unavailable" (no database)."""
+
+    status: str
+    detail: str | None = None
+
+
 class HealthResponse(BaseModel):
     """Body of ``GET /health``."""
 
@@ -110,6 +129,7 @@ class HealthResponse(BaseModel):
     backend: BackendStatus
     documents: DocumentsStatus
     auth: AuthStatus
+    history: HistoryStatus
 
 
 class Me(BaseModel):
@@ -147,13 +167,40 @@ def _default_documents():
     return service
 
 
+class History:
+    """The conversation store, connected on first use and again after a failure."""
+
+    def __init__(self, store=None, settings: ConversationSettings | None = None):
+        self.store, self.settings, self.error = store, settings, None
+
+    @property
+    def configured(self) -> bool:
+        return self.store is not None or bool(self.settings and self.settings.database_url)
+
+    def get(self):
+        """The store, or None if there is no database or it can't be reached (``error`` says why)."""
+        if self.store is None and self.configured:
+            try:
+                self.store = ConversationStore(self.settings)
+                self.error = None
+            except Exception as e:  # noqa: BLE001 - reported in /health and as 503
+                self.error = f"the database can't be reached ({type(e).__name__})"
+                log.error("conversation store unavailable: %s", type(e).__name__)
+        return self.store
+
+    def status(self) -> HistoryStatus:
+        if not self.configured:
+            return HistoryStatus(status="unavailable")
+        return HistoryStatus(status="ready") if self.store is not None else HistoryStatus(status="failed", detail=self.error)
+
+
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
-               auth: Authenticator | None = None) -> FastAPI:
+               auth: Authenticator | None = None, conversations=None) -> FastAPI:
     """Build the FastAPI app.
 
-    ``client``, ``documents`` and ``auth`` let tests inject a fake model server, a fake document
-    service and a sign-in with a fake Keycloak; in production all are created from environment
-    variables when the app starts.
+    ``client``, ``documents``, ``auth`` and ``conversations`` let tests inject a fake model server,
+    a fake document service, a sign-in with a fake Keycloak and a conversation store; in production
+    all are created from environment variables when the app starts.
     """
     authenticator = auth or Authenticator(AuthSettings.from_env())
 
@@ -178,11 +225,18 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 raise DocumentsUnavailable(str(e)) from e
 
         app.state.chat = ChatService(app.state.llm, retriever)
+        if conversations is not None:
+            app.state.history = History(conversations)
+        else:
+            app.state.history = History(settings=ConversationSettings.from_env() if load_documents else None)
+            await run_in_threadpool(app.state.history.get)
         yield
         await app.state.llm.aclose()
         await authenticator.aclose()
         if docs is not None:
             docs.stop()
+        if conversations is None and app.state.history.store is not None:
+            app.state.history.store.close()
 
     # FastAPI's /docs and /redoc pages load scripts, styles and fonts from public CDNs, which breaks
     # air-gapped installs and contacts third parties. Off unless explicitly enabled for development.
@@ -289,6 +343,10 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             if not length.isdigit() or int(length) > MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD:
                 return JSONResponse({"detail": f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."},
                                     status_code=413)
+        if request.method == "PUT" and request.url.path.startswith("/v1/conversations/"):
+            length = request.headers.get("content-length")
+            if length is None or not length.isdigit() or int(length) > MAX_CONVERSATION_BYTES:
+                return JSONResponse({"detail": "This conversation is too long to save."}, status_code=413)
         return await call_next(request)
 
     def _docs_or_503(request: Request):
@@ -317,6 +375,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             documents=DocumentsStatus(status="unavailable" if docs is None else docs.state,
                                       detail=None if docs is None else docs.error),
             auth=AuthStatus(**dict(zip(("status", "detail"), await authenticator.status(), strict=True))),
+            history=request.app.state.history.status(),
         )
         return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
@@ -336,7 +395,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     @app.post("/v1/chat", response_model=ChatResponse, responses={
         200: {"content": {"text/event-stream": {}},
-              "description": "With stream=true: SSE events `delta` ({text}), then `done` (a full ChatResponse) "
+              "description": "With stream=true: SSE events `status` ({step, ...}), `delta` ({text}), then `done` (a full ChatResponse) "
                              "or `error` ({message})."},
         404: {"description": "A document id doesn't exist or belongs to another user"},
         422: {"description": "Invalid request, e.g. a malformed document id"},
@@ -421,6 +480,61 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         if not await run_in_threadpool(docs.delete, document_id, owner_of(request)):
             raise HTTPException(404, "Unknown document.")
         return Response(status_code=204)
+
+    def _history_or_503(request: Request) -> ConversationStore:
+        history: History = request.app.state.history
+        if not history.configured:
+            raise HTTPException(503, "Saved conversations are not available on this server.")
+        store = history.get()
+        if store is None:
+            raise HTTPException(503, f"Saved conversations are not available right now: {history.error}.")
+        return store
+
+    def _conversation_id(conversation_id: str) -> uuid.UUID:
+        try:
+            return uuid.UUID(conversation_id)
+        except ValueError:
+            raise HTTPException(422, "Not a conversation id.") from None
+
+    @app.get("/v1/conversations", response_model=list[ConversationSummary])
+    async def list_conversations(request: Request):
+        """The caller's saved conversations, most recently changed first (titles and dates, no content)."""
+        store = _history_or_503(request)
+        return await run_in_threadpool(store.summaries, owner_of(request))
+
+    @app.get("/v1/conversations/{conversation_id}", response_model=Conversation,
+             responses={404: {"description": "Unknown, expired or another user's conversation"}})
+    async def get_conversation(conversation_id: str, request: Request):
+        """One of the caller's conversations with all its turns."""
+        store, cid = _history_or_503(request), _conversation_id(conversation_id)
+        found = await run_in_threadpool(store.get, cid, owner_of(request))
+        if found is None:
+            raise HTTPException(404, "Unknown conversation.")
+        return found
+
+    @app.put("/v1/conversations/{conversation_id}", status_code=204, responses={
+        404: {"description": "The id belongs to another user's conversation"},
+        413: {"description": f"Larger than {MAX_CONVERSATION_BYTES // (1024 * 1024)} MB"}})
+    async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):
+        """Save the whole conversation under an id the client chose (a UUID), replacing an earlier save."""
+        store, cid = _history_or_503(request), _conversation_id(conversation_id)
+        if not await run_in_threadpool(store.save, cid, owner_of(request), body):
+            raise HTTPException(404, "Unknown conversation.")
+        return Response(status_code=204)
+
+    @app.delete("/v1/conversations/{conversation_id}", status_code=204)
+    async def delete_conversation(conversation_id: str, request: Request):
+        """Delete one of the caller's conversations."""
+        store, cid = _history_or_503(request), _conversation_id(conversation_id)
+        if not await run_in_threadpool(store.delete, cid, owner_of(request)):
+            raise HTTPException(404, "Unknown conversation.")
+        return Response(status_code=204)
+
+    @app.delete("/v1/conversations")
+    async def delete_all_conversations(request: Request):
+        """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
+        store = _history_or_503(request)
+        return {"deleted": await run_in_threadpool(store.delete_all, owner_of(request))}
 
     return app
 

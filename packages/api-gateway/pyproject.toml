@@ -11,6 +11,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "python-multipart>=0.0.9",  # file uploads (POST /v1/documents)
     "pyjwt[crypto]>=2.10",  # validating Keycloak's tokens (RS256 via cryptography)
+    "psycopg[binary]>=3.2",  # saved conversations in PostgreSQL (conversations.py)
 ]
 
 [project.urls]
