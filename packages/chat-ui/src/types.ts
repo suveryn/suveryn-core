@@ -21,6 +21,7 @@ export type AssistantTurn = {
   text: string;
   citations: Citation[];
   calculations?: Calculation[];
+  unverifiedFigures?: string[]; // figures to check: in no source and not calculated by the server
   status: "streaming" | "done" | "error";
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents

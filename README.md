@@ -77,7 +77,7 @@ With `"stream": true` it returns Server-Sent Events: first one or more `status` 
 
 **Citations.** With `document_ids`, `citations` holds the passages the model was given, in order, and the marker `[n]` in `answer` refers to `citations[n-1]`; clients show only the cited ones. Without `document_ids`, `citations` is `[]`: the answer is unsourced and must be shown as unverified. A citation with `source: null` is unsourced too.
 
-**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). See [packages/chat](packages/chat/README.md#calculations).
+**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). `unverified_figures` lists figures in the answer text that are in no passage and no calculation's result; clients must flag them. See [packages/chat](packages/chat/README.md#calculations).
 
 Documents: `POST /v1/documents` (multipart PDF upload, returns a job), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `DELETE /v1/documents/{id}`. Saved conversations: `GET`/`DELETE /v1/conversations`, `GET`/`PUT`/`DELETE /v1/conversations/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
 
