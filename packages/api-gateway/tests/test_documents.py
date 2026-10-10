@@ -75,6 +75,8 @@ def llm_transport(captured):
             return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf"}]})
         if request.url.path == "/health":
             return httpx.Response(200, json={"status": "ok"})
+        if request.url.path == "/models":  # a single-model llama-server has no router endpoint
+            return httpx.Response(404)
         body = json.loads(request.content)
         captured.append(body)
         text = "De koopprijs is EUR 412.500,00 [1]."

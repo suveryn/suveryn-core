@@ -93,7 +93,7 @@ class ChatService:
             yield Delta(rest)
         answer = "".join(parts)
         calculations = calc.check_figures(_cited_sources(answer, citations)) if calc else []
-        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(), answer=answer,
+        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(req.model), answer=answer,
                                 citations=citations, calculations=calculations, finish_reason=finish_reason, usage=usage))
 
 
