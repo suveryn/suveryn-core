@@ -1,7 +1,8 @@
 """End-to-end regression test with planted traps (see trap_deed.py). Runs on the GPU machine:
 needs suveryn-rag installed (uv sync --all-packages), a database (SUVERYN_TEST_DATABASE_URL) and
-Docling/bge-m3. The scanned variants also need poppler (pdf2image): a plain scan, and a scan whose
-pages carry a short digital label ("thin" text layer) that must not stop OCR.
+Docling/bge-m3. The scanned variants also need poppler (pdf2image): a plain scan, a scan whose
+pages carry a short digital label ("thin" text layer) that must not stop OCR, and a digitally
+signed scan (OCRmyPDF refuses those unless told the signature may break in its own copy).
 
 Quality bar:
 - every page of a scan is OCR'd, also under a thin digital text layer; in the born-digital
@@ -51,17 +52,20 @@ def variants(tmp_path):
     if shutil.which("pdftoppm"):
         out.append(("scanned", trap_deed.scanned(born, tmp_path / "trap_scan.pdf")))
         out.append(("scanned-thin-text", trap_deed.scanned_with_label(born, tmp_path / "trap_thin.pdf")))
+        out.append(("scanned-signed", trap_deed.signed(out[1][1], tmp_path / "trap_signed.pdf")))
     return out
 
 
-@pytest.mark.parametrize("kind", ["born-digital", "scanned", "scanned-thin-text"])
+@pytest.mark.parametrize("kind", ["born-digital", "scanned", "scanned-thin-text", "scanned-signed"])
 def test_trap_deed(rag, tmp_path, kind):
     found = dict(variants(tmp_path))
     if kind not in found:
         pytest.skip("pdftoppm not available for the scanned variants")
     pdf = found[kind]
     true_pages = text_layer(found["born-digital"])  # page truth from the generated text
+    original = pdf.read_bytes()
     r = rag.ingest(pdf)
+    assert pdf.read_bytes() == original, "the uploaded file was changed"  # e.g. a signature broken in place
     try:
         # Every page of a scan must be OCR'd, also when a thin digital label sits on top of it;
         # in the born-digital deed only the page with the pasted-in scan.
