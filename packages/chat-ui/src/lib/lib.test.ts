@@ -7,6 +7,7 @@ import { conversationHistory } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
+import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved } from "./conversations";
 import { reviewPages } from "../api";
 import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
@@ -185,5 +186,37 @@ describe("waiting status (suveryn-tracker#6)", () => {
     expect(statusText(undefined)).toBeNull();
     for (const step of ["searching", "reading", "loading_model", "writing"])
       expect(statusText(st({ step }))).not.toMatch(/thinking/i);
+  });
+});
+
+describe("saved conversations (suveryn-tracker#5)", () => {
+  const turns: Turn[] = [
+    { id: "a", role: "user", text: "  Wat is\n de koopprijs?  ", attachments: [{ key: "k", filename: "akte.pdf", status: "ready", documentId: "d", progress: 1 }] },
+    { id: "b", role: "assistant", text: "€ 345.000 [1]", citations: [], status: "done", grounded: true,
+      step: { step: "writing", passages: null, complete: null, model: null } },
+  ];
+  it("makes random v4 UUIDs", () => {
+    const id = newConversationId();
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(newConversationId()).not.toBe(id);
+  });
+  it("names a conversation after its first question", () => {
+    expect(conversationTitle(turns)).toBe("Wat is de koopprijs?");
+    expect(conversationTitle([{ ...turns[0], text: "x".repeat(120) } as Turn])).toHaveLength(80);
+    expect(conversationTitle([])).toBe("Conversation");
+  });
+  it("saves without streaming and upload state, and restores interrupted answers as errors", () => {
+    const saved = toSaved(turns);
+    expect(saved[0].role === "user" && saved[0].attachments[0]).not.toHaveProperty("progress");
+    expect(saved[1]).not.toHaveProperty("step");
+    const back = fromSaved([turns[0], { ...turns[1], status: "streaming" } as Turn]);
+    expect(back[1]).toMatchObject({ status: "error", text: "", error: "This answer was interrupted." });
+  });
+  it("dates conversations in UK style", () => {
+    const now = new Date(2026, 9, 10, 14, 0);
+    expect(dayLabel(new Date(2026, 9, 10, 9, 0).toISOString(), now)).toBe("Today");
+    expect(dayLabel(new Date(2026, 9, 9, 23, 0).toISOString(), now)).toBe("Yesterday");
+    expect(dayLabel(new Date(2026, 9, 3).toISOString(), now)).toBe("3 Oct");
+    expect(dayLabel(new Date(2025, 11, 24).toISOString(), now)).toBe("24 Dec 2025");
   });
 });

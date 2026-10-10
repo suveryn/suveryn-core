@@ -4,9 +4,12 @@
  * - Nothing is shown before sign-in (App → SignIn); once signed in, Chat mounts.
  * - Server state (health, stored documents, upload jobs) is polled; uploads are tracked per
  *   attachment until their job is ready.
- * - The conversation lives only in this component's memory: nothing is written to browser
- *   storage, and closing the tab or "New chat" discards it. Each question is sent with the
- *   completed earlier turns (lib/history.ts) and every document used so far in the conversation.
+ * - Conversations are saved on the server, per user (suveryn-tracker#5): after each answer the
+ *   whole conversation is saved, and the sidebar lists earlier ones to open again. Nothing is
+ *   written to browser storage. Signing out asks whether to keep the history (the default) or
+ *   delete it. Without a database on the server, the conversation lives only in memory.
+ * - Each question is sent with the completed earlier turns (lib/history.ts) and every document
+ *   used so far in the conversation that still exists.
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
@@ -15,18 +18,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
-  type WireMessage,
+  type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
+  deleteAllConversations,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
 import { AssistantMessage, UserMessage } from "./components/Messages";
 import { Sidebar } from "./components/Sidebar";
+import { SignOutDialog } from "./components/SignOutDialog";
+import { conversationTitle, fromSaved, newConversationId, toSaved } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises";
 let counter = 0;
-const nextId = () => `t${++counter}`;
+// Unique across page loads too: turns of a reopened conversation keep the ids they were saved with.
+const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
 
 /**
  * Sign-in gate: shows the sign-in screen until the gateway reports a signed-in user, and again
@@ -53,7 +60,7 @@ function SignIn({ ended, unavailable }: { ended: boolean; unavailable: string | 
       <Lockup />
       <h1>{TAGLINE}</h1>
       {ended && <p className="notice"><AlertCircle size={14} aria-hidden />
-        Your session has ended, so the conversation was closed. Sign in to continue.</p>}
+        Your session has ended. Sign in to continue.</p>}
       {unavailable
         ? <p className="notice notice-error"><AlertCircle size={14} aria-hidden /> Sign-in isn't available right now: {unavailable}</p>
         : <button type="button" className="button-primary" onClick={signIn}><LogIn size={16} aria-hidden /> Sign in</button>}
@@ -72,10 +79,15 @@ function Chat({ me }: { me: Me }) {
   const [pending, setPending] = useState<Attachment[]>([]); // attachments for the next message
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState(newConversationId);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [askingSignOut, setAskingSignOut] = useState(false);
+  const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const documentsReady = health?.documents.status === "ready";
+  const historyReady = health?.history?.status === "ready";
 
   // ---------------------------------------------------------------- server state
   const refreshDocuments = useCallback(async () => {
@@ -99,6 +111,23 @@ function Chat({ me }: { me: Me }) {
   }, []);
 
   useEffect(() => { if (documentsReady) refreshDocuments(); }, [documentsReady, refreshDocuments]);
+
+  const refreshConversations = useCallback(async () => {
+    try { setConversations(await listConversations()); } catch { /* the health check explains why */ }
+  }, []);
+  useEffect(() => { if (historyReady) refreshConversations(); }, [historyReady, refreshConversations]);
+
+  // Save the conversation whenever it changed and no answer is streaming.
+  useEffect(() => {
+    if (!historyReady || busy || turns.length === 0) return;
+    const saved = toSaved(turns);
+    const body = JSON.stringify(saved);
+    if (body === lastSaved.current) return;
+    lastSaved.current = body;
+    saveConversation(conversationId, conversationTitle(turns), saved)
+      .then(refreshConversations)
+      .catch((e: Error) => { lastSaved.current = ""; setProblem(`This conversation couldn't be saved: ${e.message}`); });
+  }, [turns, busy, historyReady, conversationId, refreshConversations]);
 
   // Poll uploads that are still being read, in the composer and in the conversation.
   useEffect(() => {
@@ -125,11 +154,15 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [turns]);
 
   // ---------------------------------------------------------------- derived
+  // Documents used so far in this conversation, leaving out any deleted since (a reopened conversation
+  // may name documents that are gone; asking about them would fail).
   const conversationDocs = useMemo(() => {
+    const exists = new Set(documents.map((d) => d.id));
     const ids = new Set<string>();
-    for (const t of turns) if (t.role === "user") for (const a of t.attachments) if (isReady(a) && a.documentId) ids.add(a.documentId);
+    for (const t of turns) if (t.role === "user") for (const a of t.attachments)
+      if (isReady(a) && a.documentId && (!documentsReady || exists.has(a.documentId))) ids.add(a.documentId);
     return ids;
-  }, [turns]);
+  }, [turns, documents, documentsReady]);
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
 
   const disabledReason =
@@ -196,6 +229,43 @@ function Chat({ me }: { me: Me }) {
     setTurns([]);
     setPending([]);
     setProblem(null);
+    setConversationId(newConversationId());
+    lastSaved.current = "";
+  };
+
+  const openConversation = async (id: string) => {
+    if (id === conversationId) return;
+    try {
+      const c = await getConversation(id);
+      abort.current?.abort();
+      const opened = fromSaved(c.turns);
+      lastSaved.current = JSON.stringify(toSaved(opened));
+      setConversationId(id);
+      setTurns(opened);
+      setPending([]);
+      setProblem(null);
+    } catch (e) {
+      setProblem(`Couldn't open that conversation: ${(e as Error).message}`);
+      refreshConversations();
+    }
+  };
+
+  const removeConversation = async (id: string) => {
+    try {
+      await deleteConversation(id);
+      if (id === conversationId) newChat();
+      refreshConversations();
+    } catch (e) {
+      setProblem(`Couldn't delete that conversation: ${(e as Error).message}`);
+    }
+  };
+
+  // Signing out with saved conversations asks first: keep them (the default) or delete them.
+  const requestSignOut = () => (historyReady && conversations.length > 0 ? setAskingSignOut(true) : signOut());
+  const deleteHistoryAndSignOut = async () => {
+    abort.current?.abort();
+    await deleteAllConversations();
+    await signOut();
   };
 
   const remove = async (d: StoredDocument) => {
@@ -217,7 +287,14 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "unavailable" ? "Document handling isn't available on this server." :
                  health.documents.status === "failed" ? "Document handling failed to start." : null}
                inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove}
-               user={me} onSignOut={signOut} />
+               user={me} onSignOut={requestSignOut}
+               conversations={conversations} currentConversation={conversationId}
+               historyNote={health === null || historyReady ? null :
+                 health.history?.status === "failed" ? "Conversations can't be saved right now." :
+                 "Conversations aren't saved on this server; they end when you close the page."}
+               onOpenConversation={openConversation} onDeleteConversation={removeConversation} />
+      <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
+                     onCancel={() => setAskingSignOut(false)} />
 
       <main className="main">
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}

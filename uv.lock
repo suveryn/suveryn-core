@@ -2993,6 +2993,7 @@ version = "0.1.0"
 source = { editable = "packages/api-gateway" }
 dependencies = [
     { name = "fastapi" },
+    { name = "psycopg", extra = ["binary"] },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
     { name = "suveryn-chat" },
@@ -3003,6 +3004,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "suveryn-chat", editable = "packages/chat" },
