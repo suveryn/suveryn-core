@@ -111,6 +111,10 @@ class ChatResponse(BaseModel):
     answer: str
     citations: list[Citation] = Field(default_factory=list)
     calculations: list[Calculation] = Field(default_factory=list)  # in the order they appear in ``answer``
+    # Grounded answers: figures in the answer text that are in none of the passages and no
+    # calculation's result, as the answer writes them. The model worked them out or made them up;
+    # clients must flag them for checking.
+    unverified_figures: list[str] = Field(default_factory=list)
     finish_reason: str | None = None  # "stop"; "length" means the answer was cut off at max_tokens
     usage: Usage = Field(default_factory=Usage)
 

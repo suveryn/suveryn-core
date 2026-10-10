@@ -4,7 +4,7 @@
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
  * "not sourced" notices that tell a reader what to check.
  */
-import { AlertCircle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation } from "../api";
 import { citedNumbers, toBlocks } from "../lib/answer";
@@ -113,6 +113,7 @@ export function AssistantMessage({ turn, question, filenames }: {
   const toggle = (n: number) => setOpen((cur) => (cur === n ? null : n));
   const citedItems = cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) }));
   const allSources = formatSources(citedItems);
+  const flagged = turn.unverifiedFigures ?? [];
 
   if (turn.status === "error") {
     return (
@@ -130,10 +131,12 @@ export function AssistantMessage({ turn, question, filenames }: {
     <div className="turn-assistant">
       <AssistantMark />
       <div className="answer" aria-live={turn.status === "streaming" ? "polite" : undefined}>
-        {toBlocks(turn.text, turn.status === "done" ? available : 0).map((b, i) => {
+        {toBlocks(turn.text, turn.status === "done" ? available : 0, turn.status === "done" ? flagged : []).map((b, i) => {
           const body = b.segments.map((s, j) =>
             s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :
             s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
+            s.kind === "flag" ? <mark key={j} className="unverified" title={FLAG_TITLE}>
+                                  {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
             <button key={j} type="button" className={`cite-marker${open === s.n ? " active" : ""}`}
                     onClick={() => toggle(s.n)} aria-expanded={open === s.n}
                     aria-label={`Source ${s.n}: ${nameOf(turn.citations[s.n - 1])}`}>{s.n}</button>);
@@ -144,6 +147,7 @@ export function AssistantMessage({ turn, question, filenames }: {
           : <p className="waiting" role="status"><WaitingDots /><span>{statusText(turn.step) ?? "Sending your question…"}</span></p>)}
 
         {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
+        {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])} />
@@ -172,6 +176,26 @@ export function AssistantMessage({ turn, question, filenames }: {
         )}
       </div>
     </div>
+  );
+}
+
+const FLAG_TITLE = "Not in the documents and not calculated by sūveryn. Check this figure.";
+
+/**
+ * Flags figures in the answer that are in no source and weren't calculated by the server: the
+ * model worked them out or made them up (it is told never to do arithmetic itself).
+ */
+function UnverifiedNote({ figures }: { figures: string[] }) {
+  const one = figures.length === 1;
+  return (
+    <p className="notice notice-error">
+      <AlertTriangle size={14} aria-hidden />
+      <span>
+        Check {figures.join(", ")}: {one ? "this figure isn't" : "these figures aren't"} in the documents and
+        {one ? " wasn't" : " weren't"} calculated by sūveryn. The model may have worked {one ? "it" : "them"} out
+        itself, which can be wrong.
+      </span>
+    </p>
   );
 }
 
