@@ -58,6 +58,9 @@ describe("model tag", () => {
     expect(modelName("Qwen3.8-27B-UD-Q4_K_M.gguf")).toEqual({ full: "Qwen3.8-27B", family: "Qwen" });
     expect(modelName("Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf")).toEqual({ full: "Mistral Small 3.2", family: "Mistral" });
     expect(modelName(null)).toBeNull();
+    // router-mode ids (suveryn-tracker#4)
+    expect(modelName("qwen3.8-27b")).toEqual({ full: "Qwen3.8-27B", family: "Qwen" });
+    expect(modelName("mistral-small-3.2-24b")).toEqual({ full: "Mistral Small 3.2", family: "Mistral" });
   });
 });
 
@@ -148,5 +151,21 @@ describe("product name", () => {
         expect(`${f}: ${before}Sūveryn`).toMatch(/(["'`>]\s*|[.!?:]\s)Sūveryn$/);
       }
     }
+  });
+});
+
+describe("model picker", () => {
+  const models = [
+    { id: "mistral-small-3.2-24b", loaded: false, default: false },
+    { id: "qwen3.8-27b", loaded: true, default: true },
+  ];
+  it("answers with the default until another model is chosen", async () => {
+    const { defaultModel } = await import("../components/ModelPicker");
+    expect(defaultModel(models)?.id).toBe("qwen3.8-27b");
+  });
+  it("says when the chosen model has to load first, and that others wait too", async () => {
+    const { loadingNote } = await import("../components/ModelPicker");
+    expect(loadingNote(models, null)).toBeNull();
+    expect(loadingNote(models, "mistral-small-3.2-24b")).toMatch(/^Mistral Small 3\.2 isn't loaded yet: .*other people's questions wait/);
   });
 });

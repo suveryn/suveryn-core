@@ -147,6 +147,19 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .chip-model { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; color: var(--text);
               background: var(--surface-alt); border-radius: var(--radius-pill); padding: 4px 10px; white-space: nowrap; }
 .model-family { display: none; }
+.model-picker { position: relative; flex: 0 0 auto; }
+.chip-model-button { border: none; cursor: pointer; font: inherit; font-size: 12px; }
+.chip-model-button:hover { background: var(--line); }
+.chip-model-button:focus-visible { outline: 2px solid var(--teal-ink); outline-offset: 2px; }
+.model-menu { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 10; min-width: 240px; display: flex; flex-direction: column;
+              padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md);
+              box-shadow: 0 6px 24px rgba(2, 2, 5, 0.08); }
+.model-menu button { display: grid; grid-template-columns: 1fr auto; column-gap: var(--space-2); text-align: left; background: none;
+                     border: none; border-radius: var(--radius-sm); padding: 8px 10px; cursor: pointer; font: inherit; color: var(--text); }
+.model-menu button:hover, .model-menu button:focus-visible { background: var(--surface-alt); }
+.model-option-name { font-size: 13.5px; font-weight: 500; }
+.model-option-state { grid-column: 1; font-size: 12px; color: var(--text-dim); }
+.model-option-check { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--text); }
 
 /* composer */
 .composer-wrap { padding: var(--space-3) var(--space-6) var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
@@ -159,7 +172,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                      font: inherit; font-size: 15px; line-height: 1.5; padding: 7px var(--space-1); max-height: 160px;
                      field-sizing: content; color: var(--text); }
 .composer textarea::placeholder { color: var(--text-dimmer); }
-.composer .chip-model { margin-bottom: 6px; }
+.composer .chip-model, .composer .model-picker { margin-bottom: 6px; }
+.composer .model-picker .chip-model { margin-bottom: 0; }
 .send-button { width: 36px; height: 36px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
                background: var(--accent); color: var(--on-accent); border: none; border-radius: var(--radius-pill); cursor: pointer; }
 .send-button:hover:not(:disabled) { background: var(--accent-hover); }
