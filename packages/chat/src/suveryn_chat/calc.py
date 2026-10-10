@@ -31,6 +31,7 @@ from suveryn_engine import Calculation
 CALC = re.compile(r"\[\[\s*calc\s*:\s*(.*?)\s*\]\]", re.DOTALL | re.IGNORECASE)
 NUMBER = re.compile(r"\d+(?:[.,   ]\d+)*")
 GROUPING_SPACES = "   "
+CONSTANTS = {"100"}  # the factor of a percentage ("a / (a + b) * 100"), not a figure from a document
 MAX_MARKER = 300  # a "[[" not closed within this many characters is not a calculation
 MAX_PRODUCT_PLACES = 6
 
@@ -177,7 +178,7 @@ def _evaluate(expression: str, default_sep: str | None) -> tuple[str, list[str]]
         value = _Parser(tokens).parse()
         decimals = [len(f.rsplit(sep, 1)[1]) if sep and sep in f else 0 for f in figures]
         places = max(decimals)
-        if "*" in expression:
+        if "*" in expression and "/" not in expression:  # after a division the result is rounded anyway
             exact = max(0, -value.normalize().as_tuple().exponent)
             places = max(places, min(exact, MAX_PRODUCT_PLACES))
         if "/" in expression:
@@ -263,7 +264,7 @@ class CalcRewriter:
         """Fill in ``figures_not_in_sources`` against the passages the answer cites; return the calculations."""
         text = "\n".join(cited_sources)
         for calc, figures in zip(self.calculations, self._figures, strict=True):
-            calc.figures_not_in_sources = [f for f in figures if not found_in(f, text)]
+            calc.figures_not_in_sources = [f for f in figures if f not in CONSTANTS and not found_in(f, text)]
         return self.calculations
 
 

@@ -11,7 +11,7 @@ Turns a conversation into an answer: either a plain model answer, or one grounde
 ## How a grounded answer is made
 
 1. The gateway passes the request's `document_ids` to the service.
-2. The service gets the passages to answer from ([`Rag.passages`](../rag/src/suveryn_rag/pipeline.py) in `packages/rag`):
+2. The service gets the passages to answer from, searching for the last question together with the user's question before it (`search_text`: a follow-up such as "bereken die" names nothing to search for on its own) ([`Rag.passages`](../rag/src/suveryn_rag/pipeline.py) in `packages/rag`):
    - **small documents** (together at most ~48,000 characters, about 15–20 pages, and 99 passages): *all* their passages, in reading order, so a general question ("what is this document about?") sees the whole text;
    - **larger documents:** their passages that best match the last question, as many as fit the same budget (at least 6), in reading order: every passage is ranked by the hybrid search in `packages/rag` (`Store.best_chunks`). A 58-page deed gets about two thirds of its text this way instead of 6 passages.
 
@@ -33,11 +33,11 @@ Without `document_ids`, `citations` is empty and the answer must be shown as unv
 
 ## Calculations
 
-Language models make arithmetic mistakes, so the model never calculates. When a total or difference is asked for, it writes `[[calc: 6.507,11 + 6.417,42]]`, with the figures copied exactly from the excerpts. `calc.py` then:
+Language models make arithmetic mistakes, so the model never calculates. When a total, difference, ratio, share or average is asked for, also when the documents don't describe how to calculate it, it writes `[[calc: 6.507,11 + 6.417,42]]`, with the figures copied exactly from the excerpts. `calc.py` then:
 
 1. computes it exactly (`Decimal`, a small parser, never `eval`), with + - * /, brackets and signs;
-2. keeps the figures' number style (`6.507,11`, `6,507.11`, `6 507,11`) and refuses, rather than guesses, when a figure is ambiguous (`1.250 + 3.000` could mean either) or the figures mix styles (`1.5 + 2,25`). Sums keep the decimals of the most precise figure; products keep their exact decimals (up to 6); divisions are rounded half up to at least 2;
+2. keeps the figures' number style (`6.507,11`, `6,507.11`, `6 507,11`) and refuses, rather than guesses, when a figure is ambiguous (`1.250 + 3.000` could mean either) or the figures mix styles (`1.5 + 2,25`). Sums keep the decimals of the most precise figure; products keep their exact decimals (up to 6); divisions, and anything after one, are rounded half up to at least 2. A share as a percentage is written `a / (a + b) * 100`;
 3. replaces the marker with `6.507,11 + 6.417,42 = 12.924,53`, also while streaming (a marker split across chunks is held back until it is complete);
-4. checks every figure, as a whole number, against the passages the answer cites, and lists any it can't find.
+4. checks every figure, as a whole number, against the passages the answer cites, and lists any it can't find. An answer that cites nothing (typically a follow-up, since earlier answers reach the model without their markers) is checked against all the passages it was given. The factor `100` of a percentage is not a figure from a document and isn't checked.
 
 The response's `calculations` list holds each one (`expression`, `result`, `figures_not_in_sources`, `error`). The chat UI shows a note under the answer: *Calculated by sūveryn, not read from the documents*, with a warning if a figure isn't in the sources or the calculation couldn't be done.
