@@ -4,7 +4,7 @@ The model client and the shared answer schema.
 
 | Module | Contents |
 |---|---|
-| `schemas.py` | `ChatRequest`, `ChatResponse`, `Citation`, `SourceRef`, `Calculation`, `StreamDelta`, `StreamError`: the API's request and answer shapes, shared with `chat` and `rag` |
+| `schemas.py` | `ChatRequest`, `ChatResponse`, `Citation`, `SourceRef`, `Calculation`, `StreamStatus`, `StreamDelta`, `StreamError`: the API's request and answer shapes, shared with `chat` and `rag` |
 | `llm.py` | `LlamaServerClient`, an async client for llama-server: health, whole answers, streaming |
 | `config.py` | `LLMSettings` from `SUVERYN_LLM_BASE_URL`, `SUVERYN_LLM_DEFAULT_MODEL`, `SUVERYN_LLM_TIMEOUT_S` |
 
