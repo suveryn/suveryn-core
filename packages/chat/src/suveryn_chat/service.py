@@ -13,11 +13,12 @@ from suveryn_engine import ChatRequest, ChatResponse, Citation, LlamaServerClien
 from .calc import CalcRewriter, rewrite
 from .grounding import cited_numbers, grounded_messages
 
-# Passages to answer a question from, within the given documents:
-# (question, document_ids, k) -> ([(citation, filename), ...], complete). ``complete`` is True when
+# Passages to answer a question from, within the given documents of one user:
+# (question, document_ids, k, owner) -> ([(citation, filename), ...], complete). The retriever must
+# refuse documents that don't belong to ``owner``. ``complete`` is True when
 # the passages are the documents' whole text in reading order (small documents), False when they
 # are the ``k`` best search hits, best first.
-Retriever = Callable[[str, list[str], int], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
+Retriever = Callable[[str, list[str], int, str], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
 
 PASSAGES = 6  # search hits for larger documents: the right passage was in the top 3 for all 19 real-deed questions
 
@@ -49,20 +50,20 @@ class ChatService:
         self.llm = llm
         self.retriever = retriever
 
-    async def _prepare(self, req: ChatRequest) -> tuple[ChatRequest, list[Citation]]:
+    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation]]:
         if not req.document_ids:
             return req, []
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES)
+        hits, complete = await self.retriever(last.content, req.document_ids, PASSAGES, owner)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations
 
-    async def answer(self, req: ChatRequest) -> ChatResponse:
-        """Whole answer at once."""
-        prepared, citations = await self._prepare(req)
+    async def answer(self, req: ChatRequest, owner: str) -> ChatResponse:
+        """Whole answer at once, grounded only in ``owner``'s documents."""
+        prepared, citations = await self._prepare(req, owner)
         response = await self.llm.complete(prepared)
         if not req.document_ids:
             return response
@@ -70,12 +71,12 @@ class ChatService:
         text, calculations = rewrite(response.answer, _source(citations), _cited_sources(response.answer, citations))
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations})
 
-    async def answer_stream(self, req: ChatRequest) -> AsyncIterator[Delta | Done]:
+    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Delta | Done]:
         """Answer text as it is generated, then the complete answer with citations.
 
         Raises ``BackendError`` (possibly after some deltas) or ``DocumentsUnavailable``.
         """
-        prepared, citations = await self._prepare(req)
+        prepared, citations = await self._prepare(req, owner)
         # Grounded answers: calculation markers are replaced as they stream (see ``calc``).
         calc = CalcRewriter(_source(citations)) if req.document_ids else None
         parts: list[str] = []

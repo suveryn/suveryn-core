@@ -93,10 +93,10 @@ class FakeKeycloak:
 class FakeDocuments:
     state, error = "ready", None
 
-    def documents(self):
+    def documents(self, owner):
         return []
 
-    def pending_jobs(self):
+    def pending_jobs(self, owner):
         return []
 
     def stop(self):
