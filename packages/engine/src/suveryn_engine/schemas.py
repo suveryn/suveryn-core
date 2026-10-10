@@ -41,6 +41,8 @@ class ChatRequest(BaseModel):
     # Stored documents to answer from. Empty: a plain, unsourced answer. Set: the answer is grounded
     # in passages from these documents and cites them as [n] (see ChatResponse).
     document_ids: list[str] = Field(default_factory=list, max_length=50)
+    # Which installed model answers (an id from GET /v1/models). None: the appliance's default model.
+    model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
 
     @model_validator(mode="after")
     def _ends_with_question(self) -> "ChatRequest":
@@ -69,6 +71,14 @@ class Usage(BaseModel):
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+
+class ModelInfo(BaseModel):
+    """An installed model, as listed by ``GET /v1/models``."""
+
+    id: str                 # what to send as ``ChatRequest.model``
+    loaded: bool            # in GPU memory now; otherwise the first answer waits for it to load
+    default: bool = False   # the appliance's default model
 
 
 class Calculation(BaseModel):

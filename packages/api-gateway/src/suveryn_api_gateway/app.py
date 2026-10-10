@@ -42,6 +42,7 @@ from suveryn_engine import (
     ChatResponse,
     LlamaServerClient,
     LLMSettings,
+    ModelInfo,
     StreamDelta,
     StreamError,
 )
@@ -304,6 +305,20 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         )
         return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
+    @app.get("/v1/models", response_model=list[ModelInfo], responses={502: {"description": "Model backend unreachable"}})
+    async def models(request: Request):
+        """The models installed on this appliance, which one is the default, and which is loaded now.
+
+        Choosing a model that isn't loaded makes the next answer wait while it loads (seconds when
+        it was used recently, up to about half a minute otherwise), and other people's questions
+        wait too: the GPU holds one model at a time.
+        """
+        llm: LlamaServerClient = request.app.state.llm
+        try:
+            return await llm.list_models()
+        except BackendError as e:
+            raise HTTPException(502, str(e)) from e
+
     @app.post("/v1/chat", response_model=ChatResponse, responses={
         200: {"content": {"text/event-stream": {}},
               "description": "With stream=true: SSE events `delta` ({text}), then `done` (a full ChatResponse) "
@@ -323,6 +338,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 uuid.UUID(d)
             except ValueError:
                 raise HTTPException(422, f"Not a document id: {d!r}") from None
+        if req.model is not None:
+            try:
+                installed = {m.id for m in await request.app.state.llm.list_models()}
+            except BackendError as e:
+                raise HTTPException(502, str(e)) from e
+            if req.model not in installed:
+                raise HTTPException(422, f"No such model on this appliance: {req.model!r}")
         chat_service: ChatService = request.app.state.chat
         if not req.stream:
             try:
