@@ -86,7 +86,7 @@ describe("downloading sources", () => {
 
   it("puts the question and date above the sources", () => {
     const doc = sourcesDocument("Wat is de koopprijs?", "[1] akte.pdf, p. 2\nTekst", new Date(2026, 9, 9, 15, 30));
-    expect(doc.split("\n").slice(0, 3)).toEqual(["Sources cited by Sūveryn", "Question: Wat is de koopprijs?", "Date: 9 October 2026 at 15:30"]);
+    expect(doc.split("\n").slice(0, 3)).toEqual(["Sources cited by sūveryn", "Question: Wat is de koopprijs?", "Date: 9 October 2026 at 15:30"]);
     expect(doc).toContain("[1] akte.pdf, p. 2\nTekst");
   });
 });
@@ -102,7 +102,7 @@ describe("Markdown downloads", () => {
 
   it("heads the all-sources file with the question and date", () => {
     const md = sourcesMarkdown("Wat is de koopprijs?", [{ n: 1, citation: cit, filename: "akte.pdf" }], new Date(2026, 9, 9, 15, 30));
-    expect(md.startsWith("# Sources cited by Sūveryn\n\n**Question:** Wat is de koopprijs?  \n**Date:** 9 October 2026 at 15:30\n\n### [1]")).toBe(true);
+    expect(md.startsWith("# Sources cited by sūveryn\n\n**Question:** Wat is de koopprijs?  \n**Date:** 9 October 2026 at 15:30\n\n### [1]")).toBe(true);
   });
 });
 
@@ -134,5 +134,19 @@ describe("conversation history", () => {
       { role: "user", content: "Vraag 1" },
       { role: "assistant", content: "Antwoord." },
     ]);
+  });
+});
+
+describe("product name", () => {
+  it("is lower case mid-sentence: sūveryn, not Sūveryn", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const files = ["src/App.tsx", "src/lib/copy.ts", ...readdirSync("src/components").map((f) => `src/components/${f}`)];
+    for (const f of files) {
+      const code = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""); // comments are not copy
+      for (const m of code.matchAll(/Sūveryn/g)) {
+        const before = code.slice(Math.max(0, m.index! - 2), m.index);
+        expect(`${f}: ${before}Sūveryn`).toMatch(/(["'`>]\s*|[.!?:]\s)Sūveryn$/);
+      }
+    }
   });
 });
