@@ -56,6 +56,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .doc-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doc-meta { grid-column: 2; font-size: 12px; color: var(--text-dim); }
 .doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: 12px; }
+/* conversations take the room they need, up to 40%; the document library gets the rest */
+.library.history { flex: 0 1 auto; max-height: 40%; }
+.doc-current { background: var(--surface-alt); }
+.doc-current .doc-name { font-weight: 600; }
 .link, .link-danger { background: none; border: none; padding: 2px; cursor: pointer; font-size: 12px; text-decoration: underline; }
 .link-danger { font-weight: 600; }
 .sidebar-foot { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-1); color: var(--text-dimmer); }
@@ -63,6 +67,26 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .user { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--text); font-size: 13.5px; }
 .user-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .user .link { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); flex: 0 0 auto; }
+
+/* sign-out dialog */
+.dialog { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-6); max-width: min(540px, calc(100vw - 32px));
+          background: var(--surface); color: var(--text); box-shadow: 0 12px 40px rgb(2 2 5 / 0.18); }
+.dialog::backdrop { background: rgb(2 2 5 / 0.32); }
+.dialog h2 { margin: 0 0 var(--space-3); font-size: 18px; }
+.dialog p { margin: 0 0 var(--space-4); font-size: 13.5px; line-height: 1.55; color: var(--text-dim); }
+.dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+/* buttons in the DOM: Keep, Delete, Cancel; shown right to left, Cancel at the far left */
+.dialog-actions { display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.dialog-actions .link { margin-right: auto; font-size: 13.5px; color: var(--text-dim); }
+@media (max-width: 520px) {
+  .dialog { padding: var(--space-5); }
+  .dialog-actions { flex-direction: column; align-items: stretch; }
+  .dialog-actions .link { margin: 0 auto; }
+}
+.button-secondary { display: inline-flex; align-items: center; gap: var(--space-2); background: none; color: var(--text);
+                    border: 1px solid var(--control-off, var(--line)); border-radius: var(--radius-sm);
+                    padding: 9px var(--space-4); font-weight: 500; font-size: 13.5px; cursor: pointer; }
+.button-secondary:hover { background: var(--surface-alt); }
 
 /* sign-in screen */
 .signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -196,6 +220,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
   /* the library keeps its height and scrolls itself, instead of collapsing in the short header */
   .library { flex: 0 0 auto; }
   .library ul { max-height: 22vh; }
+  .library.history ul { max-height: 14vh; }
   .sidebar-foot .caption { display: none; }
   .conversation { padding-inline: var(--space-4); }
   .composer-wrap { padding-inline: var(--space-4); }
