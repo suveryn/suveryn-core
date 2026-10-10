@@ -199,6 +199,55 @@ def source_decimal_separator(source: str) -> str:
     return "," if len(re.findall(r"\d,\d{2}\b", source)) >= len(re.findall(r"\d\.\d{2}\b", source)) else "."
 
 
+# Figures in answer text worth checking: grouped or with decimals ("410.000", "6.507,11", "12,5"),
+# or at least five digits. Plain numbers up to four digits (plot 1, page 57, the year 2026, a count)
+# and dates are left alone: they are rarely amounts, and flagging them would bury the real warnings.
+TEXT_FIGURE = re.compile(r"(?<![\d.,])\d+(?:[.,\u00a0\u202f]\d+)*(?![\d])")
+DATE = re.compile(r"\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
+MARKERS = re.compile(r"\[\d{1,2}\]")
+
+
+def _value(figure: str, sep: str) -> Decimal | None:
+    """The figure's value read in the sources' style (``sep`` is the decimal separator), or None."""
+    s = re.sub("[\u00a0\u202f ]", "", figure).replace("." if sep == "," else ",", "")
+    if s.count(sep) > 1:
+        return None
+    try:
+        return Decimal(s.replace(sep, "."))
+    except ArithmeticError:
+        return None
+
+
+def unverified_figures(answer: str, calculations: list[Calculation], source: str, asked: str = "") -> list[str]:
+    """Figures in the answer text that are neither in the passages nor computed by the system.
+
+    The model must not calculate itself (it writes ``[[calc: …]]``); a figure that appears in no
+    passage and is no calculation's result is one it worked out or made up, and the reader must
+    check it. Values are compared, not text: "410.000" matches "410.000,00" in a passage. Figures
+    the user wrote in the question (``asked``) count as given. Shown calculations ("a + b = c") and
+    citation markers are skipped. Returns the figures as the answer writes them, in order, once each.
+    """
+    sep = source_decimal_separator(source)
+    known: set[Decimal] = set()
+    for text in (source, asked, *(c.result or "" for c in calculations)):
+        for f in TEXT_FIGURE.findall(DATE.sub(" ", text)):
+            if (v := _value(f, sep)) is not None:
+                known.add(v)
+    text = answer
+    for c in calculations:
+        shown = f"{c.expression} = {c.result}" if c.result is not None else f"[calculation not possible: {c.expression}]"
+        text = text.replace(shown, " ")
+    text = DATE.sub(" ", MARKERS.sub(" ", text))
+    out: list[str] = []
+    for f in TEXT_FIGURE.findall(text):
+        if not re.search(r"[.,\u00a0\u202f]", f) and len(f) < 5:
+            continue
+        v = _value(f, sep)
+        if v is not None and v not in known and f not in out:
+            out.append(f)
+    return out
+
+
 def _normalise(text: str) -> str:
     return re.sub(rf"[{GROUPING_SPACES}]+", " ", text)
 

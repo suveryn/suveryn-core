@@ -147,6 +147,19 @@ def test_calculation_figures_are_cited_by_the_system_when_the_model_did_not(answ
     assert body["calculations"][0]["figures_not_in_sources"] == missing
 
 
+@pytest.mark.parametrize("stream", [False, True])
+def test_figures_the_model_worked_out_itself_are_flagged(stream):
+    answer = "De koopprijs is EUR 412.500 [1]; met kosten 451.000,00 EUR."
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=answer))
+    with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=Authenticator.disabled())) as c:
+        if stream:
+            with c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
+                body = json.loads([ln for ln in r.iter_lines() if ln.startswith("data:")][-1][5:])
+        else:
+            body = c.post("/v1/chat", json=ASK).json()
+    assert body["unverified_figures"] == ["451.000,00"]  # 412.500 is the passage's 412.500,00
+
+
 def test_grounded_stream_ends_with_done_including_citations():
     with client(FakeDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
         blocks = r.read().decode().strip().split("\n\n")
