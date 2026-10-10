@@ -124,15 +124,27 @@ def test_follow_up_searches_with_the_question_before_it():
     assert captured[-1]["messages"][-1]["content"].endswith("QUESTION: bereken die")  # the model gets the question as asked
 
 
-@pytest.mark.parametrize("answer, missing", [
-    ("Samen [[calc: 412.500,00 + 412.500,00]] EUR.", []),     # real figures, no citation: checked against all passages
-    ("Samen [[calc: 412.500,00 + 999,00]] EUR.", ["999,00"]),  # an invented figure is still reported
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("answer, shown, missing", [
+    # The model cited nothing: the system adds the passage that holds the figures.
+    ("Samen [[calc: 412.500,00 + 412.500,00]] EUR.", "412.500,00 + 412.500,00 = 825.000,00 [1] EUR.", []),
+    # Already cited: nothing is added.
+    ("Samen [[calc: 412.500,00 + 412.500,00]] EUR [1].", "412.500,00 + 412.500,00 = 825.000,00 EUR [1].", []),
+    # An invented figure gets no source and is still reported; the real one gets its source.
+    ("Samen [[calc: 412.500,00 + 999,00]] EUR.", "412.500,00 + 999,00 = 413.499,00 [1] EUR.", ["999,00"]),
+    ("Samen [[calc: 999,00 + 1.000,00]] EUR.", "999,00 + 1.000,00 = 1.999,00 EUR.", ["999,00", "1.000,00"]),
 ])
-def test_uncited_calculation_is_checked_against_the_passages_given(answer, missing):
+def test_calculation_figures_are_cited_by_the_system_when_the_model_did_not(answer, shown, missing, stream):
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=answer))
     with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=Authenticator.disabled())) as c:
-        calc = c.post("/v1/chat", json=ASK).json()["calculations"][0]
-    assert calc["result"] is not None and calc["figures_not_in_sources"] == missing
+        if stream:
+            with c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
+                lines = [ln for ln in r.iter_lines() if ln.startswith("data:")]
+            body = json.loads(lines[-1][5:])  # the done event
+        else:
+            body = c.post("/v1/chat", json=ASK).json()
+    assert body["answer"] == "Samen " + shown
+    assert body["calculations"][0]["figures_not_in_sources"] == missing
 
 
 def test_grounded_stream_ends_with_done_including_citations():
