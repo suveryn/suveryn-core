@@ -24,7 +24,7 @@ Other commands:
 
 ## The UI flow
 
-0. **Sign in.** Nothing is shown before sign-in except a sign-in screen with the tagline. *Sign in* goes to the office's Keycloak login page and back. The sidebar shows the signed-in user and *Sign out*, which also ends the Keycloak session. If a session ends (expired, or ended by an admin), the next request shows the sign-in screen again and the open conversation is closed.
+0. **Sign in.** Signed out, the chat goes straight to the office's Keycloak login page (in the interface language), which already has the logo, tagline and language menu, and comes back signed in. Its own sign-in screen appears only when it has something to say: the session ended while working (redirecting then would discard what was being typed), sign-in isn't available (Keycloak unreachable), or the user came back signed out within a minute of being sent to the login page (the Back button, or a sign-in that didn't complete; redirecting again would loop) (`lib/signin.ts`). The sidebar shows the signed-in user and *Sign out*, which also ends the Keycloak session. If a session ends (expired, or ended by an admin), the next request shows the sign-in screen again and the open conversation is closed.
 1. **Start.** The empty state shows the tagline, "AI for work that can't leave the premises". The sidebar lists the documents already on the server.
 2. **Attach.** The paperclip (or clicking a document in the sidebar) adds a PDF to the next message as an attachment chip. A new upload shows *Uploading…*, *Waiting…*, then *Reading…* while the server extracts it. Sending is paused until every attachment is read.
 3. **Ask.** The question appears in the user's bubble, with the attachment chips above it. The answer streams in below, with no bubble, marked by the teal brand mark. Until the first word arrives, three small outlined squares, bouncing in turn, and a line of status text say what the server is actually doing: *Searching your documents…*, *Reading the 6 passages that best match your question…* (or *Reading your documents (n passages)…* when the whole document fits), *Loading Mistral Small 3.2, which can take up to half a minute…* when a switched model isn't in memory yet, or *Writing the answer…*. The squares stay at the end of the text while it streams. With reduced motion turned on, they don't move.
@@ -40,11 +40,15 @@ Other commands:
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.
 
+## Token usage
+
+The sidebar shows the signed-in user's own token count for today (*1.2k tokens today*); clicking it opens **Your usage**: requests and input, output and total tokens over the last hour, day, week or month, or chosen whole days, with a bar chart and a split by kind (suveryn-tracker#7). Only the user's own usage is shown, never a colleague's. Administrators (Keycloak role `suveryn-admin`) also get **Administration**: the office's usage in total and **per user**, the notional cost on a cloud API at editable rates per million input and output tokens (default $3 and $15), and who last changed them. Rolling periods end at the server's clock, not the browser's. Usage is informational only: nothing is ever limited because of it.
+
 ## Languages
 
 English (UK), Dutch and French (suveryn-tracker#8). Every string the interface shows is in a table per language in [`src/i18n/`](src/i18n/): [`en.ts`](src/i18n/en.ts) defines the keys, and [`nl.ts`](src/i18n/nl.ts) and [`fr.ts`](src/i18n/fr.ts) must have all of them. TypeScript checks that, so a missing translation fails the build, and a test checks that no text is empty. Components use `useT()`; plain functions use `t()`. No i18n library is used.
 
-- **Which language:** the one chosen in the language menu (sidebar foot and sign-in screen, remembered in this browser), else the browser's preferred language when it is one of the three, else English. `<html lang>` follows it. Keycloak's login page opens in the same language (`/auth/login?lang=nl` → `ui_locales=nl`).
+- **Which language:** the one chosen in the language menu (sidebar foot, the sign-in screen when shown, and Keycloak's own menu on its login page; remembered in this browser), else the browser's preferred language when it is one of the three, else English. `<html lang>` follows it. Keycloak's login page opens in the same language (`/auth/login?lang=nl` → `ui_locales=nl`).
 - **Dutch is formal** (*u/uw*); a test fails on *je/jij/jouw*. **French** uses *vous*.
 - **sūveryn** stays lower case except at the start of a sentence (also tested).
 - **The tagline** stays in English in every language, as on the website and the login page.

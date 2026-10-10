@@ -23,8 +23,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-import psycopg
 from pydantic import BaseModel, ConfigDict, Field
+
+from .db import PgStore
 
 log = logging.getLogger("suveryn.gateway")
 
@@ -90,34 +91,18 @@ class Conversation(ConversationSummary):
     turns: list[dict]
 
 
-class ConversationStore:
+class ConversationStore(PgStore):
     """Conversations in PostgreSQL, one owner's at a time. Creates its table on connect.
 
     Every method takes the owner: another user's conversation is treated as missing.
     """
 
+    schema = SCHEMA
+
     def __init__(self, settings: ConversationSettings):
-        if not settings.database_url:
-            raise ValueError("SUVERYN_DATABASE_URL is not set")
+        super().__init__(settings.database_url)
         self.settings = settings
-        self._conn = psycopg.connect(settings.database_url, autocommit=True)
-        self._conn.execute(SCHEMA)
         self.purge()
-
-    def close(self) -> None:
-        self._conn.close()
-
-    def _execute(self, sql: str, params=()) -> psycopg.Cursor:
-        """Run one statement, reconnecting once if PostgreSQL restarted or dropped the connection."""
-        try:
-            return self._conn.execute(sql, params)
-        except psycopg.OperationalError:
-            try:
-                self._conn.close()
-            except psycopg.Error:
-                pass
-            self._conn = psycopg.connect(self.settings.database_url, autocommit=True)
-            return self._conn.execute(sql, params)
 
     def _fresh(self) -> tuple[str, tuple]:
         """SQL condition (and its parameters) for conversations within the admin's age cap."""

@@ -42,7 +42,7 @@ import hashlib
 import os
 import secrets
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from urllib.parse import urlencode, urlsplit
 
 import httpx
@@ -277,9 +277,13 @@ class OIDCProvider:
         return f"{endpoint}?{urlencode(params)}"
 
 
-def user_from_claims(claims: dict) -> User:
-    """The signed-in user, from ID or access token claims (Keycloak's standard claim names)."""
-    roles = tuple(sorted((claims.get("realm_access") or {}).get("roles") or []))
+def user_from_claims(claims: dict, roles_from: dict | None = None) -> User:
+    """The signed-in user, from ID or access token claims (Keycloak's standard claim names).
+
+    Realm roles are read from ``roles_from`` when given: Keycloak puts ``realm_access`` in the
+    access token only, not in the ID token.
+    """
+    roles = tuple(sorted(((roles_from or claims).get("realm_access") or {}).get("roles") or []))
     username = claims.get("preferred_username") or claims["sub"]
     return User(sub=claims["sub"], username=username, name=claims.get("name") or username, roles=roles)
 
@@ -342,8 +346,8 @@ class Authenticator:
             raise AuthError("this sign-in was started in another browser; please sign in again")
         tokens = await provider.exchange_code(code, pending.verifier)
         claims = await provider.verify(tokens.get("id_token", ""), kind="id", nonce=pending.nonce)
-        await provider.verify(tokens.get("access_token", ""), kind="access")
-        session = self._new_session(user_from_claims(claims), tokens)
+        access = await provider.verify(tokens.get("access_token", ""), kind="access")
+        session = self._new_session(user_from_claims(claims, roles_from=access), tokens)
         return session, pending.return_to
 
     def _new_session(self, user: User, tokens: dict) -> Session:
@@ -393,6 +397,8 @@ class Authenticator:
             if tokens.get("refresh_expires_in"):
                 session.refresh_expires = now + int(tokens["refresh_expires_in"])
             session.id_token = tokens.get("id_token", session.id_token)
+            # Roles can change in Keycloak (an administrator granted or revoked): take them from each new token.
+            session.user = replace(session.user, roles=user_from_claims(claims).roles)
             return session.user
 
     async def bearer_user(self, token: str) -> User:
