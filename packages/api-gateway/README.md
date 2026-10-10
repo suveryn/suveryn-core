@@ -2,11 +2,11 @@
 
 The HTTP surface (FastAPI). It contains no business logic: it validates requests and calls `chat`, `engine` and, for documents, `rag`.
 
-Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages`, GPU machine) and `SUVERYN_DATABASE_URL` is set. Otherwise they answer 503, and `/health` reports `documents.status: unavailable`.
+Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages`, GPU machine) and `SUVERYN_DATABASE_URL` is set. Otherwise they answer 503, and `/health` reports `documents.status: unavailable`. Saved conversations need only `SUVERYN_DATABASE_URL` (they don't need `suveryn-rag`); without it they answer 503 and `/health` reports `history.status: unavailable`.
 
 | Endpoint | Behaviour |
 |---|---|
-| `GET /health` | 200 when llama-server is ready (reports the served model); 503 when it is loading, failing or unreachable. Also reports `documents` and `auth` status. Public |
+| `GET /health` | 200 when llama-server is ready (reports the served model); 503 when it is loading, failing or unreachable. Also reports `documents`, `auth` and `history` status. Public |
 | `GET /auth/login` | Starts signing in: redirects to the Keycloak login page (authorization code + PKCE). Public |
 | `GET /auth/callback` | Keycloak sends the browser back here; the gateway exchanges the code, validates the tokens and sets the session cookie |
 | `GET /auth/me` | The signed-in user (`username`, `name`), or 401 |
@@ -18,7 +18,14 @@ Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages
 | `GET /v1/documents/jobs/{id}` | Job status: `queued`, `processing`, `ready`, `needs_review` or `failed`, plus `document_id` when stored |
 | `GET /v1/documents` | Stored documents (newest first) and uploads still in progress or failed (finished jobs are forgotten after an hour). 503 if the database can't be reached after one reconnect |
 | `DELETE /v1/documents/{id}` | Delete a document and its passages (204; 404 if unknown) |
+| `GET /v1/conversations` | The caller's saved conversations, most recently changed first: `id`, `title`, `created_at`, `updated_at` (no content) |
+| `GET /v1/conversations/{id}` | One saved conversation with its `turns` (404 if unknown, expired or another user's) |
+| `PUT /v1/conversations/{id}` | Save a whole conversation (`{title, turns}`) under an id the client chose (a UUID), replacing an earlier save (204). 413 above 2 MB; 404 if the id is another user's |
+| `DELETE /v1/conversations/{id}` | Delete one saved conversation (204; 404 if unknown) |
+| `DELETE /v1/conversations` | Delete all of the caller's saved conversations (`{"deleted": n}`); the UI's *Delete history* when signing out |
 | `GET /openapi.json` | The API description, served locally |
+
+Saved conversations ([`conversations.py`](src/suveryn_api_gateway/conversations.py), suveryn-tracker#5) are private in the same way, keyed by the Keycloak user id. They are kept until the user deletes them. An administrator can cap their age with `SUVERYN_CONVERSATION_MAX_AGE_DAYS` (whole days; unset means no cap): older conversations, counted from their last change, are deleted when the gateway starts and whenever someone lists theirs. A saved answer quotes the passages it cites, so deleting a document doesn't remove its text from conversations that used it; delete those conversations too.
 
 Documents are private to the user who uploaded them: every document endpoint, upload job and grounded chat sees only the caller's own, and another user's document gets 404, like a missing one (`owner_of` in `app.py`).
 
@@ -50,5 +57,5 @@ Key points for reviewers:
 - **`/docs` and `/redoc` are off** unless `SUVERYN_API_DOCS=1`, because FastAPI loads them from public CDNs. That breaks air-gapped installs and contacts third parties.
 - **Request and answer text are not logged**; the access log has method, path and status only.
 - **Uploads never touch `/tmp`.** Starlette writes an upload over 1 MB to a temporary file before our code sees it. The gateway points `tempfile` and `TMPDIR` at `<SUVERYN_WORK_DIR>/tmp/<pid>` (0700, removed on exit; folders of crashed processes are removed on start). `suveryn-gateway` does this before starting; the app does it again on start-up when documents are enabled, so bare `uvicorn suveryn_api_gateway.app:app` is safe too.
-- **Settings:** `SUVERYN_HOST`, `SUVERYN_PORT` (default `127.0.0.1:8000`), `SUVERYN_WORK_DIR`, `SUVERYN_DATABASE_URL`, `SUVERYN_API_DOCS`, and the engine's `SUVERYN_LLM_*` (see the [root README](../../README.md#run-locally)).
+- **Settings:** `SUVERYN_HOST`, `SUVERYN_PORT` (default `127.0.0.1:8000`), `SUVERYN_WORK_DIR`, `SUVERYN_DATABASE_URL`, `SUVERYN_CONVERSATION_MAX_AGE_DAYS`, `SUVERYN_API_DOCS`, and the engine's `SUVERYN_LLM_*` (see the [root README](../../README.md#run-locally)).
 - **Tests** (`tests/test_api.py`, `test_documents.py`, `test_main.py`, `test_auth.py`) run against a fake llama-server, a fake document service and a fake Keycloak that signs real RS256 tokens and checks PKCE, through `httpx.MockTransport`. No GPU, database or Keycloak is needed. `keycloak/live_login_check.py` checks the same against a real Keycloak.
