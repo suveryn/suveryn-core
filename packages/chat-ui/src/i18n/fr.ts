@@ -1,0 +1,142 @@
+/** French interface text: formal (vous). Keys and arguments as in en.ts. */
+import type { Messages } from "./en";
+
+const fr: Messages = {
+  languageName: "Français",
+  language: "Langue",
+
+  signIn: "Se connecter",
+  signInCaption: "La connexion propre à votre étude. Les documents et les réponses restent sur ce serveur.",
+  sessionEnded: "Votre session a expiré. Reconnectez-vous pour continuer.",
+  signInUnavailable: (why) => `La connexion n'est pas disponible pour le moment : ${why}`,
+
+  serverUnreachable: "Le serveur sūveryn est injoignable.",
+  modelStarting: "Le modèle démarre. Cela prend jusqu'à une minute.",
+  modelUnavailable: "Le modèle n'est pas disponible pour le moment.",
+  documentsStarting: "Le traitement des documents démarre…",
+  documentsUnavailable: "Le traitement des documents n'est pas disponible sur ce serveur.",
+  documentsFailed: "Le traitement des documents n'a pas pu démarrer.",
+  documentsCantBeAdded: "Impossible d'ajouter des documents pour le moment : le traitement des documents n'est pas disponible sur ce serveur.",
+  historyFailed: "Les conversations ne peuvent pas être enregistrées pour le moment.",
+  historyUnavailable: "Les conversations ne sont pas enregistrées sur ce serveur ; elles disparaissent quand vous fermez la page.",
+
+  saveFailed: (why) => `Cette conversation n'a pas pu être enregistrée : ${why}`,
+  openFailed: (why) => `Impossible d'ouvrir cette conversation : ${why}`,
+  deleteConversationFailed: (why) => `Impossible de supprimer cette conversation : ${why}`,
+  deleteDocumentFailed: (file, why) => `Impossible de supprimer ${file} : ${why}`,
+  sessionEndedError: "votre session a expiré ; reconnectez-vous",
+  uploadInterrupted: "l'envoi a été interrompu",
+  streamCutOff: "la connexion a été coupée avant que la réponse soit complète",
+
+  emptyIntro: "Joignez un acte ou un autre PDF et posez votre question. Les réponses indiquent la page dont elles proviennent, pour que vous puissiez vérifier chaque montant.",
+
+  newChat: "Nouvelle conversation",
+  conversations: "Conversations",
+  conversationsEmpty: "Vos conversations sont enregistrées ici après chaque réponse.",
+  conversationFallbackTitle: "Conversation",
+  deleteConversationLabel: (title) => `Supprimer la conversation « ${title} »`,
+  deleteConversationTitle: "Supprimer cette conversation",
+  delete: "Supprimer",
+  keep: "Conserver",
+  documents: "Documents",
+  documentsEmpty: "Aucun document pour l'instant. Joignez un PDF à un message pour en ajouter un.",
+  pages: (n) => `${n} ${n === 1 ? "page" : "pages"}`,
+  checkPages: (pages) => ` · vérifier ${pages}`,
+  checkNeeded: " · vérification nécessaire",
+  inUse: " · utilisé",
+  alreadyInConversation: "Déjà dans cette conversation",
+  useInConversation: "Utiliser dans cette conversation",
+  useInConversationReview: (hint) => `Utiliser dans cette conversation. ${hint}`,
+  deleteDocumentLabel: (file) => `Supprimer ${file}`,
+  deleteDocumentTitle: "Supprimer de ce serveur",
+  jobFailed: "Illisible",
+  jobQueued: "En attente…",
+  jobProcessing: "Lecture…",
+  signOut: "Se déconnecter",
+  staysOnServer: "Les documents et les réponses restent sur ce serveur.",
+  today: "Aujourd'hui",
+  yesterday: "Hier",
+
+  keepHistoryTitle: "Conserver votre historique ?",
+  keepHistoryBody: "Vos conversations sont enregistrées sur ce serveur, où vous seul pouvez les voir. Conservez-les pour reprendre là où vous en étiez la prochaine fois, ou supprimez-les maintenant.",
+  keepAndSignOut: "Conserver et se déconnecter",
+  deleteAndSignOut: "Supprimer l'historique et se déconnecter",
+  deleting: "Suppression…",
+  cancel: "Annuler",
+  deleteHistoryFailed: (why) => `Votre historique n'a pas pu être supprimé ; vous êtes donc toujours connecté : ${why}`,
+
+  attachPdf: "Joindre un PDF",
+  yourQuestion: "Votre question",
+  askPlaceholder: "Posez une question sur vos documents…",
+  send: "Envoyer le message",
+  waitingForDocuments: "En attente de la lecture de vos documents…",
+  composerHint: "Les réponses proviennent des documents de cette conversation et indiquent la page dont elles proviennent.",
+
+  modelTag: (model) => `Les réponses proviennent de ${model}, qui tourne sur ce serveur`,
+  modelButton: (model) => `Les réponses proviennent de ${model}, qui tourne sur ce serveur. Choisir un autre modèle`,
+  model: "Modèle",
+  modelReady: "Prêt",
+  modelLoadsWhenChosen: "Se charge une fois choisi, jusqu'à une demi-minute",
+  modelNotLoaded: (model) =>
+    `${model} n'est pas encore chargé : votre prochaine réponse commence dès qu'il l'est (jusqu'à une demi-minute), et les questions des autres attendent entre-temps.`,
+
+  uploading: "Envoi…",
+  uploadingPercent: (pct) => `Envoi… ${pct} %`,
+  waiting: "En attente…",
+  reading: "Lecture…",
+  readyCheckNeeded: "Prêt · vérification nécessaire",
+  readyCheckPages: (pages) => `Prêt · vérifier ${pages}`,
+  couldntBeRead: "Illisible",
+  removeFile: (file) => `Retirer ${file}`,
+  sourceLabel: (n, file, page) => `Source ${n} : ${file}${page ? `, page ${page}` : ""}`,
+  pageShort: (page) => `p.${page}`,
+
+  pageList: (pages) => `p. ${pages.join(", ")}`,
+  reviewHint: (pages) => {
+    const where = !pages?.length ? "sur certaines pages" : pages.length > 1 ? `sur les pages ${pages.join(", ")}` : `sur la page ${pages[0]}`;
+    return `Prêt à l'emploi. Une partie du texte ${where} n'a peut-être pas été lue correctement ; vérifiez donc les réponses qui s'y appuient avec l'original.`;
+  },
+
+  sending: "Envoi de votre question…",
+  statusSearching: "Recherche dans vos documents…",
+  statusReadingAll: (passages) => `Lecture de vos documents (${passages})…`,
+  statusReadingBest: (passages) => `Lecture des ${passages} qui correspondent le mieux à votre question…`,
+  passages: (n) => `${n} ${n === 1 ? "passage" : "passages"}`,
+  statusLoading: (model) => `Chargement ${model ? `de ${model}` : "du modèle"}, ce qui peut prendre jusqu'à une demi-minute…`,
+  statusWriting: "Rédaction de la réponse…",
+
+  answerFailed: (why) => `La réponse n'a pas pu être terminée : ${why}. Rien de cette tentative n'est affiché ; posez donc à nouveau votre question.`,
+  answerInterrupted: "Cette réponse a été interrompue.",
+  sources: "Sources",
+  copySources: "Copier les sources",
+  allCitedSources: "toutes les sources citées",
+  noSourceCited: "Aucune source n'est citée pour cette réponse. Vérifiez-la dans les documents avant de vous y fier.",
+  notGrounded: "Pas fondé sur vos documents. Joignez un document pour obtenir des réponses qui citent leur source.",
+  copy: "Copier",
+  copyWhat: (what) => `Copier ${what}`,
+  copied: "Copié",
+  copyFailed: "Copie impossible",
+  download: "Télécharger",
+  downloadWhat: (what) => `Télécharger ${what}`,
+  textFile: "Texte (.txt)",
+  markdownFile: "Markdown (.md)",
+  source: (n) => `Source ${n}`,
+  sourceWithReference: (n) => `la source ${n} avec sa référence`,
+  sourceN: (n) => `la source ${n}`,
+  sourceCaption: "Le passage tel qu'il a été lu dans le document. Vérifiez la page originale avant de vous y fier.",
+  calcFailed: (expression, why) => `Impossible de calculer ${expression} : ${why}.`,
+  calculatedBy: "Calculé par sūveryn, pas lu dans les documents :",
+  calcMissing: (figures) => ` Vérifiez ${figures.join(", ")} : ${figures.length === 1 ? "ce montant n'apparaît" : "ces montants n'apparaissent"} pas dans les sources.`,
+  calcAllSourced: " Chaque montant provient des sources.",
+  unverified: (figures) => {
+    const one = figures.length === 1;
+    return `Vérifiez ${figures.join(", ")} : ${one ? "ce montant ne figure" : "ces montants ne figurent"} pas dans les documents et ${one ? "n'a" : "n'ont"} pas été ${one ? "calculé" : "calculés"} par sūveryn. Le modèle ${one ? "l'a" : "les a"} peut-être calculé${one ? "" : "s"} lui-même, ce qui peut être faux.`;
+  },
+  unverifiedTitle: "Ne figure pas dans les documents et n'a pas été calculé par sūveryn. Vérifiez ce montant.",
+
+  sourcesHeading: "Sources citées par sūveryn",
+  question: "Question",
+  date: "Date",
+};
+
+export default fr;

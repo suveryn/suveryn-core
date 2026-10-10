@@ -10,6 +10,7 @@
 import { Check, ChevronDown, Cpu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ModelInfo } from "../api";
+import { t, useT } from "../i18n";
 import { modelName } from "../lib/model";
 
 type Props = {
@@ -24,6 +25,7 @@ export function defaultModel(models: ModelInfo[]): ModelInfo | undefined {
 }
 
 export function ModelPicker({ models, chosen, onChoose }: Props) {
+  const m = useT();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   const current = models.find((m) => m.id === chosen) ?? defaultModel(models);
@@ -48,27 +50,27 @@ export function ModelPicker({ models, chosen, onChoose }: Props) {
     </>
   );
   if (models.length < 2) {
-    return <span className="chip-model" title={`Answers come from ${name.full}, running on this server`}>{label}</span>;
+    return <span className="chip-model" title={m.modelTag(name.full)}>{label}</span>;
   }
   return (
     <span className="model-picker" ref={root}>
       <button type="button" className="chip-model chip-model-button" aria-haspopup="listbox" aria-expanded={open}
-              title={`Answers come from ${name.full}, running on this server. Choose another model`}
+              title={m.modelButton(name.full)}
               onClick={() => setOpen((o) => !o)}>
         {label}
         <ChevronDown size={12} aria-hidden />
       </button>
       {open && (
-        <span className="model-menu" role="listbox" aria-label="Model">
-          {models.map((m) => {
-            const n = modelName(m.id);
-            const selected = m.id === current.id;
+        <span className="model-menu" role="listbox" aria-label={m.model}>
+          {models.map((x) => {
+            const n = modelName(x.id);
+            const selected = x.id === current.id;
             return (
-              <button key={m.id} type="button" role="option" aria-selected={selected}
-                      onClick={() => { onChoose(m.id); setOpen(false); }}>
-                <span className="model-option-name">{n?.full ?? m.id}</span>
+              <button key={x.id} type="button" role="option" aria-selected={selected}
+                      onClick={() => { onChoose(x.id); setOpen(false); }}>
+                <span className="model-option-name">{n?.full ?? x.id}</span>
                 <span className="model-option-state">
-                  {m.loaded ? "Ready" : "Loads when chosen, up to half a minute"}
+                  {x.loaded ? m.modelReady : m.modelLoadsWhenChosen}
                 </span>
                 {selected && <Check size={14} aria-hidden className="model-option-check" />}
               </button>
@@ -84,6 +86,5 @@ export function ModelPicker({ models, chosen, onChoose }: Props) {
 export function loadingNote(models: ModelInfo[], chosen: string | null): string | null {
   const m = models.find((x) => x.id === chosen) ?? defaultModel(models);
   if (!m || m.loaded) return null;
-  const n = modelName(m.id)?.full ?? m.id;
-  return `${n} isn't loaded yet: your next answer starts once it is (up to half a minute), and other people's questions wait meanwhile.`;
+  return t().modelNotLoaded(modelName(m.id)?.full ?? m.id);
 }

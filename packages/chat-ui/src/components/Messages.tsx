@@ -7,6 +7,7 @@
 import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation } from "../api";
+import { useT } from "../i18n";
 import { citedNumbers, toBlocks } from "../lib/answer";
 import { statusText } from "../lib/status";
 import {
@@ -31,6 +32,7 @@ export function UserMessage({ turn }: { turn: UserTurn }) {
 
 /** A small ghost button that copies text and confirms it ("Copied") for two seconds. */
 function CopyButton({ text, label, what }: { text: string; label: string; what: string }) {
+  const m = useT();
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     if (state === "idle") return;
@@ -38,10 +40,10 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
     return () => clearTimeout(t);
   }, [state]);
   return (
-    <button type="button" className="copy-button" aria-label={`Copy ${what}`}
+    <button type="button" className="copy-button" aria-label={m.copyWhat(what)}
             onClick={async () => setState((await copyText(text)) ? "copied" : "failed")}>
       {state === "copied" ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
-      <span aria-live="polite">{state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy" : label}</span>
+      <span aria-live="polite">{state === "copied" ? m.copied : state === "failed" ? m.copyFailed : label}</span>
     </button>
   );
 }
@@ -50,6 +52,7 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
 function DownloadButton({ filename, text, what }: {
   filename: (format: Format) => string; text: (format: Format) => string; what: string;
 }) {
+  const m = useT();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -65,15 +68,15 @@ function DownloadButton({ filename, text, what }: {
   return (
     <span className="download" ref={root}>
       <button type="button" className="copy-button" aria-haspopup="menu" aria-expanded={open}
-              aria-label={`Download ${what}`} onClick={() => setOpen((o) => !o)}>
+              aria-label={m.downloadWhat(what)} onClick={() => setOpen((o) => !o)}>
         <Download size={13} aria-hidden />
-        <span>Download</span>
+        <span>{m.download}</span>
         <ChevronDown size={12} aria-hidden />
       </button>
       {open && (
         <span className="download-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => save("txt")}>Text (.txt)</button>
-          <button type="button" role="menuitem" onClick={() => save("md")}>Markdown (.md)</button>
+          <button type="button" role="menuitem" onClick={() => save("txt")}>{m.textFile}</button>
+          <button type="button" role="menuitem" onClick={() => save("md")}>{m.markdownFile}</button>
         </span>
       )}
     </span>
@@ -81,20 +84,21 @@ function DownloadButton({ filename, text, what }: {
 }
 
 function SourceCard({ n, citation, filename }: { n: number; citation: Citation; filename: string }) {
+  const m = useT();
   return (
-    <div className="source-card" role="region" aria-label={`Source ${n}`}>
+    <div className="source-card" role="region" aria-label={m.source(n)}>
       <div className="source-head">
-        <span className="label">Source {n}</span>
+        <span className="label">{m.source(n)}</span>
         <span className="source-file">{filename}</span>
         <span className="source-where">{citation.source?.location ?? (citation.source?.page ? `p. ${citation.source.page}` : "")}</span>
         <span className="source-actions">
-          <CopyButton text={formatSource(n, citation, filename)} label="Copy" what={`source ${n} with its reference`} />
-          <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={`source ${n}`}
+          <CopyButton text={formatSource(n, citation, filename)} label={m.copy} what={m.sourceWithReference(n)} />
+          <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
                           text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />
         </span>
       </div>
       <blockquote className="source-text">{citation.text}</blockquote>
-      <p className="caption">The passage as it was read from the document. Check the original page before relying on it.</p>
+      <p className="caption">{m.sourceCaption}</p>
     </div>
   );
 }
@@ -106,6 +110,7 @@ function SourceCard({ n, citation, filename }: { n: number; citation: Citation; 
 export function AssistantMessage({ turn, question, filenames }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
 }) {
+  const m = useT();
   const [open, setOpen] = useState<number | null>(null);
   const available = turn.citations.length;
   const cited = citedNumbers(turn.text, available);
@@ -121,7 +126,7 @@ export function AssistantMessage({ turn, question, filenames }: {
         <AssistantMark />
         <div className="answer">
           <p className="notice notice-error"><AlertCircle size={14} aria-hidden />
-            The answer couldn't be completed: {turn.error}. Nothing from this attempt is shown, so ask again.</p>
+            {m.answerFailed(turn.error ?? "")}</p>
         </div>
       </div>
     );
@@ -135,16 +140,16 @@ export function AssistantMessage({ turn, question, filenames }: {
           const body = b.segments.map((s, j) =>
             s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :
             s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
-            s.kind === "flag" ? <mark key={j} className="unverified" title={FLAG_TITLE}>
+            s.kind === "flag" ? <mark key={j} className="unverified" title={m.unverifiedTitle}>
                                   {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
             <button key={j} type="button" className={`cite-marker${open === s.n ? " active" : ""}`}
                     onClick={() => toggle(s.n)} aria-expanded={open === s.n}
-                    aria-label={`Source ${s.n}: ${nameOf(turn.citations[s.n - 1])}`}>{s.n}</button>);
+                    aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)}>{s.n}</button>);
           return b.kind === "li" ? <li key={i}>{body}</li> : <p key={i}>{body}</p>;
         })}
         {turn.status === "streaming" && (turn.text
           ? <WaitingDots />                                              /* answer is arriving */
-          : <p className="waiting" role="status"><WaitingDots /><span>{statusText(turn.step) ?? "Sending your question…"}</span></p>)}
+          : <p className="waiting" role="status"><WaitingDots /><span>{statusText(turn.step) ?? m.sending}</span></p>)}
 
         {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
         {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
@@ -155,13 +160,13 @@ export function AssistantMessage({ turn, question, filenames }: {
 
         {turn.status === "done" && cited.length > 0 && (
           <div className="sources">
-            <span className="label">Sources</span>
+            <span className="label">{m.sources}</span>
             {cited.map((n) => (
               <CitationChip key={n} n={n} citation={turn.citations[n - 1]} filename={nameOf(turn.citations[n - 1])}
                             active={open === n} onClick={() => toggle(n)} />
             ))}
-            <CopyButton label="Copy sources" what="all cited sources" text={allSources} />
-            <DownloadButton filename={(f) => `sources_${safeFileName(question)}.${f}`} what="all cited sources"
+            <CopyButton label={m.copySources} what={m.allCitedSources} text={allSources} />
+            <DownloadButton filename={(f) => `sources_${safeFileName(question)}.${f}`} what={m.allCitedSources}
                             text={(f) => (f === "md" ? sourcesMarkdown(question, citedItems, new Date())
                                                      : sourcesDocument(question, allSources, new Date()))} />
           </div>
@@ -170,8 +175,8 @@ export function AssistantMessage({ turn, question, filenames }: {
         {turn.status === "done" && cited.length === 0 && (
           <p className="notice"><AlertCircle size={14} aria-hidden />
             {turn.grounded
-              ? "No source is cited for this answer. Check it against the documents before relying on it."
-              : "Not based on your documents. Attach a document to get answers that cite their source."}
+              ? m.noSourceCited
+              : m.notGrounded}
           </p>
         )}
       </div>
@@ -179,22 +184,16 @@ export function AssistantMessage({ turn, question, filenames }: {
   );
 }
 
-const FLAG_TITLE = "Not in the documents and not calculated by sūveryn. Check this figure.";
-
 /**
  * Flags figures in the answer that are in no source and weren't calculated by the server: the
  * model worked them out or made them up (it is told never to do arithmetic itself).
  */
 function UnverifiedNote({ figures }: { figures: string[] }) {
-  const one = figures.length === 1;
+  const m = useT();
   return (
     <p className="notice notice-error">
       <AlertTriangle size={14} aria-hidden />
-      <span>
-        Check {figures.join(", ")}: {one ? "this figure isn't" : "these figures aren't"} in the documents and
-        {one ? " wasn't" : " weren't"} calculated by sūveryn. The model may have worked {one ? "it" : "them"} out
-        itself, which can be wrong.
-      </span>
+      <span>{m.unverified(figures)}</span>
     </p>
   );
 }
@@ -204,10 +203,11 @@ function UnverifiedNote({ figures }: { figures: string[] }) {
  * from the sources (never the model's own arithmetic). Flags figures that aren't in the sources.
  */
 function CalculationNote({ calc }: { calc: Calculation }) {
+  const m = useT();
   if (calc.result === null) {
     return (
       <p className="notice notice-error"><AlertCircle size={14} aria-hidden />
-        Couldn't calculate {calc.expression}: {calc.error}.</p>
+        {m.calcFailed(calc.expression, calc.error ?? "")}</p>
     );
   }
   const missing = calc.figures_not_in_sources;
@@ -215,10 +215,8 @@ function CalculationNote({ calc }: { calc: Calculation }) {
     <p className={`notice${missing.length ? " notice-error" : ""}`}>
       {missing.length ? <AlertCircle size={14} aria-hidden /> : <Calculator size={14} aria-hidden />}
       <span>
-        Calculated by sūveryn, not read from the documents: {calc.expression} = <strong>{calc.result}</strong>.
-        {missing.length > 0
-          ? ` Check ${missing.join(", ")}: ${missing.length === 1 ? "it doesn't" : "they don't"} appear in the sources.`
-          : " Every figure comes from the sources."}
+        {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.
+        {missing.length > 0 ? m.calcMissing(missing) : m.calcAllSourced}
       </span>
     </p>
   );

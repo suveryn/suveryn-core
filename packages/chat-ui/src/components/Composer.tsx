@@ -8,6 +8,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import type { ModelInfo } from "../api";
 import type { Attachment } from "../types";
 import { isPending } from "../types";
+import { useT } from "../i18n";
 import { AttachmentChip } from "./Chips";
 import { loadingNote, ModelPicker } from "./ModelPicker";
 
@@ -25,10 +26,11 @@ type Props = {
 
 export function Composer({ attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
                           onRemoveAttachment, onSend }: Props) {
+  const m = useT();
   const [text, setText] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const waiting = attachments.some(isPending);
-  const reason = disabledReason ?? (waiting ? "Waiting for your documents to be read…" : null);
+  const reason = disabledReason ?? (waiting ? m.waitingForDocuments : null);
   const note = loadingNote(models, chosenModel);
   const canSend = !reason && !busy && text.trim().length > 0;
 
@@ -53,21 +55,21 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
       )}
       <div className="composer">
         <button type="button" className="icon-button" onClick={() => fileInput.current?.click()}
-                aria-label="Attach a PDF" title="Attach a PDF">
+                aria-label={m.attachPdf} title={m.attachPdf}>
           <Paperclip size={18} />
         </button>
         <input ref={fileInput} type="file" accept="application/pdf,.pdf" multiple hidden
                onChange={(e) => { onAttach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-        <label htmlFor="composer-input" className="visually-hidden">Your question</label>
+        <label htmlFor="composer-input" className="visually-hidden">{m.yourQuestion}</label>
         <textarea id="composer-input" rows={1} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey}
-                  placeholder="Ask about your documents…" />
+                  placeholder={m.askPlaceholder} />
         <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
-        <button type="button" className="send-button" onClick={send} disabled={!canSend} aria-label="Send message">
+        <button type="button" className="send-button" onClick={send} disabled={!canSend} aria-label={m.send}>
           <ArrowUp size={16} strokeWidth={2.2} />
         </button>
       </div>
       <p className="composer-hint caption" role="status">
-        {reason ?? note ?? "Answers come from the documents in this conversation and cite the page they come from."}
+        {reason ?? note ?? m.composerHint}
       </p>
     </div>
   );
