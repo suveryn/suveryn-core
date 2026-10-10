@@ -75,6 +75,26 @@ def text_layer(pdf: Path) -> list[str]:
         doc.close()
 
 
+def without_form(pdf: Path, dst: Path) -> Path:
+    """``pdf`` itself if it has no form (AcroForm); otherwise a copy at ``dst`` with the form flattened.
+
+    Flattening draws each field's visible appearance (a filled-in name, a signature's visible
+    stamp) into the page content, so what the page shows is kept and can be OCR'd; the form,
+    including any digital signature, is gone from the copy. ``dst`` must be in a private work
+    directory: it is a full copy of the document.
+    """
+    import pikepdf
+
+    with pikepdf.open(pdf) as doc:
+        if "/AcroForm" not in doc.Root:
+            return pdf
+        doc.flatten_annotations(mode="all")
+        if "/AcroForm" in doc.Root:  # qpdf removes it when flattening, but not always
+            del doc.Root.AcroForm
+        doc.save(dst)
+    return dst
+
+
 def page_profiles(pdf: Path) -> list[PageProfile]:
     """Text length and image coverage per page (images inside form XObjects included)."""
     doc = pdfium.PdfDocument(str(pdf))
@@ -144,9 +164,15 @@ class Extractor:
                 # visible digital text, and pass all other pages through untouched (see the module
                 # docstring). output_type="pdf" and optimize=0 skip slow PDF/A conversion and
                 # image recompression, which the pipeline doesn't need.
-                ocrmypdf.ocr(pdf, source, language=self.settings.ocr_languages.split("+"), jobs=self.settings.ocr_jobs,
+                # Signed PDFs and PDFs with form fields: OCRmyPDF refuses both (a text layer breaks
+                # the signature; redo_ocr can't handle forms). Signed deeds are common, so OCR runs
+                # on a private copy with the form flattened (``without_form``), and
+                # invalidate_digital_signatures lets OCRmyPDF go ahead. Only the private copies are
+                # affected, which are read for their text and deleted; the uploaded original is
+                # never changed, and sūveryn doesn't check signatures.
+                ocrmypdf.ocr(without_form(pdf, work / "flattened.pdf"), source, language=self.settings.ocr_languages.split("+"), jobs=self.settings.ocr_jobs,
                              pages=",".join(map(str, to_ocr)), redo_ocr=True, output_type="pdf", optimize=0,
-                             progress_bar=False, tesseract_timeout=180)
+                             progress_bar=False, tesseract_timeout=180, invalidate_digital_signatures=True)
                 timings["ocr"] = time.perf_counter() - t
             t = time.perf_counter()
             document = self._converter.convert(source).document
