@@ -40,4 +40,4 @@ Language models make arithmetic mistakes, so the model never calculates. When a 
 3. replaces the marker with `6.507,11 + 6.417,42 = 12.924,53`, also while streaming (a marker split across chunks is held back until it is complete);
 4. checks every figure, as a whole number, against the passages the answer cites, and lists any it can't find.
 
-The response's `calculations` list holds each one (`expression`, `result`, `figures_not_in_sources`, `error`). The chat UI shows a note under the answer: *Calculated by Sūveryn, not read from the documents*, with a warning if a figure isn't in the sources or the calculation couldn't be done.
+The response's `calculations` list holds each one (`expression`, `result`, `figures_not_in_sources`, `error`). The chat UI shows a note under the answer: *Calculated by sūveryn, not read from the documents*, with a warning if a figure isn't in the sources or the calculation couldn't be done.

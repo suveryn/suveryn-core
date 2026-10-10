@@ -126,7 +126,7 @@ function Chat({ me }: { me: Me }) {
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
 
   const disabledReason =
-    health === null ? "Can't reach the Sūveryn server." :
+    health === null ? "Can't reach the sūveryn server." :
     health.backend.status === "loading" ? "The model is starting. This takes up to a minute." :
     health.status !== "ok" ? "The model isn't available right now." : null;
 
