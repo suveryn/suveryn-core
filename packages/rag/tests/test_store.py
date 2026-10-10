@@ -83,3 +83,30 @@ def test_documents_are_isolated_per_owner():
         store.delete_document(a)
         store.delete_document(legacy)
         store.close()
+
+
+def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
+    """Large documents: as many best-matching chunks as fit, not a handful of search hits."""
+    store = Store(URL, DIM)
+    n = 150  # more than CANDIDATES per ranking and than the 99-chunk cap
+    # Chunk i is on page i + 1 and points ever further from unit(0), so its vector rank is i.
+    vecs = []
+    for i in range(n):
+        v = unit(0) * (n - i) + unit(1 + i % 500) * i
+        vecs.append(v / np.linalg.norm(v))
+    chunks = [Chunk(i, f"passage number {i} of the deed " + "x" * 80, "", i + 1, i + 1, []) for i in range(n)]
+    chunks[140] = Chunk(140, "erfdienstbaarheid van uitweg " + "x" * 80, "", 141, 141, [])  # found only by keyword
+    doc = store.add_document("large.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", n, 0, chunks, np.stack(vecs))
+    try:
+        size = len(chunks[0].text)
+        best = store.best_chunks(unit(0), "erfdienstbaarheid", [doc], max_chars=40 * size, max_chunks=99, min_chunks=6)
+        pages = [c.page_start for c in best]
+        assert sum(len(c.text) for c in best) <= 40 * size and len(best) >= 38, "the character budget decides how many"
+        assert pages == sorted(pages), "reading order"
+        assert 141 in pages, "the keyword match is included"
+        assert set(range(1, 30)) <= set(pages), "the best vector matches are included"
+        assert len(store.best_chunks(unit(0), "vraag", [doc], max_chars=10**9, max_chunks=99, min_chunks=6)) == 99
+        assert len(store.best_chunks(unit(0), "vraag", [doc], max_chars=1, max_chunks=99, min_chunks=6)) == 6
+    finally:
+        store.delete_document(doc)
+        store.close()

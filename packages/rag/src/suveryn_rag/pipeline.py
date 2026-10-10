@@ -140,12 +140,17 @@ class Rag:
 
         Documents that together fit ``WHOLE_DOCUMENT_CHARS`` are given whole, in reading order:
         a general question ("what is this deed about?") then sees everything instead of a few
-        passages that happen to rank well. Larger documents fall back to the ``k`` best search hits.
+        passages that happen to rank well. Larger documents get as much as the same budget allows:
+        their best-matching passages (at least ``k``), in reading order (``Store.best_chunks``).
+        Before, they got only the ``k`` best hits: a 58-page deed showed the model 6 passages,
+        about 4% of its text, and broad questions found nothing.
         """
         whole = self.store.document_chunks(document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS)
         if whole:
             return [_hit(r) for r in whole], True
-        return self.retrieve(question, k=k, document_ids=document_ids), False
+        query = self.embedder.embed([question])[0]
+        best = self.store.best_chunks(query, question, document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS, k)
+        return [_hit(r) for r in best], False
 
     def forget(self, document_id: uuid.UUID) -> bool:
         """Delete a document and all its chunks. Returns False if it didn't exist.

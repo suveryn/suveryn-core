@@ -13,7 +13,7 @@ Turns a conversation into an answer: either a plain model answer, or one grounde
 1. The gateway passes the request's `document_ids` to the service.
 2. The service gets the passages to answer from ([`Rag.passages`](../rag/src/suveryn_rag/pipeline.py) in `packages/rag`):
    - **small documents** (together at most ~48,000 characters, about 15–20 pages, and 99 passages): *all* their passages, in reading order, so a general question ("what is this document about?") sees the whole text;
-   - **larger documents:** the 6 best passages for the last question, from the hybrid search in `packages/rag`.
+   - **larger documents:** their passages that best match the last question, as many as fit the same budget (at least 6), in reading order: every passage is ranked by the hybrid search in `packages/rag` (`Store.best_chunks`). A 58-page deed gets about two thirds of its text this way instead of 6 passages.
 
    The excerpts are headed by which of the two it is, so the model knows whether "not in the excerpts" means "not in the document" or only "not in the passages selected".
 3. The model gets:
