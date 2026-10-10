@@ -56,7 +56,9 @@ export default function App() {
     onSignedOut(() => { setEnded(true); setMe(null); });
     getMe().then((user) => {
       if (user) { clearRedirect(); setMe(user); return; }
-      if (claimRedirect()) signIn(); else { setStuck(true); setMe(null); }
+      const step = claimRedirect();
+      if (step === "go") signIn();
+      else if (step === "stuck") { setStuck(true); setMe(null); } // "started": already leaving, render nothing
     }).catch((e: Error) => { setUnavailable(e.message); setMe(null); });
   }, []);
 

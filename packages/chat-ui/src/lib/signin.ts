@@ -25,11 +25,21 @@ function read(): number | null {
   } catch { return null; }
 }
 
-/** Records a redirect (for the loop guard) and says whether it may happen. */
-export function claimRedirect(now = Date.now()): boolean {
-  if (!shouldRedirect(now, read())) return false;
+// A redirect already started in this page load. React runs effects twice in development
+// (StrictMode), and the second run must not count as a loop: it showed the sign-in screen for a
+// moment while the browser was already on its way to the login page.
+let started = false;
+
+/**
+ * "go": redirect now (recorded for the loop guard); "started": already on the way, show nothing;
+ * "stuck": back signed out within a minute of the last redirect, show the sign-in screen.
+ */
+export function claimRedirect(now = Date.now()): "go" | "started" | "stuck" {
+  if (started) return "started";
+  if (!shouldRedirect(now, read())) return "stuck";
+  started = true;
   try { sessionStorage.setItem(KEY, String(now)); } catch { /* without storage the guard is off; the screen stays as fallback */ }
-  return true;
+  return "go";
 }
 
 /** Signed in: the next sign-out may redirect straight away again. */
