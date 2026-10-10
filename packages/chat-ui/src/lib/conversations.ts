@@ -2,6 +2,7 @@
  * Saved conversations (suveryn-tracker#5): what is sent to the server and how it comes back.
  * The server stores the turns as given, under the signed-in user; see the gateway's conversations.py.
  */
+import { locale, t } from "../i18n";
 import type { Turn } from "../types";
 
 /** A random UUID (v4). Not crypto.randomUUID: that needs a secure context, and an appliance may be reached over plain http. */
@@ -16,7 +17,7 @@ export function newConversationId(): string {
 /** The first question, on one line and at most 80 characters: the conversation's name in the sidebar. */
 export function conversationTitle(turns: Turn[]): string {
   const first = turns.find((t) => t.role === "user")?.text.replace(/\s+/g, " ").trim() ?? "";
-  if (!first) return "Conversation";
+  if (!first) return t().conversationFallbackTitle;
   return first.length > 80 ? `${first.slice(0, 79).trimEnd()}…` : first;
 }
 
@@ -31,17 +32,17 @@ export function toSaved(turns: Turn[]): Turn[] {
 
 /** Turns read back from the server. An answer saved mid-stream (it shouldn't be) shows as interrupted. */
 export function fromSaved(turns: Turn[]): Turn[] {
-  return turns.map((t) => (t.role === "assistant" && t.status === "streaming"
-    ? { ...t, text: "", status: "error", error: "This answer was interrupted." } : t));
+  return turns.map((turn) => (turn.role === "assistant" && turn.status === "streaming"
+    ? { ...turn, text: "", status: "error", error: t().answerInterrupted } : turn));
 }
 
-/** "Today", "Yesterday", "8 Oct" or "8 Oct 2025": when a conversation last changed. */
+/** "Today", "Yesterday", "8 Oct" or "8 Oct 2025" (in the current language): when a conversation last changed. */
 export function dayLabel(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   const days = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short",
+  if (days === 0) return t().today;
+  if (days === 1) return t().yesterday;
+  return d.toLocaleDateString(locale(), { day: "numeric", month: "short",
     ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
 }
 

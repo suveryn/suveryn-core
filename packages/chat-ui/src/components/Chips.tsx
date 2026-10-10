@@ -5,25 +5,22 @@
  */
 import { AlertTriangle, FileText, Loader2, X, XCircle } from "lucide-react";
 import type { Citation } from "../api";
+import { useT } from "../i18n";
 import { pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
-
-const STATUS_LABEL: Record<Attachment["status"], string> = {
-  uploading: "Uploading…",
-  queued: "Waiting…",
-  processing: "Reading…",
-  ready: "",
-  needs_review: "Ready · check needed",
-  failed: "Couldn't be read",
-};
 
 /**
  * Attachment chip: a file the user attached to their own message. Outlined (bg fill, line
  * border), deliberately unlike the citation chip.
  */
 export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () => void }) {
+  const m = useT();
+  const STATUS_LABEL: Record<Attachment["status"], string> = {
+    uploading: m.uploading, queued: m.waiting, processing: m.reading, ready: "",
+    needs_review: m.readyCheckNeeded, failed: m.couldntBeRead,
+  };
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
-  const label = a.status === "needs_review" && a.reviewPages?.length ? `Ready · check ${pageList(a.reviewPages)}` : STATUS_LABEL[a.status];
+  const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages(pageList(a.reviewPages)) : STATUS_LABEL[a.status];
   const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}` : (a.error ?? a.filename);
   return (
     <span className="chip-attachment" title={title}>
@@ -34,11 +31,11 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
       <span className="chip-name">{a.filename}</span>
       {label && (
         <span className="chip-status">
-          {a.status === "uploading" && a.progress !== undefined ? `Uploading… ${Math.floor(a.progress * 100)}%` : label}
+          {a.status === "uploading" && a.progress !== undefined ? m.uploadingPercent(Math.floor(a.progress * 100)) : label}
         </span>
       )}
       {onRemove && (
-        <button type="button" className="chip-remove" onClick={onRemove} aria-label={`Remove ${a.filename}`}>
+        <button type="button" className="chip-remove" onClick={onRemove} aria-label={m.removeFile(a.filename)}>
           <X size={12} />
         </button>
       )}
@@ -50,13 +47,14 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
 export function CitationChip({ n, citation, filename, active, onClick }: {
   n: number; citation: Citation; filename: string; active: boolean; onClick: () => void;
 }) {
+  const m = useT();
   const page = citation.source?.page;
   return (
     <button type="button" className={`chip-citation${active ? " active" : ""}`} onClick={onClick}
-            aria-expanded={active} aria-label={`Source ${n}: ${filename}${page ? `, page ${page}` : ""}`}>
+            aria-expanded={active} aria-label={m.sourceLabel(n, filename, page)}>
       <span className="cite-num">{n}</span>
       <FileText size={12} aria-hidden />
-      {filename}{page ? `, p.${page}` : ""}
+      {filename}{page ? `, ${m.pageShort(page)}` : ""}
     </button>
   );
 }

@@ -4,6 +4,7 @@
  * clipboard or in their Downloads folder, outside Sūveryn's control (docs/architecture.md §3).
  */
 import type { Citation } from "../api";
+import { locale, t } from "../i18n";
 
 /** One source as plain text: "[n] file.pdf, p. 3 · Artikel 4" and the passage on the next lines. */
 export function formatSource(n: number, citation: Citation, filename: string): string {
@@ -69,17 +70,19 @@ export function formatSourceMarkdown(n: number, citation: Citation, filename: st
   return `### [${n}] ${filename}${where ? ` — ${where}` : ""}\n\n${quote}`;
 }
 
-const stamp = (when: Date) => when.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+const stamp = (when: Date) => when.toLocaleString(locale(), { dateStyle: "long", timeStyle: "short" });
 
 /** The text of an "all sources" download: question, date, then the sources. */
 export function sourcesDocument(question: string, sources: string, when: Date): string {
-  return `Sources cited by sūveryn\nQuestion: ${question}\nDate: ${stamp(when)}\n\n${sources}\n`;
+  const m = t();
+  return `${m.sourcesHeading}\n${m.question}: ${question}\n${m.date}: ${stamp(when)}\n\n${sources}\n`;
 }
 
 /** The Markdown version of an "all sources" download. */
 export function sourcesMarkdown(question: string, items: { n: number; citation: Citation; filename: string }[], when: Date): string {
   const body = items.map((i) => formatSourceMarkdown(i.n, i.citation, i.filename)).join("\n\n");
-  return `# Sources cited by sūveryn\n\n**Question:** ${question}  \n**Date:** ${stamp(when)}\n\n${body}\n`;
+  const m = t();
+  return `# ${m.sourcesHeading}\n\n**${m.question}:** ${question}  \n**${m.date}:** ${stamp(when)}\n\n${body}\n`;
 }
 
 /** Saves text as a UTF-8 .txt or .md file through the browser. Nothing is sent to the server. */
