@@ -1,0 +1,142 @@
+/** Dutch interface text: formal (u/uw), as everywhere in sūveryn. Keys and arguments as in en.ts. */
+import type { Messages } from "./en";
+
+const nl: Messages = {
+  languageName: "Nederlands",
+  language: "Taal",
+
+  signIn: "Inloggen",
+  signInCaption: "Het eigen inlogsysteem van uw kantoor. Documenten en antwoorden blijven op deze server.",
+  sessionEnded: "Uw sessie is afgelopen. Log opnieuw in om verder te gaan.",
+  signInUnavailable: (why) => `Inloggen is nu niet mogelijk: ${why}`,
+
+  serverUnreachable: "De sūveryn-server is niet bereikbaar.",
+  modelStarting: "Het model start op. Dat duurt tot een minuut.",
+  modelUnavailable: "Het model is nu niet beschikbaar.",
+  documentsStarting: "De documentverwerking start op…",
+  documentsUnavailable: "Documentverwerking is niet beschikbaar op deze server.",
+  documentsFailed: "De documentverwerking kon niet starten.",
+  documentsCantBeAdded: "Documenten kunnen nu niet worden toegevoegd: documentverwerking is niet beschikbaar op deze server.",
+  historyFailed: "Gesprekken kunnen nu niet worden bewaard.",
+  historyUnavailable: "Gesprekken worden op deze server niet bewaard; ze verdwijnen wanneer u de pagina sluit.",
+
+  saveFailed: (why) => `Dit gesprek kon niet worden bewaard: ${why}`,
+  openFailed: (why) => `Dat gesprek kon niet worden geopend: ${why}`,
+  deleteConversationFailed: (why) => `Dat gesprek kon niet worden verwijderd: ${why}`,
+  deleteDocumentFailed: (file, why) => `${file} kon niet worden verwijderd: ${why}`,
+  sessionEndedError: "uw sessie is afgelopen; log opnieuw in",
+  uploadInterrupted: "het uploaden werd onderbroken",
+  streamCutOff: "de verbinding werd verbroken voordat het antwoord volledig was",
+
+  emptyIntro: "Voeg een akte of een andere pdf toe en stel er een vraag over. Antwoorden vermelden de pagina waarop ze steunen, zodat u elk bedrag kunt nakijken.",
+
+  newChat: "Nieuw gesprek",
+  conversations: "Gesprekken",
+  conversationsEmpty: "Uw gesprekken worden hier na elk antwoord bewaard.",
+  conversationFallbackTitle: "Gesprek",
+  deleteConversationLabel: (title) => `Het gesprek "${title}" verwijderen`,
+  deleteConversationTitle: "Dit gesprek verwijderen",
+  delete: "Verwijderen",
+  keep: "Behouden",
+  documents: "Documenten",
+  documentsEmpty: "Nog geen documenten. Voeg een pdf toe aan een bericht om er een toe te voegen.",
+  pages: (n) => `${n} ${n === 1 ? "pagina" : "pagina's"}`,
+  checkPages: (pages) => ` · controleer ${pages}`,
+  checkNeeded: " · controle nodig",
+  inUse: " · in gebruik",
+  alreadyInConversation: "Al in dit gesprek",
+  useInConversation: "Gebruiken in dit gesprek",
+  useInConversationReview: (hint) => `Gebruiken in dit gesprek. ${hint}`,
+  deleteDocumentLabel: (file) => `${file} verwijderen`,
+  deleteDocumentTitle: "Van deze server verwijderen",
+  jobFailed: "Kon niet worden gelezen",
+  jobQueued: "Wacht…",
+  jobProcessing: "Wordt gelezen…",
+  signOut: "Uitloggen",
+  staysOnServer: "Documenten en antwoorden blijven op deze server.",
+  today: "Vandaag",
+  yesterday: "Gisteren",
+
+  keepHistoryTitle: "Uw gespreksgeschiedenis bewaren?",
+  keepHistoryBody: "Uw gesprekken worden bewaard op deze server, waar alleen u ze kunt zien. Bewaar ze om de volgende keer verder te gaan waar u gebleven was, of verwijder ze nu.",
+  keepAndSignOut: "Bewaren en uitloggen",
+  deleteAndSignOut: "Geschiedenis verwijderen en uitloggen",
+  deleting: "Bezig met verwijderen…",
+  cancel: "Annuleren",
+  deleteHistoryFailed: (why) => `Uw geschiedenis kon niet worden verwijderd, dus u bent nog ingelogd: ${why}`,
+
+  attachPdf: "Een pdf toevoegen",
+  yourQuestion: "Uw vraag",
+  askPlaceholder: "Stel een vraag over uw documenten…",
+  send: "Bericht versturen",
+  waitingForDocuments: "Wachten tot uw documenten gelezen zijn…",
+  composerHint: "Antwoorden komen uit de documenten in dit gesprek en vermelden de pagina waarop ze steunen.",
+
+  modelTag: (model) => `Antwoorden komen van ${model}, dat op deze server draait`,
+  modelButton: (model) => `Antwoorden komen van ${model}, dat op deze server draait. Kies een ander model`,
+  model: "Model",
+  modelReady: "Klaar",
+  modelLoadsWhenChosen: "Wordt geladen wanneer u het kiest, tot een halve minuut",
+  modelNotLoaded: (model) =>
+    `${model} is nog niet geladen: uw volgende antwoord begint zodra het geladen is (tot een halve minuut), en de vragen van anderen wachten intussen.`,
+
+  uploading: "Uploaden…",
+  uploadingPercent: (pct) => `Uploaden… ${pct}%`,
+  waiting: "Wacht…",
+  reading: "Wordt gelezen…",
+  readyCheckNeeded: "Klaar · controle nodig",
+  readyCheckPages: (pages) => `Klaar · controleer ${pages}`,
+  couldntBeRead: "Kon niet worden gelezen",
+  removeFile: (file) => `${file} verwijderen`,
+  sourceLabel: (n, file, page) => `Bron ${n}: ${file}${page ? `, pagina ${page}` : ""}`,
+  pageShort: (page) => `p.${page}`,
+
+  pageList: (pages) => `${pages.length > 1 ? "pp." : "p."} ${pages.join(", ")}`,
+  reviewHint: (pages) => {
+    const where = !pages?.length ? "op sommige pagina's" : pages.length > 1 ? `op pagina's ${pages.join(", ")}` : `op pagina ${pages[0]}`;
+    return `Klaar voor gebruik. Sommige tekst ${where} is mogelijk niet goed gelezen; controleer antwoorden die daarop steunen dus met het origineel.`;
+  },
+
+  sending: "Uw vraag wordt verstuurd…",
+  statusSearching: "Uw documenten worden doorzocht…",
+  statusReadingAll: (passages) => `Uw documenten worden gelezen (${passages})…`,
+  statusReadingBest: (passages) => `De ${passages} die het best bij uw vraag passen, worden gelezen…`,
+  passages: (n) => `${n} ${n === 1 ? "passage" : "passages"}`,
+  statusLoading: (model) => `${model ?? "Het model"} wordt geladen; dat kan tot een halve minuut duren…`,
+  statusWriting: "Het antwoord wordt geschreven…",
+
+  answerFailed: (why) => `Het antwoord kon niet worden voltooid: ${why}. Er wordt niets van deze poging getoond; stel uw vraag dus opnieuw.`,
+  answerInterrupted: "Dit antwoord werd onderbroken.",
+  sources: "Bronnen",
+  copySources: "Bronnen kopiëren",
+  allCitedSources: "alle vermelde bronnen",
+  noSourceCited: "Dit antwoord vermeldt geen bron. Controleer het met de documenten voordat u erop steunt.",
+  notGrounded: "Niet gebaseerd op uw documenten. Voeg een document toe om antwoorden met bronvermelding te krijgen.",
+  copy: "Kopiëren",
+  copyWhat: (what) => `${what} kopiëren`,
+  copied: "Gekopieerd",
+  copyFailed: "Kopiëren mislukt",
+  download: "Downloaden",
+  downloadWhat: (what) => `${what} downloaden`,
+  textFile: "Tekst (.txt)",
+  markdownFile: "Markdown (.md)",
+  source: (n) => `Bron ${n}`,
+  sourceWithReference: (n) => `bron ${n} met zijn verwijzing`,
+  sourceN: (n) => `bron ${n}`,
+  sourceCaption: "De passage zoals ze uit het document is gelezen. Controleer de oorspronkelijke pagina voordat u erop steunt.",
+  calcFailed: (expression, why) => `${expression} kon niet worden berekend: ${why}.`,
+  calculatedBy: "Berekend door sūveryn, niet uit de documenten gelezen:",
+  calcMissing: (figures) => ` Controleer ${figures.join(", ")}: ${figures.length === 1 ? "dat bedrag staat" : "die bedragen staan"} niet in de bronnen.`,
+  calcAllSourced: " Elk bedrag komt uit de bronnen.",
+  unverified: (figures) => {
+    const one = figures.length === 1;
+    return `Controleer ${figures.join(", ")}: ${one ? "dit bedrag staat" : "deze bedragen staan"} niet in de documenten en ${one ? "werd" : "werden"} niet door sūveryn berekend. Het model heeft ${one ? "het" : "ze"} mogelijk zelf uitgerekend, en dat kan fout zijn.`;
+  },
+  unverifiedTitle: "Staat niet in de documenten en werd niet door sūveryn berekend. Controleer dit bedrag.",
+
+  sourcesHeading: "Bronnen vermeld door sūveryn",
+  question: "Vraag",
+  date: "Datum",
+};
+
+export default nl;

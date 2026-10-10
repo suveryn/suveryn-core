@@ -3,6 +3,7 @@
  * proxies them to the gateway. No other host is ever contacted.
  */
 import { createSSEParser } from "./lib/sse";
+import { lang, t } from "./i18n";
 import type { Turn } from "./types";
 
 export type SourceRef = { document_id: string; page: number | null; location: string | null };
@@ -71,7 +72,7 @@ export async function listModels(): Promise<ModelInfo[]> {
  * any API call means the session ended: the registered handler shows the sign-in screen.
  */
 export class SignedOut extends Error {
-  constructor() { super("your session has ended; sign in again"); }
+  constructor() { super(t().sessionEndedError); }
 }
 let signedOutHandler: () => void = () => {};
 export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
@@ -91,7 +92,7 @@ export async function getMe(): Promise<Me | null> {
 
 /** Goes to the Keycloak login page (through the gateway); comes back to the chat. */
 export function signIn(): void {
-  window.location.assign("/auth/login?return_to=/");
+  window.location.assign(`/auth/login?return_to=/&lang=${lang()}`);
 }
 
 /** Ends the session in the gateway, then in Keycloak (its logout page sends the browser back). */
@@ -145,7 +146,7 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
       else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
       else reject(new Error(typeof xhr.response?.detail === "string" ? xhr.response.detail : `HTTP ${xhr.status}`));
     };
-    xhr.onerror = () => reject(new Error("the upload was interrupted"));
+    xhr.onerror = () => reject(new Error(t().uploadInterrupted));
     xhr.send(form);
   });
 }
@@ -197,7 +198,7 @@ export async function streamChat(
     parser.feed(value);
   }
   if (failure) throw new Error(failure);
-  if (!done) throw new Error("the connection closed before the answer was complete");
+  if (!done) throw new Error(t().streamCutOff);
   return done;
 }
 

@@ -88,6 +88,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                     padding: 9px var(--space-4); font-weight: 500; font-size: 13.5px; cursor: pointer; }
 .button-secondary:hover { background: var(--surface-alt); }
 
+/* language menu (sidebar foot and sign-in screen) */
+.language { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 12px; }
+.language select { font: inherit; color: var(--text); background: transparent; border: 1px solid var(--line);
+                   border-radius: var(--radius-sm); padding: 2px var(--space-1); cursor: pointer; }
+
 /* sign-in screen */
 .signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
           gap: var(--space-6); padding: var(--space-6) var(--space-4); text-align: center; background: var(--bg); }
@@ -225,6 +230,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
   /* the library keeps its height and scrolls itself, instead of collapsing in the short header */
   .library { flex: 0 0 auto; }
   .library ul { max-height: 22vh; }
+  .library.history { flex: 0 0 auto; max-height: none; }  /* the shrink and 40% cap are for the full-height sidebar only */
   .library.history ul { max-height: 14vh; }
   .sidebar-foot .caption { display: none; }
   .conversation { padding-inline: var(--space-4); }

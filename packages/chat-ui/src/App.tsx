@@ -24,13 +24,15 @@ import {
 import { Lockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
 import { AssistantMessage, UserMessage } from "./components/Messages";
+import { LanguagePicker } from "./components/LanguagePicker";
 import { Sidebar } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { conversationTitle, fromSaved, newConversationId, toSaved } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
+import { useT } from "./i18n";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
-const TAGLINE = "AI for work that can't leave the premises";
+const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 let counter = 0;
 // Unique across page loads too: turns of a reopened conversation keep the ids they were saved with.
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
@@ -55,21 +57,24 @@ export default function App() {
 }
 
 function SignIn({ ended, unavailable }: { ended: boolean; unavailable: string | null }) {
+  const m = useT();
   return (
     <main className="signin">
       <Lockup />
       <h1>{TAGLINE}</h1>
       {ended && <p className="notice"><AlertCircle size={14} aria-hidden />
-        Your session has ended. Sign in to continue.</p>}
+        {m.sessionEnded}</p>}
       {unavailable
-        ? <p className="notice notice-error"><AlertCircle size={14} aria-hidden /> Sign-in isn't available right now: {unavailable}</p>
-        : <button type="button" className="button-primary" onClick={signIn}><LogIn size={16} aria-hidden /> Sign in</button>}
-      <p className="caption">Your office's own sign-in. Documents and answers stay on this server.</p>
+        ? <p className="notice notice-error"><AlertCircle size={14} aria-hidden /> {m.signInUnavailable(unavailable)}</p>
+        : <button type="button" className="button-primary" onClick={signIn}><LogIn size={16} aria-hidden /> {m.signIn}</button>}
+      <p className="caption">{m.signInCaption}</p>
+      <LanguagePicker />
     </main>
   );
 }
 
 function Chat({ me }: { me: Me }) {
+  const m = useT();
   const [health, setHealth] = useState<Health | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [chosenModel, setChosenModel] = useState<string | null>(null); // null: the appliance default
@@ -126,7 +131,7 @@ function Chat({ me }: { me: Me }) {
     lastSaved.current = body;
     saveConversation(conversationId, conversationTitle(turns), saved)
       .then(refreshConversations)
-      .catch((e: Error) => { lastSaved.current = ""; setProblem(`This conversation couldn't be saved: ${e.message}`); });
+      .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed(e.message)); });
   }, [turns, busy, historyReady, conversationId, refreshConversations]);
 
   // Poll uploads that are still being read, in the composer and in the conversation.
@@ -166,9 +171,9 @@ function Chat({ me }: { me: Me }) {
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
 
   const disabledReason =
-    health === null ? "Can't reach the sūveryn server." :
-    health.backend.status === "loading" ? "The model is starting. This takes up to a minute." :
-    health.status !== "ok" ? "The model isn't available right now." : null;
+    health === null ? m.serverUnreachable :
+    health.backend.status === "loading" ? m.modelStarting :
+    health.status !== "ok" ? m.modelUnavailable : null;
 
   // ---------------------------------------------------------------- actions
   const attachFiles = async (files: File[]) => {
@@ -246,7 +251,7 @@ function Chat({ me }: { me: Me }) {
       setPending([]);
       setProblem(null);
     } catch (e) {
-      setProblem(`Couldn't open that conversation: ${(e as Error).message}`);
+      setProblem(m.openFailed((e as Error).message));
       refreshConversations();
     }
   };
@@ -257,7 +262,7 @@ function Chat({ me }: { me: Me }) {
       if (id === conversationId) newChat();
       refreshConversations();
     } catch (e) {
-      setProblem(`Couldn't delete that conversation: ${(e as Error).message}`);
+      setProblem(m.deleteConversationFailed((e as Error).message));
     }
   };
 
@@ -275,7 +280,7 @@ function Chat({ me }: { me: Me }) {
       setPending((p) => p.filter((a) => a.documentId !== d.id));
       refreshDocuments();
     } catch (e) {
-      setProblem(`Couldn't delete ${d.filename}: ${(e as Error).message}`);
+      setProblem(m.deleteDocumentFailed(d.filename, (e as Error).message));
     }
   };
 
@@ -284,15 +289,14 @@ function Chat({ me }: { me: Me }) {
     <div className="app">
       <Sidebar documents={documents} jobs={jobs} available={documentsReady}
                unavailableReason={health === null ? null :
-                 health.documents.status === "starting" ? "Document handling is starting…" :
-                 health.documents.status === "unavailable" ? "Document handling isn't available on this server." :
-                 health.documents.status === "failed" ? "Document handling failed to start." : null}
+                 health.documents.status === "starting" ? m.documentsStarting :
+                 health.documents.status === "unavailable" ? m.documentsUnavailable :
+                 health.documents.status === "failed" ? m.documentsFailed : null}
                inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove}
                user={me} onSignOut={requestSignOut}
                conversations={conversations} currentConversation={conversationId}
                historyNote={health === null || historyReady ? null :
-                 health.history?.status === "failed" ? "Conversations can't be saved right now." :
-                 "Conversations aren't saved on this server; they end when you close the page."}
+                 health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
                onOpenConversation={openConversation} onDeleteConversation={removeConversation} />
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
@@ -303,7 +307,7 @@ function Chat({ me }: { me: Me }) {
           {turns.length === 0 ? (
             <div className="empty">
               <h1>{TAGLINE}</h1>
-              <p>Attach a deed or another PDF and ask about it. Answers cite the page they come from, so you can check every figure.</p>
+              <p>{m.emptyIntro}</p>
             </div>
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
@@ -315,7 +319,7 @@ function Chat({ me }: { me: Me }) {
         <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
                   disabledReason={disabledReason}
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
-                    setProblem("Documents can't be added right now: document handling isn't available on this server."))}
+                    setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
                   onSend={send} />
       </main>
