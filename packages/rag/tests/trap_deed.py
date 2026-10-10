@@ -135,6 +135,24 @@ def scanned(src: Path, dst: Path, dpi: int = 200) -> Path:
     return dst
 
 
+def signed(src: Path, dst: Path) -> Path:
+    """Copy of a PDF marked as digitally signed (AcroForm SigFlags), the way OCRmyPDF detects it.
+
+    Trap: OCRmyPDF refuses to OCR a signed PDF, so a signed scanned deed couldn't be read. No real
+    signature is needed for that check; a signature field without a value is enough.
+    """
+    import pikepdf
+
+    with pikepdf.open(src) as pdf:
+        field = pdf.make_indirect(pikepdf.Dictionary(FT=pikepdf.Name.Sig, T=pikepdf.String("Handtekening notaris"),
+                                                     Type=pikepdf.Name.Annot, Subtype=pikepdf.Name.Widget,
+                                                     Rect=[0, 0, 0, 0], P=pdf.pages[0].obj))
+        pdf.pages[0].obj.Annots = pdf.make_indirect(pikepdf.Array([field]))
+        pdf.Root.AcroForm = pdf.make_indirect(pikepdf.Dictionary(Fields=pikepdf.Array([field]), SigFlags=3))
+        pdf.save(dst)
+    return dst
+
+
 SCANNER_LABEL = "Kopie scanner 3"  # under MIN_TEXT_CHARS, like a copier's or e-stamp's text layer
 
 
