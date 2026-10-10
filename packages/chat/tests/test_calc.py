@@ -1,5 +1,11 @@
 import pytest
-from suveryn_chat.calc import CalcError, CalcRewriter, evaluate, rewrite, unverified_figures
+from suveryn_chat.calc import (
+    CalcError,
+    CalcRewriter,
+    evaluate,
+    rewrite,
+    unverified_figures,
+)
 
 SOURCE = "Nettobedrag: + 6.507,11 EUR\nNettobedrag: + 6.417,42 EUR\n3.000 stukken aan 2,15 EUR"
 
