@@ -122,12 +122,15 @@ class User:
 
 @dataclass
 class Session:
-    """A signed-in browser. Tokens never leave the gateway."""
+    """A signed-in browser. Tokens never leave the gateway.
+
+    The access token itself is not kept: it is verified when issued (and at each refresh) and only
+    its expiry matters afterwards, so holding it would only add a secret to memory.
+    """
 
     id: str
     user: User
-    id_token: str
-    access_token: str
+    id_token: str  # sent as id_token_hint when signing out of Keycloak
     access_expires: float
     refresh_token: str | None
     refresh_expires: float | None
@@ -329,8 +332,11 @@ class Authenticator:
         now = time.time()
         for s in [s for s, p in self._pending.items() if now - p.created > LOGIN_TTL_S]:
             del self._pending[s]
-        if len(self._pending) >= MAX_PENDING_LOGINS:
-            raise AuthUnavailable("too many sign-ins in progress; try again in a few minutes")
+        # Bounded memory without refusing anyone: drop the oldest unfinished sign-ins. Refusing new ones
+        # at the limit let anyone (no account needed) block every sign-in for ten minutes by calling
+        # /auth/login a thousand times. (Dicts keep insertion order: the first keys are the oldest.)
+        while len(self._pending) >= MAX_PENDING_LOGINS:
+            del self._pending[next(iter(self._pending))]
         state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         verifier, challenge = pkce_pair()
         self._pending[state] = PendingLogin(verifier, nonce, safe_return_path(return_to))
@@ -355,7 +361,7 @@ class Authenticator:
         if len(self._sessions) >= MAX_SESSIONS:
             self._prune()
         session = Session(id=secrets.token_urlsafe(32), user=user, id_token=tokens.get("id_token", ""),
-                          access_token=tokens["access_token"], access_expires=now + int(tokens.get("expires_in", 60)),
+                          access_expires=now + int(tokens.get("expires_in", 60)),
                           refresh_token=tokens.get("refresh_token"),
                           refresh_expires=now + int(tokens["refresh_expires_in"]) if tokens.get("refresh_expires_in") else None)
         self._sessions[session.id] = session
@@ -391,7 +397,6 @@ class Authenticator:
                 self.drop(session.id)
                 return None
             now = time.time()
-            session.access_token = tokens["access_token"]
             session.access_expires = now + int(tokens.get("expires_in", 60))
             session.refresh_token = tokens.get("refresh_token", session.refresh_token)
             if tokens.get("refresh_expires_in"):

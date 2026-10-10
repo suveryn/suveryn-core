@@ -130,7 +130,7 @@ def lines_with(page_text: str, missing: set[str]) -> str:
 
 
 # ---------------------------------------------------------------- keyword search helpers
-STOPWORDS = set(["wat", "welke", "welk", "wie", "waar", "wanneer", "hoe", "hoeveel", "waarom", "waarvoor", "is", "zijn", "er", "een", "de", "het", "van", "voor", "in", "op", "aan", "met", "door", "bij", "naar", "en", "of", "te", "die", "dat", "dit", "deze", "heeft", "hebben", "wordt", "worden", "kan", "mag", "moet", "ook", "nog", "niet", "geen", "als", "om", "tot", "uit", "over", "onder", "the", "an", "what", "which", "who", "whom", "when", "where", "how", "much", "many", "does", "do", "did", "is", "are", "was", "were", "be", "of", "to", "in", "for", "on", "and", "or", "with", "by", "at", "from", "le", "la", "les", "de", "des", "du", "un", "une", "quel", "quelle", "quels", "quelles", "qui", "que", "est", "et", "ou", "en", "au", "aux", "pour", "par", "sur", "dans"])
+STOPWORDS = {"wat", "welke", "welk", "wie", "waar", "wanneer", "hoe", "hoeveel", "waarom", "waarvoor", "is", "zijn", "er", "een", "de", "het", "van", "voor", "in", "op", "aan", "met", "door", "bij", "naar", "en", "of", "te", "die", "dat", "dit", "deze", "heeft", "hebben", "wordt", "worden", "kan", "mag", "moet", "ook", "nog", "niet", "geen", "als", "om", "tot", "uit", "over", "onder", "the", "an", "what", "which", "who", "whom", "when", "where", "how", "much", "many", "does", "do", "did", "are", "was", "were", "be", "to", "for", "on", "and", "or", "with", "by", "at", "from", "le", "la", "les", "des", "du", "un", "une", "quel", "quelle", "quels", "quelles", "qui", "que", "est", "et", "ou", "au", "aux", "pour", "par", "sur", "dans"}
 
 
 def query_terms(question: str) -> list[str]:

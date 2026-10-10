@@ -4,7 +4,13 @@ import asyncio
 import json
 
 import httpx
-from suveryn_engine import ChatMessage, ChatRequest, LlamaServerClient, LLMSettings, UsageRecord
+from suveryn_engine import (
+    ChatMessage,
+    ChatRequest,
+    LlamaServerClient,
+    LLMSettings,
+    UsageRecord,
+)
 
 USAGE = {"prompt_tokens": 1200, "completion_tokens": 85}
 

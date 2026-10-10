@@ -73,7 +73,6 @@ from .auth import (
     AuthUnavailable,
 )
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
-from .usage import AdminUsageReport, Rates, UsageReport, UsageSettings, UsageStore, parse_range
 from .conversations import (
     Conversation,
     ConversationIn,
@@ -81,9 +80,22 @@ from .conversations import (
     ConversationStore,
     ConversationSummary,
 )
+from .usage import (
+    AdminUsageReport,
+    Rates,
+    UsageReport,
+    UsageSettings,
+    UsageStore,
+    parse_range,
+)
 
 try:  # document handling is optional (suveryn-rag is installed on the GPU machine only)
-    from suveryn_rag.service import MAX_UPLOAD_BYTES, DocumentNotFound, SearchUnavailable, UploadRejected
+    from suveryn_rag.service import (
+        MAX_UPLOAD_BYTES,
+        DocumentNotFound,
+        SearchUnavailable,
+        UploadRejected,
+    )
 except ImportError:
     MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
@@ -132,8 +144,6 @@ class StoreStatus(BaseModel):
     detail: str | None = None
 
 
-HistoryStatus = StoreStatus
-
 
 class HealthResponse(BaseModel):
     """Body of ``GET /health``."""
@@ -156,6 +166,8 @@ class Me(BaseModel):
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 UI_LANGUAGES = {"en", "nl", "fr"}  # the chat UI's languages, passed on to Keycloak's login page
+# With sign-in off, only these clients may use /v1: this machine ("testclient" is Starlette's test client).
+LOCAL_CLIENTS = {"127.0.0.1", "::1", "testclient"}
 ADMIN_ROLE = "suveryn-admin"  # Keycloak realm role for the administration page (usage per user, rates)
 LOCAL_OWNER = "local-dev"  # owner of documents when sign-in is off (SUVERYN_AUTH=off, loopback only)
 
@@ -298,6 +310,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     @app.middleware("http")
     async def require_sign_in(request: Request, call_next):
         """Gate ``/v1/...``: a valid session (plus same-origin for changes) or bearer token, else 401/403/503."""
+        if not authenticator.enabled and request.url.path.startswith("/v1/"):
+            # Sign-in off is for development on one machine. main.py refuses a network address, but the
+            # app can also be started with bare uvicorn: refuse anyone who isn't on this machine.
+            host = request.client.host if request.client else None
+            if host not in LOCAL_CLIENTS:
+                return JSONResponse({"detail": "Sign-in is turned off; only this machine may use the API."},
+                                    status_code=403)
         if not request.url.path.startswith("/v1/") or not authenticator.enabled:
             request.state.user = None
             return await call_next(request)
@@ -494,7 +513,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     @app.post("/v1/documents", status_code=202, responses={
         411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
         415: {"description": "Not a PDF"}, 503: {"description": "Unavailable"}})
-    async def upload_document(request: Request, file: UploadFile = File(...)):
+    async def upload_document(request: Request, file: UploadFile = File(...)):  # noqa: B008 - FastAPI's way to declare a form file
         """Add a PDF. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is
         ``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests."""
         docs = _docs_or_503(request)
