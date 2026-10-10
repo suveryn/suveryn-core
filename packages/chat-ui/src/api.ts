@@ -20,6 +20,7 @@ export type ChatResponse = {
   answer: string;
   citations: Citation[];
   calculations: Calculation[];
+  unverified_figures?: string[];      // figures in no passage and no calculation's result: flag them for checking
   finish_reason: string | null;
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };

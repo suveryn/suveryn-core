@@ -220,3 +220,22 @@ describe("saved conversations (suveryn-tracker#5)", () => {
     expect(dayLabel(new Date(2025, 11, 24).toISOString(), now)).toBe("24 Dec 2025");
   });
 });
+
+describe("figures to check (unverified_figures)", () => {
+  it("marks each flagged figure, also in bold, and only as a whole number", () => {
+    const [b] = toBlocks("Samen 350.000,00 EUR, of **350.000,00 EUR**; niet 1.350.000,00 [1].", 1, ["350.000,00"]);
+    expect(b.segments).toEqual([
+      { kind: "text", text: "Samen " },
+      { kind: "flag", text: "350.000,00", bold: false },
+      { kind: "text", text: " EUR, of " },
+      { kind: "flag", text: "350.000,00", bold: true },
+      { kind: "bold", text: " EUR" },
+      { kind: "text", text: "; niet 1.350.000,00 " },
+      { kind: "cite", n: 1 },
+      { kind: "text", text: "." },
+    ]);
+  });
+  it("leaves text alone without flags", () => {
+    expect(toBlocks("Samen 350.000,00 EUR.", 0)[0].segments).toEqual([{ kind: "text", text: "Samen 350.000,00 EUR." }]);
+  });
+});

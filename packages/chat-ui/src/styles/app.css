@@ -158,6 +158,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .source-text { margin: 0 0 var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line);
                font-size: 13.5px; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 
+/* a figure to check: in no source and not calculated by the server (accent-ink, no separate red) */
+.unverified { background: none; color: inherit; text-decoration: underline wavy var(--accent-ink) 1.5px;
+              text-underline-offset: 3px; cursor: help; }
+
 /* notices */
 .notice { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0 0;
           font-size: 12px; line-height: 1.5; color: var(--text-dim); }
