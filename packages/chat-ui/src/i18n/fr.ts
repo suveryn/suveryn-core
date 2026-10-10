@@ -8,6 +8,7 @@ const fr: Messages = {
   signIn: "Se connecter",
   signInCaption: "La connexion propre à votre étude. Les documents et les réponses restent sur ce serveur.",
   sessionEnded: "Votre session a expiré. Reconnectez-vous pour continuer.",
+  signInIncomplete: "Vous n'êtes pas encore connecté. Si vous revenez ici après chaque connexion, ouvrez cette page à l'adresse que votre étude utilise pour sūveryn et autorisez les cookies.",
   signInUnavailable: (why) => `La connexion n'est pas disponible pour le moment : ${why}`,
 
   serverUnreachable: "Le serveur sūveryn est injoignable.",
