@@ -32,6 +32,7 @@ Other commands:
    - *No source is cited…* when documents were used but nothing was cited;
    - *Not based on your documents…* when no documents were attached;
    - *Calculated by sūveryn, not read from the documents…* under an answer with a total or other calculation, which the server computed exactly from figures in the sources (with a warning if a figure isn't in them).
+4b. **Choose the model.** The model badge in the composer is a menu of the models installed on this appliance (from `GET /v1/models`), each marked *Ready* or *Loads when chosen*. The choice holds for the conversation. A model that isn't loaded makes the next answer wait while it loads (up to about half a minute), and the note under the composer says that other people's questions wait too, because the GPU holds one model at a time. With one installed model the badge is a plain tag.
 5. **Follow up.** Later questions in the same conversation automatically use every document attached so far. Each question is sent with the earlier questions and answers that completed; a question whose answer failed is left out. *New chat* starts over. Deleting a document from the sidebar asks for confirmation first.
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.
