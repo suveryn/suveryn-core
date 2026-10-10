@@ -140,6 +140,7 @@ class Me(BaseModel):
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+UI_LANGUAGES = {"en", "nl", "fr"}  # the chat UI's languages, passed on to Keycloak's login page
 LOCAL_OWNER = "local-dev"  # owner of documents when sign-in is off (SUVERYN_AUTH=off, loopback only)
 
 
@@ -279,12 +280,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                             secure=settings.secure_cookies)
 
     @app.get("/auth/login", include_in_schema=False)
-    async def login(return_to: str = "/"):
-        """Start signing in: redirect to the Keycloak login page."""
+    async def login(return_to: str = "/", lang: str | None = None):
+        """Start signing in: redirect to the Keycloak login page, in the UI's language (``lang``: en, nl or fr)."""
         try:
             url, state = await authenticator.start_login(return_to)
         except AuthUnavailable as e:
             raise HTTPException(503, f"Sign-in is not available: {e}.") from e
+        if lang in UI_LANGUAGES:
+            url += f"&ui_locales={lang}"  # OIDC: Keycloak shows its login page in this language
         response = RedirectResponse(url, status_code=303)
         _cookie(response, LOGIN_COOKIE, state, LOGIN_TTL_S)
         return response
