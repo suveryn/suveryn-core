@@ -49,7 +49,7 @@ browser (chat-ui) ──► api-gateway ──► POST /v1/documents ──► D
                                           └─► chat.ChatService ──► Rag.passages ──► numbered excerpts ("complete text" or "best matches")
                                                               ──► engine.LlamaServerClient ──► llama-server (Qwen3.8-27B)
                                                               ──► chat.calc: [[calc: …]] markers replaced by exact results as the answer streams
-                                          ◄── SSE: delta… then done {answer with [n], citations[n-1], calculations} | error
+                                          ◄── SSE: status… (searching, loading_model, reading, writing), delta… then done {answer with [n], citations[n-1], calculations} | error
 ```
 
 Sign-in (OpenID Connect, [`auth.py`](../packages/api-gateway/src/suveryn_api_gateway/auth.py)):

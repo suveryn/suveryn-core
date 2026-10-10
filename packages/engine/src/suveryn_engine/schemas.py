@@ -121,6 +121,21 @@ class StreamDelta(BaseModel):
     text: str
 
 
+class StreamStatus(BaseModel):
+    """What the server is doing before the answer's first word (SSE event ``status``).
+
+    Each step is a real stage of the pipeline, so the UI can say so truthfully:
+    ``searching`` the documents, ``loading_model`` (a switched-to model is being loaded into the
+    GPU), ``reading`` the passages (the model processes them; ``passages``, and ``complete`` when
+    they are the documents' whole text), ``writing`` (a plain answer is being prepared).
+    """
+
+    step: Literal["searching", "loading_model", "reading", "writing"]
+    passages: int | None = None
+    complete: bool | None = None
+    model: str | None = None
+
+
 class StreamError(BaseModel):
     """Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,
     document search is unavailable, or an unexpected server error occurred (reported generically)."""

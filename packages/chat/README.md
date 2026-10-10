@@ -4,7 +4,7 @@ Turns a conversation into an answer: either a plain model answer, or one grounde
 
 | Module | Contents |
 |---|---|
-| `service.py` | `ChatService`: `answer()` (whole answer) and `answer_stream()` (`Delta` events, then one `Done`) |
+| `service.py` | `ChatService`: `answer()` (whole answer) and `answer_stream()` (`Status` events for each pipeline step, `Delta` events, then one `Done`) |
 | `grounding.py` | Prompt assembly for grounded answers, and citation-marker parsing |
 | `calc.py` | Server-side arithmetic: replaces `[[calc: …]]` markers with exact results and checks their figures (see [Calculations](#calculations)) |
 

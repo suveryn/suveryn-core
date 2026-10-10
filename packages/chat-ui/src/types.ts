@@ -1,5 +1,5 @@
 /** UI-side types for the conversation: turns and attachments. Wire types are in api.ts. */
-import type { Calculation, Citation, JobStatus } from "./api";
+import type { Calculation, Citation, JobStatus, StreamStatus } from "./api";
 
 /** A file attached to the user's turn. Lives on the user's message, never on the reply. */
 export type Attachment = {
@@ -22,6 +22,7 @@ export type AssistantTurn = {
   citations: Citation[];
   calculations?: Calculation[];
   status: "streaming" | "done" | "error";
+  step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents
   error?: string;
   model?: string;
