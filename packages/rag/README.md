@@ -11,6 +11,7 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
      - born-digital pages whose images cover at least 10% of the page, such as a pasted-in scan.
 
      `redo_ocr` keeps visible digital text exactly and reads only what is drawn as an image. Small images (logos, signatures, stamps; 1–5% of a page) don't trigger OCR, so text inside them is not read.
+   - **Digitally signed PDFs and PDFs with form fields** (common for deeds) are OCR'd from a private copy with the form flattened: each field's visible content stays on the page, the form and the signature are dropped from that copy. OCRmyPDF refuses such files otherwise. The uploaded original is never changed, and sūveryn does not check signatures.
    - [Docling](https://github.com/docling-project/docling) then reads the text layer with `do_ocr=False`, running only its layout and table models on the GPU.
 2. **Chunking (`chunking.py`)** uses Docling's HybridChunker (384 tokens). Each chunk keeps the pages it comes from (`page_start`, `page_end`) and its section headings.
 3. **Embeddings (`embed.py`)** use [`BAAI/bge-m3`](https://huggingface.co/BAAI/bge-m3) (1024 dimensions, multilingual), in fp16 on the GPU.
