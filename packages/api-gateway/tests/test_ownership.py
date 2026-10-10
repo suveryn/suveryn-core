@@ -7,10 +7,9 @@ document service fails the test if the gateway ever asks it to read another owne
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-
 from suveryn_api_gateway.app import LOCAL_OWNER, create_app, owner_of
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
-from suveryn_engine import LLMSettings, LlamaServerClient
+from suveryn_engine import LlamaServerClient, LLMSettings
 from test_auth import SETTINGS, FakeKeycloak
 from test_documents import DOC, FakeDocuments, FakeJob, llm_transport
 
@@ -62,7 +61,7 @@ def test_upload_jobs_are_private(setup):
 
 def test_owner_is_the_keycloak_user_id_or_local_when_sign_in_is_off():
     class Req:
-        class state:  # noqa: N801
+        class state:
             user = None
     assert owner_of(Req) == LOCAL_OWNER
     Req.state.user = type("U", (), {"sub": ALICE})()
