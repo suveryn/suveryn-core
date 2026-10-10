@@ -3,11 +3,12 @@
  * progress and failed uploads). A document in needs_review is usable but names the pages to check.
  * Deleting a conversation or a document asks for confirmation first.
  */
-import { AlertTriangle, FileText, Loader2, LogOut, MessageSquare, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, BarChart3, FileText, Loader2, LogOut, MessageSquare, Plus, Shield, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { reviewPages, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
+import { compact } from "../lib/usage";
 import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 import { LanguagePicker } from "./LanguagePicker";
@@ -28,12 +29,16 @@ type Props = {
   historyNote: string | null;   // why conversations aren't saved, if they aren't
   onOpenConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  tokensToday: number | null;   // the user's own tokens today; null when usage isn't available
+  onOpenUsage: () => void;
+  admin: boolean;               // shows the administration link
+  onOpenAdmin: () => void;
 };
 
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
 export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
                          user, onSignOut, conversations, currentConversation, historyNote, onOpenConversation,
-                         onDeleteConversation }: Props) {
+                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin }: Props) {
   const m = useT();
   const [confirming, setConfirming] = useState<string | null>(null);
   return (
@@ -124,6 +129,16 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
           <span className="user-name" title={user.username}>{user.name}</span>
           <button type="button" className="link" onClick={onSignOut}><LogOut size={14} aria-hidden /> {m.signOut}</button>
         </div>
+        {tokensToday !== null && (
+          <button type="button" className="link usage-counter" onClick={onOpenUsage} title={m.tokensTodayTitle}>
+            <BarChart3 size={14} aria-hidden /> {m.tokensToday(compact(tokensToday))}
+          </button>
+        )}
+        {admin && (
+          <button type="button" className="link usage-counter" onClick={onOpenAdmin}>
+            <Shield size={14} aria-hidden /> {m.administration}
+          </button>
+        )}
         <LanguagePicker />
         <p className="caption">{m.staysOnServer}</p>
       </div>

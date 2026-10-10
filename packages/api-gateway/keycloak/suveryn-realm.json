@@ -31,6 +31,17 @@
   "internationalizationEnabled": true,
   "supportedLocales": ["en", "nl", "fr"],
   "defaultLocale": "en",
+  "roles": {
+    "realm": [
+      {
+        "name": "suveryn-admin",
+        "description": "Sūveryn administrator: the office's token usage per user and the notional-cost rates (suveryn-tracker#7)"
+      }
+    ]
+  },
+  "scopeMappings": [
+    { "client": "suveryn-chat", "roles": ["suveryn-admin"] }
+  ],
   "identityProviders": [],
   "identityProviderMappers": [],
   "clients": [

@@ -93,6 +93,49 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .language select { font: inherit; color: var(--text); background: transparent; border: 1px solid var(--line);
                    border-radius: var(--radius-sm); padding: 2px var(--space-1); cursor: pointer; }
 
+/* usage and administration views (suveryn-tracker#7) */
+.usage-counter { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim);
+                 text-decoration: none; padding: 0; font-size: 12px; align-self: flex-start; }
+.usage-counter:hover { text-decoration: underline; color: var(--text); }
+.view { display: flex; flex-direction: column; gap: var(--space-4); padding-block: var(--space-6); }
+.view-head { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+.view-head h1 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: 22px; }
+.view-head .link { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 13px; }
+.view-intro { margin: 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; max-width: 68ch; }
+.view h2.label { margin: var(--space-2) 0 0; }
+.tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--line); }
+.tab { padding: var(--space-2) 0; font-size: 13.5px; font-weight: 600; border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
+.range { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.segmented button { background: none; border: none; padding: 6px var(--space-3); font: inherit; font-size: 13px;
+                    color: var(--text); cursor: pointer; border-right: 1px solid var(--line); }
+.segmented button:last-child { border-right: none; }
+.segmented button.on { background: var(--surface-alt); font-weight: 600; }
+.range-dates { display: inline-flex; flex-wrap: wrap; gap: var(--space-3); font-size: 13px; color: var(--text-dim); }
+.range-dates input, .rates input, .rates select { font: inherit; color: var(--text); background: var(--bg);
+                    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px var(--space-2); }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); margin: 0; }
+.totals div { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); }
+.totals dt { font-size: 12px; color: var(--text-dim); }
+.totals dd { margin: var(--space-1) 0 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart { margin: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 140px; border-bottom: 1px solid var(--line); }
+.bar { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; }
+.bar i { display: block; width: 100%; min-height: 0; background: var(--teal-ink); border-radius: 2px 2px 0 0; } /* teal-ink: 3:1 or more for a graphic */
+.bar:hover i { background: var(--text); }
+.chart figcaption { display: flex; justify-content: space-between; margin: 0; }
+.table-wrap { overflow-x: auto; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.usage-table th, .usage-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.usage-table th:first-child, .usage-table thead th:first-child { text-align: left; font-weight: 500; }
+.usage-table thead th { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+.rates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); border-top: 1px solid var(--line);
+         padding-top: var(--space-4); margin-top: var(--space-2); }
+.rates h2 { flex-basis: 100%; }
+.rates label { display: flex; flex-direction: column; gap: var(--space-1); font-size: 12px; color: var(--text-dim); }
+.rates input { width: 9em; }
+.rates .caption, .rates .notice { flex-basis: 100%; margin: 0; }
+
 /* sign-in screen */
 .signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
           gap: var(--space-6); padding: var(--space-6) var(--space-4); text-align: center; background: var(--bg); }
