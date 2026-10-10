@@ -266,6 +266,7 @@ def test_sign_in_can_be_off_only_on_loopback(monkeypatch):
 
 def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     realm = json.loads(REALM.read_text())
+    assert realm["displayName"] == "sūveryn"  # used mid-sentence ("Sign in to sūveryn"): lower case
     assert realm["identityProviders"] == [] and realm["identityProviderMappers"] == []  # no social/online IdPs
     assert realm["registrationAllowed"] is False and realm["bruteForceProtected"] is True
     assert realm["otpPolicyType"] == "totp" and "requiredActions" not in realm  # TOTP available, not forced
