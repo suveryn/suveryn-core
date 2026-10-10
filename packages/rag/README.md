@@ -30,6 +30,8 @@ Real deeds showed that text can disappear between the PDF and the stored chunks.
 
 Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings` (page, kind, detail). `suveryn-ingest` prints both.
 
+Every document has an **owner**, the uploader's Keycloak user id. The document service only lists, retrieves and deletes the caller's own documents, and de-duplicates by file hash per owner. `suveryn-retrieve` and `suveryn-forget` are operator tools on the server and are not limited by owner.
+
 PostgreSQL and pgvector are provisioned outside this repository (by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance)). This package only connects to them, and creates its own tables.
 
 ## Confidential data
@@ -53,7 +55,7 @@ It loads bge-m3, its tokenizer and Docling's layout and table models exactly as 
 ```bash
 uv sync --locked --all-packages
 export SUVERYN_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/suveryn
-uv run suveryn-ingest deed.pdf
+uv run suveryn-ingest deed.pdf --owner <keycloak-user-id>   # without --owner: visible to no chat user
 uv run suveryn-retrieve "In welke rang wordt de hypotheek gevestigd?" -k 5 [--document <id>]
 uv run suveryn-forget <document-id>
 ```

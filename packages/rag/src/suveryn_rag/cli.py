@@ -15,13 +15,15 @@ def ingest_main() -> None:
     """``suveryn-ingest file.pdf [...]``: ingest PDFs; print id, status, warnings and timings per file (no text)."""
     ap = argparse.ArgumentParser(prog="suveryn-ingest", description="Extract, chunk, embed and store PDF documents.")
     ap.add_argument("pdf", nargs="+")
+    ap.add_argument("--owner", help="Keycloak user id (sub) the documents belong to; without it they are "
+                                    "visible to no user in the chat, only to these operator tools")
     a = ap.parse_args()
     from .pipeline import Rag
 
     rag = Rag(RagSettings.from_env())
     try:
         for p in a.pdf:
-            r = rag.ingest(p)
+            r = rag.ingest(p, owner=a.owner)
             print(json.dumps({"document_id": str(r.document_id), "filename": r.filename, "pages": r.pages,
                               "ocr_pages": r.ocr_pages, "mixed_pages": r.mixed_pages, "chunks": r.chunks, "already_present": r.already_present,
                               "status": r.status, "warnings": [{k: w[k] for k in ("page", "kind", "detail")} for w in r.warnings],

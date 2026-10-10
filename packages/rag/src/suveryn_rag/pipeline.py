@@ -91,7 +91,7 @@ class Rag:
         """Close the database connection."""
         self.store.close()
 
-    def ingest(self, pdf: Path, filename: str | None = None) -> IngestResult:
+    def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None) -> IngestResult:
         """Extract, chunk, embed and store one PDF; return its id, status and warnings.
 
         Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
@@ -103,7 +103,7 @@ class Rag:
         pdf = Path(pdf)
         name = filename or pdf.name
         digest = sha256_of(pdf)
-        existing = self.store.find_by_sha256(digest)
+        existing = self.store.find_by_sha256(digest, owner)  # the owner's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
             return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
@@ -116,7 +116,7 @@ class Rag:
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()
-        doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
+        doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings, owner)
         ex.timings["store"] = time.perf_counter() - t
         status, warnings = self.store.document_status(doc_id)
         return IngestResult(doc_id, name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,

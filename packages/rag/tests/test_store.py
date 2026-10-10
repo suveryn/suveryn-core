@@ -57,3 +57,29 @@ def test_short_fragments_are_not_vector_hits_and_whole_documents_read_in_order()
     finally:
         store.delete_document(doc)
         store.close()
+
+
+def test_documents_are_isolated_per_owner():
+    """suveryn-tracker#3: listing, ownership, deletion and de-duplication are per owner."""
+    store = Store(URL, DIM)
+    sha = f"sha-{os.getpid()}-{np.random.randint(1 << 30)}"
+    alice, bob = f"alice-{sha}", f"bob-{sha}"
+    chunk = [Chunk(0, "text of the deed", "text of the deed", 1, 1, [])]
+    a = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=alice)
+    legacy = store.add_document("old.pdf", sha + "-legacy", 1, 0, chunk, np.stack([unit(2)]))  # no owner
+    try:
+        assert [d["id"] for d in store.list_documents(alice)] == [a]
+        assert store.list_documents(bob) == []
+        assert store.owned([a], alice) == {a} and store.owned([a], bob) == set()
+        assert store.owned([legacy], alice) == set()  # documents without an owner are nobody's
+        # the same file is de-duplicated per owner only: Bob never gets Alice's document back
+        assert store.find_by_sha256(sha, alice) == a and store.find_by_sha256(sha, bob) is None
+        b = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=bob)
+        assert b != a and store.owned([b], bob) == {b}
+        assert not store.delete_document(a, bob)  # someone else's
+        assert store.owned([a], alice) == {a}
+        assert store.delete_document(b, bob)
+    finally:
+        store.delete_document(a)
+        store.delete_document(legacy)
+        store.close()

@@ -15,6 +15,12 @@ loss (uploads, and ``doc-*`` OCR work folders) are deleted when the service star
 kept in memory (jobs, for ``JOB_RETENTION_S`` after they finish) and in the database (documents);
 they can be personal data.
 
+Ownership: every upload, job and document belongs to the user who uploaded it (the Keycloak user
+id the gateway passes as ``owner``). Listing, job status, deletion and retrieval only ever see the
+caller's own; another user's document is answered exactly like a missing one. De-duplication by
+content hash is per owner too, so uploading a file someone else stored creates your own copy
+instead of handing you theirs.
+
 Database connections are reopened once after a connection error (e.g. PostgreSQL restarted); if
 that fails too, ``SearchUnavailable`` is raised, which the gateway reports as 503.
 """
@@ -45,16 +51,24 @@ class UploadRejected(ValueError):
         self.status = status
 
 
+class DocumentNotFound(LookupError):
+    """A requested document doesn't exist or belongs to another user (deliberately the same answer)."""
+
+
 class SearchUnavailable(RuntimeError):
     """The database can't be reached, even after reconnecting."""
 
 
 @dataclass
 class Job:
-    """One uploaded document on its way into the store. Holds no document text."""
+    """One uploaded document on its way into the store. Holds no document text.
+
+    ``owner`` is the uploader (Keycloak user id); it is not part of ``public()``.
+    """
 
     id: str
     filename: str
+    owner: str
     status: str = "queued"  # queued | processing | ready | needs_review | failed
     document_id: str | None = None
     error: str | None = None
@@ -67,7 +81,9 @@ class Job:
 
     def public(self) -> dict:
         """The job as JSON for the API (no document text; the file name may be personal data)."""
-        return asdict(self)
+        out = asdict(self)
+        out.pop("owner")
+        return out
 
 
 def job_status(document_status: str) -> str:
@@ -111,7 +127,7 @@ class DocumentService:
             job, path = self._queue.get()
             job.status = "processing"
             try:
-                r = self._ingest.ingest(path, filename=job.filename)  # the file on disk has a random name
+                r = self._ingest.ingest(path, filename=job.filename, owner=job.owner)  # the file on disk has a random name
                 # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
                 job.document_id, job.status = str(r.document_id), job_status(r.status)
                 job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
@@ -130,11 +146,11 @@ class DocumentService:
             shutil.rmtree(leftover, ignore_errors=True)
 
     # ------------------------------------------------------------------ uploads and jobs
-    def accept_upload(self, src: BinaryIO, filename: str) -> Job:
-        """Store an uploaded PDF privately and queue it. Raises ``UploadRejected``."""
+    def accept_upload(self, src: BinaryIO, filename: str, owner: str) -> Job:
+        """Store an uploaded PDF privately and queue it for ``owner``. Raises ``UploadRejected``."""
         self._uploads.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(self._uploads, 0o700)
-        job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200])
+        job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner)
         path = self._uploads / f"{job.id}.pdf"
         size = 0
         try:
@@ -164,16 +180,18 @@ class DocumentService:
         for job_id in [j.id for j in self._jobs.values() if j.finished_at and j.finished_at < cutoff]:
             del self._jobs[job_id]
 
-    def job(self, job_id: str) -> Job | None:
-        """A job by id, or None if unknown or already forgotten."""
+    def job(self, job_id: str, owner: str) -> Job | None:
+        """The owner's job by id, or None if unknown, someone else's, or already forgotten."""
         with self._jobs_lock:
-            return self._jobs.get(job_id)
+            job = self._jobs.get(job_id)
+            return job if job is not None and job.owner == owner else None
 
-    def pending_jobs(self) -> list[Job]:
-        """Jobs not yet in the store: queued, processing, or failed."""
+    def pending_jobs(self, owner: str) -> list[Job]:
+        """The owner's jobs not yet in the store: queued, processing, or failed."""
         with self._jobs_lock:
             self._prune()
-            return [j for j in self._jobs.values() if j.status in ("queued", "processing", "failed")]
+            return [j for j in self._jobs.values()
+                    if j.owner == owner and j.status in ("queued", "processing", "failed")]
 
     # ------------------------------------------------------------------ stored documents and search
     def _require_ready(self):
@@ -198,21 +216,35 @@ class DocumentService:
                         raise SearchUnavailable("the document database can't be reached") from again
                     raise
 
-    def documents(self) -> list[dict]:
-        """Every stored document (no text): id, file name, pages, status, warnings, chunks, created."""
-        return self._with_search(lambda rag: rag.store.list_documents())
+    def documents(self, owner: str) -> list[dict]:
+        """The owner's stored documents (no text): id, file name, pages, status, warnings, chunks, created."""
+        return self._with_search(lambda rag: rag.store.list_documents(owner))
 
-    def delete(self, document_id: str) -> bool:
-        """Delete a stored document and its passages; False if it doesn't exist."""
-        return self._with_search(lambda rag: rag.forget(uuid.UUID(document_id)))
+    def delete(self, document_id: str, owner: str) -> bool:
+        """Delete the owner's document and its passages; False if it doesn't exist or isn't theirs."""
+        return self._with_search(lambda rag: rag.store.delete_document(uuid.UUID(document_id), owner))
 
-    def retrieve(self, question: str, document_ids: list[str], k: int) -> tuple[list[tuple[Citation, str]], bool]:
+    def owns(self, document_ids: list[str], owner: str) -> bool:
+        """True if every one of these documents exists and belongs to ``owner``."""
+        ids = [uuid.UUID(d) for d in document_ids]
+        return self._with_search(lambda rag: rag.store.owned(ids, owner)) == set(ids)
+
+    def retrieve(self, question: str, document_ids: list[str], k: int,
+                 owner: str) -> tuple[list[tuple[Citation, str]], bool]:
         """Passages to answer from, as (citation, file name), and whether they are the complete documents.
 
-        Small documents are given whole; larger ones give the ``k`` best search hits (``Rag.passages``).
+        Only the owner's documents: if any id isn't theirs (or doesn't exist), ``DocumentNotFound``
+        is raised before anything is read, so another user's text never reaches the prompt. Small
+        documents are given whole; larger ones give the ``k`` best search hits (``Rag.passages``).
         """
         ids = [uuid.UUID(d) for d in document_ids]
-        hits, complete = self._with_search(lambda rag: rag.passages(question, ids, k))
+
+        def owned_passages(rag):
+            if rag.store.owned(ids, owner) != set(ids):
+                raise DocumentNotFound("unknown document")
+            return rag.passages(question, ids, k)
+
+        hits, complete = self._with_search(owned_passages)
         return [(h.citation, h.filename) for h in hits], complete
 
     def stop(self) -> None:
