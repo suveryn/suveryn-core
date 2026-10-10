@@ -31,6 +31,7 @@ import { AdminView, UsageView } from "./components/UsageView";
 import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, newConversationId, toSaved } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
+import { claimRedirect, clearRedirect } from "./lib/signin";
 import { useT } from "./i18n";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
@@ -40,25 +41,31 @@ let counter = 0;
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
 
 /**
- * Sign-in gate: shows the sign-in screen until the gateway reports a signed-in user, and again
- * when a session ends (any API call answering 401). The chat itself only mounts when signed in.
+ * Sign-in gate. Signed out on arrival (first visit, after signing out): straight to Keycloak's
+ * login page, in the interface language (lib/signin.ts). The sign-in screen shows only when a
+ * session ends while working (any API call answering 401), when sign-in is unavailable, or when a
+ * sign-in didn't complete. The chat itself only mounts when signed in.
  */
 export default function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined); // undefined: still checking
   const [ended, setEnded] = useState(false);
   const [unavailable, setUnavailable] = useState<string | null>(null);
+  const [stuck, setStuck] = useState(false); // came back signed out right after a redirect
 
   useEffect(() => {
     onSignedOut(() => { setEnded(true); setMe(null); });
-    getMe().then(setMe).catch((e: Error) => { setUnavailable(e.message); setMe(null); });
+    getMe().then((user) => {
+      if (user) { clearRedirect(); setMe(user); return; }
+      if (claimRedirect()) signIn(); else { setStuck(true); setMe(null); }
+    }).catch((e: Error) => { setUnavailable(e.message); setMe(null); });
   }, []);
 
-  if (me === undefined) return null;
-  if (me === null) return <SignIn ended={ended} unavailable={unavailable} />;
+  if (me === undefined) return null; // checking, or on the way to the login page
+  if (me === null) return <SignIn ended={ended} unavailable={unavailable} stuck={stuck} />;
   return <Chat me={me} />;
 }
 
-function SignIn({ ended, unavailable }: { ended: boolean; unavailable: string | null }) {
+function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: string | null; stuck: boolean }) {
   const m = useT();
   return (
     <main className="signin">
@@ -66,6 +73,8 @@ function SignIn({ ended, unavailable }: { ended: boolean; unavailable: string | 
       <h1>{TAGLINE}</h1>
       {ended && <p className="notice"><AlertCircle size={14} aria-hidden />
         {m.sessionEnded}</p>}
+      {stuck && !ended && <p className="notice"><AlertCircle size={14} aria-hidden />
+        {m.signInIncomplete}</p>}
       {unavailable
         ? <p className="notice notice-error"><AlertCircle size={14} aria-hidden /> {m.signInUnavailable(unavailable)}</p>
         : <button type="button" className="button-primary" onClick={signIn}><LogIn size={16} aria-hidden /> {m.signIn}</button>}
