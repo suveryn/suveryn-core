@@ -8,6 +8,7 @@ dependencies = [
     "suveryn-engine",
     "docling>=2.40",
     "ocrmypdf>=16.0",
+    "pikepdf>=10.0",  # flattening forms and signatures in a private copy before OCR (extract.without_form)
     "pypdfium2>=5.0",
     "sentence-transformers>=3.0",
     "psycopg[binary]>=3.2",

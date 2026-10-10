@@ -11,7 +11,8 @@ def test_excerpts_first_question_last_history_kept():
     msgs = grounded_messages(history, "Wat is de koopprijs?", [cit("De koopprijs bedraagt EUR 412.500,00.", 2)], ["akte.pdf"])
     assert [m.role for m in msgs] == ["system", "user", "assistant", "user"]
     last = msgs[-1].content
-    assert last.startswith("EXCERPTS (the passages of the documents that best match the question; not the whole text):\n"
+    assert last.startswith("EXCERPTS (the passages of the documents that best match the question, in reading order; "
+                           "not the whole text):\n"
                            "[1] (akte.pdf, p. 2 · Artikel 2)\nDe koopprijs bedraagt EUR 412.500,00.")
     assert last.endswith("QUESTION: Wat is de koopprijs?")
 

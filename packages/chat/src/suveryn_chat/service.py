@@ -17,10 +17,12 @@ from .grounding import cited_numbers, grounded_messages
 # (question, document_ids, k, owner) -> ([(citation, filename), ...], complete). The retriever must
 # refuse documents that don't belong to ``owner``. ``complete`` is True when
 # the passages are the documents' whole text in reading order (small documents), False when they
-# are the ``k`` best search hits, best first.
+# are a selection: the best-matching passages that fit the whole-document budget, at least ``k``.
 Retriever = Callable[[str, list[str], int, str], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
 
-PASSAGES = 6  # search hits for larger documents: the right passage was in the top 3 for all 19 real-deed questions
+# The fewest passages a larger document gives (the budget usually allows far more): the right passage
+# was in the top 3 for all 19 real-deed questions.
+PASSAGES = 6
 
 
 @dataclass
