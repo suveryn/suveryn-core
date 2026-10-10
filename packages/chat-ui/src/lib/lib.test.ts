@@ -9,6 +9,7 @@ import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
 import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved } from "./conversations";
 import { rangeFor, today } from "./usage";
+import { LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { reviewPages } from "../api";
 import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
@@ -254,5 +255,13 @@ describe("usage periods (suveryn-tracker#7)", () => {
   });
   it("today starts at local midnight", () => {
     expect(today(now)).toEqual({ start: new Date(2026, 9, 10) });
+  });
+});
+
+describe("straight to the login page", () => {
+  it("redirects, but not again within a minute (a sign-in that didn't complete would loop)", () => {
+    expect(shouldRedirect(1_000_000, null)).toBe(true);
+    expect(shouldRedirect(1_000_000, 1_000_000 - 5_000)).toBe(false);
+    expect(shouldRedirect(1_000_000, 1_000_000 - LOOP_WINDOW_MS - 1)).toBe(true);
   });
 });
