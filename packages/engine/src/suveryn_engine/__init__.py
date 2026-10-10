@@ -8,6 +8,7 @@ from .schemas import (
     ChatRequest,
     ChatResponse,
     Citation,
+    ModelInfo,
     SourceRef,
     StreamDelta,
     StreamError,
@@ -16,5 +17,5 @@ from .schemas import (
 
 __all__ = [
     "BackendError", "BackendHealth", "Calculation", "ChatMessage", "ChatRequest", "ChatResponse", "Citation",
-    "LLMSettings", "LlamaServerClient", "SourceRef", "StreamChunk", "StreamDelta", "StreamError", "Usage",
+    "LLMSettings", "LlamaServerClient", "ModelInfo", "SourceRef", "StreamChunk", "StreamDelta", "StreamError", "Usage",
 ]

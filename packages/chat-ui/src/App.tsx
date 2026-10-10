@@ -14,7 +14,8 @@ import { AlertCircle, LogIn } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
-  getMe, onSignedOut, signIn, signOut, type Health, type Job, type Me, type StoredDocument, type WireMessage,
+  getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
+  type WireMessage,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
@@ -63,6 +64,8 @@ function SignIn({ ended, unavailable }: { ended: boolean; unavailable: string | 
 
 function Chat({ me }: { me: Me }) {
   const [health, setHealth] = useState<Health | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [chosenModel, setChosenModel] = useState<string | null>(null); // null: the appliance default
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -85,7 +88,11 @@ function Chat({ me }: { me: Me }) {
 
   useEffect(() => {
     let alive = true;
-    const tick = async () => { const h = await getHealth(); if (alive) setHealth(h); };
+    const tick = async () => {
+      const h = await getHealth();
+      if (alive) setHealth(h);
+      try { const m = await listModels(); if (alive) setModels(m); } catch { /* the health check explains why */ }
+    };
     tick();
     const t = setInterval(tick, 10000);
     return () => { alive = false; clearInterval(t); };
@@ -172,7 +179,7 @@ function Chat({ me }: { me: Me }) {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
         update({ text: streamed });
-      }, abort.current.signal);
+      }, abort.current.signal, chosenModel);
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [], status: "done", model: done.model });
     } catch (e) {
       // Gateway contract: after an error, discard any partial answer.
@@ -180,6 +187,7 @@ function Chat({ me }: { me: Me }) {
     } finally {
       setBusy(false);
       abort.current = null;
+      listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
   };
 
@@ -226,7 +234,7 @@ function Chat({ me }: { me: Me }) {
           )}
           <div ref={endRef} />
         </div>
-        <Composer attachments={pending} model={health?.backend.model ?? null} busy={busy}
+        <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
                   disabledReason={disabledReason}
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem("Documents can't be added right now: document handling isn't available on this server."))}
