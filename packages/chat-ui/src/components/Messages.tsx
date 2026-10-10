@@ -201,7 +201,7 @@ function CalculationNote({ calc }: { calc: Calculation }) {
 }
 
 /**
- * The working indicator (suveryn-tracker#6): three small rounded squares, echoing the brand mark,
+ * The working indicator (suveryn-tracker#6): three small outlined rounded squares, like the brand mark,
  * bouncing in turn. Neutral colour; still for people who prefer reduced motion.
  */
 function WaitingDots() {
