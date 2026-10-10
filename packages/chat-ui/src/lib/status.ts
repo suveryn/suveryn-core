@@ -3,22 +3,23 @@
  * reports in a `status` event; nothing is shown that the pipeline isn't actually doing.
  */
 import type { StreamStatus } from "../api";
+import { t } from "../i18n";
 import { modelName } from "./model";
 
 export function statusText(status: StreamStatus | undefined): string | null {
   if (!status) return null;
+  const m = t();
   switch (status.step) {
     case "searching":
-      return "Searching your documents…";
+      return m.statusSearching;
     case "reading": {
-      const n = status.passages ?? 0;
-      const passages = `${n} ${n === 1 ? "passage" : "passages"}`;
-      return status.complete ? `Reading your documents (${passages})…` : `Reading the ${passages} that best match your question…`;
+      const passages = m.passages(status.passages ?? 0);
+      return status.complete ? m.statusReadingAll(passages) : m.statusReadingBest(passages);
     }
     case "loading_model":
-      return `Loading ${modelName(status.model)?.full ?? "the model"}, which can take up to half a minute…`;
+      return m.statusLoading(modelName(status.model)?.full ?? null);
     case "writing":
-      return "Writing the answer…";
+      return m.statusWriting;
     default:
       return null;
   }
