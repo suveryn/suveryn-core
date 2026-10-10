@@ -12,10 +12,11 @@ from .schemas import (
     SourceRef,
     StreamDelta,
     StreamError,
+    StreamStatus,
     Usage,
 )
 
 __all__ = [
     "BackendError", "BackendHealth", "Calculation", "ChatMessage", "ChatRequest", "ChatResponse", "Citation",
-    "LLMSettings", "LlamaServerClient", "ModelInfo", "SourceRef", "StreamChunk", "StreamDelta", "StreamError", "Usage",
+    "LLMSettings", "LlamaServerClient", "ModelInfo", "SourceRef", "StreamChunk", "StreamDelta", "StreamError", "StreamStatus", "Usage",
 ]

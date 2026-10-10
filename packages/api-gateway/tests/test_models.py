@@ -29,6 +29,10 @@ def backend(router: bool, sent: list):
             return httpx.Response(200, json={"status": "ok"})
         body = json.loads(request.content)
         sent.append(body)
+        if body.get("stream"):
+            sse = ('data: {"choices": [{"delta": {"content": "Antwoord."}, "finish_reason": null}]}\n\n'
+                   'data: {"choices": [{"delta": {}, "finish_reason": "stop"}]}\n\ndata: [DONE]\n\n')
+            return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
         return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": "Antwoord."}, "finish_reason": "stop"}]})
     return httpx.MockTransport(handler)
 
@@ -74,3 +78,17 @@ def test_health_names_the_default_model_in_router_mode():
     """Not the first entry of the router's list (which may be an unloaded model)."""
     with client(True, []) as c:
         assert c.get("/health").json()["backend"]["model"] == QWEN
+
+
+def stream_events(c: TestClient, body: dict) -> list[tuple[str, dict]]:
+    with c.stream("POST", "/v1/chat", json={**body, "stream": True}) as r:
+        blocks = r.read().decode().strip().split("\n\n")
+    return [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in blocks]
+
+
+def test_stream_says_when_the_chosen_model_has_to_load_first():
+    """suveryn-tracker#6: the status names the real step; loading only when the model isn't loaded."""
+    with client(True, []) as c:
+        first = stream_events(c, {**CHAT, "model": MISTRAL})[0]
+        assert first == ("status", {"step": "loading_model", "passages": None, "complete": None, "model": MISTRAL})
+        assert stream_events(c, {**CHAT, "model": QWEN})[0][1]["step"] == "writing"  # already loaded

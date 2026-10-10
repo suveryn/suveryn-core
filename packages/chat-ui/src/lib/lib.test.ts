@@ -6,6 +6,7 @@ import {
 import { conversationHistory } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
+import { statusText } from "./status";
 import { reviewPages } from "../api";
 import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
@@ -167,5 +168,22 @@ describe("model picker", () => {
     const { loadingNote } = await import("../components/ModelPicker");
     expect(loadingNote(models, null)).toBeNull();
     expect(loadingNote(models, "mistral-small-3.2-24b")).toMatch(/^Mistral Small 3\.2 isn't loaded yet: .*other people's questions wait/);
+  });
+});
+
+describe("waiting status (suveryn-tracker#6)", () => {
+  const st = (o: object) => ({ step: "writing", passages: null, complete: null, model: null, ...o }) as never;
+  it("names the real pipeline step", () => {
+    expect(statusText(st({ step: "searching" }))).toBe("Searching your documents…");
+    expect(statusText(st({ step: "reading", passages: 6, complete: false }))).toBe("Reading the 6 passages that best match your question…");
+    expect(statusText(st({ step: "reading", passages: 1, complete: true }))).toBe("Reading your documents (1 passage)…");
+    expect(statusText(st({ step: "loading_model", model: "mistral-small-3.2-24b" })))
+      .toBe("Loading Mistral Small 3.2, which can take up to half a minute…");
+    expect(statusText(st({ step: "writing" }))).toBe("Writing the answer…");
+  });
+  it("never says something vague", () => {
+    expect(statusText(undefined)).toBeNull();
+    for (const step of ["searching", "reading", "loading_model", "writing"])
+      expect(statusText(st({ step }))).not.toMatch(/thinking/i);
   });
 });

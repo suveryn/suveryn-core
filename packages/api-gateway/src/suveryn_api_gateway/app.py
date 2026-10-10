@@ -39,7 +39,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from pydantic import BaseModel
-from suveryn_chat import ChatService, Delta, DocumentsUnavailable, Done
+from suveryn_chat import ChatService, Delta, DocumentsUnavailable, Done, Status
 from suveryn_engine import (
     BackendError,
     ChatRequest,
@@ -49,6 +49,7 @@ from suveryn_engine import (
     ModelInfo,
     StreamDelta,
     StreamError,
+    StreamStatus,
 )
 
 from .auth import (
@@ -427,13 +428,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
     """Translate the chat service's events into the gateway's SSE contract.
 
-    Event order: zero or more ``delta`` events, then exactly one of ``done`` (a complete
+    Event order: zero or more ``status`` events (pipeline steps before the first word: searching,
+    loading_model, reading, writing), zero or more ``delta`` events, then exactly one of ``done`` (a complete
     ``ChatResponse``, the same shape as the JSON answer, with citations) or ``error``. A client
     that saw ``delta`` events followed by ``error`` must discard the partial answer.
     """
     try:
         async for event in chat_service.answer_stream(req, owner):
-            if isinstance(event, Delta):
+            if isinstance(event, Status):
+                yield _sse("status", StreamStatus(step=event.step, passages=event.passages,
+                                                  complete=event.complete, model=event.model))
+            elif isinstance(event, Delta):
                 yield _sse("delta", StreamDelta(text=event.text))
             elif isinstance(event, Done):
                 yield _sse("done", event.response)

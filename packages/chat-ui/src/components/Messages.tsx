@@ -8,6 +8,7 @@ import { AlertCircle, Calculator, Check, ChevronDown, Copy, Download } from "luc
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation } from "../api";
 import { citedNumbers, toBlocks } from "../lib/answer";
+import { statusText } from "../lib/status";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
   sourcesDocument, sourcesMarkdown, type Format,
@@ -138,7 +139,9 @@ export function AssistantMessage({ turn, question, filenames }: {
                     aria-label={`Source ${s.n}: ${nameOf(turn.citations[s.n - 1])}`}>{s.n}</button>);
           return b.kind === "li" ? <li key={i}>{body}</li> : <p key={i}>{body}</p>;
         })}
-        {turn.status === "streaming" && <span className="caret" aria-hidden />}
+        {turn.status === "streaming" && (turn.text
+          ? <WaitingDots />                                              /* answer is arriving */
+          : <p className="waiting" role="status"><WaitingDots /><span>{statusText(turn.step) ?? "Sending your question…"}</span></p>)}
 
         {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
 
@@ -195,4 +198,12 @@ function CalculationNote({ calc }: { calc: Calculation }) {
       </span>
     </p>
   );
+}
+
+/**
+ * The working indicator (suveryn-tracker#6): three small outlined rounded squares, like the brand mark,
+ * bouncing in turn. Neutral colour; still for people who prefer reduced motion.
+ */
+function WaitingDots() {
+  return <span className="waiting-dots" aria-hidden><i /><i /><i /></span>;
 }

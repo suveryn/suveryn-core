@@ -45,6 +45,13 @@ export type Health = {
   auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
 };
 export type Me = { username: string; name: string };
+/** A pipeline step the server reports before the answer's first word (SSE event `status`). */
+export type StreamStatus = {
+  step: "searching" | "loading_model" | "reading" | "writing";
+  passages: number | null;
+  complete: boolean | null;
+  model: string | null;
+};
 /** An installed model (GET /v1/models); only one is in GPU memory at a time. */
 export type ModelInfo = { id: string; loaded: boolean; default: boolean };
 
@@ -162,6 +169,7 @@ export async function streamChat(
   onDelta: (text: string) => void,
   signal?: AbortSignal,
   model?: string | null,          // an id from listModels(); null or undefined: the default model
+  onStatus?: (status: StreamStatus) => void,
 ): Promise<ChatResponse> {
   const r = await fetch("/v1/chat", {
     method: "POST",
@@ -174,7 +182,8 @@ export async function streamChat(
   let failure: string | null = null;
   const parser = createSSEParser(({ event, data }) => {
     const payload = JSON.parse(data);
-    if (event === "delta") onDelta(payload.text);
+    if (event === "status") onStatus?.(payload as StreamStatus);
+    else if (event === "delta") onDelta(payload.text);
     else if (event === "done") done = payload as ChatResponse;
     else if (event === "error") failure = payload.message ?? "unknown error";
   });
