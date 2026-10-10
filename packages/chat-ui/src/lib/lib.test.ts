@@ -9,7 +9,7 @@ import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
 import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved } from "./conversations";
 import { rangeFor, today } from "./usage";
-import { LOOP_WINDOW_MS, shouldRedirect } from "./signin";
+import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { reviewPages } from "../api";
 import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
@@ -263,5 +263,12 @@ describe("straight to the login page", () => {
     expect(shouldRedirect(1_000_000, null)).toBe(true);
     expect(shouldRedirect(1_000_000, 1_000_000 - 5_000)).toBe(false);
     expect(shouldRedirect(1_000_000, 1_000_000 - LOOP_WINDOW_MS - 1)).toBe(true);
+  });
+});
+
+describe("one redirect per page load", () => {
+  it("a second call in the same page (React StrictMode runs effects twice) is not a loop", () => {
+    expect(claimRedirect(2_000_000)).toBe("go");
+    expect(claimRedirect(2_000_001)).toBe("started"); // not "stuck": no sign-in screen flash
   });
 });
