@@ -141,7 +141,7 @@ class BackendStatus(BaseModel):
 
     reachable: bool
     status: str  # "ok", "loading", "error" or "unreachable"
-    url: str
+    url: str | None = None  # not reported: /health is public (the server log has it)
     model: str | None = None
     detail: str | None = None
 
@@ -475,18 +475,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         """Report whether the model server is ready (and which model it serves) and whether documents work.
 
         200 when the model server is ready; 503 while it loads, fails or can't be reached. The
-        ``documents`` part doesn't affect the status code: chat works without it.
+        ``documents`` part doesn't affect the status code: chat works without it. Public (no sign-in),
+        so it gives states only: no internal addresses or error texts (those are in the server log).
         """
         llm: LlamaServerClient = request.app.state.llm
         h = await llm.health()
         docs = request.app.state.documents
         body = HealthResponse(
             status="ok" if h.status == "ok" else "degraded",
-            backend=BackendStatus(reachable=h.reachable, status=h.status, url=llm.settings.base_url,
-                                  model=h.model, detail=h.detail),
-            documents=DocumentsStatus(status="unavailable" if docs is None else docs.state,
-                                      detail=None if docs is None else docs.error),
-            auth=AuthStatus(**dict(zip(("status", "detail"), await authenticator.status(), strict=True))),
+            backend=BackendStatus(reachable=h.reachable, status=h.status, model=h.model),
+            documents=DocumentsStatus(status="unavailable" if docs is None else docs.state),
+            auth=AuthStatus(status=(await authenticator.status())[0]),
             history=request.app.state.history.status(),
             usage=request.app.state.usage.status(),
         )
