@@ -7,7 +7,7 @@ into ``ChatResponse.citations`` with ``source`` filled in (document, page, locat
 import hashlib
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from suveryn_engine import Citation, SourceRef
@@ -17,7 +17,14 @@ from suveryn_engine.guard import instruction_like
 from .chunking import Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
-from .integrity import IntegrityWarning
+from .integrity import (
+    LINE_BREAK_HYPHEN,
+    IntegrityWarning,
+    misdecoding,
+    ocr_noise,
+    repair_characters,
+    words,
+)
 from .isolation import make_extractor
 from .store import Store
 
@@ -44,9 +51,15 @@ class IngestResult:
 REREAD_RECOVERED_SHARE = 0.5
 
 
-def should_read_again(status: str, recovered_share: float) -> bool:
-    """Whether an upload of a file already stored should read it again instead of returning the stored copy."""
-    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE
+def misread(text: str) -> bool:
+    """Whether stored text still shows a misread encoding or line-break hyphens (stored before they were put right)."""
+    return misdecoding(text) is not None or LINE_BREAK_HYPHEN in text
+
+
+def should_read_again(status: str, recovered_share: float, misdecoded: bool = False) -> bool:
+    """Whether an upload of a file already stored should read it again instead of returning the stored copy:
+    also when it was stored with quotes read as Mac Roman or with OCR noise recovered (before either was handled)."""
+    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE or misdecoded
 
 
 @dataclass
@@ -124,13 +137,21 @@ class Rag:
         existing = self.store.find_by_sha256(digest, owner)  # the owner's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
-            if not should_read_again(status, self.store.recovered_share(existing)):
+            vocabulary = words(self.store.document_text(existing, recovered=False))
+            noisy = any(ocr_noise(line, vocabulary) for line in self.store.document_text(existing, recovered=True).splitlines())
+            if not should_read_again(status, self.store.recovered_share(existing),
+                                     misread(self.store.document_text(existing)) or noisy):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
+        # Characters read with the wrong encoding ("ŽŽn" for "één", "ÒwoordÓ"), and line-break hyphens: put right
+        # for the whole document, the encoding only when it clearly shows (see integrity.misdecoding).
+        how = misdecoding(" ".join(c.text + " " + " ".join(c.headings) for c in chunks))
+        chunks = [replace(c, text=repair_characters(c.text, how), embed_text=repair_characters(c.embed_text, how),
+                          headings=[repair_characters(h, how) for h in c.headings]) for c in chunks]
         # Text addressed to an AI ("ignore the instructions…"): a signal for the reader, not a block
         # (suveryn-tracker#21). It doesn't change the status: the text isn't missing.
         # Pages the layout model couldn't read (suveryn-tracker: GPU out of memory, 2026-10-11): their text
