@@ -205,6 +205,8 @@ const nl: Messages = {
     : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${foundIn.length > 1 ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
     : `Controleer bron ${n}: „${item}” staat er niet in.`,
   citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",
+  instructionLike: (sources) =>
+    `${sources.length > 1 ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst die zich tot een AI richt (zoals „negeer de instructies”). sūveryn heeft die als documentinhoud behandeld, niet als opdracht, maar controleer dit antwoord extra zorgvuldig in de documenten.`,
   sourcesHeading: "Bronnen vermeld door sūveryn",
   question: "Vraag",
   date: "Datum",

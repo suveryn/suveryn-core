@@ -11,10 +11,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from suveryn_engine import Citation, SourceRef
+from suveryn_engine.audit import audit
+from suveryn_engine.guard import instruction_like
 
 from .chunking import Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
+from .integrity import IntegrityWarning
 from .isolation import make_extractor
 from .store import Store
 
@@ -114,12 +117,20 @@ class Rag:
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
+        # Text addressed to an AI ("ignore the instructions…"): a signal for the reader, not a block
+        # (suveryn-tracker#21). It doesn't change the status: the text isn't missing.
+        suspicious = {page: kinds for page, text in enumerate(ex.page_texts, 1) if (kinds := instruction_like(text))}
+        result.warnings += [IntegrityWarning(page, "instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))
+                            for page, kinds in suspicious.items()]
         ex.timings["chunk"] = time.perf_counter() - t
         t = time.perf_counter()
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()
         doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings, owner)
+        if suspicious:
+            audit("instruction_like_document", user=owner, document=str(doc_id), pages=sorted(suspicious),
+                  kinds=sorted({k for kinds in suspicious.values() for k in kinds}))
         ex.timings["store"] = time.perf_counter() - t
         status, warnings = self.store.document_status(doc_id)
         return IngestResult(doc_id, name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,

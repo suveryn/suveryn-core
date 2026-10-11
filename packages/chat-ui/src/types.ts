@@ -24,6 +24,7 @@ export type AssistantTurn = {
   calculations?: Calculation[];
   unverifiedFigures?: string[]; // figures to check: in no source and not calculated by the server
   citationIssues?: CitationIssue[]; // facts a cited source doesn't contain (suveryn-tracker#11)
+  instructionLikeSources?: number[]; // passages given to the model whose text addresses an AI (suveryn-tracker#21)
   status: "streaming" | "done" | "error";
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents
