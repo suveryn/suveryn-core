@@ -18,6 +18,8 @@ This was 3.7-8x faster than letting Docling call Tesseract page by page (38-page
 report: 90 s -> 25 s on 8 cores).
 """
 
+import contextlib
+import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,6 +29,8 @@ import pypdfium2.raw as pdfium_c
 
 from .config import RagSettings
 from .workspace import private_workdir
+
+log = logging.getLogger("suveryn.rag")
 
 MIN_TEXT_CHARS = 50     # fewer extractable characters than this: treat the page as a scan
 # Raster images covering at least this share of a page that has digital text: OCR the images.
@@ -64,6 +68,9 @@ class Extraction:
     # only, for the page coverage check.
     page_texts: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
+    # Pages with text that Docling still couldn't lay out (after the CPU retry, see ``Extractor``): their
+    # text is recovered from the text layer, without structure, and the document needs review.
+    layout_failed_pages: list[int] = field(default_factory=list)
 
 
 def text_layer(pdf: Path) -> list[str]:
@@ -122,6 +129,42 @@ def plan_ocr(profiles: list[PageProfile]) -> list[int]:
     return [i + 1 for i, p in enumerate(profiles) if p.is_scan or p.is_mixed]
 
 
+def _gpu_out_of_memory(errors) -> bool:
+    return any("out of memory" in (getattr(e, "error_message", "") or "").lower() for e in errors)
+
+
+def unread_pages(document, page_texts: list[str]) -> list[int]:
+    """1-based pages that have a text layer but no text in the Docling document."""
+    read = {prov.page_no for item, _ in document.iterate_items(included_content_layers=None)
+            for prov in (getattr(item, "prov", None) or []) if getattr(item, "text", None)}
+    return [n for n, text in enumerate(page_texts, 1) if len(text.strip()) >= MIN_TEXT_CHARS and n not in read]
+
+
+def convert_with_fallback(source: Path, primary, cpu_converter, on_gpu: bool):
+    """(document, device used, errors left) for ``source``.
+
+    Docling doesn't raise when a page fails: it returns a partial result with those pages empty.
+    When the GPU is full (on a 24 GB card the chat model and the gateway leave too little when a
+    larger model is loaded), every page can fail with "CUDA out of memory", and only the text-layer
+    recovery saved the text, without structure (seen on the pod, 2026-10-11). So the result's status
+    is checked, and a GPU out-of-memory failure is retried on the CPU: slower, but complete.
+    """
+    from docling.datamodel.base_models import ConversionStatus
+
+    res = primary.convert(source, raises_on_error=False)
+    if res.status == ConversionStatus.SUCCESS:
+        return res.document, "cuda" if on_gpu else "cpu", []
+    if on_gpu and _gpu_out_of_memory(res.errors):
+        with contextlib.suppress(Exception):  # only frees GPU memory; the CPU retry doesn't depend on it
+            import torch
+
+            torch.cuda.empty_cache()
+        log.warning("layout on the GPU ran out of memory (%d errors); reading this document on the CPU", len(res.errors))
+        retry = cpu_converter().convert(source, raises_on_error=False)
+        return retry.document, "cpu", list(retry.errors)
+    return res.document, "cuda" if on_gpu else "cpu", list(res.errors)
+
+
 class Extractor:
     """Loads Docling's layout and table models once (on the GPU by default) and extracts PDFs.
 
@@ -140,11 +183,23 @@ class Extractor:
         from docling.document_converter import DocumentConverter, PdfFormatOption
 
         self.settings = settings
-        device = AcceleratorDevice.CUDA if settings.device == "cuda" else AcceleratorDevice.CPU
-        opts = PdfPipelineOptions(do_ocr=False, do_table_structure=True,
-                                  accelerator_options=AcceleratorOptions(device=device, num_threads=settings.ocr_jobs))
-        self._converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
-        self._converter.initialize_pipeline(InputFormat.PDF)
+
+        def converter(device):
+            opts = PdfPipelineOptions(do_ocr=False, do_table_structure=True,
+                                      accelerator_options=AcceleratorOptions(device=device, num_threads=settings.ocr_jobs))
+            conv = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
+            conv.initialize_pipeline(InputFormat.PDF)
+            return conv
+
+        self._on_gpu = settings.device == "cuda"
+        self._converter = converter(AcceleratorDevice.CUDA if self._on_gpu else AcceleratorDevice.CPU)
+        self._cpu = None  # made on the first GPU out-of-memory failure, then kept
+
+        def cpu_converter():
+            if self._cpu is None:
+                self._cpu = converter(AcceleratorDevice.CPU)
+            return self._cpu
+        self._cpu_converter = cpu_converter
 
     def extract(self, pdf: Path) -> Extraction:
         """Extract one PDF. The original file is only read; every intermediate file lives in a
@@ -175,8 +230,13 @@ class Extractor:
                              progress_bar=False, tesseract_timeout=180, invalidate_digital_signatures=True)
                 timings["ocr"] = time.perf_counter() - t
             t = time.perf_counter()
-            document = self._converter.convert(source).document
+            document, device, errors = convert_with_fallback(source, self._converter, self._cpu_converter, self._on_gpu)
             timings["layout"] = time.perf_counter() - t
+            timings["layout_on_cpu"] = float(self._on_gpu and device == "cpu")
             page_texts = text_layer(source)
+        failed = unread_pages(document, page_texts) if errors else []
+        if errors:
+            log.warning("layout failed on %d pages (%d errors)", len(failed), len(errors))
         return Extraction(document=document, pages=len(profiles), ocr_pages=len(to_ocr),
-                          mixed_pages=sum(p.is_mixed for p in profiles), page_texts=page_texts, timings=timings)
+                          mixed_pages=sum(p.is_mixed for p in profiles), page_texts=page_texts, timings=timings,
+                          layout_failed_pages=failed)
