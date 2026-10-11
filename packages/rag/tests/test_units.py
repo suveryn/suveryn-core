@@ -82,3 +82,72 @@ def test_offline_by_default_and_only_fetch_may_download(monkeypatch):
     monkeypatch.setenv("SUVERYN_ALLOW_DOWNLOADS", "1")
     offline.enforce()
     assert "HF_HUB_OFFLINE" not in os.environ and os.environ["HF_HUB_DISABLE_TELEMETRY"] == "1"
+
+
+# ---------------------------------------------------------------- the layout model running out of GPU memory
+# Seen on the pod, 2026-10-11: with a larger chat model loaded the GPU was full, Docling returned a
+# "partial success" with 11 pages failed on "CUDA out of memory", and only the text-layer recovery kept
+# the text (without structure, page headers included). The status is now checked, and retried on the CPU.
+
+class _Item:
+    def __init__(self, page, text="tekst"):
+        self.text, self.prov = text, [type("P", (), {"page_no": page})()]
+
+
+class _Doc:
+    def __init__(self, pages):
+        self.items = [_Item(p) for p in pages]
+
+    def iterate_items(self, included_content_layers=None):
+        return [(i, 0) for i in self.items]
+
+
+class _Result:
+    def __init__(self, status, pages, errors=()):
+        self.status, self.document = status, _Doc(pages)
+        self.errors = [type("E", (), {"error_message": e})() for e in errors]
+
+
+class _Converter:
+    def __init__(self, result):
+        self.result, self.calls = result, 0
+
+    def convert(self, source, raises_on_error=True):
+        assert raises_on_error is False  # a failed page must not raise: it's checked instead
+        self.calls += 1
+        return self.result
+
+
+def test_a_gpu_out_of_memory_layout_is_read_again_on_the_cpu():
+    pytest.importorskip("docling")
+    from docling.datamodel.base_models import ConversionStatus
+    from suveryn_rag.extract import convert_with_fallback
+
+    oom = ["CUDA out of memory. Tried to allocate 100.00 MiB."] * 11
+    gpu = _Converter(_Result(ConversionStatus.PARTIAL_SUCCESS, [4], oom))
+    cpu = _Converter(_Result(ConversionStatus.SUCCESS, range(1, 13)))
+    doc, device, errors = convert_with_fallback("x.pdf", gpu, lambda: cpu, on_gpu=True)
+    assert (device, errors, cpu.calls) == ("cpu", [], 1)
+    assert {i.prov[0].page_no for i in doc.items} == set(range(1, 13))
+
+    ok = _Converter(_Result(ConversionStatus.SUCCESS, [1, 2]))
+    never = _Converter(None)
+    assert convert_with_fallback("x.pdf", ok, lambda: never, on_gpu=True)[1:] == ("cuda", []) and never.calls == 0
+
+    other = _Converter(_Result(ConversionStatus.PARTIAL_SUCCESS, [1], ["unsupported image"]))
+    _, device, errors = convert_with_fallback("x.pdf", other, lambda: never, on_gpu=True)
+    assert device == "cuda" and len(errors) == 1 and never.calls == 0  # only out-of-memory is retried
+
+
+def test_pages_with_text_the_layout_model_missed_are_found():
+    from suveryn_rag.extract import unread_pages
+
+    texts = ["Een pagina met genoeg tekst om als tekstpagina te gelden, zeker." * 2] * 4 + ["5"]
+    assert unread_pages(_Doc([2]), texts) == [1, 3, 4]  # page 5 has (almost) no text layer: nothing to miss
+
+
+def test_layout_failures_put_the_document_in_review():
+    from suveryn_rag.integrity import IntegrityWarning
+
+    assert IntegrityWarning(3, "layout_failed", "x").needs_review
+    assert not IntegrityWarning(3, "instruction_like_text", "x").needs_review

@@ -119,6 +119,10 @@ class Rag:
         chunks = result.chunks
         # Text addressed to an AI ("ignore the instructions…"): a signal for the reader, not a block
         # (suveryn-tracker#21). It doesn't change the status: the text isn't missing.
+        # Pages the layout model couldn't read (suveryn-tracker: GPU out of memory, 2026-10-11): their text
+        # comes only from the text-layer recovery, without structure; the document needs review.
+        result.warnings += [IntegrityWarning(page, "layout_failed", "the layout model couldn't read this page; "
+                                             "its text was recovered from the PDF text layer") for page in ex.layout_failed_pages]
         suspicious = {page: kinds for page, text in enumerate(ex.page_texts, 1) if (kinds := instruction_like(text))}
         result.warnings += [IntegrityWarning(page, "instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))
                             for page, kinds in suspicious.items()]
