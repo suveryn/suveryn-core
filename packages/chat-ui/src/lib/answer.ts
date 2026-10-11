@@ -120,6 +120,12 @@ export function stripMarkers(text: string): string {
   return text.replace(MARKER, "").replace(/[ \t]+([.,;:])/g, "$1");
 }
 
+// A name: capitalised words with lower-case particles between them (van, de, der, ter, du, le, d', ...).
+const PARTICLE = "(?:van|von|de|der|den|het|ter|ten|te|op|in|'t|du|des|le|la|les|di|da|del|della|d'|l')";
+// d' and l' can be attached ("Charlotte d'Hondt").
+const NAME_WORD = "(?:[dDlL]['’])?[A-ZÀ-Þ][\\p{L}'’-]+";
+const NAME = new RegExp(`${NAME_WORD}(?:\\s+(?:${PARTICLE}\\s+)*${NAME_WORD})*`, "gu");
+
 /**
  * What to look for in each cited source: per source number, the figures, years, dates and names of the
  * claims that cite it (the text before each marker group, back to the previous group or the start of the
@@ -136,8 +142,18 @@ export function claimTerms(text: string, available: number): Map<number, string[
       start = group.index! + group[0].length;
       const terms = [
         ...claim.matchAll(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d+(?:[.,  ]\d+)+|\b(?:1[89]|20)\d\d\b|\d{5,}/g),
-        ...claim.matchAll(/(?<=\S\s+)[A-ZÀ-Þ][\p{L}'’-]{3,}/gu),  // capitalised words, not the first of the claim
       ].map((m) => m[0]);
+      // Whole names ("Eric Van de Plas": "Van" and "de" were left unmarked), also at the start of a claim.
+      // A single capitalised word only when it isn't the claim's first word (capitalised anyway) and has 4+ letters.
+      const names = [...claim.matchAll(NAME)].map((m) => ({ text: m[0], at: m.index! }));
+      for (const n of names) {
+        const several = /\s/.test(n.text);
+        if ((several || (n.at > 0 && n.text.length >= 4)) && !terms.includes(n.text)) terms.push(n.text);
+        // At the start of a claim the first word may be a title ("Notaris Charlotte d'Hondt"), which the source
+        // may write elsewhere: the name without it too. Marking tries the longest first.
+        const rest = n.text.replace(/^\S+\s+/, "");
+        if (several && n.at === 0 && /\s/.test(rest) && !terms.includes(rest)) terms.push(rest);
+      }
       for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) {
         if (n < 1 || n > available) continue;
         const known = out.get(n) ?? [];
@@ -152,7 +168,9 @@ export function claimTerms(text: string, available: number): Map<number, string[
 export function markTerms(passage: string, terms: string[]): { text: string; mark: boolean }[] {
   const usable = [...new Set(terms.filter((t) => t.trim().length >= 2))].sort((a, b) => b.length - a.length);
   if (usable.length === 0) return [{ text: passage, mark: false }];
-  const pattern = new RegExp(`(?<![\\p{L}\\d])(?:${usable.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}]|\\d)`, "giu");
+  // A space in a term matches any whitespace: a name can be split over two lines in the passage.
+  const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  const pattern = new RegExp(`(?<![\\p{L}\\d])(?:${usable.map(escape).join("|")})(?![\\p{L}]|\\d)`, "giu");
   const out: { text: string; mark: boolean }[] = [];
   let last = 0;
   for (const m of passage.matchAll(pattern)) {
