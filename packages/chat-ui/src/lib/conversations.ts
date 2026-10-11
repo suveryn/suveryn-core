@@ -47,3 +47,26 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
 }
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+/** True if a conversation cites or attaches this document. */
+export function usesDocument(turns: Turn[], documentId: string): boolean {
+  return turns.some((t) => (t.role === "user"
+    ? t.attachments.some((a) => a.documentId === documentId)
+    : t.citations.some((c) => c.source?.document_id === documentId)));
+}
+
+/**
+ * The conversation without a deleted document's passages and file names, exactly as the server cleans
+ * the saved copy (conversations.py ``redact``, suveryn-tracker#12): text and location go, the page and
+ * the answer stay, and the citation or attachment is marked ``removed``.
+ */
+export function withoutDocument(turns: Turn[], documentId: string): Turn[] {
+  return turns.map((t) => {
+    if (t.role === "user") {
+      return { ...t, attachments: t.attachments.map((a) => (a.documentId === documentId && !a.removed
+        ? { ...a, filename: "", removed: true } : a)) };
+    }
+    return { ...t, citations: t.citations.map((c) => (c.source?.document_id === documentId && !c.removed
+      ? { text: "", source: { document_id: documentId, page: c.source.page, location: null }, removed: true } : c)) };
+  });
+}

@@ -7,7 +7,11 @@ import { lang, t } from "./i18n";
 import type { Turn } from "./types";
 
 export type SourceRef = { document_id: string; page: number | null; location: string | null };
-export type Citation = { text: string; source: SourceRef | null };
+/** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
+export type Citation = { text: string; source: SourceRef | null; removed?: boolean };
+/** A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11). ``marker`` is the
+ *  0-based place of the [n] among the answer's valid markers; ``found_in``: other passages that do contain it. */
+export type CitationIssue = { marker: number; n: number; item: string; found_in: number[]; written_as: string | null };
 /** A calculation the server computed exactly; the model only chose the figures. */
 export type Calculation = {
   expression: string;
@@ -22,6 +26,7 @@ export type ChatResponse = {
   citations: Citation[];
   calculations: Calculation[];
   unverified_figures?: string[];      // figures in no passage and no calculation's result: flag them for checking
+  citation_issues?: CitationIssue[];  // facts the cited passage doesn't contain: flag the marker
   finish_reason: string | null;
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
@@ -157,9 +162,17 @@ export async function getJob(id: string): Promise<Job> {
   return r.json();
 }
 
-export async function deleteDocument(id: string): Promise<void> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
+/** Deletes a document. Saved conversations citing it lose its passages ("clean") or are deleted too. */
+export async function deleteDocument(id: string, conversations: "clean" | "delete" = "clean"): Promise<void> {
+  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}?conversations=${conversations}`, { method: "DELETE" });
   if (!r.ok && r.status !== 404) throw await responseError(r);
+}
+
+/** The saved conversations that cite or attach a document (asked before deleting it). */
+export async function documentConversations(id: string): Promise<ConversationSummary[]> {
+  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}/conversations`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
 }
 
 /**

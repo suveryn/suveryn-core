@@ -8,10 +8,16 @@ Retention: kept until the user deletes it (one conversation, or all of them when
 An administrator can cap the age with ``SUVERYN_CONVERSATION_MAX_AGE_DAYS``: older conversations
 (by last change) are no longer listed or returned, and are deleted on start and on each listing.
 
+Deleted documents (suveryn-tracker#12): saved answers quote the passages they cite. When a
+document is deleted, every passage of it is taken out of the owner's conversations
+(``remove_document``): its text and its location (headings are document text too) are emptied and
+the citation is marked ``removed``; attachments of the document lose their file name the same way.
+The answers themselves stay, and still state facts from the document, so the UI offers to delete
+those conversations together with the document (``using_document``). A save from a tab that still
+holds the passages is cleaned the same way before it is stored (``redact``), so they can't come back.
+
 Review notes:
-- Saved answers quote the documents they cite. Deleting a document doesn't change conversations
-  that used it; delete the conversation too to remove those quotes. Deletion makes rows
-  unreachable, not unrecoverable, as for documents (docs/architecture.md §6).
+- Deletion makes rows unreachable, not unrecoverable, as for documents (docs/architecture.md §6).
 - PostgreSQL itself is provisioned outside suveryn-core (suveryn-appliance), as for documents.
 """
 
@@ -19,6 +25,7 @@ import json
 import logging
 import os
 import uuid
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -91,6 +98,39 @@ class Conversation(ConversationSummary):
     turns: list[dict]
 
 
+def cited_documents(turns: list[dict]) -> set[str]:
+    """Ids of the documents a conversation cites or attaches."""
+    return {d for d, _ in _references(turns)}
+
+
+def _references(turns: list[dict]) -> Iterator[tuple[str, dict]]:
+    """(document id, the citation or attachment dict naming it) for every reference in the turns."""
+    for turn in turns:
+        for c in turn.get("citations") or []:
+            if isinstance(c, dict) and isinstance(c.get("source"), dict) and isinstance(c["source"].get("document_id"), str):
+                yield c["source"]["document_id"], c
+        for a in turn.get("attachments") or []:
+            if isinstance(a, dict) and isinstance(a.get("documentId"), str):
+                yield a["documentId"], a
+
+
+def redact(turns: list[dict], gone: Callable[[str], bool]) -> bool:
+    """Take every passage and attachment name of the documents ``gone`` says are deleted out of the
+    turns, in place. True if anything changed."""
+    changed = False
+    for doc, ref in list(_references(turns)):
+        if not gone(doc) or ref.get("removed"):
+            continue
+        if "source" in ref:  # a citation: no text, no location (headings), only the page number stays
+            ref["text"] = ""
+            ref["source"] = {"document_id": doc, "page": ref["source"].get("page"), "location": None}
+        else:  # an attachment
+            ref["filename"] = ""
+        ref["removed"] = True
+        changed = True
+    return changed
+
+
 class ConversationStore(PgStore):
     """Conversations in PostgreSQL, one owner's at a time. Creates its table on connect.
 
@@ -134,9 +174,16 @@ class ConversationStore(PgStore):
                           f" WHERE id = %s AND owner = %s AND {fresh}", (conversation_id, owner, *params)).fetchone()
         return Conversation(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3], turns=r[4]) if r else None
 
-    def save(self, conversation_id: uuid.UUID, owner: str, body: ConversationIn) -> bool:
-        """Create or replace the owner's conversation. False if the id belongs to another owner."""
-        turns = json.dumps([t.model_dump() for t in body.turns])
+    def save(self, conversation_id: uuid.UUID, owner: str, body: ConversationIn,
+             gone: Callable[[str], bool] | None = None) -> bool:
+        """Create or replace the owner's conversation. False if the id belongs to another owner.
+
+        ``gone`` says which cited documents no longer exist: their passages are taken out first.
+        """
+        turns = [t.model_dump() for t in body.turns]
+        if gone is not None:
+            redact(turns, gone)
+        turns = json.dumps(turns)
         row = self._execute(
             "INSERT INTO conversations (id, owner, title, turns) VALUES (%s, %s, %s, %s)"
             " ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, turns = EXCLUDED.turns, updated_at = now()"
@@ -147,6 +194,31 @@ class ConversationStore(PgStore):
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:
         return self._execute("DELETE FROM conversations WHERE id = %s AND owner = %s",
                              (conversation_id, owner)).rowcount > 0
+
+    def using_document(self, owner: str, document_id: uuid.UUID) -> list[ConversationSummary]:
+        """The owner's conversations that cite or attach this document, most recently changed first."""
+        fresh, params = self._fresh()
+        rows = self._execute(f"SELECT id, title, created_at, updated_at, turns FROM conversations"
+                             f" WHERE owner = %s AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
+                             (owner, f'%"{document_id}"%', *params)).fetchall()
+        return [ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3]) for r in rows
+                if str(document_id) in cited_documents(r[4])]
+
+    def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False) -> int:
+        """After deleting a document: take its passages out of the owner's conversations, or delete those
+        conversations (``delete_conversations``). Returns how many conversations were changed or deleted.
+        A cleaned conversation keeps its date, so the sidebar's order doesn't change."""
+        n = 0
+        for summary in self.using_document(owner, document_id):
+            if delete_conversations:
+                n += self.delete(uuid.UUID(summary.id), owner)
+                continue
+            turns = self._execute("SELECT turns FROM conversations WHERE id = %s AND owner = %s",
+                                  (summary.id, owner)).fetchone()[0]
+            if redact(turns, lambda d: d == str(document_id)):
+                n += self._execute("UPDATE conversations SET turns = %s WHERE id = %s AND owner = %s",
+                                   (json.dumps(turns), summary.id, owner)).rowcount
+        return n
 
     def delete_all(self, owner: str) -> int:
         """Delete every conversation of this owner (the sign-out choice "Delete history")."""

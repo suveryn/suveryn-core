@@ -207,6 +207,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                font-size: 13.5px; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 
 /* a figure to check: in no source and not calculated by the server (accent-ink, no separate red) */
+/* A marker whose source doesn't contain everything its sentence says (suveryn-tracker#11): accent-ink ring. */
+.cite-marker.flagged { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
+/* A deleted document's citation or attachment (suveryn-tracker#12). */
+.chip-removed { opacity: 0.7; font-style: italic; }
 .unverified { background: none; color: inherit; text-decoration: underline wavy var(--accent-ink) 1.5px;
               text-underline-offset: 3px; cursor: help; }
 
