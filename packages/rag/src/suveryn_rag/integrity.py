@@ -36,6 +36,7 @@ class IntegrityWarning:
 
     page: int | None
     kind: str     # "text_recovered" | "furniture_restored" | "text_layer_recovered" | "page_coverage_low"
+                  # | "instruction_like_text" (text addressed to an AI; pipeline.py, suveryn-tracker#21)
     detail: str
 
     @property
