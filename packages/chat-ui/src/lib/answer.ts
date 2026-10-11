@@ -143,9 +143,11 @@ export function claimTerms(text: string, available: number): Map<number, string[
       const terms = [
         ...claim.matchAll(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d+(?:[.,  ]\d+)+|\b(?:1[89]|20)\d\d\b|\d{5,}/g),
       ].map((m) => m[0]);
-      // Whole names ("Eric Van de Plas": "Van" and "de" were left unmarked), also at the start of a claim.
-      // A single capitalised word only when it isn't the claim's first word (capitalised anyway) and has 4+ letters.
-      const names = [...claim.matchAll(NAME)].map((m) => ({ text: m[0], at: m.index! }));
+      // Whole names ("Eric Van de Plas": "Van" and "de" were left unmarked), also at the start of a claim,
+      // only for a claim without figures, years or dates: those are what it says, and a capitalised word
+      // ("Europese") isn't always a name. A single capitalised word only when it isn't the claim's first
+      // word (capitalised anyway) and has 4+ letters.
+      const names = terms.length ? [] : [...claim.matchAll(NAME)].map((m) => ({ text: m[0], at: m.index! }));
       for (const n of names) {
         const several = /\s/.test(n.text);
         if ((several || (n.at > 0 && n.text.length >= 4)) && !terms.includes(n.text)) terms.push(n.text);
@@ -162,6 +164,90 @@ export function claimTerms(text: string, available: number): Map<number, string[
     }
   }
   return out;
+}
+
+/** Per source number, the claims (sentence parts before a marker group) that cite it. */
+export function claimTexts(text: string, available: number): Map<number, string[]> {
+  const out = new Map<number, string[]>();
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    let start = 0;
+    for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
+      const claim = sentence.slice(start, group.index).replace(/\*\*/g, "").replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim();
+      start = group.index! + group[0].length;
+      if (!claim) continue;
+      for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) {
+        if (n >= 1 && n <= available && !(out.get(n) ?? []).includes(claim)) out.set(n, [...(out.get(n) ?? []), claim]);
+      }
+    }
+  }
+  return out;
+}
+
+// Words that say nothing about which sentence a claim comes from (Dutch, French, English).
+const STOP = new Set(("de het een en van in op te voor met aan is zijn was werd wordt worden door bij als dat die dit deze om tot " +
+  "uit naar ook niet maar of er over na hij zij ze we wij u uw hun haar zijn heeft hebben had kan zal zou moet " +
+  "le la les un une des du et en au aux est sont par pour sur dans que qui avec ce cette ces il elle " +
+  "the a an and of in on to for with is are was were by as that this these from at it be has have").split(" "));
+
+/** The comparable words and numbers of a text: numbers without separators (1.275.000,00 = 1 275 000). */
+function tokens(text: string): { words: Set<string>; numbers: Set<string> } {
+  const numbers = new Set([...text.matchAll(/\d+(?:[.,  ]\d+)*/g)].map((m) => m[0].replace(/[.,]0{1,2}$/, "").replace(/\D/g, "")));
+  const words = new Set([...text.toLowerCase().matchAll(/[\p{L}]{3,}/gu)].map((m) => m[0]).filter((w) => !STOP.has(w)));
+  return { words, numbers };
+}
+
+/** The passage's sentences as [start, end) ranges: split after . ! ? ; before a capital, digit or quote, and at line breaks. */
+function sentenceRanges(passage: string): [number, number][] {
+  const out: [number, number][] = [];
+  let start = 0;
+  for (const b of passage.matchAll(/(?<=[.!?;:])\s+(?=[\p{Lu}\d“"'(])|\n\s*\n|\n(?=\s*(?:[-*•▪]|\d+[.)])\s)/gu)) {
+    out.push([start, b.index!]);
+    start = b.index! + b[0].length;
+  }
+  out.push([start, passage.length]);
+  return out.filter(([a, z]) => passage.slice(a, z).trim());
+}
+
+/**
+ * Where in a passage each claim comes from: the sentences sharing most of the claim's words and numbers
+ * (a number counts double). A sentence is taken when it holds at least a third of the claim and close to the
+ * best sentence's share, so a claim drawn from two sentences shows both.
+ */
+export function supportingRanges(passage: string, claims: string[]): [number, number][] {
+  const sentences = sentenceRanges(passage).map(([a, z]) => ({ a, z, t: tokens(passage.slice(a, z)) }));
+  const picked = new Set<number>();
+  for (const claim of claims) {
+    const c = tokens(claim);
+    const total = c.words.size + 2 * c.numbers.size;
+    if (total < 2) continue;
+    const scores = sentences.map(({ t }) =>
+      ([...c.words].filter((w) => t.words.has(w)).length + 2 * [...c.numbers].filter((x) => t.numbers.has(x)).length) / total);
+    const best = Math.max(0, ...scores);
+    if (best < 1 / 3) continue;
+    scores.forEach((s, i) => { if (s >= Math.max(1 / 3, 0.6 * best)) picked.add(i); });
+  }
+  return [...picked].sort((x, y) => x - y).map((i) => [sentences[i].a, sentences[i].z]);
+}
+
+export type PassagePart = { text: string; mark: "sentence" | "term" | null };
+
+/**
+ * A passage with what its citing claims rest on marked: the supporting sentences (``supportingRanges``), and in
+ * them every number of the claims, plus the claims' figures, dates and names (``terms``) anywhere.
+ */
+export function markPassage(passage: string, claims: string[], terms: string[]): PassagePart[] {
+  const numbers = claims.flatMap((c) => [...c.matchAll(/\d+(?:[.,  ]\d+)*/g)].map((m) => m[0]));
+  const out: PassagePart[] = [];
+  const termParts = (text: string, extra: string[]) =>
+    markTerms(text, [...terms, ...extra]).map((p) => ({ text: p.text, mark: p.mark ? ("term" as const) : null }));
+  let last = 0;
+  for (const [a, z] of supportingRanges(passage, claims)) {
+    if (a > last) out.push(...termParts(passage.slice(last, a), []));
+    out.push(...termParts(passage.slice(a, z), numbers).map((p) => (p.mark ? p : { ...p, mark: "sentence" as const })));
+    last = z;
+  }
+  if (last < passage.length) out.push(...termParts(passage.slice(last), []));
+  return out.filter((p) => p.text);
 }
 
 /** A passage split into plain parts and the parts to mark (``terms``, case-insensitive, longest first). */

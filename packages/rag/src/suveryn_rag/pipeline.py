@@ -7,7 +7,7 @@ into ``ChatResponse.citations`` with ``source`` filled in (document, page, locat
 import hashlib
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from suveryn_engine import Citation, SourceRef
@@ -17,7 +17,7 @@ from suveryn_engine.guard import instruction_like
 from .chunking import Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
-from .integrity import IntegrityWarning
+from .integrity import IntegrityWarning, misdecoded_quotes, repair_quotes
 from .isolation import make_extractor
 from .store import Store
 
@@ -44,9 +44,10 @@ class IngestResult:
 REREAD_RECOVERED_SHARE = 0.5
 
 
-def should_read_again(status: str, recovered_share: float) -> bool:
-    """Whether an upload of a file already stored should read it again instead of returning the stored copy."""
-    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE
+def should_read_again(status: str, recovered_share: float, misdecoded: bool = False) -> bool:
+    """Whether an upload of a file already stored should read it again instead of returning the stored copy:
+    also when it was stored with quotes read as Mac Roman (before they were put right)."""
+    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE or misdecoded
 
 
 @dataclass
@@ -124,13 +125,19 @@ class Rag:
         existing = self.store.find_by_sha256(digest, owner)  # the owner's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
-            if not should_read_again(status, self.store.recovered_share(existing)):
+            if not should_read_again(status, self.store.recovered_share(existing),
+                                     misdecoded_quotes(self.store.document_text(existing))):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
+        # Quotes and dashes the PDF's font encodes as Mac Roman ("ÒwoordÓ"): put right for the whole document,
+        # only when it shows them (a pair Ò…Ó, or Õ between letters).
+        if misdecoded_quotes(" ".join(c.text + " " + " ".join(c.headings) for c in chunks)):
+            chunks = [replace(c, text=repair_quotes(c.text), embed_text=repair_quotes(c.embed_text),
+                              headings=[repair_quotes(h) for h in c.headings]) for c in chunks]
         # Text addressed to an AI ("ignore the instructions…"): a signal for the reader, not a block
         # (suveryn-tracker#21). It doesn't change the status: the text isn't missing.
         # Pages the layout model couldn't read (suveryn-tracker: GPU out of memory, 2026-10-11): their text

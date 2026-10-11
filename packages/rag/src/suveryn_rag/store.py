@@ -134,6 +134,11 @@ class Store:
             " FROM chunks WHERE document_id = %s", (document_id,)).fetchone()
         return recovered / total if total else 0.0
 
+    def document_text(self, document_id: uuid.UUID) -> str:
+        """All of a document's stored text and headings, to check how it was read."""
+        rows = self._conn.execute("SELECT text, headings FROM chunks WHERE document_id = %s", (document_id,)).fetchall()
+        return "\n".join(t + "\n" + "\n".join(h) for t, h in rows)
+
     def replace_document(self, document_id: uuid.UUID, filename: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                          embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
         """Read again: the document keeps its id (saved conversations still point to it), its chunks, status

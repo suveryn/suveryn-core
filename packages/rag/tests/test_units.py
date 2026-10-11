@@ -160,3 +160,14 @@ def test_an_identical_upload_reads_again_only_a_poorly_read_copy():
     assert not should_read_again("ok", 0.4)  # some recovered text is normal
     assert should_read_again("ok", 0.92)  # reported: 92% recovered from the text layer, read while the GPU was full
     assert should_read_again("needs_review", 0.0)
+
+
+def test_quotes_read_as_mac_roman_are_put_right():
+    from suveryn_rag.integrity import misdecoded_quotes, repair_quotes
+    from suveryn_rag.pipeline import should_read_again
+
+    reported = "de ÒopdrachtenreglementeringÓ van 2019 Ð zie art. 3, dÕHondt"  # reported 2026-10-11
+    assert misdecoded_quotes(reported)
+    assert repair_quotes(reported) == "de “opdrachtenreglementering” van 2019 – zie art. 3, d’Hondt"
+    assert not misdecoded_quotes("Dara Ó Briain en Óscar")  # a real Ó is not evidence
+    assert should_read_again("ok", 0.0, misdecoded=True)

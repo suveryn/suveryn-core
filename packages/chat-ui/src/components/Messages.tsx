@@ -8,7 +8,7 @@ import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Downl
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
-import { citedNumbers, claimTerms, markTerms, toBlocks, type Segment, type Table } from "../lib/answer";
+import { citedNumbers, claimTerms, claimTexts, markPassage, toBlocks, type Segment, type Table } from "../lib/answer";
 import { checkLines, type AnswerExport } from "../lib/export";
 import { statusText } from "../lib/status";
 import {
@@ -84,7 +84,7 @@ function DownloadButton({ filename, text, what }: {
   );
 }
 
-function SourceCard({ n, citation, filename, terms = [] }: { n: number; citation: Citation; filename: string; terms?: string[] }) {
+function SourceCard({ n, citation, filename, terms = [], claims = [] }: { n: number; citation: Citation; filename: string; terms?: string[]; claims?: string[] }) {
   const m = useT();
   const quote = useRef<HTMLQuoteElement>(null);
   // Scroll the passage (not the page) to the first marked fact: a long passage shows only its start.
@@ -117,7 +117,9 @@ function SourceCard({ n, citation, filename, terms = [] }: { n: number; citation
         </span>
       </div>
       <blockquote className="source-text" ref={quote}>
-        {markTerms(citation.text, terms).map((part, i) => (part.mark ? <mark key={i} className="source-match">{part.text}</mark> : <Fragment key={i}>{part.text}</Fragment>))}
+        {markPassage(citation.text, claims, terms).map((part, i) => (part.mark
+          ? <mark key={i} className={part.mark === "term" ? "source-match" : "source-span"}>{part.text}</mark>
+          : <Fragment key={i}>{part.text}</Fragment>))}
       </blockquote>
       <p className="caption">{m.sourceCaption}</p>
     </div>
@@ -196,7 +198,8 @@ export function AssistantMessage({ turn, question, filenames }: {
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])}
-                      terms={claimTerms(turn.text, available).get(open) ?? []} />
+                      terms={claimTerms(turn.text, available).get(open) ?? []}
+                      claims={claimTexts(turn.text, available).get(open) ?? []} />
         )}
 
         {turn.status === "done" && turn.text && (

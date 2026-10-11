@@ -210,6 +210,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                font-size: 13.5px; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 /* Facts of the citing sentence, marked in the passage (teal wash, like citations), which scrolls to the first. */
 .source-text { position: relative; }
+/* The sentences a claim rests on, lightly; the claim's figures, dates and names in them, stronger. */
+.source-span { background: rgba(58, 212, 202, 0.12); color: inherit; border-radius: 3px; }
 .source-match { background: rgba(58, 212, 202, 0.28); color: inherit; border-radius: 3px; padding: 0 1px; }
 
 /* Tables in answers: a real table, so copy and paste into Excel or Word keeps the columns. */
