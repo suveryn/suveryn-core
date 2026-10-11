@@ -180,7 +180,8 @@ class IsolatedExtractor:
                 return Extraction(document=_document_from_json(r["document"]), pages=int(r["pages"]),
                                   ocr_pages=int(r["ocr_pages"]), mixed_pages=int(r["mixed_pages"]),
                                   page_texts=[str(t) for t in r["page_texts"]],
-                                  timings={str(k): float(v) for k, v in r["timings"].items()})
+                                  timings={str(k): float(v) for k, v in r["timings"].items()},
+                                  layout_failed_pages=[int(n) for n in r.get("layout_failed_pages", [])])
             except (KeyError, TypeError, ValueError, AttributeError) as e:
                 self._stop()  # a reader that sends malformed answers isn't trusted with the next document
                 raise ExtractionFailed(f"the document reader sent an invalid answer ({type(e).__name__})") from None
@@ -213,7 +214,8 @@ def serve(extract: Callable[[Path], Extraction], requests: IO[bytes], answers: I
             ex = extract(Path(json.loads(line)["pdf"]))
             doc = ex.document.export_to_dict() if hasattr(ex.document, "export_to_dict") else ex.document
             send({"ok": True, "document": doc, "pages": ex.pages, "ocr_pages": ex.ocr_pages,
-                  "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings})
+                  "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
+                  "layout_failed_pages": ex.layout_failed_pages})
         except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
             send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"})
 
