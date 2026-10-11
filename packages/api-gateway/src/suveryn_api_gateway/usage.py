@@ -29,7 +29,7 @@ from suveryn_engine import UsageRecord
 from .db import PgStore
 
 # The published price of a comparable large cloud model (USD per million tokens, October 2026).
-DEFAULT_RATES = (Decimal("3"), Decimal("15"), "USD")
+DEFAULT_RATES = (Decimal(3), Decimal(15), "USD")
 MAX_SPAN = timedelta(days=5 * 366)
 ORIGIN = datetime(2000, 1, 3)  # a Monday: weekly buckets start on Mondays
 
