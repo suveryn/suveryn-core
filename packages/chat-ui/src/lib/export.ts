@@ -17,7 +17,7 @@ export function segmentText(segments: Segment[], markers = true): string {
 }
 
 /** The source numbers cited in segments, in order, once each. */
-export function segmentSources(segments: Segment[]): number[] {
+function segmentSources(segments: Segment[]): number[] {
   const out: number[] = [];
   for (const s of segments) if (s.kind === "cite" && !out.includes(s.n)) out.push(s.n);
   return out;
