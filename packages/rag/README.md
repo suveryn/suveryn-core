@@ -76,7 +76,9 @@ Settings come from environment variables:
 | `SUVERYN_CHUNK_MAX_TOKENS` | `384` |
 | `SUVERYN_WORK_DIR` | `~/.local/state/suveryn/work` |
 | `SUVERYN_EXTRACT_TIMEOUT_S` | `1800`: the longest one document may take to read |
-| `SUVERYN_EXTRACT_WRAPPER` | unset; a command prefix for the PDF reader process, e.g. a sandbox |
+| `SUVERYN_EXTRACT_WRAPPER` | unset; a command prefix for the PDF reader process, e.g. a sandbox (suveryn-appliance's `reader-sandbox`) |
+| `SUVERYN_EXTRACT_INBOX` | unset: uploads wait in `SUVERYN_WORK_DIR/uploads` (0700). Set when the reader runs as its own user: a provisioned folder, owner the gateway, group the reader, mode 2750; uploads in it are 0640 |
+| `SUVERYN_EXTRACT_WORK_DIR` | unset: `SUVERYN_WORK_DIR`. The reader's own folder for OCR intermediate files and temporary files (0700), when it runs as its own user |
 | `SUVERYN_EXTRACT_ISOLATION` | on; `off` reads PDFs inside the gateway process (debugging only) |
 | `HF_HOME` | `~/.cache/huggingface` (the local model cache) |
 | `SUVERYN_ALLOW_DOWNLOADS` | unset; `1` only for `suveryn-fetch-models` |
