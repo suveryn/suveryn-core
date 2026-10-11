@@ -36,6 +36,14 @@ const en = {
   sessionEndedError: "your session has ended; sign in again",
   uploadInterrupted: "the upload was interrupted",
   streamCutOff: "the connection closed before the answer was complete",
+  // Server errors, by HTTP status (the server's own text is English).
+  tooManyRequests: (seconds: number | null) => `too many requests; try again${seconds ? ` in ${seconds} seconds` : " shortly"}`,
+  fileTooLarge: "the file is larger than the server accepts",
+  conversationTooLong: "this conversation is too long to save; start a new one to continue",
+  requestRejected: "the server couldn't accept this request",
+  notFound: "it no longer exists (it may have been deleted)",
+  forbidden: "you don't have permission for this",
+  serverUnavailable: "this part of the server isn't available right now; try again later",
 
   // empty state
   emptyIntro: "Attach a deed or another PDF and ask about it. Answers cite the page they come from, so you can check every figure.",
@@ -194,7 +202,7 @@ const en = {
   saved: "Saved",
   ratesChanged: (who: string, when: string) => `Last changed by ${who} on ${when}.`,
   ratesDefault: "Default: the published price of a comparable cloud model.",
-  ratesInvalid: "Enter amounts of 0 or more.",
+  ratesInvalid: "Enter amounts from 0 to 10,000, with at most 4 decimals.",
   // Word and Excel downloads (made in the browser)
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Download this answer as a Word document, with its sources",
@@ -212,6 +220,7 @@ const en = {
   columnPassage: "Passage",
   exportDisclaimer: "Made by sūveryn from the office's own documents. Check every figure against its source before relying on it.",
   // deleted documents (suveryn-tracker#12)
+  unnamedDocument: "document",  // a cited document whose name is not known
   sourceRemoved: "Source deleted",
   sourceRemovedCaption: "This document was deleted, so its passage was taken out of this conversation. The answer above may still mention facts from it.",
   documentRemoved: "Deleted document",
@@ -227,7 +236,7 @@ const en = {
     : `Check source ${n}: "${item}" isn't in it.`,
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
   instructionLike: (sources: number[]) =>
-    `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text addressed to an AI (such as "ignore the instructions"). sūveryn treated it as part of the document, not as an instruction, but check this answer against the documents with extra care.`,
+    `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text addressed to an AI (such as "ignore the instructions"). Sūveryn treated it as part of the document, not as an instruction, but check this answer against the documents with extra care.`,
   // downloaded sources
   sourcesHeading: "Sources cited by sūveryn",
   question: "Question",

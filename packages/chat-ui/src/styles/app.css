@@ -234,7 +234,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .notice { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0 0;
           font-size: 12px; line-height: 1.5; color: var(--text-dim); }
 .notice svg { flex: 0 0 auto; margin-top: 2px; }
+/* Errors: the message in text colour, its icon in accent ink (no separate red). */
 .notice-error { color: var(--text); }
+.notice-error svg { color: var(--accent-ink); }
 .banner { display: flex; gap: var(--space-2); align-items: center; margin: 0; padding: var(--space-2) var(--space-6);
           background: var(--surface-alt); border-bottom: 1px solid var(--line); font-size: 13.5px; }
 
