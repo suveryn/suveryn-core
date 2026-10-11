@@ -177,6 +177,19 @@ const nl: Messages = {
   ratesChanged: (who, when) => `Laatst gewijzigd door ${who} op ${when}.`,
   ratesDefault: "Standaard: de gepubliceerde prijs van een vergelijkbaar cloudmodel.",
   ratesInvalid: "Vul bedragen van 0 of meer in.",
+  sourceRemoved: "Bron verwijderd",
+  sourceRemovedCaption: "Dit document is verwijderd, dus de passage is uit dit gesprek gehaald. Het antwoord hierboven kan nog feiten eruit vermelden.",
+  documentRemoved: "Verwijderd document",
+  deleteDocumentDialogTitle: (file) => `${file} verwijderen?`,
+  deleteDocumentDialogBody: (n) =>
+    `${n === 1 ? "Eén opgeslagen gesprek citeert" : `${n} opgeslagen gesprekken citeren`} dit document. De passages worden er hoe dan ook uit gehaald, maar de antwoorden vermelden nog feiten eruit.`,
+  deleteDocumentKeepConversations: "Document verwijderen, gesprekken behouden",
+  deleteDocumentAndConversations: (n) => (n === 1 ? "Document en gesprek verwijderen" : `Document en ${n} gesprekken verwijderen`),
+  citationIssue: (n, item, foundIn, writtenAs) =>
+    writtenAs ? `Controleer bron ${n}: daar staat „${writtenAs}”, niet „${item}”.`
+    : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${foundIn.length > 1 ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
+    : `Controleer bron ${n}: „${item}” staat er niet in.`,
+  citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",
   sourcesHeading: "Bronnen vermeld door sūveryn",
   question: "Vraag",
   date: "Datum",
