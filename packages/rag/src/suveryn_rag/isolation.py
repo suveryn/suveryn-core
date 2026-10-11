@@ -24,8 +24,12 @@ How (``IsolatedExtractor``):
 
 What this does not do on its own: the reader still runs as the same operating-system user and can
 read what that user can (e.g. the 0600 secrets file, if it knows where it is), and it has network
-access. A separate user, no network and seccomp belong in ``SUVERYN_EXTRACT_WRAPPER``, set by the
-appliance. ``SUVERYN_EXTRACT_ISOLATION=off`` reads PDFs in-process again (debugging only).
+access. A separate user, no network and seccomp come from ``SUVERYN_EXTRACT_WRAPPER``, set by the
+appliance (suveryn-appliance's ``reader-sandbox``). A reader running as another user can't enter
+the gateway's 0700 work folder, so then uploads wait in ``SUVERYN_EXTRACT_INBOX`` (provisioned:
+owner the gateway, group the reader, 2750; files 0640) and the reader keeps its intermediate files
+in ``SUVERYN_EXTRACT_WORK_DIR`` (``own_workspace``). ``SUVERYN_EXTRACT_ISOLATION=off`` reads PDFs
+in-process again (debugging only).
 """
 
 import json
@@ -33,9 +37,11 @@ import os
 import re
 import selectors
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -57,14 +63,24 @@ class ExtractionFailed(RuntimeError):
 
 
 def child_env(environ: dict[str, str] | None = None) -> dict[str, str]:
-    """The reader's environment: this process's, minus anything secret."""
-    return {k: v for k, v in (os.environ if environ is None else environ).items() if not SECRET_ENV.search(k)}
+    """The reader's environment: this process's, minus anything secret, and minus anything that points
+    into this process's private temporary folder.
+
+    The reader makes its own temporary folder (``own_workspace``). Libraries set variables into the
+    gateway's: torch, imported here for the embedding model, sets TORCHINDUCTOR_CACHE_DIR to
+    ``$TMPDIR/torchinductor_<user>``. A reader running as another user can't write there and failed to
+    start; and the gateway's private folder isn't the reader's business anyway.
+    """
+    env = os.environ if environ is None else environ
+    private_tmp = env.get("TMPDIR")
+    return {k: v for k, v in env.items()
+            if not SECRET_ENV.search(k) and not (private_tmp and k != "PATH" and private_tmp in v) and k != "TMPDIR"}
 
 
 def _settings_for_child(settings: RagSettings) -> dict:
     """What the reader needs to know: OCR and device settings, never the database URL."""
     return {"device": settings.device, "ocr_languages": settings.ocr_languages, "ocr_jobs": settings.ocr_jobs,
-            "work_dir": str(settings.work_dir)}
+            "work_dir": str(settings.extract_work_dir or settings.work_dir)}
 
 
 def _document_from_json(data: dict):
@@ -210,6 +226,19 @@ def protocol_streams() -> tuple[IO[bytes], IO[bytes]]:
     return sys.stdin.buffer, answers
 
 
+def own_workspace(work_dir: Path) -> None:
+    """The reader's scratch space: its work folder (0700), also for temporary files, minus crash leftovers.
+
+    The inherited TMPDIR is the gateway's private folder, which a sandboxed reader (another user)
+    can't write to; and OCR work folders of a reader that was killed are removed here, by their owner.
+    """
+    work_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(work_dir, 0o700)
+    for leftover in work_dir.glob("doc-*"):
+        shutil.rmtree(leftover, ignore_errors=True)
+    os.environ["TMPDIR"] = tempfile.tempdir = str(work_dir)
+
+
 def main() -> None:
     import resource
 
@@ -222,6 +251,7 @@ def main() -> None:
         settings = RagSettings(database_url="", device=options["device"], ocr_languages=options["ocr_languages"],
                                ocr_jobs=int(options["ocr_jobs"]), work_dir=Path(options["work_dir"]),
                                isolate_extraction=False)
+        own_workspace(settings.work_dir)
         extractor = Extractor(settings)
     except Exception as e:  # noqa: BLE001 - reported to the gateway, which fails its start-up
         answers.write(json.dumps({"ready": False, "error": f"{type(e).__name__}: {str(e)[:200]}"}).encode() + b"\n")
