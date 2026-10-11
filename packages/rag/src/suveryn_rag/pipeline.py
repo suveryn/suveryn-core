@@ -17,7 +17,13 @@ from suveryn_engine.guard import instruction_like
 from .chunking import Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
-from .integrity import IntegrityWarning, misdecoded_quotes, repair_quotes
+from .integrity import (
+    IntegrityWarning,
+    misdecoded_quotes,
+    ocr_noise,
+    repair_quotes,
+    words,
+)
 from .isolation import make_extractor
 from .store import Store
 
@@ -46,7 +52,7 @@ REREAD_RECOVERED_SHARE = 0.5
 
 def should_read_again(status: str, recovered_share: float, misdecoded: bool = False) -> bool:
     """Whether an upload of a file already stored should read it again instead of returning the stored copy:
-    also when it was stored with quotes read as Mac Roman (before they were put right)."""
+    also when it was stored with quotes read as Mac Roman or with OCR noise recovered (before either was handled)."""
     return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE or misdecoded
 
 
@@ -125,8 +131,10 @@ class Rag:
         existing = self.store.find_by_sha256(digest, owner)  # the owner's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
+            vocabulary = words(self.store.document_text(existing, recovered=False))
+            noisy = any(ocr_noise(line, vocabulary) for line in self.store.document_text(existing, recovered=True).splitlines())
             if not should_read_again(status, self.store.recovered_share(existing),
-                                     misdecoded_quotes(self.store.document_text(existing))):
+                                     misdecoded_quotes(self.store.document_text(existing)) or noisy):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf)

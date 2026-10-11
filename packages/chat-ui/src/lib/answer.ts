@@ -189,9 +189,12 @@ const STOP = new Set(("de het een en van in op te voor met aan is zijn was werd 
   "le la les un une des du et en au aux est sont par pour sur dans que qui avec ce cette ces il elle " +
   "the a an and of in on to for with is are was were by as that this these from at it be has have").split(" "));
 
+// A number on its own, not glued to letters ("oyosish4" in OCR noise is no 4).
+const NUMBER = /(?<![\p{L}\d])\d+(?:[.,  ]\d+)*(?![\p{L}])/gu;
+
 /** The comparable words and numbers of a text: numbers without separators (1.275.000,00 = 1 275 000). */
 function tokens(text: string): { words: Set<string>; numbers: Set<string> } {
-  const numbers = new Set([...text.matchAll(/\d+(?:[.,  ]\d+)*/g)].map((m) => m[0].replace(/[.,]0{1,2}$/, "").replace(/\D/g, "")));
+  const numbers = new Set([...text.matchAll(NUMBER)].map((m) => m[0].replace(/[.,]0{1,2}$/, "").replace(/\D/g, "")));
   const words = new Set([...text.toLowerCase().matchAll(/[\p{L}]{3,}/gu)].map((m) => m[0]).filter((w) => !STOP.has(w)));
   return { words, numbers };
 }
@@ -215,7 +218,7 @@ function sentenceRanges(passage: string): [number, number][] {
  */
 export function supportingRanges(passage: string, claims: string[]): [number, number][] {
   const sentences = sentenceRanges(passage).map(([a, z]) => ({ a, z, t: tokens(passage.slice(a, z)) }));
-  const picked = new Set<number>();
+  const picked = new Map<number, ReturnType<typeof tokens>[]>();
   for (const claim of claims) {
     const c = tokens(claim);
     const total = c.words.size + 2 * c.numbers.size;
@@ -224,9 +227,27 @@ export function supportingRanges(passage: string, claims: string[]): [number, nu
       ([...c.words].filter((w) => t.words.has(w)).length + 2 * [...c.numbers].filter((x) => t.numbers.has(x)).length) / total);
     const best = Math.max(0, ...scores);
     if (best < 1 / 3) continue;
-    scores.forEach((s, i) => { if (s >= Math.max(1 / 3, 0.6 * best)) picked.add(i); });
+    scores.forEach((s, i) => { if (s >= Math.max(1 / 3, 0.6 * best)) picked.set(i, [...(picked.get(i) ?? []), c]); });
   }
-  return [...picked].sort((x, y) => x - y).map((i) => [sentences[i].a, sentences[i].z]);
+  return [...picked.keys()].sort((x, y) => x - y).map((i) => trimLines(passage, sentences[i].a, sentences[i].z, picked.get(i)!));
+}
+
+/**
+ * A sentence range without its first and last lines that share nothing with the claims: a "sentence" runs
+ * to the next full stop, and can start with a heading or noise from a figure (reported: a garbled first line
+ * was marked along with the sentence after it).
+ */
+function trimLines(passage: string, a: number, z: number, claims: ReturnType<typeof tokens>[]): [number, number] {
+  const shares = (line: string) => {
+    const t = tokens(line);
+    return claims.some((c) => [...c.words].some((w) => t.words.has(w)) || [...c.numbers].some((x) => t.numbers.has(x)));
+  };
+  const lines = [...passage.slice(a, z).matchAll(/[^\n]*(?:\n|$)/g)].map((m) => ({ s: a + m.index!, e: a + m.index! + m[0].length }))
+    .filter((l) => l.e > l.s);
+  let i = 0, j = lines.length - 1;
+  while (i < j && !shares(passage.slice(lines[i].s, lines[i].e))) i++;
+  while (j > i && !shares(passage.slice(lines[j].s, lines[j].e))) j--;
+  return [lines[i].s, passage.slice(lines[j].s, lines[j].e).endsWith("\n") ? lines[j].e - 1 : lines[j].e];
 }
 
 export type PassagePart = { text: string; mark: "sentence" | "term" | null };
@@ -236,7 +257,7 @@ export type PassagePart = { text: string; mark: "sentence" | "term" | null };
  * them every number of the claims, plus the claims' figures, dates and names (``terms``) anywhere.
  */
 export function markPassage(passage: string, claims: string[], terms: string[]): PassagePart[] {
-  const numbers = claims.flatMap((c) => [...c.matchAll(/\d+(?:[.,  ]\d+)*/g)].map((m) => m[0]));
+  const numbers = claims.flatMap((c) => [...c.matchAll(NUMBER)].map((m) => m[0]));
   const out: PassagePart[] = [];
   const termParts = (text: string, extra: string[]) =>
     markTerms(text, [...terms, ...extra]).map((p) => ({ text: p.text, mark: p.mark ? ("term" as const) : null }));

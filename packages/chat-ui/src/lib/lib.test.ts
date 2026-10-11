@@ -409,6 +409,10 @@ describe("finding the cited facts in a long passage", () => {
       "De maandelijkse huurprijs bedraagt 1 250 euro, te betalen voor de vijfde."]);
     expect(parts.filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["12"]);  // the number in its sentence
     expect(supportingRanges("Een zin die er niets mee te maken heeft.", claims)).toEqual([]);  // no sentence: nothing marked
+    // a sentence running on from a garbled first line (text in an upside-down figure): the line isn't marked
+    const garbled = "(uesozoeysjeerdsuom — sBuinebwo) enuabe oyosish12\nElke partij kan opzeggen met een termijn van 12 weken.";
+    const [[from, to]] = supportingRanges(garbled, claims);
+    expect(garbled.slice(from, to)).toBe("Elke partij kan opzeggen met een termijn van 12 weken.");
   });
 
   it("marks those facts in the passage, whole only, and nothing else", () => {

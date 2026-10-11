@@ -134,9 +134,11 @@ class Store:
             " FROM chunks WHERE document_id = %s", (document_id,)).fetchone()
         return recovered / total if total else 0.0
 
-    def document_text(self, document_id: uuid.UUID) -> str:
-        """All of a document's stored text and headings, to check how it was read."""
-        rows = self._conn.execute("SELECT text, headings FROM chunks WHERE document_id = %s", (document_id,)).fetchall()
+    def document_text(self, document_id: uuid.UUID, recovered: bool | None = None) -> str:
+        """A document's stored text and headings, to check how it was read: all of it, or only the text recovered
+        from the text layer (``recovered=True``), or all but that (``False``)."""
+        where = {None: "", True: " AND origin = 'text_layer_recovered'", False: " AND origin <> 'text_layer_recovered'"}[recovered]
+        rows = self._conn.execute("SELECT text, headings FROM chunks WHERE document_id = %s" + where, (document_id,)).fetchall()
         return "\n".join(t + "\n" + "\n".join(h) for t, h in rows)
 
     def replace_document(self, document_id: uuid.UUID, filename: str, pages: int, ocr_pages: int, chunks: list[Chunk],
