@@ -78,6 +78,25 @@ def words(text: str) -> set[str]:
     return set(re.findall(r"\w{2,}", norm(text)))
 
 
+# OCR noise: text in a figure that is upside down or mirrored, read by OCR as letters (reported 2026-10-11:
+# a rotated diagram came back as "(uesozoeysjeerdsuom — sBuinebwo) …" and was restored as missing text).
+# Such words have a capital inside them, letters followed by a digit, or no vowel; real text rarely does.
+_WEIRD = re.compile(r"[a-zß-ÿ][A-ZÀ-Þ]|[^\W\d_]\d|^[^\W\d_aeiouyàáâäèéêëìíîïòóôöùúûüAEIOUYÀ-ÏÒ-ÖÙ-Ü]{3,}$")
+
+
+def ocr_noise(line: str, vocabulary: set[str]) -> bool:
+    """Whether a text-layer line is OCR noise: several odd words (``_WEIRD``), and most of its words occur
+    nowhere in the document's other text (``vocabulary``, as ``words`` gives them)."""
+    tokens = [t for t in (re.sub(r"^\W+|\W+$", "", t) for t in line.split()) if len(t) >= 2]
+    if not tokens:
+        return False
+    weird = sum(bool(_WEIRD.search(t)) for t in tokens)
+    unknown = sum(not (words(t) <= vocabulary) for t in tokens)
+    # A short line only when every word is odd twice over ("3Y91Za03"), not a name like "McDonald".
+    short_ok = all(len(_WEIRD.findall(t)) >= 2 for t in tokens)
+    return weird >= 1 and (len(tokens) >= 3 or short_ok) and weird / len(tokens) >= 0.15 and unknown / len(tokens) >= 0.5
+
+
 def is_page_number(text: str) -> bool:
     """True for "3", "Pagina 3", "pagina 3 van 8", "Page 2 of 5", "p. 4", "- 7 -" and similar."""
     return bool(PAGE_NUMBER.match(text.strip()))
