@@ -9,8 +9,10 @@ from .integrity import (
     lines_with,
     missing_words,
     norm,
+    ocr_noise,
     page_coverage,
     split_furniture,
+    words,
 )
 
 
@@ -112,8 +114,12 @@ class Chunker:
             warnings.append(IntegrityWarning(page, kind, f"{len(text)} characters kept as a separate chunk"))
 
         # 3. Recover from the PDF text layer: lines with words that no stored text contains (e.g. table
-        #    cells the table model couldn't place) are kept as a chunk for that page.
+        #    cells the table model couldn't place) are kept as a chunk for that page. OCR noise (text in an
+        #    upside-down figure) is not text that went missing: it is left out like dropped furniture.
         stored = lambda: [(c.page_start, c.page_end, c.text + " " + " ".join(c.headings)) for c in chunks]
+        vocabulary = words(" ".join(t for _, _, t in stored()))
+        dropped = dropped + [(page, line) for page, text in enumerate(page_texts, 1)
+                             for line in text.splitlines() if ocr_noise(line, vocabulary)]
         for page, (_, missing) in missing_words(page_texts, stored(), dropped).items():
             if len(missing) < MIN_MISSING_WORDS:
                 continue  # hyphenation or punctuation differences, not lost text
