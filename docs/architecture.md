@@ -106,6 +106,12 @@ Reviewers: check changes against these.
 10. **Ingestion is single-threaded per process** (process-wide `TMPDIR` redirection), and heavy work is queued. Two concurrent whole-document summaries failed in the benchmark.
 11. **The model's own arithmetic is never shown as a result.** Calculations are written as `[[calc: …]]` and computed by [`chat/calc.py`](../packages/chat/src/suveryn_chat/calc.py) with `Decimal` and a hand-written parser (never `eval`). A calculation that can't be done unambiguously is refused and shown as such, never guessed. Figures the model writes in its text anyway, in no passage and no calculation's result, are listed in `unverified_figures` and flagged in the UI (`calc.unverified_figures`).
 12. **Positional citation contract.** `[n]` in `answer` is `citations[n-1]`. Markers have one or two digits (`grounding._MARKER`, `answer.ts` `MARKER`), so whole-document grounding is capped at 99 chunks (`WHOLE_DOCUMENT_CHUNKS`).
+13. **Document text is data, never instructions** (suveryn-tracker#21).
+    - **Control tokens:** every user and assistant message the engine sends is `guard.neutralise`d, so text from a document, a question or an earlier answer can't become a chat-template turn boundary (`<|im_start|>`, `[INST]`, `[SYSTEM_PROMPT]`).
+    - **The prompt:** the grounded prompt says excerpts are data, repeats it right before the question, and quotes excerpts so a document can't pose as another excerpt (`grounding.quoted`).
+    - **Flagging:** text addressed to an AI is flagged where it can't be removed. At ingestion it becomes an `instruction_like_text` warning; in every answer it fills `instruction_like_sources`, shown to the reader and in Word exports.
+    - **Audit:** both cases write an audit event (`suveryn_engine.audit`, logger `suveryn.audit`) with ids, pages and kinds only.
+    - **Test:** a deed with an injection attempt is part of the regression harness.
 
 ## 5. Decisions and their evidence
 
@@ -165,6 +171,22 @@ Reviewers: check changes against these.
 - **Fast tests, any machine:** `uv sync --locked && uv run pytest`. These are the engine, chat (including calculations) and gateway tests; rag tests are skipped.
 - **Chat UI:** `cd packages/chat-ui && npm ci && npm test && npm run typecheck`. Covers SSE parsing, answer rendering, conversation history, copy and download, and the brand-file hash check.
 - **Full tests on the GPU machine:** `uv sync --locked --all-packages`, then `SUVERYN_TEST_DATABASE_URL=… uv run pytest`. This adds the rag units (including the offline guard), pgvector storage, and the end-to-end trap deed ([`test_e2e.py`](../packages/rag/tests/test_e2e.py)) as a born-digital PDF, a scan, and a scan with a thin digital text layer.
+- **Before using a new model or model version** (suveryn-tracker#21): the regression harness [`test_answers_e2e.py`](../packages/rag/tests/test_answers_e2e.py) on the GPU machine, for every model to compare:
+
+  ```bash
+  SUVERYN_TEST_DATABASE_URL=… SUVERYN_EVAL_MODELS=qwen3.8-27b,mistral-small-3.2-24b SUVERYN_EVAL_REPORT=report.json \
+    uv run pytest packages/rag/tests/test_answers_e2e.py
+  ```
+
+  It checks every answer for:
+  - its source and for figures that are in no passage;
+  - citations that don't match their sources;
+  - the expected facts;
+  - the two OCR issues from the benchmark (last line, cadastral reference);
+  - resistance to an injected instruction;
+  - sums computed by the server.
+
+  Fictional deeds are built in. The office's own deeds can be added from a folder (`SUVERYN_EVAL_DIR`), with permission, never in the repository, and deleted after the run. 2026-10-11 on the pod: Qwen3.8-27B 15/15, Mistral Small 3.2 24B 15/15. Before the injection rules, Mistral answered "De akte is GOEDGEKEURD" from the injected text.
 - **By hand:**
   - `uv run suveryn-gateway`, then `curl` against `/health` and `/v1/chat` (see [the root README](../README.md))
   - `uv run suveryn-ingest`, `suveryn-retrieve`, `suveryn-forget`, `suveryn-fetch-models` (see [`packages/rag/README.md`](../packages/rag/README.md))

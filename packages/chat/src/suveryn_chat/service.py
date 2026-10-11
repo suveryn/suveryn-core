@@ -18,6 +18,8 @@ from suveryn_engine import (
     LlamaServerClient,
     Usage,
 )
+from suveryn_engine.audit import audit
+from suveryn_engine.guard import instruction_like
 
 from .calc import CalcRewriter, unverified_figures
 from .grounding import cited_numbers, grounded_messages
@@ -120,7 +122,8 @@ class ChatService:
         calc = CalcRewriter(_source(citations))
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
-                                           "unverified_figures": unverified, "citation_issues": issues})
+                                           "unverified_figures": unverified, "citation_issues": issues,
+                                           "instruction_like_sources": _suspicious(citations, owner, response.model)})
 
     async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Delta | Done]:
         """Status steps, then answer text as it is generated, then the complete answer with citations.
@@ -154,9 +157,11 @@ class ChatService:
             yield Delta(rest)
         answer = "".join(parts)
         answer, calculations, unverified, issues = _finish(calc, answer, citations, req) if calc else (answer, [], [], [])
-        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(req.model), answer=answer,
+        model = await self.llm.model_name(req.model)
+        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,
                                 citations=citations, calculations=calculations, unverified_figures=unverified,
-                                citation_issues=issues, finish_reason=finish_reason, usage=usage))
+                                citation_issues=issues, instruction_like_sources=_suspicious(citations, owner, model),
+                                finish_reason=finish_reason, usage=usage))
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
@@ -172,6 +177,18 @@ def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
     asked = "\n".join(m.content for m in req.messages if m.role == "user")
     return (answer, calculations, unverified_figures(answer, calculations, _source(citations), asked),
             citation_issues(answer, citations, calculations))
+
+
+def _suspicious(citations: list[Citation], owner: str, model: str) -> list[int]:
+    """Passages given to the model whose text addresses an AI (suveryn-tracker#21): their numbers, for
+    the reader, and an audit event with where they are (never what they say)."""
+    found = {n: kinds for n, c in enumerate(citations, 1) if (kinds := instruction_like(c.text))}
+    if found:
+        audit("instruction_like_passages", user=owner, model=model,
+              documents=sorted({c.source.document_id for n, c in enumerate(citations, 1) if n in found and c.source}),
+              pages=sorted({c.source.page for n, c in enumerate(citations, 1) if n in found and c.source and c.source.page}),
+              kinds=sorted({k for kinds in found.values() for k in kinds}), passages=len(found))
+    return sorted(found)
 
 
 def _source(citations: list[Citation]) -> str:

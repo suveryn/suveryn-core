@@ -133,6 +133,9 @@ class ChatResponse(BaseModel):
     # Grounded answers: facts (figures, dates, names) in a cited claim that the passage it cites
     # doesn't contain. Clients must flag the marker, so a reader checks that source.
     citation_issues: list[CitationIssue] = Field(default_factory=list)
+    # Grounded answers: passages (1-based, as the markers) whose text addresses an AI ("ignore the
+    # instructions…"). The model was told excerpts are data; clients must still tell the reader.
+    instruction_like_sources: list[int] = Field(default_factory=list)
     finish_reason: str | None = None  # "stop"; "length" means the answer was cut off at max_tokens
     usage: Usage = Field(default_factory=Usage)
 
