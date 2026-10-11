@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { citedNumbers, stripMarkers, toBlocks } from "./answer";
+import { citedNumbers, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
+import { cellValue, checkLines, segmentText, tableRows } from "./export";
+
 import {
   formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName, sourcesDocument, sourcesMarkdown,
 } from "./copy";
@@ -13,6 +15,9 @@ import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { reviewPages } from "../api";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
+
+/** The segments of a text block (paragraph or list item). */
+const segs = (b: Block): Segment[] => (b.kind === "table" ? [] : b.segments);
 
 describe("SSE parser", () => {
   it("handles events split across chunks", () => {
@@ -31,7 +36,7 @@ describe("SSE parser", () => {
 describe("answer rendering", () => {
   it("turns valid markers into citations and leaves invalid ones as text", () => {
     const [p] = toBlocks("De koopprijs is EUR 412.500,00 [1], zie ook [9].", 2);
-    expect(p.segments).toEqual([
+    expect(segs(p)).toEqual([
       { kind: "text", text: "De koopprijs is EUR 412.500,00 " },
       { kind: "cite", n: 1, occ: 0 },
       { kind: "text", text: ", zie ook [9]." },
@@ -40,15 +45,15 @@ describe("answer rendering", () => {
 
   it("renders a heading the model already made bold without stray asterisks", () => {
     const [p] = toBlocks("### 📝 **Writing & Editing**", 0);
-    expect(p.segments).toEqual([{ kind: "bold", text: "📝 Writing & Editing" }]);
+    expect(segs(p)).toEqual([{ kind: "bold", text: "📝 Writing & Editing" }]);
   });
 
   it("renders list items, bold text and headings without HTML", () => {
     const blocks = toBlocks("## Partijen\n- **Verkoper**: A [2]\n- Koper <b>x</b>", 2);
     expect(blocks.map((b) => b.kind)).toEqual(["p", "li", "li"]);
-    expect(blocks[0].segments).toEqual([{ kind: "bold", text: "Partijen" }]);
-    expect(blocks[1].segments[0]).toEqual({ kind: "bold", text: "Verkoper" });
-    expect(blocks[2].segments).toEqual([{ kind: "text", text: "Koper <b>x</b>" }]); // stays literal text
+    expect(segs(blocks[0])).toEqual([{ kind: "bold", text: "Partijen" }]);
+    expect(segs(blocks[1])[0]).toEqual({ kind: "bold", text: "Verkoper" });
+    expect(segs(blocks[2])).toEqual([{ kind: "text", text: "Koper <b>x</b>" }]); // stays literal text
   });
 
   it("lists cited sources in order of first use", () => {
@@ -226,7 +231,7 @@ describe("saved conversations (suveryn-tracker#5)", () => {
 describe("figures to check (unverified_figures)", () => {
   it("marks each flagged figure, also in bold, and only as a whole number", () => {
     const [b] = toBlocks("Samen 350.000,00 EUR, of **350.000,00 EUR**; niet 1.350.000,00 [1].", 1, ["350.000,00"]);
-    expect(b.segments).toEqual([
+    expect(segs(b)).toEqual([
       { kind: "text", text: "Samen " },
       { kind: "flag", text: "350.000,00", bold: false },
       { kind: "text", text: " EUR, of " },
@@ -238,7 +243,7 @@ describe("figures to check (unverified_figures)", () => {
     ]);
   });
   it("leaves text alone without flags", () => {
-    expect(toBlocks("Samen 350.000,00 EUR.", 0)[0].segments).toEqual([{ kind: "text", text: "Samen 350.000,00 EUR." }]);
+    expect(segs(toBlocks("Samen 350.000,00 EUR.", 0)[0])).toEqual([{ kind: "text", text: "Samen 350.000,00 EUR." }]);
   });
 });
 
@@ -276,9 +281,9 @@ describe("one redirect per page load", () => {
 describe("citations checked against their source (suveryn-tracker#11)", () => {
   it("numbers valid markers across the answer as the server does, also in bold and list items", () => {
     const blocks = toBlocks("- **Verkoper** [1]: Jan Peeters [9]\n- **Prijs [2]**: 410.000,00 EUR [2]", 2);
-    const cites = blocks.flatMap((b) => b.segments).filter((s) => s.kind === "cite");
+    const cites = blocks.flatMap((b) => segs(b)).filter((s) => s.kind === "cite");
     expect(cites).toEqual([{ kind: "cite", n: 1, occ: 0 }, { kind: "cite", n: 2, occ: 1 }, { kind: "cite", n: 2, occ: 2 }]);
-    expect(blocks[1].segments[0]).toEqual({ kind: "bold", text: "Prijs " });  // the marker in bold is a marker now
+    expect(segs(blocks[1])[0]).toEqual({ kind: "bold", text: "Prijs " });  // the marker in bold is a marker now
   });
 });
 
@@ -300,5 +305,64 @@ describe("deleted documents (suveryn-tracker#12)", () => {
     expect(answer.citations[0]).toEqual({ text: "", source: { document_id: DOC, page: 3, location: null }, removed: true });
     expect(answer.citations[1].text).toBe("Verkoper: Jan Peeters.");
     expect(answer.text).toBe("€ 345.000 [1] [2]");
+  });
+});
+
+describe("tables in answers (Word and Excel)", () => {
+  const answer = "Hier zijn de partijen:\n\n| Nr | Naam | Rol | Bedrag |\n| :--- | :--- | :---: | ---: |\n" +
+    "| 1 | Jan Peeters [1] | Verkoper | EUR 1.275.000,00 [2] |\n| 2 | Marie A \\| B [3] | Koper |\n\nAlles is gecontroleerd [1].";
+
+  it("reads a Markdown table, with alignment, escaped pipes, short rows and markers counted in order", () => {
+    const blocks = toBlocks(answer, 3);
+    expect(blocks.map((b) => b.kind)).toEqual(["p", "table", "p"]);
+    const t = blocks[1] as Table;
+    expect(t.align).toEqual(["left", "left", "center", "right"]);
+    expect(t.header.map((c) => segmentText(c))).toEqual(["Nr", "Naam", "Rol", "Bedrag"]);
+    expect(t.rows[1].map((c) => segmentText(c))).toEqual(["2", "Marie A | B [3]", "Koper", ""]);  // padded to the header
+    const occ = blocks.flatMap((b) => (b.kind === "table" ? [...b.header, ...b.rows.flat()].flat() : b.segments))
+      .filter((x) => x.kind === "cite").map((x) => (x.kind === "cite" ? [x.n, x.occ] : []));
+    expect(occ).toEqual([[1, 0], [2, 1], [3, 2], [1, 3]]);  // as the server counts for citation_issues
+    expect(tableCells("| a | b |")).toEqual(["a", "b"]);
+  });
+
+  it("gives each row its sources, in a last column", () => {
+    const t = toBlocks(answer, 3)[1] as Table;
+    expect(tableRows(t, "Bron")).toEqual({
+      header: ["Nr", "Naam", "Rol", "Bedrag", "Bron"],
+      rows: [{ cells: ["1", "Jan Peeters", "Verkoper", "EUR 1.275.000,00"], sources: [1, 2] },
+             { cells: ["2", "Marie A | B", "Koper", ""], sources: [3] }],
+    });
+  });
+
+  it("leaves out the model's own column of source markers: the sources column has them", () => {
+    const t = toBlocks("| Bedrag | Omschrijving | Bron |\n| --- | --- | --- |\n| EUR 48.200,00 | Achterstand | [2] |\n| EUR 25.000,00 | Boete | [2][3] |", 3)[0] as Table;
+    expect(tableRows(t, "Bron")).toEqual({ header: ["Bedrag", "Omschrijving", "Bron"],
+      rows: [{ cells: ["EUR 48.200,00", "Achterstand"], sources: [2] }, { cells: ["EUR 25.000,00", "Boete"], sources: [2, 3] }] });
+  });
+
+  it.each([
+    ["EUR 1.275.000,00", 1275000, '"€" #,##0.00'],
+    ["€ 48.200", 48200, '"€" #,##0.00'],
+    ["1.275.000", 1275000, "#,##0"],
+    ["12,5", 12.5, "#,##0.0"],
+    ["1,275,000.00", 1275000, "#,##0.00"],
+    ["25 %", 0.25, "0%"],
+    ["4182", 4182, "0"],
+    ["-3.500,75", -3500.75, "#,##0.00"],
+  ])("makes %s a number", (text, value, format) => {
+    expect(cellValue(text)).toEqual({ value, format });
+  });
+
+  it.each(["1.275", "1,275", "0123", "12/03/2021", "15 januari 2027", "sectie K nummer 4182", "BE 0123.456.789", ""])(
+    "keeps %s as text: ambiguous or not one number", (text) => {
+      expect(cellValue(text)).toEqual({ value: text.trim() });
+    });
+
+  it("lists what to check: calculations, figures and citations, each once", () => {
+    const m = { calcFailed: (e: string) => `fail ${e}`, calculatedBy: "Calc:", calcMissing: (f: string[]) => ` missing ${f}`,
+                unverified: (f: string[]) => `check ${f}`, citationIssue: (n: number, item: string) => `source ${n} lacks ${item}` };
+    const issue = { marker: 0, n: 2, item: "X", found_in: [3], written_as: null };
+    expect(checkLines([{ expression: "1 + 1", result: "2", figures_not_in_sources: [], error: null }], ["9"], [issue, { ...issue, marker: 4 }], m))
+      .toEqual(["Calc: 1 + 1 = 2.", "check 9", "source 2 lacks X"]);
   });
 });
