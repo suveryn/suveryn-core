@@ -436,6 +436,11 @@ describe("finding the cited facts in a long passage", () => {
     const audit = markPassage(prose, ["| 1 | Module 1 (audit update) |"], termsOf("| 1 | Module 1 (audit update) |")).filter((p) => p.mark);
     expect(audit.map((p) => p.text).join("")).toBe("Ook kan de audit (module 1) jaarlijks een update krijgen.");
     expect(audit.filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["1"]);
+    // an amount grouped with hard spaces is one number; two numbers with a plain space between are two
+    const amounts = "De prijs bedraagt 1\u00a0275\u00a0000 euro.\nIn 2021 werden 12 kavels verkocht.";
+    expect(markPassage(amounts, ["De prijs is 1.275.000"], []).filter((p) => p.mark).map((p) => p.text).join(""))
+      .toBe("De prijs bedraagt 1\u00a0275\u00a0000 euro.");
+    expect(markPassage(amounts, ["Er werden 12 kavels verkocht"], []).filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["12"]);
   });
 
   it("marks those facts in the passage, whole only, and nothing else", () => {
