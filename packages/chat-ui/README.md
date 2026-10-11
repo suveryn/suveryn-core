@@ -40,6 +40,19 @@ Other commands:
 
 If the model is starting or unreachable, the composer says so and sending is disabled. If an answer breaks off, the partial text is discarded and a notice asks you to try again.
 
+## Tables, Word and Excel
+
+- **Tables:** a Markdown table in an answer is shown as a real table (`lib/answer.ts`), so copy and paste into Excel or Word keeps the columns. The model is told to answer with one when asked for a table, an overview or an Excel or Word file (suveryn-chat's `GROUNDED_INSTRUCTIONS`).
+- **Word:** every complete answer has a *Word (.docx)* button. The document holds:
+  - the question and the date;
+  - the answer, with its tables and lists;
+  - what to check (calculations, figures, citations);
+  - every cited source with its passage, or "Source deleted".
+- **Excel:** every table has an *Excel (.xlsx)* button.
+  - **The table sheet** has a frozen header and a last column naming each row's sources. Unambiguous amounts become numbers (`EUR 1.275.000,00` → 1275000 in euro format). Dates, references and anything ambiguous (`1.275`, `0123`) stay text. A column the model filled with source markers only is left out.
+  - **The other sheets:** a sources sheet, and a sheet of what to check.
+- **How the files are made:** in the browser (`lib/office.ts`) with [docx](https://github.com/dolanmiu/docx) and [write-excel-file](https://gitlab.com/catamphetamine/write-excel-file), both MIT. They load on the first download only, about 540 kB, and the chat itself stays about 9 kB larger. Nothing is sent anywhere. Their licences, and those of what they bundle, are in `THIRD-PARTY-NOTICES.txt` (`npm run notices`).
+
 ## Token usage
 
 The sidebar shows the signed-in user's own token count for today (*1.2k tokens today*); clicking it opens **Your usage**: requests and input, output and total tokens over the last hour, day, week or month, or chosen whole days, with a bar chart and a split by kind (suveryn-tracker#7). Only the user's own usage is shown, never a colleague's. Administrators (Keycloak role `suveryn-admin`) also get **Administration**: the office's usage in total and **per user**, the notional cost on a cloud API at editable rates per million input and output tokens (default $3 and $15), and who last changed them. Rolling periods end at the server's clock, not the browser's. Usage is informational only: nothing is ever limited because of it.

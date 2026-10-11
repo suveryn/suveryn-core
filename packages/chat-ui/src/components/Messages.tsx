@@ -4,11 +4,12 @@
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
  * "not sourced" notices that tell a reader what to check.
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation, CitationIssue } from "../api";
-import { useT } from "../i18n";
-import { citedNumbers, toBlocks } from "../lib/answer";
+import { lang, useT } from "../i18n";
+import { citedNumbers, toBlocks, type Segment, type Table } from "../lib/answer";
+import { checkLines, type AnswerExport } from "../lib/export";
 import { statusText } from "../lib/status";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
@@ -134,6 +135,23 @@ export function AssistantMessage({ turn, question, filenames }: {
   const flagged = turn.unverifiedFigures ?? [];
   const issues = turn.status === "done" ? turn.citationIssues ?? [] : [];
   const flaggedMarkers = new Set(issues.map((i) => i.marker));
+  const blocks = toBlocks(turn.text, turn.status === "done" ? available : 0, turn.status === "done" ? flagged : []);
+  // Word and Excel downloads carry the same warnings and sources as the chat (lib/export.ts).
+  const exported = (): AnswerExport => ({
+    question, answeredOn: new Date(), model: turn.model, blocks,
+    checks: checkLines(turn.calculations ?? [], flagged, issues, m),
+    sources: cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
+  });
+  const render = (segments: Segment[]) => segments.map((s, j) =>
+    s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :
+    s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
+    s.kind === "flag" ? <mark key={j} className="unverified" title={m.unverifiedTitle}>
+                          {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
+    <button key={j} type="button" className={`cite-marker${open === s.n ? " active" : ""}${flaggedMarkers.has(s.occ) ? " flagged" : ""}`}
+            onClick={() => toggle(s.n)} aria-expanded={open === s.n}
+            title={flaggedMarkers.has(s.occ) ? m.citationIssueTitle : undefined}
+            aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)
+                        + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</button>);
 
   if (turn.status === "error") {
     return (
@@ -151,19 +169,9 @@ export function AssistantMessage({ turn, question, filenames }: {
     <div className="turn-assistant">
       <AssistantMark />
       <div className="answer" aria-live={turn.status === "streaming" ? "polite" : undefined}>
-        {toBlocks(turn.text, turn.status === "done" ? available : 0, turn.status === "done" ? flagged : []).map((b, i) => {
-          const body = b.segments.map((s, j) =>
-            s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :
-            s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
-            s.kind === "flag" ? <mark key={j} className="unverified" title={m.unverifiedTitle}>
-                                  {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
-            <button key={j} type="button" className={`cite-marker${open === s.n ? " active" : ""}${flaggedMarkers.has(s.occ) ? " flagged" : ""}`}
-                    onClick={() => toggle(s.n)} aria-expanded={open === s.n}
-                    title={flaggedMarkers.has(s.occ) ? m.citationIssueTitle : undefined}
-                    aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)
-                                + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</button>);
-          return b.kind === "li" ? <li key={i}>{body}</li> : <p key={i}>{body}</p>;
-        })}
+        {blocks.map((b, i) => (b.kind === "table"
+          ? <AnswerTable key={i} table={b} render={render} done={turn.status === "done"} exported={exported} />
+          : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
         {turn.status === "streaming" && (turn.text
           ? <WaitingDots />                                              /* answer is arriving */
           : <p className="waiting" role="status"><WaitingDots /><span>{statusText(turn.step) ?? m.sending}</span></p>)}
@@ -174,6 +182,16 @@ export function AssistantMessage({ turn, question, filenames }: {
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])} />
+        )}
+
+        {turn.status === "done" && turn.text && (
+          <div className="answer-actions">
+            <OfficeButton kind="word" label={m.downloadWord} what={m.downloadWordWhat}
+                          make={async () => {
+                            const { answerToWord } = await import("../lib/office");
+                            return [`${safeFileName(question)}.docx`, await answerToWord(exported(), officeText(m), lang())];
+                          }} />
+          </div>
         )}
 
         {turn.status === "done" && cited.length > 0 && (
@@ -214,6 +232,69 @@ function UnverifiedNote({ figures }: { figures: string[] }) {
       <span>{m.unverified(figures)}</span>
     </p>
   );
+}
+
+/** A Markdown table in an answer, as a real table (so copy and paste into Excel or Word keeps the
+ *  columns), with an Excel download under it once the answer is complete. */
+function AnswerTable({ table, render, done, exported }: {
+  table: Table; render: (s: Segment[]) => React.ReactNode; done: boolean; exported: () => AnswerExport;
+}) {
+  const m = useT();
+  const align = (i: number) => table.align[i] ?? undefined;
+  return (
+    <div className="answer-table">
+      <div className="answer-table-scroll">
+        <table>
+          <thead><tr>{table.header.map((c, i) => <th key={i} style={{ textAlign: align(i) }}>{render(c)}</th>)}</tr></thead>
+          <tbody>{table.rows.map((r, j) => (
+            <tr key={j}>{r.map((c, i) => <td key={i} style={{ textAlign: align(i) }}>{render(c)}</td>)}</tr>))}
+          </tbody>
+        </table>
+      </div>
+      {done && (
+        <OfficeButton kind="excel" label={m.downloadExcel} what={m.downloadExcelWhat}
+                      make={async () => {
+                        const a = exported();
+                        const { tableToExcel } = await import("../lib/office");
+                        return [`${safeFileName(a.question)}.xlsx`, await tableToExcel(table, a, officeText(m))];
+                      }} />
+      )}
+    </div>
+  );
+}
+
+/** A download made in the browser (Word or Excel); says so if it fails. */
+function OfficeButton({ kind, label, what, make }: {
+  kind: "word" | "excel"; label: string; what: string; make: () => Promise<[string, Blob]>;
+}) {
+  const m = useT();
+  const [state, setState] = useState<"idle" | "busy" | "failed">("idle");
+  const run = async () => {
+    setState("busy");
+    try {
+      const [name, blob] = await make();
+      const { saveBlob } = await import("../lib/office");
+      saveBlob(name, blob);
+      setState("idle");
+    } catch {
+      setState("failed");
+    }
+  };
+  return (
+    <button type="button" className="copy-button" aria-label={what} title={what} onClick={run} disabled={state === "busy"}>
+      {kind === "word" ? <FileText size={13} aria-hidden /> : <FileSpreadsheet size={13} aria-hidden />}
+      <span aria-live="polite">{state === "busy" ? m.preparingDownload : state === "failed" ? m.downloadFailed : label}</span>
+    </button>
+  );
+}
+
+function officeText(m: ReturnType<typeof useT>) {
+  return {
+    answeredOn: m.answeredOn, checkHeading: m.toCheck, sourcesHeading: m.sources, sourceRemoved: m.sourceRemoved,
+    sourceColumn: m.sourceColumn, sheetTable: m.sheetTable, sheetSources: m.sources, sheetChecks: m.toCheck,
+    columns: { n: m.columnNumber, document: m.columnDocument, where: m.columnWhere, passage: m.columnPassage },
+    disclaimer: m.exportDisclaimer,
+  };
 }
 
 /**

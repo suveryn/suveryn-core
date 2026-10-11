@@ -25,8 +25,11 @@ GROUNDED_INSTRUCTIONS = (
     "share as a percentage, multiply by 100: [[calc: 6.507,11 / (6.507,11 + 6.417,42) * 100]] %. "
     "A short follow-up such as \"calculate it\" refers to the conversation so far; earlier answers "
     "are shown without their citations, so cite the excerpts again in every answer. If the excerpts do "
-    "not contain the facts or figures needed, say so plainly instead of guessing. Answer in the "
-    "language of the question, concisely."
+    "not contain the facts or figures needed, say so plainly instead of guessing. When asked for a "
+    "table, an overview, a list of several items, or an Excel or Word file, answer with a Markdown table "
+    "(one header row, then one row per item) and cite the excerpt in the cells it comes from; the "
+    "interface shows it as a table and offers it as an Excel or Word download, so never say you can't "
+    "make files and don't tell the user to copy it. Answer in the language of the question, concisely."
 )
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
