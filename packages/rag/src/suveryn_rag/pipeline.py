@@ -38,6 +38,17 @@ class IngestResult:
     mixed_pages: int = 0  # of the OCR'd pages: digital text plus large images (e.g. a pasted-in scan)
 
 
+# Uploading the same file again normally returns the stored copy. It is read again when that copy was
+# read poorly: in review, or most of its text came from the text-layer recovery instead of the layout
+# model (reported 2026-10-11: a document read while the GPU was full, uploaded again, stayed garbled).
+REREAD_RECOVERED_SHARE = 0.5
+
+
+def should_read_again(status: str, recovered_share: float) -> bool:
+    """Whether an upload of a file already stored should read it again instead of returning the stored copy."""
+    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE
+
+
 @dataclass
 class RetrievedChunk:
     """One search hit: the passage as a citation, its fused rank score and the document's file name."""
@@ -101,7 +112,8 @@ class Rag:
         """Extract, chunk, embed and store one PDF; return its id, status and warnings.
 
         Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
-        again. The document is stored in one transaction, so a failure leaves nothing behind.
+        again, unless the stored copy was read poorly (``should_read_again``): then it is read again
+        and replaced in place, keeping its id. The document is stored in one transaction, so a failure leaves nothing behind.
         A ``needs_review`` status means text may be missing (see ``integrity``); the document is
         still stored and searchable. ``filename`` is the name to show for the document; it defaults
         to the file's own name (uploads are stored under a random name).
@@ -112,7 +124,9 @@ class Rag:
         existing = self.store.find_by_sha256(digest, owner)  # the owner's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
-            return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
+            if not should_read_again(status, self.store.recovered_share(existing)):
+                return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
+            # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
@@ -131,7 +145,10 @@ class Rag:
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()
-        doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings, owner)
+        if existing:
+            doc_id = self.store.replace_document(existing, name, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
+        else:
+            doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings, owner)
         if suspicious:
             audit("instruction_like_document", user=owner, document=str(doc_id), pages=sorted(suspicious),
                   kinds=sorted({k for kinds in suspicious.values() for k in kinds}))
