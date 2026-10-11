@@ -15,7 +15,7 @@ from suveryn_engine import Citation, SourceRef
 from .chunking import Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
-from .extract import Extractor
+from .isolation import make_extractor
 from .store import Store
 
 
@@ -84,12 +84,15 @@ class Rag:
         # Pass an existing embedder to share one model between instances (it is thread-safe).
         self.embedder = embedder or Embedder(self.settings.embedding_model, self.settings.device)
         self.store = Store(self.settings.database_url, self.embedder.dim)
-        self._extractor = Extractor(self.settings) if load_extractor else None
+        # Uploaded PDFs are read in a separate process, away from secrets and other users' data (``isolation``).
+        self._extractor = make_extractor(self.settings) if load_extractor else None
         self._chunker = Chunker(self.settings.embedding_model, self.settings.chunk_max_tokens) if load_extractor else None
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Close the database connection and stop the PDF reader process."""
         self.store.close()
+        if hasattr(self._extractor, "close"):
+            self._extractor.close()
 
     def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None) -> IngestResult:
         """Extract, chunk, embed and store one PDF; return its id, status and warnings.

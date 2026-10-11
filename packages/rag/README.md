@@ -39,6 +39,7 @@ PostgreSQL and pgvector are provisioned outside this repository (by [suveryn-app
 
 - Intermediate files (searchable PDFs, OCR work files) are written only to a private `0700` directory under `SUVERYN_WORK_DIR`. They are deleted as soon as a document is processed, also on errors. While a document is processed, both `tempfile` and `TMPDIR` point there, so OCRmyPDF and its subprocesses do not use `/tmp`.
 - Uploads and work folders left behind by a crash are deleted when the document service starts.
+- **Uploaded PDFs are read in a separate process** ([`isolation.py`](src/suveryn_rag/isolation.py)). The PDF parsers (pypdfium2, qpdf, Ghostscript, Tesseract, Docling) run there, without the database URL, the sign-in settings or anything named like a secret in its environment, and with no core dumps. Only JSON comes back (validated, never pickle). A crash or a document that takes longer than `SUVERYN_EXTRACT_TIMEOUT_S` fails that document only: the reader and everything it started are killed, and a fresh one reads the next. A separate user, no network and seccomp are for the appliance to add through `SUVERYN_EXTRACT_WRAPPER`. The reader has its own copy of Docling's models, and on a GPU its own CUDA context (about 0.9 GB of GPU memory, measured on an RTX 4090).
 - Extracted text and file names are stored in PostgreSQL. Encryption at rest and retention are open items (see [known limitations](../../docs/architecture.md#6-known-limitations)).
 
 ## Models stay offline
@@ -74,6 +75,9 @@ Settings come from environment variables:
 | `SUVERYN_OCR_JOBS` | all available cores |
 | `SUVERYN_CHUNK_MAX_TOKENS` | `384` |
 | `SUVERYN_WORK_DIR` | `~/.local/state/suveryn/work` |
+| `SUVERYN_EXTRACT_TIMEOUT_S` | `1800`: the longest one document may take to read |
+| `SUVERYN_EXTRACT_WRAPPER` | unset; a command prefix for the PDF reader process, e.g. a sandbox |
+| `SUVERYN_EXTRACT_ISOLATION` | on; `off` reads PDFs inside the gateway process (debugging only) |
 | `HF_HOME` | `~/.cache/huggingface` (the local model cache) |
 | `SUVERYN_ALLOW_DOWNLOADS` | unset; `1` only for `suveryn-fetch-models` |
 
@@ -84,6 +88,7 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 ```
 
 - `test_integrity.py` and `test_units.py` are fast unit tests (`test_units.py` also checks the offline guard).
+- `test_isolation.py` checks the separate PDF reader with a fake one (`fake_reader.py`): no secrets in its environment, JSON only, a crash, a hang and garbage fail only that document.
 - `test_store.py` checks storage and search against a real pgvector database.
 - `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It also includes a soil report that exists only as a pasted-in image. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:
   - no lost text, and dropped furniture
