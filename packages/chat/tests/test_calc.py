@@ -106,3 +106,11 @@ def test_system_calculations_and_the_users_own_figures_are_not_flagged():
     text = r.feed("Samen [[calc: 200.000,00 + 150.000,00]] EUR; dus 350.000,00 EUR in totaal.") + r.flush()
     assert unverified_figures(text, r.calculations, DEED) == []
     assert unverified_figures("Nee, 410.000 staat niet in de akte.", [], DEED, asked="Is het 410.000?") == []
+
+
+def test_deep_nesting_is_a_calculation_error_not_a_crash():
+    from suveryn_chat.calc import CalcError, evaluate
+
+    for expression in ("(" * 400 + "1" + ")" * 400, "1 " + "- " * 3000 + "1"):
+        with pytest.raises(CalcError):
+            evaluate(expression)

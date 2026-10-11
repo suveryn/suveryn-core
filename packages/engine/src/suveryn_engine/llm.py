@@ -4,9 +4,10 @@ The model server is a separate runtime (installed by suveryn-appliance); this cl
 talks HTTP to it. Nothing here is specific to one model: Qwen3.8-27B is the default and
 Mistral Small 3.2 24B works unchanged, because the served model is read from the server.
 
-Control tokens (suveryn-tracker#21): every user and assistant message is sent ``guard.neutralise``d,
-so text from a document, a question or an earlier answer can never become a turn boundary of the
-chat template ("<|im_start|>system", "[INST]"). Only sūveryn's own system messages are sent as is.
+Control tokens (suveryn-tracker#21): every message is sent ``guard.neutralise``d, so text from a
+document, a question, an earlier answer or a client's own system message can never become a turn
+boundary of the chat template ("<|im_start|>system", "[INST]"). sūveryn's own instructions contain
+no such sequences, so neutralising them changes nothing.
 
 Data handling: prompts and answers pass through this client but are never logged or stored
 here. Error messages may include up to 200 characters of the backend's error body (llama-server
@@ -143,8 +144,7 @@ class LlamaServerClient:
 
     def _payload(self, req: ChatRequest, stream: bool) -> dict:
         payload = {
-            "messages": [{**m.model_dump(), "content": m.content if m.role == "system" else neutralise(m.content)}
-                         for m in req.messages],
+            "messages": [{**m.model_dump(), "content": neutralise(m.content)} for m in req.messages],
             "max_tokens": req.max_tokens,
             "temperature": req.temperature,
             "stream": stream,

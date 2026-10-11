@@ -12,7 +12,8 @@ import { statusText } from "./status";
 import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved, usesDocument, withoutDocument } from "./conversations";
 import { rangeFor, today } from "./usage";
 import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
-import { reviewPages } from "../api";
+import { httpErrorText, reviewPages } from "../api";
+import { setLang } from "../i18n";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
 
@@ -436,6 +437,11 @@ describe("finding the cited facts in a long passage", () => {
     const audit = markPassage(prose, ["| 1 | Module 1 (audit update) |"], termsOf("| 1 | Module 1 (audit update) |")).filter((p) => p.mark);
     expect(audit.map((p) => p.text).join("")).toBe("Ook kan de audit (module 1) jaarlijks een update krijgen.");
     expect(audit.filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["1"]);
+    // an amount grouped with hard spaces is one number; two numbers with a plain space between are two
+    const amounts = "De prijs bedraagt 1\u00a0275\u00a0000 euro.\nIn 2021 werden 12 kavels verkocht.";
+    expect(markPassage(amounts, ["De prijs is 1.275.000"], []).filter((p) => p.mark).map((p) => p.text).join(""))
+      .toBe("De prijs bedraagt 1\u00a0275\u00a0000 euro.");
+    expect(markPassage(amounts, ["Er werden 12 kavels verkocht"], []).filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["12"]);
   });
 
   it("marks those facts in the passage, whole only, and nothing else", () => {
@@ -443,5 +449,29 @@ describe("finding the cited facts in a long passage", () => {
     expect(markTerms(passage, ["1989", "1996"]).filter((p) => p.mark).map((p) => p.text)).toEqual(["1989", "1996"]);
     expect(markTerms(passage, []).length).toBe(1);
     expect(markTerms("de heer jan peeters", ["Peeters"]).filter((p) => p.mark).map((p) => p.text)).toEqual(["peeters"]);
+  });
+});
+
+
+describe("server errors and long conversations", () => {
+  it("says what went wrong in the interface's language, not as HTTP codes", () => {
+    setLang("nl");
+    expect(httpErrorText(429, "Too many requests. Try again in 12 seconds.", "12")).toBe("te veel verzoeken; probeer het over 12 seconden opnieuw");
+    expect(httpErrorText(422, [{ loc: ["body", "messages"], msg: "too long" }])).toBe("de server kon dit verzoek niet aanvaarden");  // was "HTTP 422"
+    expect(httpErrorText(413, "This conversation is too long to save.")).toMatch(/^dit gesprek is te lang/);
+    expect(httpErrorText(413, "The file is larger than 100 MB.")).toMatch(/^het bestand is groter/);
+    expect(httpErrorText(418, "I'm a teapot")).toBe("I'm a teapot");  // others keep the server's text
+    setLang("en");
+  });
+
+  it("sends at most the last 40 messages of a long conversation, starting with a question", () => {
+    const turns = Array.from({ length: 150 }, (_, i) => [
+      { id: `q${i}`, role: "user", text: `vraag ${i}`, attachments: [] },
+      { id: `a${i}`, role: "assistant", text: `antwoord ${i}`, citations: [], status: "done" },
+    ]).flat() as never[];
+    const sent = conversationHistory(turns);
+    expect(sent).toHaveLength(40);
+    expect(sent[0]).toEqual({ role: "user", content: "vraag 130" });
+    expect(sent.at(-1)).toEqual({ role: "assistant", content: "antwoord 149" });
   });
 });

@@ -6,6 +6,10 @@ import { locale, t } from "../i18n";
 import type { Turn } from "../types";
 
 /** A random UUID (v4). Not crypto.randomUUID: that needs a secure context, and an appliance may be reached over plain http. */
+
+/** The most turns the server saves in one conversation (``MAX_TURNS`` in the gateway's conversations.py). */
+export const MAX_SAVED_TURNS = 500;
+
 export function newConversationId(): string {
   const b = crypto.getRandomValues(new Uint8Array(16));
   b[6] = (b[6] & 0x0f) | 0x40;

@@ -25,7 +25,9 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
   const d = await import("docx");
   const runs = (segments: Segment[]) => segments.map((s) =>
     s.kind === "cite" ? new d.TextRun({ text: `[${s.n}]`, superScript: true })
-    : new d.TextRun({ text: s.text, bold: s.kind === "bold" || (s.kind === "flag" && s.bold), highlight: s.kind === "flag" ? "yellow" : undefined }));
+    // a figure to check: a wavy accent-ink underline, as on screen (no separate yellow)
+    : new d.TextRun({ text: s.text, bold: s.kind === "bold" || (s.kind === "flag" && s.bold),
+                      underline: s.kind === "flag" ? { type: d.UnderlineType.WAVE, color: "C42F00" } : undefined }));
   const table = (t: Table) => new d.Table({
     width: { size: 100, type: d.WidthType.PERCENTAGE },
     rows: [t.header, ...t.rows].map((row, r) => new d.TableRow({

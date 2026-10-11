@@ -6,7 +6,7 @@ import { createSSEParser } from "./lib/sse";
 import { lang, t } from "./i18n";
 import type { Turn } from "./types";
 
-export type SourceRef = { document_id: string; page: number | null; location: string | null };
+type SourceRef = { document_id: string; page: number | null; location: string | null };
 /** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
 export type Citation = { text: string; source: SourceRef | null; removed?: boolean };
 /** A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11). ``marker`` is the
@@ -77,7 +77,7 @@ export async function listModels(): Promise<ModelInfo[]> {
  * holds an HttpOnly session cookie that fetch and XHR send automatically (same origin). A 401 from
  * any API call means the session ended: the registered handler shows the sign-in screen.
  */
-export class SignedOut extends Error {
+class SignedOut extends Error {
   constructor() { super(t().sessionEndedError); }
 }
 let signedOutHandler: () => void = () => {};
@@ -111,13 +111,28 @@ export async function signOut(): Promise<void> {
   window.location.assign(url ?? "/");
 }
 
-async function errorText(r: Response): Promise<string> {
-  try {
-    const body = await r.json();
-    return typeof body.detail === "string" ? body.detail : `HTTP ${r.status}`;
-  } catch {
-    return `HTTP ${r.status}`;
+/**
+ * What went wrong, in the interface's language: by HTTP status for the errors a user meets (the server's
+ * own text is English, and a validation error's detail is a list, which showed as "HTTP 422"). Other
+ * statuses keep the server's text.
+ */
+export function httpErrorText(status: number, detail: unknown, retryAfter: string | null = null): string {
+  const m = t();
+  switch (status) {
+    case 429: return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
+    case 413: return typeof detail === "string" && /conversation/i.test(detail) ? m.conversationTooLong : m.fileTooLarge;
+    case 422: return m.requestRejected;
+    case 404: return m.notFound;
+    case 403: return m.forbidden;
+    case 502: case 503: return m.serverUnavailable;
+    default: return typeof detail === "string" ? detail : `HTTP ${status}`;
   }
+}
+
+async function errorText(r: Response): Promise<string> {
+  let detail: unknown = null;
+  try { detail = (await r.json()).detail; } catch { /* no JSON body */ }
+  return httpErrorText(r.status, detail, r.headers.get("Retry-After"));
 }
 
 export async function getHealth(): Promise<Health | null> {
@@ -150,7 +165,7 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job);
       else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
-      else reject(new Error(typeof xhr.response?.detail === "string" ? xhr.response.detail : `HTTP ${xhr.status}`));
+      else reject(new Error(httpErrorText(xhr.status, xhr.response?.detail, xhr.getResponseHeader("Retry-After"))));
     };
     xhr.onerror = () => reject(new Error(t().uploadInterrupted));
     xhr.send(form);
@@ -268,7 +283,7 @@ export type UsageReport = {
   by_kind: Record<string, UsageTotals>;
 };
 export type Rates = { input_per_million: string; output_per_million: string; currency: string; updated_at?: string | null; updated_by?: string | null };
-export type UserUsage = { user_id: string; username: string | null; name: string | null; totals: UsageTotals; cost: string | null };
+type UserUsage = { user_id: string; username: string | null; name: string | null; totals: UsageTotals; cost: string | null };
 export type OfficeUsageReport = UsageReport & { per_user: UserUsage[]; rates: Rates; cost: string };
 
 // Without an end, the server ends the range at its own "now": the browser's clock may run behind

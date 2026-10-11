@@ -58,7 +58,8 @@ def misread(text: str) -> bool:
 
 def should_read_again(status: str, recovered_share: float, misdecoded: bool = False) -> bool:
     """Whether an upload of a file already stored should read it again instead of returning the stored copy:
-    also when it was stored with quotes read as Mac Roman or with OCR noise recovered (before either was handled)."""
+    also when it was stored with characters read in the wrong encoding, line-break hyphens (``misread``) or
+    recovered OCR noise, from before those were handled."""
     return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE or misdecoded
 
 
