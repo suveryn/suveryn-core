@@ -10,7 +10,23 @@ export type Segment =
   | { kind: "cite"; n: number; occ: number } // occ: the marker's place among the answer's valid markers (0-based)
   | { kind: "flag"; text: string; bold: boolean }; // a figure to check (ChatResponse.unverified_figures)
 
-export type Block = { kind: "p" | "li"; segments: Segment[] };
+export type Align = "left" | "center" | "right" | null;
+/** A Markdown table: header cells, rows of cells, column alignment. Cells are segments like any text. */
+export type Table = { kind: "table"; header: Segment[][]; rows: Segment[][][]; align: Align[] };
+export type Block = { kind: "p" | "li"; segments: Segment[] } | Table;
+
+const TABLE_SEPARATOR = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/;
+
+/** The cells of a Markdown table row: outer pipes dropped, split on pipes not escaped as \|. */
+export function tableCells(line: string): string[] {
+  const inner = line.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "");
+  return inner.split(/(?<!\\)\|/).map((c) => c.trim().replaceAll("\\|", "|"));
+}
+
+function alignOf(cell: string): Align {
+  const c = cell.trim();
+  return c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : c.startsWith(":") ? "left" : null;
+}
 
 const MARKER = /\[(\d{1,2})\]/g;
 
@@ -72,9 +88,25 @@ function flagFigures(segments: Segment[], flagged: string[]): Segment[] {
 export function toBlocks(text: string, available: number, flagged: string[] = []): Block[] {
   const blocks: Block[] = [];
   const counter = { occ: 0 };
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
+  const lines = text.split("\n");
+  const cells = (l: string) => tableCells(l).map((c) => flagFigures(inline(c, available, counter), flagged));
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
     if (!line) continue;
+    // A table: a row with pipes followed by a separator row (| --- | :--: |), then rows with pipes.
+    if (line.includes("|") && TABLE_SEPARATOR.test(lines[i + 1]?.trim() ?? "")) {
+      const width = tableCells(line).length;
+      const table: Table = { kind: "table", header: cells(line), rows: [], align: tableCells(lines[i + 1]).map(alignOf) };
+      i += 1;
+      while (i + 1 < lines.length && lines[i + 1].trim().includes("|")) {
+        i += 1;
+        const row = cells(lines[i]);
+        while (row.length < width) row.push([]);
+        table.rows.push(row.slice(0, width));
+      }
+      blocks.push(table);
+      continue;
+    }
     const item = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/);
     const heading = line.match(/^#{1,6}\s+(.*)$/);
     if (item) blocks.push({ kind: "li", segments: flagFigures(inline(item[1], available, counter), flagged) });
