@@ -138,24 +138,8 @@ export function claimTerms(text: string, available: number): Map<number, string[
   for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
     let start = 0;
     for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
-      const claim = sentence.slice(start, group.index).replace(/\*\*/g, "");
+      const terms = termsOf(sentence.slice(start, group.index));
       start = group.index! + group[0].length;
-      const terms = [
-        ...claim.matchAll(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d+(?:[.,  ]\d+)+|\b(?:1[89]|20)\d\d\b|\d{5,}/g),
-      ].map((m) => m[0]);
-      // Whole names ("Eric Van de Plas": "Van" and "de" were left unmarked), also at the start of a claim,
-      // only for a claim without figures, years or dates: those are what it says, and a capitalised word
-      // ("Europese") isn't always a name. A single capitalised word only when it isn't the claim's first
-      // word (capitalised anyway) and has 4+ letters.
-      const names = terms.length ? [] : [...claim.matchAll(NAME)].map((m) => ({ text: m[0], at: m.index! }));
-      for (const n of names) {
-        const several = /\s/.test(n.text);
-        if ((several || (n.at > 0 && n.text.length >= 4)) && !terms.includes(n.text)) terms.push(n.text);
-        // At the start of a claim the first word may be a title ("Notaris Charlotte d'Hondt"), which the source
-        // may write elsewhere: the name without it too. Marking tries the longest first.
-        const rest = n.text.replace(/^\S+\s+/, "");
-        if (several && n.at === 0 && /\s/.test(rest) && !terms.includes(rest)) terms.push(rest);
-      }
       for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) {
         if (n < 1 || n > available) continue;
         const known = out.get(n) ?? [];
@@ -166,13 +150,55 @@ export function claimTerms(text: string, available: number): Map<number, string[
   return out;
 }
 
+/**
+ * Per valid marker, in the order ``toBlocks`` numbers them (``Segment.occ``): its source and the claim before it.
+ * A click on one marker shows what that claim rests on, not every claim citing the source (reported: a table of
+ * 11 rows citing one source marked most of it, where the clicked row's sentence was expected).
+ */
+export function markerClaims(text: string, available: number): { n: number; claim: string }[] {
+  const out: { n: number; claim: string }[] = [];
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    let start = 0;
+    for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
+      const claim = cleanClaim(sentence.slice(start, group.index));
+      start = group.index! + group[0].length;
+      for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) if (n >= 1 && n <= available) out.push({ n, claim });
+    }
+  }
+  return out;
+}
+
+const cleanClaim = (claim: string) => claim.replace(/\*\*/g, "").replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim();
+
+/** The figures, years, dates and names of one claim (see ``claimTerms``). */
+export function termsOf(rawClaim: string): string[] {
+  const claim = rawClaim.replace(/\*\*/g, "");
+  const terms = [
+    ...claim.matchAll(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d+(?:[.,  ]\d+)+|\b(?:1[89]|20)\d\d\b|\d{5,}/g),
+  ].map((m) => m[0]);
+  // Whole names ("Eric Van de Plas": "Van" and "de" were left unmarked), also at the start of a claim,
+  // only for a claim without numbers: those are what it says, and a capitalised word ("Europese", a table
+  // cell's "Datum") isn't always a name. A single capitalised word only when it isn't the claim's first
+  // word (capitalised anyway) and has 4+ letters.
+  const names = /\d/.test(claim) ? [] : [...claim.matchAll(NAME)].map((m) => ({ text: m[0], at: m.index! }));
+  for (const n of names) {
+    const several = /\s/.test(n.text);
+    if ((several || (n.at > 0 && n.text.length >= 4)) && !terms.includes(n.text)) terms.push(n.text);
+    // At the start of a claim the first word may be a title ("Notaris Charlotte d'Hondt"), which the source
+    // may write elsewhere: the name without it too. Marking tries the longest first.
+    const rest = n.text.replace(/^\S+\s+/, "");
+    if (several && n.at === 0 && /\s/.test(rest) && !terms.includes(rest)) terms.push(rest);
+  }
+  return terms;
+}
+
 /** Per source number, the claims (sentence parts before a marker group) that cite it. */
 export function claimTexts(text: string, available: number): Map<number, string[]> {
   const out = new Map<number, string[]>();
   for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
     let start = 0;
     for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
-      const claim = sentence.slice(start, group.index).replace(/\*\*/g, "").replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim();
+      const claim = cleanClaim(sentence.slice(start, group.index));
       start = group.index! + group[0].length;
       if (!claim) continue;
       for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) {
@@ -199,11 +225,14 @@ function tokens(text: string): { words: Set<string>; numbers: Set<string> } {
   return { words, numbers };
 }
 
-/** The passage's sentences as [start, end) ranges: split after . ! ? ; before a capital, digit or quote, and at line breaks. */
+/**
+ * The passage's sentences as [start, end) ranges: split after . ! ? ; : before a capital, digit or quote, at a blank
+ * line, before a list item, and before a numbered part within a line ("… 11) dagen … 12) datum …", as in a form's legend).
+ */
 function sentenceRanges(passage: string): [number, number][] {
   const out: [number, number][] = [];
   let start = 0;
-  for (const b of passage.matchAll(/(?<=[.!?;:])\s+(?=[\p{Lu}\d“"'(])|\n\s*\n|\n(?=\s*(?:[-*•▪]|\d+[.)])\s)/gu)) {
+  for (const b of passage.matchAll(/(?<=[.!?;:])\s+(?=[\p{Lu}\d“"'(])|\n\s*\n|\n(?=\s*(?:[-*•▪]|\d+[.)])\s)|(?<=\S)\s+(?=\d{1,2}\)\s)/gu)) {
     out.push([start, b.index!]);
     start = b.index! + b[0].length;
   }
@@ -213,8 +242,8 @@ function sentenceRanges(passage: string): [number, number][] {
 
 /**
  * Where in a passage each claim comes from: the sentences sharing most of the claim's words and numbers
- * (a number counts double). A sentence is taken when it holds at least a third of the claim and close to the
- * best sentence's share, so a claim drawn from two sentences shows both.
+ * (a number counts double). A sentence is taken when it holds at least a third of the claim and nearly as much as
+ * the best sentence (80%), so a claim drawn from two sentences shows both but a sentence sharing a word or two doesn't.
  */
 export function supportingRanges(passage: string, claims: string[]): [number, number][] {
   const sentences = sentenceRanges(passage).map(([a, z]) => ({ a, z, t: tokens(passage.slice(a, z)) }));
@@ -227,7 +256,7 @@ export function supportingRanges(passage: string, claims: string[]): [number, nu
       ([...c.words].filter((w) => t.words.has(w)).length + 2 * [...c.numbers].filter((x) => t.numbers.has(x)).length) / total);
     const best = Math.max(0, ...scores);
     if (best < 1 / 3) continue;
-    scores.forEach((s, i) => { if (s >= Math.max(1 / 3, 0.6 * best)) picked.set(i, [...(picked.get(i) ?? []), c]); });
+    scores.forEach((s, i) => { if (s >= Math.max(1 / 3, 0.8 * best)) picked.set(i, [...(picked.get(i) ?? []), c]); });
   }
   return [...picked.keys()].sort((x, y) => x - y).map((i) => trimLines(passage, sentences[i].a, sentences[i].z, picked.get(i)!));
 }
