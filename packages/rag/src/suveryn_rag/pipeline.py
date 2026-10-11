@@ -18,10 +18,11 @@ from .chunking import Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
 from .integrity import (
+    LINE_BREAK_HYPHEN,
     IntegrityWarning,
-    misdecoded_quotes,
+    misdecoding,
     ocr_noise,
-    repair_quotes,
+    repair_characters,
     words,
 )
 from .isolation import make_extractor
@@ -48,6 +49,11 @@ class IngestResult:
 # read poorly: in review, or most of its text came from the text-layer recovery instead of the layout
 # model (reported 2026-10-11: a document read while the GPU was full, uploaded again, stayed garbled).
 REREAD_RECOVERED_SHARE = 0.5
+
+
+def misread(text: str) -> bool:
+    """Whether stored text still shows a misread encoding or line-break hyphens (stored before they were put right)."""
+    return misdecoding(text) is not None or LINE_BREAK_HYPHEN in text
 
 
 def should_read_again(status: str, recovered_share: float, misdecoded: bool = False) -> bool:
@@ -134,18 +140,18 @@ class Rag:
             vocabulary = words(self.store.document_text(existing, recovered=False))
             noisy = any(ocr_noise(line, vocabulary) for line in self.store.document_text(existing, recovered=True).splitlines())
             if not should_read_again(status, self.store.recovered_share(existing),
-                                     misdecoded_quotes(self.store.document_text(existing)) or noisy):
+                                     misread(self.store.document_text(existing)) or noisy):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
-        # Quotes and dashes the PDF's font encodes as Mac Roman ("ÒwoordÓ"): put right for the whole document,
-        # only when it shows them (a pair Ò…Ó, or Õ between letters).
-        if misdecoded_quotes(" ".join(c.text + " " + " ".join(c.headings) for c in chunks)):
-            chunks = [replace(c, text=repair_quotes(c.text), embed_text=repair_quotes(c.embed_text),
-                              headings=[repair_quotes(h) for h in c.headings]) for c in chunks]
+        # Characters read with the wrong encoding ("ŽŽn" for "één", "ÒwoordÓ"), and line-break hyphens: put right
+        # for the whole document, the encoding only when it clearly shows (see integrity.misdecoding).
+        how = misdecoding(" ".join(c.text + " " + " ".join(c.headings) for c in chunks))
+        chunks = [replace(c, text=repair_characters(c.text, how), embed_text=repair_characters(c.embed_text, how),
+                          headings=[repair_characters(h, how) for h in c.headings]) for c in chunks]
         # Text addressed to an AI ("ignore the instructions…"): a signal for the reader, not a block
         # (suveryn-tracker#21). It doesn't change the status: the text isn't missing.
         # Pages the layout model couldn't read (suveryn-tracker: GPU out of memory, 2026-10-11): their text
