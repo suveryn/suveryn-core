@@ -6,7 +6,7 @@
  */
 import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Download } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import type { Calculation, Citation } from "../api";
+import type { Calculation, Citation, CitationIssue } from "../api";
 import { useT } from "../i18n";
 import { citedNumbers, toBlocks } from "../lib/answer";
 import { statusText } from "../lib/status";
@@ -85,6 +85,17 @@ function DownloadButton({ filename, text, what }: {
 
 function SourceCard({ n, citation, filename }: { n: number; citation: Citation; filename: string }) {
   const m = useT();
+  if (citation.removed) {
+    return (
+      <div className="source-card" role="region" aria-label={m.source(n)}>
+        <div className="source-head">
+          <span className="label">{m.source(n)}</span>
+          <span className="source-file">{m.sourceRemoved}</span>
+        </div>
+        <p className="caption">{m.sourceRemovedCaption}</p>
+      </div>
+    );
+  }
   return (
     <div className="source-card" role="region" aria-label={m.source(n)}>
       <div className="source-head">
@@ -114,11 +125,15 @@ export function AssistantMessage({ turn, question, filenames }: {
   const [open, setOpen] = useState<number | null>(null);
   const available = turn.citations.length;
   const cited = citedNumbers(turn.text, available);
-  const nameOf = (c: Citation) => (c.source && filenames.get(c.source.document_id)) || "document";
+  const nameOf = (c: Citation) => (c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || "document");
   const toggle = (n: number) => setOpen((cur) => (cur === n ? null : n));
-  const citedItems = cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) }));
+  // Copy and download only what is still there: a deleted document's passage was taken out.
+  const citedItems = cited.filter((n) => !turn.citations[n - 1].removed)
+    .map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) }));
   const allSources = formatSources(citedItems);
   const flagged = turn.unverifiedFigures ?? [];
+  const issues = turn.status === "done" ? turn.citationIssues ?? [] : [];
+  const flaggedMarkers = new Set(issues.map((i) => i.marker));
 
   if (turn.status === "error") {
     return (
@@ -142,9 +157,11 @@ export function AssistantMessage({ turn, question, filenames }: {
             s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
             s.kind === "flag" ? <mark key={j} className="unverified" title={m.unverifiedTitle}>
                                   {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
-            <button key={j} type="button" className={`cite-marker${open === s.n ? " active" : ""}`}
+            <button key={j} type="button" className={`cite-marker${open === s.n ? " active" : ""}${flaggedMarkers.has(s.occ) ? " flagged" : ""}`}
                     onClick={() => toggle(s.n)} aria-expanded={open === s.n}
-                    aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)}>{s.n}</button>);
+                    title={flaggedMarkers.has(s.occ) ? m.citationIssueTitle : undefined}
+                    aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)
+                                + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</button>);
           return b.kind === "li" ? <li key={i}>{body}</li> : <p key={i}>{body}</p>;
         })}
         {turn.status === "streaming" && (turn.text
@@ -153,6 +170,7 @@ export function AssistantMessage({ turn, question, filenames }: {
 
         {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
         {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
+        {issues.length > 0 && <CitationIssuesNote issues={issues} />}
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])} />
@@ -165,10 +183,10 @@ export function AssistantMessage({ turn, question, filenames }: {
               <CitationChip key={n} n={n} citation={turn.citations[n - 1]} filename={nameOf(turn.citations[n - 1])}
                             active={open === n} onClick={() => toggle(n)} />
             ))}
-            <CopyButton label={m.copySources} what={m.allCitedSources} text={allSources} />
-            <DownloadButton filename={(f) => `sources_${safeFileName(question)}.${f}`} what={m.allCitedSources}
+            {citedItems.length > 0 && <CopyButton label={m.copySources} what={m.allCitedSources} text={allSources} />}
+            {citedItems.length > 0 && <DownloadButton filename={(f) => `sources_${safeFileName(question)}.${f}`} what={m.allCitedSources}
                             text={(f) => (f === "md" ? sourcesMarkdown(question, citedItems, new Date())
-                                                     : sourcesDocument(question, allSources, new Date()))} />
+                                                     : sourcesDocument(question, allSources, new Date()))} />}
           </div>
         )}
 
@@ -194,6 +212,21 @@ function UnverifiedNote({ figures }: { figures: string[] }) {
     <p className="notice notice-error">
       <AlertTriangle size={14} aria-hidden />
       <span>{m.unverified(figures)}</span>
+    </p>
+  );
+}
+
+/**
+ * Facts in a cited sentence that the cited source doesn't contain (suveryn-tracker#11): a figure or date
+ * from another source, or a name the source spells differently. One line per fact, once each.
+ */
+function CitationIssuesNote({ issues }: { issues: CitationIssue[] }) {
+  const m = useT();
+  const lines = [...new Set(issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))];
+  return (
+    <p className="notice notice-error">
+      <AlertTriangle size={14} aria-hidden />
+      <span>{lines.join(" ")}</span>
     </p>
   );
 }

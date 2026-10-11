@@ -14,12 +14,14 @@ from suveryn_engine import (
     ChatRequest,
     ChatResponse,
     Citation,
+    CitationIssue,
     LlamaServerClient,
     Usage,
 )
 
 from .calc import CalcRewriter, unverified_figures
 from .grounding import cited_numbers, grounded_messages
+from .support import citation_issues
 
 # Passages to answer a question from, within the given documents of one user:
 # (question, document_ids, k, owner) -> ([(citation, filename), ...], complete). The retriever must
@@ -116,9 +118,9 @@ class ChatService:
         if not req.document_ids:
             return response
         calc = CalcRewriter(_source(citations))
-        text, calculations, unverified = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
+        text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
-                                           "unverified_figures": unverified})
+                                           "unverified_figures": unverified, "citation_issues": issues})
 
     async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Delta | Done]:
         """Status steps, then answer text as it is generated, then the complete answer with citations.
@@ -151,23 +153,25 @@ class ChatService:
             parts.append(rest)
             yield Delta(rest)
         answer = "".join(parts)
-        answer, calculations, unverified = _finish(calc, answer, citations, req) if calc else (answer, [], [])
+        answer, calculations, unverified, issues = _finish(calc, answer, citations, req) if calc else (answer, [], [], [])
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=await self.llm.model_name(req.model), answer=answer,
                                 citations=citations, calculations=calculations, unverified_figures=unverified,
-                                finish_reason=finish_reason, usage=usage))
+                                citation_issues=issues, finish_reason=finish_reason, usage=usage))
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
-            req: ChatRequest) -> tuple[str, list[Calculation], list[str]]:
+            req: ChatRequest) -> tuple[str, list[Calculation], list[str], list[CitationIssue]]:
     """Cite the sources of calculation figures the answer left uncited, check every calculation
-    figure, and list figures in the text that are in no passage and no calculation's result.
+    figure, list figures in the text that are in no passage and no calculation's result, and check
+    each citation against its own passage (``support.citation_issues``).
 
     The streamed text doesn't have the added markers yet; the ``Done`` answer does, and replaces it.
     """
     answer = calc.cite_figures(answer, [c.text for c in citations], set(cited_numbers(answer, len(citations))))
     calculations = calc.check_figures(_cited_sources(answer, citations))
     asked = "\n".join(m.content for m in req.messages if m.role == "user")
-    return answer, calculations, unverified_figures(answer, calculations, _source(citations), asked)
+    return (answer, calculations, unverified_figures(answer, calculations, _source(citations), asked),
+            citation_issues(answer, citations, calculations))
 
 
 def _source(citations: list[Citation]) -> str:

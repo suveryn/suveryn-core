@@ -7,7 +7,7 @@
 export type Segment =
   | { kind: "text"; text: string }
   | { kind: "bold"; text: string }
-  | { kind: "cite"; n: number }
+  | { kind: "cite"; n: number; occ: number } // occ: the marker's place among the answer's valid markers (0-based)
   | { kind: "flag"; text: string; bold: boolean }; // a figure to check (ChatResponse.unverified_figures)
 
 export type Block = { kind: "p" | "li"; segments: Segment[] };
@@ -24,24 +24,27 @@ export function citedNumbers(text: string, available: number): number[] {
   return seen;
 }
 
-function inline(text: string, available: number): Segment[] {
+/**
+ * Splits on **bold** first, then on [n] markers in every piece, bold ones included (they used to stay
+ * as text). ``counter`` numbers the valid markers across the whole answer, as the server does for
+ * ``citation_issues`` (suveryn-tracker#11), so a flag lands on the right marker.
+ */
+function inline(text: string, available: number, counter: { occ: number }): Segment[] {
   const out: Segment[] = [];
-  // Split on **bold** first, then on [n] markers inside each piece.
   text.split(/(\*\*[^*]+\*\*)/g).forEach((piece) => {
     if (!piece) return;
-    if (piece.startsWith("**") && piece.endsWith("**") && piece.length > 4) {
-      out.push({ kind: "bold", text: piece.slice(2, -2) });
-      return;
-    }
+    const bold = piece.startsWith("**") && piece.endsWith("**") && piece.length > 4;
+    const body = bold ? piece.slice(2, -2) : piece;
+    const kind = bold ? "bold" : "text";
     let last = 0;
-    for (const m of piece.matchAll(MARKER)) {
+    for (const m of body.matchAll(MARKER)) {
       const n = Number(m[1]);
       if (n < 1 || n > available) continue; // not a valid marker: leave it as text
-      if (m.index! > last) out.push({ kind: "text", text: piece.slice(last, m.index) });
-      out.push({ kind: "cite", n });
+      if (m.index! > last) out.push({ kind, text: body.slice(last, m.index) });
+      out.push({ kind: "cite", n, occ: counter.occ++ });
       last = m.index! + m[0].length;
     }
-    if (last < piece.length) out.push({ kind: "text", text: piece.slice(last) });
+    if (last < body.length) out.push({ kind, text: body.slice(last) });
   });
   return out;
 }
@@ -68,13 +71,14 @@ function flagFigures(segments: Segment[], flagged: string[]): Segment[] {
 
 export function toBlocks(text: string, available: number, flagged: string[] = []): Block[] {
   const blocks: Block[] = [];
+  const counter = { occ: 0 };
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
     const item = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/);
     const heading = line.match(/^#{1,6}\s+(.*)$/);
-    if (item) blocks.push({ kind: "li", segments: flagFigures(inline(item[1], available), flagged) });
-    else blocks.push({ kind: "p", segments: flagFigures(inline(heading ? `**${heading[1].replaceAll("**", "")}**` : line, available), flagged) });
+    if (item) blocks.push({ kind: "li", segments: flagFigures(inline(item[1], available, counter), flagged) });
+    else blocks.push({ kind: "p", segments: flagFigures(inline(heading ? `**${heading[1].replaceAll("**", "")}**` : line, available, counter), flagged) });
   }
   return blocks;
 }

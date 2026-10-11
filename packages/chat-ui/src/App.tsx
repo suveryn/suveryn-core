@@ -16,20 +16,21 @@
 import { AlertCircle, LogIn } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteDocument, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
+  deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
+import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage } from "./components/Messages";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { Sidebar } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { AdminView, UsageView } from "./components/UsageView";
 import { today } from "./lib/usage";
-import { conversationTitle, fromSaved, newConversationId, toSaved } from "./lib/conversations";
+import { conversationTitle, fromSaved, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { useT } from "./i18n";
@@ -240,7 +241,8 @@ function Chat({ me }: { me: Me }) {
         update({ text: streamed });
       }, abort.current.signal, chosenModel, (step) => update({ step }));
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
-               unverifiedFigures: done.unverified_figures ?? [], status: "done", model: done.model });
+               unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
+               status: "done", model: done.model });
     } catch (e) {
       // Gateway contract: after an error, discard any partial answer.
       update({ text: "", status: "error", error: (e as Error).message });
@@ -296,14 +298,24 @@ function Chat({ me }: { me: Me }) {
     await signOut();
   };
 
+  // Deleting a document (suveryn-tracker#12): if saved conversations cite it, ask whether they go too.
+  const [deleting, setDeleting] = useState<{ doc: StoredDocument; conversations: string[] } | null>(null);
   const remove = async (d: StoredDocument) => {
-    try {
-      await deleteDocument(d.id);
-      setPending((p) => p.filter((a) => a.documentId !== d.id));
-      refreshDocuments();
-    } catch (e) {
-      setProblem(m.deleteDocumentFailed(d.filename, (e as Error).message));
+    let using: string[] = [];
+    if (historyReady) {
+      try { using = (await documentConversations(d.id)).map((c) => c.id); } catch { /* deleting still cleans them */ }
     }
+    if (using.length > 0) setDeleting({ doc: d, conversations: using });
+    else await deleteNow(d, "clean", []).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
+  };
+  const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[]) => {
+    await deleteDocument(d.id, conversations);
+    setPending((p) => p.filter((a) => a.documentId !== d.id));
+    if (conversations === "delete" && using.includes(conversationId)) newChat();
+    else if (usesDocument(turns, d.id)) setTurns((ts) => withoutDocument(ts, d.id));  // as the server cleaned it
+    setDeleting(null);
+    refreshDocuments();
+    refreshConversations();
   };
 
   // ---------------------------------------------------------------- view
@@ -322,6 +334,10 @@ function Chat({ me }: { me: Me }) {
                onOpenConversation={(id) => { setView("chat"); openConversation(id); }} onDeleteConversation={removeConversation}
                tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
                admin={me.admin ?? false} onOpenAdmin={() => setView("admin")} />
+      <DeleteDocumentDialog open={deleting !== null} filename={deleting?.doc.filename ?? ""}
+                            conversations={deleting?.conversations.length ?? 0}
+                            onDelete={(what) => deleteNow(deleting!.doc, what, deleting!.conversations)}
+                            onCancel={() => setDeleting(null)} />
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
 
