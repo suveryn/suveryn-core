@@ -95,6 +95,21 @@ class Calculation(BaseModel):
     error: str | None = None
 
 
+class CitationIssue(BaseModel):
+    """A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11).
+
+    ``marker`` is the 0-based occurrence of the marker in ``answer``, counting only markers that refer
+    to an existing citation, in text order; ``n`` is its number. ``found_in`` lists other passages that
+    do contain ``item``; ``written_as`` is how a passage spells a name the answer spells differently.
+    """
+
+    marker: int = Field(ge=0)
+    n: int = Field(ge=1)
+    item: str
+    found_in: list[int] = Field(default_factory=list)
+    written_as: str | None = None
+
+
 class ChatResponse(BaseModel):
     """A complete answer. Returned as JSON, or as the final ``done`` event of a stream.
 
@@ -115,6 +130,9 @@ class ChatResponse(BaseModel):
     # calculation's result, as the answer writes them. The model worked them out or made them up;
     # clients must flag them for checking.
     unverified_figures: list[str] = Field(default_factory=list)
+    # Grounded answers: facts (figures, dates, names) in a cited claim that the passage it cites
+    # doesn't contain. Clients must flag the marker, so a reader checks that source.
+    citation_issues: list[CitationIssue] = Field(default_factory=list)
     finish_reason: str | None = None  # "stop"; "length" means the answer was cut off at max_tokens
     usage: Usage = Field(default_factory=Usage)
 

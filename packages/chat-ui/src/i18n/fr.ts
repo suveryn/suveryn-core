@@ -177,6 +177,19 @@ const fr: Messages = {
   ratesChanged: (who, when) => `Dernière modification par ${who} le ${when}.`,
   ratesDefault: "Par défaut : le prix publié d'un modèle cloud comparable.",
   ratesInvalid: "Saisissez des montants de 0 ou plus.",
+  sourceRemoved: "Source supprimée",
+  sourceRemovedCaption: "Ce document a été supprimé ; son passage a donc été retiré de cette conversation. La réponse ci-dessus peut encore en mentionner des faits.",
+  documentRemoved: "Document supprimé",
+  deleteDocumentDialogTitle: (file) => `Supprimer ${file} ?`,
+  deleteDocumentDialogBody: (n) =>
+    `${n === 1 ? "Une conversation enregistrée cite" : `${n} conversations enregistrées citent`} ce document. Ses passages en sont retirés dans tous les cas, mais les réponses en mentionnent encore des faits.`,
+  deleteDocumentKeepConversations: "Supprimer le document, garder les conversations",
+  deleteDocumentAndConversations: (n) => (n === 1 ? "Supprimer le document et la conversation" : `Supprimer le document et ${n} conversations`),
+  citationIssue: (n, item, foundIn, writtenAs) =>
+    writtenAs ? `Vérifiez la source ${n} : elle écrit « ${writtenAs} », pas « ${item} ».`
+    : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${foundIn.length > 1 ? "les sources" : "la source"} ${foundIn.join(", ")}.`
+    : `Vérifiez la source ${n} : « ${item} » n'y figure pas.`,
+  citationIssueTitle: "Cette source ne contient pas tout ce que dit la phrase. Vérifiez-la.",
   sourcesHeading: "Sources citées par sūveryn",
   question: "Question",
   date: "Date",

@@ -22,6 +22,9 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages(pageList(a.reviewPages)) : STATUS_LABEL[a.status];
   const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}` : (a.error ?? a.filename);
+  if (a.removed) {  // the document was deleted and its name taken out (suveryn-tracker#12)
+    return <span className="chip-attachment chip-removed"><XCircle size={12} aria-hidden /><span className="chip-name">{m.documentRemoved}</span></span>;
+  }
   return (
     <span className="chip-attachment" title={title}>
       {busy ? <Loader2 size={12} className="spin" aria-hidden /> :
@@ -50,7 +53,7 @@ export function CitationChip({ n, citation, filename, active, onClick }: {
   const m = useT();
   const page = citation.source?.page;
   return (
-    <button type="button" className={`chip-citation${active ? " active" : ""}`} onClick={onClick}
+    <button type="button" className={`chip-citation${active ? " active" : ""}${citation.removed ? " chip-removed" : ""}`} onClick={onClick}
             aria-expanded={active} aria-label={m.sourceLabel(n, filename, page)}>
       <span className="cite-num">{n}</span>
       <FileText size={12} aria-hidden />

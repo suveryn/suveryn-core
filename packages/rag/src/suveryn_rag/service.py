@@ -245,6 +245,11 @@ class DocumentService:
         """Delete the owner's document and its passages; False if it doesn't exist or isn't theirs."""
         return self._with_search(lambda rag: rag.store.delete_document(uuid.UUID(document_id), owner))
 
+    def existing(self, document_ids: list[str], owner: str) -> set[str]:
+        """Which of these ids are documents of ``owner`` that still exist."""
+        ids = [uuid.UUID(d) for d in document_ids]
+        return {str(i) for i in self._with_search(lambda rag: rag.store.owned(ids, owner))} if ids else set()
+
     def owns(self, document_ids: list[str], owner: str) -> bool:
         """True if every one of these documents exists and belongs to ``owner``."""
         ids = [uuid.UUID(d) for d in document_ids]
