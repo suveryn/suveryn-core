@@ -32,6 +32,8 @@ is ever limited because of it.
 
 Limits: an upload larger than ``MAX_UPLOAD_BYTES`` (by its ``Content-Length``) is refused with 413
 before its body is read, so it can't fill the disk; chat requests are bounded in ``ChatRequest``.
+Sign-in (per client address), questions and uploads (per user) are rate-limited (``ratelimit.py``):
+over the limit the answer is 429 with ``Retry-After``.
 """
 
 import json
@@ -81,6 +83,7 @@ from .conversations import (
     ConversationStore,
     ConversationSummary,
 )
+from .ratelimit import RateLimiter, RateLimits
 from .usage import (
     AdminUsageReport,
     Rates,
@@ -197,6 +200,11 @@ def owner_of(request: Request) -> str:
     return user.sub if user is not None else LOCAL_OWNER
 
 
+def _too_many(wait: int) -> JSONResponse:
+    return JSONResponse({"detail": f"Too many requests. Try again in {wait} seconds."}, status_code=429,
+                        headers={"Retry-After": str(wait)})
+
+
 def _sse(event: str, payload: BaseModel) -> str:
     return f"event: {event}\ndata: {payload.model_dump_json()}\n\n"
 
@@ -261,7 +269,8 @@ def is_admin(request: Request, authenticator: Authenticator) -> bool:
 
 
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
-               auth: Authenticator | None = None, conversations=None, usage=None) -> FastAPI:
+               auth: Authenticator | None = None, conversations=None, usage=None,
+               rate_limits: RateLimits | None = None) -> FastAPI:
     """Build the FastAPI app.
 
     ``client``, ``documents``, ``auth``, ``conversations`` and ``usage`` let tests inject a fake model
@@ -269,6 +278,10 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     usage store; in production all are created from environment variables when the app starts.
     """
     authenticator = auth or Authenticator(AuthSettings.from_env())
+    limits = rate_limits or RateLimits.from_env()
+    sign_in_limit = RateLimiter(limits.sign_in)
+    per_user_limits = {("POST", "/v1/chat"): RateLimiter(limits.chat),
+                       ("POST", "/v1/documents"): RateLimiter(limits.uploads)}
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -328,7 +341,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     @app.middleware("http")
     async def require_sign_in(request: Request, call_next):
-        """Gate ``/v1/...``: a valid session (plus same-origin for changes) or bearer token, else 401/403/503."""
+        """Gate ``/v1/...``: a valid session (plus same-origin for changes) or bearer token, else 401/403/503.
+
+        Also applies the rate limits: sign-in per client address, questions and uploads per user (429).
+        """
+        if request.url.path in ("/auth/login", "/auth/callback"):
+            wait = sign_in_limit.hit(request.client.host if request.client else "unknown")
+            if wait is not None:
+                return _too_many(wait)
         if not authenticator.enabled and request.url.path.startswith("/v1/"):
             # Sign-in off is for development on one machine. main.py refuses a network address, but the
             # app can also be started with bare uvicorn: refuse anyone who isn't on this machine.
@@ -357,6 +377,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             return JSONResponse({"detail": "Sign in to continue."}, status_code=401,
                                 headers={"WWW-Authenticate": 'Bearer realm="suveryn"'})
         request.state.user = user
+        limiter = per_user_limits.get((request.method, request.url.path))
+        if limiter is not None and (wait := limiter.hit(user.sub)) is not None:
+            return _too_many(wait)
         return await call_next(request)
 
     def _cookie(response: Response, name: str, value: str, max_age: int | None) -> None:
@@ -367,13 +390,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     async def login(return_to: str = "/", lang: str | None = None):
         """Start signing in: redirect to the Keycloak login page, in the UI's language (``lang``: en, nl or fr)."""
         try:
-            url, state = await authenticator.start_login(return_to)
+            url, login_cookie = await authenticator.start_login(return_to)
         except AuthUnavailable as e:
             raise HTTPException(503, f"Sign-in is not available: {e}.") from e
         if lang in UI_LANGUAGES:
             url += f"&ui_locales={lang}"  # OIDC: Keycloak shows its login page in this language
         response = RedirectResponse(url, status_code=303)
-        _cookie(response, LOGIN_COOKIE, state, LOGIN_TTL_S)
+        _cookie(response, LOGIN_COOKIE, login_cookie, LOGIN_TTL_S)
         return response
 
     @app.get("/auth/callback", include_in_schema=False)
