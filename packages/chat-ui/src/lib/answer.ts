@@ -233,6 +233,10 @@ function sentenceRanges(passage: string): [number, number][] {
   const out: [number, number][] = [];
   let start = 0;
   for (const b of passage.matchAll(/(?<=[.!?;:])\s+(?=[\p{Lu}\d“"'(])|\n\s*\n|\n(?=\s*(?:[-*•▪]|\d+[.)])\s)|(?<=\S)\s+(?=\d{1,2}\)\s)/gu)) {
+    // "1)" closing a parenthesis opened earlier on the line ("de audit (module 1) jaarlijks") is no numbered part.
+    const line = passage.slice(passage.lastIndexOf("\n", b.index!) + 1, b.index!);
+    if (/^\s+\d/.test(b[0] + passage[b.index! + b[0].length]) && !b[0].includes("\n")
+        && (line.match(/\(/g)?.length ?? 0) > (line.match(/\)/g)?.length ?? 0)) continue;
     out.push([start, b.index!]);
     start = b.index! + b[0].length;
   }
@@ -302,7 +306,8 @@ export function markPassage(passage: string, claims: string[], terms: string[]):
 
 /** A passage split into plain parts and the parts to mark (``terms``, case-insensitive, longest first). */
 export function markTerms(passage: string, terms: string[]): { text: string; mark: boolean }[] {
-  const usable = [...new Set(terms.filter((t) => t.trim().length >= 2))].sort((a, b) => b.length - a.length);
+  // A single digit only as a number ("module 1"); markPassage passes those for the supporting sentence only.
+  const usable = [...new Set(terms.filter((t) => t.trim().length >= 2 || /^\d$/.test(t.trim())))].sort((a, b) => b.length - a.length);
   if (usable.length === 0) return [{ text: passage, mark: false }];
   // A space in a term matches any whitespace: a name can be split over two lines in the passage.
   const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
