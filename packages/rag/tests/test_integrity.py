@@ -71,3 +71,17 @@ def test_missing_words_feeds_recovery_and_coverage():
     assert missing == {"rekeninghouder", "jansens", "pieter", "periode", "september"}
     recovered = lines_with(pages[0], missing)
     assert page_coverage(pages, stored + [(1, 1, recovered)], dropped=[]) == []
+
+
+def test_ocr_noise_from_an_upside_down_figure_is_not_recovered():
+    from suveryn_rag.integrity import ocr_noise, words
+
+    vocabulary = words("Voor zeer kleine bedrijven volstaat één map. Het beheersysteem wordt geïmplementeerd. Formaat A4.")
+    # made-up lines shaped like the reported one: mirrored OCR words with inner capitals and digits
+    assert ocr_noise("(uesozoeysjeerdsuom — sBuinebwo) enuabe oyosish4 gy enueBe ayosiBororg g oyosweyd", vocabulary)
+    assert ocr_noise("jenaBuospiaqsy or | (enensiBes ns nr Lo + saaw nn", vocabulary)
+    assert ocr_noise("3Y91Za03)", vocabulary)
+    assert not ocr_noise("zeer kleine bedrijven volstaat één map.", vocabulary)
+    assert not ocr_noise("Rekeninghouder Jansens Pieter, Periode 01/09 - 30/09", vocabulary)  # names, not noise
+    assert not ocr_noise("Gebruik het formaat A4 voor de map van de bedrijven.", vocabulary)  # one odd word in real text
+    assert not ocr_noise("McDonald", set())  # a single odd word could be a name
