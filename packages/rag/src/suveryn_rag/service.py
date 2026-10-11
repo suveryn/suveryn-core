@@ -41,6 +41,10 @@ from suveryn_engine import Citation
 from .config import RagSettings
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # a 300 dpi 60-page scan is ~60 MB
+# Documents waiting or being read, per user and in all: one user can't hold up everyone's documents or
+# fill the disk with uploads (security review 2026-10-11). An upload over either is refused with 429.
+MAX_QUEUED_PER_OWNER = 20
+MAX_QUEUED = 200
 JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten after an hour
 
 
@@ -105,9 +109,11 @@ class DocumentService:
         self._search_lock = threading.Lock()
         self._search = None
         self._ingest = None
-        # With an inbox (sandboxed reader, see RagSettings.extract_inbox) uploads go there, group-readable.
+        # Uploads wait in the gateway's private folder. With an inbox (sandboxed reader, see
+        # RagSettings.extract_inbox) only the document being read is put there, group-readable: the
+        # reader never sees the other users' waiting documents.
         self._inbox = settings.extract_inbox
-        self._uploads = self._inbox or settings.work_dir / "uploads"
+        self._uploads = settings.work_dir / "uploads"
 
     def start(self) -> None:
         """Delete leftovers of an earlier crash, then load the models and run the worker in a background thread."""
@@ -130,7 +136,8 @@ class DocumentService:
             job, path = self._queue.get()
             job.status = "processing"
             try:
-                r = self._ingest.ingest(path, filename=job.filename, owner=job.owner)  # the file on disk has a random name
+                staged = self._stage(job, path)
+                r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner)  # the file on disk has a random name
                 # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
                 job.document_id, job.status = str(r.document_id), job_status(r.status)
                 job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
@@ -141,20 +148,33 @@ class DocumentService:
             finally:
                 job.finished_at = time.time()
                 path.unlink(missing_ok=True)
+                if self._inbox is not None:
+                    (self._inbox / path.name).unlink(missing_ok=True)
+
+    def _stage(self, job: Job, path: Path) -> Path:
+        """The file the reader reads: the private upload, or a group-readable copy in the inbox."""
+        if self._inbox is None:
+            return path
+        self._check_inbox()
+        staged = self._inbox / path.name
+        with open(os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640), "wb") as out, open(path, "rb") as src:
+            shutil.copyfileobj(src, out)
+        return staged
 
     def _remove_uploads(self) -> None:
-        """Delete every waiting upload: the whole folder, or only its files for a provisioned inbox."""
-        if self._inbox is None:
-            shutil.rmtree(self._uploads, ignore_errors=True)
-            return
-        for leftover in self._inbox.glob("*.pdf"):
-            leftover.unlink(missing_ok=True)
+        """Delete every waiting upload, and the provisioned inbox's files (not the inbox itself)."""
+        shutil.rmtree(self._uploads, ignore_errors=True)
+        if self._inbox is not None:
+            for leftover in self._inbox.glob("*.pdf"):
+                leftover.unlink(missing_ok=True)
 
     def _prepare_uploads(self) -> None:
-        if self._inbox is None:
-            self._uploads.mkdir(mode=0o700, parents=True, exist_ok=True)
-            os.chmod(self._uploads, 0o700)
-            return
+        self._uploads.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(self._uploads, 0o700)
+        if self._inbox is not None:
+            self._check_inbox()
+
+    def _check_inbox(self) -> None:
         if not self._inbox.is_dir():  # provisioned, not created here: its group must be the reader's
             raise UploadRejected("the upload inbox doesn't exist; provision it (owner the gateway, group the reader, 2750)", 503)
         if self._inbox.stat().st_mode & 0o007:
@@ -170,12 +190,15 @@ class DocumentService:
     def accept_upload(self, src: BinaryIO, filename: str, owner: str) -> Job:
         """Store an uploaded PDF privately and queue it for ``owner``. Raises ``UploadRejected``."""
         self._prepare_uploads()
+        with self._jobs_lock:
+            waiting = [j for j in self._jobs.values() if j.status in ("queued", "processing")]
+            if len(waiting) >= MAX_QUEUED or sum(j.owner == owner for j in waiting) >= MAX_QUEUED_PER_OWNER:
+                raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
         job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner)
         path = self._uploads / f"{job.id}.pdf"
         size = 0
         try:
-            mode = 0o600 if self._inbox is None else 0o640  # the inbox's group is the sandboxed reader's
-            with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode), "wb") as out:
+            with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
                 head = src.read(5)
                 if head != b"%PDF-":
                     raise UploadRejected("only PDF files can be added", 415)

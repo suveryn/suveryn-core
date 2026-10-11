@@ -97,7 +97,7 @@ def test_isolation_is_on_by_default_and_the_wrapper_prefixes_the_command(tmp_pat
 # suveryn-tracker#15 (appliance): the sandboxed reader can't enter the gateway's 0700 work folder, so
 # uploads wait in a provisioned inbox (group = the reader's, 2750) and the reader has its own folder.
 
-def test_uploads_go_to_the_inbox_group_readable(tmp_path):
+def test_uploads_wait_privately_and_only_the_one_being_read_is_in_the_inbox(tmp_path):
     import io
     import stat
 
@@ -107,9 +107,14 @@ def test_uploads_go_to_the_inbox_group_readable(tmp_path):
     inbox.mkdir(mode=0o750)
     docs = DocumentService(RagSettings(work_dir=tmp_path / "work", extract_inbox=inbox))
     job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 test"), "akte.pdf", "user-a")
-    [f] = inbox.glob("*.pdf")
-    assert f.stem == job.id and stat.S_IMODE(f.stat().st_mode) == 0o640  # the reader's group may read it
-    assert not (tmp_path / "work" / "uploads").exists()
+    docs.accept_upload(io.BytesIO(b"%PDF-1.7 other"), "b.pdf", "user-b")
+    # waiting: in the gateway's private folder, not where the reader can see them (security review)
+    assert not list(inbox.glob("*.pdf"))
+    [mine] = (tmp_path / "work" / "uploads").glob(f"{job.id}.pdf")
+    assert stat.S_IMODE(mine.stat().st_mode) == 0o600
+    staged = docs._stage(job, mine)  # what the worker does when it reads this one
+    assert staged.parent == inbox and stat.S_IMODE(staged.stat().st_mode) == 0o640  # the reader's group may read it
+    assert [f.name for f in inbox.glob("*.pdf")] == [mine.name]  # only the document being read
     (inbox / "keep.txt").write_text("not ours")
     docs.stop()  # removes waiting uploads, never the provisioned folder or other files
     assert inbox.is_dir() and not list(inbox.glob("*.pdf")) and (inbox / "keep.txt").exists()
@@ -120,6 +125,42 @@ def test_uploads_go_to_the_inbox_group_readable(tmp_path):
     with pytest.raises(UploadRejected, match="doesn't exist"):
         DocumentService(RagSettings(work_dir=tmp_path / "w", extract_inbox=tmp_path / "missing")).accept_upload(
             io.BytesIO(b"%PDF-1.7"), "c.pdf", "user-a")
+
+
+def test_one_user_cant_fill_the_queue(tmp_path, monkeypatch):
+    import io
+
+    from suveryn_rag import service
+    from suveryn_rag.service import DocumentService, UploadRejected
+
+    monkeypatch.setattr(service, "MAX_QUEUED_PER_OWNER", 2)
+    monkeypatch.setattr(service, "MAX_QUEUED", 3)
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    for _ in range(2):
+        docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "a.pdf", "user-a")
+    with pytest.raises(UploadRejected) as e:
+        docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "a.pdf", "user-a")
+    assert e.value.status == 429
+    docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "b.pdf", "user-b")  # someone else still can
+    with pytest.raises(UploadRejected):  # until the whole queue is full
+        docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "c.pdf", "user-c")
+
+
+def test_another_owners_document_gets_a_fresh_reader(reader):
+    first = reader._proc.pid
+    reader.extract(Path("a1.pdf"), owner="user-a")
+    reader.extract(Path("a2.pdf"), owner="user-a")
+    assert reader._proc.pid == first  # the same owner: the models stay loaded
+    reader.extract(Path("b1.pdf"), owner="user-b")
+    assert reader._proc.pid != first  # someone else's: a reader that never saw user-a's PDFs
+
+
+def test_a_reader_without_a_sandbox_is_refused_unless_asked_for(tmp_path, monkeypatch):
+    monkeypatch.setattr(IsolatedExtractor, "_start", lambda self: None)
+    with pytest.raises(RuntimeError, match="needs a sandbox"):
+        IsolatedExtractor(RagSettings(work_dir=tmp_path))
+    IsolatedExtractor(RagSettings(work_dir=tmp_path, extract_wrapper="bwrap --unshare-net"))
+    IsolatedExtractor(RagSettings(work_dir=tmp_path, extract_unsandboxed=True))  # development
 
 
 def test_without_an_inbox_uploads_stay_private(tmp_path):
@@ -141,7 +182,7 @@ def test_the_reader_works_in_its_own_folder(tmp_path, monkeypatch):
     from suveryn_rag.isolation import own_workspace
 
     monkeypatch.setattr(IsolatedExtractor, "_start", lambda self: None)
-    r = IsolatedExtractor(RagSettings(work_dir=tmp_path / "gateway", extract_work_dir=tmp_path / "reader"))
+    r = IsolatedExtractor(RagSettings(work_dir=tmp_path / "gateway", extract_work_dir=tmp_path / "reader", extract_unsandboxed=True))
     assert json.loads(r._command[-1])["work_dir"] == str(tmp_path / "reader")
 
     reader = tmp_path / "reader"

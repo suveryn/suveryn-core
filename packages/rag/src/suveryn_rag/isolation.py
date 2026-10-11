@@ -15,12 +15,17 @@ How (``IsolatedExtractor``):
 - **Only JSON comes back**: the Docling document (``DoclingDocument``, validated by pydantic), the
   page texts and counts. Never pickle: unpickling what a compromised process sends would hand it
   code execution in the gateway, which is exactly what the separation prevents.
+- **A fresh reader for every owner**: when the next document belongs to someone else, the reader
+  is replaced first. A reader taken over by one user's malicious PDF never sees, or answers for,
+  another user's document (security review 2026-10-11). Consecutive documents of one owner share
+  a reader, so the models aren't reloaded for each.
 - **A crash or a hang** (``SUVERYN_EXTRACT_TIMEOUT_S``, default 30 minutes per document) fails that
   document only: its process group is killed (OCRmyPDF's Ghostscript and Tesseract with it) and a
   fresh reader is started for the next one. No core dumps (they would contain document text).
 - **Sandboxing hook**: ``SUVERYN_EXTRACT_WRAPPER`` is a command prefix for the reader, e.g.
   ``systemd-run --user --scope -p MemoryMax=8G`` or a ``bwrap`` line without network. The appliance
-  sets it (suveryn-appliance); development runs without.
+  sets it (suveryn-appliance). Without it the reader is refused unless ``SUVERYN_EXTRACT_UNSANDBOXED=1``
+  (development only), so a production setup can't run unsandboxed by omission.
 
 What this does not do on its own: the reader still runs as the same operating-system user and can
 read what that user can (e.g. the 0600 secrets file, if it knows where it is), and it has network
@@ -80,7 +85,7 @@ def child_env(environ: dict[str, str] | None = None) -> dict[str, str]:
 def _settings_for_child(settings: RagSettings) -> dict:
     """What the reader needs to know: OCR and device settings, never the database URL."""
     return {"device": settings.device, "ocr_languages": settings.ocr_languages, "ocr_jobs": settings.ocr_jobs,
-            "work_dir": str(settings.extract_work_dir or settings.work_dir)}
+            "work_dir": str(settings.extract_work_dir or settings.work_dir), "max_pages": settings.max_pages}
 
 
 def _document_from_json(data: dict):
@@ -102,8 +107,13 @@ class IsolatedExtractor:
         wrapper = shlex.split(settings.extract_wrapper) if settings.extract_wrapper else []
         self._command = command or [*wrapper, sys.executable, "-I", "-m", "suveryn_rag.isolation",
                                     json.dumps(_settings_for_child(settings))]
+        if command is None and not settings.extract_wrapper and not settings.extract_unsandboxed:
+            raise RuntimeError("the document reader needs a sandbox (SUVERYN_EXTRACT_WRAPPER); "
+                               "set SUVERYN_EXTRACT_UNSANDBOXED=1 to run without one, in development only")
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
+        self._owner: str | None = None  # whose document the reader last read
+        self._served = False
         self._start()
 
     # ------------------------------------------------------------------ the reader process
@@ -161,12 +171,14 @@ class IsolatedExtractor:
         return message
 
     # ------------------------------------------------------------------ Extractor's interface
-    def extract(self, pdf: Path) -> Extraction:
-        """Read one PDF in the reader process. Raises ``ExtractionFailed``."""
+    def extract(self, pdf: Path, owner: str | None = None) -> Extraction:
+        """Read one PDF of ``owner`` in the reader process. Raises ``ExtractionFailed``."""
         with self._lock:
-            if self._proc is None or self._proc.poll() is not None:
+            # Someone else's document: a reader that read another owner's PDF is not trusted with it.
+            if self._proc is None or self._proc.poll() is not None or (self._served and owner != self._owner):
                 self._stop()
                 self._start()
+            self._owner, self._served = owner, True
             try:
                 self._proc.stdin.write(json.dumps({"pdf": str(pdf)}).encode() + b"\n")
             except OSError:
@@ -252,6 +264,7 @@ def main() -> None:
         options = json.loads(sys.argv[1])
         settings = RagSettings(database_url="", device=options["device"], ocr_languages=options["ocr_languages"],
                                ocr_jobs=int(options["ocr_jobs"]), work_dir=Path(options["work_dir"]),
+                               max_pages=int(options.get("max_pages", RagSettings.max_pages)),
                                isolate_extraction=False)
         own_workspace(settings.work_dir)
         extractor = Extractor(settings)

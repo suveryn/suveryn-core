@@ -42,6 +42,10 @@ class RagSettings:
     # reader, mode 2750; files 0640) and the reader works in its own ``extract_work_dir``.
     extract_inbox: Path | None = None
     extract_work_dir: Path | None = None
+    # Without a wrapper the reader runs as the gateway's own user, with network access: refused unless
+    # this is set (SUVERYN_EXTRACT_UNSANDBOXED=1, development only; security review 2026-10-11).
+    extract_unsandboxed: bool = False
+    max_pages: int = 2000  # a PDF with more pages is refused before OCR (a 2,000-page scan takes about an hour)
 
     @classmethod
     def from_env(cls) -> "RagSettings":
@@ -60,4 +64,6 @@ class RagSettings:
             extract_wrapper=os.environ.get("SUVERYN_EXTRACT_WRAPPER", d.extract_wrapper),
             extract_inbox=Path(v) if (v := os.environ.get("SUVERYN_EXTRACT_INBOX")) else None,
             extract_work_dir=Path(v) if (v := os.environ.get("SUVERYN_EXTRACT_WORK_DIR")) else None,
+            extract_unsandboxed=os.environ.get("SUVERYN_EXTRACT_UNSANDBOXED", "") == "1",
+            max_pages=int(os.environ.get("SUVERYN_MAX_PAGES", d.max_pages)),
         )
