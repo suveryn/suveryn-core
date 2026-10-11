@@ -242,6 +242,7 @@ function Chat({ me }: { me: Me }) {
       }, abort.current.signal, chosenModel, (step) => update({ step }));
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
+               instructionLikeSources: done.instruction_like_sources ?? [],
                status: "done", model: done.model });
     } catch (e) {
       // Gateway contract: after an error, discard any partial answer.

@@ -205,6 +205,8 @@ const fr: Messages = {
     : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${foundIn.length > 1 ? "les sources" : "la source"} ${foundIn.join(", ")}.`
     : `Vérifiez la source ${n} : « ${item} » n'y figure pas.`,
   citationIssueTitle: "Cette source ne contient pas tout ce que dit la phrase. Vérifiez-la.",
+  instructionLike: (sources) =>
+    `${sources.length > 1 ? `Les sources ${sources.join(", ")} contiennent` : `La source ${sources[0]} contient`} un texte adressé à une IA (comme « ignorez les instructions »). sūveryn l'a traité comme le contenu du document, pas comme une consigne, mais vérifiez cette réponse avec un soin particulier dans les documents.`,
   sourcesHeading: "Sources citées par sūveryn",
   question: "Question",
   date: "Date",

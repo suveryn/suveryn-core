@@ -139,7 +139,8 @@ export function AssistantMessage({ turn, question, filenames }: {
   // Word and Excel downloads carry the same warnings and sources as the chat (lib/export.ts).
   const exported = (): AnswerExport => ({
     question, answeredOn: new Date(), model: turn.model, blocks,
-    checks: checkLines(turn.calculations ?? [], flagged, issues, m),
+    checks: [...checkLines(turn.calculations ?? [], flagged, issues, m),
+             ...(turn.instructionLikeSources?.length ? [m.instructionLike(turn.instructionLikeSources)] : [])],
     sources: cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
   });
   const render = (segments: Segment[]) => segments.map((s, j) =>
@@ -179,6 +180,10 @@ export function AssistantMessage({ turn, question, filenames }: {
         {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
         {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
         {issues.length > 0 && <CitationIssuesNote issues={issues} />}
+        {turn.status === "done" && (turn.instructionLikeSources?.length ?? 0) > 0 && (
+          <p className="notice notice-error"><AlertTriangle size={14} aria-hidden />
+            <span>{m.instructionLike(turn.instructionLikeSources!)}</span></p>
+        )}
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])} />
