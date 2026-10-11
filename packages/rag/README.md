@@ -92,6 +92,7 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 - `test_integrity.py` and `test_units.py` are fast unit tests (`test_units.py` also checks the offline guard).
 - `test_isolation.py` checks the separate PDF reader with a fake one (`fake_reader.py`): no secrets in its environment, JSON only, a crash, a hang and garbage fail only that document.
 - `test_store.py` checks storage and search against a real pgvector database.
+- `test_answers_e2e.py` is the harness for model updates (suveryn-tracker#21): answers through the whole pipeline, per model, against the citation requirement, the expected facts, the two OCR issues, an injected instruction and server-side sums. See its docstring and `docs/architecture.md` §7. Ingestion adds an `instruction_like_text` warning on pages with text addressed to an AI; it doesn't change the document's status.
 - `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It also includes a soil report that exists only as a pasted-in image. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:
   - no lost text, and dropped furniture
   - an intact cadastral reference

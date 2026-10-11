@@ -27,6 +27,7 @@ export type ChatResponse = {
   calculations: Calculation[];
   unverified_figures?: string[];      // figures in no passage and no calculation's result: flag them for checking
   citation_issues?: CitationIssue[];  // facts the cited passage doesn't contain: flag the marker
+  instruction_like_sources?: number[]; // passages whose text addresses an AI: tell the reader (suveryn-tracker#21)
   finish_reason: string | null;
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };

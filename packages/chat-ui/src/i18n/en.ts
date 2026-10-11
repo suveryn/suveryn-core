@@ -226,6 +226,8 @@ const en = {
     : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${foundIn.length > 1 ? "sources" : "source"} ${foundIn.join(", ")}.`
     : `Check source ${n}: "${item}" isn't in it.`,
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
+  instructionLike: (sources: number[]) =>
+    `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text addressed to an AI (such as "ignore the instructions"). sūveryn treated it as part of the document, not as an instruction, but check this answer against the documents with extra care.`,
   // downloaded sources
   sourcesHeading: "Sources cited by sūveryn",
   question: "Question",
