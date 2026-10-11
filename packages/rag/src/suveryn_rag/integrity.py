@@ -48,6 +48,23 @@ class IntegrityWarning:
         return self.kind in ("page_coverage_low", "layout_failed")
 
 
+# Typographic quotes and dashes read with the wrong encoding: a PDF font that encodes them as Mac Roman,
+# read as Latin-1, gives “ ” ‘ ’ – — as Ò Ó Ô Õ Ð Ñ (reported 2026-10-11: "ÒopdrachtenreglementeringÓ").
+MAC_ROMAN = str.maketrans({"Ò": "“", "Ó": "”", "Ô": "‘", "Õ": "’", "Ð": "–", "Ñ": "—"})
+_MAC_ROMAN_EVIDENCE = re.compile(r"Ò[^ÒÓ\n]{1,80}Ó|(?<=[^\W\d_])Õ(?=[^\W\d_])")
+
+
+def misdecoded_quotes(text: str) -> bool:
+    """Whether ``text`` has quotes read as Mac Roman: a pair Ò…Ó, or Õ as an apostrophe between letters.
+    A single Ó or Ò (a name like "Ó Briain") is not evidence."""
+    return bool(_MAC_ROMAN_EVIDENCE.search(text))
+
+
+def repair_quotes(text: str) -> str:
+    """``text`` with Mac Roman quotes and dashes put right. Only for a document with ``misdecoded_quotes``."""
+    return text.translate(MAC_ROMAN)
+
+
 def norm(text: str) -> str:
     """Lower-case, NFKC-normalised text with typographic dashes, quotes and the low comma (U+201A) unified."""
     text = unicodedata.normalize("NFKC", text).lower()
