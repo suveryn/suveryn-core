@@ -151,3 +151,12 @@ def test_layout_failures_put_the_document_in_review():
 
     assert IntegrityWarning(3, "layout_failed", "x").needs_review
     assert not IntegrityWarning(3, "instruction_like_text", "x").needs_review
+
+
+def test_an_identical_upload_reads_again_only_a_poorly_read_copy():
+    from suveryn_rag.pipeline import should_read_again
+
+    assert not should_read_again("ok", 0.0)  # read well: the stored copy is returned
+    assert not should_read_again("ok", 0.4)  # some recovered text is normal
+    assert should_read_again("ok", 0.92)  # reported: 92% recovered from the text layer, read while the GPU was full
+    assert should_read_again("needs_review", 0.0)
