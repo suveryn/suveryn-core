@@ -216,7 +216,8 @@ const STOP = new Set(("de het een en van in op te voor met aan is zijn was werd 
   "the a an and of in on to for with is are was were by as that this these from at it be has have").split(" "));
 
 // A number on its own, not glued to letters ("oyosish4" in OCR noise is no 4).
-const NUMBER = /(?<![\p{L}\d])\d+(?:[.,  ]\d+)*(?![\p{L}])/gu;
+// Grouped by . or , or by a (hard) space between thousands ("1 250"), not any space ("2021 12" is two numbers).
+const NUMBER = /(?<![\p{L}\d])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?![\p{L}])/gu;
 
 /** The comparable words and numbers of a text: numbers without separators (1.275.000,00 = 1 275 000). */
 function tokens(text: string): { words: Set<string>; numbers: Set<string> } {
