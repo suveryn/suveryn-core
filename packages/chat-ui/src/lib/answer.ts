@@ -10,7 +10,7 @@ export type Segment =
   | { kind: "cite"; n: number; occ: number } // occ: the marker's place among the answer's valid markers (0-based)
   | { kind: "flag"; text: string; bold: boolean }; // a figure to check (ChatResponse.unverified_figures)
 
-export type Align = "left" | "center" | "right" | null;
+type Align = "left" | "center" | "right" | null;
 /** A Markdown table: header cells, rows of cells, column alignment. Cells are segments like any text. */
 export type Table = { kind: "table"; header: Segment[][]; rows: Segment[][][]; align: Align[] };
 export type Block = { kind: "p" | "li"; segments: Segment[] } | Table;

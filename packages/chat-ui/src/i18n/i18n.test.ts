@@ -37,7 +37,8 @@ describe("interface languages (suveryn-tracker#8)", () => {
 
   it("sūveryn is lower case except at the start of a sentence", () => {
     for (const l of LANGS) {
-      const wrong = texts(l).filter(([, v]) => /(?<![.!?:]\s|^)Sūveryn/u.test(v) || /suveryn/i.test(v.replaceAll("sūveryn", "").replaceAll("Sūveryn", "")));
+      const wrong = texts(l).filter(([, v]) => /(?<![.!?:]\s|^)Sūveryn/u.test(v) || /suveryn/i.test(v.replaceAll("sūveryn", "").replaceAll("Sūveryn", ""))
+        || /[.!?]\s+sūveryn/u.test(v));  // and capitalised at the start of a sentence (security review: "… sūveryn heeft")
       expect(wrong, l).toEqual([]);
     }
   });

@@ -137,7 +137,7 @@ export function AssistantMessage({ turn, question, filenames }: {
   const [open, setOpen] = useState<number | null>(null);
   const available = turn.citations.length;
   const cited = citedNumbers(turn.text, available);
-  const nameOf = (c: Citation) => (c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || "document");
+  const nameOf = (c: Citation) => (c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument);
   // The marker clicked (its ``occ``), so the card shows what that claim rests on; null from the source list: every claim.
   const [openOcc, setOpenOcc] = useState<number | null>(null);
   const toggle = (n: number, occ: number | null = null) => {

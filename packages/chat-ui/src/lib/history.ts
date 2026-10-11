@@ -7,8 +7,12 @@ import { stripMarkers } from "./answer";
  * completed. A question whose answer failed (or is still streaming) is left out together with
  * that answer, so roles always alternate user/assistant; several chat templates (e.g. Mistral's)
  * reject two user messages in a row. Citation markers are stripped: they refer to the passages of
- * that earlier answer, not to the excerpts of the new one.
+ * that earlier answer, not to the excerpts of the new one. Only the last ``MAX_HISTORY`` messages: the
+ * server takes at most 200 per request (a long conversation failed after about 100 questions), and
+ * older turns don't fit the model's context anyway.
  */
+export const MAX_HISTORY = 40;
+
 export function conversationHistory(turns: Turn[]): WireMessage[] {
   const out: WireMessage[] = [];
   turns.forEach((t, i) => {
@@ -17,5 +21,5 @@ export function conversationHistory(turns: Turn[]): WireMessage[] {
       out.push({ role: "user", content: t.text }, { role: "assistant", content: stripMarkers(next.text) });
     }
   });
-  return out;
+  return out.slice(-MAX_HISTORY);  // an even number: still starts with a question
 }
