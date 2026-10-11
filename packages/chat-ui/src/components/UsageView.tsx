@@ -6,7 +6,7 @@
  * Both pick a period (last hour, day, week, month, or whole local days) and show the totals and a
  * bar chart. Counts only: the server never stores or returns text. Informational: nothing limits anyone.
  */
-import { ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
+import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
@@ -111,7 +111,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
       <Header icon={<BarChart3 size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
       <p className="view-intro">{m.usageIntro}</p>
       <RangePicker {...r} />
-      {r.error && <p className="notice notice-error" role="alert">{m.usageUnavailable(r.error)}</p>}
+      {r.error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.usageUnavailable(r.error)}</p>}
       {r.report && (r.report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
         <>
           <Totals totals={r.report.totals} />
@@ -134,7 +134,7 @@ export function AdminView({ onBack }: { onBack: () => void }) {
       <nav className="tabs" aria-label={m.administration}><span className="tab on" aria-current="page">{m.adminUsage}</span></nav>
       <p className="view-intro">{m.adminIntro}</p>
       <RangePicker {...r} />
-      {r.error && <p className="notice notice-error" role="alert">{m.usageUnavailable(r.error)}</p>}
+      {r.error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.usageUnavailable(r.error)}</p>}
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
@@ -178,7 +178,8 @@ function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: ()
   const [output, setOutput] = useState(plain(report.rates.output_per_million));
   const [currency, setCurrency] = useState(report.rates.currency);
   const [state, setState] = useState<"idle" | "saved" | string>("idle");
-  const valid = [input, output].every((v) => v !== "" && Number(v) >= 0);
+  // As the server checks them (usage.py Rates): 0 to 10,000, at most 4 decimals.
+  const valid = [input, output].every((v) => /^\d+(?:\.\d{1,4})?$/.test(v) && Number(v) <= 10_000);
   const save = async () => {
     if (!valid) { setState(m.ratesInvalid); return; }
     try { await setRates({ input_per_million: input, output_per_million: output, currency }); setState("saved"); onSaved(); }
@@ -198,7 +199,7 @@ function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: ()
       <button type="submit" className="button-secondary">
         {state === "saved" ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
       </button>
-      {state !== "idle" && state !== "saved" && <p className="notice notice-error" role="alert">{state}</p>}
+      {state !== "idle" && state !== "saved" && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {state}</p>}
       <p className="caption">{changed ? m.ratesChanged(report.rates.updated_by!, new Date(report.rates.updated_at!).toLocaleDateString(locale(), { dateStyle: "long" })) : m.ratesDefault}</p>
     </form>
   );

@@ -30,7 +30,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { AdminView, UsageView } from "./components/UsageView";
 import { today } from "./lib/usage";
-import { conversationTitle, fromSaved, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
+import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { useT } from "./i18n";
@@ -151,6 +151,7 @@ function Chat({ me }: { me: Me }) {
     const body = JSON.stringify(saved);
     if (body === lastSaved.current) return;
     lastSaved.current = body;
+    if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed(m.conversationTooLong)); return; }  // the server refuses it
     saveConversation(conversationId, conversationTitle(turns), saved)
       .then(refreshConversations)
       .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed(e.message)); });
