@@ -65,3 +65,14 @@ def test_calculation_results_and_unknown_figures_are_left_to_the_other_checks():
 
 def test_figures_in_bold_are_still_checked():
     assert issues("- **Prijs: 410.000 euro** [1]") == [(0, 1, "410.000", [2], None)]
+
+
+def test_years_are_checked_against_the_cited_passage():
+    """Seen on the pod: years asked for and summed; they were in their source, but years weren't checked at all."""
+    sources = [passage("Opgericht in 1989 te Gent."), passage("Statuten gewijzigd op 12 maart 1996.")]
+    check = lambda a: [(i.n, i.item, i.found_in) for i in citation_issues(a, sources, [])]  # noqa: E731
+    assert check("Opgericht in 1989 [1], gewijzigd in 1996 [2].") == []  # also a year inside a written date
+    assert check("Gewijzigd in 1996 [1].") == [(1, "1996", [2])]
+    assert check("Opgericht in 1990 [1].") == [(1, "1990", [])]  # in no passage: nothing else reports years
+    assert check("Zie artikel 2021 [1].") == [(1, "2021", [])]  # four digits in the year range are taken as years
+    assert check("Op 12/03/1996 [2].") == []  # a full date is checked as a date, not again as a year
