@@ -127,6 +127,28 @@ class Store:
                                  (sha256, owner)).fetchone()
         return row[0] if row else None
 
+    def recovered_share(self, document_id: uuid.UUID) -> float:
+        """Share of a document's text that came from the text-layer recovery rather than the layout model."""
+        total, recovered = self._conn.execute(
+            "SELECT coalesce(sum(length(text)), 0), coalesce(sum(length(text)) FILTER (WHERE origin = 'text_layer_recovered'), 0)"
+            " FROM chunks WHERE document_id = %s", (document_id,)).fetchone()
+        return recovered / total if total else 0.0
+
+    def replace_document(self, document_id: uuid.UUID, filename: str, pages: int, ocr_pages: int, chunks: list[Chunk],
+                         embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
+        """Read again: the document keeps its id (saved conversations still point to it), its chunks, status
+        and warnings are replaced, in one transaction."""
+        warnings = warnings or []
+        status = "needs_review" if any(w.needs_review for w in warnings) else "ok"
+        with self._conn.transaction():
+            self._conn.execute("DELETE FROM chunks WHERE document_id = %s", (document_id,))
+            self._conn.execute(
+                "UPDATE documents SET filename = %s, pages = %s, ocr_pages = %s, status = %s, warnings = %s WHERE id = %s",
+                (filename, pages, ocr_pages, status,
+                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), document_id))
+            self._insert_chunks(document_id, chunks, embeddings)
+        return document_id
+
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                      embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
                      owner: str | None = None) -> uuid.UUID:
@@ -144,14 +166,17 @@ class Store:
                 " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (filename, sha256, pages, ocr_pages, status,
                  json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner)).fetchone()[0]
-            with self._conn.cursor() as cur:
-                cur.executemany(
-                    "INSERT INTO chunks (document_id, chunk_index, text, page_start, page_end, headings, origin,"
-                    " embedding, tsv) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, to_tsvector('simple', %s))",
-                    [(doc_id, c.index, c.text, c.page_start, c.page_end, c.headings, c.origin, e,
-                      c.text + " " + " ".join(c.headings))
-                     for c, e in zip(chunks, embeddings, strict=True)])
+            self._insert_chunks(doc_id, chunks, embeddings)
         return doc_id
+
+    def _insert_chunks(self, doc_id: uuid.UUID, chunks: list[Chunk], embeddings: np.ndarray) -> None:
+        with self._conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO chunks (document_id, chunk_index, text, page_start, page_end, headings, origin,"
+                " embedding, tsv) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, to_tsvector('simple', %s))",
+                [(doc_id, c.index, c.text, c.page_start, c.page_end, c.headings, c.origin, e,
+                  c.text + " " + " ".join(c.headings))
+                 for c, e in zip(chunks, embeddings, strict=True)])
 
     def list_documents(self, owner: str) -> list[dict]:
         """The owner's documents, newest first: id, file name, pages, OCR'd pages, status, warnings, chunks, created."""
