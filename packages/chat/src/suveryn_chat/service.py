@@ -8,7 +8,15 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 
-from suveryn_engine import BackendError, Calculation, ChatRequest, ChatResponse, Citation, LlamaServerClient, Usage
+from suveryn_engine import (
+    BackendError,
+    Calculation,
+    ChatRequest,
+    ChatResponse,
+    Citation,
+    LlamaServerClient,
+    Usage,
+)
 
 from .calc import CalcRewriter, unverified_figures
 from .grounding import cited_numbers, grounded_messages

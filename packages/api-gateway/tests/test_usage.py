@@ -5,9 +5,9 @@ the end run against a real PostgreSQL and are skipped unless SUVERYN_TEST_DATABA
 """
 
 import os
-from urllib.parse import parse_qs, urlsplit
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 import httpx
