@@ -37,6 +37,11 @@ class RagSettings:
     isolate_extraction: bool = True
     extract_timeout_s: int = 1800  # per document; a 60-page scan takes 1-2 minutes on 8 cores
     extract_wrapper: str = ""      # command prefix for the reader process, e.g. a sandbox (appliance)
+    # When the reader runs as its own user (suveryn-appliance's sandbox), it can't enter the gateway's
+    # 0700 work_dir. Then uploads wait in ``extract_inbox`` (provisioned: owner the gateway, group the
+    # reader, mode 2750; files 0640) and the reader works in its own ``extract_work_dir``.
+    extract_inbox: Path | None = None
+    extract_work_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "RagSettings":
@@ -53,4 +58,6 @@ class RagSettings:
             isolate_extraction=os.environ.get("SUVERYN_EXTRACT_ISOLATION", "").lower() != "off",
             extract_timeout_s=int(os.environ.get("SUVERYN_EXTRACT_TIMEOUT_S", d.extract_timeout_s)),
             extract_wrapper=os.environ.get("SUVERYN_EXTRACT_WRAPPER", d.extract_wrapper),
+            extract_inbox=Path(v) if (v := os.environ.get("SUVERYN_EXTRACT_INBOX")) else None,
+            extract_work_dir=Path(v) if (v := os.environ.get("SUVERYN_EXTRACT_WORK_DIR")) else None,
         )
