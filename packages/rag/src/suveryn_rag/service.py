@@ -105,7 +105,9 @@ class DocumentService:
         self._search_lock = threading.Lock()
         self._search = None
         self._ingest = None
-        self._uploads = settings.work_dir / "uploads"
+        # With an inbox (sandboxed reader, see RagSettings.extract_inbox) uploads go there, group-readable.
+        self._inbox = settings.extract_inbox
+        self._uploads = self._inbox or settings.work_dir / "uploads"
 
     def start(self) -> None:
         """Delete leftovers of an earlier crash, then load the models and run the worker in a background thread."""
@@ -140,22 +142,40 @@ class DocumentService:
                 job.finished_at = time.time()
                 path.unlink(missing_ok=True)
 
+    def _remove_uploads(self) -> None:
+        """Delete every waiting upload: the whole folder, or only its files for a provisioned inbox."""
+        if self._inbox is None:
+            shutil.rmtree(self._uploads, ignore_errors=True)
+            return
+        for leftover in self._inbox.glob("*.pdf"):
+            leftover.unlink(missing_ok=True)
+
+    def _prepare_uploads(self) -> None:
+        if self._inbox is None:
+            self._uploads.mkdir(mode=0o700, parents=True, exist_ok=True)
+            os.chmod(self._uploads, 0o700)
+            return
+        if not self._inbox.is_dir():  # provisioned, not created here: its group must be the reader's
+            raise UploadRejected("the upload inbox doesn't exist; provision it (owner the gateway, group the reader, 2750)", 503)
+        if self._inbox.stat().st_mode & 0o007:
+            raise UploadRejected("the upload inbox is readable by other users; fix its permissions (2750)", 503)
+
     def _remove_leftovers(self) -> None:
         """Uploads and OCR work folders left by a process that didn't shut down cleanly."""
-        shutil.rmtree(self._uploads, ignore_errors=True)
+        self._remove_uploads()
         for leftover in self.settings.work_dir.glob("doc-*"):
             shutil.rmtree(leftover, ignore_errors=True)
 
     # ------------------------------------------------------------------ uploads and jobs
     def accept_upload(self, src: BinaryIO, filename: str, owner: str) -> Job:
         """Store an uploaded PDF privately and queue it for ``owner``. Raises ``UploadRejected``."""
-        self._uploads.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(self._uploads, 0o700)
+        self._prepare_uploads()
         job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner)
         path = self._uploads / f"{job.id}.pdf"
         size = 0
         try:
-            with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+            mode = 0o600 if self._inbox is None else 0o640  # the inbox's group is the sandboxed reader's
+            with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode), "wb") as out:
                 head = src.read(5)
                 if head != b"%PDF-":
                     raise UploadRejected("only PDF files can be added", 415)
@@ -250,7 +270,7 @@ class DocumentService:
 
     def stop(self) -> None:
         """Remove queued uploads that were never processed (on shutdown)."""
-        shutil.rmtree(self._uploads, ignore_errors=True)
+        self._remove_uploads()
 
 
 def _is_connection_error(e: Exception) -> bool:
