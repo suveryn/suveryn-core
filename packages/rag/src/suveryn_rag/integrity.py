@@ -48,21 +48,66 @@ class IntegrityWarning:
         return self.kind in ("page_coverage_low", "layout_failed")
 
 
-# Typographic quotes and dashes read with the wrong encoding: a PDF font that encodes them as Mac Roman,
-# read as Latin-1, gives “ ” ‘ ’ – — as Ò Ó Ô Õ Ð Ñ (reported 2026-10-11: "ÒopdrachtenreglementeringÓ").
-MAC_ROMAN = str.maketrans({"Ò": "“", "Ó": "”", "Ô": "‘", "Õ": "’", "Ð": "–", "Ñ": "—"})
-_MAC_ROMAN_EVIDENCE = re.compile(r"Ò[^ÒÓ\n]{1,80}Ó|(?<=[^\W\d_])Õ(?=[^\W\d_])")
+# Characters read with the wrong encoding. A PDF font can encode its text as Mac Roman; read as Windows-1252
+# or Latin-1, “ ” ’ – é ö come out as Ò Ó Õ Ð Ž š (reported 2026-10-11: "ÒopdrachtenreglementeringÓ",
+# "ŽŽn" for "één"). Text encoded as UTF-8 and read as Windows-1252 gives "Ã©" for "é". Fixed per document,
+# and only characters that are unusual in Dutch, French, English or German text, so correct text next to
+# them (a document can mix fonts) is left alone.
+USUAL = set("éèêëàáâäçïîíìôöóòùûüúÿñœæßãõåøÉÈÊËÀÁÂÄÇÏÎÍÔÖÙÛÜÚÑŒÆÃÅØ"
+            "“”‘’„‚–—…•€°§©®™«»·×±²³¹½¼¾µ‰′″¡¿¢£¥¶\u00a0\u202f\u2009\u2010\u2011\u00ad")
+# PDFium marks a hyphen it put at a line break as U+FFFE (a noncharacter, never real text).
+LINE_BREAK_HYPHEN = "\ufffe"
+_UTF8_AS_CP1252 = re.compile("[\u00c2-\u00f4][\u0080-\u00bf\u0152\u0153\u0160\u0161\u0178\u017d\u017e\u0192\u02c6\u02dc\u2013-\u2122]{1,3}")
+MIN_REPAIRS = 3  # a single odd character ("Ó Briain") is no evidence
 
 
-def misdecoded_quotes(text: str) -> bool:
-    """Whether ``text`` has quotes read as Mac Roman: a pair Ò…Ó, or Õ as an apostrophe between letters.
-    A single Ó or Ò (a name like "Ó Briain") is not evidence."""
-    return bool(_MAC_ROMAN_EVIDENCE.search(text))
+def _unusual(ch: str) -> bool:
+    return ord(ch) > 127 and ch not in USUAL and ch != LINE_BREAK_HYPHEN
 
 
-def repair_quotes(text: str) -> str:
-    """``text`` with Mac Roman quotes and dashes put right. Only for a document with ``misdecoded_quotes``."""
-    return text.translate(MAC_ROMAN)
+def _byte(ch: str) -> bytes | None:
+    try:
+        return ch.encode("cp1252")
+    except UnicodeEncodeError:
+        return bytes([ord(ch)]) if ord(ch) < 256 else None  # Latin-1 (cp1252 leaves 0x81, 0x8d, ... undefined)
+
+
+def _mac_roman(ch: str) -> str | None:
+    """What an unusual character was if its byte was Mac Roman, when that is a usual character."""
+    b = _byte(ch)
+    fixed = b.decode("mac_roman") if b else None
+    return fixed if fixed in USUAL else None
+
+
+def _utf8(run: str) -> str | None:
+    try:
+        fixed = b"".join(_byte(c) or b"\xff" for c in run).decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return fixed if len(fixed) == 1 and (fixed in USUAL or fixed.isalpha()) else None
+
+
+def misdecoding(text: str) -> str | None:
+    """How ``text`` was misread, if it clearly was: "utf-8" or "mac_roman" (at least ``MIN_REPAIRS`` characters
+    put right, and nearly all unusual characters explained), else None."""
+    utf8 = [m for m in _UTF8_AS_CP1252.finditer(text) if _utf8(m.group())]
+    if len(utf8) >= MIN_REPAIRS:
+        return "utf-8"
+    unusual = [ch for ch in text if _unusual(ch)]
+    fixable = [ch for ch in unusual if _mac_roman(ch)]
+    return "mac_roman" if len(fixable) >= MIN_REPAIRS and len(fixable) >= 0.8 * len(unusual) else None
+
+
+def repair_characters(text: str, how: str | None) -> str:
+    """``text`` put right as ``misdecoding`` found the document misread; line-break hyphens always."""
+    text = text.replace(LINE_BREAK_HYPHEN, "-")
+    if how == "utf-8":
+        return _UTF8_AS_CP1252.sub(lambda m: _utf8(m.group()) or m.group(), text)
+    if how == "mac_roman":
+        text = "".join((_mac_roman(ch) or ch) if _unusual(ch) else ch for ch in text)
+        # Ô is usual (French), but in such a document Ô opening a word is a misread ‘ ("Ôwelzijn op het werk’").
+        return re.sub(r"(?<![^\s(])Ô(?=[^\W\d_])(?=[^’\n]{1,80}’)", "‘", text)
+    return text
 
 
 def norm(text: str) -> str:

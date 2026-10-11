@@ -162,12 +162,21 @@ def test_an_identical_upload_reads_again_only_a_poorly_read_copy():
     assert should_read_again("needs_review", 0.0)
 
 
-def test_quotes_read_as_mac_roman_are_put_right():
-    from suveryn_rag.integrity import misdecoded_quotes, repair_quotes
-    from suveryn_rag.pipeline import should_read_again
+def test_characters_read_with_the_wrong_encoding_are_put_right():
+    from suveryn_rag.integrity import misdecoding, repair_characters
+    from suveryn_rag.pipeline import misread, should_read_again
 
-    reported = "de ÒopdrachtenreglementeringÓ van 2019 Ð zie art. 3, dÕHondt"  # reported 2026-10-11
-    assert misdecoded_quotes(reported)
-    assert repair_quotes(reported) == "de “opdrachtenreglementering” van 2019 – zie art. 3, d’Hondt"
-    assert not misdecoded_quotes("Dara Ó Briain en Óscar")  # a real Ó is not evidence
+    # reported 2026-10-11 (made-up sentence): Mac Roman read as Windows-1252, next to correct text in another font
+    reported = "de ÒopdrachtenreglementeringÓ van 2019 Ð ŽŽn map, ÔwelzijnÕ, dÕHondt, Ÿber; café en “correct”"
+    assert misdecoding(reported) == "mac_roman"
+    assert repair_characters(reported, "mac_roman") == \
+        "de “opdrachtenreglementering” van 2019 – één map, ‘welzijn’, d’Hondt, über; café en “correct”"
+    # UTF-8 read as Windows-1252
+    assert misdecoding("Ã©Ã©n caf\u00c3\u00a9 \u00c3\u00a8re") == "utf-8"
+    assert repair_characters("Ã©Ã©n caf\u00c3\u00a9 \u00c3\u00a8re", "utf-8") == "één café ère"
+    # correct text, a single odd character, or another script: nothing to repair
+    assert misdecoding("Dara Ó Briain, Óscar, één café, CÔTE, cœur, Straße") is None
+    assert misdecoding("ŽŽ α β γ δ ε ζ η θ") is None
+    assert repair_characters("Werkher\ufffe\nvatting", None) == "Werkher-\nvatting"  # PDFium's line-break hyphen
+    assert misread("text with a line-break hyphen\ufffe") and not misread("één café")
     assert should_read_again("ok", 0.0, misdecoded=True)
