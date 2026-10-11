@@ -5,8 +5,9 @@ TMPDIR (see ``workspace``), and the benchmark showed heavy jobs must be queued, 
 side. Uploads are accepted immediately and processed one at a time in a background thread; the
 client polls the job.
 
-Two ``Rag`` instances share one embedding model: one owned by the worker (with Docling), one for
-search and listing (no Docling), each with its own database connection. Search calls are
+Two ``Rag`` instances share one embedding model: one owned by the worker (with a PDF reader
+process that runs Docling and the OCR, see ``isolation``), one for search and listing (no reader),
+each with its own database connection. Search calls are
 serialised with a lock (one connection); they take milliseconds.
 
 Confidentiality: an uploaded file is written only to ``<work_dir>/uploads`` (0700) under a random

@@ -33,6 +33,10 @@ class RagSettings:
     # Private scratch space for intermediate files (searchable PDFs, OCR work files).
     # Never /tmp: a searchable copy of a document is the full confidential document.
     work_dir: Path = Path.home() / ".local" / "state" / "suveryn" / "work"
+    # Uploaded PDFs are read in a separate process without the gateway's secrets (see ``isolation``).
+    isolate_extraction: bool = True
+    extract_timeout_s: int = 1800  # per document; a 60-page scan takes 1-2 minutes on 8 cores
+    extract_wrapper: str = ""      # command prefix for the reader process, e.g. a sandbox (appliance)
 
     @classmethod
     def from_env(cls) -> "RagSettings":
@@ -46,4 +50,7 @@ class RagSettings:
             ocr_jobs=int(os.environ.get("SUVERYN_OCR_JOBS", d.ocr_jobs)),
             chunk_max_tokens=int(os.environ.get("SUVERYN_CHUNK_MAX_TOKENS", d.chunk_max_tokens)),
             work_dir=Path(os.environ.get("SUVERYN_WORK_DIR", d.work_dir)),
+            isolate_extraction=os.environ.get("SUVERYN_EXTRACT_ISOLATION", "").lower() != "off",
+            extract_timeout_s=int(os.environ.get("SUVERYN_EXTRACT_TIMEOUT_S", d.extract_timeout_s)),
+            extract_wrapper=os.environ.get("SUVERYN_EXTRACT_WRAPPER", d.extract_wrapper),
         )

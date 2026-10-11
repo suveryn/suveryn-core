@@ -1,0 +1,234 @@
+"""Reading uploaded PDFs in a separate process, away from the gateway's secrets (suveryn-tracker#15).
+
+Why: an uploaded PDF is untrusted input, and reading it runs large native parsers: pypdfium2,
+qpdf (pikepdf), Ghostscript and Tesseract (through OCRmyPDF) and Docling. Ghostscript in
+particular has a history of memory-safety flaws. Until the 2026-10 code review they ran inside the
+gateway's own process, so a malicious PDF could crash the gateway for everyone or, with a working
+exploit, read the database URL, the Keycloak client secret and other users' documents in memory.
+
+How (``IsolatedExtractor``):
+
+- **A separate process** (``python -I -m suveryn_rag.isolation``) loads Docling once and reads one
+  PDF at a time. It gets the path of the private copy of the upload and nothing else: no database
+  connection, and an environment without secrets (``child_env`` removes the database URL, the
+  sign-in settings and anything named like a secret, password, token or key).
+- **Only JSON comes back**: the Docling document (``DoclingDocument``, validated by pydantic), the
+  page texts and counts. Never pickle: unpickling what a compromised process sends would hand it
+  code execution in the gateway, which is exactly what the separation prevents.
+- **A crash or a hang** (``SUVERYN_EXTRACT_TIMEOUT_S``, default 30 minutes per document) fails that
+  document only: its process group is killed (OCRmyPDF's Ghostscript and Tesseract with it) and a
+  fresh reader is started for the next one. No core dumps (they would contain document text).
+- **Sandboxing hook**: ``SUVERYN_EXTRACT_WRAPPER`` is a command prefix for the reader, e.g.
+  ``systemd-run --user --scope -p MemoryMax=8G`` or a ``bwrap`` line without network. The appliance
+  sets it (suveryn-appliance); development runs without.
+
+What this does not do on its own: the reader still runs as the same operating-system user and can
+read what that user can (e.g. the 0600 secrets file, if it knows where it is), and it has network
+access. A separate user, no network and seccomp belong in ``SUVERYN_EXTRACT_WRAPPER``, set by the
+appliance. ``SUVERYN_EXTRACT_ISOLATION=off`` reads PDFs in-process again (debugging only).
+"""
+
+import json
+import os
+import re
+import selectors
+import shlex
+import signal
+import subprocess
+import sys
+import threading
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import IO
+
+from .config import RagSettings
+from .extract import Extraction
+
+STARTUP_TIMEOUT_S = 600          # loading Docling's models: 20-40 s on a GPU, longer on a CPU
+MAX_MESSAGE_BYTES = 512 << 20    # a 60-page deed's document is a few MB of JSON
+# Environment variables the reader never gets. Matched anywhere in the name, case-insensitive.
+SECRET_ENV = re.compile(r"SECRET|PASSW|TOKEN|CREDENTIAL|API_?KEY|PRIVATE|_KEY$|DATABASE_URL|^PG|^SUVERYN_OIDC"
+                        r"|^AWS_|^AZURE_|^GOOGLE_APPLICATION|^RUNPOD|^SSH_", re.IGNORECASE)
+
+
+class ExtractionFailed(RuntimeError):
+    """The reader couldn't read this document (it failed, crashed or took too long). Safe to show."""
+
+
+def child_env(environ: dict[str, str] | None = None) -> dict[str, str]:
+    """The reader's environment: this process's, minus anything secret."""
+    return {k: v for k, v in (os.environ if environ is None else environ).items() if not SECRET_ENV.search(k)}
+
+
+def _settings_for_child(settings: RagSettings) -> dict:
+    """What the reader needs to know: OCR and device settings, never the database URL."""
+    return {"device": settings.device, "ocr_languages": settings.ocr_languages, "ocr_jobs": settings.ocr_jobs,
+            "work_dir": str(settings.work_dir)}
+
+
+def _document_from_json(data: dict):
+    from docling_core.types.doc import DoclingDocument
+
+    return DoclingDocument.model_validate(data)
+
+
+class IsolatedExtractor:
+    """``Extractor``'s interface (``extract(pdf) -> Extraction``), with the reading done in a separate process.
+
+    The reader is started (and its models loaded) on construction, so a broken setup fails at
+    start-up as before. One document at a time. ``command`` replaces the reader for tests.
+    """
+
+    def __init__(self, settings: RagSettings, command: list[str] | None = None, timeout_s: float | None = None):
+        self.settings = settings
+        self.timeout_s = timeout_s if timeout_s is not None else settings.extract_timeout_s
+        wrapper = shlex.split(settings.extract_wrapper) if settings.extract_wrapper else []
+        self._command = command or [*wrapper, sys.executable, "-I", "-m", "suveryn_rag.isolation",
+                                    json.dumps(_settings_for_child(settings))]
+        self._proc: subprocess.Popen | None = None
+        self._lock = threading.Lock()
+        self._start()
+
+    # ------------------------------------------------------------------ the reader process
+    def _start(self) -> None:
+        self._proc = subprocess.Popen(self._command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      env=child_env(), start_new_session=True, bufsize=0)
+        try:
+            hello = self._receive(time.monotonic() + STARTUP_TIMEOUT_S, "loading took too long")
+        except ExtractionFailed as e:
+            raise ExtractionFailed(f"the document reader didn't start: {e}") from None
+        if not hello.get("ready"):
+            self._stop()
+            raise ExtractionFailed(f"the document reader didn't start: {str(hello.get('error'))[:300]}")
+
+    def _stop(self) -> None:
+        """Kill the reader and everything it started (OCRmyPDF runs Ghostscript and Tesseract)."""
+        proc, self._proc = self._proc, None
+        if proc is None:
+            return
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+        proc.wait()
+        for pipe in (proc.stdin, proc.stdout):
+            if pipe:
+                pipe.close()
+
+    def _receive(self, deadline: float, too_slow: str) -> dict:
+        """One JSON line from the reader before ``deadline``; kills the reader on any problem."""
+        buf = bytearray()
+        with selectors.DefaultSelector() as sel:
+            sel.register(self._proc.stdout, selectors.EVENT_READ)
+            while not buf.endswith(b"\n"):
+                left = deadline - time.monotonic()
+                if left <= 0 or not sel.select(left):
+                    self._stop()
+                    raise ExtractionFailed(too_slow)
+                block = os.read(self._proc.stdout.fileno(), 1 << 20)
+                if not block:
+                    self._stop()
+                    raise ExtractionFailed("the document reader stopped (the file may be damaged or malformed)")
+                buf += block
+                if len(buf) > MAX_MESSAGE_BYTES:
+                    self._stop()
+                    raise ExtractionFailed("the document reader sent too much data")
+        try:
+            message = json.loads(buf)
+        except ValueError:
+            self._stop()
+            raise ExtractionFailed("the document reader sent an unreadable answer") from None
+        if not isinstance(message, dict):
+            self._stop()
+            raise ExtractionFailed("the document reader sent an unreadable answer")
+        return message
+
+    # ------------------------------------------------------------------ Extractor's interface
+    def extract(self, pdf: Path) -> Extraction:
+        """Read one PDF in the reader process. Raises ``ExtractionFailed``."""
+        with self._lock:
+            if self._proc is None or self._proc.poll() is not None:
+                self._stop()
+                self._start()
+            try:
+                self._proc.stdin.write(json.dumps({"pdf": str(pdf)}).encode() + b"\n")
+            except OSError:
+                self._stop()
+                raise ExtractionFailed("the document reader stopped") from None
+            r = self._receive(time.monotonic() + self.timeout_s,
+                              f"reading took longer than {max(1, round(self.timeout_s / 60))} minutes")
+            if not r.get("ok"):
+                raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300])
+            try:
+                return Extraction(document=_document_from_json(r["document"]), pages=int(r["pages"]),
+                                  ocr_pages=int(r["ocr_pages"]), mixed_pages=int(r["mixed_pages"]),
+                                  page_texts=[str(t) for t in r["page_texts"]],
+                                  timings={str(k): float(v) for k, v in r["timings"].items()})
+            except (KeyError, TypeError, ValueError, AttributeError) as e:
+                self._stop()  # a reader that sends malformed answers isn't trusted with the next document
+                raise ExtractionFailed(f"the document reader sent an invalid answer ({type(e).__name__})") from None
+
+    def close(self) -> None:
+        with self._lock:
+            self._stop()
+
+
+def make_extractor(settings: RagSettings):
+    """The extractor to use: isolated in its own process, unless ``SUVERYN_EXTRACT_ISOLATION=off``."""
+    if settings.isolate_extraction:
+        return IsolatedExtractor(settings)
+    from .extract import Extractor
+
+    return Extractor(settings)
+
+
+# ---------------------------------------------------------------------- the reader's side
+def serve(extract: Callable[[Path], Extraction], requests: IO[bytes], answers: IO[bytes]) -> None:
+    """Answer ``{"pdf": path}`` lines with one JSON line each, until the gateway closes ``requests``."""
+
+    def send(message: dict) -> None:
+        answers.write(json.dumps(message, ensure_ascii=False).encode() + b"\n")
+        answers.flush()
+
+    send({"ready": True})
+    for line in requests:
+        try:
+            ex = extract(Path(json.loads(line)["pdf"]))
+            doc = ex.document.export_to_dict() if hasattr(ex.document, "export_to_dict") else ex.document
+            send({"ok": True, "document": doc, "pages": ex.pages, "ocr_pages": ex.ocr_pages,
+                  "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings})
+        except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
+            send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"})
+
+
+def protocol_streams() -> tuple[IO[bytes], IO[bytes]]:
+    """(requests, answers) for the reader. Libraries that print to stdout would corrupt the answers,
+    so the answers get a private copy of stdout and stdout itself is pointed at stderr."""
+    answers = os.fdopen(os.dup(sys.stdout.fileno()), "wb")
+    os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+    return sys.stdin.buffer, answers
+
+
+def main() -> None:
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # a core dump would contain document text
+    requests, answers = protocol_streams()
+    try:
+        from .extract import Extractor
+
+        options = json.loads(sys.argv[1])
+        settings = RagSettings(database_url="", device=options["device"], ocr_languages=options["ocr_languages"],
+                               ocr_jobs=int(options["ocr_jobs"]), work_dir=Path(options["work_dir"]),
+                               isolate_extraction=False)
+        extractor = Extractor(settings)
+    except Exception as e:  # noqa: BLE001 - reported to the gateway, which fails its start-up
+        answers.write(json.dumps({"ready": False, "error": f"{type(e).__name__}: {str(e)[:200]}"}).encode() + b"\n")
+        answers.flush()
+        raise SystemExit(1) from None
+    serve(extractor.extract, requests, answers)
+
+
+if __name__ == "__main__":
+    main()
