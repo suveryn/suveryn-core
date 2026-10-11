@@ -431,6 +431,11 @@ describe("finding the cited facts in a long passage", () => {
       "4) Beroepscategorie 10) aard van het letsel\nNr. | Naam | Datum | Plaats | Datum\n(1) (2) (12) (13)";
     const legendMarks = markPassage(legend, [markers[1].claim], termsOf(markers[1].claim)).filter((p) => p.mark).map((p) => p.text);
     expect(legendMarks.join("")).toBe("12) datum werkhervatting na ongeval");
+    // reported: "(module 1)" is a reference in a sentence, not a numbered part; the whole sentence, with its 1
+    const prose = "Dit kan door indicatoren op te volgen (module 22).\nOok kan de audit (module 1) jaarlijks een update krijgen.";
+    const audit = markPassage(prose, ["| 1 | Module 1 (audit update) |"], termsOf("| 1 | Module 1 (audit update) |")).filter((p) => p.mark);
+    expect(audit.map((p) => p.text).join("")).toBe("Ook kan de audit (module 1) jaarlijks een update krijgen.");
+    expect(audit.filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["1"]);
   });
 
   it("marks those facts in the passage, whole only, and nothing else", () => {
