@@ -207,6 +207,14 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                font-size: 13.5px; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 
 /* a figure to check: in no source and not calculated by the server (accent-ink, no separate red) */
+/* Tables in answers: a real table, so copy and paste into Excel or Word keeps the columns. */
+.answer-table { margin: var(--space-3) 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.answer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.answer-table table { border-collapse: collapse; font-size: 13.5px; line-height: 1.45; }
+.answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+.answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
+.answer-table tr:last-child td { border-bottom: none; }
+.answer-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 /* A marker whose source doesn't contain everything its sentence says (suveryn-tracker#11): accent-ink ring. */
 .cite-marker.flagged { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
 /* A deleted document's citation or attachment (suveryn-tracker#12). */
