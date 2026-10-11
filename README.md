@@ -8,6 +8,8 @@ Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) works
 
 Related repositories: [suveryn-docs](https://github.com/suveryn/suveryn-docs) (installation, administration, the [hardware benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md)), [suveryn-appliance](https://github.com/suveryn/suveryn-appliance) (OS image and runtime services: PostgreSQL, Keycloak, the model server), [suveryn-brand](https://github.com/suveryn/suveryn-brand) (mark, fonts, tokens), [suveryn-connector-sdk](https://github.com/suveryn/suveryn-connector-sdk) and [suveryn-connectors-registry](https://github.com/suveryn/suveryn-connectors-registry) (connectors).
 
+> Read [The Sūveryn Manifesto](https://github.com/suveryn/suveryn-docs/blob/main/MANIFESTO.md) to understand why this project exists.
+
 ## Packages
 
 For reviewers: [docs/architecture.md](docs/architecture.md) describes the data flow, where confidential data lives, the invariants the code must keep, design decisions with their evidence, known limitations and a review checklist.
