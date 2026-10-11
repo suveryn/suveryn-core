@@ -73,6 +73,14 @@ class Extraction:
     layout_failed_pages: list[int] = field(default_factory=list)
 
 
+def page_count(pdf: Path) -> int:
+    doc = pdfium.PdfDocument(str(pdf))
+    try:
+        return len(doc)
+    finally:
+        doc.close()
+
+
 def text_layer(pdf: Path) -> list[str]:
     """The PDF's own text per page (empty strings for pure scans)."""
     doc = pdfium.PdfDocument(str(pdf))
@@ -201,11 +209,15 @@ class Extractor:
             return self._cpu
         self._cpu_converter = cpu_converter
 
-    def extract(self, pdf: Path) -> Extraction:
+    def extract(self, pdf: Path, owner: str | None = None) -> Extraction:
         """Extract one PDF. The original file is only read; every intermediate file lives in a
-        private work directory that is deleted before this returns, also on errors."""
+        private work directory that is deleted before this returns, also on errors. ``owner`` is
+        for ``IsolatedExtractor``'s interface; in-process there is no reader to replace."""
         import ocrmypdf
 
+        pages = page_count(pdf)
+        if pages > self.settings.max_pages:  # before OCR: one huge PDF would hold up everyone's documents
+            raise ValueError(f"the document has {pages} pages; at most {self.settings.max_pages} can be read")
         t0 = time.perf_counter()
         profiles = page_profiles(pdf)
         to_ocr = plan_ocr(profiles)

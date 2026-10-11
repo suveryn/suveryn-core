@@ -144,7 +144,7 @@ class Rag:
                                      misread(self.store.document_text(existing)) or noisy):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
-        ex = self._extractor.extract(pdf)
+        ex = self._extractor.extract(pdf, owner=owner)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
