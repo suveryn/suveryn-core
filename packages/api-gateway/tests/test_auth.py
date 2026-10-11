@@ -11,6 +11,7 @@ import json
 import time
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -22,11 +23,13 @@ from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import (
     LOGIN_COOKIE,
     Authenticator,
+    AuthError,
     AuthSettings,
     OIDCProvider,
     safe_return_path,
 )
 from suveryn_api_gateway.main import check_auth_settings
+from suveryn_api_gateway.ratelimit import RateLimits
 from suveryn_engine import LlamaServerClient, LLMSettings
 
 ISSUER = "http://keycloak.test/realms/suveryn"
@@ -300,16 +303,98 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     assert realm["scopeMappings"] == [{"client": "suveryn-chat", "roles": [ADMIN_ROLE]}]
 
 
-def test_a_flood_of_unfinished_sign_ins_never_blocks_a_real_one(client, kc, monkeypatch):
-    """Code review 2026-10: at the limit, new sign-ins were refused, so anyone could block every
-    sign-in for ten minutes by calling /auth/login a thousand times. Now the oldest unfinished ones go."""
-    import suveryn_api_gateway.auth as auth_module
+def test_a_flood_of_unfinished_sign_ins_never_blocks_a_real_one(kc):
+    """suveryn-tracker#14: unfinished sign-ins were kept in the gateway's memory (at most 1000), so a
+    flood of /auth/login could refuse, and later evict, a real user's. Now the server keeps nothing:
+    the sign-in travels in its own browser's encrypted cookie."""
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
+    app = create_app(llm, documents=FakeDocuments(), load_documents=False, auth=auth, rate_limits=RateLimits(sign_in=0))
+    with TestClient(app) as user, TestClient(app) as flood:
+        r = user.get("/auth/login", follow_redirects=False)  # a real user is on the Keycloak page...
+        q = {k: v[0] for k, v in parse_qs(urlsplit(r.headers["location"]).query).items()}
+        for _ in range(2000):  # ...while someone else floods the sign-in
+            assert flood.get("/auth/login", follow_redirects=False).status_code == 303
+        kc.codes["real"] = {"nonce": q["nonce"], "challenge": q["code_challenge"]}
+        assert user.get("/auth/callback", params={"code": "real", "state": q["state"]}, follow_redirects=False).status_code == 303
+        assert user.get("/v1/documents").status_code == 200
+    assert not hasattr(auth, "_pending")
 
-    monkeypatch.setattr(auth_module, "MAX_PENDING_LOGINS", 5)
-    for _ in range(20):  # an unauthenticated flood
-        assert client.get("/auth/login", follow_redirects=False).status_code == 303
-    r = sign_in(client, kc)  # a real user, right after the flood
-    assert r.status_code == 303 and client.get("/v1/documents").status_code == 200
+
+def test_the_login_cookie_is_encrypted_and_cant_be_altered(client, kc):
+    r = client.get("/auth/login", params={"return_to": "/private-path"}, follow_redirects=False)
+    q = {k: v[0] for k, v in parse_qs(urlsplit(r.headers["location"]).query).items()}
+    cookie = client.cookies[LOGIN_COOKIE]
+    assert q["nonce"] not in cookie and "private-path" not in cookie  # not readable, not even base64
+    raw = bytearray(base64.urlsafe_b64decode(cookie + "=" * (-len(cookie) % 4)))
+    raw[20] ^= 1  # one bit changed
+    client.cookies.set(LOGIN_COOKIE, base64.urlsafe_b64encode(bytes(raw)).rstrip(b"=").decode())
+    kc.codes["c"] = {"nonce": q["nonce"], "challenge": q["code_challenge"]}
+    assert client.get("/auth/callback", params={"code": "c", "state": q["state"]}).status_code == 400
+    assert kc.token_calls == []  # refused before the code was even exchanged
+
+
+def test_a_login_cookie_from_another_server_or_too_old_is_refused(monkeypatch):
+    from suveryn_api_gateway.auth import LoginSealer, PendingLogin
+
+    login = PendingLogin("st", "verifier", "nonce", "/", time.time())
+    assert LoginSealer("s3cret").open(LoginSealer("s3cret").seal(login)) == login
+    assert LoginSealer("another-secret").open(LoginSealer("s3cret").seal(login)) is None  # key rotated
+    for junk in (None, "", "x", "!!!", "a" * 5000):
+        assert LoginSealer("s3cret").open(junk) is None
+
+    import asyncio
+
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(FakeKeycloak().handler)))
+    _, cookie = asyncio.run(auth.start_login("/"))
+    state = LoginSealer("s3cret").open(cookie).state
+    monkeypatch.setattr(time, "time", lambda real=time.time: real() + 11 * 60)
+    with pytest.raises(AuthError, match="expired"):
+        asyncio.run(auth.finish_login("code", state, cookie))
+
+
+def test_sign_in_is_rate_limited_per_client_address(kc):
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
+    app = create_app(llm, documents=FakeDocuments(), load_documents=False, auth=auth, rate_limits=RateLimits(sign_in=3))
+    with TestClient(app, client=("10.0.0.9", 1)) as flood, TestClient(app, client=("10.0.0.7", 1)) as other:
+        assert [flood.get("/auth/login", follow_redirects=False).status_code for _ in range(4)] == [303, 303, 303, 429]
+        r = flood.get("/auth/callback", params={"code": "x", "state": "y"})
+        assert r.status_code == 429 and 1 <= int(r.headers["retry-after"]) <= 60
+        assert other.get("/auth/login", follow_redirects=False).status_code == 303  # someone else isn't affected
+        assert flood.get("/health").status_code in (200, 503)  # only sign-in is limited
+
+
+def test_questions_and_uploads_are_rate_limited_per_user(kc):
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
+    class Uploads(FakeDocuments):
+        def accept_upload(self, src, filename, owner):
+            return SimpleNamespace(public=lambda: {"id": "job"})
+
+    app = create_app(llm, documents=Uploads(), load_documents=False, auth=auth,
+                     rate_limits=RateLimits(chat=2, uploads=1))
+    alice = {"Authorization": f"Bearer {kc.tokens(over={'sub': 'alice'})['access_token']}"}
+    bob = {"Authorization": f"Bearer {kc.tokens(over={'sub': 'bob'})['access_token']}"}
+    with TestClient(app) as c:
+        assert [c.post("/v1/chat", json=CHAT, headers=alice).status_code for _ in range(3)] == [200, 200, 429]
+        assert c.post("/v1/chat", json=CHAT, headers=bob).status_code == 200  # per user
+        assert c.get("/v1/documents", headers=alice).status_code == 200  # reading isn't limited
+        assert c.post("/v1/chat", json=CHAT).status_code == 401  # not signed in: 401, not counted
+        pdf = {"file": ("a.pdf", b"%PDF-1.4", "application/pdf")}
+        assert [c.post("/v1/documents", files=pdf, headers=alice).status_code for _ in range(2)] == [202, 429]
+
+
+def test_rate_limiter_window_and_memory_bound():
+    from suveryn_api_gateway.ratelimit import RateLimiter
+
+    lim = RateLimiter(2, window_s=60, max_keys=3)
+    assert [lim.hit("a", now=t) for t in (0, 1, 2)] == [None, None, 58]
+    assert lim.hit("a", now=60.5) is None  # the first one left the window
+    for i in range(10):
+        lim.hit(f"k{i}", now=100)
+    assert len(lim._events) <= 3
+    assert RateLimiter(0).hit("x") is None  # 0 = no limit
 
 
 def test_sessions_do_not_keep_the_access_token():
