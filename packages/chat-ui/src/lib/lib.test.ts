@@ -372,9 +372,22 @@ describe("finding the cited facts in a long passage", () => {
     const text = "In de akte staan twee jaartallen:\n*   **1989** [3]\n*   **1996** [3]\n\nDe koper Jan Peeters betaalt EUR 1.275.000,00 op 12/03/2021 [1][2].";
     const terms = claimTerms(text, 3);
     expect(terms.get(3)).toEqual(["1989", "1996"]);
-    expect(terms.get(1)).toEqual(["1.275.000,00", "12/03/2021", "Peeters"]);  // names of 4+ letters, as the server checks
+    expect(terms.get(1)).toEqual(["1.275.000,00", "12/03/2021", "Jan Peeters"]);  // a name as a whole
     expect(terms.get(2)).toEqual(terms.get(1));
     expect(claimTerms("Zie [9].", 3).size).toBe(0);  // a marker past the citations names nothing
+  });
+
+  it("marks a whole name with its particles, also split over two lines (reported: Eric Van de Plas)", () => {
+    const terms = claimTerms("De zaakvoerder is Eric Van de Plas [2]. Eric Van de Plas tekent [2].", 2).get(2)!;
+    expect(terms).toEqual(["Eric Van de Plas", "Van de Plas"]);  // the second sentence starts with it: also without its first word
+    const marked = (p: string) => markTerms(p, terms).filter((x) => x.mark).map((x) => x.text);
+    expect(marked("Benoemd: de heer Eric Van de Plas, zaakvoerder.")).toEqual(["Eric Van de Plas"]);
+    expect(marked("de heer Eric Van de\nPlas, wonende te Gent")).toEqual(["Eric Van de\nPlas"]);
+    const witnesses = claimTerms("Notaris Charlotte d'Hondt en Pierre du Pont getuigen [1].", 1).get(1)!;
+    expect(witnesses).toEqual(["Notaris Charlotte d'Hondt", "Charlotte d'Hondt", "Pierre du Pont"]);
+    // the source writes the title elsewhere: the name is still marked whole
+    expect(markTerms("mr. Charlotte d'Hondt, notaris, en Pierre du Pont", witnesses).filter((x) => x.mark).map((x) => x.text))
+      .toEqual(["Charlotte d'Hondt", "Pierre du Pont"]);
   });
 
   it("marks those facts in the passage, whole only, and nothing else", () => {

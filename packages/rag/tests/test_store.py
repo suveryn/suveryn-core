@@ -110,3 +110,20 @@ def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
     finally:
         store.delete_document(doc)
         store.close()
+
+
+def test_reading_again_replaces_a_document_in_place():
+    store = Store(URL, DIM)
+    recovered = [Chunk(i, f"garbled {i}", f"garbled {i}", i + 1, i + 1, [], "text_layer_recovered") for i in range(3)]
+    doc = store.add_document("scan.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 3, 0,
+                             recovered, np.stack([unit(i) for i in range(3)]))
+    try:
+        assert store.recovered_share(doc) == 1.0
+        clean = [Chunk(i, f"clean text {i}", f"clean text {i}", i + 1, i + 1, []) for i in range(2)]
+        assert store.replace_document(doc, "scan.pdf", 3, 0, clean, np.stack([unit(i) for i in range(2)])) == doc
+        assert store.recovered_share(doc) == 0.0
+        assert store.document_status(doc) == ("ok", [])
+        assert [h.chunk_index for h in store.search(unit(1), k=5, document_id=doc)][0] == 1
+    finally:
+        assert store.delete_document(doc)
+        store.close()
