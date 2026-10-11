@@ -333,5 +333,7 @@ def test_store_cleans_or_deletes_conversations_of_a_deleted_document(store):
     assert store.get(bobs, BOB).turns[1]["citations"][0]["text"]  # another owner's conversation is untouched
     assert store.remove_document(ALICE, uuid.UUID(OTHER), delete_conversations=True) == 1
     assert [s.id for s in store.summaries(ALICE)] == [str(unused)]
-    store.save(uuid.uuid4(), ALICE, ConversationIn(title="Prijs", turns=cited_turns()), gone=lambda d: d == DOC)
-    assert all("345.000." not in str(store.get(uuid.UUID(s.id), ALICE).turns) for s in store.summaries(ALICE))
+    late = uuid.uuid4()  # saved from a tab that still held the passages
+    store.save(late, ALICE, ConversationIn(title="Prijs", turns=cited_turns()), gone=lambda d: d == DOC)
+    cits = store.get(late, ALICE).turns[1]["citations"]
+    assert cits[0]["removed"] and cits[0]["text"] == "" and cits[1]["text"] == "Verkoper: Jan Peeters."
