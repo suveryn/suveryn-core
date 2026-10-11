@@ -19,6 +19,8 @@ from suveryn_api_gateway.conversations import (
     ConversationSettings,
     ConversationStore,
     ConversationSummary,
+    cited_documents,
+    redact,
 )
 from suveryn_engine import LlamaServerClient, LLMSettings
 from test_auth import SETTINGS, FakeKeycloak
@@ -47,14 +49,29 @@ class FakeConversations:
         r = self.rows.get(cid)
         return Conversation(**{k: v for k, v in r.items() if k != "owner"}) if r and r["owner"] == owner else None
 
-    def save(self, cid, owner, body: ConversationIn):
+    def save(self, cid, owner, body: ConversationIn, gone=None):
         old = self.rows.get(cid)
         if old and old["owner"] != owner:
             return False
         now = datetime.now(UTC)
-        self.rows[cid] = {"id": str(cid), "owner": owner, "title": body.title, "turns": [t.model_dump() for t in body.turns],
+        turns = [t.model_dump() for t in body.turns]
+        if gone is not None:
+            redact(turns, gone)
+        self.rows[cid] = {"id": str(cid), "owner": owner, "title": body.title, "turns": turns,
                           "created_at": old["created_at"] if old else now, "updated_at": now}
         return True
+
+    def using_document(self, owner, document_id):
+        return [s for s in self.summaries(owner) if str(document_id) in cited_documents(self.rows[uuid.UUID(s.id)]["turns"])]
+
+    def remove_document(self, owner, document_id, delete_conversations=False):
+        hits = self.using_document(owner, document_id)
+        for h in hits:
+            if delete_conversations:
+                self.delete(uuid.UUID(h.id), owner)
+            else:
+                redact(self.rows[uuid.UUID(h.id)]["turns"], lambda d: d == str(document_id))
+        return len(hits)
 
     def delete(self, cid, owner):
         if cid in self.rows and self.rows[cid]["owner"] == owner:
@@ -210,3 +227,111 @@ def test_store_age_cap(store):
         assert store.get(old, ALICE) is None  # deleted, not only hidden
     finally:
         capped.close()
+
+
+# ---------------------------------------------------------------- deleted documents (suveryn-tracker#12)
+
+DOC, OTHER = str(uuid.uuid4()), str(uuid.uuid4())
+
+
+def cited_turns(doc=DOC):
+    return [
+        {"id": "u1", "role": "user", "text": "Wat is de koopprijs?",
+         "attachments": [{"key": "a", "filename": "akte-peeters.pdf", "status": "ready", "documentId": doc}]},
+        {"id": "a1", "role": "assistant", "text": "€ 345.000 [1], verkoper Peeters [2]", "status": "done", "grounded": True,
+         "citations": [{"text": "De koopprijs bedraagt € 345.000.", "source": {"document_id": doc, "page": 3,
+                                                                               "location": "p. 3 · Artikel 2 - Koopprijs"}},
+                       {"text": "Verkoper: Jan Peeters.", "source": {"document_id": OTHER, "page": 1, "location": "p. 1"}}]},
+    ]
+
+
+def test_redact_takes_out_passages_and_names_of_deleted_documents_only():
+    turns = cited_turns()
+    assert cited_documents(turns) == {DOC, OTHER}
+    assert redact(turns, lambda d: d == DOC) is True
+    gone, kept = turns[1]["citations"]
+    assert gone == {"text": "", "source": {"document_id": DOC, "page": 3, "location": None}, "removed": True}
+    assert kept["text"] == "Verkoper: Jan Peeters." and "removed" not in kept
+    assert turns[0]["attachments"][0]["filename"] == "" and turns[0]["attachments"][0]["removed"] is True
+    assert turns[1]["text"] == "€ 345.000 [1], verkoper Peeters [2]"  # the answer stays; the UI offers to delete it
+    assert redact(turns, lambda d: d == DOC) is False  # idempotent
+
+
+class FakeDocs:
+    state, error = "ready", None
+
+    def __init__(self):
+        self.ids = {DOC, OTHER}
+
+    def delete(self, document_id, owner):
+        if document_id in self.ids:
+            self.ids.discard(document_id)
+            return True
+        return False
+
+    def existing(self, ids, owner):
+        return {i for i in ids if i in self.ids}
+
+    def stop(self):
+        pass
+
+
+@pytest.fixture
+def with_docs():
+    kc, store, docs = FakeKeycloak(), FakeConversations(), FakeDocs()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    with TestClient(create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=store)) as c:
+        yield c, as_user(kc, ALICE), store, docs
+
+
+def test_deleting_a_document_takes_its_passages_out_of_saved_conversations(with_docs):
+    c, alice, store, _ = with_docs
+    cid = str(uuid.uuid4())
+    assert c.put(f"/v1/conversations/{cid}", json={"title": "Prijs", "turns": cited_turns()}, headers=alice).status_code == 204
+    assert [s["id"] for s in c.get(f"/v1/documents/{DOC}/conversations", headers=alice).json()] == [cid]
+    assert c.delete(f"/v1/documents/{DOC}", headers=alice).status_code == 204
+    saved = c.get(f"/v1/conversations/{cid}", headers=alice).json()["turns"]
+    assert "345.000." not in str(saved[1]["citations"]) and "Artikel 2" not in str(saved) and "akte-peeters" not in str(saved)
+    assert "Jan Peeters" in str(saved[1]["citations"])  # the other document's passage stays
+    assert c.get(f"/v1/documents/{OTHER}/conversations", headers=alice).json()[0]["id"] == cid
+
+
+def test_deleting_a_document_can_delete_the_conversations_that_used_it(with_docs):
+    c, alice, store, _ = with_docs
+    cid, other = str(uuid.uuid4()), str(uuid.uuid4())
+    c.put(f"/v1/conversations/{cid}", json={"title": "Prijs", "turns": cited_turns()}, headers=alice)
+    c.put(f"/v1/conversations/{other}", json=BODY, headers=alice)  # doesn't use the document
+    assert c.delete(f"/v1/documents/{DOC}", params={"conversations": "delete"}, headers=alice).status_code == 204
+    assert [s["id"] for s in c.get("/v1/conversations", headers=alice).json()] == [other]
+    assert c.delete(f"/v1/documents/{OTHER}", params={"conversations": "everything"}, headers=alice).status_code == 422
+
+
+def test_a_tab_still_open_cant_save_the_passages_back(with_docs):
+    c, alice, store, docs = with_docs
+    docs.ids.discard(DOC)  # deleted in another tab
+    cid = str(uuid.uuid4())
+    assert c.put(f"/v1/conversations/{cid}", json={"title": "Prijs", "turns": cited_turns()}, headers=alice).status_code == 204
+    saved = store.rows[uuid.UUID(cid)]["turns"]
+    assert saved[1]["citations"][0]["removed"] is True and saved[1]["citations"][0]["text"] == ""
+    assert saved[1]["citations"][1]["text"] == "Verkoper: Jan Peeters."
+
+
+@needs_db
+def test_store_cleans_or_deletes_conversations_of_a_deleted_document(store):
+    used, unused, bobs = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    store.save(used, ALICE, ConversationIn(title="Prijs", turns=cited_turns()))
+    store.save(unused, ALICE, ConversationIn(**BODY))
+    store.save(bobs, BOB, ConversationIn(title="Prijs", turns=cited_turns()))  # same document id, another owner
+    assert [s.id for s in store.using_document(ALICE, uuid.UUID(DOC))] == [str(used)]
+    before = store.get(used, ALICE).updated_at
+    assert store.remove_document(ALICE, uuid.UUID(DOC)) == 1
+    after = store.get(used, ALICE)
+    assert after.turns[1]["citations"][0] == {"text": "", "source": {"document_id": DOC, "page": 3, "location": None},
+                                              "removed": True}
+    assert after.updated_at == before  # cleaned, not "changed by the user": the sidebar order stays
+    assert store.get(bobs, BOB).turns[1]["citations"][0]["text"]  # another owner's conversation is untouched
+    assert store.remove_document(ALICE, uuid.UUID(OTHER), delete_conversations=True) == 1
+    assert [s.id for s in store.summaries(ALICE)] == [str(unused)]
+    store.save(uuid.uuid4(), ALICE, ConversationIn(title="Prijs", turns=cited_turns()), gone=lambda d: d == DOC)
+    assert all("345.000." not in str(store.get(uuid.UUID(s.id), ALICE).turns) for s in store.summaries(ALICE))

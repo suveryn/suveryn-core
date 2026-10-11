@@ -1,5 +1,5 @@
 /** UI-side types for the conversation: turns and attachments. Wire types are in api.ts. */
-import type { Calculation, Citation, JobStatus, StreamStatus } from "./api";
+import type { Calculation, Citation, CitationIssue, JobStatus, StreamStatus } from "./api";
 
 /** A file attached to the user's turn. Lives on the user's message, never on the reply. */
 export type Attachment = {
@@ -11,6 +11,7 @@ export type Attachment = {
   error?: string;
   progress?: number; // upload progress, 0-1, while status is "uploading"
   reviewPages?: number[]; // with status needs_review: pages where text may be missing
+  removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
 };
 
 export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[] };
@@ -22,6 +23,7 @@ export type AssistantTurn = {
   citations: Citation[];
   calculations?: Calculation[];
   unverifiedFigures?: string[]; // figures to check: in no source and not calculated by the server
+  citationIssues?: CitationIssue[]; // facts a cited source doesn't contain (suveryn-tracker#11)
   status: "streaming" | "done" | "error";
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents

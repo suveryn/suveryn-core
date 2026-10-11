@@ -4,13 +4,18 @@ import { statusText } from "../lib/status";
 import { LANGS, pickLang, setLang, t, TABLES_FOR_TESTS as TABLES, type Lang } from ".";
 
 const ARRAYS: Record<string, unknown[]> = { pageList: [[1, 3]], reviewHint: [[1, 3]], calcMissing: [["1.000,00"]], unverified: [["1.000,00", "2,5"]] };
+/** Functions with several typed arguments: two samples each, covering their branches. */
+const SAMPLES: Record<string, unknown[][]> = {
+  citationIssue: [[2, "410.000", [3], null], [1, "Peters", [1], "Peeters"], [2, "12/03/2021", [], null], [2, "X", [1, 3], null]],
+  deleteDocumentDialogBody: [[1], [3]], deleteDocumentAndConversations: [[1], [3]],
+};
 
 /** Every string of a table, with functions called on sample arguments. */
 function texts(l: Lang): [string, string][] {
   return Object.entries(TABLES[l]).flatMap(([k, v]) => {
     if (typeof v === "string") return [[k, v] as [string, string]];
     const fn = v as (...a: unknown[]) => string;
-    const samples = ARRAYS[k] ? [ARRAYS[k], [[1]].concat()] : [["X", "Y", 3], ["Y", 2, null]];
+    const samples = SAMPLES[k] ?? (ARRAYS[k] ? [ARRAYS[k], [[1]].concat()] : [["X", "Y", 3], ["Y", 2, null]]);
     return samples.map((args) => [k, fn(...(args as unknown[]))] as [string, string]);
   });
 }

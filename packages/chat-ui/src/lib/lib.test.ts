@@ -7,11 +7,11 @@ import { conversationHistory } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
-import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved } from "./conversations";
+import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved, usesDocument, withoutDocument } from "./conversations";
 import { rangeFor, today } from "./usage";
 import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { reviewPages } from "../api";
-import type { Turn } from "../types";
+import type { AssistantTurn, Turn, UserTurn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
 
 describe("SSE parser", () => {
@@ -33,7 +33,7 @@ describe("answer rendering", () => {
     const [p] = toBlocks("De koopprijs is EUR 412.500,00 [1], zie ook [9].", 2);
     expect(p.segments).toEqual([
       { kind: "text", text: "De koopprijs is EUR 412.500,00 " },
-      { kind: "cite", n: 1 },
+      { kind: "cite", n: 1, occ: 0 },
       { kind: "text", text: ", zie ook [9]." },
     ]);
   });
@@ -233,7 +233,7 @@ describe("figures to check (unverified_figures)", () => {
       { kind: "flag", text: "350.000,00", bold: true },
       { kind: "bold", text: " EUR" },
       { kind: "text", text: "; niet 1.350.000,00 " },
-      { kind: "cite", n: 1 },
+      { kind: "cite", n: 1, occ: 0 },
       { kind: "text", text: "." },
     ]);
   });
@@ -270,5 +270,35 @@ describe("one redirect per page load", () => {
   it("a second call in the same page (React StrictMode runs effects twice) is not a loop", () => {
     expect(claimRedirect(2_000_000)).toBe("go");
     expect(claimRedirect(2_000_001)).toBe("started"); // not "stuck": no sign-in screen flash
+  });
+});
+
+describe("citations checked against their source (suveryn-tracker#11)", () => {
+  it("numbers valid markers across the answer as the server does, also in bold and list items", () => {
+    const blocks = toBlocks("- **Verkoper** [1]: Jan Peeters [9]\n- **Prijs [2]**: 410.000,00 EUR [2]", 2);
+    const cites = blocks.flatMap((b) => b.segments).filter((s) => s.kind === "cite");
+    expect(cites).toEqual([{ kind: "cite", n: 1, occ: 0 }, { kind: "cite", n: 2, occ: 1 }, { kind: "cite", n: 2, occ: 2 }]);
+    expect(blocks[1].segments[0]).toEqual({ kind: "bold", text: "Prijs " });  // the marker in bold is a marker now
+  });
+});
+
+describe("deleted documents (suveryn-tracker#12)", () => {
+  const DOC = "11111111-1111-4111-8111-111111111111";
+  const turns: Turn[] = [
+    { id: "u", role: "user", text: "Prijs?", attachments: [{ key: "a", filename: "akte-peeters.pdf", status: "ready", documentId: DOC }] },
+    { id: "a", role: "assistant", text: "€ 345.000 [1] [2]", status: "done", grounded: true, citations: [
+      { text: "De koopprijs bedraagt € 345.000.", source: { document_id: DOC, page: 3, location: "p. 3 · Artikel 2" } },
+      { text: "Verkoper: Jan Peeters.", source: { document_id: "other", page: 1, location: "p. 1" } }] },
+  ];
+
+  it("takes the document's passages and file name out, as the server does, and keeps the rest", () => {
+    expect(usesDocument(turns, DOC)).toBe(true);
+    const cleaned = withoutDocument(turns, DOC);
+    expect(usesDocument(cleaned, "missing")).toBe(false);
+    const [user, answer] = cleaned as [UserTurn, AssistantTurn];
+    expect(user.attachments[0]).toMatchObject({ filename: "", removed: true });
+    expect(answer.citations[0]).toEqual({ text: "", source: { document_id: DOC, page: 3, location: null }, removed: true });
+    expect(answer.citations[1].text).toBe("Verkoper: Jan Peeters.");
+    expect(answer.text).toBe("€ 345.000 [1] [2]");
   });
 });

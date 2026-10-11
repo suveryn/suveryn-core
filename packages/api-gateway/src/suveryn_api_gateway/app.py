@@ -43,6 +43,7 @@ import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -82,6 +83,7 @@ from .conversations import (
     ConversationSettings,
     ConversationStore,
     ConversationSummary,
+    cited_documents,
 )
 from .ratelimit import RateLimiter, RateLimits
 from .usage import (
@@ -581,17 +583,36 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         return {"documents": [dict(d, id=str(d["id"]), created_at=d["created_at"].isoformat()) for d in stored],
                 "jobs": [j.public() for j in docs.pending_jobs(owner)]}
 
-    @app.delete("/v1/documents/{document_id}", status_code=204)
-    async def delete_document(document_id: str, request: Request):
-        """Delete a document and its passages. See ``Store.delete_document`` for what deletion does and doesn't guarantee."""
-        docs = _docs_or_503(request)
+    def _document_id(document_id: str) -> uuid.UUID:
         try:
-            uuid.UUID(document_id)
+            return uuid.UUID(document_id)
         except ValueError:
             raise HTTPException(422, "Not a document id.") from None
-        if not await run_in_threadpool(docs.delete, document_id, owner_of(request)):
+
+    def _history_or_none(request: Request) -> ConversationStore | None:
+        history: Database = request.app.state.history
+        return history.get() if history.configured else None
+
+    @app.delete("/v1/documents/{document_id}", status_code=204)
+    async def delete_document(document_id: str, request: Request, conversations: Literal["clean", "delete"] = "clean"):
+        """Delete a document and its passages. See ``Store.delete_document`` for what deletion does and doesn't guarantee.
+
+        Saved conversations that cite it (suveryn-tracker#12): with ``conversations=clean`` (the default)
+        its passages are taken out of them; with ``conversations=delete`` those conversations are deleted.
+        """
+        docs, did, owner = _docs_or_503(request), _document_id(document_id), owner_of(request)
+        if not await run_in_threadpool(docs.delete, document_id, owner):
             raise HTTPException(404, "Unknown document.")
+        if (store := _history_or_none(request)) is not None:
+            await run_in_threadpool(store.remove_document, owner, did, conversations == "delete")
         return Response(status_code=204)
+
+    @app.get("/v1/documents/{document_id}/conversations", response_model=list[ConversationSummary])
+    async def document_conversations(document_id: str, request: Request):
+        """The caller's saved conversations that cite or attach this document (asked before deleting it)."""
+        did = _document_id(document_id)
+        store = _history_or_none(request)
+        return await run_in_threadpool(store.using_document, owner_of(request), did) if store is not None else []
 
     def _history_or_503(request: Request) -> ConversationStore:
         history: Database = request.app.state.history
@@ -629,10 +650,27 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         413: {"description": f"Larger than {MAX_CONVERSATION_BYTES // (1024 * 1024)} MB"}})
     async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):
         """Save the whole conversation under an id the client chose (a UUID), replacing an earlier save."""
-        store, cid = _history_or_503(request), _conversation_id(conversation_id)
-        if not await run_in_threadpool(store.save, cid, owner_of(request), body):
+        store, cid, owner = _history_or_503(request), _conversation_id(conversation_id), owner_of(request)
+        gone = await run_in_threadpool(_deleted_documents, request, body, owner)
+        if not await run_in_threadpool(store.save, cid, owner, body, gone):
             raise HTTPException(404, "Unknown conversation.")
         return Response(status_code=204)
+
+    def _deleted_documents(request: Request, body: ConversationIn, owner: str):
+        """Which documents the conversation cites that no longer exist (suveryn-tracker#12): a tab that
+        was open while one was deleted must not save its passages back. None if that can't be known."""
+        docs = request.app.state.documents
+        if docs is None or docs.state != "ready":
+            return None
+        cited = cited_documents([t.model_dump() for t in body.turns])
+        valid = []
+        for d in cited:
+            try:
+                valid.append(str(uuid.UUID(d)))
+            except ValueError:
+                continue
+        existing = docs.existing(valid, owner) if valid else set()
+        return lambda d: d not in existing
 
     @app.delete("/v1/conversations/{conversation_id}", status_code=204)
     async def delete_conversation(conversation_id: str, request: Request):

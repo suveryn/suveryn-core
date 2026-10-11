@@ -195,6 +195,21 @@ const en = {
   ratesChanged: (who: string, when: string) => `Last changed by ${who} on ${when}.`,
   ratesDefault: "Default: the published price of a comparable cloud model.",
   ratesInvalid: "Enter amounts of 0 or more.",
+  // deleted documents (suveryn-tracker#12)
+  sourceRemoved: "Source deleted",
+  sourceRemovedCaption: "This document was deleted, so its passage was taken out of this conversation. The answer above may still mention facts from it.",
+  documentRemoved: "Deleted document",
+  deleteDocumentDialogTitle: (file: string) => `Delete ${file}?`,
+  deleteDocumentDialogBody: (n: number) =>
+    `${n === 1 ? "One saved conversation cites" : `${n} saved conversations cite`} this document. Its passages are taken out of ${n === 1 ? "it" : "them"} either way, but the answers still mention facts from it.`,
+  deleteDocumentKeepConversations: "Delete the document, keep the conversations",
+  deleteDocumentAndConversations: (n: number) => (n === 1 ? "Delete the document and the conversation" : `Delete the document and ${n} conversations`),
+  // citations checked against their source (suveryn-tracker#11)
+  citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null) =>
+    writtenAs ? `Check source ${n}: it writes "${writtenAs}", not "${item}".`
+    : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${foundIn.length > 1 ? "sources" : "source"} ${foundIn.join(", ")}.`
+    : `Check source ${n}: "${item}" isn't in it.`,
+  citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
   // downloaded sources
   sourcesHeading: "Sources cited by sūveryn",
   question: "Question",
