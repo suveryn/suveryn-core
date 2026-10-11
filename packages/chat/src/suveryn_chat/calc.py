@@ -151,6 +151,8 @@ def evaluate(expression: str, default_sep: str | None = None) -> tuple[str, list
         raise
     except (ArithmeticError, ValueError) as e:  # decimal errors (e.g. precision), malformed numbers
         raise CalcError("the calculation can't be done") from e
+    except RecursionError:  # brackets or signs nested hundreds deep (text in a document could ask for it)
+        raise CalcError("the calculation is nested too deeply") from None
 
 
 def _evaluate(expression: str, default_sep: str | None) -> tuple[str, list[str]]:

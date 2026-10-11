@@ -106,7 +106,8 @@ def test_health_ok(make_client):
     with make_client(fake_backend()) as c:
         r = c.get("/health")
     assert r.status_code == 200
-    assert r.json()["backend"] == {"reachable": True, "status": "ok", "url": "http://llm", "model": MODEL, "detail": None}
+    # public: states only, no internal address or error text
+    assert r.json()["backend"] == {"reachable": True, "status": "ok", "url": None, "model": MODEL, "detail": None}
     assert r.json()["documents"] == {"status": "unavailable", "detail": None}
 
 

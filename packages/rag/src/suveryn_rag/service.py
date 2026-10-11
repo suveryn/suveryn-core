@@ -26,6 +26,7 @@ Database connections are reopened once after a connection error (e.g. PostgreSQL
 that fails too, ``SearchUnavailable`` is raised, which the gateway reports as 503.
 """
 
+import logging
 import os
 import shutil
 import threading
@@ -39,6 +40,8 @@ from typing import BinaryIO
 from suveryn_engine import Citation
 
 from .config import RagSettings
+
+log = logging.getLogger("suveryn.rag")
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # a 300 dpi 60-page scan is ~60 MB
 JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten after an hour
@@ -124,7 +127,9 @@ class DocumentService:
             self._search = Rag(self.settings, load_extractor=False, embedder=embedder)
             self.state = "ready"
         except Exception as e:  # noqa: BLE001 - reported through state, not raised in a thread
-            self.state, self.error = "failed", f"{type(e).__name__}: {str(e)[:200]}"
+            # The message can name hosts and users (a database URL): in the server log only, the kind for others.
+            log.error("document handling failed to start: %s: %s", type(e).__name__, str(e)[:200])
+            self.state, self.error = "failed", type(e).__name__
             return
         while True:
             job, path = self._queue.get()
