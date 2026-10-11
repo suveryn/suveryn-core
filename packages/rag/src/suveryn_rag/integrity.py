@@ -37,6 +37,7 @@ class IntegrityWarning:
     page: int | None
     kind: str     # "text_recovered" | "furniture_restored" | "text_layer_recovered" | "page_coverage_low"
                   # | "instruction_like_text" (text addressed to an AI; pipeline.py, suveryn-tracker#21)
+                  # | "layout_failed" (Docling couldn't read the page; pipeline.py)
     detail: str
 
     @property
@@ -44,7 +45,7 @@ class IntegrityWarning:
         """True if this warning should put the document in ``needs_review``."""
         # Recovered or restored text is kept, so the document is complete; a coverage
         # shortfall means text may be missing, which a person has to check.
-        return self.kind == "page_coverage_low"
+        return self.kind in ("page_coverage_low", "layout_failed")
 
 
 def norm(text: str) -> str:
