@@ -6,11 +6,13 @@ browser only gets an opaque session cookie (HttpOnly, SameSite=Lax, ``Secure`` a
 prefixed when the public URL is https). No token is ever readable by JavaScript in the UI.
 
 Flow:
-1. ``GET /auth/login``: a random ``state``, ``nonce`` and PKCE verifier are kept server-side for ten
-   minutes; ``state`` is also set in a short-lived cookie, so the callback is bound to the browser
-   that started it (prevents login CSRF). The browser is redirected to Keycloak's login page.
-2. ``GET /auth/callback``: checks ``state`` against that cookie, exchanges the code (with the PKCE
-   verifier and the client secret) at Keycloak's token endpoint, and validates the ID token.
+1. ``GET /auth/login``: a random ``state``, ``nonce`` and PKCE verifier are put in a short-lived
+   login cookie (HttpOnly, ten minutes), encrypted and authenticated with AES-GCM (``LoginSealer``),
+   so the callback is bound to the browser that started it (prevents login CSRF) and the server
+   keeps nothing for a sign-in that is never finished. The browser is redirected to Keycloak.
+2. ``GET /auth/callback``: opens the login cookie, checks ``state`` against it, exchanges the code
+   (with the PKCE verifier and the client secret) at Keycloak's token endpoint, and validates the
+   ID token.
 3. A session is created and its id set as the session cookie. Every API request (``/v1/...``)
    needs a valid session, or a bearer access token for non-browser clients.
 4. Shortly before the access token expires, the gateway refreshes it with the refresh token. If
@@ -28,10 +30,18 @@ Identity providers: by design only Keycloak's own users (local accounts, optiona
 from LDAP/Active Directory, optionally with TOTP) can sign in. Social or online identity providers
 are not supported at any tier; see ``keycloak/README.md``.
 
+Login cookie key: derived from the client secret with HKDF (``LoginSealer``), so there is no
+extra key to manage: every gateway process with the same configuration can open the cookie, and
+rotating the client secret in Keycloak rotates it too (sign-ins in progress at that moment have
+to start again). Before (code review 2026-10, suveryn-tracker#14) unfinished sign-ins were kept in
+memory, and a flood of /auth/login requests from anyone could evict a real user's.
+
 Review notes:
-- Sessions and pending logins live in this process's memory: a gateway restart signs everyone out
-  (Keycloak's own session usually lets them straight back in). Multi-process deployments need a
-  shared session store.
+- Sessions live in this process's memory: a gateway restart signs everyone out (Keycloak's own
+  session usually lets them straight back in). Multi-process deployments need a shared session
+  store.
+- A login cookie can be used once: the callback deletes it, and Keycloak accepts each code only
+  once (with the PKCE verifier that only this cookie holds).
 - Tokens contain the user's name and username, not document data. Nothing here logs tokens,
   codes or cookies.
 """
@@ -39,6 +49,7 @@ Review notes:
 import asyncio
 import base64
 import hashlib
+import json
 import os
 import secrets
 import time
@@ -47,14 +58,18 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 import jwt
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from jwt import PyJWK
 
 LOGIN_TTL_S = 600         # a login must be completed within ten minutes
 REFRESH_MARGIN_S = 30     # refresh the access token this long before it expires
 CLOCK_LEEWAY_S = 30       # tolerated clock difference between gateway and Keycloak
 JWKS_MIN_REFRESH_S = 60   # re-read Keycloak's keys at most once a minute (on an unknown key id)
-MAX_PENDING_LOGINS = 1000
 MAX_SESSIONS = 10_000
+MAX_RETURN_PATH = 1024    # longer return paths fall back to "/" (the login cookie must stay small)
 LOGIN_COOKIE = "suveryn_login"
 
 
@@ -137,16 +152,56 @@ class Session:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
-@dataclass
+@dataclass(frozen=True)
 class PendingLogin:
+    """A sign-in in progress. Travels in the login cookie, encrypted (``LoginSealer``)."""
+
+    state: str
     verifier: str
     nonce: str
     return_to: str
-    created: float = field(default_factory=time.time)
+    created: float
 
 
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _unb64url(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+class LoginSealer:
+    """Encrypts a ``PendingLogin`` into the login cookie and back (AES-256-GCM).
+
+    Encrypted, not only signed: the PKCE verifier is what makes a stolen code useless, so it is not
+    shown even to the browser that carries it. The key is derived from the client secret (HKDF-SHA256
+    with its own label, so it is never the secret itself) and never stored.
+    """
+
+    AAD = b"suveryn login cookie v1"
+
+    def __init__(self, client_secret: str):
+        if not client_secret:
+            raise ValueError("a client secret is needed to protect the login cookie")
+        key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=self.AAD).derive(client_secret.encode())
+        self._aead = AESGCM(key)
+
+    def seal(self, p: PendingLogin) -> str:
+        nonce = secrets.token_bytes(12)
+        data = json.dumps({"s": p.state, "v": p.verifier, "n": p.nonce, "r": p.return_to, "t": p.created}).encode()
+        return _b64url(nonce + self._aead.encrypt(nonce, data, self.AAD))
+
+    def open(self, cookie: str | None) -> PendingLogin | None:
+        """The sign-in in this cookie, or None if it is missing, altered or made with another key."""
+        if not cookie or len(cookie) > 4096:
+            return None
+        try:
+            raw = _unb64url(cookie)
+            d = json.loads(self._aead.decrypt(raw[:12], raw[12:], self.AAD))
+            return PendingLogin(state=d["s"], verifier=d["v"], nonce=d["n"], return_to=d["r"], created=float(d["t"]))
+        except (InvalidTag, ValueError, KeyError, TypeError):
+            return None
 
 
 def pkce_pair() -> tuple[str, str]:
@@ -157,7 +212,7 @@ def pkce_pair() -> tuple[str, str]:
 
 def safe_return_path(path: str | None) -> str:
     """Only a path on this site ("/..."), never another host ("//evil", "https://...", "/\\evil")."""
-    if not path or not path.startswith("/") or path.startswith("//") or "\\" in path:
+    if not path or not path.startswith("/") or path.startswith("//") or "\\" in path or len(path) > MAX_RETURN_PATH:
         return "/"
     return path
 
@@ -298,7 +353,7 @@ class Authenticator:
         self.settings = settings
         self.provider = provider or (OIDCProvider(settings) if settings.configured else None)
         self._sessions: dict[str, Session] = {}
-        self._pending: dict[str, PendingLogin] = {}
+        self._sealer = LoginSealer(settings.client_secret) if settings.client_secret else None
 
     @classmethod
     def disabled(cls) -> "Authenticator":
@@ -321,35 +376,27 @@ class Authenticator:
         return "ready", None
 
     def _require_provider(self) -> OIDCProvider:
-        if self.provider is None:
+        if self.provider is None or self._sealer is None:
             raise AuthUnavailable("sign-in is not configured on this server")
         return self.provider
 
     # ------------------------------------------------------------------ login flow
     async def start_login(self, return_to: str | None) -> tuple[str, str]:
-        """(Keycloak URL to redirect to, state to set in the login cookie)."""
+        """(Keycloak URL to redirect to, value of the login cookie). Nothing is kept on the server."""
         provider = self._require_provider()
-        now = time.time()
-        for s in [s for s, p in self._pending.items() if now - p.created > LOGIN_TTL_S]:
-            del self._pending[s]
-        # Bounded memory without refusing anyone: drop the oldest unfinished sign-ins. Refusing new ones
-        # at the limit let anyone (no account needed) block every sign-in for ten minutes by calling
-        # /auth/login a thousand times. (Dicts keep insertion order: the first keys are the oldest.)
-        while len(self._pending) >= MAX_PENDING_LOGINS:
-            del self._pending[next(iter(self._pending))]
         state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         verifier, challenge = pkce_pair()
-        self._pending[state] = PendingLogin(verifier, nonce, safe_return_path(return_to))
-        return await provider.authorize_url(state, nonce, challenge), state
+        cookie = self._sealer.seal(PendingLogin(state, verifier, nonce, safe_return_path(return_to), time.time()))
+        return await provider.authorize_url(state, nonce, challenge), cookie
 
-    async def finish_login(self, code: str, state: str, cookie_state: str | None) -> tuple[Session, str]:
+    async def finish_login(self, code: str, state: str, login_cookie: str | None) -> tuple[Session, str]:
         """Complete a login: (new session, path to return to). Raises ``AuthError``."""
         provider = self._require_provider()
-        pending = self._pending.pop(state, None)
-        if pending is None or time.time() - pending.created > LOGIN_TTL_S:
-            raise AuthError("this sign-in has expired or was already used; please sign in again")
-        if not cookie_state or not secrets.compare_digest(cookie_state, state):
-            raise AuthError("this sign-in was started in another browser; please sign in again")
+        pending = self._sealer.open(login_cookie)
+        if pending is None or not secrets.compare_digest(pending.state, state):
+            raise AuthError("this sign-in was started in another browser or tab; please sign in again")
+        if not 0 <= time.time() - pending.created <= LOGIN_TTL_S:
+            raise AuthError("this sign-in has expired; please sign in again")
         tokens = await provider.exchange_code(code, pending.verifier)
         claims = await provider.verify(tokens.get("id_token", ""), kind="id", nonce=pending.nonce)
         access = await provider.verify(tokens.get("access_token", ""), kind="access")
