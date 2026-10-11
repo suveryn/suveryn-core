@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { citedNumbers, claimTerms, claimTexts, markPassage, markTerms, supportingRanges, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
+import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, markTerms, supportingRanges, termsOf, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
 import { cellValue, checkLines, segmentText, tableRows } from "./export";
 
 import {
@@ -413,6 +413,24 @@ describe("finding the cited facts in a long passage", () => {
     const garbled = "(uesozoeysjeerdsuom — sBuinebwo) enuabe oyosish12\nElke partij kan opzeggen met een termijn van 12 weken.";
     const [[from, to]] = supportingRanges(garbled, claims);
     expect(garbled.slice(from, to)).toBe("Elke partij kan opzeggen met een termijn van 12 weken.");
+  });
+
+  it("shows what the clicked marker's claim rests on, not every claim citing the source (reported: a table of rows)", () => {
+    const answer = "| Nr | Vak | Bron |\n| --- | --- | --- |\n| 3 | Functie van het slachtoffer | [1] |\n" +
+      "| 12 | Datum werkhervatting na ongeval | [1] |\n\nZie ook [2].";
+    const markers = markerClaims(answer, 2);
+    // numbered as toBlocks numbers the markers (Segment.occ)
+    const occ = toBlocks(answer, 2).flatMap((b) => (b.kind === "table" ? b.rows.flat(2) : b.segments)).filter((x) => x.kind === "cite");
+    expect(occ.map((x) => (x.kind === "cite" ? [x.n, x.occ] : null))).toEqual([[1, 0], [1, 1], [2, 2]]);
+    expect(markers.map((x) => x.n)).toEqual([1, 1, 2]);
+    const passage = "Vak 3 vermeldt de functie van het slachtoffer. Vak 12 vermeldt de datum van werkhervatting na het ongeval.";
+    const parts = markPassage(passage, [markers[1].claim], termsOf(markers[1].claim));
+    expect(parts.filter((p) => p.mark).map((p) => p.text).join("")).toBe("Vak 12 vermeldt de datum van werkhervatting na het ongeval.");
+    // a form's legend, numbered parts within a line and a table header after it (as reported): only part 12
+    const legend = "9) wijze waarop ongeval gebeurde\n(8 + 9 omschrijft het gevaar) 12) datum werkhervatting na ongeval\n" +
+      "4) Beroepscategorie 10) aard van het letsel\nNr. | Naam | Datum | Plaats | Datum\n(1) (2) (12) (13)";
+    const legendMarks = markPassage(legend, [markers[1].claim], termsOf(markers[1].claim)).filter((p) => p.mark).map((p) => p.text);
+    expect(legendMarks.join("")).toBe("12) datum werkhervatting na ongeval");
   });
 
   it("marks those facts in the passage, whole only, and nothing else", () => {
