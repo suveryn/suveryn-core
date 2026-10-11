@@ -298,3 +298,46 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     assert [r["name"] for r in realm["roles"]["realm"]] == [ADMIN_ROLE]
     assert chat["fullScopeAllowed"] is False
     assert realm["scopeMappings"] == [{"client": "suveryn-chat", "roles": [ADMIN_ROLE]}]
+
+
+def test_a_flood_of_unfinished_sign_ins_never_blocks_a_real_one(client, kc, monkeypatch):
+    """Code review 2026-10: at the limit, new sign-ins were refused, so anyone could block every
+    sign-in for ten minutes by calling /auth/login a thousand times. Now the oldest unfinished ones go."""
+    import suveryn_api_gateway.auth as auth_module
+
+    monkeypatch.setattr(auth_module, "MAX_PENDING_LOGINS", 5)
+    for _ in range(20):  # an unauthenticated flood
+        assert client.get("/auth/login", follow_redirects=False).status_code == 303
+    r = sign_in(client, kc)  # a real user, right after the flood
+    assert r.status_code == 303 and client.get("/v1/documents").status_code == 200
+
+
+def test_sessions_do_not_keep_the_access_token():
+    """Only its expiry is needed after verification; holding it would just be one more secret in memory."""
+    from suveryn_api_gateway.auth import Session
+
+    assert "access_token" not in Session.__dataclass_fields__
+
+
+@pytest.mark.parametrize("host, status", [("127.0.0.1", 200), ("::1", 200), ("10.0.0.5", 403), ("192.168.1.20", 403)])
+def test_sign_in_off_serves_only_this_machine(host, status):
+    """SUVERYN_AUTH=off is refused on a network address by main.py, but bare uvicorn skips that check:
+    the app itself now refuses clients that aren't on this machine."""
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
+    with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=Authenticator.disabled()),
+                    client=(host, 50000)) as c:
+        assert c.get("/v1/documents").status_code == status
+        assert c.get("/health").status_code in (200, 503)  # public endpoints stay public
+
+
+def test_access_log_never_contains_the_sign_in_code():
+    """Code review 2026-10: uvicorn logged /auth/callback?code=...&state=... in full."""
+    import logging
+
+    from suveryn_api_gateway.app import StripQueryString
+
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', (
+        "127.0.0.1:5000", "GET", "/auth/callback?state=abc&code=SECRET-CODE", "1.1", 303), None)
+    assert StripQueryString().filter(record)
+    assert "SECRET-CODE" not in record.getMessage() and "/auth/callback" in record.getMessage()
+    assert any(isinstance(f, StripQueryString) for f in logging.getLogger("uvicorn.access").filters)
