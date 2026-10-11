@@ -3,6 +3,7 @@
 import atexit
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -67,6 +68,23 @@ def check_auth_settings(host: str) -> None:
               "(session cookies are only marked Secure with https)")
 
 
+def not_dumpable() -> bool:
+    """Make this process unreadable through /proc for other processes of the same user (Linux).
+
+    The document reader runs as the gateway's user when no sandbox wrapper is set, and could otherwise
+    read ``/proc/<gateway>/environ`` and ``mem``: the database URL, the sign-in secret, other users'
+    documents in memory (security review 2026-10-11). Non-dumpable also means no core dumps. The
+    reader is a new program (exec), so this doesn't carry over to it. False where unsupported.
+    """
+    if not sys.platform.startswith("linux"):
+        return False
+    import ctypes
+
+    PR_SET_DUMPABLE = 4
+    libc = ctypes.CDLL(None, use_errno=True)
+    return libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) == 0
+
+
 def run() -> None:
     """Start the gateway. Binds to 127.0.0.1 unless SUVERYN_HOST says otherwise.
 
@@ -75,6 +93,8 @@ def run() -> None:
     """
     host = os.environ.get("SUVERYN_HOST", "127.0.0.1")
     check_auth_settings(host)
+    if not not_dumpable() and sys.platform.startswith("linux"):
+        print("warning: couldn't make the gateway unreadable through /proc (prctl PR_SET_DUMPABLE)")
     private_tmp()
     uvicorn.run(
         "suveryn_api_gateway.app:app",
