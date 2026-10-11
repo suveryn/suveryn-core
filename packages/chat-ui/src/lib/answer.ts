@@ -119,3 +119,47 @@ export function toBlocks(text: string, available: number, flagged: string[] = []
 export function stripMarkers(text: string): string {
   return text.replace(MARKER, "").replace(/[ \t]+([.,;:])/g, "$1");
 }
+
+/**
+ * What to look for in each cited source: per source number, the figures, years, dates and names of the
+ * claims that cite it (the text before each marker group, back to the previous group or the start of the
+ * sentence, as the server's citation check reads claims). The source card marks them and scrolls to the
+ * first, so a fact can be found in a long passage (a year near the end of a 3,000-character passage was
+ * out of view and seemed to be missing).
+ */
+export function claimTerms(text: string, available: number): Map<number, string[]> {
+  const out = new Map<number, string[]>();
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    let start = 0;
+    for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
+      const claim = sentence.slice(start, group.index).replace(/\*\*/g, "");
+      start = group.index! + group[0].length;
+      const terms = [
+        ...claim.matchAll(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d+(?:[.,  ]\d+)+|\b(?:1[89]|20)\d\d\b|\d{5,}/g),
+        ...claim.matchAll(/(?<=\S\s+)[A-ZÀ-Þ][\p{L}'’-]{3,}/gu),  // capitalised words, not the first of the claim
+      ].map((m) => m[0]);
+      for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) {
+        if (n < 1 || n > available) continue;
+        const known = out.get(n) ?? [];
+        out.set(n, [...known, ...terms.filter((t) => !known.includes(t))]);
+      }
+    }
+  }
+  return out;
+}
+
+/** A passage split into plain parts and the parts to mark (``terms``, case-insensitive, longest first). */
+export function markTerms(passage: string, terms: string[]): { text: string; mark: boolean }[] {
+  const usable = [...new Set(terms.filter((t) => t.trim().length >= 2))].sort((a, b) => b.length - a.length);
+  if (usable.length === 0) return [{ text: passage, mark: false }];
+  const pattern = new RegExp(`(?<![\\p{L}\\d])(?:${usable.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}]|\\d)`, "giu");
+  const out: { text: string; mark: boolean }[] = [];
+  let last = 0;
+  for (const m of passage.matchAll(pattern)) {
+    if (m.index! > last) out.push({ text: passage.slice(last, m.index), mark: false });
+    out.push({ text: m[0], mark: true });
+    last = m.index! + m[0].length;
+  }
+  if (last < passage.length) out.push({ text: passage.slice(last), mark: false });
+  return out;
+}

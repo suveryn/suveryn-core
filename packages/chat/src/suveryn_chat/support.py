@@ -11,6 +11,9 @@ Facts checked, deterministically and without another model call:
   no passage at all (already reported), are skipped;
 - **dates**: numeric (12/03/2021) and written (12 maart 2021, 12 mars 2021, 12 March 2021), compared as
   day, month and year;
+- **years** on their own (1800-2099): a cited year must be in the cited passage, also inside a date
+  there ("1989" in "12 maart 1989"). Unlike other four-digit numbers (article numbers, counts), a year
+  is a fact a reader checks; one in no passage at all is reported too, as nothing else reports it;
 - **names**: capitalised words (outside the model's **bold labels**) that the passages only ever write capitalised (so "Artikel" in a passage
   that also says "artikel" is a common word, not a name). A name in no passage at all is reported only
   when a passage has a near spelling ("Peters" for "Peeters"): the benchmark saw models misspell
@@ -43,6 +46,7 @@ MONTHS = {m: i for i, names in enumerate([
     ("november", "novembre", "nov"), ("december", "décembre", "decembre", "dec")], 1) for m in names}
 WRITTEN_DATE = re.compile(r"\b(\d{1,2})(?:e|er|ste|de)?\s+([^\W\d_]{3,})\.?\s+(\d{4})\b", re.IGNORECASE)
 MIN_NAME = 4
+YEAR = re.compile(r"(?<![\d.,/-])(?:1[89]|20)\d\d(?![\d.,/-]\d)")
 
 
 def _fold(text: str) -> str:
@@ -136,6 +140,7 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
     figures = [set(_figures(t, sep)) for t in texts]
     dates = [_dates(t) for t in texts]
     words = [_words(t) for t in texts]
+    years = [set(YEAR.findall(t)) for t in texts]
     vocabulary = set().union(*words)
     lowercase = {_fold(w) for w in WORD.findall(everything) if w[0].islower()}
     for c in calculations:  # the shown "a + b = c" isn't a claim about the sources
@@ -152,6 +157,9 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
                 continue  # a calculation's result, or in no passage (unverified_figures reports those)
             if not _in_cited(figures, value, cited):
                 found.append((written, _elsewhere(figures, value, cited), None))
+        for year in sorted(set(YEAR.findall(WRITTEN_DATE.sub(" ", DATE.sub(" ", claim))))):
+            if not _in_cited(years, year, cited):
+                found.append((year, _elsewhere(years, year, cited), None))
         for d in _dates(claim):
             if not _in_cited(dates, d, cited):
                 found.append((_written_date(claim, d), _elsewhere(dates, d, cited), None))

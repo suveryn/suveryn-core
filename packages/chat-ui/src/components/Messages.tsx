@@ -8,7 +8,7 @@ import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Downl
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
-import { citedNumbers, toBlocks, type Segment, type Table } from "../lib/answer";
+import { citedNumbers, claimTerms, markTerms, toBlocks, type Segment, type Table } from "../lib/answer";
 import { checkLines, type AnswerExport } from "../lib/export";
 import { statusText } from "../lib/status";
 import {
@@ -84,8 +84,15 @@ function DownloadButton({ filename, text, what }: {
   );
 }
 
-function SourceCard({ n, citation, filename }: { n: number; citation: Citation; filename: string }) {
+function SourceCard({ n, citation, filename, terms = [] }: { n: number; citation: Citation; filename: string; terms?: string[] }) {
   const m = useT();
+  const quote = useRef<HTMLQuoteElement>(null);
+  // Scroll the passage (not the page) to the first marked fact: a long passage shows only its start.
+  useEffect(() => {
+    const box = quote.current, first = box?.querySelector("mark");
+    // .source-text is position: relative, so a mark's offsetTop is measured from the passage itself.
+    if (box && first instanceof HTMLElement) box.scrollTop = Math.max(0, first.offsetTop - box.clientHeight / 3);
+  }, [n, citation.text]);
   if (citation.removed) {
     return (
       <div className="source-card" role="region" aria-label={m.source(n)}>
@@ -109,7 +116,9 @@ function SourceCard({ n, citation, filename }: { n: number; citation: Citation; 
                           text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />
         </span>
       </div>
-      <blockquote className="source-text">{citation.text}</blockquote>
+      <blockquote className="source-text" ref={quote}>
+        {markTerms(citation.text, terms).map((part, i) => (part.mark ? <mark key={i} className="source-match">{part.text}</mark> : <Fragment key={i}>{part.text}</Fragment>))}
+      </blockquote>
       <p className="caption">{m.sourceCaption}</p>
     </div>
   );
@@ -186,7 +195,8 @@ export function AssistantMessage({ turn, question, filenames }: {
         )}
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
-          <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])} />
+          <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])}
+                      terms={claimTerms(turn.text, available).get(open) ?? []} />
         )}
 
         {turn.status === "done" && turn.text && (

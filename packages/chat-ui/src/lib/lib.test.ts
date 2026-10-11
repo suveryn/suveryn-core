@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { citedNumbers, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
+import { citedNumbers, claimTerms, markTerms, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
 import { cellValue, checkLines, segmentText, tableRows } from "./export";
 
 import {
@@ -364,5 +364,23 @@ describe("tables in answers (Word and Excel)", () => {
     const issue = { marker: 0, n: 2, item: "X", found_in: [3], written_as: null };
     expect(checkLines([{ expression: "1 + 1", result: "2", figures_not_in_sources: [], error: null }], ["9"], [issue, { ...issue, marker: 4 }], m))
       .toEqual(["Calc: 1 + 1 = 2.", "check 9", "source 2 lacks X"]);
+  });
+});
+
+describe("finding the cited facts in a long passage", () => {
+  it("collects per source the figures, years, dates and names of the claims that cite it", () => {
+    const text = "In de akte staan twee jaartallen:\n*   **1989** [3]\n*   **1996** [3]\n\nDe koper Jan Peeters betaalt EUR 1.275.000,00 op 12/03/2021 [1][2].";
+    const terms = claimTerms(text, 3);
+    expect(terms.get(3)).toEqual(["1989", "1996"]);
+    expect(terms.get(1)).toEqual(["1.275.000,00", "12/03/2021", "Peeters"]);  // names of 4+ letters, as the server checks
+    expect(terms.get(2)).toEqual(terms.get(1));
+    expect(claimTerms("Zie [9].", 3).size).toBe(0);  // a marker past the citations names nothing
+  });
+
+  it("marks those facts in the passage, whole only, and nothing else", () => {
+    const passage = "Opgericht in 1989, gewijzigd in 1996. Nummer 119890 en 19896 blijven ongemoeid.";
+    expect(markTerms(passage, ["1989", "1996"]).filter((p) => p.mark).map((p) => p.text)).toEqual(["1989", "1996"]);
+    expect(markTerms(passage, []).length).toBe(1);
+    expect(markTerms("de heer jan peeters", ["Peeters"]).filter((p) => p.mark).map((p) => p.text)).toEqual(["peeters"]);
   });
 });
