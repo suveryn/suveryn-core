@@ -7,6 +7,7 @@ Turns a conversation into an answer: either a plain model answer, or one grounde
 | `service.py` | `ChatService`: `answer()` (whole answer) and `answer_stream()` (`Status` events for each pipeline step, `Delta` events, then one `Done`) |
 | `grounding.py` | Prompt assembly for grounded answers, and citation-marker parsing |
 | `calc.py` | Server-side arithmetic: replaces `[[calc: …]]` markers with exact results and checks their figures (see [Calculations](#calculations)) |
+| `support.py` | Each citation checked against its own passage: the figures, dates, years and names of the claim before a marker must be in the passage it cites (`citation_issues`, suveryn-tracker#11). By rule, without another model call |
 
 ## How a grounded answer is made
 
@@ -27,8 +28,8 @@ Without `document_ids`, `citations` is empty and the answer must be shown as unv
 
 ## Not here yet
 
-- **Conversation state:** the client sends the earlier turns with every request; nothing about a conversation is stored server-side.
-- **Answer checking:** verifying that every name, number and date in the answer appears in a cited passage (see [known limitations](../../docs/architecture.md#6-known-limitations)). Calculations already check their own figures.
+- **Conversation state:** the client sends the earlier turns with every request (the chat UI: the last 40 messages). Saving conversations is the gateway's job, not this package's.
+- **Checking meaning:** citations are checked for their facts (`support.py`), not for what the claim says about them (see [known limitations](../../docs/architecture.md#6-known-limitations)).
 - **Summaries made at upload:** a short summary per document, queued with ingestion, so that general questions about documents too large to give whole can still be answered.
 
 ## Calculations
