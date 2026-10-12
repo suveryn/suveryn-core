@@ -20,16 +20,25 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
 
 ## No silent text loss (`integrity.py`)
 
-Real deeds showed that text can disappear between the PDF and the stored chunks. Four safeguards prevent that, or make it visible:
+Real deeds showed that text can disappear between the PDF and the stored chunks. These safeguards prevent that, or make it visible:
 
 | Safeguard | What it catches | Result |
 |---|---|---|
 | Completeness | Body text the chunker left out, e.g. a closing heading with nothing after it ("Voor eensluidend afschrift") | Kept as a separate chunk (`origin = text_recovered`) |
 | Footer rule | Content the layout model labelled as header/footer | Only page numbers and text that repeats on at least half the pages are dropped; the rest is kept (`origin = furniture_restored`) |
-| Text-layer recovery | Text the layout or table model dropped, e.g. table cells it couldn't place (seen on a real bank statement) | The page's text-layer lines holding 3+ missing words are kept as a chunk (`origin = text_layer_recovered`); taken verbatim from the PDF, nothing reworded |
+| Text-layer recovery | Text the layout or table model dropped, e.g. table cells it couldn't place (seen on a real bank statement) | The page's text-layer lines holding 3+ missing words are kept as a chunk (`origin = text_layer_recovered`); taken verbatim from the PDF, nothing reworded. Lines that look like OCR noise (an upside-down figure read as letters: odd words, mostly unknown to the rest of the document, `ocr_noise`) are not text that went missing and are left out |
+| Layout failure | Pages Docling's layout model couldn't read, e.g. out of GPU memory | Read again on the CPU; pages still unread get a `layout_failed` warning, and status `needs_review` |
 | Page coverage | Any loss that remains after recovery: each page's PDF text layer is compared with the stored text for that page | Below 95% of the page's words: a `page_coverage_low` warning, and status `needs_review` |
 
 Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings` (page, kind, detail). `suveryn-ingest` prints both.
+
+**Text repair** (`integrity.misdecoding`, `repair_characters`): characters a PDF font encodes in another character set are put right for the whole document, only when it clearly shows them.
+- Mac Roman read as Windows-1252 gives "ŽŽn" for "één" and "ÒwoordÓ" for "“woord”".
+- UTF-8 read as Windows-1252 gives "Ã©" for "é".
+
+Only characters unusual in Dutch, French, English or German are changed, and only with at least 3 such repairs explaining nearly all of them, so correct text next to them is left alone. PDFium's line-break hyphen (U+FFFE) always becomes a hyphen.
+
+**Uploading the same file again** returns the stored copy (de-duplicated by SHA-256 per owner), unless that copy was read poorly: in review, over half its text recovered from the text layer, misread characters, or recovered OCR noise. Then it is read again and replaced in place, keeping its id, so saved conversations still point to it (`should_read_again`).
 
 Every document has an **owner**, the uploader's Keycloak user id. The document service only lists, retrieves and deletes the caller's own documents, and de-duplicates by file hash per owner. `suveryn-retrieve` and `suveryn-forget` are operator tools on the server and are not limited by owner.
 
