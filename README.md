@@ -18,10 +18,10 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 | Package | Status |
 |---|---|
 | [`packages/engine`](packages/engine/README.md) | Model backend client (llama-server); request, answer, citation and calculation schema |
-| [`packages/chat`](packages/chat/README.md) | Grounded answers with numbered citations (`[n]` → `citations[n-1]`) and server-side calculations |
-| [`packages/api-gateway`](packages/api-gateway/README.md) | FastAPI app: `POST /v1/chat`, `/v1/documents`, `GET /health` |
-| [`packages/rag`](packages/rag/README.md) | Document ingestion (`ocr_fast` extraction, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations |
-| [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) |
+| [`packages/chat`](packages/chat/README.md) | Grounded answers with numbered citations (`[n]` → `citations[n-1]`), server-side calculations, and each citation checked against its passage |
+| [`packages/api-gateway`](packages/api-gateway/README.md) | FastAPI app: `POST /v1/chat`, `/v1/documents`, `/v1/conversations`, `/v1/usage`, `/v1/admin/usage`, `GET /health`; sign-in with Keycloak (`/auth/...`) and rate limits |
+| [`packages/rag`](packages/rag/README.md) | Document ingestion (`ocr_fast` extraction in an isolated reader process, integrity checks, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations |
+| [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) in English, Dutch and French; answers to Word, tables to Excel |
 | `packages/mcp-host`, `connectors`, `playbooks` | Placeholders for later phases |
 
 ## Run locally
@@ -55,10 +55,10 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 ## API
 
-`GET /health` returns 200 when the model backend is ready, and 503 when it is loading or unreachable:
+`GET /health` returns 200 when the model backend is ready, and 503 when it is loading or unreachable. It is public, so it gives states only, no addresses or error texts (those are in the server log):
 
 ```json
-{"status": "ok", "backend": {"reachable": true, "status": "ok", "url": "http://127.0.0.1:8080", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "detail": null}, "documents": {"status": "ready", "detail": null}}
+{"status": "ok", "backend": {"reachable": true, "status": "ok", "url": null, "model": "qwen3.8-27b", "detail": null}, "documents": {"status": "ready", "detail": null}, "auth": {"status": "ready", "detail": null}, "history": {"status": "ready", "detail": null}, "usage": {"status": "ready", "detail": null}}
 ```
 
 `documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code.
@@ -81,7 +81,7 @@ With `"stream": true` it returns Server-Sent Events: first one or more `status` 
 
 **Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). `unverified_figures` lists figures in the answer text that are in no passage and no calculation's result; clients must flag them. See [packages/chat](packages/chat/README.md#calculations).
 
-Documents: `POST /v1/documents` (multipart PDF upload, returns a job), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `DELETE /v1/documents/{id}`. Saved conversations: `GET`/`DELETE /v1/conversations`, `GET`/`PUT`/`DELETE /v1/conversations/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
+Documents: `POST /v1/documents` (multipart PDF upload, returns a job; 429 when too many of the caller's documents are waiting), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `GET /v1/documents/{id}/conversations`, `DELETE /v1/documents/{id}?conversations=clean|delete`. Saved conversations: `GET`/`DELETE /v1/conversations`, `GET`/`PUT`/`DELETE /v1/conversations/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
 
 ## Licence
 
