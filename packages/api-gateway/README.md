@@ -6,7 +6,7 @@ Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages
 
 | Endpoint | Behaviour |
 |---|---|
-| `GET /health` | 200 when llama-server is ready (reports the served model); 503 when it is loading, failing or unreachable. Also reports `documents`, `auth` and `history` status. Public |
+| `GET /health` | 200 when llama-server is ready (reports the served model); 503 when it is loading, failing or unreachable. Also reports `documents`, `auth`, `history` and `usage` status. Public, so states only: no addresses or error texts (the server log has them) |
 | `GET /auth/login` | Starts signing in: redirects to the Keycloak login page (authorization code + PKCE). Public |
 | `GET /auth/callback` | Keycloak sends the browser back here; the gateway exchanges the code, validates the tokens and sets the session cookie |
 | `GET /auth/me` | The signed-in user (`username`, `name`), or 401 |
@@ -14,10 +14,11 @@ Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages
 | `POST /v1/chat` | `stream: false` returns a `ChatResponse` (JSON); 502 if the backend fails; 422 if the request is invalid (e.g. the last message isn't the user's, or more than 200 messages) |
 | `POST /v1/chat` with `stream: true` | Server-Sent Events: `status` events before the first word (`{step, passages, complete, model}`; `step` is `searching`, `loading_model`, `reading` or `writing`, and only real pipeline steps are reported), then `delta` events (`{text}`), then exactly one `done` (a full `ChatResponse`) or `error` (`{message}`). After `error`, discard the partial text. An unexpected server error gives a generic message, never the exception text |
 | `POST /v1/chat` with `document_ids` | A grounded answer: `[n]` markers in `answer`, `citations[n-1]` holds the passage with its page. 503 if document search is unavailable |
-| `POST /v1/documents` | Upload a PDF (multipart `file`, ≤100 MB). Returns a job at once (202); 415 if not a PDF; 413 if too large (checked from `Content-Length` before the body is read); 411 without `Content-Length` |
+| `POST /v1/documents` | Upload a PDF (multipart `file`, ≤100 MB). Returns a job at once (202); 415 if not a PDF; 413 if too large (checked from `Content-Length` before the body is read); 411 without `Content-Length`; 429 when 20 of the caller's documents (or 200 in all) are waiting. A PDF over `SUVERYN_MAX_PAGES` pages (2,000) fails its job |
 | `GET /v1/documents/jobs/{id}` | Job status: `queued`, `processing`, `ready`, `needs_review` or `failed`, plus `document_id` when stored |
 | `GET /v1/documents` | Stored documents (newest first) and uploads still in progress or failed (finished jobs are forgotten after an hour). 503 if the database can't be reached after one reconnect |
-| `DELETE /v1/documents/{id}` | Delete a document and its passages (204; 404 if unknown) |
+| `GET /v1/documents/{id}/conversations` | The caller's saved conversations that cite or attach the document (asked before deleting it) |
+| `DELETE /v1/documents/{id}?conversations=clean\|delete` | Delete a document and its passages (204; 404 if unknown). Saved conversations citing it lose its passages, headings and file name (`clean`, the default), or are deleted too (`delete`) |
 | `GET /v1/conversations` | The caller's saved conversations, most recently changed first: `id`, `title`, `created_at`, `updated_at` (no content) |
 | `GET /v1/conversations/{id}` | One saved conversation with its `turns` (404 if unknown, expired or another user's) |
 | `PUT /v1/conversations/{id}` | Save a whole conversation (`{title, turns}`) under an id the client chose (a UUID), replacing an earlier save (204). 413 above 2 MB; 404 if the id is another user's |
@@ -28,7 +29,7 @@ Document endpoints work when `suveryn-rag` is installed (`uv sync --all-packages
 | `GET`/`PUT /v1/admin/usage/rates` | Administrators only: the notional-cost rates (`input_per_million`, `output_per_million`, `currency`); `PUT` records who changed them |
 | `GET /openapi.json` | The API description, served locally |
 
-Saved conversations ([`conversations.py`](src/suveryn_api_gateway/conversations.py), suveryn-tracker#5) are private in the same way, keyed by the Keycloak user id. They are kept until the user deletes them. An administrator can cap their age with `SUVERYN_CONVERSATION_MAX_AGE_DAYS` (whole days; unset means no cap): older conversations, counted from their last change, are deleted when the gateway starts and whenever someone lists theirs. A saved answer quotes the passages it cites, so deleting a document doesn't remove its text from conversations that used it; delete those conversations too.
+Saved conversations ([`conversations.py`](src/suveryn_api_gateway/conversations.py), suveryn-tracker#5) are private in the same way, keyed by the Keycloak user id. They are kept until the user deletes them. An administrator can cap their age with `SUVERYN_CONVERSATION_MAX_AGE_DAYS` (whole days; unset means no cap): older conversations, counted from their last change, are deleted when the gateway starts and whenever someone lists theirs. A saved answer quotes the passages it cites; deleting a document takes them out of every saved conversation, or deletes those conversations (suveryn-tracker#12). The answer text itself stays.
 
 **Token usage** ([`usage.py`](src/suveryn_api_gateway/usage.py), suveryn-tracker#7). The engine reports every model call's token counts (`suveryn_engine.usage`), and the gateway stores them, one raw row per call, in `token_usage`: user id, time, kind (`chat`, `summary`, `playbook-step`), model and llama-server's own prompt/completion counts. **No text.** As decided in the development context (§5.3), there is one table with raw rows kept indefinitely and no rollups: a few hundred calls a day per office stay quick to sum. Usernames for the administrator's table live in `usage_users`, updated when someone asks a question. Reports group by local time (`SUVERYN_TIMEZONE`, default `Europe/Brussels`). The notional cost uses an administrator-editable rate per million input and output tokens (`usage_rates`), defaulting to $3 and $15 (the published price of a comparable cloud model); hardware and power are not modelled. Usage is informational: nothing is ever limited because of it. Without a database, answers work and the usage endpoints answer 503.
 
