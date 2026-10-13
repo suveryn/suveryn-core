@@ -48,6 +48,11 @@ MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # a 300 dpi 60-page scan is ~60 MB
 # fill the disk with uploads (security review 2026-10-11). An upload over either is refused with 429.
 MAX_QUEUED_PER_OWNER = 20
 MAX_QUEUED = 200
+# While the database is unreachable the worker waits and tries again, longest wait last; the
+# document waits too, and is read once the database is back (at most MAX_DB_RETRIES times).
+RECONNECT_DELAYS_S = (1, 2, 5, 10, 30)
+MAX_DB_RETRIES = 3
+WAITING = ("receiving", "queued", "processing")  # counted against the queue limits
 JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten after an hour
 
 
@@ -77,13 +82,14 @@ class Job:
     id: str
     filename: str
     owner: str
-    status: str = "queued"  # queued | processing | ready | needs_review | failed
+    status: str = "queued"  # receiving | queued | processing | ready | needs_review | failed
     document_id: str | None = None
     error: str | None = None
     pages: int | None = None
     ocr_pages: int | None = None
     warnings: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
+    db_retries: int = 0     # how often the database was unreachable while reading it
 
     finished_at: float | None = None
 
@@ -91,6 +97,7 @@ class Job:
         """The job as JSON for the API (no document text; the file name may be personal data)."""
         out = asdict(self)
         out.pop("owner")
+        out.pop("db_retries")
         return out
 
 
@@ -104,8 +111,9 @@ class DocumentService:
 
     def __init__(self, settings: RagSettings):
         self.settings = settings
-        self.state = "starting"  # starting | ready | failed
+        self._state = "starting"  # starting | ready | failed
         self.error: str | None = None
+        self._worker: threading.Thread | None = None
         self._queue: Queue[tuple[Job, Path]] = Queue()
         self._jobs: dict[str, Job] = {}
         self._jobs_lock = threading.Lock()
@@ -118,10 +126,22 @@ class DocumentService:
         self._inbox = settings.extract_inbox
         self._uploads = settings.work_dir / "uploads"
 
+    @property
+    def state(self) -> str:
+        """starting | ready | failed. A worker thread that stopped is never "ready" (/health must say so)."""
+        if self._state == "ready" and self._worker is not None and not self._worker.is_alive():
+            return "failed"
+        return self._state
+
+    @state.setter
+    def state(self, value: str) -> None:
+        self._state = value
+
     def start(self) -> None:
         """Delete leftovers of an earlier crash, then load the models and run the worker in a background thread."""
         self._remove_leftovers()
-        threading.Thread(target=self._run, name="suveryn-ingest", daemon=True).start()
+        self._worker = threading.Thread(target=self._run, name="suveryn-ingest", daemon=True)
+        self._worker.start()
 
     def _run(self) -> None:
         try:
@@ -137,24 +157,64 @@ class DocumentService:
             log.error("document handling failed to start: %s: %s", type(e).__name__, str(e)[:200])
             self.state, self.error = "failed", type(e).__name__
             return
+        self._work()
+
+    def _work(self) -> None:
+        """Read queued documents one at a time, for as long as the process runs. Nothing escapes this
+        loop: a document that fails is marked failed, and an unreachable database is waited for
+        (suveryn-core review 2026-10-13: a failed reconnect used to end the worker silently)."""
         while True:
             job, path = self._queue.get()
-            job.status = "processing"
             try:
-                staged = self._stage(job, path)
-                r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner)  # the file on disk has a random name
-                # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
-                job.document_id, job.status = str(r.document_id), job_status(r.status)
-                job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
-            except Exception as e:  # noqa: BLE001 - a failed document must not stop the worker
-                job.status, job.error = "failed", f"{type(e).__name__}: {str(e)[:200]}"
-                if _is_connection_error(e):
-                    self._ingest.store.reconnect()  # so the next job doesn't fail the same way
-            finally:
-                job.finished_at = time.time()
-                path.unlink(missing_ok=True)
-                if self._inbox is not None:
-                    (self._inbox / path.name).unlink(missing_ok=True)
+                self._process(job, path)
+            except Exception as e:  # noqa: BLE001 - last resort: the worker must outlive any one document
+                log.error("document worker: unexpected %s", type(e).__name__)
+                job.status, job.error, job.finished_at = "failed", type(e).__name__, time.time()
+                self._discard(path)
+
+    def _process(self, job: Job, path: Path) -> None:
+        job.status = "processing"
+        try:
+            staged = self._stage(job, path)
+            r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner)  # the file on disk has a random name
+            # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
+            job.document_id, job.status = str(r.document_id), job_status(r.status)
+            job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
+        except Exception as e:  # noqa: BLE001 - a failed document must not stop the worker
+            if _is_connection_error(e) and job.db_retries < MAX_DB_RETRIES:
+                # Not the document's fault: wait for the database, then read it again.
+                job.db_retries += 1
+                self._wait_for_database()
+                job.status = "queued"
+                self._queue.put((job, path))
+                return
+            job.status, job.error = "failed", f"{type(e).__name__}: {str(e)[:200]}"
+        job.finished_at = time.time()
+        self._discard(path)
+
+    def _discard(self, path: Path) -> None:
+        path.unlink(missing_ok=True)
+        if self._inbox is not None:
+            (self._inbox / path.name).unlink(missing_ok=True)
+
+    def _wait_for_database(self) -> None:
+        """Reconnect until the database answers. Meanwhile document handling reports "failed" (and
+        /health with it), and is "ready" again as soon as it is back. Waiting documents stay queued."""
+        attempt = 0
+        while True:
+            try:
+                self._ingest.store.reconnect()
+            except Exception as e:  # noqa: BLE001 - any failure to reconnect means: wait and try again
+                if self._state == "ready":
+                    log.error("document database unreachable (%s); waiting for it", type(e).__name__)
+                self._state, self.error = "failed", "the document database can't be reached"
+                time.sleep(RECONNECT_DELAYS_S[min(attempt, len(RECONNECT_DELAYS_S) - 1)])
+                attempt += 1
+                continue
+            if self._state == "failed":
+                log.info("document database reachable again")
+            self._state, self.error = "ready", None
+            return
 
     def _stage(self, job: Job, path: Path) -> Path:
         """The file the reader reads: the private upload, or a group-readable copy in the inbox."""
@@ -195,11 +255,16 @@ class DocumentService:
     def accept_upload(self, src: BinaryIO, filename: str, owner: str) -> Job:
         """Store an uploaded PDF privately and queue it for ``owner``. Raises ``UploadRejected``."""
         self._prepare_uploads()
+        job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner,
+                  status="receiving")
+        # Check and reserve in one step, before the file is copied: simultaneous uploads can't all pass
+        # the same check (suveryn-core review 2026-10-13). The reservation counts as waiting.
         with self._jobs_lock:
-            waiting = [j for j in self._jobs.values() if j.status in ("queued", "processing")]
+            self._prune()
+            waiting = [j for j in self._jobs.values() if j.status in WAITING]
             if len(waiting) >= MAX_QUEUED or sum(j.owner == owner for j in waiting) >= MAX_QUEUED_PER_OWNER:
                 raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
-        job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner)
+            self._jobs[job.id] = job
         path = self._uploads / f"{job.id}.pdf"
         size = 0
         try:
@@ -216,10 +281,10 @@ class DocumentService:
                     out.write(block)
         except BaseException:
             path.unlink(missing_ok=True)
+            with self._jobs_lock:
+                self._jobs.pop(job.id, None)  # release the reservation
             raise
-        with self._jobs_lock:
-            self._prune()
-            self._jobs[job.id] = job
+        job.status = "queued"
         self._queue.put((job, path))
         return job
 
@@ -236,7 +301,7 @@ class DocumentService:
             return job if job is not None and job.owner == owner else None
 
     def pending_jobs(self, owner: str) -> list[Job]:
-        """The owner's jobs not yet in the store: queued, processing, or failed."""
+        """The owner's jobs not yet in the store: queued, processing, or failed (not one still being received)."""
         with self._jobs_lock:
             self._prune()
             return [j for j in self._jobs.values()
