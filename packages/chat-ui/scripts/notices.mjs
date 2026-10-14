@@ -17,7 +17,7 @@ const licenceFile = (name) => ["LICENSE", "LICENSE.md", "LICENSE.markdown", "LIC
   .map((f) => `node_modules/${name}/${f}`).find(existsSync);
 // Fonts come from suveryn-brand (scripts/brand-sync.mjs), each with its OFL.txt.
 const fonts = [["Inter", "Inter"], ["Space Grotesk", "SpaceGrotesk"], ["IBM Plex Mono", "IBMPlexMono"]];
-const parts = ["Third-party software bundled into the Sūveryn chat interface.\n"];
+const parts = ["Third-party software bundled into the sūveryn chat interface.\n"];
 for (const name of bundled) {
   const pkg = JSON.parse(readFileSync(`node_modules/${name}/package.json`, "utf8"));
   const file = licenceFile(name);

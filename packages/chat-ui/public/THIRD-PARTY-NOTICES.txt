@@ -1,4 +1,4 @@
-Third-party software bundled into the Sūveryn chat interface.
+Third-party software bundled into the sūveryn chat interface.
 
 ========================================================================
 react 19.3.0 (MIT)

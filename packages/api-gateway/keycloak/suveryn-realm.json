@@ -48,7 +48,7 @@
     {
       "clientId": "suveryn-chat",
       "name": "Sūveryn chat",
-      "description": "The Sūveryn API gateway (confidential client; authorization code flow with PKCE)",
+      "description": "The sūveryn API gateway (confidential client; authorization code flow with PKCE)",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
