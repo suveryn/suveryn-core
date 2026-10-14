@@ -1,5 +1,5 @@
 /**
- * The Sūveryn mark in the UI: the header lockup and the assistant marker. The mark itself is
+ * The sūveryn mark in the UI: the header lockup and the assistant marker. The mark itself is
  * src/brand/suveryn-icon.svg, copied from suveryn-brand (not AGPL; see src/brand/README.md).
  * Brand rules: https://github.com/suveryn/suveryn-brand/blob/main/guidelines/brand-guidelines.md
  */
