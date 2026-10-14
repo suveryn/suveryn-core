@@ -89,5 +89,5 @@ Documents: `POST /v1/documents` (multipart PDF upload, returns a job; 429 when t
 
 Not covered by it:
 
-- the Sūveryn name and mark ([trademark policy](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md)); the copies in `packages/chat-ui` are explained in [its brand README](packages/chat-ui/src/brand/README.md);
+- the sūveryn name and mark ([trademark policy](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md)); the copies in `packages/chat-ui` are explained in [its brand README](packages/chat-ui/src/brand/README.md);
 - third-party software and models, each under its own licence ([UI notices](packages/chat-ui/public/THIRD-PARTY-NOTICES.txt), [models](models/manifest.json)). On a GPU machine, PyTorch installs NVIDIA's CUDA libraries, which are proprietary and redistributed under NVIDIA's licence; see [docs/architecture.md](docs/architecture.md#5-decisions-and-their-evidence).
