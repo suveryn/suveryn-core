@@ -166,7 +166,7 @@ const en = {
   testConnection: "Test connection",
   notTested: "Not tested yet",
   testing: "Testing…",
-  testOk: "Connected: the appliance can write to this share.",
+  testOk: "Reached: the appliance can reach this share's server. Signing in and writing are checked with the first backup.",
   errShareAddressMissing: "Enter the share's address.",
   errShareUserMissing: "Enter the user name.",
   errTestFirst: "Test the connection before you continue.",
@@ -264,6 +264,8 @@ const en = {
     not_writable: "The appliance can reach the share but can't write to it.",
     not_local: "This address isn't on your own network.",
     disk_gone: "This disk isn't plugged in any more. Look again.",
+    not_answered: "Some steps aren't answered yet. Go back and complete them.",
+    provisioning_started: "Provisioning has already started, so answers can't change now. Reload this page to follow it.",
   } as Record<string, string>,
 };
 
@@ -421,7 +423,7 @@ const nl: Text = {
   testConnection: "Verbinding testen",
   notTested: "Nog niet getest",
   testing: "Testen…",
-  testOk: "Verbonden: de appliance kan naar deze share schrijven.",
+  testOk: "Bereikt: de appliance kan de server van deze share bereiken. Aanmelden en schrijven worden bij de eerste back-up gecontroleerd.",
   errShareAddressMissing: "Vul het adres van de share in.",
   errShareUserMissing: "Vul de gebruikersnaam in.",
   errTestFirst: "Test de verbinding voor u verdergaat.",
@@ -519,6 +521,8 @@ const nl: Text = {
     not_writable: "De appliance kan de share bereiken, maar er niet naar schrijven.",
     not_local: "Dit adres ligt niet op uw eigen netwerk.",
     disk_gone: "Deze schijf is niet meer aangesloten. Kijk opnieuw.",
+    not_answered: "Nog niet alle stappen zijn ingevuld. Ga terug en vul ze aan.",
+    provisioning_started: "De inrichting is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om ze te volgen.",
   },
 };
 
@@ -674,7 +678,7 @@ const fr: Text = {
   testConnection: "Tester la connexion",
   notTested: "Pas encore testé",
   testing: "Test en cours…",
-  testOk: "Connecté : l'appliance peut écrire sur ce partage.",
+  testOk: "Joignable : l'appliance peut joindre le serveur de ce partage. La connexion et l'écriture sont vérifiées lors de la première sauvegarde.",
   errShareAddressMissing: "Saisissez l'adresse du partage.",
   errShareUserMissing: "Saisissez le nom d'utilisateur.",
   errTestFirst: "Testez la connexion avant de continuer.",
@@ -772,6 +776,8 @@ const fr: Text = {
     not_writable: "L'appliance peut atteindre le partage mais ne peut pas y écrire.",
     not_local: "Cette adresse n'est pas sur votre propre réseau.",
     disk_gone: "Ce disque n'est plus branché. Cherchez à nouveau.",
+    not_answered: "Certaines étapes ne sont pas encore complétées. Revenez en arrière pour les compléter.",
+    provisioning_started: "La mise en service a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
   },
 };
 

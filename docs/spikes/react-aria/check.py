@@ -399,7 +399,7 @@ def setup_flow(browser):
     check("step 5: a failed test says why, in the status next to the button (read out)", True)
     pg.locator("input[name=address]").fill("\\\\nas.office.local\\backups")
     pg.get_by_role("button", name="Test connection").click()
-    pg.get_by_text("Connected: the appliance can write to this share.").wait_for()
+    pg.get_by_text("Reached: the appliance can reach this share's server.", exact=False).wait_for()
     pg.screenshot(path=OUT / "setup-5-share-en.png", full_page=True)
     pg.get_by_role("button", name="Continue").click()
 
