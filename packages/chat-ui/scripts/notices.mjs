@@ -12,7 +12,17 @@ const walk = (name) => {
   Object.keys(JSON.parse(readFileSync(`node_modules/${name}/package.json`, "utf8")).dependencies ?? {}).forEach(walk);
 };
 ["docx", "write-excel-file"].forEach(walk);
-const bundled = ["react", "react-dom", "scheduler", "lucide-react", ...office];
+// The component library (src/ui, suveryn-tracker#44) bundles React Aria Components (Apache-2.0) and
+// what it depends on, found the same way.
+const aria = [];
+const walkAria = (name) => {
+  // client-only is an empty marker package (no code is bundled from it).
+  if (aria.includes(name) || name.startsWith("@types/") || ["react", "react-dom", "client-only"].includes(name)) return;
+  aria.push(name);
+  Object.keys(JSON.parse(readFileSync(`node_modules/${name}/package.json`, "utf8")).dependencies ?? {}).forEach(walkAria);
+};
+walkAria("react-aria-components");
+const bundled = ["react", "react-dom", "scheduler", "lucide-react", ...aria, ...office.filter((n) => !aria.includes(n))];
 const licenceFile = (name) => ["LICENSE", "LICENSE.md", "LICENSE.markdown", "LICENSE.txt", "LICENCE", "license", "license.md"]
   .map((f) => `node_modules/${name}/${f}`).find(existsSync);
 // Fonts come from suveryn-brand (scripts/brand-sync.mjs), each with its OFL.txt.

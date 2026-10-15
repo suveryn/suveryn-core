@@ -1,0 +1,149 @@
+/*
+ * sūveryn component library (suveryn-tracker#44). Every colour, size and radius comes from tokens.css
+ * (generated from suveryn-brand). React Aria gives the states as data-* attributes; nothing here
+ * depends on inline styles, so it works under the appliance's CSP (style-src 'self').
+ *
+ * CSP: no <style> elements and no style attributes in markup, ever; everything visual is a rule in a
+ * .css file like this one. The rules and the reasons: docs/content-security-policy.md.
+ */
+
+/* ------------------------------------------------------------------------------------------------
+ * Base rules shared with the Keycloak login theme (suveryn-appliance keycloak/theme, suveryn.css):
+ * the focus ring, the card and the field. Keycloak can't use these components, so it repeats these
+ * values; both should take them from suveryn-brand (the focus colours aren't brand tokens yet).
+ * ---------------------------------------------------------------------------------------------- */
+:root {
+  --focus-border: #0F8A82;                  /* a UI boundary: 3:1 on white */
+  --focus-glow: rgba(58, 212, 202, 0.15);   /* 3px, around fields and the language button */
+  --card-width: 560px;
+}
+.ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
+           border-radius: var(--radius-lg); padding: 28px; }
+.ui-input { width: 100%; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+            font: inherit; font-size: 15px; line-height: 1.4; color: var(--text); background: var(--bg); }
+.ui-input::placeholder { color: var(--text-dimmer); }
+.ui-input[data-focused], .ui-select-button[data-focus-visible] { outline: none; border-color: var(--focus-border);
+                                                                 box-shadow: 0 0 0 3px var(--focus-glow); }
+
+/* The two rules React Aria would otherwise write as inline <style> elements, which the CSP refuses
+   (docs/content-security-policy.md). Keep them identical to React Aria's; src/setup/setup.test.ts
+   checks they are here. Exception 1: pressable elements (usePress; src/ui/csp.ts). */
+@layer { [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom; } }
+/* Exception 2: while a menu or dialog keeps the page from scrolling on iPhone and iPad
+   (usePreventScroll; replaced by this attribute in vite.config.ts, reactAriaCsp). */
+@layer { html[data-ui-prevent-scroll] * { overscroll-behavior: contain; } }
+
+/* ------------------------------------------------------------------------------------------------ type */
+.ui-eyebrow { display: block; font-size: 11px; line-height: 1.3; font-weight: 600; letter-spacing: 0.04em;
+              text-transform: uppercase; color: var(--text-dim); margin: 0; }
+
+/* ------------------------------------------------------------------------------------------------ buttons */
+.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+             font: inherit; font-size: 15px; font-weight: 600; line-height: 1.2; border-radius: var(--radius-sm);
+             padding: 10px var(--space-4); border: 1px solid var(--line); background: var(--bg); color: var(--text);
+             cursor: pointer; text-decoration: none; }
+.ui-button[data-hovered] { border-color: var(--text-dim); }
+.ui-button[data-variant="primary"] { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.ui-button[data-variant="primary"][data-hovered] { background: var(--accent-hover); }
+.ui-button[data-variant="quiet"] { border-color: transparent; background: transparent; }
+.ui-button[data-variant="quiet"][data-hovered] { background: var(--surface-alt); }
+.ui-button[data-pressed] { transform: translateY(1px); }
+.ui-button[data-focus-visible] { outline: 2px solid var(--text); outline-offset: 2px; }
+.ui-button[data-disabled] { opacity: 0.5; cursor: default; }
+.ui-button[data-pending] { cursor: progress; }
+
+.ui-icon-button { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none;
+                  background: transparent; border: none; border-radius: var(--radius-sm); color: var(--text-dim);
+                  cursor: pointer; }
+.ui-icon-button[data-hovered] { color: var(--text); background: var(--surface-alt); }
+.ui-icon-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+
+/* ------------------------------------------------------------------------------------------------ fields */
+.ui-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.ui-label { font-size: 13.5px; font-weight: 600; }
+.ui-hint { font-size: 13px; line-height: 1.5; color: var(--text-dimmer); }
+.ui-input[data-invalid] { border-color: var(--accent-ink); }
+.ui-field-error { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--accent-ink); }
+.ui-field-error svg { flex: none; margin-top: 2px; }
+.ui-input-group { position: relative; display: flex; align-items: center; }
+.ui-input-group .ui-input { padding-right: 48px; }
+.ui-input-group .ui-icon-button { position: absolute; right: 6px; }
+
+/* ------------------------------------------------------------------------------------------------ choices */
+.ui-radio-cards { display: flex; flex-direction: column; gap: 10px; }
+.ui-radio-card { display: flex; gap: 14px; align-items: flex-start; padding: var(--space-4); background: var(--bg);
+                 border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
+.ui-radio-card[data-hovered] { border-color: rgba(2, 2, 5, 0.40); }
+.ui-radio-card[data-selected] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ui-radio-card[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-radio-card-icon { flex: none; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--surface-alt);
+                      display: flex; align-items: center; justify-content: center; color: var(--text); }
+.ui-radio-card[data-selected] .ui-radio-card-icon { background: var(--accent); color: var(--on-accent); }
+.ui-radio-card-body { flex: 1; min-width: 0; }
+.ui-radio-card-title { display: block; font-size: 14.5px; font-weight: 600; margin-bottom: 2px; }
+.ui-radio-card-desc { display: block; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+
+.ui-radio-dot { flex: none; width: 18px; height: 18px; border-radius: var(--radius-pill); border: 1.5px solid var(--text-dim);
+                display: flex; align-items: center; justify-content: center; }
+.ui-radio-card .ui-radio-dot { margin-top: 9px; }
+[data-selected] > .ui-radio-dot { border-color: var(--accent); background: var(--accent); }
+[data-selected] > .ui-radio-dot::after { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--on-accent); }
+
+.ui-radio-list { display: flex; flex-direction: column; }
+.ui-radio-option { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+.ui-radio-option .ui-radio-dot { margin-top: 1px; }
+.ui-radio-option[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: var(--radius-sm); }
+.ui-radio-option-title { display: block; font-size: 13.5px; font-weight: 600; }
+.ui-radio-option-desc { display: block; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+
+/* ------------------------------------------------------------------------------------------------ select, menu */
+.ui-select { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+.ui-select-icon { display: flex; }
+.ui-select-button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 9.5rem;
+                    font: inherit; font-size: 13px; color: var(--text-dim); background: transparent; border: 1px solid var(--line);
+                    border-radius: var(--radius-sm); padding: 7px 10px; cursor: pointer; }
+.ui-select-button[data-hovered] { border-color: var(--text-dim); }
+.ui-popover { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 6px;
+              min-width: var(--trigger-width); box-shadow: 0 8px 24px rgba(2, 2, 5, 0.08); outline: none; }
+.ui-popover[data-entering] { animation: ui-pop 120ms ease-out; }
+@keyframes ui-pop { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .ui-popover[data-entering] { animation: none; } }
+.ui-listbox, .ui-menu { outline: none; display: flex; flex-direction: column; gap: 2px; max-height: inherit; overflow: auto; }
+.ui-option, .ui-menu-item { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: var(--space-2);
+                            padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text);
+                            cursor: pointer; outline: none; }
+.ui-option[data-focused], .ui-menu-item[data-focused] { background: var(--surface-alt); }
+.ui-option[data-focus-visible], .ui-menu-item[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-option:focus-visible, .ui-menu-item:focus-visible { outline: none; } /* not also the chat's page-wide outline */
+.ui-option[data-selected] { font-weight: 600; }
+.ui-menu-item-label { font-size: 13.5px; font-weight: 500; }
+.ui-menu-item-desc { grid-column: 1; font-size: 12px; color: var(--text-dim); }
+.ui-menu-item-check { grid-column: 2; grid-row: 1 / span 2; }
+.ui-menu-button { display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; }
+.ui-menu-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------------------------------------ layout pieces */
+.ui-steps { margin-bottom: 28px; }
+.ui-steps .ui-eyebrow { min-height: 36px; display: flex; align-items: center; margin-bottom: 12px; padding-right: 11.5rem; }
+.ui-rail { display: flex; gap: var(--space-2); }
+.ui-rail-segment { flex: 1; height: 4px; border-radius: var(--radius-pill); background: var(--line); }
+.ui-rail-segment[data-done] { background: var(--accent); }
+
+.ui-note { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--surface-alt); border: 1px solid var(--line);
+           border-radius: var(--radius-md); padding: 14px var(--space-4); font-size: 13px; line-height: 1.55; color: var(--text-dim); }
+.ui-note-icon { flex: none; display: flex; margin-top: 1px; color: var(--text); }
+
+.ui-facts { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--bg); }
+.ui-facts ul { list-style: none; margin: 0; padding: 0; }
+.ui-fact { display: flex; gap: 14px; align-items: flex-start; padding: 14px var(--space-4); border-bottom: 1px solid var(--line); }
+.ui-fact-icon { flex: none; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--surface-alt);
+                display: flex; align-items: center; justify-content: center; color: var(--text); }
+.ui-fact-value { display: block; font-size: 14.5px; font-weight: 600; margin-top: 2px; overflow-wrap: anywhere; }
+.ui-fact-detail { display: block; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.ui-facts-footer { display: flex; gap: 10px; align-items: center; padding: 12px var(--space-4); background: var(--surface-alt);
+                   font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.ui-facts-footer svg { flex: none; color: var(--text); }
+
+.ui-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px 28px; padding: 0; }
+.ui-chip { display: inline-flex; align-items: center; background: var(--bg); border: 1px solid var(--line);
+           border-radius: var(--radius-pill); padding: 3px 10px; font-size: 12px; color: var(--text); }
