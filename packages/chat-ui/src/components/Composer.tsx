@@ -4,11 +4,12 @@
  * Shift+Enter starts a new line.
  */
 import { ArrowUp, Paperclip } from "lucide-react";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { ModelInfo } from "../api";
 import type { Attachment } from "../types";
 import { isPending } from "../types";
 import { useT } from "../i18n";
+import { Button, FileButton, IconButton, TextArea } from "../ui";
 import { AttachmentChip } from "./Chips";
 import { loadingNote, ModelPicker } from "./ModelPicker";
 
@@ -28,7 +29,6 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
                           onRemoveAttachment, onSend }: Props) {
   const m = useT();
   const [text, setText] = useState("");
-  const fileInput = useRef<HTMLInputElement>(null);
   const waiting = attachments.some(isPending);
   const reason = disabledReason ?? (waiting ? m.waitingForDocuments : null);
   const note = loadingNote(models, chosenModel);
@@ -54,19 +54,15 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
         </div>
       )}
       <div className="composer">
-        <button type="button" className="icon-button" onClick={() => fileInput.current?.click()}
-                aria-label={m.attachPdf} title={m.attachPdf}>
-          <Paperclip size={18} />
-        </button>
-        <input ref={fileInput} type="file" accept="application/pdf,.pdf" multiple hidden
-               onChange={(e) => { onAttach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-        <label htmlFor="composer-input" className="visually-hidden">{m.yourQuestion}</label>
-        <textarea id="composer-input" rows={1} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey}
-                  placeholder={m.askPlaceholder} />
+        <FileButton accept={["application/pdf", ".pdf"]} multiple onSelect={onAttach}>
+          <IconButton label={m.attachPdf}><Paperclip size={18} aria-hidden /></IconButton>
+        </FileButton>
+        <TextArea label={m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
+                  placeholder={m.askPlaceholder} className="composer-field" />
         <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
-        <button type="button" className="send-button" onClick={send} disabled={!canSend} aria-label={m.send}>
-          <ArrowUp size={16} strokeWidth={2.2} />
-        </button>
+        <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
+          <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
+        </Button>
       </div>
       <p className="composer-hint caption" role="status">
         {reason ?? note ?? m.composerHint}

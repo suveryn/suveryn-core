@@ -12,7 +12,10 @@ import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
 import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
-import { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "../ui";
+import {
+  BarChart, Button, ColumnChart, DateField, Form, FormError, InlineNotice, NumberField, Segmented, SelectField, TextButton,
+  type ChartText, type Datum, type FieldErrors, type Series,
+} from "../ui";
 
 function useReport<R>(load: (start: Date, end?: Date) => Promise<R>) {
   const [preset, setPreset] = useState<Preset>("day");
@@ -36,16 +39,12 @@ function RangePicker({ preset, setPreset, from, setFrom, to, setTo }: {
   const name: Record<Preset, string> = { hour: m.presetHour, day: m.presetDay, week: m.presetWeek, month: m.presetMonth, custom: m.presetCustom };
   return (
     <div className="range">
-      <div className="segmented" role="radiogroup" aria-label={m.rangeLabel}>
-        {PRESETS.map((p) => (
-          <button key={p} type="button" role="radio" aria-checked={preset === p} className={preset === p ? "on" : ""}
-                  onClick={() => setPreset(p)}>{name[p]}</button>
-        ))}
-      </div>
+      <Segmented label={m.rangeLabel} value={preset} onChange={(p) => setPreset(p as Preset)}
+                 options={PRESETS.map((p) => ({ value: p, label: name[p] }))} />
       {preset === "custom" && (
         <span className="range-dates">
-          <label>{m.from} <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label>{m.to} <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
+          <DateField label={m.from} value={from} onChange={setFrom} className="ui-field range-date" />
+          <DateField label={m.to} value={to} onChange={setTo} minValue={from || undefined} className="ui-field range-date" />
         </span>
       )}
     </div>
@@ -134,7 +133,7 @@ function Header({ icon, title, onBack }: { icon: React.ReactNode; title: string;
   const m = useT();
   return (
     <header className="view-head">
-      <button type="button" className="link" onClick={onBack}><ArrowLeft size={14} aria-hidden /> {m.backToChat}</button>
+      <TextButton onPress={onBack}><ArrowLeft size={14} aria-hidden /> {m.backToChat}</TextButton>
       <h1>{icon} {title}</h1>
     </header>
   );
@@ -149,7 +148,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
       <Header icon={<BarChart3 size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
       <p className="view-intro">{m.usageIntro}</p>
       <RangePicker {...r} />
-      {r.error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.usageUnavailable(r.error)}</p>}
+      {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {r.report && (r.report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
         <>
           <Totals totals={r.report.totals} />
@@ -172,7 +171,7 @@ export function AdminView({ onBack }: { onBack: () => void }) {
       <nav className="tabs" aria-label={m.administration}><span className="tab on" aria-current="page">{m.adminUsage}</span></nav>
       <p className="view-intro">{m.adminIntro}</p>
       <RangePicker {...r} />
-      {r.error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.usageUnavailable(r.error)}</p>}
+      {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
@@ -212,34 +211,40 @@ export function AdminView({ onBack }: { onBack: () => void }) {
 
 function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: () => void }) {
   const m = useT();
-  const plain = (v: string) => String(Number(v)); // "3.0000" from the server shows as "3"
-  const [input, setInput] = useState(plain(report.rates.input_per_million));
-  const [output, setOutput] = useState(plain(report.rates.output_per_million));
+  const [input, setInput] = useState(Number(report.rates.input_per_million));
+  const [output, setOutput] = useState(Number(report.rates.output_per_million));
   const [currency, setCurrency] = useState(report.rates.currency);
-  const [state, setState] = useState<"idle" | "saved" | string>("idle");
+  const [saved, setSaved] = useState(false);
+  const edited = <T,>(set: (v: T) => void) => (v: T) => { set(v); setSaved(false); };
   // As the server checks them (usage.py Rates): 0 to 10,000, at most 4 decimals.
-  const valid = [input, output].every((v) => /^\d+(?:\.\d{1,4})?$/.test(v) && Number(v) <= 10_000);
-  const save = async () => {
-    if (!valid) { setState(m.ratesInvalid); return; }
-    try { await setRates({ input_per_million: input, output_per_million: output, currency }); setState("saved"); onSaved(); }
-    catch (e) { setState((e as Error).message); }
+  const valid = (v: number) => Number.isFinite(v) && v >= 0 && v <= 10_000 && Number(v.toFixed(4)) === v;
+  const check = async (): Promise<FieldErrors> => {
+    const errors: FieldErrors = {};
+    if (!valid(input)) errors.input = m.ratesInvalid;
+    if (!valid(output)) errors.output = m.ratesInvalid;
+    if (Object.keys(errors).length > 0) return errors;
+    try {
+      await setRates({ input_per_million: String(input), output_per_million: String(output), currency });
+      return {};
+    } catch (e) {
+      return { _: (e as Error).message };
+    }
   };
   const changed = report.rates.updated_by && report.rates.updated_at;
   return (
-    <form className="rates" onSubmit={(e) => { e.preventDefault(); save(); }}>
-      <h2 className="label">{m.rates}</h2>
-      <label>{m.rateInput}<input type="number" min="0" step="0.01" value={input} onChange={(e) => { setInput(e.target.value); setState("idle"); }} /></label>
-      <label>{m.rateOutput}<input type="number" min="0" step="0.01" value={output} onChange={(e) => { setOutput(e.target.value); setState("idle"); }} /></label>
-      <label>{m.currency}
-        <select value={currency} onChange={(e) => { setCurrency(e.target.value); setState("idle"); }}>
-          {["USD", "EUR", "GBP"].map((c) => <option key={c}>{c}</option>)}
-        </select>
-      </label>
-      <button type="submit" className="button-secondary">
-        {state === "saved" ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
-      </button>
-      {state !== "idle" && state !== "saved" && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {state}</p>}
+    <Form className="rates" check={check} onValid={() => { setSaved(true); onSaved(); }} aria-labelledby="rates-title">
+      <h2 id="rates-title" className="label">{m.rates}</h2>
+      <FormError />
+      <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} minValue={0} maxValue={10_000}
+                   maxDecimals={4} className="ui-field rates-field" />
+      <NumberField name="output" label={m.rateOutput} value={output} onChange={edited(setOutput)} minValue={0} maxValue={10_000}
+                   maxDecimals={4} className="ui-field rates-field" />
+      <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)}
+                   options={["USD", "EUR", "GBP"].map((c) => ({ id: c, label: c }))} />
+      <Button type="submit" className="ui-button-small">
+        {saved ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
+      </Button>
       <p className="caption">{changed ? m.ratesChanged(report.rates.updated_by!, new Date(report.rates.updated_at!).toLocaleDateString(locale(), { dateStyle: "long" })) : m.ratesDefault}</p>
-    </form>
+    </Form>
   );
 }

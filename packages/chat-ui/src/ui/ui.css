@@ -321,3 +321,55 @@
                                           white-space: nowrap; }
 .ui-chart-table th:first-child { text-align: left; font-weight: 500; }
 .ui-chart-table thead th { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+
+/* ------------------------------------------------------------------------------------------------ chat pieces (#44) */
+/* text buttons: Cancel, Keep, Sign out */
+.ui-text-button { display: inline-flex; align-items: center; gap: var(--space-1); background: none; border: none; padding: 2px;
+                  font: inherit; font-size: 12px; color: inherit; text-decoration: underline; text-underline-offset: 2px;
+                  cursor: pointer; }
+.ui-text-button[data-danger] { font-weight: 600; }
+.ui-text-button[data-hovered] { color: var(--text); }
+.ui-text-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
+.ui-text-button[data-disabled] { opacity: 0.5; cursor: default; }
+.ui-icon-button[data-size="small"] { width: 28px; height: 28px; }
+.ui-icon-button[data-disabled] { opacity: 0.4; cursor: default; }
+
+/* the modal dialog: buttons stacked and equally wide, in DOM order (the safe choice first, then the
+   other, then Cancel centred). Side by side they only fitted in English. */
+.ui-modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+                    padding: var(--space-4); background: rgb(2 2 5 / 0.32); }
+.ui-modal { width: 100%; max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--surface);
+            color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-lg);
+            box-shadow: 0 12px 40px rgb(2 2 5 / 0.18); }
+.ui-modal-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
+@keyframes ui-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-modal-overlay[data-entering] { animation: none; } }
+.ui-dialog { padding: var(--space-6); outline: none; }
+.ui-dialog-title { margin: 0 0 var(--space-3); font-size: 18px; }
+.ui-dialog > p { margin: 0 0 var(--space-4); font-size: 13.5px; line-height: 1.55; color: var(--text-dim); }
+.ui-dialog-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); }
+.ui-dialog-actions .ui-text-button { align-self: center; font-size: 13.5px; color: var(--text-dim); }
+@media (max-width: 520px) { .ui-dialog { padding: var(--space-5); } }
+
+/* a row of short options (the usage period) */
+.ui-segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.ui-segment { padding: 6px var(--space-3); font-size: 13px; color: var(--text); cursor: pointer; border-right: 1px solid var(--line); }
+.ui-segment:last-child { border-right: none; }
+.ui-segment[data-hovered] { background: var(--surface); }
+.ui-segment[data-selected] { background: var(--surface-alt); font-weight: 600; }
+.ui-segment[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+
+/* a line of text with an icon (under an answer, the sign-in screen); errors: the icon in accent ink */
+.ui-inline-notice { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0 0;
+                    font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.ui-inline-notice-icon { flex: none; display: flex; margin-top: 2px; }
+.ui-inline-notice[data-tone="error"] { color: var(--text); }
+.ui-inline-notice[data-tone="error"] .ui-inline-notice-icon { color: var(--accent-ink); }
+
+/* dates: day, month and year as segments */
+.ui-date-input { display: inline-flex; align-items: center; width: auto; min-width: 9em; font-variant-numeric: tabular-nums; }
+.ui-date-input[data-focus-within] { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
+.ui-date-segment { padding: 0 1px; border-radius: 3px; outline: none; }
+.ui-date-segment[data-type="literal"] { color: var(--text-dim); padding: 0; }
+.ui-date-segment[data-placeholder] { color: var(--text-dimmer); }
+.ui-date-segment[data-focused] { background: var(--surface-alt); color: var(--text); box-shadow: inset 0 0 0 1px var(--focus-border); }

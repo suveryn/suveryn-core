@@ -6,6 +6,7 @@
 import { AlertTriangle, FileText, Loader2, X, XCircle } from "lucide-react";
 import type { Citation } from "../api";
 import { useT } from "../i18n";
+import { Button } from "../ui";
 import { pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
 
@@ -38,9 +39,9 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
         </span>
       )}
       {onRemove && (
-        <button type="button" className="chip-remove" onClick={onRemove} aria-label={m.removeFile(a.filename)}>
-          <X size={12} />
-        </button>
+        <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile(a.filename)}>
+          <X size={12} aria-hidden />
+        </Button>
       )}
     </span>
   );
@@ -53,12 +54,12 @@ export function CitationChip({ n, citation, filename, active, onClick }: {
   const m = useT();
   const page = citation.source?.page;
   return (
-    <button type="button" className={`chip-citation${active ? " active" : ""}${citation.removed ? " chip-removed" : ""}`} onClick={onClick}
+    <Button variant="plain" className={`chip-citation${active ? " active" : ""}${citation.removed ? " chip-removed" : ""}`} onPress={onClick}
             aria-expanded={active} aria-label={m.sourceLabel(n, filename, page)}>
       <span className="cite-num">{n}</span>
       <FileText size={12} aria-hidden />
       {filename}{page ? `, ${m.pageShort(page)}` : ""}
-    </button>
+    </Button>
   );
 }
 

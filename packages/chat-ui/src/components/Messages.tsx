@@ -4,8 +4,9 @@
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
  * "not sourced" notices that tell a reader what to check.
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { Button, InlineNotice, MenuButton } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
 import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
@@ -41,11 +42,11 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
     return () => clearTimeout(t);
   }, [state]);
   return (
-    <button type="button" className="copy-button" aria-label={m.copyWhat(what)}
-            onClick={async () => setState((await copyText(text)) ? "copied" : "failed")}>
+    <Button variant="plain" className="copy-button" aria-label={m.copyWhat(what)}
+            onPress={async () => setState((await copyText(text)) ? "copied" : "failed")}>
       {state === "copied" ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
       <span aria-live="polite">{state === "copied" ? m.copied : state === "failed" ? m.copyFailed : label}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -54,33 +55,13 @@ function DownloadButton({ filename, text, what }: {
   filename: (format: Format) => string; text: (format: Format) => string; what: string;
 }) {
   const m = useT();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
-  }, [open]);
-  const save = (format: Format) => { downloadText(filename(format), text(format)); setOpen(false); };
   return (
-    <span className="download" ref={root}>
-      <button type="button" className="copy-button" aria-haspopup="menu" aria-expanded={open}
-              aria-label={m.downloadWhat(what)} onClick={() => setOpen((o) => !o)}>
-        <Download size={13} aria-hidden />
-        <span>{m.download}</span>
-        <ChevronDown size={12} aria-hidden />
-      </button>
-      {open && (
-        <span className="download-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => save("txt")}>{m.textFile}</button>
-          <button type="button" role="menuitem" onClick={() => save("md")}>{m.markdownFile}</button>
-        </span>
-      )}
-    </span>
+    <MenuButton className="copy-button" aria-label={m.downloadWhat(what)} menuLabel={m.download}
+                items={[{ id: "txt", label: m.textFile }, { id: "md", label: m.markdownFile }]} placement="bottom end"
+                onAction={(f) => downloadText(filename(f as Format), text(f as Format))}>
+      <Download size={13} aria-hidden />
+      <span>{m.download}</span>
+    </MenuButton>
   );
 }
 
@@ -165,19 +146,18 @@ export function AssistantMessage({ turn, question, filenames }: {
     s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
     s.kind === "flag" ? <mark key={j} className="unverified" title={m.unverifiedTitle}>
                           {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
-    <button key={j} type="button" className={`cite-marker${open === s.n && (openOcc === null || openOcc === s.occ) ? " active" : ""}${flaggedMarkers.has(s.occ) ? " flagged" : ""}`}
-            onClick={() => toggle(s.n, s.occ)} aria-expanded={open === s.n && (openOcc === null || openOcc === s.occ)}
+    <Button key={j} variant="plain" className={`cite-marker${open === s.n && (openOcc === null || openOcc === s.occ) ? " active" : ""}${flaggedMarkers.has(s.occ) ? " flagged" : ""}`}
+            onPress={() => toggle(s.n, s.occ)} aria-expanded={open === s.n && (openOcc === null || openOcc === s.occ)}
             title={flaggedMarkers.has(s.occ) ? m.citationIssueTitle : undefined}
             aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)
-                        + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</button>);
+                        + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</Button>);
 
   if (turn.status === "error") {
     return (
       <div className="turn-assistant">
         <AssistantMark />
         <div className="answer">
-          <p className="notice notice-error"><AlertCircle size={14} aria-hidden />
-            {m.answerFailed(turn.error ?? "")}</p>
+          <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.answerFailed(turn.error ?? "")}</InlineNotice>
         </div>
       </div>
     );
@@ -198,8 +178,7 @@ export function AssistantMessage({ turn, question, filenames }: {
         {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
         {issues.length > 0 && <CitationIssuesNote issues={issues} />}
         {turn.status === "done" && (turn.instructionLikeSources?.length ?? 0) > 0 && (
-          <p className="notice notice-error"><AlertTriangle size={14} aria-hidden />
-            <span>{m.instructionLike(turn.instructionLikeSources!)}</span></p>
+          <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.instructionLike(turn.instructionLikeSources!)}</InlineNotice>
         )}
 
         {turn.status === "done" && open !== null && turn.citations[open - 1] && (
@@ -236,11 +215,7 @@ export function AssistantMessage({ turn, question, filenames }: {
         )}
 
         {turn.status === "done" && cited.length === 0 && (
-          <p className="notice"><AlertCircle size={14} aria-hidden />
-            {turn.grounded
-              ? m.noSourceCited
-              : m.notGrounded}
-          </p>
+          <InlineNotice icon={<AlertCircle size={14} />}>{turn.grounded ? m.noSourceCited : m.notGrounded}</InlineNotice>
         )}
       </div>
     </div>
@@ -254,10 +229,7 @@ export function AssistantMessage({ turn, question, filenames }: {
 function UnverifiedNote({ figures }: { figures: string[] }) {
   const m = useT();
   return (
-    <p className="notice notice-error">
-      <AlertTriangle size={14} aria-hidden />
-      <span>{m.unverified(figures)}</span>
-    </p>
+    <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.unverified(figures)}</InlineNotice>
   );
 }
 
@@ -308,10 +280,10 @@ function OfficeButton({ kind, label, what, make }: {
     }
   };
   return (
-    <button type="button" className="copy-button" aria-label={what} title={what} onClick={run} disabled={state === "busy"}>
+    <Button variant="plain" className="copy-button" aria-label={what} title={what} onPress={run} isDisabled={state === "busy"}>
       {kind === "word" ? <FileText size={13} aria-hidden /> : <FileSpreadsheet size={13} aria-hidden />}
       <span aria-live="polite">{state === "busy" ? m.preparingDownload : state === "failed" ? m.downloadFailed : label}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -332,10 +304,7 @@ function CitationIssuesNote({ issues }: { issues: CitationIssue[] }) {
   const m = useT();
   const lines = [...new Set(issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))];
   return (
-    <p className="notice notice-error">
-      <AlertTriangle size={14} aria-hidden />
-      <span>{lines.join(" ")}</span>
-    </p>
+    <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{lines.join(" ")}</InlineNotice>
   );
 }
 
@@ -347,19 +316,15 @@ function CalculationNote({ calc }: { calc: Calculation }) {
   const m = useT();
   if (calc.result === null) {
     return (
-      <p className="notice notice-error"><AlertCircle size={14} aria-hidden />
-        {m.calcFailed(calc.expression, calc.error ?? "")}</p>
+      <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.calcFailed(calc.expression, calc.error ?? "")}</InlineNotice>
     );
   }
   const missing = calc.figures_not_in_sources;
   return (
-    <p className={`notice${missing.length ? " notice-error" : ""}`}>
-      {missing.length ? <AlertCircle size={14} aria-hidden /> : <Calculator size={14} aria-hidden />}
-      <span>
-        {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.
-        {missing.length > 0 ? m.calcMissing(missing) : m.calcAllSourced}
-      </span>
-    </p>
+    <InlineNotice icon={missing.length ? <AlertCircle size={14} /> : <Calculator size={14} />} tone={missing.length ? "error" : "note"}>
+      {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.
+      {missing.length > 0 ? m.calcMissing(missing) : m.calcAllSourced}
+    </InlineNotice>
   );
 }
 
