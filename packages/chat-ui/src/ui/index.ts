@@ -4,6 +4,8 @@
  * Aria directly, so the look and behaviour stay the same everywhere. Used by the chat UI and the
  * appliance's web setup (src/setup), which shares nothing else with it.
  */
+// Imported for its effect, first: keeps React Aria within the CSP (docs/content-security-policy.md).
+// src/csp.test.ts checks this line.
 import "./csp";
 import "./ui.css";
 

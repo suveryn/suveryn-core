@@ -17,7 +17,7 @@ ssh -N -L 8000:127.0.0.1:8000 -L 8180:127.0.0.1:8180 root@<gpu-host> -p <ssh-por
 
 Other commands:
 
-- `npm test`: unit tests (SSE parsing, answer rendering, copy and download, that the brand files match `suveryn-brand`, and the web setup's text and rules)
+- `npm test`: unit tests (SSE parsing, answer rendering, copy and download, that the brand files match `suveryn-brand`, the web setup's text and rules, and the Content-Security-Policy rules: `src/csp.test.ts`)
 - `npm run brand:sync`: re-copy the brand files from `suveryn-brand` (see below)
 - `npm run typecheck`
 - `npm run build`: static files in `dist/` (the chat, `index.html`, and the appliance's web setup, `setup.html`), plus `THIRD-PARTY-NOTICES.txt`
@@ -69,7 +69,7 @@ Screens are built from a small component library in [`src/ui/`](src/ui/), shared
 | `MenuButton` | a menu that acts at once (the model menu) |
 | `Card`, `Steps`, `Note`, `Facts`, `Chips` | layout, no behaviour |
 
-**The CSP.** The appliance sends `style-src 'self'` without `'unsafe-inline'`. React Aria writes two `<style>` elements of its own, which the browser would refuse (and report): `src/ui/csp.ts` makes it skip the first (pressable elements), and a build step in `vite.config.ts` replaces the second (iPhone and iPad, while a menu is open) with an attribute; `ui.css` carries both rules instead. The build fails if a React Aria update changes that code. Style properties React Aria sets through the DOM (a popover's position) are allowed.
+**The CSP.** How this UI keeps to the appliance's Content-Security-Policy, what to check before adding a library and what to do when the build stops with a CSP error: [docs/content-security-policy.md](../../docs/content-security-policy.md). `src/csp.test.ts` checks the source against its rules. In short: the appliance sends `style-src 'self'` without `'unsafe-inline'`. React Aria writes two `<style>` elements of its own, which the browser would refuse (and report): `src/ui/csp.ts` makes it skip the first (pressable elements), and a build step in `vite.config.ts` replaces the second (iPhone and iPad, while a menu is open) with an attribute; `ui.css` carries both rules instead. The build fails if a React Aria update changes that code. Style properties React Aria sets through the DOM (a popover's position) are allowed.
 
 **Forms** use React 19's `useActionState`, started from `onSubmit`: given the form's `action`, React resets the form after each submit, and React Aria's fields follow the reset, which wiped every answer when Continue found an error. Fields don't use React Aria's built-in validation (`isRequired`, the browser's own `type="email"` check), whose messages come from the browser, in its language, and can appear while typing. Errors come from the screen's check, in the interface language, when the form is submitted.
 
