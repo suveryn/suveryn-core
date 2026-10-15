@@ -11,7 +11,7 @@ import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
-import { bucketLabel, compact, money, PRESETS, rangeFor, whole, type Preset } from "../lib/usage";
+import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
 import { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "../ui";
 
 function useReport<R>(load: (start: Date, end?: Date) => Promise<R>) {
@@ -82,8 +82,33 @@ function Chart({ report }: { report: UsageReport }) {
   const data: Datum[] = report.series.map((b) => ({
     key: b.start, label: bucketLabel(b.start, report.step), values: [b.prompt_tokens, b.completion_tokens],
   }));
+  const { slots, every } = clock(report);
+  // Within a day only the time, with the weekday on the first labels and where the day changes.
+  const markLabel = report.step === "5 minutes" || report.step === "1 hour" ? (i: number, previous: number | null) => {
+    const d = new Date(report.series[i].start);
+    const sameDay = previous !== null && new Date(report.series[previous].start).toDateString() === d.toDateString();
+    return sameDay ? timeLabel(d) : bucketLabel(report.series[i].start, report.step);
+  } : undefined;
   return <ColumnChart label={m.chartLabel(whole(report.totals.total_tokens), m.stepName(report.step))} series={series}
-                      data={data} format={whole} tick={compact} text={text} caption={m.stepName(report.step)} />;
+                      data={data} format={whole} tick={compact} text={text} slots={slots} every={every} markLabel={markLabel} />;
+}
+
+/** Where each column sits on the clock, and the label intervals that read well for its step: every
+ *  15 or 30 minutes, every 3 or 6 hours, on Mondays, … (the gateway's buckets start on whole steps). */
+function clock(report: UsageReport): { slots: number[]; every: number[] } {
+  const MONDAY = new Date(2000, 0, 3).getTime(); // as the gateway's buckets (usage.py ORIGIN)
+  const DAY = 86_400_000;
+  const at = (iso: string) => new Date(iso);
+  const days = (d: Date) => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - MONDAY) / DAY);
+  const per: Record<UsageReport["step"], [(d: Date) => number, number[]]> = {
+    "5 minutes": [(d) => d.getHours() * 12 + d.getMinutes() / 5, [1, 3, 6, 12, 24]],
+    "1 hour": [(d) => d.getHours(), [1, 2, 3, 6, 12]],
+    "1 day": [days, [1, 2, 7, 14]],
+    "7 days": [(d) => days(d) / 7, [1, 2, 4, 13, 26]],
+    "30 days": [(d) => d.getFullYear() * 12 + d.getMonth(), [1, 3, 6, 12]],
+  };
+  const [slot, every] = per[report.step];
+  return { slots: report.series.map((b) => slot(at(b.start))), every };
 }
 
 /** The office's users compared; the table after it has the exact numbers, so no table of its own. */

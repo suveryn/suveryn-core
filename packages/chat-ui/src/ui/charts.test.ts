@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { share, step, sum, valueAxis } from "./chartScale";
+import { marks, share, step, sum, valueAxis } from "./chartScale";
 
 describe("the value axis", () => {
   it("rounds the top up and steps in round numbers", () => {
@@ -35,6 +35,30 @@ describe("the value axis", () => {
     expect(share(-1, 200)).toBe(0);
     expect(share(5, 0)).toBe(0);
     expect(sum([1, 2, 3])).toBe(6);
+  });
+});
+
+describe("the time axis", () => {
+  it("spaces labels evenly from the first column without a clock", () => {
+    expect(marks(24)).toEqual([0, 3, 6, 9, 12, 15, 18, 21]);
+    expect(marks(31)).toEqual([0, 4, 8, 12, 16, 20, 24, 28]);
+    expect(marks(4)).toEqual([0, 1, 2, 3]);
+    expect(marks(0)).toEqual([]);
+  });
+
+  it("puts labels on round times with one", () => {
+    // 25 hourly columns from 13:00: every 3 hours, on 15:00, 18:00, … 12:00.
+    const hours = Array.from({ length: 25 }, (_, i) => (13 + i) % 24);
+    expect(marks(25, 8, hours, [1, 2, 3, 6, 12]).map((i) => hours[i])).toEqual([15, 18, 21, 0, 3, 6, 9, 12]);
+    // 31 days, counted from a Monday: every 7 days, on the Mondays.
+    const days = Array.from({ length: 31 }, (_, i) => 9_400 + i);
+    expect(marks(31, 8, days, [1, 2, 7, 14]).every((i) => days[i] % 7 === 0)).toBe(true);
+    // Fewer labels at phone width are the same marks, every other one hidden by ui.css.
+    expect(marks(12, 8, Array.from({ length: 12 }, (_, i) => i), [1, 3, 6, 12])).toEqual([0, 3, 6, 9]);
+  });
+
+  it("falls back to even spacing when no interval fits", () => {
+    expect(marks(40, 8, Array.from({ length: 40 }, (_, i) => i), [1, 2])).toEqual([0, 5, 10, 15, 20, 25, 30, 35]);
   });
 });
 

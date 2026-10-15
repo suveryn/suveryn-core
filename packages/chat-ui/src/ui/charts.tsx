@@ -10,9 +10,9 @@
  * Series differ in lightness as well as hue, and the legend names them in stacking order.
  */
 import { Table2, ChartColumnBig } from "lucide-react";
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "./Button";
-import { share, step, sum, valueAxis } from "./chartScale";
+import { marks, share, step, sum, valueAxis } from "./chartScale";
 
 /** At most two: the brand has two chart colours that tell apart in greyscale (ui.css, --chart-*). */
 export type Series = { id: string; label: string };
@@ -37,10 +37,15 @@ type Common = {
   text: ChartText;
 };
 
-/** Columns over time. `tick` formats the axis (short: "15k"); `caption` sits between the first
- *  and the last column's labels (for example the step). */
-export function ColumnChart({ label, series, data, format, tick, text, caption }: Common & {
-  tick: (n: number) => string; caption?: ReactNode;
+/** Columns over time. `tick` formats the value axis (short: "15k"). The time axis labels up to eight
+ *  columns, every other one of them at phone width; `slots` and `every` put them on round times
+ *  (see marks in chartScale.ts). */
+export function ColumnChart({ label, series, data, format, tick, text, slots, every, markLabel }: Common & {
+  tick: (n: number) => string; slots?: number[]; every?: number[];
+  /** A label on the time axis shorter than the column's own, given the column of the label two
+   *  before it (null for the first two): the label before it on a phone, which hides every other
+   *  one. So "21:00" after "wo 15:00", and the weekday again where the day changes. */
+  markLabel?: (index: number, previous: number | null) => string;
 }) {
   const [table, setTable] = useState(false);
   const [active, setActive] = useState(0);
@@ -89,13 +94,17 @@ export function ColumnChart({ label, series, data, format, tick, text, caption }
               )}
             </div>
           </div>
-          {data.length > 0 && (
-            <div className="ui-chart-x" aria-hidden>
-              <span>{data[0].label}</span>
-              {caption && <span>{caption}</span>}
-              <span>{data[data.length - 1].label}</span>
-            </div>
-          )}
+          <div className="ui-chart-x" aria-hidden>
+            {marks(data.length, 8, slots, every).map((i, n, all) => {
+              const at = (i + 0.5) / data.length;
+              return (
+                <span key={data[i].key} className="ui-chart-x-mark" data-minor={n % 2 === 1 || undefined}
+                      data-edge={at < 0.08 ? "start" : at > 0.92 ? "end" : undefined} style={{ left: `${at * 100}%` }}>
+                  {markLabel ? markLabel(i, n > 1 ? all[n - 2] : null) : data[i].label}
+                </span>
+              );
+            })}
+          </div>
         </>
       )}
       <figcaption id={captionId} className="ui-chart-caption">{label}</figcaption>

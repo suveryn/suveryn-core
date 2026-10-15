@@ -48,14 +48,21 @@ def usage(url, admin):
     end = datetime.fromisoformat(q["end"][0].replace("Z", "+00:00")) if "end" in q else now
     span = (end - start).total_seconds()
     step, seconds = next((n, s) for limit, n, s in STEPS if limit is None or span <= limit * 1.01)
-    series, t, i = [], start, 0
+    # Buckets on whole steps of local time, as the gateway's date_bin does (usage.py).
+    local = start.astimezone()
+    t = local.replace(second=0, microsecond=0) - timedelta(minutes=local.minute % 5)
+    if seconds >= 3_600:
+        t = t.replace(minute=0)
+    if seconds >= 86_400:
+        t = t.replace(hour=0)
+    series, i = [], 0
     while t < end:
         busy = 1.0 if 8 <= t.astimezone().hour < 18 or seconds >= 86_400 else 0.15
         prompt = int((9_000 + (i * 7_919) % 23_000) * busy * seconds / 3_600) if seconds < 86_400 else 150_000 + (i * 37_013) % 260_000
         if i % 9 == 4:
             prompt = 0
         completion = prompt // 8
-        series.append({"start": t.isoformat(), "requests": prompt // 4_000, "prompt_tokens": prompt,
+        series.append({"start": t.isoformat(), "requests": -(-prompt // 4_000), "prompt_tokens": prompt,
                        "completion_tokens": completion, "total_tokens": prompt + completion})
         t, i = t + timedelta(seconds=seconds), i + 1
     total = {k: sum(b[k] for b in series) for k in ("requests", "prompt_tokens", "completion_tokens", "total_tokens")}
