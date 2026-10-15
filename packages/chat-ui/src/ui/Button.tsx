@@ -11,15 +11,19 @@ export type ButtonProps = Omit<AriaButtonProps, "className" | "children"> & {
    *  plain: React Aria's behaviour with no look of its own, for a screen's own pieces (a citation
    *  marker, a chip); `className` gives the look. */
   variant?: "primary" | "secondary" | "quiet" | "plain";
+  /** regular: 44px, for forms (the setup, dialogs). small: 32px, for toolbars and compact forms,
+   *  the same height as small fields (ui.css, "sizes"). */
+  size?: "regular" | "small";
   className?: string;
   children?: ReactNode;
   title?: string;
 };
 
-export function Button({ variant = "secondary", className, title, ...props }: ButtonProps) {
+export function Button({ variant = "secondary", size = "regular", className, title, ...props }: ButtonProps) {
   const ref = useTitle(title);
   if (variant === "plain") return <AriaButton {...props} ref={ref} className={className} />;
-  return <AriaButton {...props} ref={ref} data-variant={variant} className={cx("ui-button", className)} />;
+  return <AriaButton {...props} ref={ref} data-variant={variant} data-size={size === "small" ? "small" : undefined}
+                     className={cx("ui-button", className)} />;
 }
 
 /** React Aria's Button doesn't pass `title` on, so the tooltip is set on the element itself. */
@@ -35,14 +39,14 @@ function useTitle(title: string | undefined) {
 
 /** A button that reads as a text link: Cancel, Keep, Sign out. `danger` for the destructive one of a
  *  pair (bold; the brand has no red). */
-export function TextButton({ danger, className, title, ...props }: Omit<ButtonProps, "variant"> & { danger?: boolean }) {
+export function TextButton({ danger, className, title, ...props }: Omit<ButtonProps, "variant" | "size"> & { danger?: boolean }) {
   const ref = useTitle(title);
   return <AriaButton {...props} ref={ref} className={cx("ui-text-button", className)} data-danger={danger || undefined} />;
 }
 
 /** A button with only an icon. `label` is its name for screen readers and its tooltip. */
 export function IconButton({ label, size = "normal", className, ...props }:
-  Omit<ButtonProps, "variant" | "title" | "aria-label"> & { label: string; size?: "normal" | "small" }) {
+  Omit<ButtonProps, "variant" | "size" | "title" | "aria-label"> & { label: string; size?: "normal" | "small" }) {
   const ref = useTitle(label);
   return <AriaButton {...props} ref={ref} aria-label={label} className={cx("ui-icon-button", className)}
                      data-size={size === "small" ? "small" : undefined} />;
