@@ -46,7 +46,9 @@ Fonts are unchanged and not counted. The +57 kB is mostly React Aria's core (pre
 
 ### Keyboard, screen-reader semantics, languages, phone
 
-All 26 checks in `check.py` pass:
+All 26 checks in `check.py` passed at the time of the spike. Since #37 part 4 it walks every setup screen (Welcome to Complete, and the failure cases) in all three languages and at phone width, with axe on each: 56 checks.
+
+At the time of the spike:
 
 - **Step 1**: Tab goes language menu, internet access, outgoing connections, Continue (one stop per radio group). The arrow keys change the choice; choosing Air-gapped removes the outgoing options and Connected brings them back.
 - **Step 2**: the focus moves to the new step's heading. No error while typing or leaving a field. Continue shows every error under its field, tied to it with `aria-describedby`, and moves the focus to the first field in error. Changing a field and leaving it clears its error. The show/hide toggle is a toggle button (`aria-pressed`) after the field. The appliance's name in the password is refused; a good account continues.
@@ -103,7 +105,7 @@ Note anything read wrong, twice, or not at all. That decides whether a fix is ne
 ## Running the checks again
 
 ```bash
-cd packages/chat-ui && npm run build
+cd packages/chat-ui && npx vite build --mode demo   # the setup answers from demo.ts; npm run build has no answers
 python3 ../../docs/spikes/react-aria/serve.py dist 8765 <suveryn-appliance>/reverse-proxy &
 AXE_JS=<axe-core>/axe.min.js python3 ../../docs/spikes/react-aria/check.py http://127.0.0.1:8765 /tmp/spike
 ```

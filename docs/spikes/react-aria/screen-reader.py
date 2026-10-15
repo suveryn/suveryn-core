@@ -20,7 +20,8 @@ def say(pg, cdp, label):
     print(f"{label:28} {g('role')}: \"{g('name')}\"" + (f" | {', '.join(states)}" if states else "") + (f" | description: \"{desc}\"" if desc else ""))
 with sync_playwright() as p:
     b = p.chromium.launch(); pg = b.new_page(viewport={"width": 1280, "height": 900}); cdp = pg.context.new_cdp_session(pg)
-    pg.goto(f"{BASE}/setup.html"); pg.get_by_role("heading", name="Network").wait_for()
+    pg.goto(f"{BASE}/setup.html"); pg.get_by_role("button", name="Get started").click()
+    pg.get_by_role("heading", name="Network").wait_for(); pg.wait_for_timeout(200)
     print("== Step 1")
     for i in range(4): pg.keyboard.press("Tab"); say(pg, cdp, f"Tab {i+1}")
     pg.keyboard.press("Shift+Tab"); pg.keyboard.press("Shift+Tab"); pg.keyboard.press("ArrowDown"); pg.wait_for_timeout(150); say(pg, cdp, "Down arrow (access)")
