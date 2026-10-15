@@ -20,8 +20,9 @@
  *   POST setup/v1/provision                → Progress (starts it; again after a failure retries)
  *   GET  setup/v1/provision                → Progress
  *
- * Errors: 422 with { errors: { field: code } } or { error: code }. The appliance implements these in
- * #37 part 5; until then `npm run dev` (and the preview build, `--mode demo`) answer from demo.ts.
+ * Errors: 422 with { errors: { field: code } } or { error: code }. The appliance answers these with
+ * suveryn-appliance's setup/suveryn-setup (#37 part 5); `npm run dev` and the preview build
+ * (`--mode demo`) answer from demo.ts instead.
  */
 
 export type NetworkMode = "connected" | "air-gapped";
