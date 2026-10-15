@@ -9,12 +9,18 @@ import { defineConfig, type Plugin } from "vite";
 const api = process.env.SUVERYN_API ?? "http://127.0.0.1:8000";
 
 /**
+ * CSP EXCEPTION 2 of 2 (docs/content-security-policy.md, "The two exceptions we handle today").
+ *
  * React Aria writes an inline <style> while a menu or dialog keeps the page from scrolling on iPhone
  * and iPad (usePreventScroll). The appliance's CSP blocks inline styles (style-src 'self'), so this
  * replaces it, at build time, with an attribute on <html> that a rule in src/ui/ui.css matches: the
  * same effect, applied at the same moment, and no violation. The match is exact: if a React Aria
  * update changes that code, the build fails here rather than silently bringing the <style> back.
  * (The other <style> React Aria writes, for pressable elements, it skips by itself: src/ui/csp.ts.)
+ *
+ * When the build stops with "React Aria's inline <style> … changed": follow "When the build stops
+ * after a React Aria update" in docs/content-security-policy.md. Never loosen the CSP instead (no
+ * 'unsafe-inline', nonce or hash); the same document says why. Tested in src/setup/setup.test.ts.
  */
 export const PREVENT_SCROLL_STYLE = `    let style = document.createElement('style');
     let nonce = (0, $2b2d34ff061957fb$export$2b85b721e524d74b)();
@@ -63,6 +69,7 @@ export default defineConfig({
   optimizeDeps: { exclude: ["react-aria-components", "react-aria"] },
   build: {
     sourcemap: false,
+    // Never inline assets as data: URLs: the CSP has no data: (docs/content-security-policy.md).
     assetsInlineLimit: 0,
     // Two entries: the chat (index.html) and the appliance's first-boot web setup (setup.html), which
     // shares the component library and nothing else: no sign-in, no chat code (suveryn-tracker#37, #44).

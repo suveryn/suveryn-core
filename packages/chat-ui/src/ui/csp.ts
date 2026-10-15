@@ -1,4 +1,6 @@
 /**
+ * CSP EXCEPTION 1 of 2 (docs/content-security-policy.md, "The two exceptions we handle today").
+ *
  * Keeps React Aria within the appliance's Content-Security-Policy (style-src 'self', no
  * 'unsafe-inline'; appliance reverse-proxy/suveryn-csp.conf).
  *
@@ -9,7 +11,9 @@
  * carries the same rule instead. The other <style> React Aria can write (usePreventScroll, iPhone and
  * iPad only, while a menu or dialog is open) is replaced at build time: see vite.config.ts.
  *
- * Imported for its effect by src/ui/index.ts, before any component renders.
+ * Imported for its effect by src/ui/index.ts, before any component renders. Keep it that way: if the
+ * bundler drops this module (e.g. "sideEffects" in package.json), the violation is back on every page.
+ * src/csp.test.ts checks the import, and that React Aria still uses this id and this rule.
  */
 export const PRESSABLE_STYLE_ID = "react-aria-pressable-style";
 

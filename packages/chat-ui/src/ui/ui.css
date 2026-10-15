@@ -2,6 +2,9 @@
  * sūveryn component library (suveryn-tracker#44). Every colour, size and radius comes from tokens.css
  * (generated from suveryn-brand). React Aria gives the states as data-* attributes; nothing here
  * depends on inline styles, so it works under the appliance's CSP (style-src 'self').
+ *
+ * CSP: no <style> elements and no style attributes in markup, ever; everything visual is a rule in a
+ * .css file like this one. The rules and the reasons: docs/content-security-policy.md.
  */
 
 /* ------------------------------------------------------------------------------------------------
@@ -22,10 +25,12 @@
 .ui-input[data-focused], .ui-select-button[data-focus-visible] { outline: none; border-color: var(--focus-border);
                                                                  box-shadow: 0 0 0 3px var(--focus-glow); }
 
-/* React Aria's own rule for pressable elements (see csp.ts: it would otherwise be an inline <style>). */
+/* The two rules React Aria would otherwise write as inline <style> elements, which the CSP refuses
+   (docs/content-security-policy.md). Keep them identical to React Aria's; src/setup/setup.test.ts
+   checks they are here. Exception 1: pressable elements (usePress; src/ui/csp.ts). */
 @layer { [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom; } }
-/* React Aria's rule while a menu or dialog keeps the page from scrolling on iPhone and iPad (see
-   vite.config.ts: replaced by this attribute instead of an inline <style>). */
+/* Exception 2: while a menu or dialog keeps the page from scrolling on iPhone and iPad
+   (usePreventScroll; replaced by this attribute in vite.config.ts, reactAriaCsp). */
 @layer { html[data-ui-prevent-scroll] * { overscroll-behavior: contain; } }
 
 /* ------------------------------------------------------------------------------------------------ type */
