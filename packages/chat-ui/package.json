@@ -25,10 +25,12 @@
     "docx": "^9.10.0",
     "lucide-react": "^1.54.0",
     "react": "^19.3.0",
+    "react-aria-components": "1.21.1",
     "react-dom": "^19.3.0",
     "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
+    "@react-aria/optimize-locales-plugin": "2.0.2",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

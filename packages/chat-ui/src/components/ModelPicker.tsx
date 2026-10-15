@@ -7,11 +7,11 @@
  * while it loads, and other people's questions wait too. The menu and the note under the
  * composer say so; nothing is hidden.
  */
-import { Check, ChevronDown, Cpu } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Cpu } from "lucide-react";
 import type { ModelInfo } from "../api";
 import { t, useT } from "../i18n";
 import { modelName } from "../lib/model";
+import { MenuButton } from "../ui";
 
 type Props = {
   models: ModelInfo[];
@@ -24,21 +24,14 @@ export function defaultModel(models: ModelInfo[]): ModelInfo | undefined {
   return models.find((m) => m.default) ?? models.find((m) => m.loaded) ?? models[0];
 }
 
+/**
+ * On the component library's MenuButton (suveryn-tracker#44): arrow keys move through the models,
+ * Enter or Space chooses, Escape closes and the focus returns to the badge; a screen reader hears a
+ * menu of radio items with the chosen one checked.
+ */
 export function ModelPicker({ models, chosen, onChoose }: Props) {
   const m = useT();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
   const current = models.find((m) => m.id === chosen) ?? defaultModel(models);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
-  }, [open]);
 
   const name = modelName(current?.id);
   if (!current || !name) return null;
@@ -53,31 +46,23 @@ export function ModelPicker({ models, chosen, onChoose }: Props) {
     return <span className="chip-model" title={m.modelTag(name.full)}>{label}</span>;
   }
   return (
-    <span className="model-picker" ref={root}>
-      <button type="button" className="chip-model chip-model-button" aria-haspopup="listbox" aria-expanded={open}
-              title={m.modelButton(name.full)}
-              onClick={() => setOpen((o) => !o)}>
+    <span className="model-picker">
+      <MenuButton
+        className="chip-model chip-model-button"
+        aria-label={m.modelButton(name.full)}
+        menuLabel={m.model}
+        placement="top end"
+        popoverClassName="model-menu"
+        selected={current.id}
+        onAction={onChoose}
+        items={models.map((x) => ({
+          id: x.id,
+          label: modelName(x.id)?.full ?? x.id,
+          description: x.loaded ? m.modelReady : m.modelLoadsWhenChosen,
+        }))}
+      >
         {label}
-        <ChevronDown size={12} aria-hidden />
-      </button>
-      {open && (
-        <span className="model-menu" role="listbox" aria-label={m.model}>
-          {models.map((x) => {
-            const n = modelName(x.id);
-            const selected = x.id === current.id;
-            return (
-              <button key={x.id} type="button" role="option" aria-selected={selected}
-                      onClick={() => { onChoose(x.id); setOpen(false); }}>
-                <span className="model-option-name">{n?.full ?? x.id}</span>
-                <span className="model-option-state">
-                  {x.loaded ? m.modelReady : m.modelLoadsWhenChosen}
-                </span>
-                {selected && <Check size={14} aria-hidden className="model-option-check" />}
-              </button>
-            );
-          })}
-        </span>
-      )}
+      </MenuButton>
     </span>
   );
 }
