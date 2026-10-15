@@ -4,13 +4,15 @@
  * - AdminView: administrators only (realm role suveryn-admin, enforced by the gateway): the
  *   office's usage in total and per user, with a notional cloud cost and its editable rates.
  * Both pick a period (last hour, day, week, month, or whole local days) and show the totals and a
- * bar chart. Counts only: the server never stores or returns text. Informational: nothing limits anyone.
+ * chart of input and output tokens (src/ui/charts.tsx, suveryn-tracker#46). Counts only: the server
+ * never stores or returns text. Informational: nothing limits anyone.
  */
 import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
 import { bucketLabel, compact, money, PRESETS, rangeFor, whole, type Preset } from "../lib/usage";
+import { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "../ui";
 
 function useReport<R>(load: (start: Date, end?: Date) => Promise<R>) {
   const [preset, setPreset] = useState<Preset>("day");
@@ -62,27 +64,38 @@ function Totals({ totals, extra }: { totals: UsageTotals; extra?: { label: strin
   );
 }
 
+function useChartText(category: string): ChartText {
+  const m = useT();
+  return { showTable: m.chartShowTable, showChart: m.chartShowChart, category, total: m.chartTotal };
+}
+
+function useTokenSeries(): Series[] {
+  const m = useT();
+  return [{ id: "input", label: m.inputTokens }, { id: "output", label: m.outputTokens }];
+}
+
+/** Input and output tokens per step of the period. */
 function Chart({ report }: { report: UsageReport }) {
   const m = useT();
-  const max = Math.max(1, ...report.series.map((b) => b.total_tokens));
-  return (
-    <figure className="chart" aria-label={m.chartLabel(whole(report.totals.total_tokens), m.stepName(report.step))}>
-      <div className="bars">
-        {report.series.map((b) => (
-          <span key={b.start} className="bar" title={`${bucketLabel(b.start, report.step)}: ${whole(b.total_tokens)}`}>
-            <i style={{ height: `${(b.total_tokens / max) * 100}%` }} />
-          </span>
-        ))}
-      </div>
-      {report.series.length > 0 && (
-        <figcaption className="caption">
-          <span>{bucketLabel(report.series[0].start, report.step)}</span>
-          <span>{m.stepName(report.step)}</span>
-          <span>{bucketLabel(report.series[report.series.length - 1].start, report.step)}</span>
-        </figcaption>
-      )}
-    </figure>
-  );
+  const text = useChartText(m.chartTime);
+  const series = useTokenSeries();
+  const data: Datum[] = report.series.map((b) => ({
+    key: b.start, label: bucketLabel(b.start, report.step), values: [b.prompt_tokens, b.completion_tokens],
+  }));
+  return <ColumnChart label={m.chartLabel(whole(report.totals.total_tokens), m.stepName(report.step))} series={series}
+                      data={data} format={whole} tick={compact} text={text} caption={m.stepName(report.step)} />;
+}
+
+/** The office's users compared; the table after it has the exact numbers, so no table of its own. */
+function PerUserChart({ report }: { report: OfficeUsageReport }) {
+  const m = useT();
+  const text = useChartText(m.user);
+  const series = useTokenSeries();
+  const data: Datum[] = report.per_user.map((u) => ({
+    key: u.user_id, label: u.name ?? u.username ?? m.unknownUser, values: [u.totals.prompt_tokens, u.totals.completion_tokens],
+  }));
+  return <BarChart label={m.perUserChartLabel(whole(report.totals.total_tokens))} series={series} data={data}
+                   format={compact} text={text} withTable={false} />;
 }
 
 function ByKind({ report }: { report: UsageReport }) {
@@ -146,6 +159,7 @@ export function AdminView({ onBack }: { onBack: () => void }) {
               <Chart report={report} />
               <ByKind report={report} />
               <h2 className="label">{m.perUser}</h2>
+              {report.per_user.length > 1 && <PerUserChart report={report} />}
               <div className="table-wrap">
                 <table className="usage-table">
                   <thead><tr><th scope="col">{m.user}</th><th scope="col">{m.requests}</th><th scope="col">{m.inputTokens}</th>
