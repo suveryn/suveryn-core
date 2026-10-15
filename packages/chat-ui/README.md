@@ -17,10 +17,12 @@ ssh -N -L 8000:127.0.0.1:8000 -L 8180:127.0.0.1:8180 root@<gpu-host> -p <ssh-por
 
 Other commands:
 
-- `npm test`: unit tests (SSE parsing, answer rendering, copy and download, and that the brand files match `suveryn-brand`)
+- `npm test`: unit tests (SSE parsing, answer rendering, copy and download, that the brand files match `suveryn-brand`, and the web setup's text and rules)
 - `npm run brand:sync`: re-copy the brand files from `suveryn-brand` (see below)
 - `npm run typecheck`
-- `npm run build`: static files in `dist/`, plus `THIRD-PARTY-NOTICES.txt`
+- `npm run build`: static files in `dist/` (the chat, `index.html`, and the appliance's web setup, `setup.html`), plus `THIRD-PARTY-NOTICES.txt`
+
+The web setup also runs on the dev server, at **http://localhost:5173/setup.html**, with example network settings when no appliance answers.
 
 ## The UI flow
 
@@ -33,7 +35,7 @@ Other commands:
    - *Not based on your documents…* when no documents were attached;
    - *Check …: these figures aren't in the documents and weren't calculated by sūveryn…* when the answer contains a figure in no source and no server calculation (`unverified_figures`); each such figure is underlined (wavy, in accent-ink) in the answer;
    - *Calculated by sūveryn, not read from the documents…* under an answer with a total or other calculation, which the server computed exactly from figures in the sources (with a warning if a figure isn't in them).
-4b. **Choose the model.** The model badge in the composer is a menu of the models installed on this appliance (from `GET /v1/models`), each marked *Ready* or *Loads when chosen*. The choice holds for the conversation. A model that isn't loaded makes the next answer wait while it loads (up to about half a minute), and the note under the composer says that other people's questions wait too, because the GPU holds one model at a time. With one installed model the badge is a plain tag.
+4b. **Choose the model.** The model badge in the composer is a menu of the models installed on this appliance (from `GET /v1/models`), each marked *Ready* or *Loads when chosen*. It works from the keyboard (Enter opens it, the arrow keys move, Escape closes it) and is a menu of radio items for screen readers (the component library's `MenuButton`). The choice holds for the conversation. A model that isn't loaded makes the next answer wait while it loads (up to about half a minute), and the note under the composer says that other people's questions wait too, because the GPU holds one model at a time. With one installed model the badge is a plain tag.
 5. **Follow up.** Later questions in the same conversation automatically use every document attached so far. Each question is sent with the earlier questions and answers that completed; a question whose answer failed is left out. *New chat* starts over. Deleting a document from the sidebar asks for confirmation first.
 6. **Come back to it.** After each answer the whole conversation is saved on the server, where only you can see it (suveryn-tracker#5). *Conversations* in the sidebar lists them, newest first, named after their first question; clicking one opens it again and you can carry on. A document deleted since is left out of follow-up questions. The bin icon deletes a conversation after confirmation. Nothing is written to browser storage. Without a database on the server, the sidebar says that conversations aren't saved and the conversation lasts as long as the page.
 7. **Sign out.** With saved conversations, *Sign out* asks *Keep your chat history?*. *Keep and sign out* is the default and has the focus; *Delete history and sign out* deletes every saved conversation first (and stays signed in if that fails); *Cancel* or Escape stays signed in. Without saved conversations it signs out at once.
@@ -52,6 +54,35 @@ If the model is starting or unreachable, the composer says so and sending is dis
   - **The table sheet** has a frozen header and a last column naming each row's sources. Unambiguous amounts become numbers (`EUR 1.275.000,00` → 1275000 in euro format). Dates, references and anything ambiguous (`1.275`, `0123`) stay text. A column the model filled with source markers only is left out.
   - **The other sheets:** a sources sheet, and a sheet of what to check.
 - **How the files are made:** in the browser (`lib/office.ts`) with [docx](https://github.com/dolanmiu/docx) and [write-excel-file](https://gitlab.com/catamphetamine/write-excel-file), both MIT. They load on the first download only, about 540 kB, and the chat itself stays about 9 kB larger. Nothing is sent anywhere. Their licences, and those of what they bundle, are in `THIRD-PARTY-NOTICES.txt` (`npm run notices`).
+
+## Components (suveryn-tracker#44)
+
+Screens are built from a small component library in [`src/ui/`](src/ui/), shared by the chat and the web setup. It sits on [React Aria Components](https://react-spectrum.adobe.com/react-aria/) (Adobe, Apache-2.0), which gives keyboard use, focus handling and screen-reader semantics, and has no look of its own; the look is `src/ui/ui.css`, from the brand tokens, through React Aria's `data-*` states (`[data-selected]`, `[data-focus-visible]`, …). Product screens use only `src/ui`, never React Aria directly.
+
+| Component | For |
+|---|---|
+| `Button` | primary, secondary or quiet |
+| `TextField`, `PasswordField` | label, hint and error tied to the field; a show/hide toggle |
+| `Form` | errors shown on submit only (React 19 action), focus to the first field in error |
+| `RadioCards`, `RadioList` | one choice of a few, with the arrow keys |
+| `Select` | one value from a list (the language menu) |
+| `MenuButton` | a menu that acts at once (the model menu) |
+| `Card`, `Steps`, `Note`, `Facts`, `Chips` | layout, no behaviour |
+
+**The CSP.** The appliance sends `style-src 'self'` without `'unsafe-inline'`. React Aria writes two `<style>` elements of its own, which the browser would refuse (and report): `src/ui/csp.ts` makes it skip the first (pressable elements), and a build step in `vite.config.ts` replaces the second (iPhone and iPad, while a menu is open) with an attribute; `ui.css` carries both rules instead. The build fails if a React Aria update changes that code. Style properties React Aria sets through the DOM (a popover's position) are allowed.
+
+**Forms** use React 19's `useActionState`, started from `onSubmit`: given the form's `action`, React resets the form after each submit, and React Aria's fields follow the reset, which wiped every answer when Continue found an error. Fields don't use React Aria's built-in validation (`isRequired`, the browser's own `type="email"` check), whose messages come from the browser, in its language, and can appear while typing. Errors come from the screen's check, in the interface language, when the form is submitted.
+
+React Aria's own strings (e.g. "selected") are kept for English, Dutch and French only (`@react-aria/optimize-locales-plugin`). The spike's measurements: [`docs/spikes/react-aria/`](../../docs/spikes/react-aria/README.md).
+
+## The web setup (setup.html)
+
+The appliance's first-boot setup in the browser (suveryn-tracker#37; design in suveryn-appliance `docs/design/first-boot-setup/`). Its own entry and bundle: `setup.html` and [`src/setup/`](src/setup/). It shares the component library, fonts and tokens with the chat and nothing else: no sign-in (setup creates the first account, so it can't depend on Keycloak), no chat code. The appliance serves it only until setup finishes.
+
+- Laid out like the Keycloak login: the lockup and tagline, a 560 px card, the language menu in the card's top-right corner, the same focus ring.
+- It asks the appliance `GET setup/v1/state` for what the console installer set (name, address, language).
+- Steps so far: 1 Network (Connected with approved destinations or everything, or Air-gapped) and 2 Administrator account (at least 15 characters, not a common password, not the name, email address or appliance name; errors on Continue only). Welcome and steps 3 to 6, and saving the answers, follow in #37.
+- Its text is in [`src/setup/text.ts`](src/setup/text.ts), in English, Dutch (formal) and French (vous); the language starts as the one chosen at installation.
 
 ## Token usage
 
@@ -98,4 +129,4 @@ From the [brand guidelines](https://github.com/suveryn/suveryn-brand/blob/main/g
 - The code is AGPL-3.0-or-later, like the rest of `suveryn-core`.
 - `src/brand/`, `public/favicon.svg` and `public/apple-touch-icon.png` hold the sūveryn brand mark, which is **not** AGPL; see [src/brand/README.md](src/brand/README.md) and the [trademark policy](https://github.com/suveryn/suveryn-brand/blob/main/TRADEMARK_POLICY.md).
 - The fonts (`src/fonts/`, from `suveryn-brand`) are SIL Open Font Licence 1.1.
-- Bundled third-party software (React, Lucide, the fonts) is listed with its licence texts in [public/THIRD-PARTY-NOTICES.txt](public/THIRD-PARTY-NOTICES.txt), which `npm run build` regenerates.
+- Bundled third-party software (React, React Aria, Lucide, the fonts) is listed with its licence texts in [public/THIRD-PARTY-NOTICES.txt](public/THIRD-PARTY-NOTICES.txt), which `npm run build` regenerates.
