@@ -15,7 +15,7 @@ const en = {
   signInCaption: "Your office's own sign-in. Documents and answers stay on this server.",
   sessionEnded: "Your session has ended. Sign in to continue.",
   signInIncomplete: "You're not signed in yet. If you keep coming back here after signing in, open this page at the address your office uses for sūveryn and allow cookies.",
-  signInUnavailable: (why: string) => `Sign-in isn't available right now: ${why}`,
+  signInUnavailable: (why: string) => `Can't sign in: ${why}`,
 
   // health and availability
   serverUnreachable: "Can't reach the sūveryn server.",

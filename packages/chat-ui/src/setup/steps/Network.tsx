@@ -5,24 +5,26 @@
  */
 import { Globe, Network as NetworkIcon, Server, SquareTerminal, WifiOff } from "lucide-react";
 import { useState } from "react";
-import { Button, Chips, Facts, Form, RadioCards, RadioList } from "../../ui";
-import type { Answers, NetworkMode, Outgoing, SetupState } from "../api";
+import { Chips, Facts, Form, RadioCards, RadioList } from "../../ui";
+import { saveNetwork, type NetworkAnswer, type NetworkMode, type Outgoing, type SetupState } from "../api";
 import { useText } from "../text";
+import { checkThenSave, StepFooter } from "./common";
 
 type Props = {
   state: SetupState;
-  answers: Answers["network"];
-  onDone: (network: Answers["network"]) => void;
+  onBack: () => void;
+  onDone: (network: NetworkAnswer) => void;
   headingId: string;
 };
 
-export function Network({ state, answers, onDone, headingId }: Props) {
+export function Network({ state, onBack, onDone, headingId }: Props) {
   const t = useText();
-  const [mode, setMode] = useState<NetworkMode>(answers.mode);
-  const [outgoing, setOutgoing] = useState<Outgoing>(answers.outgoing);
+  const [mode, setMode] = useState<NetworkMode>(state.answers.network?.mode ?? "connected");
+  const [outgoing, setOutgoing] = useState<Outgoing>(state.answers.network?.outgoing ?? "approved");
 
   return (
-    <Form check={() => ({})} onValid={() => onDone({ mode, outgoing })} aria-labelledby={headingId}>
+    <Form check={() => checkThenSave({}, () => saveNetwork({ mode, outgoing }), t)} onValid={() => onDone({ mode, outgoing })}
+          aria-labelledby={headingId}>
       <h1 id={headingId} className="setup-title">{t.networkTitle}</h1>
       <p className="setup-lead">{t.networkLead}</p>
 
@@ -68,10 +70,7 @@ export function Network({ state, answers, onDone, headingId }: Props) {
         </div>
       )}
 
-      <div className="setup-footer">
-        <span />
-        <Button type="submit" variant="primary">{t.continue}</Button>
-      </div>
+      <StepFooter onBack={onBack} back={t.back} next={t.continue} />
     </Form>
   );
 }

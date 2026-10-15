@@ -4,30 +4,33 @@
  */
 import { Info } from "lucide-react";
 import { useState } from "react";
-import { Button, Form, Note, PasswordField, TextField } from "../../ui";
+import { Form, Note, PasswordField, TextField } from "../../ui";
 import { checkAdministrator } from "../administrator";
-import type { Answers } from "../api";
+import { saveAdministrator, type AdministratorAnswer, type SetupState } from "../api";
 import { useText } from "../text";
+import { checkThenSave, StepFooter } from "./common";
 
 type Props = {
-  applianceName: string;
-  answers: Answers["administrator"];
+  state: SetupState;
   onBack: () => void;
-  onDone: (administrator: NonNullable<Answers["administrator"]>) => void;
+  onDone: (administrator: AdministratorAnswer) => void;
   headingId: string;
 };
 
-export function Administrator({ applianceName, answers, onBack, onDone, headingId }: Props) {
+/** The password is sent to the appliance once, on Continue, and isn't kept in the page afterwards:
+ *  coming back to this step asks for it again. */
+export function Administrator({ state, onBack, onDone, headingId }: Props) {
   const t = useText();
-  const [name, setName] = useState(answers?.name ?? "");
-  const [email, setEmail] = useState(answers?.email ?? "");
+  const [name, setName] = useState(state.answers.administrator?.name ?? "");
+  const [email, setEmail] = useState(state.answers.administrator?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
   return (
     <Form
       aria-labelledby={headingId}
-      check={() => checkAdministrator({ name, email, password, confirm }, applianceName, t)}
+      check={() => checkThenSave(checkAdministrator({ name, email, password, confirm }, state.name, t),
+                                 () => saveAdministrator({ name: name.trim(), email: email.trim(), password }), t)}
       onValid={() => onDone({ name: name.trim(), email: email.trim() })}
     >
       <h1 id={headingId} className="setup-title">{t.adminTitle}</h1>
@@ -43,10 +46,7 @@ export function Administrator({ applianceName, answers, onBack, onDone, headingI
                      value={confirm} onChange={setConfirm} />
       <Note icon={<Info size={16} />}>{t.adminNote}</Note>
 
-      <div className="setup-footer">
-        <Button onPress={onBack}>{t.back}</Button>
-        <Button type="submit" variant="primary">{t.continue}</Button>
-      </div>
+      <StepFooter onBack={onBack} back={t.back} next={t.continue} />
     </Form>
   );
 }

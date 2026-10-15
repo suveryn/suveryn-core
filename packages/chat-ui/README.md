@@ -61,13 +61,16 @@ Screens are built from a small component library in [`src/ui/`](src/ui/), shared
 
 | Component | For |
 |---|---|
-| `Button` | primary, secondary or quiet |
+| `Button`, `LinkButton`, `CopyButton` | primary, secondary or quiet; a link that looks like a button; copy with a *Copied* confirmation |
 | `TextField`, `PasswordField` | label, hint and error tied to the field; a show/hide toggle |
-| `Form` | errors shown on submit only (React 19 action), focus to the first field in error |
-| `RadioCards`, `RadioList` | one choice of a few, with the arrow keys |
-| `Select` | one value from a list (the language menu) |
+| `Form`, `FormError` | errors shown on submit only (React 19 action), focus to the first field in error; a message for the whole form |
+| `RadioCards`, `RadioList`, `Checkbox` | one choice of a few, with the arrow keys; a yes or no |
+| `Select`, `SelectField` | one value from a list (the language menu; a field in a form) |
 | `MenuButton` | a menu that acts at once (the model menu) |
-| `Card`, `Steps`, `Note`, `Facts`, `Chips` | layout, no behaviour |
+| `FilePick`, `FileDrop` | choose a file, or drop it on an area that also has a button to choose one |
+| `Progress`, `StatusList` | a progress bar; a list of steps, each waiting, running, done or failed |
+| `QrCode` | a QR code drawn as SVG paths (no image, so the CSP needs nothing extra) |
+| `Card`, `Steps`, `Note`, `Notice`, `Facts`, `Rows`, `Chips` | layout, no behaviour |
 
 **The CSP.** How this UI keeps to the appliance's Content-Security-Policy, what to check before adding a library and what to do when the build stops with a CSP error: [docs/content-security-policy.md](../../docs/content-security-policy.md). `src/csp.test.ts` checks the source against its rules. In short: the appliance sends `style-src 'self'` without `'unsafe-inline'`. React Aria writes two `<style>` elements of its own, which the browser would refuse (and report): `src/ui/csp.ts` makes it skip the first (pressable elements), and a build step in `vite.config.ts` replaces the second (iPhone and iPad, while a menu is open) with an attribute; `ui.css` carries both rules instead. The build fails if a React Aria update changes that code. Style properties React Aria sets through the DOM (a popover's position) are allowed.
 
@@ -80,9 +83,26 @@ React Aria's own strings (e.g. "selected") are kept for English, Dutch and Frenc
 The appliance's first-boot setup in the browser (suveryn-tracker#37; design in suveryn-appliance `docs/design/first-boot-setup/`). Its own entry and bundle: `setup.html` and [`src/setup/`](src/setup/). It shares the component library, fonts and tokens with the chat and nothing else: no sign-in (setup creates the first account, so it can't depend on Keycloak), no chat code. The appliance serves it only until setup finishes.
 
 - Laid out like the Keycloak login: the lockup and tagline, a 560 px card, the language menu in the card's top-right corner, the same focus ring.
-- It asks the appliance `GET setup/v1/state` for what the console installer set (name, address, language).
-- Steps so far: 1 Network (Connected with approved destinations or everything, or Air-gapped) and 2 Administrator account (at least 15 characters, not a common password, not the name, email address or appliance name; errors on Continue only). Welcome and steps 3 to 6, and saving the answers, follow in #37.
+- It asks the appliance `GET setup/v1/state` for what the console installer set (name, address, language), the appliance's ID and fingerprint, the installed models, the USB disks and the answers saved so far.
 - Its text is in [`src/setup/text.ts`](src/setup/text.ts), in English, Dutch (formal) and French (vous); the language starts as the one chosen at installation.
+
+The screens ([`src/setup/steps/`](src/setup/steps/)):
+
+0. **Welcome.** What setup asks, in six steps, and *Get started*.
+1. **Network.** Connected (with approved destinations only, or everything) or Air-gapped.
+2. **Administrator account.** Name, email address and password: at least 15 characters, not a common password, not the name, email address or appliance name. The password is sent to the appliance once and never kept in the page.
+3. **Certificate.** The appliance's own (self-signed) certificate, or the office's: certificate, private key and optional chain as PEM files (64 KB at most each). The appliance checks that they belong together.
+4. **Support agreement.** Register the appliance on the Sūveryn Labs portal (the link, a QR code with the same address as the console's, the ID and the fingerprint with copy buttons), then drop or choose the manifest the portal returns; its edition, users and dates are shown. *Skip for now* continues without one.
+5. **Backups.** A USB disk, a network share (SMB or NFS, with *Test connection*) or *Set up later*, and how long to keep backups. A backup goes to a USB disk or share only with a recovery key (below).
+6. **Review.** Every answer, with *Edit* back to its step (which then returns here). The name is changed in the console only. *Start provisioning*.
+- **Provisioning.** Each step with its state: the database, sign-in, the models, the web server, the outgoing-traffic check. A failed step says why and offers *Try again*. A reload picks it up where it is.
+- **Complete.** What was set up, a warning if outgoing traffic turned out not to be limited, the sign-in address and *Open sūveryn*.
+
+Every step is saved on the appliance when Continue is pressed (a reload resumes there), and the appliance checks everything again. The contract, with the error codes, is at the top of [`src/setup/api.ts`](src/setup/api.ts); the appliance implements it in #37 part 5. Its refusals are shown in the interface's language (`errors` in `text.ts`).
+
+**The backup recovery key.** The browser makes an [age](https://age-encryption.org) X25519 key pair (WebCrypto, `src/setup/recoveryKey.ts`) and downloads the private half as an age identity file (`suveryn-backup-recovery-key-<name>.txt`); only the public half (`age1…`) goes to the appliance, which encrypts backups to it. So the appliance can make backups but can't read them, and nobody can without that file. Setup continues only once the file has been downloaded and the administrator confirms it is stored safely. The format is checked against the real `age-keygen` in `screens.test.ts`.
+
+**Without an appliance.** `npm run dev`, and the preview build `npx vite build --mode demo`, answer from [`src/setup/demo.ts`](src/setup/demo.ts) with the design's example values; a production build doesn't contain it (`screens.test.ts` checks the guard). In the demo any `.yaml` file is a valid manifest, a share address containing "fail" can't be reached, and adding `#check-fails`, `#provisioning-fails` or `#no-disk` to the address tries those cases. The browser check that walks every screen in all three languages, with axe and the real CSP: [`docs/spikes/react-aria/check.py`](../../docs/spikes/react-aria/check.py).
 
 ## Token usage
 

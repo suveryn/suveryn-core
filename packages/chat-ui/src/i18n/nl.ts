@@ -9,7 +9,7 @@ const nl: Messages = {
   signInCaption: "Het eigen inlogsysteem van uw kantoor. Documenten en antwoorden blijven op deze server.",
   sessionEnded: "Uw sessie is afgelopen. Log opnieuw in om verder te gaan.",
   signInIncomplete: "U bent nog niet ingelogd. Komt u na het inloggen steeds hier terug, open deze pagina dan via het adres dat uw kantoor voor sūveryn gebruikt en sta cookies toe.",
-  signInUnavailable: (why) => `Inloggen is nu niet mogelijk: ${why}`,
+  signInUnavailable: (why) => `Inloggen lukt niet: ${why}`,
 
   serverUnreachable: "De sūveryn-server is niet bereikbaar.",
   modelStarting: "Het model start op. Dat duurt tot een minuut.",

@@ -10,10 +10,12 @@
  * Both open in a Popover, positioned by React Aria with style properties set through the DOM, which
  * the appliance's CSP allows (it blocks only <style> elements and style attributes in markup).
  */
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Button as AriaButton,
+  FieldError,
+  Label,
   ListBox,
   ListBoxItem,
   Menu,
@@ -54,6 +56,40 @@ export function Select({ label, options, value, onChange, icon, className }: Sel
         <ListBox className="ui-listbox">
           {options.map((o) => (
             <ListBoxItem key={o.id} id={o.id} textValue={o.label} lang={o.lang} className="ui-option">
+              {({ isSelected }) => (
+                <>
+                  <span>{o.label}</span>
+                  {isSelected && <Check size={14} aria-hidden />}
+                </>
+              )}
+            </ListBoxItem>
+          ))}
+        </ListBox>
+      </Popover>
+    </AriaSelect>
+  );
+}
+
+/** A select with a visible label and an optional hint, for forms (the backup disk, the retention). */
+export function SelectField({ name, label, description, options, value, onChange }: {
+  name: string; label: string; description?: string; options: Option[]; value: string; onChange: (id: string) => void;
+}) {
+  return (
+    <AriaSelect name={name} selectedKey={value} onSelectionChange={(k) => k != null && onChange(String(k))}
+                className="ui-field ui-select-field">
+      <Label className="ui-label">{label}</Label>
+      <AriaButton className="ui-input ui-select-field-button">
+        <SelectValue className="ui-select-value" />
+        <ChevronDown size={16} aria-hidden />
+      </AriaButton>
+      {description && <Text slot="description" className="ui-hint">{description}</Text>}
+      <FieldError className="ui-field-error">
+        {({ validationErrors }) => <><CircleAlert size={16} aria-hidden /><span>{validationErrors.join(" ")}</span></>}
+      </FieldError>
+      <Popover className="ui-popover" placement="bottom start" offset={6}>
+        <ListBox className="ui-listbox">
+          {options.map((o) => (
+            <ListBoxItem key={o.id} id={o.id} textValue={o.label} className="ui-option">
               {({ isSelected }) => (
                 <>
                   <span>{o.label}</span>
