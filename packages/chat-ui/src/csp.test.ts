@@ -6,9 +6,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url)); // not .pathname: it keeps a space as %20
 
 function files(dir: string, ext: RegExp): string[] {
   return readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>

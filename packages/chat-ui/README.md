@@ -70,6 +70,7 @@ Screens are built from a small component library in [`src/ui/`](src/ui/), shared
 | `FilePick`, `FileDrop` | choose a file, or drop it on an area that also has a button to choose one |
 | `Progress`, `StatusList` | a progress bar; a list of steps, each waiting, running, done or failed |
 | `QrCode` | a QR code drawn as SVG paths (no image, so the CSP needs nothing extra) |
+| `ColumnChart`, `BarChart` | columns over time and bars for comparison, up to two stacked series (suveryn-tracker#46): HTML with the brand's chart colours, round axis steps from d3-array; every chart can be shown as a table, the columns are one Tab stop with the arrow keys, Home and End, each read out with its values |
 | `Card`, `Steps`, `Note`, `Notice`, `Facts`, `Rows`, `Chips` | layout, no behaviour |
 
 **The CSP.** How this UI keeps to the appliance's Content-Security-Policy, what to check before adding a library and what to do when the build stops with a CSP error: [docs/content-security-policy.md](../../docs/content-security-policy.md). `src/csp.test.ts` checks the source against its rules. In short: the appliance sends `style-src 'self'` without `'unsafe-inline'`. React Aria writes two `<style>` elements of its own, which the browser would refuse (and report): `src/ui/csp.ts` makes it skip the first (pressable elements), and a build step in `vite.config.ts` replaces the second (iPhone and iPad, while a menu is open) with an attribute; `ui.css` carries both rules instead. The build fails if a React Aria update changes that code. Style properties React Aria sets through the DOM (a popover's position) are allowed.
@@ -106,7 +107,7 @@ Every step is saved on the appliance when Continue is pressed (a reload resumes 
 
 ## Token usage
 
-The sidebar shows the signed-in user's own token count for today (*1.2k tokens today*); clicking it opens **Your usage**: requests and input, output and total tokens over the last hour, day, week or month, or chosen whole days, with a bar chart and a split by kind (suveryn-tracker#7). Only the user's own usage is shown, never a colleague's. Administrators (Keycloak role `suveryn-admin`) also get **Administration**: the office's usage in total and **per user**, the notional cost on a cloud API at editable rates per million input and output tokens (default $3 and $15), and who last changed them. Rolling periods end at the server's clock, not the browser's. Usage is informational only: nothing is ever limited because of it.
+The sidebar shows the signed-in user's own token count for today (*1.2k tokens today*); clicking it opens **Your usage**: requests and input, output and total tokens over the last hour, day, week or month, or chosen whole days, with a chart of input and output tokens per step (also as a table) and a split by kind (suveryn-tracker#7, #46). Only the user's own usage is shown, never a colleague's. Administrators (Keycloak role `suveryn-admin`) also get **Administration**: the office's usage in total and **per user** (a bar per person, then the exact numbers in a table), the notional cost on a cloud API at editable rates per million input and output tokens (default $3 and $15), and who last changed them. Rolling periods end at the server's clock, not the browser's. Usage is informational only: nothing is ever limited because of it.
 
 ## Languages
 

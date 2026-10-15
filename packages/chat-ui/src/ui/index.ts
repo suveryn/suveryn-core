@@ -19,3 +19,4 @@ export { Card, Chips, Facts, Note, Notice, Rows, StatusList, Steps, type Fact, t
 export { MenuButton, Select, SelectField, type Option } from "./menus";
 export { QrCode } from "./QrCode";
 export { I18nProvider } from "react-aria-components";
+export { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "./charts";

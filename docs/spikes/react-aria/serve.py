@@ -32,6 +32,44 @@ API = {
 }
 
 
+STEPS = [(3_600, "5 minutes", 300), (86_400, "1 hour", 3_600), (7 * 86_400, "1 day", 86_400), (None, "1 day", 86_400)]
+USERS = [("u1", "a.peeters", "An Peeters", 1.0), ("u2", "b.janssens", "Bart Janssens", 0.55),
+         ("u3", "c.dubois", "Claire Dubois", 0.3), ("u4", "d.maes", None, 0.08)]
+
+
+def usage(url, admin):
+    """A fictional usage report (suveryn-core api: UsageReport, OfficeUsageReport) for the charts
+    (suveryn-tracker#46): office hours busier, input tokens about eight times the output."""
+    from datetime import datetime, timedelta, timezone
+    from urllib.parse import parse_qs, urlsplit
+    q = parse_qs(urlsplit(url).query)
+    now = datetime.now(timezone.utc)
+    start = datetime.fromisoformat(q["start"][0].replace("Z", "+00:00"))
+    end = datetime.fromisoformat(q["end"][0].replace("Z", "+00:00")) if "end" in q else now
+    span = (end - start).total_seconds()
+    step, seconds = next((n, s) for limit, n, s in STEPS if limit is None or span <= limit * 1.01)
+    series, t, i = [], start, 0
+    while t < end:
+        busy = 1.0 if 8 <= t.astimezone().hour < 18 or seconds >= 86_400 else 0.15
+        prompt = int((9_000 + (i * 7_919) % 23_000) * busy * seconds / 3_600) if seconds < 86_400 else 150_000 + (i * 37_013) % 260_000
+        if i % 9 == 4:
+            prompt = 0
+        completion = prompt // 8
+        series.append({"start": t.isoformat(), "requests": prompt // 4_000, "prompt_tokens": prompt,
+                       "completion_tokens": completion, "total_tokens": prompt + completion})
+        t, i = t + timedelta(seconds=seconds), i + 1
+    total = {k: sum(b[k] for b in series) for k in ("requests", "prompt_tokens", "completion_tokens", "total_tokens")}
+    report = {"start": start.isoformat(), "end": end.isoformat(), "step": step, "totals": total, "series": series,
+              "by_kind": {"chat": total, "summary": {k: v // 5 for k, v in total.items()}}}
+    if not admin:
+        return report
+    weight = sum(u[3] for u in USERS)
+    per_user = [{"user_id": uid, "username": name, "name": full,
+                 "totals": {k: int(v * w / weight) for k, v in total.items()}, "cost": None} for uid, name, full, w in USERS]
+    return {**report, "per_user": per_user, "cost": "12.34",
+            "rates": {"input_per_million": "3.0000", "output_per_million": "15.0000", "currency": "EUR"}}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(DIST), **k)
@@ -43,9 +81,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
-        if path in API or path.startswith("/v1/usage"):
-            body = json.dumps(API.get(path, {"requests": 0, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
-                                             "by_kind": [], "days": []})).encode()
+        if path in API or path in ("/v1/usage", "/v1/admin/usage"):
+            body = json.dumps(API[path] if path in API else usage(self.path, admin=path.startswith("/v1/admin"))).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

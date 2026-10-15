@@ -121,12 +121,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .totals div { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); }
 .totals dt { font-size: 12px; color: var(--text-dim); }
 .totals dd { margin: var(--space-1) 0 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.chart { margin: 0; display: flex; flex-direction: column; gap: var(--space-1); }
-.bars { display: flex; align-items: flex-end; gap: 2px; height: 140px; border-bottom: 1px solid var(--line); }
-.bar { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; }
-.bar i { display: block; width: 100%; min-height: 0; background: var(--teal-ink); border-radius: 2px 2px 0 0; } /* teal-ink: 3:1 or more for a graphic */
-.bar:hover i { background: var(--text); }
-.chart figcaption { display: flex; justify-content: space-between; margin: 0; }
 .table-wrap { overflow-x: auto; }
 .usage-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .usage-table th, .usage-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
