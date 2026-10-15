@@ -19,8 +19,8 @@
 }
 .ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
            border-radius: var(--radius-lg); padding: 28px; }
-.ui-input { width: 100%; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
-            font: inherit; font-size: 15px; line-height: 1.4; color: var(--text); background: var(--bg); }
+.ui-input { width: 100%; min-height: 44px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+            font: inherit; font-size: 15px; line-height: 20px; color: var(--text); background: var(--bg); }
 .ui-input::placeholder { color: var(--text-dimmer); }
 .ui-input[data-focused], .ui-select-button[data-focus-visible] { outline: none; border-color: var(--focus-border);
                                                                  box-shadow: 0 0 0 3px var(--focus-glow); }
@@ -33,14 +33,28 @@
    (usePreventScroll; replaced by this attribute in vite.config.ts, reactAriaCsp). */
 @layer { html[data-ui-prevent-scroll] * { overscroll-behavior: contain; } }
 
+/* ------------------------------------------------------------------------------------------------ sizes
+ * Two heights, the same for fields and buttons so that they line up side by side:
+ * - regular, 44px: forms (the setup, as its design: fields 11px 14px at 15px, buttons 12px 20px at
+ *   14.5px) and the buttons of dialogs;
+ * - small, 32px: toolbars and compact forms (the usage pages, the chart's table button, the language
+ *   menu, the period choice): fields and buttons with size="small".
+ * Text buttons (Cancel, Sign out) sit in the text and icon buttons (36px, 28px small) in rows: neither
+ * stands beside a field. src/ui/sizes.test.ts checks the heights add up.
+ */
+.ui-button[data-size="small"] { min-height: 32px; font-size: 13.5px; padding: 6px 12px; }
+.ui-field[data-size="small"] { gap: 4px; margin-bottom: 0; }
+.ui-field[data-size="small"] .ui-label { font-size: 12px; font-weight: 500; line-height: 16px; color: var(--text-dim); }
+.ui-field[data-size="small"] .ui-input { min-height: 32px; padding: 6px 10px; font-size: 13.5px; line-height: 18px; }
+
 /* ------------------------------------------------------------------------------------------------ type */
 .ui-eyebrow { display: block; font-size: 11px; line-height: 1.3; font-weight: 600; letter-spacing: 0.04em;
               text-transform: uppercase; color: var(--text-dim); margin: 0; }
 
 /* ------------------------------------------------------------------------------------------------ buttons */
-.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-             font: inherit; font-size: 15px; font-weight: 600; line-height: 1.2; border-radius: var(--radius-sm);
-             padding: 10px var(--space-4); border: 1px solid var(--line); background: var(--bg); color: var(--text);
+.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px;
+             font: inherit; font-size: 14.5px; font-weight: 600; line-height: 1.2; border-radius: var(--radius-sm);
+             padding: 12px 20px; border: 1px solid var(--line); background: var(--bg); color: var(--text);
              cursor: pointer; text-decoration: none; }
 .ui-button[data-hovered] { border-color: var(--text-dim); }
 .ui-button[data-variant="primary"] { background: var(--accent); border-color: transparent; color: var(--on-accent); }
@@ -99,9 +113,9 @@
 /* ------------------------------------------------------------------------------------------------ select, menu */
 .ui-select { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
 .ui-select-icon { display: flex; }
-.ui-select-button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 9.5rem;
-                    font: inherit; font-size: 13px; color: var(--text-dim); background: transparent; border: 1px solid var(--line);
-                    border-radius: var(--radius-sm); padding: 7px 10px; cursor: pointer; }
+.ui-select-button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 9.5rem; min-height: 32px;
+                    font: inherit; font-size: 13px; line-height: 16px; color: var(--text-dim); background: transparent;
+                    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; cursor: pointer; }
 .ui-select-button[data-hovered] { border-color: var(--text-dim); }
 .ui-popover { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 6px;
               min-width: var(--trigger-width); box-shadow: 0 8px 24px rgba(2, 2, 5, 0.08); outline: none; }
@@ -150,7 +164,7 @@
 
 /* ------------------------------------------------------------------------------------------------ setup additions (#37) */
 .ui-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.ui-button-small { font-size: 13.5px; padding: 7px 12px; }
+
 .ui-text-link, .ui-link-button { color: var(--accent-ink); font: inherit; font-weight: 600; text-decoration: underline;
                                  text-underline-offset: 2px; background: none; border: none; padding: 0; cursor: pointer; }
 .ui-text-link[data-focus-visible], .ui-link-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
@@ -353,7 +367,8 @@
 
 /* a row of short options (the usage period) */
 .ui-segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-.ui-segment { padding: 6px var(--space-3); font-size: 13px; color: var(--text); cursor: pointer; border-right: 1px solid var(--line); }
+.ui-segment { padding: 7px var(--space-3); font-size: 13px; line-height: 16px; color: var(--text); cursor: pointer;
+              border-right: 1px solid var(--line); } /* 30px, with the group's border 32px: small */
 .ui-segment:last-child { border-right: none; }
 .ui-segment[data-hovered] { background: var(--surface); }
 .ui-segment[data-selected] { background: var(--surface-alt); font-weight: 600; }

@@ -71,12 +71,14 @@ export function Select({ label, options, value, onChange, icon, className }: Sel
 }
 
 /** A select with a visible label and an optional hint, for forms (the backup disk, the retention). */
-export function SelectField({ name, label, description, options, value, onChange }: {
+export function SelectField({ name, label, description, options, value, onChange, size }: {
   name: string; label: string; description?: string; options: Option[]; value: string; onChange: (id: string) => void;
+  /** As the text fields (fields.tsx, FieldSize). */
+  size?: "regular" | "small";
 }) {
   return (
     <AriaSelect name={name} selectedKey={value} onSelectionChange={(k) => k != null && onChange(String(k))}
-                className="ui-field ui-select-field">
+                className="ui-field ui-select-field" data-size={size === "small" ? "small" : undefined}>
       <Label className="ui-label">{label}</Label>
       <AriaButton className="ui-input ui-select-field-button">
         <SelectValue className="ui-select-value" />

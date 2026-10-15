@@ -33,7 +33,7 @@ export function CopyButton({ text, label, copiedLabel, onFail }: { text: string;
   }, [copied]);
   return (
     <>
-      <Button className="ui-button-small" onPress={async () => {
+      <Button size="small" onPress={async () => {
         try { await navigator.clipboard.writeText(text); setCopied(true); } catch { onFail?.(); }
       }}>
         {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}

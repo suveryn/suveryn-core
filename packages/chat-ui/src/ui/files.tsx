@@ -39,7 +39,7 @@ export function FilePick({ name, title, hint, accept, file, onChange, chooseLabe
         <span id={`${id}-hint`} className="ui-file-hint">{file ? file.name : hint}</span>
       </span>
       <FileTrigger acceptedFileTypes={accept} onSelect={(files) => { const f = files?.[0] ?? null; if (f) { clear(); onChange(f); } }}>
-        <AriaButton className="ui-button ui-button-small" data-variant="secondary"
+        <AriaButton className="ui-button" data-size="small" data-variant="secondary"
                     aria-labelledby={`${id}-choose ${id}-title`}
                     aria-describedby={`${id}-hint${error ? ` ${id}-error` : ""}`}>
           <span id={`${id}-choose`}>{chooseLabel}</span>

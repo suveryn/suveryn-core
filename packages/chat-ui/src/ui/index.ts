@@ -12,7 +12,7 @@ import "./ui.css";
 export { CopyButton, LinkButton, Progress } from "./actions";
 export { Button, cx, IconButton, TextButton, type ButtonProps } from "./Button";
 export { Checkbox, RadioCards, RadioList, Segmented, type Choice } from "./choices";
-export { DateField, NumberField, PasswordField, TextArea, TextField } from "./fields";
+export { DateField, NumberField, PasswordField, TextArea, TextField, type FieldSize } from "./fields";
 export { Dialog } from "./dialog";
 export { FileButton, FileDrop, FilePick, readText } from "./files";
 export { Form, FormError, useFieldError, useFormPending, type FieldErrors } from "./forms";
