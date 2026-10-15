@@ -7,6 +7,9 @@
  * - RadioList: compact options, each with a title and a description, and optional content under an
  *   option (the setup's approved-destination chips).
  *
+ * Each option's name is its title and its description is read after it (aria-labelledby and
+ * aria-describedby): without that, the label wraps both and a screen reader reads the description twice.
+ *
  * Styled in ui.css through [data-selected], [data-hovered], [data-focus-visible], [data-disabled].
  */
 import { useId, type ReactNode } from "react";
@@ -35,11 +38,11 @@ export function RadioCards({ label, choices, value, onChange, name }: Props) {
   return (
     <RadioGroup aria-label={label} value={value} onChange={onChange} name={name} className="ui-radio-cards">
       {choices.map((c) => (
-        <Radio key={c.value} value={c.value} className="ui-radio-card"
+        <Radio key={c.value} value={c.value} className="ui-radio-card" aria-labelledby={`${id}-${c.value}-title`}
                aria-describedby={c.description ? `${id}-${c.value}` : undefined}>
           {c.icon && <span className="ui-radio-card-icon" aria-hidden>{c.icon}</span>}
           <span className="ui-radio-card-body">
-            <span className="ui-radio-card-title">{c.title}</span>
+            <span id={`${id}-${c.value}-title`} className="ui-radio-card-title">{c.title}</span>
             {c.description && <span id={`${id}-${c.value}`} className="ui-radio-card-desc">{c.description}</span>}
           </span>
           <span className="ui-radio-dot" aria-hidden />
@@ -55,10 +58,11 @@ export function RadioList({ label, choices, value, onChange, name }: Props) {
     <RadioGroup aria-label={label} value={value} onChange={onChange} name={name} className="ui-radio-list">
       {choices.map((c) => (
         <div key={c.value} className="ui-radio-list-item">
-          <Radio value={c.value} className="ui-radio-option" aria-describedby={c.description ? `${id}-${c.value}` : undefined}>
+          <Radio value={c.value} className="ui-radio-option" aria-labelledby={`${id}-${c.value}-title`}
+                 aria-describedby={c.description ? `${id}-${c.value}` : undefined}>
             <span className="ui-radio-dot" aria-hidden />
             <span>
-              <span className="ui-radio-option-title">{c.title}</span>
+              <span id={`${id}-${c.value}-title`} className="ui-radio-option-title">{c.title}</span>
               {c.description && <span id={`${id}-${c.value}`} className="ui-radio-option-desc">{c.description}</span>}
             </span>
           </Radio>
