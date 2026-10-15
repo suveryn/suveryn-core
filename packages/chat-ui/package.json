@@ -22,6 +22,7 @@
     "brand:sync": "node scripts/brand-sync.mjs"
   },
   "dependencies": {
+    "@internationalized/date": "3.12.4",
     "d3-array": "3.2.4",
     "docx": "^9.10.0",
     "lucide-react": "^1.54.0",
