@@ -128,6 +128,8 @@ Reviewers: check changes against these.
     - A document of another owner gets a fresh reader.
     - Only the document being read is where the reader can see it.
 
+15. **The browser code keeps to the appliance's Content-Security-Policy without loosening it** (`style-src 'self'`, `script-src 'self'`, no `data:`, no other host). No `<style>` element, inline script, `style` attribute in markup, `eval` or `innerHTML`; a library that writes styling at run time is fixed so it doesn't, or isn't used; never `'unsafe-inline'`, a nonce or a hash. How, and the two React Aria exceptions we handle: [content-security-policy.md](content-security-policy.md). Checked by `packages/chat-ui/src/csp.test.ts` and a browser check under the real headers.
+
 ## 5. Decisions and their evidence
 
 | Decision | Evidence |
@@ -230,6 +232,7 @@ Reviewers: check changes against these.
 - [ ] If it changes grounding limits: do `WHOLE_DOCUMENT_CHARS` and the history still fit a slot's context share, and does the chunk cap keep markers to two digits?
 - [ ] If it touches `calc.py`: are mixed or ambiguous number styles refused rather than guessed, does every failure become a visible `[calculation not possible: …]`, and do the streamed and non-streamed paths give the same text?
 - [ ] If it touches the UI: is model output still rendered only as React text (no HTML), and is a partial answer discarded after an `error` event?
+- [ ] If it touches the UI or adds a browser dependency: does it keep to [content-security-policy.md](content-security-policy.md) (no inline `<style>` or script, nothing written into the page at run time, no `data:` or other host), and does `npm test` (`src/csp.test.ts`) pass? A new library is checked under the real policy first.
 - [ ] If it adds an endpoint: is it under `/v1` (signed-in only) or deliberately public, does a state-changing endpoint keep the same-origin check, and does anything that touches documents pass the caller's owner (`owner_of`)?
 - [ ] If it touches `auth.py`: do the sign-in tests (`test_auth.py`) and `keycloak/live_login_check.py` still pass, and does no token, code or cookie reach the browser or a log?
 - [ ] If it touches the PDF reader (`isolation.py`, `service.py`): does untrusted parsing stay in the reader, does the reader get no new secrets (`child_env`), does another owner's document still get a fresh reader, and does only the document being read reach the inbox?

@@ -2,6 +2,8 @@
 
 suveryn-tracker#44, October 2026. The question: can React Aria Components (Adobe, Apache-2.0), styled with the brand tokens, be the chat UI's component foundation, with **zero CSP violations** under the appliance's real policy? Its first user is the appliance's web setup (#37).
 
+How this is handled from now on, for every change and library: [docs/content-security-policy.md](../../content-security-policy.md).
+
 **Result: it holds.** Out of the box React Aria breaks the CSP (one violation on every page, a second on iPhone and iPad), but both are fixed without loosening the policy, and with the fixes every flow below runs with zero violations, no script errors and no axe findings. Recommendation: adopt it, finish the web setup on it (#37), and move the remaining hand-built menus over.
 
 ## What was built
