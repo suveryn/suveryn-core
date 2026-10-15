@@ -12,6 +12,7 @@ import { compact } from "../lib/usage";
 import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 import { LanguagePicker } from "./LanguagePicker";
+import { Button, IconButton, TextButton } from "../ui";
 
 type Props = {
   documents: StoredDocument[];
@@ -41,12 +42,16 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
                          onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin }: Props) {
   const m = useT();
   const [confirming, setConfirming] = useState<string | null>(null);
+  // The keyboard focus: on Keep (the safe choice) when a deletion is asked, back on the bin after Keep,
+  // and on a document's bin while its dialog is open, so the focus returns there when it closes.
+  const [back, setBack] = useState<string | null>(null);
+  const keep = (id: string) => { setConfirming(null); setBack(id); };
   return (
     <aside className="sidebar">
       <Lockup />
-      <button type="button" className="button-primary" onClick={onNewChat}>
+      <Button variant="primary" className="new-chat" onPress={onNewChat}>
         <Plus size={16} aria-hidden /> {m.newChat}
-      </button>
+      </Button>
 
       <section className="library history" aria-labelledby="history-title">
         <h2 id="history-title" className="label">{m.conversations}</h2>
@@ -54,22 +59,21 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
         <ul>
           {conversations.map((c) => (
             <li key={c.id} className={`doc${c.id === currentConversation ? " doc-current" : ""}`}>
-              <button type="button" className="doc-use" onClick={() => onOpenConversation(c.id)}
+              <Button variant="plain" className="doc-use" onPress={() => onOpenConversation(c.id)}
                       aria-current={c.id === currentConversation ? "true" : undefined}>
                 <MessageSquare size={15} aria-hidden />
                 <span className="doc-name" title={c.title}>{c.title}</span>
                 <span className="doc-meta">{dayLabel(c.updated_at)}</span>
-              </button>
+              </Button>
               {confirming === c.id ? (
                 <span className="doc-confirm">
-                  <button type="button" className="link-danger" onClick={() => { setConfirming(null); onDeleteConversation(c.id); }}>{m.delete}</button>
-                  <button type="button" className="link" onClick={() => setConfirming(null)}>{m.keep}</button>
+                  <TextButton danger onPress={() => { setConfirming(null); onDeleteConversation(c.id); }}>{m.delete}</TextButton>
+                  <TextButton autoFocus onPress={() => keep(c.id)}>{m.keep}</TextButton>
                 </span>
               ) : (
-                <button type="button" className="icon-button small" onClick={() => setConfirming(c.id)}
-                        aria-label={m.deleteConversationLabel(c.title)} title={m.deleteConversationTitle}>
-                  <Trash2 size={14} />
-                </button>
+                <IconButton size="small" onPress={() => setConfirming(c.id)} label={m.deleteConversationLabel(c.title)} autoFocus={back === c.id}>
+                  <Trash2 size={14} aria-hidden />
+                </IconButton>
               )}
             </li>
           ))}
@@ -92,7 +96,7 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
           ))}
           {documents.map((d) => (
             <li key={d.id} className="doc">
-              <button type="button" className="doc-use" onClick={() => onUse(d)} disabled={inConversation.has(d.id)}
+              <Button variant="plain" className="doc-use" onPress={() => onUse(d)} isDisabled={inConversation.has(d.id)}
                       title={inConversation.has(d.id) ? m.alreadyInConversation :
                              d.status === "needs_review" ? m.useInConversationReview(reviewHint(reviewPages(d.warnings))) :
                              m.useInConversation}>
@@ -104,17 +108,16 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
                     (reviewPages(d.warnings).length ? m.checkPages(pageList(reviewPages(d.warnings))) : m.checkNeeded)}
                   {inConversation.has(d.id) && m.inUse}
                 </span>
-              </button>
+              </Button>
               {confirming === d.id ? (
                 <span className="doc-confirm">
-                  <button type="button" className="link-danger" onClick={() => { setConfirming(null); onDelete(d); }}>{m.delete}</button>
-                  <button type="button" className="link" onClick={() => setConfirming(null)}>{m.keep}</button>
+                  <TextButton danger onPress={() => { keep(d.id); onDelete(d); }}>{m.delete}</TextButton>
+                  <TextButton autoFocus onPress={() => keep(d.id)}>{m.keep}</TextButton>
                 </span>
               ) : (
-                <button type="button" className="icon-button small" onClick={() => setConfirming(d.id)}
-                        aria-label={m.deleteDocumentLabel(d.filename)} title={m.deleteDocumentTitle}>
-                  <Trash2 size={14} />
-                </button>
+                <IconButton size="small" onPress={() => setConfirming(d.id)} label={m.deleteDocumentLabel(d.filename)} autoFocus={back === d.id}>
+                  <Trash2 size={14} aria-hidden />
+                </IconButton>
               )}
             </li>
           ))}
@@ -127,17 +130,17 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
       <div className="sidebar-foot">
         <div className="user">
           <span className="user-name" title={user.username}>{user.name}</span>
-          <button type="button" className="link" onClick={onSignOut}><LogOut size={14} aria-hidden /> {m.signOut}</button>
+          <TextButton onPress={onSignOut}><LogOut size={14} aria-hidden /> {m.signOut}</TextButton>
         </div>
         {tokensToday !== null && (
-          <button type="button" className="link usage-counter" onClick={onOpenUsage} title={m.tokensTodayTitle}>
+          <TextButton className="usage-counter" onPress={onOpenUsage} title={m.tokensTodayTitle}>
             <BarChart3 size={14} aria-hidden /> {m.tokensToday(compact(tokensToday))}
-          </button>
+          </TextButton>
         )}
         {admin && (
-          <button type="button" className="link usage-counter" onClick={onOpenAdmin}>
+          <TextButton className="usage-counter" onPress={onOpenAdmin}>
             <Shield size={14} aria-hidden /> {m.administration}
-          </button>
+          </TextButton>
         )}
         <LanguagePicker />
         <p className="caption">{m.staysOnServer}</p>
