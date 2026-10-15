@@ -71,10 +71,22 @@ def usage(url, admin):
     if not admin:
         return report
     weight = sum(u[3] for u in USERS)
-    per_user = [{"user_id": uid, "username": name, "name": full,
-                 "totals": {k: int(v * w / weight) for k, v in total.items()}, "cost": None} for uid, name, full, w in USERS]
-    return {**report, "per_user": per_user, "cost": "12.34",
-            "rates": {"input_per_million": "3.0000", "output_per_million": "15.0000", "currency": "EUR"}}
+    per_user = []
+    for uid, name, full, w in USERS:
+        totals = {k: int(v * w / weight) for k, v in total.items()}
+        per_user.append({"user_id": uid, "username": name, "name": full, "totals": totals, "cost": cost(totals)})
+    return {**report, "per_user": per_user, "cost": cost(total), "rates": RATES}
+
+
+RATES = {"input_per_million": "3.0000", "output_per_million": "15.0000", "currency": "USD", "updated_at": None, "updated_by": None}
+
+
+def cost(t):
+    """As the gateway's usage.cost: per million input and output tokens, to the cent."""
+    from decimal import Decimal
+    raw = (Decimal(t["prompt_tokens"]) * Decimal(RATES["input_per_million"])
+           + Decimal(t["completion_tokens"]) * Decimal(RATES["output_per_million"])) / 1_000_000
+    return str(raw.quantize(Decimal("0.01")))
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -99,6 +111,22 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/":
             self.path = "/index.html"
         super().do_GET()
+
+    def do_PUT(self):
+        """The administrator's rates, kept in memory (the gateway: PUT /v1/admin/usage/rates)."""
+        if self.path.split("?")[0] != "/v1/admin/usage/rates":
+            self.send_error(404)
+            return
+        from datetime import datetime, timezone
+        new = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        RATES.update({k: str(new[k]) for k in ("input_per_million", "output_per_million", "currency") if k in new},
+                     updated_at=datetime.now(timezone.utc).isoformat(), updated_by="filip")
+        body = json.dumps(RATES).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, *a):
         pass
