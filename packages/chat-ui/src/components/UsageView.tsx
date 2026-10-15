@@ -43,8 +43,8 @@ function RangePicker({ preset, setPreset, from, setFrom, to, setTo }: {
                  options={PRESETS.map((p) => ({ value: p, label: name[p] }))} />
       {preset === "custom" && (
         <span className="range-dates">
-          <DateField label={m.from} value={from} onChange={setFrom} className="ui-field range-date" />
-          <DateField label={m.to} value={to} onChange={setTo} minValue={from || undefined} className="ui-field range-date" />
+          <DateField label={m.from} value={from} onChange={setFrom} size="small" className="range-date" />
+          <DateField label={m.to} value={to} onChange={setTo} minValue={from || undefined} size="small" className="range-date" />
         </span>
       )}
     </div>
@@ -236,12 +236,12 @@ function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: ()
       <h2 id="rates-title" className="label">{m.rates}</h2>
       <FormError />
       <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} minValue={0} maxValue={10_000}
-                   maxDecimals={4} className="ui-field rates-field" />
+                   maxDecimals={4} size="small" className="rates-field" />
       <NumberField name="output" label={m.rateOutput} value={output} onChange={edited(setOutput)} minValue={0} maxValue={10_000}
-                   maxDecimals={4} className="ui-field rates-field" />
-      <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)}
+                   maxDecimals={4} size="small" className="rates-field" />
+      <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)} size="small"
                    options={["USD", "EUR", "GBP"].map((c) => ({ id: c, label: c }))} />
-      <Button type="submit" className="ui-button-small">
+      <Button type="submit" size="small">
         {saved ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
       </Button>
       <p className="caption">{changed ? m.ratesChanged(report.rates.updated_by!, new Date(report.rates.updated_at!).toLocaleDateString(locale(), { dateStyle: "long" })) : m.ratesDefault}</p>

@@ -23,6 +23,11 @@ import {
   ToggleButton,
   type TextFieldProps as AriaTextFieldProps,
 } from "react-aria-components";
+import { cx } from "./Button";
+
+/** regular: 44px, for forms (the setup). small: 32px, beside small buttons in compact forms (the
+ *  usage pages). Both match the buttons of the same size (ui.css, "sizes"). */
+export type FieldSize = "regular" | "small";
 
 export type TextFieldProps = Omit<AriaTextFieldProps, "className" | "children"> & {
   label: string;
@@ -72,13 +77,14 @@ export function PasswordField({ label, description, placeholder, showLabel, ...p
  * and shown back formatted. The form receives it under `name` as a plain number ("3.5").
  */
 export function NumberField({ label, description, name, value, onChange, minValue, maxValue, maxDecimals = 2,
-                              className }: {
+                              size, className }: {
   label: string; description?: string; name: string; value: number; onChange: (value: number) => void;
-  minValue?: number; maxValue?: number; maxDecimals?: number; className?: string;
+  minValue?: number; maxValue?: number; maxDecimals?: number; size?: FieldSize; className?: string;
 }) {
   return (
     <AriaNumberField name={name} value={value} onChange={onChange} minValue={minValue} maxValue={maxValue}
-                     formatOptions={{ maximumFractionDigits: maxDecimals }} className={className ?? "ui-field"}>
+                     formatOptions={{ maximumFractionDigits: maxDecimals }} className={cx("ui-field", className)}
+                     data-size={size === "small" ? "small" : undefined}>
       <Label className="ui-label">{label}</Label>
       <Input className="ui-input" />
       {description && <Text slot="description" className="ui-hint">{description}</Text>}
@@ -91,13 +97,13 @@ export function NumberField({ label, description, name, value, onChange, minValu
  * A date as day, month and year in the order of the interface's language, each typed or changed with
  * the arrow keys. `value` is "YYYY-MM-DD", or "" for none.
  */
-export function DateField({ label, value, onChange, minValue, className }: {
-  label: string; value: string; onChange: (value: string) => void; minValue?: string; className?: string;
+export function DateField({ label, value, onChange, minValue, size, className }: {
+  label: string; value: string; onChange: (value: string) => void; minValue?: string; size?: FieldSize; className?: string;
 }) {
   return (
     <AriaDateField value={value ? parseDate(value) : null} onChange={(d) => onChange(d ? d.toString() : "")}
                    minValue={minValue ? parseDate(minValue) : undefined} granularity="day"
-                   className={className ?? "ui-field"}>
+                   className={cx("ui-field", className)} data-size={size === "small" ? "small" : undefined}>
       <Label className="ui-label">{label}</Label>
       <DateInput className="ui-input ui-date-input">
         {(segment) => <DateSegment segment={segment} className="ui-date-segment" />}

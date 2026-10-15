@@ -165,7 +165,7 @@ function ChartHead({ series, table, onToggle, text }: { series: Series[]; table:
         </ul>
       ) : <span />}
       {onToggle && (
-        <Button variant="quiet" className="ui-button-small" onPress={onToggle}>
+        <Button variant="quiet" size="small" onPress={onToggle}>
           {table ? <ChartColumnBig size={14} aria-hidden /> : <Table2 size={14} aria-hidden />}
           {table ? text.showChart : text.showTable}
         </Button>
