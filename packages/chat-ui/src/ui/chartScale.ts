@@ -27,3 +27,21 @@ export function step(key: string, index: number, length: number, axis: "horizont
   if (key === "End") return length - 1;
   return null;
 }
+
+/**
+ * The columns that get a label on the time axis, at most `max`. With `slots` (each column's place on
+ * a regular clock: its hour of the day, its day counted from a Monday, …) and the intervals that read
+ * well for it (every 3 or 6 hours; every 7 days), the labels fall on round times: 00:00, 06:00, 12:00
+ * rather than 13:00, 18:00, 23:00. Without, or when none fits, evenly spaced from the first column.
+ */
+export function marks(length: number, max = 8, slots?: number[], every?: number[]): number[] {
+  if (length <= 0) return [];
+  if (slots && every) {
+    for (const e of every) {
+      const at = slots.flatMap((s, i) => (((s % e) + e) % e === 0 ? [i] : []));
+      if (at.length > 0 && at.length <= max) return at;
+    }
+  }
+  const step = Math.max(1, Math.ceil(length / max));
+  return Array.from({ length: Math.ceil(length / step) }, (_, i) => i * step);
+}

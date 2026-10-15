@@ -278,8 +278,16 @@
                                    border-radius: 2px 2px 0 0; }
 .ui-chart-segment { flex: 1 1 0; min-height: 0; min-width: 0; }
 .ui-chart-column .ui-chart-segment + .ui-chart-segment { border-bottom: 1px solid var(--bg); }
-.ui-chart-x { display: flex; justify-content: space-between; gap: var(--space-2); padding-left: calc(3.25em + var(--space-2));
-              font-size: 11.5px; color: var(--text-dim); }
+/* the time axis: a tick and a label under each marked column, inside the plot's width */
+.ui-chart-x { position: relative; height: 1.6em; margin-left: calc(3.25em + var(--space-2)); font-size: 11.5px;
+              color: var(--text-dim); white-space: nowrap; }
+.ui-chart-x-mark { position: absolute; top: 0; padding-top: 5px; transform: translateX(-50%); }
+.ui-chart-x-mark::before { content: ""; position: absolute; top: 0; left: 50%; height: 4px; border-left: 1px solid var(--text-dim); }
+.ui-chart-x-mark[data-edge="start"] { transform: translateX(-6px); }
+.ui-chart-x-mark[data-edge="start"]::before { left: 6px; }
+.ui-chart-x-mark[data-edge="end"] { transform: translateX(calc(-100% + 6px)); }
+.ui-chart-x-mark[data-edge="end"]::before { left: auto; right: 6px; }
+@media (max-width: 600px) { .ui-chart-x-mark[data-minor] { display: none; } }
 
 .ui-chart-tip { position: absolute; top: 0; transform: translateX(-50%); z-index: 1; pointer-events: none;
                 display: flex; flex-direction: column; gap: 2px; min-width: 9rem; padding: var(--space-2) 10px;
