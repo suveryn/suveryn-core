@@ -6,12 +6,19 @@
  */
 import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { parseDate } from "@internationalized/date";
+import type { KeyboardEvent } from "react";
 import {
+  DateField as AriaDateField,
+  DateInput,
+  DateSegment,
   FieldError,
   Group,
   Input,
   Label,
+  NumberField as AriaNumberField,
   Text,
+  TextArea as AriaTextArea,
   TextField as AriaTextField,
   ToggleButton,
   type TextFieldProps as AriaTextFieldProps,
@@ -56,6 +63,60 @@ export function PasswordField({ label, description, placeholder, showLabel, ...p
       </Group>
       {description && <Text slot="description" className="ui-hint">{description}</Text>}
       <Error />
+    </AriaTextField>
+  );
+}
+
+/**
+ * A number in the interface's language: "3,5" in Dutch and French, "3.5" in English, typed either way
+ * and shown back formatted. The form receives it under `name` as a plain number ("3.5").
+ */
+export function NumberField({ label, description, name, value, onChange, minValue, maxValue, maxDecimals = 2,
+                              className }: {
+  label: string; description?: string; name: string; value: number; onChange: (value: number) => void;
+  minValue?: number; maxValue?: number; maxDecimals?: number; className?: string;
+}) {
+  return (
+    <AriaNumberField name={name} value={value} onChange={onChange} minValue={minValue} maxValue={maxValue}
+                     formatOptions={{ maximumFractionDigits: maxDecimals }} className={className ?? "ui-field"}>
+      <Label className="ui-label">{label}</Label>
+      <Input className="ui-input" />
+      {description && <Text slot="description" className="ui-hint">{description}</Text>}
+      <Error />
+    </AriaNumberField>
+  );
+}
+
+/**
+ * A date as day, month and year in the order of the interface's language, each typed or changed with
+ * the arrow keys. `value` is "YYYY-MM-DD", or "" for none.
+ */
+export function DateField({ label, value, onChange, minValue, className }: {
+  label: string; value: string; onChange: (value: string) => void; minValue?: string; className?: string;
+}) {
+  return (
+    <AriaDateField value={value ? parseDate(value) : null} onChange={(d) => onChange(d ? d.toString() : "")}
+                   minValue={minValue ? parseDate(minValue) : undefined} granularity="day"
+                   className={className ?? "ui-field"}>
+      <Label className="ui-label">{label}</Label>
+      <DateInput className="ui-input ui-date-input">
+        {(segment) => <DateSegment segment={segment} className="ui-date-segment" />}
+      </DateInput>
+      <Error />
+    </AriaDateField>
+  );
+}
+
+/** Text over several lines. `hideLabel` keeps the label for screen readers only (the chat's question
+ *  box, whose placeholder already says what to type). */
+export function TextArea({ label, hideLabel, value, onChange, onKeyDown, placeholder, rows = 1, className }: {
+  label: string; hideLabel?: boolean; value: string; onChange: (value: string) => void;
+  onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void; placeholder?: string; rows?: number; className?: string;
+}) {
+  return (
+    <AriaTextField value={value} onChange={onChange} className={className}>
+      <Label className={hideLabel ? "ui-visually-hidden" : "ui-label"}>{label}</Label>
+      <AriaTextArea rows={rows} placeholder={placeholder} onKeyDown={onKeyDown} />
     </AriaTextField>
   );
 }

@@ -27,8 +27,13 @@ API = {
     "/v1/models": [{"id": "qwen3.8-27b-q4_k_m", "loaded": True, "default": True},
                    {"id": "mistral-small-3.2-24b-q4_k_m", "loaded": False, "default": False},
                    {"id": "deepseek-r1-distill-32b", "loaded": False, "default": False}],
-    "/v1/documents": {"documents": [], "jobs": []},
-    "/v1/conversations": [],
+    # One fictional deed and one conversation citing it, for the sidebar and its dialogs.
+    "/v1/documents": {"documents": [{"id": "d1", "filename": "akte-voorbeeld.pdf", "pages": 8, "ocr_pages": 0,
+                                     "status": "ok", "warnings": []}], "jobs": []},
+    "/v1/conversations": [{"id": "c1", "title": "Wie zijn de verkopers?", "created_at": "2026-10-15T09:00:00Z",
+                           "updated_at": "2026-10-15T09:05:00Z"}],
+    "/v1/documents/d1/conversations": [{"id": "c1", "title": "Wie zijn de verkopers?", "created_at": "2026-10-15T09:00:00Z",
+                                        "updated_at": "2026-10-15T09:05:00Z"}],
 }
 
 
@@ -111,6 +116,24 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/":
             self.path = "/index.html"
         super().do_GET()
+
+    def do_POST(self):
+        """A fixed, fictional answer with one source for /v1/chat (the gateway streams Server-Sent Events)."""
+        if self.path.split("?")[0] != "/v1/chat":
+            self.send_error(404)
+            return
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        answer = "De verkopers zijn Jan Peeters en Marie Claes [1]."
+        done = {"id": "a1", "model": "qwen3.8-27b-q4_k_m", "answer": answer, "calculations": [], "finish_reason": "stop",
+                "citations": [{"text": "Verkopers: de heer Jan Peeters en mevrouw Marie Claes, wonende te Gent.",
+                               "source": {"document_id": "d1", "page": 2, "location": None}}]}
+        events = [("delta", {"text": answer}), ("done", done)]
+        body = "".join(f"event: {e}\ndata: {json.dumps(d)}\n\n" for e, d in events).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_PUT(self):
         """The administrator's rates, kept in memory (the gateway: PUT /v1/admin/usage/rates)."""
