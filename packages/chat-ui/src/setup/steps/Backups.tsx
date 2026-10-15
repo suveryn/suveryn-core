@@ -132,7 +132,7 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
             ) : (
               <div className="setup-no-disk">
                 <p className="setup-detail-note" role="status">{t.noDisk}</p>
-                <Button className="ui-button-small" onPress={() => getState().then((s) => {
+                <Button size="small" onPress={() => getState().then((s) => {
                   setDisks(s.usb_disks); setDisk(s.usb_disks[0]?.id ?? "");
                 })}>{t.lookAgain}</Button>
               </div>
@@ -184,7 +184,7 @@ function DownloadButton({ downloaded, disabled, label, doneLabel, aria, onPress 
   const { error, clear } = useFieldError("download");
   return (
     <span className="setup-key-action" data-field-invalid={error ? true : undefined}>
-      <Button className="ui-button-small" isDisabled={disabled} onPress={() => { clear(); onPress(); }} aria-label={aria}
+      <Button size="small" isDisabled={disabled} onPress={() => { clear(); onPress(); }} aria-label={aria}
               aria-describedby={error ? "download-error" : undefined}>
         {downloaded ? <CircleCheck size={14} aria-hidden /> : <Download size={14} aria-hidden />}
         {downloaded ? doneLabel : label}
@@ -203,7 +203,7 @@ function TestRow({ test, tested, onTest }: {
   return (
     <div className="setup-test">
       <span data-field-invalid={error ? true : undefined}>
-        <Button className="ui-button-small" isDisabled={test.state === "testing"} onPress={() => { clear(); onTest(); }}
+        <Button size="small" isDisabled={test.state === "testing"} onPress={() => { clear(); onTest(); }}
                 aria-describedby="share-test-status">{t.testConnection}</Button>
       </span>
       <span id="share-test-status" className="setup-test-status" role="status"

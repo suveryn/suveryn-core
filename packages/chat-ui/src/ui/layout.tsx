@@ -121,3 +121,17 @@ export function Notice({ icon, title, children, tone = "note" }: { icon: ReactNo
     </div>
   );
 }
+
+/** A line of text with an icon, in the flow of the page (under an answer, on the sign-in screen):
+ *  lighter than Notice. `error`: the icon in accent ink (the brand has no red). With `alert`, a screen
+ *  reader reads it as soon as it appears. */
+export function InlineNotice({ icon, tone = "note", alert, className, children }: {
+  icon: ReactNode; tone?: "note" | "error"; alert?: boolean; className?: string; children: ReactNode;
+}) {
+  return (
+    <p className={cx("ui-inline-notice", className)} data-tone={tone} role={alert ? "alert" : undefined}>
+      <span className="ui-inline-notice-icon" aria-hidden>{icon}</span>
+      <span>{children}</span>
+    </p>
+  );
+}

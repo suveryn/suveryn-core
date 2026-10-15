@@ -19,8 +19,8 @@
 }
 .ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
            border-radius: var(--radius-lg); padding: 28px; }
-.ui-input { width: 100%; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
-            font: inherit; font-size: 15px; line-height: 1.4; color: var(--text); background: var(--bg); }
+.ui-input { width: 100%; min-height: 44px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+            font: inherit; font-size: 15px; line-height: 20px; color: var(--text); background: var(--bg); }
 .ui-input::placeholder { color: var(--text-dimmer); }
 .ui-input[data-focused], .ui-select-button[data-focus-visible] { outline: none; border-color: var(--focus-border);
                                                                  box-shadow: 0 0 0 3px var(--focus-glow); }
@@ -33,14 +33,28 @@
    (usePreventScroll; replaced by this attribute in vite.config.ts, reactAriaCsp). */
 @layer { html[data-ui-prevent-scroll] * { overscroll-behavior: contain; } }
 
+/* ------------------------------------------------------------------------------------------------ sizes
+ * Two heights, the same for fields and buttons so that they line up side by side:
+ * - regular, 44px: forms (the setup, as its design: fields 11px 14px at 15px, buttons 12px 20px at
+ *   14.5px) and the buttons of dialogs;
+ * - small, 32px: toolbars and compact forms (the usage pages, the chart's table button, the language
+ *   menu, the period choice): fields and buttons with size="small".
+ * Text buttons (Cancel, Sign out) sit in the text and icon buttons (36px, 28px small) in rows: neither
+ * stands beside a field. src/ui/sizes.test.ts checks the heights add up.
+ */
+.ui-button[data-size="small"] { min-height: 32px; font-size: 13.5px; padding: 6px 12px; }
+.ui-field[data-size="small"] { gap: 4px; margin-bottom: 0; }
+.ui-field[data-size="small"] .ui-label { font-size: 12px; font-weight: 500; line-height: 16px; color: var(--text-dim); }
+.ui-field[data-size="small"] .ui-input { min-height: 32px; padding: 6px 10px; font-size: 13.5px; line-height: 18px; }
+
 /* ------------------------------------------------------------------------------------------------ type */
 .ui-eyebrow { display: block; font-size: 11px; line-height: 1.3; font-weight: 600; letter-spacing: 0.04em;
               text-transform: uppercase; color: var(--text-dim); margin: 0; }
 
 /* ------------------------------------------------------------------------------------------------ buttons */
-.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-             font: inherit; font-size: 15px; font-weight: 600; line-height: 1.2; border-radius: var(--radius-sm);
-             padding: 10px var(--space-4); border: 1px solid var(--line); background: var(--bg); color: var(--text);
+.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px;
+             font: inherit; font-size: 14.5px; font-weight: 600; line-height: 1.2; border-radius: var(--radius-sm);
+             padding: 12px 20px; border: 1px solid var(--line); background: var(--bg); color: var(--text);
              cursor: pointer; text-decoration: none; }
 .ui-button[data-hovered] { border-color: var(--text-dim); }
 .ui-button[data-variant="primary"] { background: var(--accent); border-color: transparent; color: var(--on-accent); }
@@ -99,9 +113,9 @@
 /* ------------------------------------------------------------------------------------------------ select, menu */
 .ui-select { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
 .ui-select-icon { display: flex; }
-.ui-select-button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 9.5rem;
-                    font: inherit; font-size: 13px; color: var(--text-dim); background: transparent; border: 1px solid var(--line);
-                    border-radius: var(--radius-sm); padding: 7px 10px; cursor: pointer; }
+.ui-select-button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 9.5rem; min-height: 32px;
+                    font: inherit; font-size: 13px; line-height: 16px; color: var(--text-dim); background: transparent;
+                    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; cursor: pointer; }
 .ui-select-button[data-hovered] { border-color: var(--text-dim); }
 .ui-popover { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 6px;
               min-width: var(--trigger-width); box-shadow: 0 8px 24px rgba(2, 2, 5, 0.08); outline: none; }
@@ -150,7 +164,7 @@
 
 /* ------------------------------------------------------------------------------------------------ setup additions (#37) */
 .ui-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.ui-button-small { font-size: 13.5px; padding: 7px 12px; }
+
 .ui-text-link, .ui-link-button { color: var(--accent-ink); font: inherit; font-weight: 600; text-decoration: underline;
                                  text-underline-offset: 2px; background: none; border: none; padding: 0; cursor: pointer; }
 .ui-text-link[data-focus-visible], .ui-link-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
@@ -240,3 +254,137 @@
 
 /* QR code: always dark on white, whatever the theme (phone cameras) */
 .ui-qr { display: block; border-radius: var(--radius-sm); }
+
+/* ------------------------------------------------------------------------------------------------ charts */
+/* suveryn-tracker#46. Two series colours, each 3:1 or more against the page and the cards, and 3:1
+   or more against each other, so they also tell apart in greyscale (src/ui/charts.test.ts checks).
+   Stacked segments are parted by a 1px line in the page colour. */
+:root {
+  --chart-1: var(--teal-ink);   /* the first series, at the bottom of a stack */
+  --chart-2: var(--ink);        /* the second, on top */
+}
+.ui-chart { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.ui-chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3);
+                 min-height: 32px; }
+.ui-chart-head .ui-button { margin-left: auto; white-space: nowrap; }
+.ui-chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); list-style: none; margin: 0; padding: 0;
+                   font-size: 12.5px; color: var(--text-dim); }
+.ui-chart-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.ui-chart-swatch { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.ui-chart-caption { font-size: 12.5px; color: var(--text-dim); }
+
+.ui-chart [data-series="0"] { background: var(--chart-1); }
+.ui-chart [data-series="1"] { background: var(--chart-2); }
+
+/* columns over time: the axis on the left, the plot beside it */
+.ui-chart-plot { display: flex; gap: var(--space-2); height: 160px; }
+.ui-chart-axis { position: relative; flex: none; width: 3.25em; font-size: 11.5px; color: var(--text-dim);
+                 font-variant-numeric: tabular-nums; }
+.ui-chart-tick { position: absolute; right: 0; transform: translateY(50%); line-height: 1; }
+.ui-chart-area { position: relative; flex: 1; min-width: 0; border-bottom: 1px solid var(--text-dim); }
+.ui-chart-grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.ui-chart-columns { position: relative; display: flex; align-items: stretch; gap: 2px; height: 100%; list-style: none;
+                    margin: 0; padding: 0; }
+.ui-chart-column { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; border-radius: 2px 2px 0 0; outline: none; }
+.ui-chart-column[data-active] { background: var(--surface-alt); }
+.ui-chart-column:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-chart-column .ui-chart-stack { width: 100%; display: flex; flex-direction: column-reverse; overflow: hidden;
+                                   border-radius: 2px 2px 0 0; }
+.ui-chart-segment { flex: 1 1 0; min-height: 0; min-width: 0; }
+.ui-chart-column .ui-chart-segment + .ui-chart-segment { border-bottom: 1px solid var(--bg); }
+/* the time axis: a tick and a label under each marked column, inside the plot's width */
+.ui-chart-x { position: relative; height: 1.6em; margin-left: calc(3.25em + var(--space-2)); font-size: 11.5px;
+              color: var(--text-dim); white-space: nowrap; }
+.ui-chart-x-mark { position: absolute; top: 0; padding-top: 5px; transform: translateX(-50%); }
+.ui-chart-x-mark::before { content: ""; position: absolute; top: 0; left: 50%; height: 4px; border-left: 1px solid var(--text-dim); }
+.ui-chart-x-mark[data-edge="start"] { transform: translateX(-6px); }
+.ui-chart-x-mark[data-edge="start"]::before { left: 6px; }
+.ui-chart-x-mark[data-edge="end"] { transform: translateX(calc(-100% + 6px)); }
+.ui-chart-x-mark[data-edge="end"]::before { left: auto; right: 6px; }
+@media (max-width: 600px) { .ui-chart-x-mark[data-minor] { display: none; } }
+
+.ui-chart-tip { position: absolute; top: 0; transform: translateX(-50%); z-index: 1; pointer-events: none;
+                display: flex; flex-direction: column; gap: 2px; min-width: 9rem; padding: var(--space-2) 10px;
+                background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm);
+                box-shadow: 0 4px 12px rgba(2, 2, 5, 0.08); font-size: 12px; white-space: nowrap; }
+.ui-chart-tip[data-edge="start"] { transform: none; }
+.ui-chart-tip[data-edge="end"] { transform: translateX(-100%); }
+.ui-chart-tip-row { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+.ui-chart-tip-row > span:last-child { margin-left: auto; padding-left: var(--space-3); color: var(--text);
+                                      font-variant-numeric: tabular-nums; }
+.ui-chart-tip-total { border-top: 1px solid var(--line); padding-top: 2px; margin-top: 2px; }
+
+/* bars for comparison: label, bar, total */
+.ui-chart-bars { display: flex; flex-direction: column; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.ui-chart-bar-row { display: grid; grid-template-columns: minmax(6rem, 12rem) 1fr auto; align-items: center;
+                    gap: var(--space-3); font-size: 13px; }
+.ui-chart-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-chart-bar-track { display: flex; height: 14px; }
+.ui-chart-bar-track .ui-chart-stack { display: flex; height: 100%; overflow: hidden; border-radius: 0 2px 2px 0; }
+.ui-chart-bar-track .ui-chart-segment + .ui-chart-segment { border-left: 1px solid var(--bg); }
+.ui-chart-bar-value { font-variant-numeric: tabular-nums; color: var(--text-dim); min-width: 4.5em; text-align: right; }
+@media (max-width: 600px) {
+  .ui-chart-bar-row { grid-template-columns: 1fr auto; row-gap: var(--space-1); }
+  .ui-chart-bar-track { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* the same numbers as a table */
+.ui-chart-table-wrap { overflow-x: auto; }
+.ui-chart-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ui-chart-table th, .ui-chart-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right;
+                                          white-space: nowrap; }
+.ui-chart-table th:first-child { text-align: left; font-weight: 500; }
+.ui-chart-table thead th { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+
+/* ------------------------------------------------------------------------------------------------ chat pieces (#44) */
+/* text buttons: Cancel, Keep, Sign out */
+.ui-text-button { display: inline-flex; align-items: center; gap: var(--space-1); background: none; border: none; padding: 2px;
+                  font: inherit; font-size: 12px; color: inherit; text-decoration: underline; text-underline-offset: 2px;
+                  cursor: pointer; }
+.ui-text-button[data-danger] { font-weight: 600; }
+.ui-text-button[data-hovered] { color: var(--text); }
+.ui-text-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
+.ui-text-button[data-disabled] { opacity: 0.5; cursor: default; }
+.ui-icon-button[data-size="small"] { width: 28px; height: 28px; }
+.ui-icon-button[data-disabled] { opacity: 0.4; cursor: default; }
+
+/* the modal dialog: buttons stacked and equally wide, in DOM order (the safe choice first, then the
+   other, then Cancel centred). Side by side they only fitted in English. */
+.ui-modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+                    padding: var(--space-4); background: rgb(2 2 5 / 0.32); }
+.ui-modal { width: 100%; max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--surface);
+            color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-lg);
+            box-shadow: 0 12px 40px rgb(2 2 5 / 0.18); }
+.ui-modal-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
+@keyframes ui-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-modal-overlay[data-entering] { animation: none; } }
+.ui-dialog { padding: var(--space-6); outline: none; }
+.ui-dialog-title { margin: 0 0 var(--space-3); font-size: 18px; }
+.ui-dialog > p { margin: 0 0 var(--space-4); font-size: 13.5px; line-height: 1.55; color: var(--text-dim); }
+.ui-dialog-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); }
+.ui-dialog-actions .ui-text-button { align-self: center; font-size: 13.5px; color: var(--text-dim); }
+@media (max-width: 520px) { .ui-dialog { padding: var(--space-5); } }
+
+/* a row of short options (the usage period) */
+.ui-segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.ui-segment { padding: 7px var(--space-3); font-size: 13px; line-height: 16px; color: var(--text); cursor: pointer;
+              border-right: 1px solid var(--line); } /* 30px, with the group's border 32px: small */
+.ui-segment:last-child { border-right: none; }
+.ui-segment[data-hovered] { background: var(--surface); }
+.ui-segment[data-selected] { background: var(--surface-alt); font-weight: 600; }
+.ui-segment[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+
+/* a line of text with an icon (under an answer, the sign-in screen); errors: the icon in accent ink */
+.ui-inline-notice { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0 0;
+                    font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.ui-inline-notice-icon { flex: none; display: flex; margin-top: 2px; }
+.ui-inline-notice[data-tone="error"] { color: var(--text); }
+.ui-inline-notice[data-tone="error"] .ui-inline-notice-icon { color: var(--accent-ink); }
+
+/* dates: day, month and year as segments */
+.ui-date-input { display: inline-flex; align-items: center; width: auto; min-width: 9em; font-variant-numeric: tabular-nums; }
+.ui-date-input[data-focus-within] { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
+.ui-date-segment { padding: 0 1px; border-radius: 3px; outline: none; }
+.ui-date-segment[data-type="literal"] { color: var(--text-dim); padding: 0; }
+.ui-date-segment[data-placeholder] { color: var(--text-dimmer); }
+.ui-date-segment[data-focused] { background: var(--surface-alt); color: var(--text); box-shadow: inset 0 0 0 1px var(--focus-border); }

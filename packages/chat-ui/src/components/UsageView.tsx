@@ -4,13 +4,18 @@
  * - AdminView: administrators only (realm role suveryn-admin, enforced by the gateway): the
  *   office's usage in total and per user, with a notional cloud cost and its editable rates.
  * Both pick a period (last hour, day, week, month, or whole local days) and show the totals and a
- * bar chart. Counts only: the server never stores or returns text. Informational: nothing limits anyone.
+ * chart of input and output tokens (src/ui/charts.tsx, suveryn-tracker#46). Counts only: the server
+ * never stores or returns text. Informational: nothing limits anyone.
  */
 import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
-import { bucketLabel, compact, money, PRESETS, rangeFor, whole, type Preset } from "../lib/usage";
+import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
+import {
+  BarChart, Button, ColumnChart, DateField, Form, FormError, InlineNotice, NumberField, Segmented, SelectField, TextButton,
+  type ChartText, type Datum, type FieldErrors, type Series,
+} from "../ui";
 
 function useReport<R>(load: (start: Date, end?: Date) => Promise<R>) {
   const [preset, setPreset] = useState<Preset>("day");
@@ -34,16 +39,12 @@ function RangePicker({ preset, setPreset, from, setFrom, to, setTo }: {
   const name: Record<Preset, string> = { hour: m.presetHour, day: m.presetDay, week: m.presetWeek, month: m.presetMonth, custom: m.presetCustom };
   return (
     <div className="range">
-      <div className="segmented" role="radiogroup" aria-label={m.rangeLabel}>
-        {PRESETS.map((p) => (
-          <button key={p} type="button" role="radio" aria-checked={preset === p} className={preset === p ? "on" : ""}
-                  onClick={() => setPreset(p)}>{name[p]}</button>
-        ))}
-      </div>
+      <Segmented label={m.rangeLabel} value={preset} onChange={(p) => setPreset(p as Preset)}
+                 options={PRESETS.map((p) => ({ value: p, label: name[p] }))} />
       {preset === "custom" && (
         <span className="range-dates">
-          <label>{m.from} <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label>{m.to} <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
+          <DateField label={m.from} value={from} onChange={setFrom} size="small" className="range-date" />
+          <DateField label={m.to} value={to} onChange={setTo} minValue={from || undefined} size="small" className="range-date" />
         </span>
       )}
     </div>
@@ -62,27 +63,63 @@ function Totals({ totals, extra }: { totals: UsageTotals; extra?: { label: strin
   );
 }
 
+function useChartText(category: string): ChartText {
+  const m = useT();
+  return { showTable: m.chartShowTable, showChart: m.chartShowChart, category, total: m.chartTotal };
+}
+
+function useTokenSeries(): Series[] {
+  const m = useT();
+  return [{ id: "input", label: m.inputTokens }, { id: "output", label: m.outputTokens }];
+}
+
+/** Input and output tokens per step of the period. */
 function Chart({ report }: { report: UsageReport }) {
   const m = useT();
-  const max = Math.max(1, ...report.series.map((b) => b.total_tokens));
-  return (
-    <figure className="chart" aria-label={m.chartLabel(whole(report.totals.total_tokens), m.stepName(report.step))}>
-      <div className="bars">
-        {report.series.map((b) => (
-          <span key={b.start} className="bar" title={`${bucketLabel(b.start, report.step)}: ${whole(b.total_tokens)}`}>
-            <i style={{ height: `${(b.total_tokens / max) * 100}%` }} />
-          </span>
-        ))}
-      </div>
-      {report.series.length > 0 && (
-        <figcaption className="caption">
-          <span>{bucketLabel(report.series[0].start, report.step)}</span>
-          <span>{m.stepName(report.step)}</span>
-          <span>{bucketLabel(report.series[report.series.length - 1].start, report.step)}</span>
-        </figcaption>
-      )}
-    </figure>
-  );
+  const text = useChartText(m.chartTime);
+  const series = useTokenSeries();
+  const data: Datum[] = report.series.map((b) => ({
+    key: b.start, label: bucketLabel(b.start, report.step), values: [b.prompt_tokens, b.completion_tokens],
+  }));
+  const { slots, every } = clock(report);
+  // Within a day only the time, with the weekday on the first labels and where the day changes.
+  const markLabel = report.step === "5 minutes" || report.step === "1 hour" ? (i: number, previous: number | null) => {
+    const d = new Date(report.series[i].start);
+    const sameDay = previous !== null && new Date(report.series[previous].start).toDateString() === d.toDateString();
+    return sameDay ? timeLabel(d) : bucketLabel(report.series[i].start, report.step);
+  } : undefined;
+  return <ColumnChart label={m.chartLabel(whole(report.totals.total_tokens), m.stepName(report.step))} series={series}
+                      data={data} format={whole} tick={compact} text={text} slots={slots} every={every} markLabel={markLabel} />;
+}
+
+/** Where each column sits on the clock, and the label intervals that read well for its step: every
+ *  15 or 30 minutes, every 3 or 6 hours, on Mondays, … (the gateway's buckets start on whole steps). */
+function clock(report: UsageReport): { slots: number[]; every: number[] } {
+  const MONDAY = new Date(2000, 0, 3).getTime(); // as the gateway's buckets (usage.py ORIGIN)
+  const DAY = 86_400_000;
+  const at = (iso: string) => new Date(iso);
+  const days = (d: Date) => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - MONDAY) / DAY);
+  const per: Record<UsageReport["step"], [(d: Date) => number, number[]]> = {
+    "5 minutes": [(d) => d.getHours() * 12 + d.getMinutes() / 5, [1, 3, 6, 12, 24]],
+    "1 hour": [(d) => d.getHours(), [1, 2, 3, 6, 12]],
+    "1 day": [days, [1, 2, 7, 14]],
+    "7 days": [(d) => days(d) / 7, [1, 2, 4, 13, 26]],
+    "30 days": [(d) => d.getFullYear() * 12 + d.getMonth(), [1, 3, 6, 12]],
+  };
+  const [slot, every] = per[report.step];
+  return { slots: report.series.map((b) => slot(at(b.start))), every };
+}
+
+/** The office's users compared; the table after it has the exact numbers, so no table of its own. */
+function PerUserChart({ report }: { report: OfficeUsageReport }) {
+  const m = useT();
+  const text = useChartText(m.user);
+  const series = useTokenSeries();
+  const data: Datum[] = report.per_user.map((u) => ({
+    key: u.user_id, label: u.name ?? u.username ?? m.unknownUser, values: [u.totals.prompt_tokens, u.totals.completion_tokens],
+  }));
+  return <BarChart label={m.perUserChartLabel(whole(report.totals.total_tokens))} series={series} data={data}
+                   format={compact} text={text} withTable={false} />;
 }
 
 function ByKind({ report }: { report: UsageReport }) {
@@ -96,7 +133,7 @@ function Header({ icon, title, onBack }: { icon: React.ReactNode; title: string;
   const m = useT();
   return (
     <header className="view-head">
-      <button type="button" className="link" onClick={onBack}><ArrowLeft size={14} aria-hidden /> {m.backToChat}</button>
+      <TextButton onPress={onBack}><ArrowLeft size={14} aria-hidden /> {m.backToChat}</TextButton>
       <h1>{icon} {title}</h1>
     </header>
   );
@@ -111,7 +148,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
       <Header icon={<BarChart3 size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
       <p className="view-intro">{m.usageIntro}</p>
       <RangePicker {...r} />
-      {r.error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.usageUnavailable(r.error)}</p>}
+      {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {r.report && (r.report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
         <>
           <Totals totals={r.report.totals} />
@@ -134,7 +171,7 @@ export function AdminView({ onBack }: { onBack: () => void }) {
       <nav className="tabs" aria-label={m.administration}><span className="tab on" aria-current="page">{m.adminUsage}</span></nav>
       <p className="view-intro">{m.adminIntro}</p>
       <RangePicker {...r} />
-      {r.error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.usageUnavailable(r.error)}</p>}
+      {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
@@ -146,6 +183,7 @@ export function AdminView({ onBack }: { onBack: () => void }) {
               <Chart report={report} />
               <ByKind report={report} />
               <h2 className="label">{m.perUser}</h2>
+              {report.per_user.length > 1 && <PerUserChart report={report} />}
               <div className="table-wrap">
                 <table className="usage-table">
                   <thead><tr><th scope="col">{m.user}</th><th scope="col">{m.requests}</th><th scope="col">{m.inputTokens}</th>
@@ -173,34 +211,40 @@ export function AdminView({ onBack }: { onBack: () => void }) {
 
 function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: () => void }) {
   const m = useT();
-  const plain = (v: string) => String(Number(v)); // "3.0000" from the server shows as "3"
-  const [input, setInput] = useState(plain(report.rates.input_per_million));
-  const [output, setOutput] = useState(plain(report.rates.output_per_million));
+  const [input, setInput] = useState(Number(report.rates.input_per_million));
+  const [output, setOutput] = useState(Number(report.rates.output_per_million));
   const [currency, setCurrency] = useState(report.rates.currency);
-  const [state, setState] = useState<"idle" | "saved" | string>("idle");
+  const [saved, setSaved] = useState(false);
+  const edited = <T,>(set: (v: T) => void) => (v: T) => { set(v); setSaved(false); };
   // As the server checks them (usage.py Rates): 0 to 10,000, at most 4 decimals.
-  const valid = [input, output].every((v) => /^\d+(?:\.\d{1,4})?$/.test(v) && Number(v) <= 10_000);
-  const save = async () => {
-    if (!valid) { setState(m.ratesInvalid); return; }
-    try { await setRates({ input_per_million: input, output_per_million: output, currency }); setState("saved"); onSaved(); }
-    catch (e) { setState((e as Error).message); }
+  const valid = (v: number) => Number.isFinite(v) && v >= 0 && v <= 10_000 && Number(v.toFixed(4)) === v;
+  const check = async (): Promise<FieldErrors> => {
+    const errors: FieldErrors = {};
+    if (!valid(input)) errors.input = m.ratesInvalid;
+    if (!valid(output)) errors.output = m.ratesInvalid;
+    if (Object.keys(errors).length > 0) return errors;
+    try {
+      await setRates({ input_per_million: String(input), output_per_million: String(output), currency });
+      return {};
+    } catch (e) {
+      return { _: (e as Error).message };
+    }
   };
   const changed = report.rates.updated_by && report.rates.updated_at;
   return (
-    <form className="rates" onSubmit={(e) => { e.preventDefault(); save(); }}>
-      <h2 className="label">{m.rates}</h2>
-      <label>{m.rateInput}<input type="number" min="0" step="0.01" value={input} onChange={(e) => { setInput(e.target.value); setState("idle"); }} /></label>
-      <label>{m.rateOutput}<input type="number" min="0" step="0.01" value={output} onChange={(e) => { setOutput(e.target.value); setState("idle"); }} /></label>
-      <label>{m.currency}
-        <select value={currency} onChange={(e) => { setCurrency(e.target.value); setState("idle"); }}>
-          {["USD", "EUR", "GBP"].map((c) => <option key={c}>{c}</option>)}
-        </select>
-      </label>
-      <button type="submit" className="button-secondary">
-        {state === "saved" ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
-      </button>
-      {state !== "idle" && state !== "saved" && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {state}</p>}
+    <Form className="rates" check={check} onValid={() => { setSaved(true); onSaved(); }} aria-labelledby="rates-title">
+      <h2 id="rates-title" className="label">{m.rates}</h2>
+      <FormError />
+      <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} minValue={0} maxValue={10_000}
+                   maxDecimals={4} size="small" className="rates-field" />
+      <NumberField name="output" label={m.rateOutput} value={output} onChange={edited(setOutput)} minValue={0} maxValue={10_000}
+                   maxDecimals={4} size="small" className="rates-field" />
+      <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)} size="small"
+                   options={["USD", "EUR", "GBP"].map((c) => ({ id: c, label: c }))} />
+      <Button type="submit" size="small">
+        {saved ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
+      </Button>
       <p className="caption">{changed ? m.ratesChanged(report.rates.updated_by!, new Date(report.rates.updated_at!).toLocaleDateString(locale(), { dateStyle: "long" })) : m.ratesDefault}</p>
-    </form>
+    </Form>
   );
 }

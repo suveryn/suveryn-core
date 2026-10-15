@@ -1,19 +1,16 @@
 /**
  * Language menu (suveryn-tracker#8): English, Nederlands, Français, each in its own language.
- * The choice is remembered in this browser; see src/i18n/index.ts.
+ * The choice is remembered in this browser; see src/i18n/index.ts. The library's Select (#44): a
+ * button that opens a list, as in the web setup.
  */
 import { Languages } from "lucide-react";
 import { LANGS, setLang, TABLES_FOR_TESTS as TABLES, useT, lang, type Lang } from "../i18n";
+import { Select } from "../ui";
 
 export function LanguagePicker() {
   const m = useT();
   return (
-    <label className="language">
-      <Languages size={14} aria-hidden />
-      <span className="visually-hidden">{m.language}</span>
-      <select value={lang()} onChange={(e) => setLang(e.target.value as Lang)}>
-        {LANGS.map((l) => <option key={l} value={l} lang={l}>{TABLES[l].languageName}</option>)}
-      </select>
-    </label>
+    <Select label={m.language} icon={<Languages size={14} />} value={lang()} onChange={(l) => setLang(l as Lang)}
+            options={LANGS.map((l) => ({ id: l, label: TABLES[l].languageName, lang: l }))} className="language" />
   );
 }

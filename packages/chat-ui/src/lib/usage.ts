@@ -36,10 +36,12 @@ export const whole = (n: number) => new Intl.NumberFormat(locale()).format(n);
 export const money = (amount: string | number, currency: string) =>
   new Intl.NumberFormat(locale(), { style: "currency", currency }).format(Number(amount));
 
+export const timeLabel = (d: Date) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+
 /** A bucket's label for its step: a time for minutes, weekday and time for hours (a range can span two days), a date otherwise. */
 export function bucketLabel(iso: string, step: string): string {
   const d = new Date(iso);
-  if (step === "5 minutes") return d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  if (step === "5 minutes") return timeLabel(d);
   if (step === "1 hour") return d.toLocaleString(locale(), { weekday: "short", hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString(locale(), { day: "numeric", month: "short" });
 }

@@ -6,6 +6,7 @@
  *
  * - FilePick: one row per file: a title, the accepted kinds, the chosen file's name, and an error.
  * - FileDrop: an area to drop a file onto, or choose one.
+ * - FileButton: any button of the library opening the file picker (the chat's paperclip).
  */
 import { CircleAlert, FileUp } from "lucide-react";
 import type { ReactNode } from "react";
@@ -38,7 +39,7 @@ export function FilePick({ name, title, hint, accept, file, onChange, chooseLabe
         <span id={`${id}-hint`} className="ui-file-hint">{file ? file.name : hint}</span>
       </span>
       <FileTrigger acceptedFileTypes={accept} onSelect={(files) => { const f = files?.[0] ?? null; if (f) { clear(); onChange(f); } }}>
-        <AriaButton className="ui-button ui-button-small" data-variant="secondary"
+        <AriaButton className="ui-button" data-size="small" data-variant="secondary"
                     aria-labelledby={`${id}-choose ${id}-title`}
                     aria-describedby={`${id}-hint${error ? ` ${id}-error` : ""}`}>
           <span id={`${id}-choose`}>{chooseLabel}</span>
@@ -103,4 +104,15 @@ export function FileDrop({ name, accept, dropLabel, chooseLabel, hints, onFile }
 export async function readText(file: File, max = 64 * 1024): Promise<string | null> {
   if (file.size > max) return null;
   return file.text();
+}
+
+/** Makes its one child, a button from this library, open the file picker. */
+export function FileButton({ accept, multiple, onSelect, children }: {
+  accept: string[]; multiple?: boolean; onSelect: (files: File[]) => void; children: ReactNode;
+}) {
+  return (
+    <FileTrigger acceptedFileTypes={accept} allowsMultiple={multiple} onSelect={(files) => files && onSelect(Array.from(files))}>
+      {children}
+    </FileTrigger>
+  );
 }
