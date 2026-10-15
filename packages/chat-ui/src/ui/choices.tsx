@@ -6,6 +6,7 @@
  *   backup target in the setup).
  * - RadioList: compact options, each with a title and a description, and optional content under an
  *   option (the setup's approved-destination chips).
+ * - Segmented: a row of short options side by side (the usage period: Hour, Day, Week, …).
  *
  * Each option's name is its title and its description is read after it (aria-labelledby and
  * aria-describedby): without that, the label wraps both and a screen reader reads the description twice.
@@ -94,5 +95,17 @@ export function Checkbox({ name, children, checked, onChange }: { name: string; 
         </span>
       )}
     </div>
+  );
+}
+
+/** Short options side by side, one of them chosen (the usage period). One Tab stop; the arrow keys
+ *  choose. */
+export function Segmented({ label, options, value, onChange }: {
+  label: string; options: { value: string; label: string }[]; value: string; onChange: (value: string) => void;
+}) {
+  return (
+    <RadioGroup aria-label={label} value={value} onChange={onChange} orientation="horizontal" className="ui-segmented">
+      {options.map((o) => <Radio key={o.value} value={o.value} className="ui-segment">{o.label}</Radio>)}
+    </RadioGroup>
   );
 }

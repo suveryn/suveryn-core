@@ -33,7 +33,8 @@ import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { claimRedirect, clearRedirect } from "./lib/signin";
-import { useT } from "./i18n";
+import { locale, useT } from "./i18n";
+import { Button, I18nProvider, InlineNotice } from "./ui";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
@@ -63,9 +64,13 @@ export default function App() {
     }).catch((e: Error) => { setUnavailable(e.message); setMe(null); });
   }, []);
 
+  useT(); // re-render on a language change, so React Aria's numbers and dates follow it
   if (me === undefined) return null; // checking, or on the way to the login page
-  if (me === null) return <SignIn ended={ended} unavailable={unavailable} stuck={stuck} />;
-  return <Chat me={me} />;
+  return (
+    <I18nProvider locale={locale()}>
+      {me === null ? <SignIn ended={ended} unavailable={unavailable} stuck={stuck} /> : <Chat me={me} />}
+    </I18nProvider>
+  );
 }
 
 function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: string | null; stuck: boolean }) {
@@ -74,13 +79,11 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
     <main className="signin">
       <Lockup />
       <h1>{TAGLINE}</h1>
-      {ended && <p className="notice"><AlertCircle size={14} aria-hidden />
-        {m.sessionEnded}</p>}
-      {stuck && !ended && <p className="notice"><AlertCircle size={14} aria-hidden />
-        {m.signInIncomplete}</p>}
+      {ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.sessionEnded}</InlineNotice>}
+      {stuck && !ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.signInIncomplete}</InlineNotice>}
       {unavailable
-        ? <p className="notice notice-error"><AlertCircle size={14} aria-hidden /> {m.signInUnavailable(unavailable)}</p>
-        : <button type="button" className="button-primary" onClick={signIn}><LogIn size={16} aria-hidden /> {m.signIn}</button>}
+        ? <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+        : <Button variant="primary" onPress={signIn}><LogIn size={16} aria-hidden /> {m.signIn}</Button>}
       <p className="caption">{m.signInCaption}</p>
       <LanguagePicker />
     </main>

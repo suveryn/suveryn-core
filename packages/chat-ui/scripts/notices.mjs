@@ -23,7 +23,8 @@ const walkAria = (name) => {
 };
 walkAria("react-aria-components");
 // The web setup's QR code (src/ui/QrCode.tsx) is drawn with qrcode-generator, which has no dependencies.
-const bundled = ["react", "react-dom", "scheduler", "lucide-react", ...aria, "qrcode-generator",
+// The charts' axis steps (src/ui/chartScale.ts) come from d3-array (ISC), which brings internmap (ISC).
+const bundled = ["react", "react-dom", "scheduler", "lucide-react", ...aria, "qrcode-generator", "d3-array", "internmap",
                  ...office.filter((n) => !aria.includes(n))];
 // qrcode-generator ships no licence file: its source header says "Copyright (c) 2009 Kazuhiko Arase,
 // licensed under the MIT license", so the MIT text with that notice is written here.

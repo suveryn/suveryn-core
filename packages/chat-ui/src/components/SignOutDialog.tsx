@@ -3,23 +3,17 @@
  * focused) or delete them all. Escape or Cancel closes the dialog and stays signed in.
  */
 import { AlertCircle, LogOut } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "../i18n";
+import { Button, Dialog, InlineNotice, TextButton } from "../ui";
 
 type Props = { open: boolean; onKeep: () => void; onDelete: () => Promise<void>; onCancel: () => void };
 
 export function SignOutDialog({ open, onKeep, onDelete, onCancel }: Props) {
   const m = useT();
-  const ref = useRef<HTMLDialogElement>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) { setError(null); d.showModal(); }
-    if (!open && d.open) d.close();
-  }, [open]);
+  useEffect(() => { if (open) { setError(null); setDeleting(false); } }, [open]);
 
   const remove = async () => {
     setDeleting(true);
@@ -33,19 +27,14 @@ export function SignOutDialog({ open, onKeep, onDelete, onCancel }: Props) {
   };
 
   return (
-    <dialog ref={ref} className="dialog" aria-labelledby="signout-title" onCancel={(e) => { e.preventDefault(); onCancel(); }}>
-      <h2 id="signout-title">{m.keepHistoryTitle}</h2>
+    <Dialog isOpen={open} onClose={onCancel} busy={deleting} title={m.keepHistoryTitle} actions={<>
+      {/* Keep first: the dialog focuses it, and it is the default */}
+      <Button variant="primary" autoFocus onPress={onKeep} isDisabled={deleting}><LogOut size={16} aria-hidden /> {m.keepAndSignOut}</Button>
+      <Button onPress={remove} isDisabled={deleting}>{deleting ? m.deleting : m.deleteAndSignOut}</Button>
+      <TextButton onPress={onCancel} isDisabled={deleting}>{m.cancel}</TextButton>
+    </>}>
       <p>{m.keepHistoryBody}</p>
-      {error && <p className="notice notice-error" role="alert"><AlertCircle size={14} aria-hidden /> {error}</p>}
-      <div className="dialog-actions">{/* Keep first: the dialog focuses it, and it is the default */}
-        <button type="button" className="button-primary" onClick={onKeep} disabled={deleting}>
-          <LogOut size={16} aria-hidden /> {m.keepAndSignOut}
-        </button>
-        <button type="button" className="button-secondary" onClick={remove} disabled={deleting}>
-          {deleting ? m.deleting : m.deleteAndSignOut}
-        </button>
-        <button type="button" className="link" onClick={onCancel} disabled={deleting}>{m.cancel}</button>
-      </div>
-    </dialog>
+      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+    </Dialog>
   );
 }
