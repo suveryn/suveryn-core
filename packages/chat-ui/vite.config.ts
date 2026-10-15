@@ -50,9 +50,27 @@ export function reactAriaCsp(): Plugin {
   };
 }
 
+/**
+ * Development only. Leaving React Aria out of the optimiser (above) means the browser gets its
+ * CommonJS dependency use-sync-external-store/shim as-is, and stops at "does not provide an export
+ * named 'useSyncExternalStore'": the page stays blank. React 19 has the hook built in, so the shim is
+ * answered with a re-export from react. (The build converts CommonJS itself and doesn't need this.)
+ */
+export function useSyncExternalStoreDev(): Plugin {
+  const id = "\0use-sync-external-store-shim";
+  return {
+    name: "suveryn-use-sync-external-store-dev",
+    apply: "serve",
+    enforce: "pre",
+    resolveId: (source) => (/^use-sync-external-store\/shim(\/index\.js)?$/.test(source) ? id : null),
+    load: (loaded) => (loaded === id ? `export { useSyncExternalStore } from "react";` : null),
+  };
+}
+
 export default defineConfig({
   plugins: [
     reactAriaCsp(),
+    useSyncExternalStoreDev(),
     // React Aria's own strings (e.g. a listbox's "selected") only in the UI's languages; it falls back
     // from en-GB, nl-BE and fr-BE to these by language.
     { ...optimizeLocales.vite({ locales: ["en-US", "nl-NL", "fr-FR"] }), enforce: "pre" },
