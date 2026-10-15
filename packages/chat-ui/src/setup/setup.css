@@ -31,6 +31,66 @@ button { font: inherit; color: inherit; }
 .setup-footer { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
                 margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--line); }
 
+
+/* Screens without the step rail (welcome, provisioning, complete): room for the language menu. */
+.setup-no-steps { min-height: 44px; }
+.setup-centred { text-align: center; }
+.setup-wide { width: 100%; }
+.setup-stack { display: flex; flex-direction: column; gap: var(--space-3); }
+.setup-block-tight { display: flex; flex-direction: column; gap: var(--space-2); margin: 10px 0; }
+.setup-strong { color: var(--text); }
+.setup-section { margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--line); }
+.setup-divider { height: 1px; background: var(--line); margin: var(--space-4) 0; }
+.setup-detail .ui-field:last-child { margin-bottom: 0; }
+
+/* welcome */
+.setup-step-list { list-style: none; counter-reset: step; display: grid; grid-template-columns: repeat(6, max-content);
+                   justify-content: space-between; gap: var(--space-2); margin: var(--space-6) 0; padding: 0; }
+.setup-step-list li { counter-increment: step; display: flex; flex-direction: column; font-size: 12.5px; color: var(--text-dim); min-width: 0; }
+.setup-step-list li::before { content: counter(step, decimal-leading-zero); font-size: 13px; font-weight: 600; color: var(--text); }
+.setup-welcome .ui-button { margin-top: var(--space-2); }
+
+/* support */
+.setup-numbered { margin-top: var(--space-6); margin-bottom: var(--space-3); }
+.setup-register { display: flex; gap: var(--space-6); align-items: center; justify-content: space-between; padding: var(--space-5);
+                  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.setup-register-ids { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.setup-register-ids .ui-eyebrow { margin-top: var(--space-2); }
+.setup-register-ids .ui-button { align-self: flex-start; margin-top: var(--space-3); }
+.setup-mono { margin: 0; font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.setup-qr { margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); flex: none; }
+.setup-qr figcaption { font-size: 12.5px; color: var(--text-dim); text-align: center; max-width: 12rem; }
+.setup-how { margin: var(--space-4) 0 0; padding-left: 1.25rem; font-size: 14px; line-height: 1.6; color: var(--text-dim); }
+.setup-how b { color: var(--text); font-weight: 500; }
+.setup-replace { align-self: flex-start; }
+
+/* backups */
+.setup-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.setup-test { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.setup-test-status { font-size: 13px; color: var(--text-dim); }
+.setup-test-status[data-state="ok"] { color: var(--teal-ink); }
+.setup-test-status[data-state="failed"] { color: var(--accent-ink); }
+.setup-no-disk { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+.setup-key { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding: var(--space-4);
+             margin-bottom: var(--space-4); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.setup-key-body { display: flex; flex-direction: column; }
+.setup-key-title { font-size: 14.5px; font-weight: 600; }
+.setup-key-action { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+/* review */
+.setup-console-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); font-size: 12.5px; }
+
+/* provisioning and complete */
+.setup-final { display: flex; flex-direction: column; }
+.setup-final-icon { align-self: center; width: 56px; height: 56px; border-radius: var(--radius-lg); border: 1px solid var(--line);
+                    background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--accent-ink);
+                    margin-bottom: var(--space-4); }
+.setup-final-icon[data-tone="ok"] { color: var(--teal-ink); }
+.setup-progress { display: flex; flex-direction: column; gap: var(--space-2); }
+.setup-signin { padding: var(--space-4); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.setup-signin p { margin: 0; }
+.setup-signin-url { font-size: 16px; font-weight: 600; margin-top: 6px !important; overflow-wrap: anywhere; }
+
 /* Phone width: the language menu takes its own line above the step, the buttons fill the row. */
 @media (max-width: 480px) {
   .setup-page { padding: var(--space-6) var(--space-3) var(--space-10); }
@@ -41,4 +101,10 @@ button { font: inherit; color: inherit; }
   .setup-card .ui-steps .ui-eyebrow { padding-right: 0; min-height: 0; }
   .setup-footer .ui-button { flex: 1; }
   .setup-footer > span:empty { display: none; }
+  .setup-no-steps { min-height: 0; }
+  .setup-step-list { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: var(--space-3); justify-content: stretch; }
+  .setup-register { flex-direction: column-reverse; align-items: stretch; }
+  .setup-row2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .setup-key { grid-template-columns: auto minmax(0, 1fr); }
+  .setup-key-action { grid-column: 1 / -1; align-items: stretch; }
 }

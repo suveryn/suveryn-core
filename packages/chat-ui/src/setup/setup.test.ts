@@ -9,18 +9,27 @@ import { LANGS, pickLang, TEXT } from "./text";
 const en = TEXT.en;
 const ok = { name: "Filip Tack", email: "filip@firm.example", password: "correct horse battery", confirm: "correct horse battery" };
 
+/** Every string in a language's table, functions called with sample values, nested tables walked. */
+function strings(v: unknown, path: string): [string, string][] {
+  if (typeof v === "string") return [[path, v]];
+  if (typeof v === "function") return [[path, String((v as (...a: unknown[]) => unknown)(1, 6, "x"))],
+                                      [`${path}(365)`, String((v as (...a: unknown[]) => unknown)(365, 2, "y"))]];
+  if (Array.isArray(v)) return v.flatMap((x, i) => strings(x, `${path}[${i}]`));
+  return Object.entries(v as object).flatMap(([k, x]) => strings(x, `${path}.${k}`));
+}
+const keysOf = (v: unknown, path = ""): string[] =>
+  v && typeof v === "object" && !Array.isArray(v)
+    ? Object.entries(v).flatMap(([k, x]) => [`${path}.${k}`, ...keysOf(x, `${path}.${k}`)]) : [];
+
 describe("the web setup's text", () => {
   it("has every string in every language, none empty", () => {
     for (const l of LANGS) {
-      expect(Object.keys(TEXT[l]).sort()).toEqual(Object.keys(en).sort());
-      for (const [k, v] of Object.entries(TEXT[l])) {
-        const s = typeof v === "function" ? (v as (...a: unknown[]) => string)(1, 6, "x") : v;
-        expect(s.trim(), `${l}.${k}`).not.toBe("");
-      }
+      expect(keysOf(TEXT[l]).sort(), l).toEqual(keysOf(en).sort());
+      for (const [k, s] of strings(TEXT[l], l)) expect(s.trim(), k).not.toBe("");
     }
   });
   it("is formal in Dutch and French, lower-case sūveryn mid-sentence, no em dashes", () => {
-    const all = (l: string) => Object.values(TEXT[l as keyof typeof TEXT]).map((v) => (typeof v === "function" ? (v as (...a: unknown[]) => string)(true, "1", "2") : v)).join("\n");
+    const all = (l: keyof typeof TEXT) => strings(TEXT[l], l).map(([, s]) => s).join("\n");
     expect(all("nl")).not.toMatch(/\b(je|jij|jouw|jullie)\b/i);
     expect(all("fr")).not.toMatch(/\b(tu|ton|ta|tes)\b/);
     for (const l of LANGS) {

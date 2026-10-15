@@ -12,8 +12,10 @@
  *
  * Styled in ui.css through [data-selected], [data-hovered], [data-focus-visible], [data-disabled].
  */
+import { Check, CircleAlert } from "lucide-react";
 import { useId, type ReactNode } from "react";
-import { Radio, RadioGroup } from "react-aria-components";
+import { Checkbox as AriaCheckbox, Radio, RadioGroup } from "react-aria-components";
+import { useFieldError } from "./forms";
 
 export type Choice = {
   value: string;
@@ -70,5 +72,27 @@ export function RadioList({ label, choices, value, onChange, name }: Props) {
         </div>
       ))}
     </RadioGroup>
+  );
+}
+
+/** A single checkbox, e.g. a confirmation the form needs; its error (from the form, by name) shows under it. */
+export function Checkbox({ name, children, checked, onChange }: { name: string; children: ReactNode; checked: boolean;
+                                                                  onChange: (checked: boolean) => void }) {
+  const id = useId();
+  const { error, clear } = useFieldError(name);
+  return (
+    <div className="ui-checkbox-field">
+      <AriaCheckbox name={name} isSelected={checked} onChange={(v) => { clear(); onChange(v); }} className="ui-checkbox"
+                    isInvalid={!!error} aria-describedby={error ? `${id}-error` : undefined}>
+        <span className="ui-checkbox-box" aria-hidden><Check size={13} strokeWidth={3} /></span>
+        <span>{children}</span>
+      </AriaCheckbox>
+      {error && (
+        <span id={`${id}-error`} className="ui-field-error">
+          <CircleAlert size={16} aria-hidden />
+          <span>{error}</span>
+        </span>
+      )}
+    </div>
   );
 }

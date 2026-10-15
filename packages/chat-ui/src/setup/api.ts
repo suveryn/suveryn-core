@@ -1,10 +1,61 @@
 /**
- * What the web setup asks the appliance (suveryn-tracker#37). Same origin, served by the appliance
- * only until setup finishes; no sign-in (setup is what creates the first account).
+ * What the web setup asks the appliance (suveryn-tracker#37). Same origin, served by the appliance only
+ * until setup finishes, with no sign-in (setup is what creates the first account). The paths are
+ * relative: the appliance serves setup at / (or /setup.html), so `setup/v1/…` is `/setup/v1/…` either way.
  *
- * GET /setup/v1/state: what the console installer set (name, address, language). Saving the answers
- * (POST) comes with the rest of the setup in #37; the spike keeps them in the page.
+ * Each step's answers are saved on the appliance when Continue is pressed, so a reload resumes where
+ * it was and secrets (the administrator's password, the share's password, a private key) pass through
+ * the page once and aren't kept in it. The appliance checks everything again; the codes it answers
+ * with are shown in the interface's language (text.ts, `errors`).
+ *
+ *   GET  setup/v1/state                    → SetupState
+ *   PUT  setup/v1/answers/network          { mode, outgoing }
+ *   PUT  setup/v1/answers/administrator    { name, email, password }
+ *   PUT  setup/v1/answers/certificate      { kind: "self-signed" } | { kind: "own", certificate, key, chain? } (PEM text)
+ *                                          → CertificateAnswer
+ *   POST setup/v1/manifest                 the manifest file's bytes → Manifest (and saves it)
+ *   PUT  setup/v1/answers/support          { skipped: true }
+ *   POST setup/v1/backups/test             { protocol, address, user?, password? } → { ok: true } | { ok: false, error }
+ *   PUT  setup/v1/answers/backups          BackupsAnswer, plus password for a share
+ *   POST setup/v1/provision                → Progress (starts it; again after a failure retries)
+ *   GET  setup/v1/provision                → Progress
+ *
+ * Errors: 422 with { errors: { field: code } } or { error: code }. The appliance implements these in
+ * #37 part 5; until then `npm run dev` (and the preview build, `--mode demo`) answer from demo.ts.
  */
+
+export type NetworkMode = "connected" | "air-gapped";
+export type Outgoing = "approved" | "all";
+export type NetworkAnswer = { mode: NetworkMode; outgoing: Outgoing };
+export type AdministratorAnswer = { name: string; email: string };
+export type CertificateAnswer =
+  | { kind: "self-signed"; names: string[] }
+  | { kind: "own"; names: string[]; issuer: string; not_after: string };
+/** A support agreement manifest, checked on the appliance (signed by Sūveryn Labs for this appliance). */
+export type Manifest = {
+  edition: string;            // e.g. "Sūveryn Enterprise"
+  appliance_id: string;
+  users: number;
+  valid_until: string;        // ISO date
+  next_check_in: string;      // ISO date
+  connectors: number;
+  playbooks: number;
+};
+export type Retention = 14 | 30 | 90 | 365;
+export type BackupsAnswer =
+  | { target: "usb"; disk: string; retention_days: Retention; recipient: string }
+  | { target: "share"; protocol: "smb" | "nfs"; address: string; user: string | null; retention_days: Retention; recipient: string }
+  | { target: "later" };
+export type UsbDisk = { id: string; name: string; size_bytes: number; bus: string };
+
+export type SavedAnswers = {
+  network?: NetworkAnswer;
+  administrator?: AdministratorAnswer;    // the password stays on the appliance
+  certificate?: CertificateAnswer;
+  support?: Manifest | null;              // null: skipped
+  backups?: BackupsAnswer;
+};
+
 export type SetupState = {
   name: string;               // e.g. notary-brussels-01 (reached as <name>.local)
   address: string;            // with prefix, e.g. 192.168.1.50/24
@@ -12,28 +63,52 @@ export type SetupState = {
   gateway: string;
   dns: string;
   language: string | null;    // chosen at installation: en, nl or fr
+  appliance: { id: string; fingerprint: string } | null;  // the identity (#35): UUID and SHA-256 of its public key, hex
+  models: string[];           // installed language models, by name
+  usb_disks: UsbDisk[];       // disks plugged into the appliance that could hold backups
+  answers: SavedAnswers;
+  provisioning: Progress | null;
 };
 
-/** In development without an appliance, the design's example (npm run dev, then /setup.html). */
-const DEMO: SetupState = {
-  name: "notary-brussels-01", address: "192.168.1.50/24", dhcp: true, gateway: "192.168.1.1", dns: "192.168.1.1", language: null,
+export type StepId = "database" | "signin" | "models" | "web" | "outgoing";
+export type Progress = {
+  state: "running" | "done" | "failed";
+  steps: { id: StepId; state: "waiting" | "running" | "done" | "failed"; error?: string }[];
+  /** The last check: what the appliance could reach. not_checked: "allow all outgoing traffic". */
+  outgoing: "limited" | "blocked" | "not_limited" | "not_checked" | null;
 };
 
-export async function getState(): Promise<SetupState> {
-  try {
-    // Relative: the appliance serves setup at / (or /setup.html), so this is /setup/v1/state either way.
-    const r = await fetch("setup/v1/state", { headers: { Accept: "application/json" } });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return (await r.json()) as SetupState;
-  } catch (e) {
-    if (import.meta.env.DEV) return DEMO;
-    throw e;
-  }
+/** An answer the appliance refused, by field (or `_` for the whole step), as codes. */
+export class Refused extends Error {
+  constructor(readonly codes: Record<string, string>) { super(Object.values(codes).join(", ")); }
 }
 
-export type NetworkMode = "connected" | "air-gapped";
-export type Outgoing = "approved" | "all";
-export type Answers = {
-  network: { mode: NetworkMode; outgoing: Outgoing };
-  administrator: { name: string; email: string } | null;   // the password is never kept in the page's state
-};
+async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // Development and the preview build only; a production build leaves demo.ts out entirely.
+  if (import.meta.env.DEV || import.meta.env.MODE === "demo") return (await import("./demo")).answer(method, path, body) as Promise<T>;
+  const r = await fetch(`setup/v1/${path}`, {
+    method,
+    headers: body === undefined ? { Accept: "application/json" }
+      : body instanceof Blob ? { "Content-Type": "application/octet-stream" } : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body),
+  });
+  if (r.status === 422) {
+    const e = await r.json().catch(() => ({}));
+    throw new Refused(e.errors ?? { _: e.error ?? "refused" });
+  }
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return (r.status === 204 ? undefined : await r.json()) as T;
+}
+
+export const getState = () => call<SetupState>("GET", "state");
+export const saveNetwork = (a: NetworkAnswer) => call<void>("PUT", "answers/network", a);
+export const saveAdministrator = (a: AdministratorAnswer & { password: string }) => call<void>("PUT", "answers/administrator", a);
+export const saveCertificate = (a: { kind: "self-signed" } | { kind: "own"; certificate: string; key: string; chain?: string }) =>
+  call<CertificateAnswer>("PUT", "answers/certificate", a);
+export const checkManifest = (file: Blob) => call<Manifest>("POST", "manifest", file);
+export const skipManifest = () => call<void>("PUT", "answers/support", { skipped: true });
+export const testShare = (s: { protocol: "smb" | "nfs"; address: string; user?: string; password?: string }) =>
+  call<{ ok: true } | { ok: false; error: string }>("POST", "backups/test", s);
+export const saveBackups = (a: BackupsAnswer & { password?: string }) => call<void>("PUT", "answers/backups", a);
+export const startProvisioning = () => call<Progress>("POST", "provision");
+export const getProgress = () => call<Progress>("GET", "provision");
