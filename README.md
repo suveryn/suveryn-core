@@ -21,7 +21,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 | [`packages/chat`](packages/chat/README.md) | Grounded answers with numbered citations (`[n]` → `citations[n-1]`), server-side calculations, and each citation checked against its passage |
 | [`packages/api-gateway`](packages/api-gateway/README.md) | FastAPI app: `POST /v1/chat`, `/v1/documents`, `/v1/conversations`, `/v1/usage`, `/v1/admin/usage`, `GET /health`; sign-in with Keycloak (`/auth/...`) and rate limits |
 | [`packages/rag`](packages/rag/README.md) | Document ingestion (`ocr_fast` extraction in an isolated reader process, integrity checks, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations |
-| [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) in English, Dutch and French; answers to Word, tables to Excel |
+| [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) in English, Dutch and French; answers to Word, tables to Excel. Also the appliance's first-boot web setup |
 | `packages/mcp-host`, `connectors`, `playbooks` | Placeholders for later phases |
 
 ## Run locally

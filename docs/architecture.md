@@ -23,7 +23,7 @@ Related repositories:
 | [`packages/api-gateway`](../packages/api-gateway/README.md) | Built | HTTP API: `POST /v1/chat`, `/v1/documents` (upload, list, delete, job status), `/v1/conversations` (saved chat history), `/v1/usage` and `/v1/admin/usage` (token usage), `GET /health`; sign-in with Keycloak (`/auth/...`) gating every `/v1` request |
 | [`packages/rag`](../packages/rag/README.md) | Built | Ingestion (extraction in an isolated reader process, integrity checks and text repair, chunking, embeddings, storage) and retrieval |
 | [`packages/chat`](../packages/chat/README.md) | Built | Grounded answers: passages → numbered excerpts → answer citing `[n]`; server-side calculations; each citation checked against its own passage |
-| [`packages/chat-ui`](../packages/chat-ui/README.md) | Built | React/TypeScript chat interface (light theme). Builds to static files in `dist/`; in development Vite proxies `/v1` and `/health` to the gateway. How the static files are served in production (on the same origin as the API) is decided by suveryn-appliance |
+| [`packages/chat-ui`](../packages/chat-ui/README.md) | Built | React/TypeScript chat interface (light theme), and the appliance's first-boot web setup as a second entry (`setup.html`, no sign-in); both on a small component library over React Aria Components (`src/ui`, suveryn-tracker#44). Builds to static files in `dist/`; in development Vite proxies `/v1` and `/health` to the gateway. How the static files are served in production (on the same origin as the API) is decided by suveryn-appliance |
 | `packages/mcp-host`, `connectors`, `playbooks` | Placeholders | Later phases |
 
 Runtime services are **not** part of this repository. PostgreSQL with pgvector, Keycloak and the model server ([llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server`) are installed and configured by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance). This repository only contains clients for them. For development, [packages/api-gateway/keycloak](../packages/api-gateway/keycloak/README.md) describes a local Keycloak with the `suveryn` realm.
@@ -128,6 +128,8 @@ Reviewers: check changes against these.
     - A document of another owner gets a fresh reader.
     - Only the document being read is where the reader can see it.
 
+15. **The browser code keeps to the appliance's Content-Security-Policy without loosening it** (`style-src 'self'`, `script-src 'self'`, no `data:`, no other host). No `<style>` element, inline script, `style` attribute in markup, `eval` or `innerHTML`; a library that writes styling at run time is fixed so it doesn't, or isn't used; never `'unsafe-inline'`, a nonce or a hash. How, and the two React Aria exceptions we handle: [content-security-policy.md](content-security-policy.md). Checked by `packages/chat-ui/src/csp.test.ts` and a browser check under the real headers.
+
 ## 5. Decisions and their evidence
 
 | Decision | Evidence |
@@ -200,7 +202,7 @@ Reviewers: check changes against these.
 ## 7. How to verify
 
 - **Fast tests, any machine:** `uv sync --locked && uv run pytest`. These are the engine, chat (including calculations) and gateway tests; rag tests are skipped.
-- **Chat UI:** `cd packages/chat-ui && npm ci && npm test && npm run typecheck`. Covers SSE parsing, answer rendering, source marking, conversation history and its cap, copy and download, translated server errors, the i18n rules (formal Dutch, the brand name's case), and the brand-file hash check.
+- **Chat UI:** `cd packages/chat-ui && npm ci && npm test && npm run typecheck`. Covers SSE parsing, answer rendering, source marking, conversation history and its cap, copy and download, translated server errors, the i18n rules (formal Dutch, the brand name's case), the brand-file hash check, the web setup's text and password rules, and that React Aria stays within the CSP (`vite.config.ts`).
 - **Full tests on the GPU machine:** `uv sync --locked --all-packages`, then `SUVERYN_TEST_DATABASE_URL=… uv run pytest`. This adds the rag units (including the offline guard), pgvector storage, and the end-to-end trap deed ([`test_e2e.py`](../packages/rag/tests/test_e2e.py)) as a born-digital PDF, a scan, and a scan with a thin digital text layer.
 - **Before using a new model or model version** (suveryn-tracker#21): the regression harness [`test_answers_e2e.py`](../packages/rag/tests/test_answers_e2e.py) on the GPU machine, for every model to compare:
 
@@ -230,6 +232,7 @@ Reviewers: check changes against these.
 - [ ] If it changes grounding limits: do `WHOLE_DOCUMENT_CHARS` and the history still fit a slot's context share, and does the chunk cap keep markers to two digits?
 - [ ] If it touches `calc.py`: are mixed or ambiguous number styles refused rather than guessed, does every failure become a visible `[calculation not possible: …]`, and do the streamed and non-streamed paths give the same text?
 - [ ] If it touches the UI: is model output still rendered only as React text (no HTML), and is a partial answer discarded after an `error` event?
+- [ ] If it touches the UI or adds a browser dependency: does it keep to [content-security-policy.md](content-security-policy.md) (no inline `<style>` or script, nothing written into the page at run time, no `data:` or other host), and does `npm test` (`src/csp.test.ts`) pass? A new library is checked under the real policy first.
 - [ ] If it adds an endpoint: is it under `/v1` (signed-in only) or deliberately public, does a state-changing endpoint keep the same-origin check, and does anything that touches documents pass the caller's owner (`owner_of`)?
 - [ ] If it touches `auth.py`: do the sign-in tests (`test_auth.py`) and `keycloak/live_login_check.py` still pass, and does no token, code or cookie reach the browser or a log?
 - [ ] If it touches the PDF reader (`isolation.py`, `service.py`): does untrusted parsing stay in the reader, does the reader get no new secrets (`child_env`), does another owner's document still get a fresh reader, and does only the document being read reach the inbox?
