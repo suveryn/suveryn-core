@@ -81,7 +81,7 @@ Suggestion: put the shared base rules (focus colours, field and button sizes, ca
 
 ## Not covered by this spike
 
-- **VoiceOver** (and Safari's own engine): needs a Mac. Script below.
+- **VoiceOver** (and Safari's own engine): needs a Mac. Script below. What can be checked without one: [`screen-reader.py`](screen-reader.py) prints, for each keyboard step, the role, name, description and states a screen reader is given (Chromium's accessibility tree). It found two things, both fixed: the choice cards' description was read twice (it was part of the name and the description), and the model menu's items ran the model and its state together as one name.
 - Components not built yet: Tabs, Table, Toast, Dialog, file upload, and a router. React Aria has all but the router; the CSP fixes above cover dialogs too (same scroll lock).
 - The common-password check is a short list; the real one needs a leaked-password list on the appliance, shared with Keycloak's `passwordBlacklist` (#37).
 - Native-speaker review of the Dutch and French setup text.
@@ -91,7 +91,7 @@ Suggestion: put the shared base rules (focus colours, field and button sizes, ca
 Open the setup in Safari: `npm run dev` in `packages/chat-ui`, then http://localhost:5173/setup.html (example network settings), or the preview link from the spike. Turn VoiceOver on with Cmd+F5. Move with Tab, and read with VO+Right Arrow (VO is Control+Option).
 
 1. **Language menu**: Tab to it. Expect "English, Language, pop-up button" (or "menu button"). Press VO+Space, then Down Arrow: "Nederlands". Enter: the page is in Dutch and VoiceOver now reads Dutch text with a Dutch voice.
-2. **Internet access**: Tab. Expect "Connected, radio button, selected, 1 of 2" plus its description. Down Arrow: "Air-gapped … 2 of 2"; the outgoing options disappear. Up Arrow back.
+2. **Internet access**: Tab. Expect "Connected, radio button, selected, 1 of 2", then its description once (not twice). Down Arrow: "Air-gapped … 2 of 2"; the outgoing options disappear. Up Arrow back.
 3. **Outgoing connections**: Tab. Expect "Approved destinations only (recommended), radio button, selected, 1 of 2".
 4. **Continue**: Enter. Expect VoiceOver to read "Administrator account, heading level 1".
 5. **Fields**: Tab through. Each field's label is read; the email field also reads "Used to sign in. It stays on this appliance." The eye button: "Show password, toggle button, not selected"; VO+Space shows the password.
@@ -108,4 +108,4 @@ python3 ../../docs/spikes/react-aria/serve.py dist 8765 <suveryn-appliance>/reve
 AXE_JS=<axe-core>/axe.min.js python3 ../../docs/spikes/react-aria/check.py http://127.0.0.1:8765 /tmp/spike
 ```
 
-Needs Python Playwright with Chromium, and axe-core 4.10 (`npm install axe-core@4.10.3` anywhere). Screenshots and `report.json` go to the output folder.
+`python3 screen-reader.py http://127.0.0.1:8765` prints the screen-reader readout. Needs Python Playwright with Chromium, and axe-core 4.10 (`npm install axe-core@4.10.3` anywhere). Screenshots and `report.json` go to the output folder.

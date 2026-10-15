@@ -22,6 +22,7 @@ import {
   Popover,
   Select as AriaSelect,
   SelectValue,
+  Text,
   type Key,
   type Placement,
 } from "react-aria-components";
@@ -101,8 +102,9 @@ export function MenuButton({ children, menuLabel, items, selected, onAction, pla
             <MenuItem key={i.id} id={i.id} textValue={i.label} className="ui-menu-item">
               {({ isSelected }) => (
                 <>
-                  <span className="ui-menu-item-label">{i.label}</span>
-                  {i.description && <span className="ui-menu-item-desc">{i.description}</span>}
+                  {/* label and description slots: read as the item's name, then its description */}
+                  <Text slot="label" className="ui-menu-item-label">{i.label}</Text>
+                  {i.description && <Text slot="description" className="ui-menu-item-desc">{i.description}</Text>}
                   {isSelected && <Check size={14} aria-hidden className="ui-menu-item-check" />}
                 </>
               )}
