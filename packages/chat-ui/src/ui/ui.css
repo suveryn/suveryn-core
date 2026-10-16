@@ -13,7 +13,7 @@
  * values; both should take them from suveryn-brand (the focus colours aren't brand tokens yet).
  * ---------------------------------------------------------------------------------------------- */
 :root {
-  --focus-border: oklch(0.5719 0.0969 187.53);          /* the teal, darkened to a UI boundary: 3:1 on white */
+  --focus-border: oklch(0.5720 0.0970 188.40);          /* the teal, darkened to a UI boundary (3:1 on white), on its hue */
   --focus-glow: oklch(from var(--teal) l c h / 0.15);    /* 3px, around fields and the language button */
   --card-width: 560px;
 }
