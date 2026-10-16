@@ -3,7 +3,9 @@
  *
  * A new case asks for the office's own file number, a name, the type and a short subject. The hint
  * under the name says what the design decided: no client names on the label; the parties are in the
- * documents. The type list is the notarial one for now (types are data per appliance, later).
+ * documents. The type is a combo box: the notarial list as suggestions (stored by their id, so the
+ * label follows the interface language), or another sector's own word, stored as typed (types are
+ * data per appliance, later).
  * Deleting is for a case opened by mistake: the dialog says the documents and conversations go
  * with it, and keeping it is the focused choice.
  */
@@ -11,15 +13,15 @@ import { AlertCircle, FolderPlus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createCase, type Case, type NewCase } from "../api";
 import { useT } from "../i18n";
-import { Button, Dialog, Form, InlineNotice, SelectField, TextButton, TextField } from "../ui";
+import { Button, ComboBoxField, Dialog, Form, InlineNotice, TextButton, TextField } from "../ui";
 
-export const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract", "other"] as const;
+export const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract"] as const;
 
 /** The type's label in the interface language; an unknown type (another sector's) is shown as is. */
 export function caseTypeLabel(type: string, m: ReturnType<typeof useT>): string {
   const labels: Record<string, string> = {
     "sale": m.caseTypeSale, "company-formation": m.caseTypeCompany, "estate": m.caseTypeEstate, "gift": m.caseTypeGift,
-    "marriage-contract": m.caseTypeMarriage, "other": m.caseTypeOther,
+    "marriage-contract": m.caseTypeMarriage,
   };
   return labels[type] ?? type;
 }
@@ -28,22 +30,26 @@ export function NewCaseDialog({ open, onCreated, onCancel }: { open: boolean; on
   const m = useT();
   const [reference, setReference] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<string>("sale");
+  const [type, setType] = useState<string>(caseTypeLabel("sale", m));
   const [subject, setSubject] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { if (open) { setReference(""); setName(""); setType("sale"); setSubject(""); setError(null); setBusy(false); } }, [open]);
+  useEffect(() => { if (open) { setReference(""); setName(""); setType(caseTypeLabel("sale", m)); setSubject(""); setError(null); setBusy(false); } }, [open, m]);
 
   const check = () => {
     const errors: Record<string, string> = {};
     if (!reference.trim()) errors.reference = m.required;
     if (!name.trim()) errors.name = m.required;
+    if (!type.trim()) errors.type = m.required;
     return errors;
   };
+  // A known type by its id, whatever the language; another sector's word as typed.
+  const typeId = CASE_TYPES.find((id) => caseTypeLabel(id, m).toLowerCase() === type.trim().toLowerCase()) ?? type.trim();
   const create = async () => {
     setBusy(true);
     setError(null);
-    const body: NewCase = { reference: reference.trim(), name: name.trim(), type, subject: subject.trim() ? { description: subject.trim() } : {} };
+    const body: NewCase = { reference: reference.trim(), name: name.trim(), type: typeId,
+                            subject: subject.trim() ? { description: subject.trim() } : {} };
     try {
       onCreated(await createCase(body));
     } catch (e) {
@@ -63,8 +69,8 @@ export function NewCaseDialog({ open, onCreated, onCancel }: { open: boolean; on
         <TextField name="reference" label={m.caseReference} description={m.caseReferenceHint} value={reference}
                    onChange={setReference} autoFocus maxLength={100} />
         <TextField name="name" label={m.caseName} description={m.caseNameHint} value={name} onChange={setName} maxLength={200} />
-        <SelectField name="type" label={m.caseType} value={type} onChange={setType}
-                     options={CASE_TYPES.map((id) => ({ id, label: caseTypeLabel(id, m) }))} />
+        <ComboBoxField name="type" label={m.caseType} description={m.caseTypeHint} value={type} onChange={setType}
+                       options={CASE_TYPES.map((id) => ({ id, label: caseTypeLabel(id, m) }))} />
         <TextField name="subject" label={m.caseSubject} description={m.caseSubjectHint} value={subject} onChange={setSubject} maxLength={500} />
         {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
       </Form>

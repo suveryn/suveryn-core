@@ -13,7 +13,10 @@ import { compact } from "../lib/usage";
 import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 import { LanguagePicker } from "./LanguagePicker";
-import { Button, IconButton, TextButton } from "../ui";
+import { Button, IconButton, SearchField, SelectList, TextButton } from "../ui";
+
+const SEARCH_FROM = 6;  // cases: a search box once the list is longer than this
+const MY_SPACE = "my-space";
 
 type Props = {
   documents: StoredDocument[];
@@ -53,6 +56,12 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
   // and on a document's bin while its dialog is open, so the focus returns there when it closes.
   const [back, setBack] = useState<string | null>(null);
   const keep = (id: string) => { setConfirming(null); setBack(id); };
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = q ? cases.filter((c) => c.reference.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) : cases;
+  // One list for the keyboard: the personal space first, then the cases (filtered by the search).
+  const entries = [{ id: MY_SPACE, textValue: m.mySpace, kase: null as Case | null },
+                   ...shown.map((c) => ({ id: c.id, textValue: `${c.reference} ${c.name}`, kase: c as Case | null }))];
   return (
     <aside className="sidebar">
       <Lockup />
@@ -63,26 +72,24 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
       <section className="library cases" aria-labelledby="cases-title">
         <h2 id="cases-title" className="label">{m.cases}</h2>
         {casesNote && <p className="caption">{casesNote}</p>}
-        <ul>
-          <li className={`doc${currentCase === null ? " doc-current" : ""}`}>
-            <Button variant="plain" className="doc-use" onPress={() => onOpenCase(null)} title={m.mySpaceHint}
-                    aria-current={currentCase === null ? "true" : undefined}>
+        {cases.length > SEARCH_FROM && <SearchField label={m.findCase} value={query} onChange={setQuery} className="case-search" />}
+        <SelectList label={m.cases} items={entries} current={currentCase?.id ?? MY_SPACE} onOpen={(e) => onOpenCase(e.kase)}
+                    className="case-list">
+          {(e) => e.kase === null ? (
+            <span className="doc-use" title={m.mySpaceHint}>
               <User size={15} aria-hidden />
               <span className="doc-name">{m.mySpace}</span>
-            </Button>
-          </li>
-          {cases.map((c) => (
-            <li key={c.id} className={`doc${c.id === currentCase?.id ? " doc-current" : ""}`}>
-              <Button variant="plain" className="doc-use" onPress={() => onOpenCase(c)} title={m.openCase(c.reference, c.name)}
-                      aria-current={c.id === currentCase?.id ? "true" : undefined}>
-                <Folder size={15} aria-hidden />
-                <span className="doc-name">{c.reference}</span>
-                <span className="doc-meta">{c.name}</span>
-              </Button>
-            </li>
-          ))}
-        </ul>
+            </span>
+          ) : (
+            <span className="doc-use" title={m.openCase(e.kase.reference, e.kase.name)}>
+              <Folder size={15} aria-hidden />
+              <span className="doc-name">{e.kase.reference}</span>
+              <span className="doc-meta">{e.kase.name}</span>
+            </span>
+          )}
+        </SelectList>
         {!casesNote && cases.length === 0 && <p className="caption">{m.casesEmpty}</p>}
+        {q && shown.length === 0 && <p className="caption">{m.noCaseFound}</p>}
         {!casesNote && (
           <TextButton className="new-case" onPress={onNewCase}><FolderPlus size={14} aria-hidden /> {m.newCase}</TextButton>
         )}

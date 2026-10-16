@@ -55,10 +55,14 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .doc-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doc-meta { grid-column: 2; font-size: 12px; color: var(--text-dim); }
 .doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: 12px; }
-/* cases (suveryn-tracker#10) and conversations take the room they need, up to 30% and 40%; the
+/* cases (suveryn-tracker#10) and conversations take the room they need, up to 40% each; the
    document library gets the rest */
-.library.cases { flex: 0 1 auto; max-height: 30%; }
+.library.cases { flex: 0 1 auto; max-height: 40%; }
 .library.history { flex: 0 1 auto; max-height: 40%; }
+.library .case-list { overflow-y: auto; min-height: 0; }
+.library .case-list .doc-use { cursor: inherit; }
+.library .case-list [data-selected] .doc-name { font-weight: 600; }
+.library .case-search { margin: 0 var(--space-1) var(--space-1); }
 .library .new-case { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 12px;
                      padding: 0 var(--space-1); align-self: flex-start; }
 .library .new-case:hover { color: var(--text); }
