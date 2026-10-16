@@ -96,10 +96,10 @@ class FakeKeycloak:
 class FakeDocuments:
     state, error = "ready", None
 
-    def documents(self, owner):
+    def documents(self, scope):
         return []
 
-    def pending_jobs(self, owner):
+    def pending_jobs(self, owner, scope=None):
         return []
 
     def stop(self):
@@ -369,7 +369,7 @@ def test_questions_and_uploads_are_rate_limited_per_user(kc):
     auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
     class Uploads(FakeDocuments):
-        def accept_upload(self, src, filename, owner):
+        def accept_upload(self, src, filename, owner, case_id=None):
             return SimpleNamespace(public=lambda: {"id": "job"})
 
     app = create_app(llm, documents=Uploads(), load_documents=False, auth=auth,
