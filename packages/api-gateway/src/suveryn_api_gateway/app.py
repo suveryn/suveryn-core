@@ -1,8 +1,11 @@
 """FastAPI application: chat (plain or grounded in documents, JSON or streamed), documents, health.
 
-Ownership: documents, uploads and their jobs belong to the user who uploaded them (``owner_of``);
-every document endpoint and grounded chat sees only the caller's own, and another user's document
-is answered with 404, like a missing one.
+Ownership: a document, its upload and job, and a conversation are in one scope: the uploader's
+personal space, or a case (``cases.py``, suveryn-tracker#10). A request names the case it works
+in (``?case=`` on documents and conversations, ``case_id`` in a chat request); without one it is
+in the caller's personal space. The scope is decided once per request (``_scope``): the personal
+space is the caller's own, and a case needs the right in ``cases.may``. Everything outside the
+scope is answered with 404, like a missing document or conversation.
 
 Sign-in: every ``/v1/...`` request needs a signed-in user (see ``auth.py``): a session cookie set
 by the OIDC login with the local Keycloak, or a bearer access token. Requests that change something
@@ -42,6 +45,7 @@ import os
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
@@ -76,6 +80,16 @@ from .auth import (
     AuthSettings,
     AuthUnavailable,
 )
+from .cases import (
+    Case,
+    CaseIn,
+    CaseSettings,
+    CaseStore,
+    CaseUpdate,
+    DuplicateReference,
+    Principal,
+    may,
+)
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import (
     Conversation,
@@ -102,8 +116,22 @@ try:  # document handling is optional (suveryn-rag is installed on the GPU machi
         SearchUnavailable,
         UploadRejected,
     )
+    from suveryn_rag.store import Scope
 except ImportError:
     MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+    @dataclass(frozen=True)
+    class Scope:  # stand-in with the same shape; without suveryn-rag it only names where conversations are
+        owner: str | None = None
+        case_id: uuid.UUID | None = None
+
+        @classmethod
+        def personal(cls, owner):
+            return cls(owner=owner)
+
+        @classmethod
+        def case(cls, case_id):
+            return cls(case_id=case_id)
 
     class DocumentNotFound(LookupError):  # stand-in; never raised without suveryn-rag
         pass
@@ -178,6 +206,7 @@ class HealthResponse(BaseModel):
     auth: AuthStatus
     history: StoreStatus
     usage: StoreStatus
+    cases: StoreStatus
 
 
 class Me(BaseModel):
@@ -271,15 +300,17 @@ def is_admin(request: Request, authenticator: Authenticator) -> bool:
 
 
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
-               auth: Authenticator | None = None, conversations=None, usage=None,
-               rate_limits: RateLimits | None = None) -> FastAPI:
+               auth: Authenticator | None = None, conversations=None, usage=None, cases=None,
+               case_settings: CaseSettings | None = None, rate_limits: RateLimits | None = None) -> FastAPI:
     """Build the FastAPI app.
 
-    ``client``, ``documents``, ``auth``, ``conversations`` and ``usage`` let tests inject a fake model
-    server, a fake document service, a sign-in with a fake Keycloak, a conversation store and a
-    usage store; in production all are created from environment variables when the app starts.
+    ``client``, ``documents``, ``auth``, ``conversations``, ``usage`` and ``cases`` let tests inject a
+    fake model server, a fake document service, a sign-in with a fake Keycloak, a conversation store,
+    a usage store and a case store; in production all are created from environment variables when
+    the app starts. ``case_settings`` sets the appliance's default access for cases (tests).
     """
     authenticator = auth or Authenticator(AuthSettings.from_env())
+    cases_settings = case_settings or CaseSettings.from_env()
     limits = rate_limits or RateLimits.from_env()
     sign_in_limit = RateLimiter(limits.sign_in)
     per_user_limits = {("POST", "/v1/chat"): RateLimiter(limits.chat),
@@ -297,11 +328,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
             private_tmp()
 
-        async def retriever(question: str, document_ids: list[str], k: int, owner: str):
+        async def retriever(question: str, document_ids: list[str], k: int, owner: str, case_id: str | None):
+            # The chat route has checked the caller may read the case; here the scope only says where to look.
             if docs is None or docs.state != "ready":
                 raise DocumentsUnavailable("document search is not available right now")
+            scope = Scope.case(uuid.UUID(case_id)) if case_id else Scope.personal(owner)
             try:
-                return await run_in_threadpool(docs.retrieve, question, document_ids, k, owner)
+                return await run_in_threadpool(docs.retrieve, question, document_ids, k, scope)
             except SearchUnavailable as e:
                 raise DocumentsUnavailable(str(e)) from e
 
@@ -311,7 +344,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                      else _connector(ConversationStore, ConversationSettings.from_env()))
         app.state.usage = Database("token usage", usage, None if usage is not None or not own_db
                                    else _connector(UsageStore, UsageSettings.from_env()))
-        for db in (app.state.history, app.state.usage):
+        app.state.cases = Database("case", cases, None if cases is not None or not own_db
+                                   else _connector(CaseStore, cases_settings))
+        for db in (app.state.history, app.state.usage, app.state.cases):
             await run_in_threadpool(db.get)
 
         async def record_usage(r: UsageRecord) -> None:
@@ -327,7 +362,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         await authenticator.aclose()
         if docs is not None:
             docs.stop()
-        for db, injected in ((app.state.history, conversations), (app.state.usage, usage)):
+        for db, injected in ((app.state.history, conversations), (app.state.usage, usage), (app.state.cases, cases)):
             if injected is None and db.store is not None:
                 db.store.close()
 
@@ -488,6 +523,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             auth=AuthStatus(status=(await authenticator.status())[0]),
             history=request.app.state.history.status(),
             usage=request.app.state.usage.status(),
+            cases=request.app.state.cases.status(),
         )
         return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
@@ -504,6 +540,101 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             return await llm.list_models()
         except BackendError as e:
             raise HTTPException(502, str(e)) from e
+
+    # ------------------------------------------------------------------ cases (suveryn-tracker#10)
+    def _cases_or_503(request: Request) -> CaseStore:
+        db: Database = request.app.state.cases
+        if not db.configured:
+            raise HTTPException(503, "Cases are not available on this server.")
+        store = db.get()
+        if store is None:
+            raise HTTPException(503, f"Cases are not available right now: {db.error}.")
+        return store
+
+    def _principal(request: Request) -> Principal:
+        return Principal(sub=owner_of(request), admin=is_admin(request, authenticator))
+
+    def _case_id(case_id: str) -> uuid.UUID:
+        try:
+            return uuid.UUID(case_id)
+        except ValueError:
+            raise HTTPException(422, "Not a case id.") from None
+
+    async def _case_for(request: Request, case_id: str, action: str) -> Case:
+        """The case, if the caller may do ``action`` in it; else 404 (a case they may not see is
+        answered like a missing one) or 403 (they may see it, not do this)."""
+        store, cid, who = _cases_or_503(request), _case_id(case_id), _principal(request)
+        case = await run_in_threadpool(store.get, cid, who.sub)
+        office_wide = cases_settings.office_wide
+        if case is None or not (may(who, case, case.my_role, "read", office_wide) or may(who, case, case.my_role, "list", office_wide)):
+            raise HTTPException(404, "Unknown case.")
+        if not may(who, case, case.my_role, action, office_wide):
+            raise HTTPException(403, "You may not do this in this case."
+                                if case.state == "open" else "This case is closed.")
+        return case
+
+    async def _scope(request: Request, case: str | None, action: str) -> Scope:
+        """Where a request works: the caller's personal space, or the case ``case`` if they may do
+        ``action`` in it (``read`` to list and ask, ``contribute`` to upload, ``manage`` to delete)."""
+        if not case:
+            return Scope.personal(owner_of(request))
+        found = await _case_for(request, case, action)
+        return Scope.case(uuid.UUID(found.id))
+
+    @app.get("/v1/cases", response_model=list[Case])
+    async def list_cases(request: Request, closed: bool = False):
+        """The cases the caller may see: open ones first, most recently active first. Closed cases
+        only with ``closed=true``. ``my_role`` is the caller's role in each."""
+        store, who = _cases_or_503(request), _principal(request)
+        return await run_in_threadpool(store.list, who.sub, office_wide=cases_settings.office_wide,
+                                       admin=who.admin, closed=closed)
+
+    @app.post("/v1/cases", response_model=Case, status_code=201, responses={409: {"description": "A case with this reference exists"}})
+    async def create_case(body: CaseIn, request: Request):
+        """Open a new case. The caller becomes its manager (and, in this stage, its only member).
+        The reference is the office's own file number, unique on this appliance; never put a client's
+        name in it or the name."""
+        store = _cases_or_503(request)
+        await _remember_user(request)
+        try:
+            return await run_in_threadpool(store.create, body, owner_of(request))
+        except DuplicateReference:
+            raise HTTPException(409, "A case with this reference already exists.") from None
+
+    @app.get("/v1/cases/{case_id}", response_model=Case, responses={404: {"description": "Unknown case"}})
+    async def get_case(case_id: str, request: Request):
+        """One case the caller may see."""
+        return await _case_for(request, case_id, "read")
+
+    @app.patch("/v1/cases/{case_id}", response_model=Case, responses={
+        403: {"description": "Not the case's manager, or the case is closed"}, 404: {"description": "Unknown case"},
+        409: {"description": "A case with this reference exists"}})
+    async def update_case(case_id: str, body: CaseUpdate, request: Request):
+        """Change a case's reference, name, type, subject or access (its manager only)."""
+        case = await _case_for(request, case_id, "manage")
+        try:
+            return await run_in_threadpool(_cases_or_503(request).update, uuid.UUID(case.id), body)
+        except DuplicateReference:
+            raise HTTPException(409, "A case with this reference already exists.") from None
+
+    @app.delete("/v1/cases/{case_id}", status_code=204, responses={
+        403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}})
+    async def delete_case(case_id: str, request: Request):
+        """Delete a case with its documents and conversations (its manager only). Closing and the
+        keep period (docs/design/cases.md, stage 3) are the office's way; this is for a case opened
+        by mistake. See ``Store.delete_document`` for what deletion does and doesn't guarantee."""
+        case = await _case_for(request, case_id, "manage")
+        cid = uuid.UUID(case.id)
+        docs = request.app.state.documents
+        if docs is not None:
+            if docs.state != "ready":
+                raise HTTPException(503, f"Document handling is {docs.state}; the case's documents can't be deleted now.")
+            await run_in_threadpool(docs.delete_all, Scope.case(cid))
+        if (history := _history_or_none(request)) is not None:
+            await run_in_threadpool(history.delete_case, cid)
+        if not await run_in_threadpool(_cases_or_503(request).delete, cid):
+            raise HTTPException(404, "Unknown case.")
+        return Response(status_code=204)
 
     @app.post("/v1/chat", response_model=ChatResponse, responses={
         200: {"content": {"text/event-stream": {}},
@@ -534,12 +665,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 raise HTTPException(422, f"No such model on this appliance: {req.model!r}")
         owner = owner_of(request)
         await _remember_user(request)
+        # The case the question is about, if any: the caller must be able to read it (404 if not).
+        scope = await _scope(request, req.case_id, "read")
         if req.document_ids:
-            # Before anything streams: only the caller's own documents (another user's id is answered
-            # like a missing one). The retriever checks again when it reads the passages.
+            # Before anything streams: only documents in that scope, and only uploaded ones (sūveryn's
+            # own output is never a source). An id elsewhere is answered like a missing one. The
+            # retriever checks again when it reads the passages.
             docs = _docs_or_503(request)
-            if not await run_in_threadpool(docs.owns, req.document_ids, owner):
+            if not await run_in_threadpool(docs.in_scope, req.document_ids, scope, True):
                 raise HTTPException(404, "Unknown document.")
+            if scope.case_id is not None and (store := request.app.state.cases.get()) is not None:
+                await run_in_threadpool(store.touch, scope.case_id)
         chat_service: ChatService = request.app.state.chat
         if not req.stream:
             try:
@@ -556,14 +692,19 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     @app.post("/v1/documents", status_code=202, responses={
         411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
         415: {"description": "Not a PDF"}, 503: {"description": "Unavailable"}})
-    async def upload_document(request: Request, file: UploadFile = File(...)):  # noqa: B008 - FastAPI's way to declare a form file
-        """Add a PDF. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is
-        ``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests."""
+    async def upload_document(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
+        """Add a PDF to the caller's personal space, or to the case ``case`` (a contributor's right).
+        Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is ``ready`` (or
+        ``needs_review``), then use its ``document_id`` in chat requests."""
         docs = _docs_or_503(request)
+        scope = await _scope(request, case, "contribute")
         try:
-            job = await run_in_threadpool(docs.accept_upload, file.file, file.filename or "document.pdf", owner_of(request))
+            job = await run_in_threadpool(docs.accept_upload, file.file, file.filename or "document.pdf", owner_of(request),
+                                          scope.case_id)
         except UploadRejected as e:
             raise HTTPException(e.status, str(e)) from e
+        if scope.case_id is not None and (store := request.app.state.cases.get()) is not None:
+            await run_in_threadpool(store.touch, scope.case_id)
         return job.public()
 
     @app.get("/v1/documents/jobs/{job_id}")
@@ -575,12 +716,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         return job.public()
 
     @app.get("/v1/documents")
-    async def list_documents(request: Request):
-        """The caller's stored documents (newest first) and their uploads still being processed or failed."""
+    async def list_documents(request: Request, case: str | None = None):
+        """The stored documents (newest first) in the caller's personal space, or in the case ``case``,
+        and the caller's uploads there still being processed or failed."""
         docs, owner = _docs_or_503(request), owner_of(request)
-        stored = await run_in_threadpool(docs.documents, owner)
+        scope = await _scope(request, case, "read")
+        stored = await run_in_threadpool(docs.documents, scope)
         return {"documents": [dict(d, id=str(d["id"]), created_at=d["created_at"].isoformat()) for d in stored],
-                "jobs": [j.public() for j in docs.pending_jobs(owner)]}
+                "jobs": [j.public() for j in docs.pending_jobs(owner, scope)]}
 
     def _document_id(document_id: str) -> uuid.UUID:
         try:
@@ -593,14 +736,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         return history.get() if history.configured else None
 
     @app.delete("/v1/documents/{document_id}", status_code=204)
-    async def delete_document(document_id: str, request: Request, conversations: Literal["clean", "delete"] = "clean"):
-        """Delete a document and its passages. See ``Store.delete_document`` for what deletion does and doesn't guarantee.
+    async def delete_document(document_id: str, request: Request, conversations: Literal["clean", "delete"] = "clean",
+                              case: str | None = None):
+        """Delete a document and its passages: one of the caller's own, or one in the case ``case``
+        (its manager's right). See ``Store.delete_document`` for what deletion does and doesn't guarantee.
 
         Saved conversations that cite it (suveryn-tracker#12): with ``conversations=clean`` (the default)
         its passages are taken out of them; with ``conversations=delete`` those conversations are deleted.
         """
         docs, did, owner = _docs_or_503(request), _document_id(document_id), owner_of(request)
-        if not await run_in_threadpool(docs.delete, document_id, owner):
+        scope = await _scope(request, case, "manage")
+        if not await run_in_threadpool(docs.delete, document_id, scope):
             raise HTTPException(404, "Unknown document.")
         if (store := _history_or_none(request)) is not None:
             await run_in_threadpool(store.remove_document, owner, did, conversations == "delete")
@@ -629,10 +775,12 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             raise HTTPException(422, "Not a conversation id.") from None
 
     @app.get("/v1/conversations", response_model=list[ConversationSummary])
-    async def list_conversations(request: Request):
-        """The caller's saved conversations, most recently changed first (titles and dates, no content)."""
+    async def list_conversations(request: Request, case: str | None = None):
+        """The caller's saved conversations in their personal space, or in the case ``case``, most
+        recently changed first (titles and dates, no content)."""
         store = _history_or_503(request)
-        return await run_in_threadpool(store.summaries, owner_of(request))
+        scope = await _scope(request, case, "read")
+        return await run_in_threadpool(store.summaries, owner_of(request), scope.case_id)
 
     @app.get("/v1/conversations/{conversation_id}", response_model=Conversation,
              responses={404: {"description": "Unknown, expired or another user's conversation"}})
@@ -648,14 +796,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         404: {"description": "The id belongs to another user's conversation"},
         413: {"description": f"Larger than {MAX_CONVERSATION_BYTES // (1024 * 1024)} MB"}})
     async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):
-        """Save the whole conversation under an id the client chose (a UUID), replacing an earlier save."""
+        """Save the whole conversation under an id the client chose (a UUID), replacing an earlier save.
+        ``case_id`` puts a new conversation in that case (the caller must be able to read it); a
+        saved conversation stays where it was first saved."""
         store, cid, owner = _history_or_503(request), _conversation_id(conversation_id), owner_of(request)
-        gone = await run_in_threadpool(_deleted_documents, request, body, owner)
+        scope = await _scope(request, body.case_id, "read")
+        gone = await run_in_threadpool(_deleted_documents, request, body, scope)
         if not await run_in_threadpool(store.save, cid, owner, body, gone):
             raise HTTPException(404, "Unknown conversation.")
         return Response(status_code=204)
 
-    def _deleted_documents(request: Request, body: ConversationIn, owner: str):
+    def _deleted_documents(request: Request, body: ConversationIn, scope: Scope):
         """Which documents the conversation cites that no longer exist (suveryn-tracker#12): a tab that
         was open while one was deleted must not save its passages back. None if that can't be known."""
         docs = request.app.state.documents
@@ -668,7 +819,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 valid.append(str(uuid.UUID(d)))
             except ValueError:
                 continue
-        existing = docs.existing(valid, owner) if valid else set()
+        existing = docs.existing(valid, scope) if valid else set()
         return lambda d: d not in existing
 
     @app.delete("/v1/conversations/{conversation_id}", status_code=204)

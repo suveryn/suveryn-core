@@ -8,20 +8,24 @@
  *   whole conversation is saved, and the sidebar lists earlier ones to open again. Nothing is
  *   written to browser storage. Signing out asks whether to keep the history (the default) or
  *   delete it. Without a database on the server, the conversation lives only in memory.
+ * - Cases (suveryn-tracker#10): the sidebar opens a case or the personal space; documents,
+ *   uploads, conversations and questions are then that case's (the gateway checks the right),
+ *   and switching starts a new chat there. The personal space is the user's own, as before cases.
  * - Each question is sent with the completed earlier turns (lib/history.ts) and every document
  *   used so far in the conversation that still exists.
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, LogIn } from "lucide-react";
+import { AlertCircle, Folder, LogIn, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations, getMyUsage,
+  deleteAllConversations, getMyUsage, listCases, deleteCase, type Case,
 } from "./api";
 import { Lockup } from "./components/Brand";
+import { caseTypeLabel, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage } from "./components/Messages";
@@ -34,7 +38,7 @@ import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSav
 import { conversationHistory } from "./lib/history";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { locale, useT } from "./i18n";
-import { Button, I18nProvider, InlineNotice } from "./ui";
+import { Button, I18nProvider, InlineNotice, TextButton } from "./ui";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
@@ -106,21 +110,27 @@ function Chat({ me }: { me: Me }) {
   const [askingSignOut, setAskingSignOut] = useState(false);
   const [view, setView] = useState<"chat" | "usage" | "admin">("chat");
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
+  const [cases, setCases] = useState<Case[]>([]);
+  const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
+  const [newCase, setNewCase] = useState(false);
+  const [deletingCase, setDeletingCase] = useState(false);
+  const caseId = currentCase?.id ?? null;
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const documentsReady = health?.documents.status === "ready";
   const historyReady = health?.history?.status === "ready";
+  const casesReady = health?.cases?.status === "ready";
 
   // ---------------------------------------------------------------- server state
   const refreshDocuments = useCallback(async () => {
     try {
-      const r = await listDocuments();
+      const r = await listDocuments(caseId);
       setDocuments(r.documents);
       setJobs(r.jobs);
     } catch { /* document handling unavailable; the health check explains why */ }
-  }, []);
+  }, [caseId]);
 
   useEffect(() => {
     let alive = true;
@@ -137,9 +147,14 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => { if (documentsReady) refreshDocuments(); }, [documentsReady, refreshDocuments]);
 
   const refreshConversations = useCallback(async () => {
-    try { setConversations(await listConversations()); } catch { /* the health check explains why */ }
-  }, []);
+    try { setConversations(await listConversations(caseId)); } catch { /* the health check explains why */ }
+  }, [caseId]);
   useEffect(() => { if (historyReady) refreshConversations(); }, [historyReady, refreshConversations]);
+
+  const refreshCases = useCallback(async () => {
+    try { setCases(await listCases()); } catch { /* the health check explains why */ }
+  }, []);
+  useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
 
   // The sidebar's usage counter: today's own tokens, refreshed after each answer.
   useEffect(() => {
@@ -155,10 +170,10 @@ function Chat({ me }: { me: Me }) {
     if (body === lastSaved.current) return;
     lastSaved.current = body;
     if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed(m.conversationTooLong)); return; }  // the server refuses it
-    saveConversation(conversationId, conversationTitle(turns), saved)
+    saveConversation(conversationId, conversationTitle(turns), saved, caseId)
       .then(refreshConversations)
       .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed(e.message)); });
-  }, [turns, busy, historyReady, conversationId, refreshConversations]);
+  }, [turns, busy, historyReady, conversationId, caseId, refreshConversations]);
 
   // Poll uploads that are still being read, in the composer and in the conversation.
   useEffect(() => {
@@ -208,7 +223,7 @@ function Chat({ me }: { me: Me }) {
       setPending((p) => [...p, { key, filename: file.name, status: "uploading" }]);
       try {
         const job = await uploadDocument(file, (fraction) =>
-          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))));
+          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId);
         setPending((p) => p.map((a) => (a.key === key ? { ...a, status: job.status, jobId: job.id } : a)));
         refreshDocuments();
       } catch (e) {
@@ -243,7 +258,7 @@ function Chat({ me }: { me: Me }) {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
         update({ text: streamed });
-      }, abort.current.signal, chosenModel, (step) => update({ step }));
+      }, abort.current.signal, chosenModel, (step) => update({ step }), caseId);
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
                instructionLikeSources: done.instruction_like_sources ?? [],
@@ -266,6 +281,23 @@ function Chat({ me }: { me: Me }) {
     setProblem(null);
     setConversationId(newConversationId());
     lastSaved.current = "";
+  };
+
+  // Opening a case or the personal space: a new chat there; the sidebar's lists follow `caseId`.
+  const openCase = (c: Case | null) => {
+    if ((c?.id ?? null) === caseId) { setView("chat"); return; }
+    setCurrentCase(c);
+    setDocuments([]);
+    setJobs([]);
+    setConversations([]);
+    newChat();
+  };
+  const removeCase = async () => {
+    if (!currentCase) return;
+    await deleteCase(currentCase.id);
+    setDeletingCase(false);
+    openCase(null);
+    refreshCases();
   };
 
   const openConversation = async (id: string) => {
@@ -314,7 +346,7 @@ function Chat({ me }: { me: Me }) {
     else await deleteNow(d, "clean", []).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
   };
   const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[]) => {
-    await deleteDocument(d.id, conversations);
+    await deleteDocument(d.id, conversations, caseId);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
     if (conversations === "delete" && using.includes(conversationId)) newChat();
     else if (usesDocument(turns, d.id)) setTurns((ts) => withoutDocument(ts, d.id));  // as the server cleaned it
@@ -338,7 +370,13 @@ function Chat({ me }: { me: Me }) {
                  health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
                onOpenConversation={(id) => { setView("chat"); openConversation(id); }} onDeleteConversation={removeConversation}
                tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
-               admin={me.admin ?? false} onOpenAdmin={() => setView("admin")} />
+               admin={me.admin ?? false} onOpenAdmin={() => setView("admin")}
+               cases={cases} currentCase={currentCase} onOpenCase={openCase} onNewCase={() => setNewCase(true)}
+               casesNote={health === null || casesReady ? null :
+                 health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable} />
+      <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
+                     onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
+      <DeleteCaseDialog open={deletingCase} kase={currentCase} onDelete={removeCase} onCancel={() => setDeletingCase(false)} />
       <DeleteDocumentDialog open={deleting !== null} filename={deleting?.doc.filename ?? ""}
                             conversations={deleting?.conversations.length ?? 0}
                             onDelete={(what) => deleteNow(deleting!.doc, what, deleting!.conversations)}
@@ -351,11 +389,25 @@ function Chat({ me }: { me: Me }) {
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} /></div>}
         {view === "chat" && <>
+        {currentCase && (
+          <header className="case-head">
+            <Folder size={16} aria-hidden />
+            <span className="case-ref">{m.caseLabel(currentCase.reference)}</span>
+            <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
+            <span className="case-meta">{caseTypeLabel(currentCase.type, m)}
+              {typeof currentCase.subject.description === "string" && ` · ${currentCase.subject.description}`}</span>
+            {currentCase.my_role === "manager" && (
+              <TextButton className="case-delete" onPress={() => setDeletingCase(true)}>
+                <Trash2 size={14} aria-hidden /> {m.deleteCase}
+              </TextButton>
+            )}
+          </header>
+        )}
         <div className="conversation">
           {turns.length === 0 ? (
             <div className="empty">
-              <h1>{TAGLINE}</h1>
-              <p>{m.emptyIntro}</p>
+              <h1>{currentCase ? currentCase.name : TAGLINE}</h1>
+              <p>{currentCase ? m.caseEmptyIntro : m.emptyIntro}</p>
             </div>
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :

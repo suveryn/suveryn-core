@@ -1,6 +1,7 @@
 """pgvector store tests against a real PostgreSQL. Skipped unless SUVERYN_TEST_DATABASE_URL is set."""
 
 import os
+import uuid
 
 import pytest
 
@@ -8,7 +9,7 @@ pytest.importorskip("psycopg")
 pytest.importorskip("suveryn_rag")
 import numpy as np
 from suveryn_rag.chunking import Chunk
-from suveryn_rag.store import Store
+from suveryn_rag.store import Scope, Store
 
 URL = os.environ.get("SUVERYN_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not URL, reason="SUVERYN_TEST_DATABASE_URL not set")
@@ -59,29 +60,51 @@ def test_short_fragments_are_not_vector_hits_and_whole_documents_read_in_order()
         store.close()
 
 
-def test_documents_are_isolated_per_owner():
-    """suveryn-tracker#3: listing, ownership, deletion and de-duplication are per owner."""
+def test_documents_are_isolated_per_scope():
+    """suveryn-tracker#3 and #10: listing, scope, deletion and de-duplication are per personal space or case."""
     store = Store(URL, DIM)
     sha = f"sha-{os.getpid()}-{np.random.randint(1 << 30)}"
-    alice, bob = f"alice-{sha}", f"bob-{sha}"
+    alice, bob = Scope.personal(f"alice-{sha}"), Scope.personal(f"bob-{sha}")
+    case = Scope.case(uuid.uuid4())
     chunk = [Chunk(0, "text of the deed", "text of the deed", 1, 1, [])]
-    a = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=alice)
+    a = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=alice.owner)
     legacy = store.add_document("old.pdf", sha + "-legacy", 1, 0, chunk, np.stack([unit(2)]))  # no owner
+    ids = []
     try:
         assert [d["id"] for d in store.list_documents(alice)] == [a]
+        assert store.list_documents(alice)[0]["origin"] == "uploaded"
+        assert store.list_documents(alice)[0]["uploaded_by"] == alice.owner
         assert store.list_documents(bob) == []
-        assert store.owned([a], alice) == {a} and store.owned([a], bob) == set()
-        assert store.owned([legacy], alice) == set()  # documents without an owner are nobody's
-        # the same file is de-duplicated per owner only: Bob never gets Alice's document back
+        assert store.in_scope([a], alice) == {a} and store.in_scope([a], bob) == set()
+        assert store.in_scope([legacy], alice) == set()  # documents without an owner are nobody's
+        # the same file is de-duplicated per scope only: Bob never gets Alice's document back
         assert store.find_by_sha256(sha, alice) == a and store.find_by_sha256(sha, bob) is None
-        b = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=bob)
-        assert b != a and store.owned([b], bob) == {b}
+        b = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=bob.owner)
+        ids.append(b)
+        assert b != a and store.in_scope([b], bob) == {b}
         assert not store.delete_document(a, bob)  # someone else's
-        assert store.owned([a], alice) == {a}
+        assert store.in_scope([a], alice) == {a}
         assert store.delete_document(b, bob)
+        # a case is a scope of its own: the uploader's personal space doesn't see the case's documents
+        c = store.add_document("akte.pdf", sha, 1, 0, chunk, np.stack([unit(1)]), owner=alice.owner, case_id=case.case_id)
+        ids.append(c)
+        assert store.find_by_sha256(sha, case) == c and store.find_by_sha256(sha, alice) == a
+        assert [d["id"] for d in store.list_documents(case)] == [c]
+        assert [d["id"] for d in store.list_documents(alice)] == [a]
+        assert store.in_scope([c], alice) == set() and store.in_scope([c], case) == {c}
+        assert not store.delete_document(c, alice)
+        # only uploaded documents are sources for answers: sūveryn's own output never is (#10, decision 7)
+        g = store.add_document("draft.pdf", sha + "-g", 1, 0, chunk, np.stack([unit(3)]), owner=alice.owner,
+                               case_id=case.case_id, origin="generated")
+        ids.append(g)
+        assert store.in_scope([c, g], case) == {c, g}
+        assert store.in_scope([c, g], case, sources_only=True) == {c}
+        assert store.list_documents(case)[0]["origin"] == "generated"
     finally:
         store.delete_document(a)
         store.delete_document(legacy)
+        for i in ids:
+            store.delete_document(i)
         store.close()
 
 

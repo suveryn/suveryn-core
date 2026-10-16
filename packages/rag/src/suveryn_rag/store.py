@@ -45,14 +45,24 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'ok';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS warnings jsonb NOT NULL DEFAULT '[]';
--- Every document belongs to one user (the Keycloak "sub"). Documents stored before owners existed
--- have owner NULL and are visible to no one (fail closed); see docs/architecture.md.
+-- Every document was uploaded by one user (the Keycloak "sub"). Documents stored before owners
+-- existed have owner NULL and are visible to no one (fail closed); see docs/architecture.md.
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS owner text;
--- A file is de-duplicated per owner only: the same PDF uploaded by two users is two documents, so
--- an upload can never return another user's document.
+-- A document belongs to a case (docs/design/cases.md), or to its uploader's personal space
+-- (case_id NULL). The case decides who may read it; the gateway checks that and passes a Scope.
+-- Cases live in the gateway's own table, so there is no foreign key here (separate connections).
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS case_id uuid;
+-- Where the document came from: uploaded, generated (by sūveryn: an export, a draft) or playbook.
+-- Only uploaded documents are sources for answers: the AI never cites its own earlier output.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'uploaded';
+-- A file is de-duplicated within its scope only: the same PDF in two personal spaces, or in two
+-- cases, is two documents, so an upload can never return a document from elsewhere.
 ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_sha256_key;
-CREATE UNIQUE INDEX IF NOT EXISTS documents_owner_sha256 ON documents (owner, sha256);
+DROP INDEX IF EXISTS documents_owner_sha256;
+CREATE UNIQUE INDEX IF NOT EXISTS documents_personal_sha256 ON documents (owner, sha256) WHERE case_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS documents_case_sha256 ON documents (case_id, sha256) WHERE case_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS documents_owner ON documents (owner);
+CREATE INDEX IF NOT EXISTS documents_case ON documents (case_id);
 CREATE TABLE IF NOT EXISTS chunks (
     id           bigserial PRIMARY KEY,
     document_id  uuid NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -70,6 +80,31 @@ CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 """
+
+
+@dataclass(frozen=True)
+class Scope:
+    """Whose documents a request may see: one user's personal space (``owner``, no case), or one case
+    (``case_id``; the gateway has checked the user may read it). ``Scope(None, None)`` is the
+    operator tools' scope: documents without an owner or a case."""
+
+    owner: str | None = None
+    case_id: uuid.UUID | None = None
+
+    @classmethod
+    def personal(cls, owner: str | None) -> "Scope":
+        return cls(owner=owner)
+
+    @classmethod
+    def case(cls, case_id: uuid.UUID) -> "Scope":
+        return cls(case_id=case_id)
+
+    def where(self, alias: str = "") -> tuple[str, tuple]:
+        """SQL that keeps the documents in this scope, and its parameters."""
+        col = f"{alias}." if alias else ""
+        if self.case_id is not None:
+            return f"{col}case_id = %s", (self.case_id,)
+        return f"{col}case_id IS NULL AND {col}owner IS NOT DISTINCT FROM %s", (self.owner,)
 
 
 @dataclass
@@ -117,14 +152,11 @@ class Store:
         """Close the database connection."""
         self._conn.close()
 
-    def find_by_sha256(self, sha256: str, owner: str | None) -> uuid.UUID | None:
-        """Id of this owner's document with this content hash, if they ingested it before.
-
-        Never another owner's document: de-duplication is per owner. ``owner=None`` matches only
-        documents without an owner (operator tools).
-        """
-        row = self._conn.execute("SELECT id FROM documents WHERE sha256 = %s AND owner IS NOT DISTINCT FROM %s",
-                                 (sha256, owner)).fetchone()
+    def find_by_sha256(self, sha256: str, scope: Scope) -> uuid.UUID | None:
+        """Id of the document with this content hash in this scope (a personal space or a case), if it
+        was ingested there before. Never one from another scope: de-duplication is per scope."""
+        where, params = scope.where()
+        row = self._conn.execute(f"SELECT id FROM documents WHERE sha256 = %s AND {where}", (sha256, *params)).fetchone()
         return row[0] if row else None
 
     def recovered_share(self, document_id: uuid.UUID) -> float:
@@ -158,8 +190,9 @@ class Store:
 
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                      embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
-                     owner: str | None = None) -> uuid.UUID:
-        """Store a document and its chunks in one transaction (all or nothing), owned by ``owner``.
+                     owner: str | None = None, case_id: uuid.UUID | None = None, origin: str = "uploaded") -> uuid.UUID:
+        """Store a document and its chunks in one transaction (all or nothing), uploaded by ``owner``
+        into the case ``case_id`` (or their personal space), with its ``origin``.
 
         Status is ``needs_review`` if any warning means text may be missing; recovered or
         restored text alone keeps it ``ok``. The file name is stored too and may itself be
@@ -169,10 +202,11 @@ class Store:
         status = "needs_review" if any(w.needs_review for w in warnings) else "ok"
         with self._conn.transaction():
             doc_id = self._conn.execute(
-                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner, case_id, origin)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (filename, sha256, pages, ocr_pages, status,
-                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner)).fetchone()[0]
+                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner, case_id,
+                 origin)).fetchone()[0]
             self._insert_chunks(doc_id, chunks, embeddings)
         return doc_id
 
@@ -185,13 +219,15 @@ class Store:
                   c.text + " " + " ".join(c.headings))
                  for c, e in zip(chunks, embeddings, strict=True)])
 
-    def list_documents(self, owner: str) -> list[dict]:
-        """The owner's documents, newest first: id, file name, pages, OCR'd pages, status, warnings, chunks, created."""
+    def list_documents(self, scope: Scope) -> list[dict]:
+        """The scope's documents, newest first: id, file name, pages, OCR'd pages, status, warnings,
+        chunks, created, origin, who uploaded it."""
+        where, params = scope.where("d")
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
-            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id)"
-            "  FROM documents d WHERE d.owner = %s ORDER BY d.created_at DESC", (owner,)).fetchall()
-        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks")
+            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner"
+            f"  FROM documents d WHERE {where} ORDER BY d.created_at DESC", params).fetchall()
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by")
         return [dict(zip(keys, r)) for r in rows]
 
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
@@ -199,24 +235,32 @@ class Store:
         row = self._conn.execute("SELECT status, warnings FROM documents WHERE id = %s", (document_id,)).fetchone()
         return (row[0], row[1]) if row else None
 
-    def owned(self, document_ids: list[uuid.UUID], owner: str) -> set[uuid.UUID]:
-        """Which of these documents belong to ``owner`` (the others don't exist or are someone else's)."""
-        rows = self._conn.execute("SELECT id FROM documents WHERE id = ANY(%s) AND owner = %s",
-                                  (list(document_ids), owner)).fetchall()
+    def in_scope(self, document_ids: list[uuid.UUID], scope: Scope, sources_only: bool = False) -> set[uuid.UUID]:
+        """Which of these documents are in ``scope`` (the others don't exist or are elsewhere). With
+        ``sources_only``, only uploaded documents count: never sūveryn's own output as a source."""
+        where, params = scope.where()
+        only = " AND origin = 'uploaded'" if sources_only else ""
+        rows = self._conn.execute(f"SELECT id FROM documents WHERE id = ANY(%s) AND {where}{only}",
+                                  (list(document_ids), *params)).fetchall()
         return {r[0] for r in rows}
 
-    def delete_document(self, document_id: uuid.UUID, owner: str | None = None) -> bool:
-        """Delete a document (only the owner's when ``owner`` is given); its chunks go with it (ON DELETE CASCADE).
+    def delete_document(self, document_id: uuid.UUID, scope: Scope | None = None) -> bool:
+        """Delete a document (only one in ``scope`` when given); its chunks go with it (ON DELETE CASCADE).
 
         Review note: this makes the text unreachable, not unrecoverable. PostgreSQL keeps dead
         rows in the table files until VACUUM rewrites them, and changes stay in the write-ahead
         log for a while. Secure deletion (encryption at rest, crypto-shredding or a scheduled
         VACUUM FULL) is an open item (docs/architecture.md §6).
         """
-        if owner is None:  # operator tools (suveryn-forget)
+        if scope is None:  # operator tools (suveryn-forget)
             return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
-        return self._conn.execute("DELETE FROM documents WHERE id = %s AND owner = %s",
-                                  (document_id, owner)).rowcount > 0
+        where, params = scope.where()
+        return self._conn.execute(f"DELETE FROM documents WHERE id = %s AND {where}", (document_id, *params)).rowcount > 0
+
+    def delete_scope(self, scope: Scope) -> int:
+        """Delete every document in a scope (a case being deleted), chunks with them; how many."""
+        where, params = scope.where()
+        return self._conn.execute(f"DELETE FROM documents WHERE {where}", params).rowcount
 
     def _keyword_query(self, question: str, docs: list[uuid.UUID] | None) -> str | None:
         """OR-query of the question's specific terms, leaving out terms that occur in many chunks."""
