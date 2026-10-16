@@ -136,9 +136,12 @@ To add a string: add it to `en.ts`, then to `nl.ts` and `fr.ts` (the build tells
 ```bash
 npm run brand:sync                 # re-sync at the commit in src/brand/brand-lock.json
 npm run brand:sync -- <commit>     # move to a newer brand commit
+SUVERYN_BRAND_REPO=../suveryn-brand npm run brand:sync -- <commit>   # from a local clone, before the commit is on GitHub
 ```
 
 The copies are committed, so building never needs the internet. `src/brand/brand-lock.json` records the commit and a hash of each file, and `npm test` fails if one is edited by hand. Never edit `tokens.css` or the brand files directly; change `suveryn-brand` and re-sync.
+
+**Colours are OKLCH** (brand tokens v3): every token in `tokens.css` is an `oklch()` value, exactly the colour its hex was, and every colour the library and the app derive from a token (a wash of the teal, a shadow or a dimmed border of the ink, the focus glow) is written as `oklch(from var(--token) l c h / alpha)`: the token's own hue and lightness with an alpha, never a new hex or rgba. The chart-colour test converts OKLCH to sRGB luminance (Ottosson's OKLab) for its contrast checks. Browsers draw both since 2023/24 (relative colour syntax: Chrome 119, Safari 16.4, Firefox 128), so there is no fallback.
 
 ## Brand rules this UI keeps
 
