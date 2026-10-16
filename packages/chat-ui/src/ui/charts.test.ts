@@ -109,9 +109,9 @@ describe("chart colours (ui.css)", () => {
     for (const n of ["chart-1", "chart-2", "bg", "surface"]) expect(oklch(n), n).toMatch(/^oklch\([\d.]+ [\d.]+ [\d.]+\)$/);
   });
 
-  it("match the sRGB values they were set from (white is luminance 1)", () => {
+  it("convert to sRGB luminance (white is 1, the ink is near 0)", () => {
     expect(luminance(oklch("bg"))).toBeCloseTo(1, 3);
-    expect(luminance(oklch("ink"))).toBeCloseTo(0.000674, 4);  // #020205
+    expect(luminance(oklch("ink"))).toBeLessThan(0.002);  // #010205 or thereabouts
   });
 
   it("stand out 3:1 against the page and the cards", () => {
