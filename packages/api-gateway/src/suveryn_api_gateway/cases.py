@@ -111,7 +111,7 @@ class CaseIn(BaseModel):
 
     reference: str = Field(min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")
     name: str = Field(min_length=1, max_length=200, pattern=r"^\S(.*\S)?$")
-    type: str = Field(min_length=1, max_length=50, pattern=r"^[\w-]+$")
+    type: str = Field(min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
     subject: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     access: Access = "default"
 
@@ -121,7 +121,7 @@ class CaseUpdate(BaseModel):
 
     reference: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")
     name: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^\S(.*\S)?$")
-    type: str | None = Field(default=None, min_length=1, max_length=50, pattern=r"^[\w-]+$")
+    type: str | None = Field(default=None, min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
     subject: dict[str, str | int | float | bool | None] | None = None
     access: Access | None = None
 
