@@ -46,6 +46,8 @@ export type StoredDocument = {
   warnings: Warning[];
   created_at: string;
   chunks: number;
+  origin?: "uploaded" | "generated" | "playbook"; // only uploaded documents are sources for answers (suveryn-tracker#10)
+  uploaded_by?: string | null;
 };
 export type Health = {
   status: "ok" | "degraded";
@@ -53,6 +55,7 @@ export type Health = {
   documents: { status: "ready" | "starting" | "failed" | "unavailable"; detail: string | null };
   auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
   history: { status: "ready" | "failed" | "unavailable"; detail: string | null };
+  cases?: { status: "ready" | "failed" | "unavailable"; detail: string | null };
 };
 export type Me = { username: string; name: string; admin?: boolean }; // admin: may open the administration page
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
@@ -144,8 +147,13 @@ export async function getHealth(): Promise<Health | null> {
   }
 }
 
-export async function listDocuments(): Promise<{ documents: StoredDocument[]; jobs: Job[] }> {
-  const r = await fetch("/v1/documents");
+/** `?case=<id>` on a request about a case; nothing for the personal space (suveryn-tracker#10). */
+const inCase = (caseId: string | null | undefined, first = true) =>
+  caseId ? `${first ? "?" : "&"}case=${encodeURIComponent(caseId)}` : "";
+
+/** The documents in the personal space, or in a case. */
+export async function listDocuments(caseId?: string | null): Promise<{ documents: StoredDocument[]; jobs: Job[] }> {
+  const r = await fetch(`/v1/documents${inCase(caseId)}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -154,12 +162,12 @@ export async function listDocuments(): Promise<{ documents: StoredDocument[]; jo
  * Uploads a PDF and resolves with its job. Uses XMLHttpRequest rather than fetch because only
  * XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
  */
-export function uploadDocument(file: File, onProgress?: (fraction: number) => void): Promise<Job> {
+export function uploadDocument(file: File, onProgress?: (fraction: number) => void, caseId?: string | null): Promise<Job> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("file", file, file.name);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/v1/documents");
+    xhr.open("POST", `/v1/documents${inCase(caseId)}`);
     xhr.responseType = "json";
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
     xhr.onload = () => {
@@ -179,8 +187,9 @@ export async function getJob(id: string): Promise<Job> {
 }
 
 /** Deletes a document. Saved conversations citing it lose its passages ("clean") or are deleted too. */
-export async function deleteDocument(id: string, conversations: "clean" | "delete" = "clean"): Promise<void> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}?conversations=${conversations}`, { method: "DELETE" });
+export async function deleteDocument(id: string, conversations: "clean" | "delete" = "clean", caseId?: string | null): Promise<void> {
+  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}?conversations=${conversations}${inCase(caseId, false)}`,
+                        { method: "DELETE" });
   if (!r.ok && r.status !== 404) throw await responseError(r);
 }
 
@@ -203,11 +212,13 @@ export async function streamChat(
   signal?: AbortSignal,
   model?: string | null,          // an id from listModels(); null or undefined: the default model
   onStatus?: (status: StreamStatus) => void,
+  caseId?: string | null,         // the case the documents are in; null or undefined: the personal space
 ): Promise<ChatResponse> {
   const r = await fetch("/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500, ...(model ? { model } : {}) }),
+    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500, ...(model ? { model } : {}),
+                           ...(caseId ? { case_id: caseId } : {}) }),
     signal,
   });
   if (!r.ok || !r.body) throw await responseError(r);
@@ -238,12 +249,12 @@ export function reviewPages(warnings: Warning[] | undefined): number[] {
 }
 
 /** A saved conversation in the list (GET /v1/conversations): no content, newest first. */
-export type ConversationSummary = { id: string; title: string; created_at: string; updated_at: string };
+export type ConversationSummary = { id: string; title: string; created_at: string; updated_at: string; case_id?: string | null };
 export type SavedConversation = ConversationSummary & { turns: Turn[] };
 
-/** The signed-in user's saved conversations, most recently changed first. */
-export async function listConversations(): Promise<ConversationSummary[]> {
-  const r = await fetch("/v1/conversations");
+/** The signed-in user's saved conversations in the personal space or in a case, most recently changed first. */
+export async function listConversations(caseId?: string | null): Promise<ConversationSummary[]> {
+  const r = await fetch(`/v1/conversations${inCase(caseId)}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -254,10 +265,12 @@ export async function getConversation(id: string): Promise<SavedConversation> {
   return r.json();
 }
 
-/** Saves the whole conversation, replacing an earlier save under the same id. */
-export async function saveConversation(id: string, title: string, turns: Turn[]): Promise<void> {
+/** Saves the whole conversation, replacing an earlier save under the same id. A new conversation goes
+ *  into the case `caseId` (or the personal space); a saved one stays where it was first saved. */
+export async function saveConversation(id: string, title: string, turns: Turn[], caseId?: string | null): Promise<void> {
   const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, turns }),
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, turns, ...(caseId ? { case_id: caseId } : {}) }),
   });
   if (!r.ok) throw await responseError(r);
 }
@@ -271,6 +284,45 @@ export async function deleteConversation(id: string): Promise<void> {
 export async function deleteAllConversations(): Promise<void> {
   const r = await fetch("/v1/conversations", { method: "DELETE" });
   if (!r.ok) throw await responseError(r);
+}
+
+/** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
+ *  name. `my_role`: what the signed-in user may do in it (null: an administrator who sees it exists). */
+export type CaseRole = "reader" | "contributor" | "manager";
+export type Case = {
+  id: string;
+  reference: string;
+  name: string;
+  type: string;
+  subject: Record<string, unknown>;
+  access: "default" | "restricted";
+  state: "open" | "closed";
+  opened_at: string;
+  closed_at: string | null;
+  manager: string;
+  created_by: string;
+  updated_at: string;
+  my_role: CaseRole | null;
+};
+export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string> };
+
+/** The cases the signed-in user may see: open ones, most recently active first. */
+export async function listCases(): Promise<Case[]> {
+  const r = await fetch("/v1/cases");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function createCase(body: NewCase): Promise<Case> {
+  const r = await fetch("/v1/cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Deletes a case with its documents and conversations (its manager only). */
+export async function deleteCase(id: string): Promise<void> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!r.ok && r.status !== 404) throw await responseError(r);
 }
 
 /** Token counts (suveryn-tracker#7): counts only, never text. */

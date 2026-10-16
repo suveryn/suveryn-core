@@ -16,11 +16,13 @@ loss (uploads, and ``doc-*`` OCR work folders) are deleted when the service star
 kept in memory (jobs, for ``JOB_RETENTION_S`` after they finish) and in the database (documents);
 they can be personal data.
 
-Ownership: every upload, job and document belongs to the user who uploaded it (the Keycloak user
-id the gateway passes as ``owner``). Listing, job status, deletion and retrieval only ever see the
-caller's own; another user's document is answered exactly like a missing one. De-duplication by
-content hash is per owner too, so uploading a file someone else stored creates your own copy
-instead of handing you theirs.
+Ownership: every upload, job and document is uploaded by one user (the Keycloak user id the
+gateway passes as ``owner``) into one scope: their personal space, or a case (``case_id``; the
+gateway has checked they may contribute to it, see its ``cases``). Listing, deletion and retrieval
+take the ``Scope`` the caller may see (``suveryn_rag.store.Scope``) and only ever see that scope's
+documents; a document elsewhere is answered exactly like a missing one. Job status is the
+uploader's. De-duplication by content hash is per scope too, so uploading a file someone else
+stored in their own space creates your own copy instead of handing you theirs.
 
 Database connections are reopened once after a connection error (e.g. PostgreSQL restarted); if
 that fails too, ``SearchUnavailable`` is raised, which the gateway reports as 503.
@@ -40,6 +42,7 @@ from typing import BinaryIO
 from suveryn_engine import Citation
 
 from .config import RagSettings
+from .store import Scope
 
 log = logging.getLogger("suveryn.rag")
 
@@ -76,12 +79,14 @@ class SearchUnavailable(RuntimeError):
 class Job:
     """One uploaded document on its way into the store. Holds no document text.
 
-    ``owner`` is the uploader (Keycloak user id); it is not part of ``public()``.
+    ``owner`` is the uploader (Keycloak user id); it is not part of ``public()``. ``case_id`` is the
+    case it goes into, or None for the uploader's personal space.
     """
 
     id: str
     filename: str
     owner: str
+    case_id: uuid.UUID | None = None
     status: str = "queued"  # receiving | queued | processing | ready | needs_review | failed
     document_id: str | None = None
     error: str | None = None
@@ -98,6 +103,7 @@ class Job:
         out = asdict(self)
         out.pop("owner")
         out.pop("db_retries")
+        out["case_id"] = str(self.case_id) if self.case_id else None
         return out
 
 
@@ -176,7 +182,7 @@ class DocumentService:
         job.status = "processing"
         try:
             staged = self._stage(job, path)
-            r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner)  # the file on disk has a random name
+            r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner, case_id=job.case_id)  # the file on disk has a random name
             # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
             job.document_id, job.status = str(r.document_id), job_status(r.status)
             job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
@@ -252,11 +258,12 @@ class DocumentService:
             shutil.rmtree(leftover, ignore_errors=True)
 
     # ------------------------------------------------------------------ uploads and jobs
-    def accept_upload(self, src: BinaryIO, filename: str, owner: str) -> Job:
-        """Store an uploaded PDF privately and queue it for ``owner``. Raises ``UploadRejected``."""
+    def accept_upload(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Job:
+        """Store an uploaded PDF privately and queue it, uploaded by ``owner`` into the case ``case_id``
+        (or their personal space). Raises ``UploadRejected``."""
         self._prepare_uploads()
         job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner,
-                  status="receiving")
+                  case_id=case_id, status="receiving")
         # Check and reserve in one step, before the file is copied: simultaneous uploads can't all pass
         # the same check (suveryn-core review 2026-10-13). The reservation counts as waiting.
         with self._jobs_lock:
@@ -300,12 +307,14 @@ class DocumentService:
             job = self._jobs.get(job_id)
             return job if job is not None and job.owner == owner else None
 
-    def pending_jobs(self, owner: str) -> list[Job]:
-        """The owner's jobs not yet in the store: queued, processing, or failed (not one still being received)."""
+    def pending_jobs(self, owner: str, scope: Scope | None = None) -> list[Job]:
+        """The owner's jobs not yet in the store: queued, processing, or failed (not one still being
+        received). With a ``scope``, only those going into it (the personal space or one case)."""
         with self._jobs_lock:
             self._prune()
             return [j for j in self._jobs.values()
-                    if j.owner == owner and j.status in ("queued", "processing", "failed")]
+                    if j.owner == owner and j.status in ("queued", "processing", "failed")
+                    and (scope is None or j.case_id == scope.case_id)]
 
     # ------------------------------------------------------------------ stored documents and search
     def _require_ready(self):
@@ -330,40 +339,47 @@ class DocumentService:
                         raise SearchUnavailable("the document database can't be reached") from again
                     raise
 
-    def documents(self, owner: str) -> list[dict]:
-        """The owner's stored documents (no text): id, file name, pages, status, warnings, chunks, created."""
-        return self._with_search(lambda rag: rag.store.list_documents(owner))
+    def documents(self, scope: Scope) -> list[dict]:
+        """The scope's stored documents (no text): id, file name, pages, status, warnings, chunks,
+        created, origin, who uploaded it."""
+        return self._with_search(lambda rag: rag.store.list_documents(scope))
 
-    def delete(self, document_id: str, owner: str) -> bool:
-        """Delete the owner's document and its passages; False if it doesn't exist or isn't theirs."""
-        return self._with_search(lambda rag: rag.store.delete_document(uuid.UUID(document_id), owner))
+    def delete(self, document_id: str, scope: Scope) -> bool:
+        """Delete a document in the scope and its passages; False if it doesn't exist or is elsewhere."""
+        return self._with_search(lambda rag: rag.store.delete_document(uuid.UUID(document_id), scope))
 
-    def existing(self, document_ids: list[str], owner: str) -> set[str]:
-        """Which of these ids are documents of ``owner`` that still exist."""
+    def delete_all(self, scope: Scope) -> int:
+        """Delete every document in the scope (a case being deleted); how many."""
+        return self._with_search(lambda rag: rag.store.delete_scope(scope))
+
+    def existing(self, document_ids: list[str], scope: Scope) -> set[str]:
+        """Which of these ids are documents in ``scope`` that still exist."""
         ids = [uuid.UUID(d) for d in document_ids]
-        return {str(i) for i in self._with_search(lambda rag: rag.store.owned(ids, owner))} if ids else set()
+        return {str(i) for i in self._with_search(lambda rag: rag.store.in_scope(ids, scope))} if ids else set()
 
-    def owns(self, document_ids: list[str], owner: str) -> bool:
-        """True if every one of these documents exists and belongs to ``owner``."""
+    def in_scope(self, document_ids: list[str], scope: Scope, sources_only: bool = False) -> bool:
+        """True if every one of these documents exists in ``scope`` (and, with ``sources_only``, was
+        uploaded: sūveryn's own output is never a source for an answer)."""
         ids = [uuid.UUID(d) for d in document_ids]
-        return self._with_search(lambda rag: rag.store.owned(ids, owner)) == set(ids)
+        return self._with_search(lambda rag: rag.store.in_scope(ids, scope, sources_only)) == set(ids)
 
     def retrieve(self, question: str, document_ids: list[str], k: int,
-                 owner: str) -> tuple[list[tuple[Citation, str]], bool]:
+                 scope: Scope) -> tuple[list[tuple[Citation, str]], bool]:
         """Passages to answer from, as (citation, file name), and whether they are the complete documents.
 
-        Only the owner's documents: if any id isn't theirs (or doesn't exist), ``DocumentNotFound``
-        is raised before anything is read, so another user's text never reaches the prompt. Small
-        documents are given whole; larger ones give the ``k`` best search hits (``Rag.passages``).
+        Only uploaded documents in ``scope``: if any id is elsewhere (or doesn't exist, or is
+        sūveryn's own output), ``DocumentNotFound`` is raised before anything is read, so another
+        scope's text never reaches the prompt. Small documents are given whole; larger ones give
+        the ``k`` best search hits (``Rag.passages``).
         """
         ids = [uuid.UUID(d) for d in document_ids]
 
-        def owned_passages(rag):
-            if rag.store.owned(ids, owner) != set(ids):
+        def scoped_passages(rag):
+            if rag.store.in_scope(ids, scope, sources_only=True) != set(ids):
                 raise DocumentNotFound("unknown document")
             return rag.passages(question, ids, k)
 
-        hits, complete = self._with_search(owned_passages)
+        hits, complete = self._with_search(scoped_passages)
         return [(h.citation, h.filename) for h in hits], complete
 
     def stop(self) -> None:

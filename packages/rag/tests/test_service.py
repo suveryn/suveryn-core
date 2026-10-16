@@ -34,7 +34,7 @@ class FakeIngest:
     def __init__(self, down: int, failing_reconnects: int):
         self.down, self.store, self.calls = down, FakeStore(failing_reconnects), 0
 
-    def ingest(self, path, filename, owner):
+    def ingest(self, path, filename, owner, case_id=None):
         self.calls += 1
         if self.calls <= self.down:
             raise psycopg.OperationalError("server closed the connection unexpectedly")
