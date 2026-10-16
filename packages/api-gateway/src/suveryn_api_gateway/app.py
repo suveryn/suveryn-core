@@ -39,6 +39,7 @@ Sign-in (per client address), questions and uploads (per user) are rate-limited 
 over the limit the answer is 429 with ``Retry-After``.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -89,6 +90,7 @@ from .cases import (
     CaseUpdate,
     DuplicateReference,
     HandoverIn,
+    KeepIn,
     Member,
     MemberIn,
     Principal,
@@ -228,6 +230,7 @@ class Me(BaseModel):
     name: str
     admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
     office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
+    cases_keep: str = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -301,6 +304,25 @@ class Database:
 def _connector(factory, settings):
     """A ``Database.connect`` for ``factory(settings)``, or None without a database URL."""
     return (lambda: factory(settings)) if settings.database_url else None
+
+
+SWEEP_INTERVAL_S = 3600  # how often closed cases past their keep period are deleted
+
+
+async def _delete_case_everywhere(app: FastAPI, case_id: uuid.UUID) -> bool:
+    """Delete a case with its documents (and their index), conversations, members and log. False if
+    the case doesn't exist. See ``Store.delete_document`` for what deletion does and doesn't guarantee."""
+    docs = app.state.documents
+    if docs is not None and docs.state == "ready":
+        await run_in_threadpool(docs.delete_all, Scope.case(case_id))
+    elif docs is not None:
+        return False  # the documents can't be deleted now: the case stays, the next sweep tries again
+    history: Database = app.state.history
+    if history.configured and (store := history.get()) is not None:
+        await run_in_threadpool(store.delete_case, case_id)
+    cases: Database = app.state.cases
+    store = cases.get()
+    return store is not None and await run_in_threadpool(store.delete, case_id)
 
 
 def is_admin(request: Request, authenticator: Authenticator) -> bool:
@@ -378,7 +400,25 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
         if app.state.llm.on_usage is None:
             app.state.llm.on_usage = record_usage
+
+        async def sweep_due_cases() -> None:
+            """Delete the closed cases whose keep period has passed (docs/design/cases.md, decision 11),
+            with their documents, conversations and log: once an hour, for as long as the app runs."""
+            while True:
+                try:
+                    store = app.state.cases.get()
+                    if store is not None:
+                        for cid in await run_in_threadpool(store.due_for_deletion):
+                            if await _delete_case_everywhere(app, cid):
+                                log.info("case %s deleted: its keep period passed", cid)
+                except Exception as e:  # noqa: BLE001 - the sweep must outlive any one failure
+                    log.error("case sweep: %s", type(e).__name__)
+                await asyncio.sleep(SWEEP_INTERVAL_S)
+
+        app.state.sweep = asyncio.create_task(sweep_due_cases()) if app.state.cases.configured else None
         yield
+        if app.state.sweep is not None:
+            app.state.sweep.cancel()
         await app.state.llm.aclose()
         await authenticator.aclose()
         if directory is None:
@@ -479,14 +519,16 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     async def me(request: Request):
         """The signed-in user (username and display name), or 401."""
         if not authenticator.enabled:
-            return Me(username="dev", name="Development (sign-in off)", admin=True, office_wide=cases_settings.office_wide)
+            return Me(username="dev", name="Development (sign-in off)", admin=True, office_wide=cases_settings.office_wide,
+                      cases_keep=cases_settings.keep)
         try:
             user = await authenticator.session_user(request.cookies.get(settings.session_cookie))
         except AuthUnavailable as e:
             raise HTTPException(503, f"Sign-in is not available: {e}.") from e
         if user is None:
             raise HTTPException(401, "Sign in to continue.")
-        return Me(username=user.username, name=user.name, admin=ADMIN_ROLE in user.roles, office_wide=cases_settings.office_wide)
+        return Me(username=user.username, name=user.name, admin=ADMIN_ROLE in user.roles, office_wide=cases_settings.office_wide,
+                  cases_keep=cases_settings.keep)
 
     @app.post("/auth/logout")
     async def logout(request: Request):
@@ -653,6 +695,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         except DuplicateReference:
             raise HTTPException(409, "A case with this reference already exists.") from None
 
+    @app.get("/v1/cases/due", response_model=list[Case])
+    async def due_cases(request: Request):
+        """Closed cases due for deletion within a month (or overdue), soonest first: every one for an
+        administrator, the ones they manage for anyone else. Shown so they can extend, reopen or keep."""
+        store, who = _cases_or_503(request), _principal(request)
+        return await run_in_threadpool(store.due, who.sub, admin=who.admin)
+
     @app.get("/v1/cases/{case_id}", response_model=Case, responses={404: {"description": "Unknown case"}})
     async def get_case(case_id: str, request: Request):
         """One case the caller may see."""
@@ -684,17 +733,61 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         keep period (docs/design/cases.md, stage 3) are the office's way; this is for a case opened
         by mistake. See ``Store.delete_document`` for what deletion does and doesn't guarantee."""
         case = await _case_for(request, case_id, "manage")
-        cid = uuid.UUID(case.id)
         docs = request.app.state.documents
-        if docs is not None:
-            if docs.state != "ready":
-                raise HTTPException(503, f"Document handling is {docs.state}; the case's documents can't be deleted now.")
-            await run_in_threadpool(docs.delete_all, Scope.case(cid))
-        if (history := _history_or_none(request)) is not None:
-            await run_in_threadpool(history.delete_case, cid)
-        if not await run_in_threadpool(_cases_or_503(request).delete, cid):
+        if docs is not None and docs.state != "ready":
+            raise HTTPException(503, f"Document handling is {docs.state}; the case's documents can't be deleted now.")
+        if not await _delete_case_everywhere(request.app, uuid.UUID(case.id)):
             raise HTTPException(404, "Unknown case.")
         return Response(status_code=204)
+
+    @app.post("/v1/cases/{case_id}/close", response_model=Case, responses={
+        403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}, 409: {"description": "Already closed"}})
+    async def close_case(case_id: str, request: Request):
+        """Close the case (its manager only): read-only from now, reopenable while it is kept, and
+        deleted after the office's keep period (``SUVERYN_CASES_KEEP``; with ``manual``, kept until
+        deleted by hand). ``keep_until`` says when."""
+        case = await _case_for(request, case_id, "close")
+        closed = await run_in_threadpool(_cases_or_503(request).close_case, uuid.UUID(case.id), cases_settings.keep_period)
+        if closed is None:
+            raise HTTPException(409, "This case is already closed.")
+        await _log(request, uuid.UUID(case.id), "closed", {"keep_until": closed.keep_until.isoformat() if closed.keep_until else None})
+        return closed.model_copy(update={"my_role": case.my_role})
+
+    @app.post("/v1/cases/{case_id}/reopen", response_model=Case, responses={
+        403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}, 409: {"description": "Not closed"}})
+    async def reopen_case(case_id: str, request: Request):
+        """Reopen a closed case (its manager only): open again, no deletion planned."""
+        case = await _case_for(request, case_id, "reopen")
+        reopened = await run_in_threadpool(_cases_or_503(request).reopen_case, uuid.UUID(case.id))
+        if reopened is None:
+            raise HTTPException(409, "This case is not closed.")
+        await _log(request, uuid.UUID(case.id), "reopened")
+        return reopened.model_copy(update={"my_role": case.my_role})
+
+    @app.post("/v1/cases/{case_id}/keep", response_model=Case, responses={
+        403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case"},
+        409: {"description": "Not closed"}})
+    async def keep_case(case_id: str, body: KeepIn, request: Request):
+        """On a closed case: ``{"keep": true}`` marks it kept (never deleted by the period), ``{"keep":
+        false}`` plans its deletion one period from now again, ``{"extend": true}`` moves its
+        deletion one period later. The manager's and the administrators' right (decision 11)."""
+        store, cid, who = _cases_or_503(request), _case_id(case_id), _principal(request)
+        case = await run_in_threadpool(store.get, cid, who.sub)
+        office_wide = cases_settings.office_wide
+        if case is None or not (may(who, case, case.my_role, "read", office_wide) or may(who, case, case.my_role, "list", office_wide)):
+            raise HTTPException(404, "Unknown case.")
+        if not may(who, case, case.my_role, "set_keep", office_wide):
+            raise HTTPException(403, "Only the case's manager or an administrator can change how long it is kept."
+                                if case.state == "closed" else "This case is open; close it first.")
+        if body.keep is None and not body.extend:
+            raise HTTPException(422, "Say what to change: keep, or extend.")
+        changed = await run_in_threadpool(store.set_keep, cid, body.keep, body.extend, cases_settings.keep_period)
+        if changed is None:
+            raise HTTPException(409, "This case is not closed.")
+        await _log(request, cid, "keep_changed", {"keep": changed.keep,
+                                                  "keep_until": changed.keep_until.isoformat() if changed.keep_until else None})
+        return changed.model_copy(update={"my_role": case.my_role})
+
 
     @app.get("/v1/users", response_model=list[Person], responses={503: {"description": "The directory is not available"}})
     async def list_users(request: Request, q: str = ""):
