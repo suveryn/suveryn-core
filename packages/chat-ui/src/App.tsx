@@ -16,17 +16,18 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, LogIn, ScrollText, Trash2, Users } from "lucide-react";
+import { AlertCircle, Folder, Lock, LogIn, ScrollText, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, type Case,
+  deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, listDueCases, type Case,
 } from "./api";
 import { Lockup } from "./components/Brand";
-import { caseTypeLabel, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
+import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
 import { AccessLogDialog, MembersDialog, roleLabel } from "./components/CaseMembers";
+import { CaseState } from "./components/CaseState";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage } from "./components/Messages";
@@ -115,12 +116,16 @@ function Chat({ me }: { me: Me }) {
   const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
   const [newCase, setNewCase] = useState(false);
   const [deletingCase, setDeletingCase] = useState(false);
+  const [closingCase, setClosingCase] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);  // the sidebar lists closed cases too
+  const [due, setDue] = useState<Case[]>([]);           // closed cases due for deletion soon (stage 3)
   const [showMembers, setShowMembers] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const caseId = currentCase?.id ?? null;
   // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an
   // office-wide appliance, or null for an administrator who only sees the case exists.
   const role = currentCase?.my_role ?? null;
+  const closed = currentCase?.state === "closed";
   const manages = role === "manager";
   const administers = currentCase !== null && role === null && (me.admin ?? false);
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
@@ -160,8 +165,9 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => { if (historyReady && !administers) refreshConversations(); }, [historyReady, refreshConversations, administers]);
 
   const refreshCases = useCallback(async () => {
-    try { setCases(await listCases()); } catch { /* the health check explains why */ }
-  }, []);
+    try { setCases(await listCases(showClosed)); } catch { /* the health check explains why */ }
+    try { setDue(await listDueCases()); } catch { /* same */ }
+  }, [showClosed]);
   useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
 
   // The sidebar's usage counter: today's own tokens, refreshed after each answer.
@@ -223,6 +229,7 @@ function Chat({ me }: { me: Me }) {
     health === null ? m.serverUnreachable :
     health.backend.status === "loading" ? m.modelStarting :
     health.status !== "ok" ? m.modelUnavailable :
+    closed ? m.caseIsClosed :
     currentCase && role === "reader" ? m.readerCantAsk : null;
 
   // ---------------------------------------------------------------- actions
@@ -311,6 +318,18 @@ function Chat({ me }: { me: Me }) {
     openCase(null);
     refreshCases();
   };
+  // The case after closing, reopening or a change of its keep: shown at once, and the lists follow.
+  const caseChanged = (c: Case) => {
+    setCurrentCase(c);
+    setCases((cs) => cs.map((x) => (x.id === c.id ? c : x)));
+    refreshCases();
+  };
+  const shutCase = async () => {
+    if (!currentCase) return;
+    caseChanged(await closeCase(currentCase.id));
+    setShowClosed(true);  // so the case stays in the sidebar
+    setClosingCase(false);
+  };
 
   const openConversation = async (id: string) => {
     if (id === conversationId) return;
@@ -384,13 +403,15 @@ function Chat({ me }: { me: Me }) {
                tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
                admin={me.admin ?? false} onOpenAdmin={() => setView("admin")}
                cases={cases} currentCase={currentCase} onOpenCase={openCase} onNewCase={() => setNewCase(true)}
+               due={due} showClosed={showClosed} onShowClosed={setShowClosed}
                casesNote={health === null || casesReady ? null :
                  health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable} />
       <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
       <DeleteCaseDialog open={deletingCase} kase={currentCase} onDelete={removeCase} onCancel={() => setDeletingCase(false)} />
+      <CloseCaseDialog open={closingCase} kase={currentCase} period={me.cases_keep} onCloseCase={shutCase} onCancel={() => setClosingCase(false)} />
       {currentCase && (
-        <MembersDialog open={showMembers} kase={currentCase} canManage={manages} canHandOver={manages || administers}
+        <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers}
                        officeWide={me.office_wide ?? false} onClose={() => setShowMembers(false)}
                        onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); }} />
       )}
@@ -409,7 +430,7 @@ function Chat({ me }: { me: Me }) {
         {view === "chat" && <>
         {currentCase && (
           <header className="case-head">
-            <Folder size={16} aria-hidden />
+            {closed ? <Lock size={16} aria-hidden /> : <Folder size={16} aria-hidden />}
             <span className="case-ref">{m.caseLabel(currentCase.reference)}</span>
             <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
             <span className="case-meta">{caseTypeLabel(currentCase.type, m)}
@@ -423,12 +444,20 @@ function Chat({ me }: { me: Me }) {
                 <ScrollText size={14} aria-hidden /> {m.accessLog}
               </TextButton>
             )}
-            {manages && (
+            {manages && !closed && (
+              <TextButton className="case-action" onPress={() => setClosingCase(true)}>
+                <Lock size={14} aria-hidden /> {m.closeCase}
+              </TextButton>
+            )}
+            {manages && !closed && (
               <TextButton className="case-action" onPress={() => setDeletingCase(true)}>
                 <Trash2 size={14} aria-hidden /> {m.deleteCase}
               </TextButton>
             )}
           </header>
+        )}
+        {currentCase && closed && (
+          <CaseState kase={currentCase} canReopen={manages} canKeep={manages || administers} onChanged={caseChanged} />
         )}
         {administers ? (
           <div className="conversation">
@@ -442,7 +471,7 @@ function Chat({ me }: { me: Me }) {
           {turns.length === 0 ? (
             <div className="empty">
               <h1>{currentCase ? currentCase.name : TAGLINE}</h1>
-              <p>{currentCase ? m.caseEmptyIntro : m.emptyIntro}</p>
+              {!closed && <p>{currentCase ? m.caseEmptyIntro : m.emptyIntro}</p>}
             </div>
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :

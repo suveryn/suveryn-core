@@ -4,8 +4,9 @@
  * uploads) of the case or space that is open. A document in needs_review is usable but names the
  * pages to check. Deleting a conversation or a document asks for confirmation first.
  */
-import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, LogOut, MessageSquare, Plus, Shield, Trash2, User, XCircle } from "lucide-react";
+import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, Lock, LogOut, MessageSquare, Plus, Shield, Trash2, User, XCircle } from "lucide-react";
 import { useState } from "react";
+import { fateLabel } from "./CaseState";
 import { reviewPages, type Case, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
@@ -43,13 +44,16 @@ type Props = {
   casesNote: string | null;     // why cases aren't available, if they aren't
   onOpenCase: (c: Case | null) => void;
   onNewCase: () => void;
+  due: Case[];                  // closed cases due for deletion soon (stage 3): the user's, or all for an administrator
+  showClosed: boolean;          // closed cases are listed too
+  onShowClosed: (show: boolean) => void;
 };
 
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
 export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
                          user, onSignOut, conversations, currentConversation, historyNote, onOpenConversation,
                          onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin,
-                         cases, currentCase, casesNote, onOpenCase, onNewCase }: Props) {
+                         cases, currentCase, casesNote, onOpenCase, onNewCase, due, showClosed, onShowClosed }: Props) {
   const m = useT();
   const [confirming, setConfirming] = useState<string | null>(null);
   // The keyboard focus: on Keep (the safe choice) when a deletion is asked, back on the bin after Keep,
@@ -72,6 +76,18 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
       <section className="library cases" aria-labelledby="cases-title">
         <h2 id="cases-title" className="label">{m.cases}</h2>
         {casesNote && <p className="caption">{casesNote}</p>}
+        {due.length > 0 && (
+          <div className="cases-due" role="status">
+            <p className="caption"><AlertTriangle size={12} aria-hidden /> {m.casesDue(due.length)}</p>
+            <ul>
+              {due.map((c) => (
+                <li key={c.id}>
+                  <TextButton onPress={() => onOpenCase(c)}>{c.reference}</TextButton> <span>{fateLabel(c, m)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {cases.length > SEARCH_FROM && <SearchField label={m.findCase} value={query} onChange={setQuery} className="case-search" />}
         <SelectList label={m.cases} items={entries} current={currentCase?.id ?? MY_SPACE} onOpen={(e) => onOpenCase(e.kase)}
                     className="case-list">
@@ -82,16 +98,21 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
             </span>
           ) : (
             <span className="doc-use" title={m.openCase(e.kase.reference, e.kase.name)}>
-              <Folder size={15} aria-hidden />
+              {e.kase.state === "closed" ? <Lock size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
               <span className="doc-name">{e.kase.reference}</span>
-              <span className="doc-meta">{e.kase.name}</span>
+              <span className="doc-meta">{e.kase.state === "closed" ? `${m.caseClosed} · ` : ""}{e.kase.name}</span>
             </span>
           )}
         </SelectList>
         {!casesNote && cases.length === 0 && <p className="caption">{m.casesEmpty}</p>}
         {q && shown.length === 0 && <p className="caption">{m.noCaseFound}</p>}
         {!casesNote && (
-          <TextButton className="new-case" onPress={onNewCase}><FolderPlus size={14} aria-hidden /> {m.newCase}</TextButton>
+          <div className="case-tools">
+            <TextButton className="new-case" onPress={onNewCase}><FolderPlus size={14} aria-hidden /> {m.newCase}</TextButton>
+            <TextButton className="new-case" onPress={() => onShowClosed(!showClosed)}>
+              <Lock size={14} aria-hidden /> {showClosed ? m.hideClosed : m.showClosed}
+            </TextButton>
+          </div>
         )}
       </section>
 

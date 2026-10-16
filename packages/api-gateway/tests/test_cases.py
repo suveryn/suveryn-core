@@ -8,12 +8,12 @@ import base64
 import json
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from suveryn_api_gateway.app import create_app
+from suveryn_api_gateway.app import _delete_case_everywhere, create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.cases import (
     Case,
@@ -52,18 +52,19 @@ def case(state="open", access="default", manager=ALICE) -> Case:
     (None, set()),
     ("reader", {"read"}),
     ("contributor", {"read", "contribute"}),
-    ("manager", {"read", "contribute", "manage", "read_log"}),
+    ("manager", {"read", "contribute", "manage", "close", "read_log"}),
 ])
 def test_a_members_role_gives_the_rights_of_the_table(role, allowed):
     who = Principal(BOB)
-    actions = {"read", "contribute", "manage", "reopen", "list", "handover", "read_log", "set_keep"}
+    actions = {"read", "contribute", "manage", "close", "reopen", "list", "handover", "read_log", "set_keep"}
     assert {a for a in actions if may(who, case(), role, a, office_wide=False)} == allowed
 
 
 def test_an_administrator_sees_a_case_exists_and_nothing_inside_it():
     admin = Principal(ADMIN, admin=True)
-    assert all(may(admin, case(), None, a, office_wide=False) for a in ("list", "handover", "read_log", "set_keep"))
-    assert not any(may(admin, case(), None, a, office_wide=False) for a in ("read", "contribute", "manage"))
+    assert all(may(admin, case(), None, a, office_wide=False) for a in ("list", "handover", "read_log"))
+    assert not any(may(admin, case(), None, a, office_wide=False) for a in ("read", "contribute", "manage", "set_keep"))
+    assert may(admin, case(state="closed"), None, "set_keep", office_wide=False)  # the keep period, once closed
     assert may(admin, case(), "reader", "read", office_wide=False)  # unless a member
     assert not may(Principal(ALICE), case(), "manager", "handover", office_wide=False)  # and a manager isn't an admin
     assert may(Principal(ALICE), case(state="closed"), "manager", "read_log", office_wide=False)  # the log stays readable
@@ -84,8 +85,12 @@ def test_a_closed_case_is_read_only_and_its_manager_may_reopen_it():
     assert not may(Principal(BOB), closed, "contributor", "contribute", office_wide=False)
     assert not may(Principal(ALICE), closed, "manager", "manage", office_wide=False)
     assert may(Principal(ALICE), closed, "manager", "reopen", office_wide=False)
+    assert may(Principal(ALICE), closed, "manager", "set_keep", office_wide=False)  # extend, keep: the manager's too
+    assert may(Principal(ADMIN, admin=True), closed, None, "set_keep", office_wide=False)
     assert not may(Principal(BOB), closed, "contributor", "reopen", office_wide=False)
     assert not may(Principal(ALICE), case(), "manager", "reopen", office_wide=False)  # an open case isn't reopened
+    assert not may(Principal(ALICE), case(), "manager", "set_keep", office_wide=False)  # nor kept: it's open
+    assert not may(Principal(ALICE), closed, "manager", "close", office_wide=False)  # nor closed twice
 
 
 def test_the_default_access_fails_closed(monkeypatch):
@@ -94,6 +99,14 @@ def test_the_default_access_fails_closed(monkeypatch):
     monkeypatch.setenv("SUVERYN_CASES_DEFAULT_ACCESS", "office")
     assert CaseSettings.from_env().office_wide
     monkeypatch.setenv("SUVERYN_CASES_DEFAULT_ACCESS", "everyone")
+    with pytest.raises(ValueError):
+        CaseSettings.from_env()
+    # the keep period: nothing is chosen for the office (decision 11), so closed cases are kept until deleted by hand
+    monkeypatch.setenv("SUVERYN_CASES_DEFAULT_ACCESS", "members")
+    assert CaseSettings.from_env().keep == "manual" and CaseSettings.from_env().keep_period is None
+    monkeypatch.setenv("SUVERYN_CASES_KEEP", "5y")
+    assert CaseSettings.from_env().keep_period == timedelta(days=5 * 366)
+    monkeypatch.setenv("SUVERYN_CASES_KEEP", "forever")
     with pytest.raises(ValueError):
         CaseSettings.from_env()
 
@@ -216,8 +229,46 @@ class FakeCases:
     def delete(self, case_id):
         return self.cases.pop(case_id, None) is not None
 
-    def close(self, case_id):  # a stand-in for stage 3, to test the read-only rule end to end
-        self.cases[case_id] = self.cases[case_id].model_copy(update={"state": "closed", "closed_at": datetime.now(UTC)})
+    def close_case(self, case_id, period=None):
+        c = self.cases.get(case_id)
+        if c is None or c.state != "open":
+            return None
+        now = datetime.now(UTC)
+        self.cases[case_id] = c = c.model_copy(update={"state": "closed", "closed_at": now, "keep": False,
+                                                       "keep_until": now + period if period else None, "updated_at": now})
+        return c
+
+    def reopen_case(self, case_id):
+        c = self.cases.get(case_id)
+        if c is None or c.state != "closed":
+            return None
+        self.cases[case_id] = c = c.model_copy(update={"state": "open", "closed_at": None, "keep_until": None, "keep": False})
+        return c
+
+    def set_keep(self, case_id, keep, extend, period):
+        c = self.cases.get(case_id)
+        if c is None or c.state != "closed":
+            return None
+        now = datetime.now(UTC)
+        kept, until = c.keep, c.keep_until
+        if keep is not None:
+            kept = keep
+            if not keep:
+                until = now + period if period else None
+        if extend and period:
+            until = max(until or now, now) + period
+        self.cases[case_id] = c = c.model_copy(update={"keep": kept, "keep_until": until})
+        return c
+
+    def due(self, user, *, admin, within=timedelta(days=30)):
+        now = datetime.now(UTC)
+        out = [c for c in self.cases.values() if c.state == "closed" and not c.keep and c.keep_until and c.keep_until <= now + within
+               and (admin or c.manager == user)]
+        return sorted((c.model_copy(update={"my_role": self.role_of(uuid.UUID(c.id), user)}) for c in out), key=lambda c: c.keep_until)
+
+    def due_for_deletion(self):
+        now = datetime.now(UTC)
+        return [uuid.UUID(c.id) for c in self.cases.values() if c.state == "closed" and not c.keep and c.keep_until and c.keep_until <= now]
 
 
 @pytest.fixture
@@ -226,7 +277,7 @@ def office():
     auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
     app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases,
-                     case_settings=CaseSettings(default_access="members"), directory=FakeDirectory())
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
     with TestClient(app) as c:
         yield c, kc, cases, history, docs
 
@@ -369,13 +420,94 @@ def test_a_closed_case_refuses_uploads_and_questions(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
-    cases.close(uuid.UUID(cid))
+    cases.close_case(uuid.UUID(cid))
     assert c.get(f"/v1/documents?case={cid}", headers=alice).status_code == 200  # reading stays
     assert c.get("/v1/cases", headers=alice).json() == [] and len(c.get("/v1/cases?closed=true", headers=alice).json()) == 1
     r = c.post(f"/v1/documents?case={cid}", files={"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}, headers=alice)
     assert r.status_code == 403 and "closed" in r.json()["detail"]
     assert c.delete(f"/v1/documents/{in_case}?case={cid}", headers=alice).status_code == 403
     assert c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=alice).status_code == 403
+
+
+# ------------------------------------------------------------------ stage 3: closing and the keep period
+def test_the_manager_closes_a_case_and_it_is_kept_for_the_offices_period(office):
+    c, kc, _, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    assert c.post(f"/v1/cases/{cid}/close", headers=bob).status_code == 403  # a contributor can't
+    r = c.post(f"/v1/cases/{cid}/close", headers=alice)
+    assert r.status_code == 200 and r.json()["state"] == "closed" and r.json()["my_role"] == "manager"
+    until = datetime.fromisoformat(r.json()["keep_until"])
+    assert timedelta(days=182) < until - datetime.now(UTC) < timedelta(days=184)  # 6 months, the office's period
+    assert c.post(f"/v1/cases/{cid}/close", headers=alice).status_code == 403  # closed: read-only, also for closing
+    # read-only for everyone: no uploads, questions or changes; reading and the list (behind the filter) stay
+    pdf = {"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}
+    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=alice).status_code == 403
+    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 403
+    assert c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=alice).status_code == 403
+    assert c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice).status_code == 403
+    assert c.get(f"/v1/documents?case={cid}", headers=bob).status_code == 200
+    assert c.get("/v1/cases", headers=alice).json() == []
+    assert [x["state"] for x in c.get("/v1/cases?closed=true", headers=alice).json()] == ["closed"]
+    # the manager reopens it: open again, nothing planned
+    assert c.post(f"/v1/cases/{cid}/reopen", headers=bob).status_code == 403
+    r = c.post(f"/v1/cases/{cid}/reopen", headers=alice)
+    assert r.status_code == 200 and r.json()["state"] == "open" and r.json()["keep_until"] is None
+    assert c.post(f"/v1/cases/{cid}/reopen", headers=alice).status_code == 403  # not closed: reopen isn't a right
+    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 202
+    events = [e["action"] for e in c.get(f"/v1/cases/{cid}/events", headers=alice).json()]
+    assert events[:3] == ["uploaded", "reopened", "closed"]
+
+
+def test_a_closed_case_due_for_deletion_can_be_extended_kept_or_reopened(office):
+    c, kc, cases, _, _ = office
+    alice, bob, admin = as_user(kc, ALICE), as_user(kc, BOB), admin_headers(kc)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.post(f"/v1/cases/{cid}/close", headers=alice)
+    assert c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=bob).status_code == 404  # not visible to Bob
+    assert c.get("/v1/cases/due", headers=alice).json() == []  # six months away: not due yet
+    # a case whose deletion is three weeks away is listed as due, for its manager and the administrators
+    cases.cases[uuid.UUID(cid)] = cases.cases[uuid.UUID(cid)].model_copy(update={"keep_until": datetime.now(UTC) + timedelta(days=21)})
+    assert [x["id"] for x in c.get("/v1/cases/due", headers=alice).json()] == [cid]
+    assert [x["id"] for x in c.get("/v1/cases/due", headers=admin).json()] == [cid]
+    assert c.get("/v1/cases/due", headers=bob).json() == []
+    # extend: one period later; keep: never deleted; keep false: one period from now
+    r = c.post(f"/v1/cases/{cid}/keep", json={"extend": True}, headers=alice)
+    until = datetime.fromisoformat(r.json()["keep_until"])
+    assert timedelta(days=203) < until - datetime.now(UTC) < timedelta(days=205)
+    assert c.get("/v1/cases/due", headers=alice).json() == []
+    r = c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=admin)
+    assert r.status_code == 200 and r.json()["keep"] is True
+    r = c.post(f"/v1/cases/{cid}/keep", json={"keep": False}, headers=alice)
+    assert r.json()["keep"] is False and timedelta(days=182) < datetime.fromisoformat(r.json()["keep_until"]) - datetime.now(UTC)
+    assert c.post(f"/v1/cases/{cid}/keep", json={}, headers=alice).status_code == 422
+    c.post(f"/v1/cases/{cid}/reopen", headers=alice)
+    assert c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=alice).status_code == 403  # open: close it first
+
+
+def test_the_sweep_deletes_a_case_whose_period_has_passed_with_everything_in_it(office):
+    c, kc, cases, history, docs = office
+    alice = as_user(kc, ALICE)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    in_case = str(uuid.uuid4())
+    docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    turns = [{"role": "user", "text": "Vraag"}, {"role": "assistant", "text": "Antwoord"}]
+    c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "Dossier", "turns": turns, "case_id": cid}, headers=alice)
+    c.post(f"/v1/cases/{cid}/close", headers=alice)
+    kept = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=alice).json()["id"]
+    c.post(f"/v1/cases/{kept}/close", headers=alice)
+    c.post(f"/v1/cases/{kept}/keep", json={"keep": True}, headers=alice)
+    for x in (cid, kept):  # both past their period
+        cases.cases[uuid.UUID(x)] = cases.cases[uuid.UUID(x)].model_copy(update={"keep_until": datetime.now(UTC) - timedelta(days=1)})
+    assert cases.due_for_deletion() == [uuid.UUID(cid)]  # the kept one isn't
+    import asyncio
+    assert asyncio.run(_delete_case_everywhere(c.app, uuid.UUID(cid)))
+    assert c.get(f"/v1/cases/{cid}", headers=alice).status_code == 404
+    assert in_case not in docs.docs and DOC in docs.docs
+    assert not any(r["case_id"] == uuid.UUID(cid) for r in history.rows.values())
+    assert c.get(f"/v1/cases/{kept}", headers=alice).status_code == 200
+    assert not asyncio.run(_delete_case_everywhere(c.app, uuid.uuid4()))
 
 
 def test_office_wide_appliance_lets_colleagues_read_but_not_contribute():
@@ -627,3 +759,37 @@ def test_store_members_handover_and_the_log(store):
     s._execute("UPDATE case_events SET at = now() - interval '181 days' WHERE case_id = %s AND action = 'created'", (cid,))
     assert [e.action for e in s.events(cid)] == ["asked", "opened"]  # purged after 180 days
     assert s.delete(cid) and s.events(cid) == []  # the log goes with the case
+
+
+def test_store_closes_keeps_extends_reopens_and_finds_what_is_due(store):
+    s = store
+    alice, bob = f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}"
+    c = s.create(CaseIn(**NEW), alice)
+    cid = uuid.UUID(c.id)
+    half_year = timedelta(days=183)
+    assert s.set_keep(cid, True, False, half_year) is None  # not closed yet
+    assert s.reopen_case(cid) is None
+    closed = s.close_case(cid, half_year)
+    assert closed.state == "closed" and closed.closed_at and not closed.keep
+    assert half_year - timedelta(minutes=1) < closed.keep_until - closed.closed_at <= half_year
+    assert s.close_case(cid, half_year) is None  # already closed
+    assert s.due(alice, admin=False) == [] and s.due_for_deletion() == []  # not for months
+    s._execute("UPDATE cases SET keep_until = now() + interval '10 days' WHERE id = %s", (cid,))
+    assert [x.id for x in s.due(alice, admin=False)] == [c.id]  # the manager sees it coming
+    assert s.due(bob, admin=False) == [] and [x.id for x in s.due(bob, admin=True)] == [c.id]  # so does an administrator
+    extended = s.set_keep(cid, None, True, half_year)  # one more period from the planned date
+    assert timedelta(days=192) < extended.keep_until - datetime.now(UTC) <= timedelta(days=193)
+    assert s.due(alice, admin=False) == []
+    kept = s.set_keep(cid, True, False, half_year)
+    assert kept.keep and kept.keep_until == extended.keep_until  # the date stays, it just isn't acted on
+    s._execute("UPDATE cases SET keep_until = now() - interval '1 day' WHERE id = %s", (cid,))
+    assert s.due_for_deletion() == [] and s.due(alice, admin=False) == []  # kept: never swept
+    released = s.set_keep(cid, False, False, half_year)  # one period from now again
+    assert not released.keep and released.keep_until > datetime.now(UTC) + timedelta(days=182)
+    s._execute("UPDATE cases SET keep_until = now() - interval '1 day' WHERE id = %s", (cid,))
+    assert s.due_for_deletion() == [cid] and [x.id for x in s.due(alice, admin=False)] == [c.id]  # overdue: still listed
+    manual = s.close_case(uuid.UUID(s.create(CaseIn(**{**NEW, "reference": "2026/0418"}), bob).id), None)
+    assert manual.keep_until is None and s.due(bob, admin=False) == []  # no period: deleted by hand only
+    reopened = s.reopen_case(cid)
+    assert reopened.state == "open" and reopened.closed_at is None and reopened.keep_until is None
+    assert s.due_for_deletion() == []
