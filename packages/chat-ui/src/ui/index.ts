@@ -17,6 +17,7 @@ export { Dialog } from "./dialog";
 export { FileButton, FileDrop, FilePick, readText } from "./files";
 export { Form, FormError, useFieldError, useFormPending, type FieldErrors } from "./forms";
 export { Card, Chips, Facts, InlineNotice, Note, Notice, Rows, StatusList, Steps, type Fact, type Row, type Status, type StatusItem } from "./layout";
+export { ComboBoxField, SearchField, SelectList, type ListEntry } from "./lists";
 export { MenuButton, Select, SelectField, type Option } from "./menus";
 export { QrCode } from "./QrCode";
 export { I18nProvider } from "react-aria-components";

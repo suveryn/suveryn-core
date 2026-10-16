@@ -41,6 +41,9 @@ class ChatRequest(BaseModel):
     # Stored documents to answer from. Empty: a plain, unsourced answer. Set: the answer is grounded
     # in passages from these documents and cites them as [n] (see ChatResponse).
     document_ids: list[str] = Field(default_factory=list, max_length=50)
+    # The case the documents are in (suveryn-tracker#10). None: the user's personal space. The
+    # gateway checks the user may read the case; the documents must all be in it.
+    case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     # Which installed model answers (an id from GET /v1/models). None: the appliance's default model.
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
 

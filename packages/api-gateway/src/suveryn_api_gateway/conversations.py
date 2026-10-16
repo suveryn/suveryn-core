@@ -4,6 +4,10 @@ A conversation is stored as the chat UI's list of turns (questions, answers with
 and calculations, attachment names), as JSON, under the owner's Keycloak id. The gateway checks
 the shape loosely (``SavedTurn``) and bounds the size; it never reads the text.
 
+Cases (suveryn-tracker#10): a conversation started in a case carries its ``case_id`` and is listed
+with that case; one without is in the owner's personal space. Either way it is private to whoever
+started it (sharing with the case's members comes in stage 4 of docs/design/cases.md).
+
 Retention: kept until the user deletes it (one conversation, or all of them when signing out).
 An administrator can cap the age with ``SUVERYN_CONVERSATION_MAX_AGE_DAYS``: older conversations
 (by last change) are no longer listed or returned, and are deleted on start and on each listing.
@@ -50,6 +54,9 @@ CREATE TABLE IF NOT EXISTS conversations (
     updated_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS conversations_owner_updated ON conversations (owner, updated_at DESC);
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS case_id uuid;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS shared boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS conversations_case ON conversations (case_id);
 """
 
 
@@ -81,6 +88,7 @@ class ConversationIn(BaseModel):
 
     title: str = Field(min_length=1, max_length=MAX_TITLE)
     turns: list[SavedTurn] = Field(min_length=1, max_length=MAX_TURNS)
+    case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")  # None: the personal space
 
 
 class ConversationSummary(BaseModel):
@@ -90,6 +98,7 @@ class ConversationSummary(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    case_id: str | None = None
 
 
 class Conversation(ConversationSummary):
@@ -160,19 +169,26 @@ class ConversationStore(PgStore):
             log.info("deleted %d conversations older than %d days", n, self.settings.max_age_days)
         return n
 
-    def summaries(self, owner: str) -> list[ConversationSummary]:
-        """The owner's conversations, most recently changed first."""
+    @staticmethod
+    def _summary(r) -> ConversationSummary:
+        return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
+                                   case_id=str(r[4]) if r[4] else None)
+
+    def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
+        """The owner's conversations in one place, most recently changed first: their personal
+        space (``case_id`` None) or one case."""
         self.purge()
         fresh, params = self._fresh()
-        rows = self._execute(f"SELECT id, title, created_at, updated_at FROM conversations"
-                             f" WHERE owner = %s AND {fresh} ORDER BY updated_at DESC", (owner, *params)).fetchall()
-        return [ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3]) for r in rows]
+        rows = self._execute(f"SELECT id, title, created_at, updated_at, case_id FROM conversations"
+                             f" WHERE owner = %s AND case_id IS NOT DISTINCT FROM %s AND {fresh} ORDER BY updated_at DESC",
+                             (owner, case_id, *params)).fetchall()
+        return [self._summary(r) for r in rows]
 
     def get(self, conversation_id: uuid.UUID, owner: str) -> Conversation | None:
         fresh, params = self._fresh()
-        r = self._execute(f"SELECT id, title, created_at, updated_at, turns FROM conversations"
+        r = self._execute(f"SELECT id, title, created_at, updated_at, case_id, turns FROM conversations"
                           f" WHERE id = %s AND owner = %s AND {fresh}", (conversation_id, owner, *params)).fetchone()
-        return Conversation(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3], turns=r[4]) if r else None
+        return Conversation(**self._summary(r).model_dump(), turns=r[5]) if r else None
 
     def save(self, conversation_id: uuid.UUID, owner: str, body: ConversationIn,
              gone: Callable[[str], bool] | None = None) -> bool:
@@ -184,11 +200,13 @@ class ConversationStore(PgStore):
         if gone is not None:
             redact(turns, gone)
         turns = json.dumps(turns)
+        case_id = uuid.UUID(body.case_id) if body.case_id else None
+        # The case is set when the conversation is first saved and never moves with a later save.
         row = self._execute(
-            "INSERT INTO conversations (id, owner, title, turns) VALUES (%s, %s, %s, %s)"
+            "INSERT INTO conversations (id, owner, title, turns, case_id) VALUES (%s, %s, %s, %s, %s)"
             " ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, turns = EXCLUDED.turns, updated_at = now()"
             " WHERE conversations.owner = EXCLUDED.owner RETURNING id",
-            (conversation_id, owner, body.title, turns)).fetchone()
+            (conversation_id, owner, body.title, turns, case_id)).fetchone()
         return row is not None
 
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:
@@ -198,11 +216,10 @@ class ConversationStore(PgStore):
     def using_document(self, owner: str, document_id: uuid.UUID) -> list[ConversationSummary]:
         """The owner's conversations that cite or attach this document, most recently changed first."""
         fresh, params = self._fresh()
-        rows = self._execute(f"SELECT id, title, created_at, updated_at, turns FROM conversations"
+        rows = self._execute(f"SELECT id, title, created_at, updated_at, case_id, turns FROM conversations"
                              f" WHERE owner = %s AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
                              (owner, f'%"{document_id}"%', *params)).fetchall()
-        return [ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3]) for r in rows
-                if str(document_id) in cited_documents(r[4])]
+        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[5])]
 
     def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False) -> int:
         """After deleting a document: take its passages out of the owner's conversations, or delete those
@@ -223,3 +240,7 @@ class ConversationStore(PgStore):
     def delete_all(self, owner: str) -> int:
         """Delete every conversation of this owner (the sign-out choice "Delete history")."""
         return self._execute("DELETE FROM conversations WHERE owner = %s", (owner,)).rowcount
+
+    def delete_case(self, case_id: uuid.UUID) -> int:
+        """Delete every conversation in a case, whoever started it (the case is being deleted)."""
+        return self._execute("DELETE FROM conversations WHERE case_id = %s", (case_id,)).rowcount
