@@ -41,13 +41,21 @@ class FakeConversations:
     def __init__(self):
         self.rows: dict[uuid.UUID, dict] = {}
 
-    def summaries(self, owner):
-        rows = sorted((r for r in self.rows.values() if r["owner"] == owner), key=lambda r: r["updated_at"], reverse=True)
-        return [ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at")}) for r in rows]
+    def summaries(self, owner, case_id=None):
+        rows = sorted((r for r in self.rows.values() if r["owner"] == owner and r["case_id"] == case_id),
+                      key=lambda r: r["updated_at"], reverse=True)
+        return [self._summary(r) for r in rows]
+
+    @staticmethod
+    def _summary(r):
+        return ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at")},
+                                   case_id=str(r["case_id"]) if r["case_id"] else None)
 
     def get(self, cid, owner):
         r = self.rows.get(cid)
-        return Conversation(**{k: v for k, v in r.items() if k != "owner"}) if r and r["owner"] == owner else None
+        if not r or r["owner"] != owner:
+            return None
+        return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
 
     def save(self, cid, owner, body: ConversationIn, gone=None):
         old = self.rows.get(cid)
@@ -58,11 +66,13 @@ class FakeConversations:
         if gone is not None:
             redact(turns, gone)
         self.rows[cid] = {"id": str(cid), "owner": owner, "title": body.title, "turns": turns,
-                          "created_at": old["created_at"] if old else now, "updated_at": now}
+                          "created_at": old["created_at"] if old else now, "updated_at": now,
+                          "case_id": old["case_id"] if old else (uuid.UUID(body.case_id) if body.case_id else None)}
         return True
 
     def using_document(self, owner, document_id):
-        return [s for s in self.summaries(owner) if str(document_id) in cited_documents(self.rows[uuid.UUID(s.id)]["turns"])]
+        rows = sorted((r for r in self.rows.values() if r["owner"] == owner), key=lambda r: r["updated_at"], reverse=True)
+        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r["turns"])]
 
     def remove_document(self, owner, document_id, delete_conversations=False):
         hits = self.using_document(owner, document_id)
@@ -84,6 +94,12 @@ class FakeConversations:
         for c in mine:
             del self.rows[c]
         return len(mine)
+
+    def delete_case(self, case_id):
+        gone = [c for c, r in self.rows.items() if r["case_id"] == case_id]
+        for c in gone:
+            del self.rows[c]
+        return len(gone)
 
 
 @pytest.fixture
@@ -204,6 +220,20 @@ def test_store_round_trip_and_ownership(store):
 
 
 @needs_db
+def test_store_keeps_a_conversation_in_its_case(store):
+    """suveryn-tracker#10: listed with its case, not in the personal space, and it doesn't move on a later save."""
+    case, in_case, personal = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    assert store.save(in_case, ALICE, ConversationIn(**{**BODY, "case_id": str(case)}))
+    assert store.save(personal, ALICE, ConversationIn(**BODY))
+    assert [s.id for s in store.summaries(ALICE)] == [str(personal)]
+    assert [(s.id, s.case_id) for s in store.summaries(ALICE, case)] == [(str(in_case), str(case))]
+    assert store.get(in_case, ALICE).case_id == str(case) and store.get(personal, ALICE).case_id is None
+    store.save(in_case, ALICE, ConversationIn(**{**BODY, "title": "later"}))  # no case_id: stays where it was
+    assert [s.title for s in store.summaries(ALICE, case)] == ["later"]
+    assert store.delete_case(case) == 1 and store.summaries(ALICE, case) == []
+
+
+@needs_db
 def test_store_lists_newest_first_and_deletes_all(store):
     first, second = uuid.uuid4(), uuid.uuid4()
     store.save(first, ALICE, ConversationIn(**BODY))
@@ -263,13 +293,13 @@ class FakeDocs:
     def __init__(self):
         self.ids = {DOC, OTHER}
 
-    def delete(self, document_id, owner):
+    def delete(self, document_id, scope):
         if document_id in self.ids:
             self.ids.discard(document_id)
             return True
         return False
 
-    def existing(self, ids, owner):
+    def existing(self, ids, scope):
         return {i for i in ids if i in self.ids}
 
     def stop(self):

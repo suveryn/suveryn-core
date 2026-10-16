@@ -1,18 +1,22 @@
 /**
- * The sidebar: saved conversations, then the document library (stored documents, uploads in
- * progress and failed uploads). A document in needs_review is usable but names the pages to check.
- * Deleting a conversation or a document asks for confirmation first.
+ * The sidebar: the cases (suveryn-tracker#10) with the personal space first, then the saved
+ * conversations and the document library (stored documents, uploads in progress and failed
+ * uploads) of the case or space that is open. A document in needs_review is usable but names the
+ * pages to check. Deleting a conversation or a document asks for confirmation first.
  */
-import { AlertTriangle, BarChart3, FileText, Loader2, LogOut, MessageSquare, Plus, Shield, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, LogOut, MessageSquare, Plus, Shield, Trash2, User, XCircle } from "lucide-react";
 import { useState } from "react";
-import { reviewPages, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
+import { reviewPages, type Case, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
 import { compact } from "../lib/usage";
 import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 import { LanguagePicker } from "./LanguagePicker";
-import { Button, IconButton, TextButton } from "../ui";
+import { Button, IconButton, SearchField, SelectList, TextButton } from "../ui";
+
+const SEARCH_FROM = 6;  // cases: a search box once the list is longer than this
+const MY_SPACE = "my-space";
 
 type Props = {
   documents: StoredDocument[];
@@ -34,24 +38,62 @@ type Props = {
   onOpenUsage: () => void;
   admin: boolean;               // shows the administration link
   onOpenAdmin: () => void;
+  cases: Case[];                // the open cases the user may see
+  currentCase: Case | null;     // null: the personal space
+  casesNote: string | null;     // why cases aren't available, if they aren't
+  onOpenCase: (c: Case | null) => void;
+  onNewCase: () => void;
 };
 
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
 export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
                          user, onSignOut, conversations, currentConversation, historyNote, onOpenConversation,
-                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin }: Props) {
+                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin,
+                         cases, currentCase, casesNote, onOpenCase, onNewCase }: Props) {
   const m = useT();
   const [confirming, setConfirming] = useState<string | null>(null);
   // The keyboard focus: on Keep (the safe choice) when a deletion is asked, back on the bin after Keep,
   // and on a document's bin while its dialog is open, so the focus returns there when it closes.
   const [back, setBack] = useState<string | null>(null);
   const keep = (id: string) => { setConfirming(null); setBack(id); };
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = q ? cases.filter((c) => c.reference.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) : cases;
+  // One list for the keyboard: the personal space first, then the cases (filtered by the search).
+  const entries = [{ id: MY_SPACE, textValue: m.mySpace, kase: null as Case | null },
+                   ...shown.map((c) => ({ id: c.id, textValue: `${c.reference} ${c.name}`, kase: c as Case | null }))];
   return (
     <aside className="sidebar">
       <Lockup />
       <Button variant="primary" className="new-chat" onPress={onNewChat}>
         <Plus size={16} aria-hidden /> {m.newChat}
       </Button>
+
+      <section className="library cases" aria-labelledby="cases-title">
+        <h2 id="cases-title" className="label">{m.cases}</h2>
+        {casesNote && <p className="caption">{casesNote}</p>}
+        {cases.length > SEARCH_FROM && <SearchField label={m.findCase} value={query} onChange={setQuery} className="case-search" />}
+        <SelectList label={m.cases} items={entries} current={currentCase?.id ?? MY_SPACE} onOpen={(e) => onOpenCase(e.kase)}
+                    className="case-list">
+          {(e) => e.kase === null ? (
+            <span className="doc-use" title={m.mySpaceHint}>
+              <User size={15} aria-hidden />
+              <span className="doc-name">{m.mySpace}</span>
+            </span>
+          ) : (
+            <span className="doc-use" title={m.openCase(e.kase.reference, e.kase.name)}>
+              <Folder size={15} aria-hidden />
+              <span className="doc-name">{e.kase.reference}</span>
+              <span className="doc-meta">{e.kase.name}</span>
+            </span>
+          )}
+        </SelectList>
+        {!casesNote && cases.length === 0 && <p className="caption">{m.casesEmpty}</p>}
+        {q && shown.length === 0 && <p className="caption">{m.noCaseFound}</p>}
+        {!casesNote && (
+          <TextButton className="new-case" onPress={onNewCase}><FolderPlus size={14} aria-hidden /> {m.newCase}</TextButton>
+        )}
+      </section>
 
       <section className="library history" aria-labelledby="history-title">
         <h2 id="history-title" className="label">{m.conversations}</h2>

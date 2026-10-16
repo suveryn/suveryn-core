@@ -47,6 +47,7 @@ from suveryn_chat import ChatService  # noqa: E402
 from suveryn_engine import ChatRequest, LlamaServerClient, LLMSettings  # noqa: E402
 from suveryn_rag.config import RagSettings  # noqa: E402
 from suveryn_rag.integrity import norm  # noqa: E402
+from suveryn_rag.store import Scope
 
 OWNER = f"eval-{uuid.uuid4().hex[:8]}"
 MARKER = re.compile(r"\[(\d{1,2})\]")
@@ -75,7 +76,7 @@ def corpus(tmp_path_factory):
     ingested = {name: rag.ingest(pdf, owner=OWNER) for name, pdf in files.items()}
     yield rag, ingested
     for r in ingested.values():
-        rag.store.delete_document(r.document_id, OWNER)
+        rag.store.delete_document(r.document_id, Scope.personal(OWNER))
     rag.close()
 
 
@@ -131,7 +132,7 @@ def _check(case: dict, r) -> dict[str, bool]:
 def test_answers_meet_the_requirements(corpus, model):
     rag, ingested = corpus
 
-    async def retriever(question, document_ids, k, owner):
+    async def retriever(question, document_ids, k, owner, case_id=None):
         hits, complete = rag.passages(question, [uuid.UUID(d) for d in document_ids], k)
         return [(h.citation, h.filename) for h in hits], complete
 

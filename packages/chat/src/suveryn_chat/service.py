@@ -25,12 +25,13 @@ from .calc import CalcRewriter, unverified_figures
 from .grounding import cited_numbers, grounded_messages
 from .support import citation_issues
 
-# Passages to answer a question from, within the given documents of one user:
-# (question, document_ids, k, owner) -> ([(citation, filename), ...], complete). The retriever must
-# refuse documents that don't belong to ``owner``. ``complete`` is True when
+# Passages to answer a question from, within the given documents of one user or case:
+# (question, document_ids, k, owner, case_id) -> ([(citation, filename), ...], complete). The retriever
+# must refuse documents outside the scope: ``owner``'s personal space when ``case_id`` is None, else
+# the case ``case_id`` (which the caller has checked ``owner`` may read). ``complete`` is True when
 # the passages are the documents' whole text in reading order (small documents), False when they
 # are a selection: the best-matching passages that fit the whole-document budget, at least ``k``.
-Retriever = Callable[[str, list[str], int, str], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
+Retriever = Callable[[str, list[str], int, str, str | None], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
 
 # The fewest passages a larger document gives (the budget usually allows far more): the right passage
 # was in the top 3 for all 19 real-deed questions.
@@ -92,7 +93,7 @@ class ChatService:
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner)
+        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner, req.case_id)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations, complete

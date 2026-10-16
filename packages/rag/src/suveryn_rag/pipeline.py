@@ -26,7 +26,7 @@ from .integrity import (
     words,
 )
 from .isolation import make_extractor
-from .store import Store
+from .store import Scope, Store
 
 
 @dataclass
@@ -122,7 +122,8 @@ class Rag:
         if hasattr(self._extractor, "close"):
             self._extractor.close()
 
-    def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None) -> IngestResult:
+    def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None,
+               case_id: uuid.UUID | None = None) -> IngestResult:
         """Extract, chunk, embed and store one PDF; return its id, status and warnings.
 
         Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
@@ -130,12 +131,13 @@ class Rag:
         and replaced in place, keeping its id. The document is stored in one transaction, so a failure leaves nothing behind.
         A ``needs_review`` status means text may be missing (see ``integrity``); the document is
         still stored and searchable. ``filename`` is the name to show for the document; it defaults
-        to the file's own name (uploads are stored under a random name).
+        to the file's own name (uploads are stored under a random name). ``owner`` is who uploads it;
+        it goes into their personal space, or into the case ``case_id`` (docs/design/cases.md).
         """
         pdf = Path(pdf)
         name = filename or pdf.name
         digest = sha256_of(pdf)
-        existing = self.store.find_by_sha256(digest, owner)  # the owner's own copy only
+        existing = self.store.find_by_sha256(digest, Scope(owner, case_id))  # this scope's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
             vocabulary = words(self.store.document_text(existing, recovered=False))
@@ -170,7 +172,8 @@ class Rag:
         if existing:
             doc_id = self.store.replace_document(existing, name, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
         else:
-            doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings, owner)
+            doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings,
+                                             owner, case_id)
         if suspicious:
             audit("instruction_like_document", user=owner, document=str(doc_id), pages=sorted(suspicious),
                   kinds=sorted({k for kinds in suspicious.values() for k in kinds}))
