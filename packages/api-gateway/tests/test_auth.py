@@ -164,7 +164,7 @@ def test_login_redirects_to_keycloak_with_pkce_state_and_nonce(client):
 def test_dev_realm_client_has_a_base_url_for_back_to_application():
     """Keycloak's error pages ("cookie not found", expired links) only show "Back to application"
     when the client has a base URL; without it the user is stuck on the error page."""
-    [chat] = json.loads(REALM.read_text())["clients"]
+    [chat, _directory] = json.loads(REALM.read_text())["clients"]
     assert chat["baseUrl"] == "http://localhost:5173/" == chat["attributes"]["post.logout.redirect.uris"]
 
 
@@ -185,7 +185,7 @@ def test_full_sign_in_gives_an_httponly_session_and_opens_the_api(client, kc):
     assert "HttpOnly" in session_cookie and "SameSite=lax" in session_cookie
     assert kc.token_calls[0]["code_verifier"]  # PKCE verifier sent, and checked by the fake
     assert client.get("/v1/documents").status_code == 200
-    assert client.get("/auth/me").json() == {"username": "notaris.test", "name": "Test Notaris", "admin": False}
+    assert client.get("/auth/me").json() == {"username": "notaris.test", "name": "Test Notaris", "admin": False, "office_wide": False}
     assert "token" not in client.get("/auth/me").text  # no token ever reaches the browser
 
 
@@ -290,11 +290,21 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     assert realm["identityProviders"] == [] and realm["identityProviderMappers"] == []  # no social/online IdPs
     assert realm["registrationAllowed"] is False and realm["bruteForceProtected"] is True
     assert realm["otpPolicyType"] == "totp" and "requiredActions" not in realm  # TOTP available, not forced
-    assert "users" not in realm and "components" not in realm  # no accounts, no LDAP hard-coded
-    [chat] = realm["clients"]
+    assert "components" not in realm  # no LDAP hard-coded
+    [chat, directory] = realm["clients"]
     assert chat["publicClient"] is False and "secret" not in chat
     assert chat["standardFlowEnabled"] and not chat["implicitFlowEnabled"] and not chat["directAccessGrantsEnabled"]
     assert not chat["serviceAccountsEnabled"] and chat["attributes"]["pkce.code.challenge.method"] == "S256"
+    # suveryn-tracker#10: the directory client reads the office's accounts and nothing else: a service
+    # account with view-users only, no sign-in flow of its own, and no secret in the file. The only
+    # account in the realm file is that service account: no human accounts hard-coded.
+    assert directory["clientId"] == "suveryn-directory" and "secret" not in directory
+    assert directory["serviceAccountsEnabled"] and not directory["standardFlowEnabled"]
+    assert not directory["implicitFlowEnabled"] and not directory["directAccessGrantsEnabled"] and not directory["publicClient"]
+    assert directory["redirectUris"] == []
+    [service_account] = realm["users"]
+    assert service_account["serviceAccountClientId"] == "suveryn-directory"
+    assert service_account["clientRoles"] == {"realm-management": ["view-users"]}
     # suveryn-tracker#7: the administrator role exists, nobody has it by default, and it reaches the
     # chat client's access token (the client has fullScopeAllowed false, so it must be mapped).
     from suveryn_api_gateway.app import ADMIN_ROLE
@@ -370,7 +380,7 @@ def test_questions_and_uploads_are_rate_limited_per_user(kc):
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
     class Uploads(FakeDocuments):
         def accept_upload(self, src, filename, owner, case_id=None):
-            return SimpleNamespace(public=lambda: {"id": "job"})
+            return SimpleNamespace(id="job", public=lambda: {"id": "job"})
 
     app = create_app(llm, documents=Uploads(), load_documents=False, auth=auth,
                      rate_limits=RateLimits(chat=2, uploads=1))
