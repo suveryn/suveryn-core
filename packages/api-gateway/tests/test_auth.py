@@ -185,7 +185,7 @@ def test_full_sign_in_gives_an_httponly_session_and_opens_the_api(client, kc):
     assert "HttpOnly" in session_cookie and "SameSite=lax" in session_cookie
     assert kc.token_calls[0]["code_verifier"]  # PKCE verifier sent, and checked by the fake
     assert client.get("/v1/documents").status_code == 200
-    assert client.get("/auth/me").json() == {"username": "notaris.test", "name": "Test Notaris", "admin": False, "office_wide": False}
+    assert client.get("/auth/me").json() == {"username": "notaris.test", "name": "Test Notaris", "admin": False, "office_wide": False, "cases_keep": "manual"}
     assert "token" not in client.get("/auth/me").text  # no token ever reaches the browser
 
 
