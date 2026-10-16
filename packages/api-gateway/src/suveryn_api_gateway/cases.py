@@ -1,11 +1,14 @@
 """Cases (dossiers), suveryn-tracker#10: the file a confidential profession works on, with its
 documents and conversations. Design: docs/design/cases.md.
 
-This is stage 1 of that design: a case with a single member (its creator, who manages it), the
-personal space (``case_id`` null) for everything outside a case, "ask about this case", and the
-authorisation function ``may`` with its rules. Members and roles beyond the creator, the access
-log, closing and the keep period, and shared conversations come in the later stages; the data
-model already has their columns so nothing is migrated twice.
+Stages 1 and 2 of that design are here: the case with its creator as manager, the personal
+space (``case_id`` null) for everything outside a case, "ask about this case", the authorisation
+function ``may`` with its rules; then members with roles (reader, contributor, manager; exactly
+one manager, handed over by the manager or an administrator), the appliance's office-wide
+default, restriction by the manager, and the access log (``case_events``: who did what in a
+case, kept ``EVENT_RETENTION_DAYS`` and then deleted, as the sign-in events). Closing and the
+keep period, and shared conversations, come in stages 3 and 4; the data model already has their
+columns so nothing is migrated twice.
 
 What is stored: the office's own file number (``reference``), a name, the case type, a short
 subject, who manages it and when it was opened. Never a client's name as a label (decision 2):
@@ -16,7 +19,8 @@ Authorisation (``may``): every request about a case goes through this one functi
 server. The rules, from the design:
 
 1. An administrator (Keycloak role ``suveryn-admin``) may list cases, hand one over, read its
-   access log and set its keep period; nothing else without membership.
+   access log and set its keep period; nothing else without membership. The access log is the
+   manager's to read too.
 2. A member's role gives the rights of the roles table: a reader reads and exports, a
    contributor also uploads, asks and runs playbooks, a manager also manages the case.
 3. In an office-wide appliance (``SUVERYN_CASES_DEFAULT_ACCESS=office``) everyone signed in is a
@@ -26,6 +30,8 @@ server. The rules, from the design:
 
 Fail closed: the default access, when the appliance hasn't chosen one, is members only.
 """
+
+from __future__ import annotations
 
 import json
 import os
@@ -46,10 +52,12 @@ Action = Literal["read", "contribute", "manage", "reopen", "list", "handover", "
 
 READ: frozenset[str] = frozenset({"read"})
 CONTRIBUTE: frozenset[str] = READ | {"contribute"}
-MANAGE: frozenset[str] = CONTRIBUTE | {"manage", "reopen"}
+MANAGE: frozenset[str] = CONTRIBUTE | {"manage", "reopen", "read_log"}
 ADMIN: frozenset[str] = frozenset({"list", "handover", "read_log", "set_keep"})
 RIGHTS: dict[str, frozenset[str]] = {"reader": READ, "contributor": CONTRIBUTE, "manager": MANAGE}
 MAX_SUBJECT_BYTES = 8 * 1024
+EVENT_RETENTION_DAYS = 180  # as the sign-in events (suveryn-tracker#16)
+MAX_EVENTS = 1000           # one listing of the access log
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -80,6 +88,18 @@ CREATE TABLE IF NOT EXISTS case_members (
     PRIMARY KEY (case_id, "user")
 );
 CREATE INDEX IF NOT EXISTS case_members_user ON case_members ("user");
+ALTER TABLE case_members ADD COLUMN IF NOT EXISTS username text NOT NULL DEFAULT '';
+ALTER TABLE case_members ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS case_events (
+    id       bigserial PRIMARY KEY,
+    case_id  uuid NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
+    "user"   text NOT NULL,
+    at       timestamptz NOT NULL DEFAULT now(),
+    action   text NOT NULL,
+    detail   jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS case_events_case_at ON case_events (case_id, at DESC);
+CREATE INDEX IF NOT EXISTS case_events_at ON case_events (at);
 """
 
 
@@ -99,7 +119,7 @@ class CaseSettings:
         return self.default_access == "office"
 
     @classmethod
-    def from_env(cls) -> "CaseSettings":
+    def from_env(cls) -> CaseSettings:
         access = os.environ.get("SUVERYN_CASES_DEFAULT_ACCESS", "members").strip().lower() or "members"
         if access not in ("office", "members"):
             raise ValueError("SUVERYN_CASES_DEFAULT_ACCESS must be 'office' or 'members'")
@@ -148,6 +168,39 @@ class Case(BaseModel):
     my_role: Role | None = None
 
 
+class Member(BaseModel):
+    """One member of a case, as the API lists it (the name as it was when they were added)."""
+
+    user: str
+    username: str
+    name: str
+    role: Role
+    added_by: str
+    added_at: datetime
+
+
+class MemberIn(BaseModel):
+    """Body of ``PUT /v1/cases/{id}/members/{user}``."""
+
+    role: Role
+
+
+class HandoverIn(BaseModel):
+    """Body of ``POST /v1/cases/{id}/handover``: the member (or colleague) who takes the case over."""
+
+    user: str = Field(min_length=1, max_length=200)
+
+
+class CaseEvent(BaseModel):
+    """One line of a case's access log: who, when, what (never document text)."""
+
+    id: int
+    user: str
+    at: datetime
+    action: str
+    detail: dict
+
+
 @dataclass(frozen=True)
 class Principal:
     """Who asks: their Keycloak id and whether they are an administrator."""
@@ -162,6 +215,8 @@ def may(who: Principal, case: Case, role: Role | None, action: Action, office_wi
     The one place the rules in this module's docstring are decided. ``office_wide`` is the
     appliance's default access (rule 3).
     """
+    if action == "read_log" and (who.admin or role == "manager"):
+        return True  # decision 15: the manager and the administrators, open or closed
     if action in ADMIN:
         return who.admin  # rule 1: administrators, on every case; nobody else
     effective = role
@@ -173,7 +228,7 @@ def may(who: Principal, case: Case, role: Role | None, action: Action, office_wi
         if action == "reopen":
             return effective == "manager"
         return action in READ
-    return action in RIGHTS[effective] - {"reopen"}
+    return action in RIGHTS[effective] - {"reopen", "read_log"}
 
 
 class CaseStore(PgStore):
@@ -200,8 +255,8 @@ class CaseStore(PgStore):
         values["id"] = str(values["id"])
         return Case(**values, my_role=role)
 
-    def create(self, body: CaseIn, user: str) -> Case:
-        """A new open case, managed by its creator, who is its only member (stage 1)."""
+    def create(self, body: CaseIn, user: str, username: str = "", name: str = "") -> Case:
+        """A new open case, managed by its creator, who is its first member."""
         case_id = uuid.uuid4()
         try:
             row = self._execute(
@@ -210,8 +265,9 @@ class CaseStore(PgStore):
                 (case_id, body.reference, body.name, body.type, json.dumps(body.subject), body.access, user, user)).fetchone()
         except psycopg.errors.UniqueViolation as e:
             raise DuplicateReference(body.reference) from e
-        self._execute('INSERT INTO case_members (case_id, "user", role, added_by) VALUES (%s, %s, %s, %s)',
-                      (case_id, user, "manager", user))
+        self._execute('INSERT INTO case_members (case_id, "user", role, added_by, username, name) VALUES (%s, %s, %s, %s, %s, %s)',
+                      (case_id, user, "manager", user, username, name))
+        self.log(case_id, user, "created", {})
         return self._case(row, "manager")
 
     def get(self, case_id: uuid.UUID, user: str) -> Case | None:
@@ -276,3 +332,70 @@ class CaseStore(PgStore):
     def manages(self, user: str) -> int:
         """How many cases this user manages (an account can't go while it manages one, decision 6)."""
         return self._execute("SELECT count(*) FROM cases WHERE manager = %s", (user,)).fetchone()[0]
+
+    # ------------------------------------------------------------------ members (stage 2)
+    def members(self, case_id: uuid.UUID) -> list[Member]:
+        """The case's members, its manager first, then by name."""
+        rows = self._execute('SELECT "user", username, name, role, added_by, added_at FROM case_members WHERE case_id = %s'
+                             " ORDER BY (role = 'manager') DESC, lower(name), username", (case_id,)).fetchall()
+        return [Member(user=r[0], username=r[1], name=r[2], role=r[3], added_by=r[4], added_at=r[5]) for r in rows]
+
+    def set_member(self, case_id: uuid.UUID, user: str, role: Role, by: str, username: str = "", name: str = "") -> Member:
+        """Add a member, or change their role. Not for the manager role: use ``set_manager``
+        (there is exactly one manager, decision 6)."""
+        if role == "manager":
+            raise ValueError("use set_manager")
+        row = self._execute(
+            'INSERT INTO case_members (case_id, "user", role, added_by, username, name) VALUES (%s, %s, %s, %s, %s, %s)'
+            ' ON CONFLICT (case_id, "user") DO UPDATE SET role = EXCLUDED.role,'
+            "   username = CASE WHEN EXCLUDED.username = '' THEN case_members.username ELSE EXCLUDED.username END,"
+            "   name = CASE WHEN EXCLUDED.name = '' THEN case_members.name ELSE EXCLUDED.name END"
+            " WHERE case_members.role <> 'manager'"
+            ' RETURNING "user", username, name, role, added_by, added_at', (case_id, user, role, by, username, name)).fetchone()
+        if row is None:
+            raise ValueError("the manager's role is changed by handing the case over")
+        return Member(user=row[0], username=row[1], name=row[2], role=row[3], added_by=row[4], added_at=row[5])
+
+    def remove_member(self, case_id: uuid.UUID, user: str) -> bool:
+        """Remove a member; never the manager (hand the case over first). False if not a member."""
+        return self._execute('DELETE FROM case_members WHERE case_id = %s AND "user" = %s AND role <> \'manager\'',
+                             (case_id, user)).rowcount > 0
+
+    def set_manager(self, case_id: uuid.UUID, user: str, by: str, username: str = "", name: str = "") -> Case | None:
+        """Hand the case over: ``user`` becomes its manager (added as a member if needed), the
+        previous manager stays on as a contributor. One transaction. None if the case doesn't exist."""
+        with self._conn.transaction():
+            row = self._execute("SELECT manager FROM cases WHERE id = %s FOR UPDATE", (case_id,)).fetchone()
+            if row is None:
+                return None
+            previous = row[0]
+            if previous != user:
+                self._execute('UPDATE case_members SET role = %s WHERE case_id = %s AND "user" = %s',
+                              ("contributor", case_id, previous))
+                self._execute(
+                    'INSERT INTO case_members (case_id, "user", role, added_by, username, name) VALUES (%s, %s, %s, %s, %s, %s)'
+                    ' ON CONFLICT (case_id, "user") DO UPDATE SET role = EXCLUDED.role,'
+                    "   username = CASE WHEN EXCLUDED.username = '' THEN case_members.username ELSE EXCLUDED.username END,"
+                    "   name = CASE WHEN EXCLUDED.name = '' THEN case_members.name ELSE EXCLUDED.name END",
+                    (case_id, user, "manager", by, username, name))
+            row = self._execute(f"UPDATE cases SET manager = %s, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
+                                (user, case_id)).fetchone()
+        return self._case(row, self.role_of(case_id, by))
+
+    # ------------------------------------------------------------------ the access log (stage 2)
+    def log(self, case_id: uuid.UUID, user: str, action: str, detail: dict | None = None) -> None:
+        """One line: who did what in the case. ``detail`` names ids and roles, never text."""
+        self._execute('INSERT INTO case_events (case_id, "user", action, detail) VALUES (%s, %s, %s, %s)',
+                      (case_id, user, action, json.dumps(detail or {})))
+
+    def events(self, case_id: uuid.UUID, limit: int = MAX_EVENTS) -> list[CaseEvent]:
+        """The case's access log, newest first, within the retention."""
+        self.purge_events()
+        rows = self._execute('SELECT id, "user", at, action, detail FROM case_events WHERE case_id = %s'
+                             " ORDER BY at DESC, id DESC LIMIT %s", (case_id, limit)).fetchall()
+        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=r[4]) for r in rows]
+
+    def purge_events(self) -> int:
+        """Delete access-log lines older than the retention; how many."""
+        return self._execute("DELETE FROM case_events WHERE at < now() - make_interval(days => %s)",
+                             (EVENT_RETENTION_DAYS,)).rowcount
