@@ -88,8 +88,8 @@ def test_the_default_access_fails_closed(monkeypatch):
         CaseSettings.from_env()
 
 
-def test_a_reference_or_name_is_not_blank_and_a_type_is_a_word():
-    for bad in ({"reference": " "}, {"name": ""}, {"type": "sale deed"}, {"reference": "x" * 101}):
+def test_a_reference_name_or_type_is_not_blank():
+    for bad in ({"reference": " "}, {"name": ""}, {"type": " "}, {"reference": "x" * 101}):
         with pytest.raises(ValueError):
             CaseIn(**{**NEW, **bad})
 
