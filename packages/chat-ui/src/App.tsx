@@ -16,16 +16,17 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, LogIn, Trash2 } from "lucide-react";
+import { AlertCircle, Folder, LogIn, ScrollText, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations, getMyUsage, listCases, deleteCase, type Case,
+  deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, type Case,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
+import { AccessLogDialog, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage } from "./components/Messages";
@@ -114,7 +115,14 @@ function Chat({ me }: { me: Me }) {
   const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
   const [newCase, setNewCase] = useState(false);
   const [deletingCase, setDeletingCase] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const caseId = currentCase?.id ?? null;
+  // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an
+  // office-wide appliance, or null for an administrator who only sees the case exists.
+  const role = currentCase?.my_role ?? null;
+  const manages = role === "manager";
+  const administers = currentCase !== null && role === null && (me.admin ?? false);
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -144,12 +152,12 @@ function Chat({ me }: { me: Me }) {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
-  useEffect(() => { if (documentsReady) refreshDocuments(); }, [documentsReady, refreshDocuments]);
+  useEffect(() => { if (documentsReady && !administers) refreshDocuments(); }, [documentsReady, refreshDocuments, administers]);
 
   const refreshConversations = useCallback(async () => {
     try { setConversations(await listConversations(caseId)); } catch { /* the health check explains why */ }
   }, [caseId]);
-  useEffect(() => { if (historyReady) refreshConversations(); }, [historyReady, refreshConversations]);
+  useEffect(() => { if (historyReady && !administers) refreshConversations(); }, [historyReady, refreshConversations, administers]);
 
   const refreshCases = useCallback(async () => {
     try { setCases(await listCases()); } catch { /* the health check explains why */ }
@@ -214,7 +222,8 @@ function Chat({ me }: { me: Me }) {
   const disabledReason =
     health === null ? m.serverUnreachable :
     health.backend.status === "loading" ? m.modelStarting :
-    health.status !== "ok" ? m.modelUnavailable : null;
+    health.status !== "ok" ? m.modelUnavailable :
+    currentCase && role === "reader" ? m.readerCantAsk : null;
 
   // ---------------------------------------------------------------- actions
   const attachFiles = async (files: File[]) => {
@@ -291,6 +300,9 @@ function Chat({ me }: { me: Me }) {
     setJobs([]);
     setConversations([]);
     newChat();
+    // The case as the server has it now (the role may have changed since the list was read); the
+    // server notes the opening in the case's access log.
+    if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
   };
   const removeCase = async () => {
     if (!currentCase) return;
@@ -377,6 +389,12 @@ function Chat({ me }: { me: Me }) {
       <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
       <DeleteCaseDialog open={deletingCase} kase={currentCase} onDelete={removeCase} onCancel={() => setDeletingCase(false)} />
+      {currentCase && (
+        <MembersDialog open={showMembers} kase={currentCase} canManage={manages} canHandOver={manages || administers}
+                       officeWide={me.office_wide ?? false} onClose={() => setShowMembers(false)}
+                       onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); }} />
+      )}
+      {currentCase && <AccessLogDialog open={showLog} kase={currentCase} onClose={() => setShowLog(false)} />}
       <DeleteDocumentDialog open={deleting !== null} filename={deleting?.doc.filename ?? ""}
                             conversations={deleting?.conversations.length ?? 0}
                             onDelete={(what) => deleteNow(deleting!.doc, what, deleting!.conversations)}
@@ -395,14 +413,31 @@ function Chat({ me }: { me: Me }) {
             <span className="case-ref">{m.caseLabel(currentCase.reference)}</span>
             <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
             <span className="case-meta">{caseTypeLabel(currentCase.type, m)}
-              {typeof currentCase.subject.description === "string" && ` · ${currentCase.subject.description}`}</span>
-            {currentCase.my_role === "manager" && (
-              <TextButton className="case-delete" onPress={() => setDeletingCase(true)}>
+              {typeof currentCase.subject.description === "string" && ` · ${currentCase.subject.description}`}
+              {role && ` · ${roleLabel(role, m)}`}</span>
+            <TextButton className="case-action" onPress={() => setShowMembers(true)}>
+              <Users size={14} aria-hidden /> {m.members}
+            </TextButton>
+            {(manages || administers) && (
+              <TextButton className="case-action" onPress={() => setShowLog(true)}>
+                <ScrollText size={14} aria-hidden /> {m.accessLog}
+              </TextButton>
+            )}
+            {manages && (
+              <TextButton className="case-action" onPress={() => setDeletingCase(true)}>
                 <Trash2 size={14} aria-hidden /> {m.deleteCase}
               </TextButton>
             )}
           </header>
         )}
+        {administers ? (
+          <div className="conversation">
+            <div className="empty">
+              <h1>{currentCase!.name}</h1>
+              <p>{m.adminCaseIntro}</p>
+            </div>
+          </div>
+        ) : <>
         <div className="conversation">
           {turns.length === 0 ? (
             <div className="empty">
@@ -422,6 +457,7 @@ function Chat({ me }: { me: Me }) {
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
                   onSend={send} />
+        </>}
         </>}
       </main>
     </div>

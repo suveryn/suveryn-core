@@ -82,11 +82,15 @@ from .auth import (
 )
 from .cases import (
     Case,
+    CaseEvent,
     CaseIn,
     CaseSettings,
     CaseStore,
     CaseUpdate,
     DuplicateReference,
+    HandoverIn,
+    Member,
+    MemberIn,
     Principal,
     may,
 )
@@ -98,6 +102,13 @@ from .conversations import (
     ConversationStore,
     ConversationSummary,
     cited_documents,
+)
+from .directory import (
+    Directory,
+    DirectorySettings,
+    DirectoryUnavailable,
+    LocalDirectory,
+    Person,
 )
 from .ratelimit import RateLimiter, RateLimits
 from .usage import (
@@ -207,6 +218,7 @@ class HealthResponse(BaseModel):
     history: StoreStatus
     usage: StoreStatus
     cases: StoreStatus
+    directory: StoreStatus  # the office's accounts from Keycloak, to add colleagues to a case
 
 
 class Me(BaseModel):
@@ -215,6 +227,7 @@ class Me(BaseModel):
     username: str
     name: str
     admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
+    office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -301,13 +314,15 @@ def is_admin(request: Request, authenticator: Authenticator) -> bool:
 
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
                auth: Authenticator | None = None, conversations=None, usage=None, cases=None,
-               case_settings: CaseSettings | None = None, rate_limits: RateLimits | None = None) -> FastAPI:
+               case_settings: CaseSettings | None = None, directory=None,
+               rate_limits: RateLimits | None = None) -> FastAPI:
     """Build the FastAPI app.
 
     ``client``, ``documents``, ``auth``, ``conversations``, ``usage`` and ``cases`` let tests inject a
     fake model server, a fake document service, a sign-in with a fake Keycloak, a conversation store,
     a usage store and a case store; in production all are created from environment variables when
-    the app starts. ``case_settings`` sets the appliance's default access for cases (tests).
+    the app starts. ``case_settings`` sets the appliance's default access for cases (tests);
+    ``directory`` injects the office's user list (``directory.py``).
     """
     authenticator = auth or Authenticator(AuthSettings.from_env())
     cases_settings = case_settings or CaseSettings.from_env()
@@ -346,6 +361,12 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                    else _connector(UsageStore, UsageSettings.from_env()))
         app.state.cases = Database("case", cases, None if cases is not None or not own_db
                                    else _connector(CaseStore, cases_settings))
+        if directory is not None:
+            app.state.directory = directory
+        elif not authenticator.enabled:
+            app.state.directory = LocalDirectory(LOCAL_OWNER)
+        else:
+            app.state.directory = Directory(DirectorySettings.from_env())
         for db in (app.state.history, app.state.usage, app.state.cases):
             await run_in_threadpool(db.get)
 
@@ -360,6 +381,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         yield
         await app.state.llm.aclose()
         await authenticator.aclose()
+        if directory is None:
+            await app.state.directory.aclose()
         if docs is not None:
             docs.stop()
         for db, injected in ((app.state.history, conversations), (app.state.usage, usage), (app.state.cases, cases)):
@@ -456,14 +479,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     async def me(request: Request):
         """The signed-in user (username and display name), or 401."""
         if not authenticator.enabled:
-            return Me(username="dev", name="Development (sign-in off)", admin=True)
+            return Me(username="dev", name="Development (sign-in off)", admin=True, office_wide=cases_settings.office_wide)
         try:
             user = await authenticator.session_user(request.cookies.get(settings.session_cookie))
         except AuthUnavailable as e:
             raise HTTPException(503, f"Sign-in is not available: {e}.") from e
         if user is None:
             raise HTTPException(401, "Sign in to continue.")
-        return Me(username=user.username, name=user.name, admin=ADMIN_ROLE in user.roles)
+        return Me(username=user.username, name=user.name, admin=ADMIN_ROLE in user.roles, office_wide=cases_settings.office_wide)
 
     @app.post("/auth/logout")
     async def logout(request: Request):
@@ -524,6 +547,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             history=request.app.state.history.status(),
             usage=request.app.state.usage.status(),
             cases=request.app.state.cases.status(),
+            directory=StoreStatus(status="ready" if request.app.state.directory.configured else "unavailable"),
         )
         return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
@@ -573,6 +597,34 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                 if case.state == "open" else "This case is closed.")
         return case
 
+    async def _log(request: Request, case_id: uuid.UUID | None, action: str, detail: dict | None = None) -> None:
+        """A line in the case's access log (decision 15). Never fails a request: the log is
+        informational, the server log says when it couldn't be written."""
+        if case_id is None:
+            return
+        store = request.app.state.cases.get()
+        if store is None:
+            return
+        try:
+            await run_in_threadpool(store.log, case_id, owner_of(request), action, detail)
+        except Exception as e:  # noqa: BLE001 - informational; never blocks the request
+            log.error("case access log not written: %s", type(e).__name__)
+
+    def _who(request: Request) -> tuple[str, str]:
+        """The caller's username and display name, for the member list."""
+        user = getattr(request.state, "user", None)
+        return (user.username, user.name) if user is not None else ("dev", "Development (sign-in off)")
+
+    async def _person_or_404(request: Request, sub: str) -> Person:
+        """A colleague by their id, from the office's directory (404 if not an enabled account)."""
+        try:
+            found = await request.app.state.directory.get(sub)
+        except DirectoryUnavailable as e:
+            raise HTTPException(503, f"The office's directory is not available right now: {e}.") from e
+        if found is None:
+            raise HTTPException(404, "Unknown user.")
+        return found
+
     async def _scope(request: Request, case: str | None, action: str) -> Scope:
         """Where a request works: the caller's personal space, or the case ``case`` if they may do
         ``action`` in it (``read`` to list and ask, ``contribute`` to upload, ``manage`` to delete)."""
@@ -591,20 +643,22 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     @app.post("/v1/cases", response_model=Case, status_code=201, responses={409: {"description": "A case with this reference exists"}})
     async def create_case(body: CaseIn, request: Request):
-        """Open a new case. The caller becomes its manager (and, in this stage, its only member).
+        """Open a new case. The caller becomes its manager and first member.
         The reference is the office's own file number, unique on this appliance; never put a client's
         name in it or the name."""
         store = _cases_or_503(request)
         await _remember_user(request)
         try:
-            return await run_in_threadpool(store.create, body, owner_of(request))
+            return await run_in_threadpool(store.create, body, owner_of(request), *_who(request))
         except DuplicateReference:
             raise HTTPException(409, "A case with this reference already exists.") from None
 
     @app.get("/v1/cases/{case_id}", response_model=Case, responses={404: {"description": "Unknown case"}})
     async def get_case(case_id: str, request: Request):
         """One case the caller may see."""
-        return await _case_for(request, case_id, "read")
+        case = await _case_for(request, case_id, "read")
+        await _log(request, uuid.UUID(case.id), "opened")
+        return case
 
     @app.patch("/v1/cases/{case_id}", response_model=Case, responses={
         403: {"description": "Not the case's manager, or the case is closed"}, 404: {"description": "Unknown case"},
@@ -613,9 +667,15 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         """Change a case's reference, name, type, subject or access (its manager only)."""
         case = await _case_for(request, case_id, "manage")
         try:
-            return await run_in_threadpool(_cases_or_503(request).update, uuid.UUID(case.id), body)
+            changed = await run_in_threadpool(_cases_or_503(request).update, uuid.UUID(case.id), body)
         except DuplicateReference:
             raise HTTPException(409, "A case with this reference already exists.") from None
+        fields = body.model_dump(exclude_none=True)
+        if "access" in fields and fields["access"] != case.access:
+            await _log(request, uuid.UUID(case.id), "access_changed", {"access": fields["access"]})
+        if set(fields) - {"access"}:
+            await _log(request, uuid.UUID(case.id), "changed", {"fields": sorted(set(fields) - {"access"})})
+        return changed.model_copy(update={"my_role": case.my_role}) if changed else changed
 
     @app.delete("/v1/cases/{case_id}", status_code=204, responses={
         403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}})
@@ -635,6 +695,91 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         if not await run_in_threadpool(_cases_or_503(request).delete, cid):
             raise HTTPException(404, "Unknown case.")
         return Response(status_code=204)
+
+    @app.get("/v1/users", response_model=list[Person], responses={503: {"description": "The directory is not available"}})
+    async def list_users(request: Request, q: str = ""):
+        """The office's accounts (id, username, name) whose username, name or email contains ``q``,
+        to add a colleague to a case. From Keycloak, through the ``suveryn-directory`` client."""
+        try:
+            return await request.app.state.directory.search(q)
+        except DirectoryUnavailable as e:
+            raise HTTPException(503, f"The office's directory is not available right now: {e}.") from e
+
+    @app.get("/v1/cases/{case_id}/members", response_model=list[Member], responses={404: {"description": "Unknown case"}})
+    async def list_members(case_id: str, request: Request):
+        """The case's members and their roles, the manager first (anyone who may read the case)."""
+        case = await _case_for(request, case_id, "read")
+        return await run_in_threadpool(_cases_or_503(request).members, uuid.UUID(case.id))
+
+    @app.put("/v1/cases/{case_id}/members/{user}", response_model=Member, responses={
+        403: {"description": "Not the case's manager, or the case is closed"},
+        404: {"description": "Unknown case or user"}, 422: {"description": "The manager's role is changed by handing over"}})
+    async def set_member(case_id: str, user: str, body: MemberIn, request: Request):
+        """Add a colleague to the case as a reader or contributor, or change a member's role (the
+        manager's right). The colleague must be one of the office's accounts. To make someone the
+        manager, hand the case over (``POST .../handover``)."""
+        case = await _case_for(request, case_id, "manage")
+        if body.role == "manager":
+            raise HTTPException(422, "Hand the case over to make someone its manager.")
+        person = await _person_or_404(request, user)
+        store, cid = _cases_or_503(request), uuid.UUID(case.id)
+        before = await run_in_threadpool(store.role_of, cid, user)
+        try:
+            member = await run_in_threadpool(store.set_member, cid, user, body.role, owner_of(request),
+                                             person.username, person.name)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        await _log(request, cid, "member_added" if before is None else "role_changed", {"user": user, "role": body.role})
+        return member
+
+    @app.delete("/v1/cases/{case_id}/members/{user}", status_code=204, responses={
+        403: {"description": "Not the case's manager, or the case is closed"},
+        404: {"description": "Unknown case or not a member"}, 422: {"description": "The manager can't be removed"}})
+    async def remove_member(case_id: str, user: str, request: Request):
+        """Take a member out of the case (the manager's right). The manager can't be removed: hand
+        the case over first."""
+        case = await _case_for(request, case_id, "manage")
+        if user == case.manager:
+            raise HTTPException(422, "Hand the case over before removing its manager.")
+        store, cid = _cases_or_503(request), uuid.UUID(case.id)
+        if not await run_in_threadpool(store.remove_member, cid, user):
+            raise HTTPException(404, "Not a member of this case.")
+        await _log(request, cid, "member_removed", {"user": user})
+        return Response(status_code=204)
+
+    @app.post("/v1/cases/{case_id}/handover", response_model=Case, responses={
+        403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case or user"}})
+    async def handover(case_id: str, body: HandoverIn, request: Request):
+        """Make another colleague the case's manager: the current manager may, and an administrator
+        (decision 6: an account can't go while it manages a case). The previous manager stays on as
+        a contributor."""
+        store, cid, who = _cases_or_503(request), _case_id(case_id), _principal(request)
+        case = await run_in_threadpool(store.get, cid, who.sub)
+        office_wide = cases_settings.office_wide
+        if case is None or not (may(who, case, case.my_role, "read", office_wide) or may(who, case, case.my_role, "list", office_wide)):
+            raise HTTPException(404, "Unknown case.")
+        if not (may(who, case, case.my_role, "handover", office_wide) or may(who, case, case.my_role, "manage", office_wide)):
+            raise HTTPException(403, "Only the case's manager or an administrator can hand a case over.")
+        person = await _person_or_404(request, body.user)
+        handed = await run_in_threadpool(store.set_manager, cid, body.user, who.sub, person.username, person.name)
+        if handed is None:
+            raise HTTPException(404, "Unknown case.")
+        await _log(request, cid, "handed_over", {"manager": body.user})
+        return handed
+
+    @app.get("/v1/cases/{case_id}/events", response_model=list[CaseEvent], responses={
+        403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case"}})
+    async def case_events(case_id: str, request: Request):
+        """The case's access log, newest first: who did what, when (decision 15). For its manager
+        and the administrators; kept 180 days, as the sign-in events."""
+        store, cid, who = _cases_or_503(request), _case_id(case_id), _principal(request)
+        case = await run_in_threadpool(store.get, cid, who.sub)
+        office_wide = cases_settings.office_wide
+        if case is None or not (may(who, case, case.my_role, "read", office_wide) or may(who, case, case.my_role, "list", office_wide)):
+            raise HTTPException(404, "Unknown case.")
+        if not may(who, case, case.my_role, "read_log", office_wide):
+            raise HTTPException(403, "Only the case's manager or an administrator can see its access log.")
+        return await run_in_threadpool(store.events, cid)
 
     @app.post("/v1/chat", response_model=ChatResponse, responses={
         200: {"content": {"text/event-stream": {}},
@@ -665,8 +810,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 raise HTTPException(422, f"No such model on this appliance: {req.model!r}")
         owner = owner_of(request)
         await _remember_user(request)
-        # The case the question is about, if any: the caller must be able to read it (404 if not).
-        scope = await _scope(request, req.case_id, "read")
+        # The case the question is about, if any: asking is a contributor's right (a reader may only
+        # read; 404 for a case the caller may not see at all).
+        scope = await _scope(request, req.case_id, "contribute")
         if req.document_ids:
             # Before anything streams: only documents in that scope, and only uploaded ones (sūveryn's
             # own output is never a source). An id elsewhere is answered like a missing one. The
@@ -676,6 +822,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 raise HTTPException(404, "Unknown document.")
             if scope.case_id is not None and (store := request.app.state.cases.get()) is not None:
                 await run_in_threadpool(store.touch, scope.case_id)
+        await _log(request, scope.case_id, "asked", {"documents": req.document_ids})
         chat_service: ChatService = request.app.state.chat
         if not req.stream:
             try:
@@ -705,6 +852,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             raise HTTPException(e.status, str(e)) from e
         if scope.case_id is not None and (store := request.app.state.cases.get()) is not None:
             await run_in_threadpool(store.touch, scope.case_id)
+        await _log(request, scope.case_id, "uploaded", {"job": job.id})
         return job.public()
 
     @app.get("/v1/documents/jobs/{job_id}")
@@ -748,6 +896,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         scope = await _scope(request, case, "manage")
         if not await run_in_threadpool(docs.delete, document_id, scope):
             raise HTTPException(404, "Unknown document.")
+        await _log(request, scope.case_id, "document_deleted", {"document": document_id})
         if (store := _history_or_none(request)) is not None:
             await run_in_threadpool(store.remove_document, owner, did, conversations == "delete")
         return Response(status_code=204)

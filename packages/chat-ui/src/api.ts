@@ -56,8 +56,10 @@ export type Health = {
   auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
   history: { status: "ready" | "failed" | "unavailable"; detail: string | null };
   cases?: { status: "ready" | "failed" | "unavailable"; detail: string | null };
+  directory?: { status: "ready" | "unavailable"; detail: string | null };
 };
-export type Me = { username: string; name: string; admin?: boolean }; // admin: may open the administration page
+// admin: may open the administration page; office_wide: a new case is open to the whole office by default
+export type Me = { username: string; name: string; admin?: boolean; office_wide?: boolean };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing";
@@ -315,6 +317,71 @@ export async function listCases(): Promise<Case[]> {
 
 export async function createCase(body: NewCase): Promise<Case> {
   const r = await fetch("/v1/cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function getCase(id: string): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Changes a case's reference, name, type, subject or access (its manager only). */
+export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"] }): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** A member of a case, with the name as it was when they were added. */
+export type Member = { user: string; username: string; name: string; role: CaseRole; added_by: string; added_at: string };
+/** One of the office's accounts, from the directory (Keycloak), to add to a case. */
+export type Person = { sub: string; username: string; name: string };
+/** One line of a case's access log: who did what, when (never document text). */
+export type CaseEvent = { id: number; user: string; at: string; action: string; detail: Record<string, unknown> };
+
+export async function listMembers(caseId: string): Promise<Member[]> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Adds a colleague as a reader or contributor, or changes a member's role (the manager only). */
+export async function setMember(caseId: string, user: string, role: "reader" | "contributor"): Promise<Member> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members/${encodeURIComponent(user)}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function removeMember(caseId: string, user: string): Promise<void> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members/${encodeURIComponent(user)}`, { method: "DELETE" });
+  if (!r.ok && r.status !== 404) throw await responseError(r);
+}
+
+/** Makes another colleague the case's manager (the manager, or an administrator). */
+export async function handOver(caseId: string, user: string): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/handover`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** The office's accounts whose name or username contains `q`. */
+export async function searchUsers(q: string): Promise<Person[]> {
+  const r = await fetch(`/v1/users?q=${encodeURIComponent(q)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** The case's access log, newest first (its manager and the administrators). */
+export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/events`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }

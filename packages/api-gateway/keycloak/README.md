@@ -4,7 +4,7 @@ The gateway signs people in with Keycloak over OpenID Connect (see [`auth.py`](.
 
 | File | What |
 |---|---|
-| [`suveryn-realm.json`](suveryn-realm.json) | The `suveryn` realm: settings and the `suveryn-chat` client. No users, no secrets, no identity providers |
+| [`suveryn-realm.json`](suveryn-realm.json) | The `suveryn` realm: settings, the `suveryn-chat` client and the `suveryn-directory` client with its service account. No human accounts, no secrets, no identity providers |
 | [`live_login_check.py`](live_login_check.py) | Signs in through a running Keycloak and gateway the way a browser does, and checks the API gate (optionally with TOTP) |
 
 ## What the realm allows
@@ -16,6 +16,8 @@ The gateway signs people in with Keycloak over OpenID Connect (see [`auth.py`](.
 | **TOTP** (FreeOTP, Google Authenticator, …; works offline) | Available, not required: "Configure OTP" is enabled but not a default action, and the browser flow asks for a code only from users who have set one up | For one user: *Users → user → Required user actions → Configure OTP*. For everyone: *Authentication → Required actions → Configure OTP → Set as default action* (new users), and add the action to existing users |
 | **Social or online identity providers** (Google, Microsoft personal accounts, itsme, …) | **None, by design.** Not supported at any tier or network mode: they need a live third party and undercut the on-premise promise | Don't add any under *Identity providers*. The realm file has an empty `identityProviders` list, and a test (`test_auth.py`) keeps it that way |
 | Belgian eID | Not yet | Planned once offline certificate-revocation checking is designed |
+
+The `suveryn-directory` client (suveryn-tracker#10) is the gateway's read-only view of the office's accounts, so a case's manager can add colleagues by name: a confidential client with a **service account** whose only role is `view-users` on this realm (`realm-management`), no sign-in flow of its own, no redirect URIs. The gateway reads it with `SUVERYN_DIRECTORY_CLIENT_SECRET` (client-credentials grant, then `GET /admin/realms/suveryn/users`); a development Keycloak shows the secret under *Clients → suveryn-directory → Credentials*. Its service-account user is the only account in the realm file.
 
 The `suveryn-chat` client is confidential (client secret). It allows only the authorization-code flow with **PKCE S256**: no implicit flow, no password grant, no service account, no device flow. Its only redirect URI is the dev UI's callback, `http://localhost:5173/auth/callback`. Tokens: 5-minute access tokens; Keycloak sessions end after 30 minutes idle or 10 hours. Reset-password by email is off (an appliance may have no mail server); an admin resets passwords.
 
