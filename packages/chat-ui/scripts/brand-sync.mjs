@@ -10,7 +10,9 @@ import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-const REPO = "https://github.com/suveryn/suveryn-brand.git";
+// SUVERYN_BRAND_REPO: a local clone to sync from before a brand commit is on GitHub (the lock still
+// records the commit, which is the same once pushed).
+const REPO = process.env.SUVERYN_BRAND_REPO || "https://github.com/suveryn/suveryn-brand.git";
 const LOCK = "src/brand/brand-lock.json";
 const CACHE = "node_modules/.cache/suveryn-brand";
 
@@ -49,7 +51,7 @@ for (const [from, to] of Object.entries(FILES)) {
 writeFileSync(TOKENS_CSS, tokensCss(JSON.parse(readFileSync(`${CACHE}/tokens/tokens.json`, "utf8")), commit));
 
 const files = Object.fromEntries([...Object.values(FILES), TOKENS_CSS].sort().map((p) => [p, sha256(p)]));
-writeFileSync(LOCK, JSON.stringify({ source: REPO, commit, files }, null, 2) + "\n");
+writeFileSync(LOCK, JSON.stringify({ source: "https://github.com/suveryn/suveryn-brand.git", commit, files }, null, 2) + "\n");
 rmSync(CACHE, { recursive: true, force: true });
 console.log(`brand: ${Object.keys(files).length} files from suveryn-brand@${commit.slice(0, 7)}`);
 

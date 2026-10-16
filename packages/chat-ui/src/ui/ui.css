@@ -13,8 +13,8 @@
  * values; both should take them from suveryn-brand (the focus colours aren't brand tokens yet).
  * ---------------------------------------------------------------------------------------------- */
 :root {
-  --focus-border: #0F8A82;                  /* a UI boundary: 3:1 on white */
-  --focus-glow: rgba(58, 212, 202, 0.15);   /* 3px, around fields and the language button */
+  --focus-border: oklch(0.5719 0.0969 187.53);          /* the teal, darkened to a UI boundary: 3:1 on white */
+  --focus-glow: oklch(from var(--teal) l c h / 0.15);    /* 3px, around fields and the language button */
   --card-width: 560px;
 }
 .ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
@@ -87,7 +87,7 @@
 .ui-radio-cards { display: flex; flex-direction: column; gap: 10px; }
 .ui-radio-card { display: flex; gap: 14px; align-items: flex-start; padding: var(--space-4); background: var(--bg);
                  border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
-.ui-radio-card[data-hovered] { border-color: rgba(2, 2, 5, 0.40); }
+.ui-radio-card[data-hovered] { border-color: oklch(from var(--ink) l c h / 0.40); }
 .ui-radio-card[data-selected] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .ui-radio-card[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 .ui-radio-card-icon { flex: none; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--surface-alt);
@@ -118,7 +118,7 @@
                     border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; cursor: pointer; }
 .ui-select-button[data-hovered] { border-color: var(--text-dim); }
 .ui-popover { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 6px;
-              min-width: var(--trigger-width); box-shadow: 0 8px 24px rgba(2, 2, 5, 0.08); outline: none; }
+              min-width: var(--trigger-width); box-shadow: 0 8px 24px oklch(from var(--ink) l c h / 0.08); outline: none; }
 .ui-popover[data-entering] { animation: ui-pop 120ms ease-out; }
 @keyframes ui-pop { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .ui-popover[data-entering] { animation: none; } }
@@ -183,7 +183,7 @@
 .ui-file-error { grid-column: 2 / -1; margin-top: 6px; }
 .ui-file[data-invalid] .ui-button { border-color: var(--accent-ink); }
 .ui-drop { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; padding: 28px var(--space-4);
-           border: 1.5px dashed rgba(2, 2, 5, 0.28); border-radius: var(--radius-md); background: var(--bg); outline: none; }
+           border: 1.5px dashed oklch(from var(--ink) l c h / 0.28); border-radius: var(--radius-md); background: var(--bg); outline: none; }
 .ui-drop[data-focus-visible] { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
 .ui-drop-target { border-color: var(--accent); background: var(--surface-alt); }
 .ui-drop-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--surface-alt); display: flex;
@@ -330,7 +330,7 @@
 .ui-chart-tip { position: absolute; top: 0; transform: translateX(-50%); z-index: 1; pointer-events: none;
                 display: flex; flex-direction: column; gap: 2px; min-width: 9rem; padding: var(--space-2) 10px;
                 background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm);
-                box-shadow: 0 4px 12px rgba(2, 2, 5, 0.08); font-size: 12px; white-space: nowrap; }
+                box-shadow: 0 4px 12px oklch(from var(--ink) l c h / 0.08); font-size: 12px; white-space: nowrap; }
 .ui-chart-tip[data-edge="start"] { transform: none; }
 .ui-chart-tip[data-edge="end"] { transform: translateX(-100%); }
 .ui-chart-tip-row { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
@@ -375,10 +375,10 @@
 /* the modal dialog: buttons stacked and equally wide, in DOM order (the safe choice first, then the
    other, then Cancel centred). Side by side they only fitted in English. */
 .ui-modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
-                    padding: var(--space-4); background: rgb(2 2 5 / 0.32); }
+                    padding: var(--space-4); background: oklch(from var(--ink) l c h / 0.32); }
 .ui-modal { width: 100%; max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--surface);
             color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-lg);
-            box-shadow: 0 12px 40px rgb(2 2 5 / 0.18); }
+            box-shadow: 0 12px 40px oklch(from var(--ink) l c h / 0.18); }
 .ui-modal-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
 @keyframes ui-fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ui-modal-overlay[data-entering] { animation: none; } }

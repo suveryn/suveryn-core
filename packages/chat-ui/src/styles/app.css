@@ -178,14 +178,14 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 /* citations: teal-ink text on a translucent teal wash; reserved for sourced content */
 .cite-marker { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px;
                padding: 0 4px; margin: 0 1px; vertical-align: 2px; font-size: 10.5px; font-weight: 600; line-height: 1;
-               color: var(--teal-ink); background: rgba(58, 212, 202, 0.10); border: 1px solid rgba(58, 212, 202, 0.3);
+               color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
                border-radius: var(--radius-pill); cursor: pointer; }
-.cite-marker:hover, .cite-marker.active { background: rgba(58, 212, 202, 0.22); }
+.cite-marker:hover, .cite-marker.active { background: oklch(from var(--teal) l c h / 0.22); }
 .sources { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
 .chip-citation { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-                 color: var(--teal-ink); background: rgba(58, 212, 202, 0.10); border: 1px solid rgba(58, 212, 202, 0.3);
+                 color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
                  border-radius: var(--radius-pill); padding: 5px 11px; cursor: pointer; }
-.chip-citation:hover, .chip-citation.active { background: rgba(58, 212, 202, 0.22); }
+.chip-citation:hover, .chip-citation.active { background: oklch(from var(--teal) l c h / 0.22); }
 .cite-num { font-variant-numeric: tabular-nums; }
 .source-card { margin: var(--space-3) 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--line);
                border-radius: var(--radius-md); }
@@ -202,8 +202,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 /* Facts of the citing sentence, marked in the passage (teal wash, like citations), which scrolls to the first. */
 .source-text { position: relative; }
 /* The sentences a claim rests on, lightly; the claim's figures, dates and names in them, stronger. */
-.source-span { background: rgba(58, 212, 202, 0.12); color: inherit; border-radius: 3px; }
-.source-match { background: rgba(58, 212, 202, 0.28); color: inherit; border-radius: 3px; padding: 0 1px; }
+.source-span { background: oklch(from var(--teal) l c h / 0.12); color: inherit; border-radius: 3px; }
+.source-match { background: oklch(from var(--teal) l c h / 0.28); color: inherit; border-radius: 3px; padding: 0 1px; }
 
 /* Tables in answers: a real table, so copy and paste into Excel or Word keeps the columns. */
 .answer-table { margin: var(--space-3) 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
