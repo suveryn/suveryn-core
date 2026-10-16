@@ -24,6 +24,8 @@ type Props = {
   className?: string;
   /** An accessible name, when the screen's heading doesn't name the form. */
   "aria-labelledby"?: string;
+  /** For a submit button outside the form (a dialog's actions: `<Button type="submit" form={id}>`). */
+  id?: string;
   children: ReactNode;
 };
 

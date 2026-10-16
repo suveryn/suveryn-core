@@ -1,11 +1,12 @@
 /**
- * The sidebar: saved conversations, then the document library (stored documents, uploads in
- * progress and failed uploads). A document in needs_review is usable but names the pages to check.
- * Deleting a conversation or a document asks for confirmation first.
+ * The sidebar: the cases (suveryn-tracker#10) with the personal space first, then the saved
+ * conversations and the document library (stored documents, uploads in progress and failed
+ * uploads) of the case or space that is open. A document in needs_review is usable but names the
+ * pages to check. Deleting a conversation or a document asks for confirmation first.
  */
-import { AlertTriangle, BarChart3, FileText, Loader2, LogOut, MessageSquare, Plus, Shield, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, LogOut, MessageSquare, Plus, Shield, Trash2, User, XCircle } from "lucide-react";
 import { useState } from "react";
-import { reviewPages, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
+import { reviewPages, type Case, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
 import { compact } from "../lib/usage";
@@ -34,12 +35,18 @@ type Props = {
   onOpenUsage: () => void;
   admin: boolean;               // shows the administration link
   onOpenAdmin: () => void;
+  cases: Case[];                // the open cases the user may see
+  currentCase: Case | null;     // null: the personal space
+  casesNote: string | null;     // why cases aren't available, if they aren't
+  onOpenCase: (c: Case | null) => void;
+  onNewCase: () => void;
 };
 
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
 export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
                          user, onSignOut, conversations, currentConversation, historyNote, onOpenConversation,
-                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin }: Props) {
+                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin,
+                         cases, currentCase, casesNote, onOpenCase, onNewCase }: Props) {
   const m = useT();
   const [confirming, setConfirming] = useState<string | null>(null);
   // The keyboard focus: on Keep (the safe choice) when a deletion is asked, back on the bin after Keep,
@@ -52,6 +59,34 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
       <Button variant="primary" className="new-chat" onPress={onNewChat}>
         <Plus size={16} aria-hidden /> {m.newChat}
       </Button>
+
+      <section className="library cases" aria-labelledby="cases-title">
+        <h2 id="cases-title" className="label">{m.cases}</h2>
+        {casesNote && <p className="caption">{casesNote}</p>}
+        <ul>
+          <li className={`doc${currentCase === null ? " doc-current" : ""}`}>
+            <Button variant="plain" className="doc-use" onPress={() => onOpenCase(null)} title={m.mySpaceHint}
+                    aria-current={currentCase === null ? "true" : undefined}>
+              <User size={15} aria-hidden />
+              <span className="doc-name">{m.mySpace}</span>
+            </Button>
+          </li>
+          {cases.map((c) => (
+            <li key={c.id} className={`doc${c.id === currentCase?.id ? " doc-current" : ""}`}>
+              <Button variant="plain" className="doc-use" onPress={() => onOpenCase(c)} title={m.openCase(c.reference, c.name)}
+                      aria-current={c.id === currentCase?.id ? "true" : undefined}>
+                <Folder size={15} aria-hidden />
+                <span className="doc-name">{c.reference}</span>
+                <span className="doc-meta">{c.name}</span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+        {!casesNote && cases.length === 0 && <p className="caption">{m.casesEmpty}</p>}
+        {!casesNote && (
+          <TextButton className="new-case" onPress={onNewCase}><FolderPlus size={14} aria-hidden /> {m.newCase}</TextButton>
+        )}
+      </section>
 
       <section className="library history" aria-labelledby="history-title">
         <h2 id="history-title" className="label">{m.conversations}</h2>

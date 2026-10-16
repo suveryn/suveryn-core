@@ -38,9 +38,9 @@ Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings`
 
 Only characters unusual in Dutch, French, English or German are changed, and only with at least 3 such repairs explaining nearly all of them, so correct text next to them is left alone. PDFium's line-break hyphen (U+FFFE) always becomes a hyphen.
 
-**Uploading the same file again** returns the stored copy (de-duplicated by SHA-256 per owner), unless that copy was read poorly: in review, over half its text recovered from the text layer, misread characters, or recovered OCR noise. Then it is read again and replaced in place, keeping its id, so saved conversations still point to it (`should_read_again`).
+**Uploading the same file again** returns the stored copy (de-duplicated by SHA-256 per scope: a personal space or a case), unless that copy was read poorly: in review, over half its text recovered from the text layer, misread characters, or recovered OCR noise. Then it is read again and replaced in place, keeping its id, so saved conversations still point to it (`should_read_again`).
 
-Every document has an **owner**, the uploader's Keycloak user id. The document service only lists, retrieves and deletes the caller's own documents, and de-duplicates by file hash per owner. `suveryn-retrieve` and `suveryn-forget` are operator tools on the server and are not limited by owner.
+Every document is in one **scope** (`store.Scope`): its uploader's personal space (`owner`, the Keycloak user id, and no case), or a **case** (`case_id`; suveryn-tracker#10). The document service lists, retrieves and deletes within the scope the gateway passes (the gateway has checked the caller may see it), and de-duplicates by file hash per scope. Each document records its `origin` (`uploaded`, `generated`, `playbook`); only uploaded documents are ever retrieved as sources for an answer. `suveryn-retrieve` and `suveryn-forget` are operator tools on the server and are not limited by scope.
 
 PostgreSQL and pgvector are provisioned outside this repository (by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance)). This package only connects to them, and creates its own tables.
 

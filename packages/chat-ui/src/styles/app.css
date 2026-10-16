@@ -55,8 +55,23 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .doc-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doc-meta { grid-column: 2; font-size: 12px; color: var(--text-dim); }
 .doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: 12px; }
-/* conversations take the room they need, up to 40%; the document library gets the rest */
+/* cases (suveryn-tracker#10) and conversations take the room they need, up to 30% and 40%; the
+   document library gets the rest */
+.library.cases { flex: 0 1 auto; max-height: 30%; }
 .library.history { flex: 0 1 auto; max-height: 40%; }
+.library .new-case { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 12px;
+                     padding: 0 var(--space-1); align-self: flex-start; }
+.library .new-case:hover { color: var(--text); }
+/* the case that is open, above its conversation */
+.case-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-6);
+             border-bottom: 1px solid var(--line); font-size: 13.5px; color: var(--text-dim); min-width: 0; }
+.case-head .case-ref { font-weight: 600; color: var(--text); white-space: nowrap; }
+.case-head .case-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.case-head .case-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.case-head .case-delete { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 12px;
+                          white-space: nowrap; }
+.case-head .case-delete:hover { color: var(--text); }
+.case-form { display: flex; flex-direction: column; gap: var(--space-3); }
 .doc-current { background: var(--surface-alt); }
 .doc-current .doc-name { font-weight: 600; }
 .sidebar-foot { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-1); color: var(--text-dimmer); }

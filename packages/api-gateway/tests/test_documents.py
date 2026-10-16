@@ -11,58 +11,73 @@ from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
 from suveryn_engine import Citation, LlamaServerClient, LLMSettings, SourceRef
+from suveryn_rag.store import Scope
 
 DOC = str(uuid.uuid4())
 
 
 class FakeJob:
-    def __init__(self, filename, owner="local-dev"):
+    def __init__(self, filename, owner="local-dev", case_id=None):
         self.id, self.filename, self.status, self.document_id = uuid.uuid4().hex, filename, "queued", None
-        self.owner = owner
+        self.owner, self.case_id = owner, case_id
 
     def public(self):
         return {"id": self.id, "filename": self.filename, "status": self.status, "document_id": self.document_id}
 
 
 class FakeDocuments:
-    """Stands in for suveryn_rag.service.DocumentService, including per-owner isolation."""
+    """Stands in for suveryn_rag.service.DocumentService, including isolation per scope (a personal
+    space or a case, ``suveryn_rag.store.Scope``). ``docs`` maps a document id to its scope and origin."""
 
     def __init__(self, state="ready", owner="local-dev"):
         self.state, self.error, self.jobs, self.deleted, self.seen, self.uploads = state, None, {}, [], {}, []
-        self.docs = {DOC: owner}  # document id -> owner
+        self.docs = {DOC: (Scope.personal(owner), "uploaded")}  # document id -> (scope, origin)
 
-    def accept_upload(self, src, filename, owner):
-        self.uploads.append((filename, owner))
-        from suveryn_rag.service import (
-            UploadRejected,  # noqa: F401 (only importable with rag installed)
-        )
+    def accept_upload(self, src, filename, owner, case_id=None):
+        self.uploads.append((filename, owner, case_id))
+        job = FakeJob(filename, owner, case_id)
+        self.jobs[job.id] = job
+        return job
 
     def job(self, job_id, owner):
         job = self.jobs.get(job_id)
         return job if job is not None and job.owner == owner else None
 
-    def pending_jobs(self, owner):
-        return [j for j in self.jobs.values() if j.owner == owner and j.status in ("queued", "processing", "failed")]
+    def pending_jobs(self, owner, scope=None):
+        return [j for j in self.jobs.values() if j.owner == owner and j.status in ("queued", "processing", "failed")
+                and (scope is None or j.case_id == scope.case_id)]
 
-    def documents(self, owner):
+    def documents(self, scope):
         from datetime import datetime
         return [{"id": uuid.UUID(d), "filename": "akte.pdf", "pages": 5, "ocr_pages": 5, "status": "ok",
-                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12}
-                for d, o in self.docs.items() if o == owner]
+                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12, "origin": origin,
+                 "uploaded_by": "local-dev"}
+                for d, (s, origin) in self.docs.items() if s == scope]
 
-    def owns(self, document_ids, owner):
-        return all(self.docs.get(d) == owner for d in document_ids)
+    def in_scope(self, document_ids, scope, sources_only=False):
+        return all(d in self.docs and self.docs[d][0] == scope and (not sources_only or self.docs[d][1] == "uploaded")
+                   for d in document_ids)
 
-    def delete(self, document_id, owner):
+    def existing(self, document_ids, scope):
+        return {d for d in document_ids if d in self.docs and self.docs[d][0] == scope}
+
+    def delete(self, document_id, scope):
         self.deleted.append(document_id)
-        if self.docs.get(document_id) != owner:
+        if document_id not in self.docs or self.docs[document_id][0] != scope:
             return False
         del self.docs[document_id]
         return True
 
-    def retrieve(self, question, document_ids, k, owner):
-        assert self.owns(document_ids, owner), "the gateway must never retrieve another owner's documents"
-        self.seen = {"question": question, "document_ids": document_ids, "k": k, "owner": owner}
+    def delete_all(self, scope):
+        gone = [d for d, (s, _) in self.docs.items() if s == scope]
+        for d in gone:
+            del self.docs[d]
+        return len(gone)
+
+    def retrieve(self, question, document_ids, k, scope):
+        assert self.in_scope(document_ids, scope, True), "the gateway must never retrieve documents outside the scope"
+        self.seen = {"question": question, "document_ids": document_ids, "k": k, "owner": scope.owner,
+                     "case_id": scope.case_id}
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
@@ -107,7 +122,7 @@ def test_grounded_answer_carries_citations_and_prompt_has_question_last():
     body = r.json()
     assert body["answer"].endswith("[1].")
     assert body["citations"][0]["source"] == {"document_id": DOC, "page": 2, "location": "p. 2 · Artikel 2"}
-    assert docs.seen == {"question": "Wat is de koopprijs?", "document_ids": [DOC], "k": 6, "owner": "local-dev"}
+    assert docs.seen == {"question": "Wat is de koopprijs?", "document_ids": [DOC], "k": 6, "owner": "local-dev", "case_id": None}
     sent = captured[-1]["messages"]
     assert sent[0]["role"] == "system" and sent[-1]["content"].endswith("QUESTION: Wat is de koopprijs?")
     assert sent[-1]["content"].startswith("EXCERPTS (the complete text of the documents")
@@ -247,7 +262,7 @@ def test_last_message_must_be_the_question():
 
 
 class BrokenDocuments(FakeDocuments):
-    def retrieve(self, question, document_ids, k, owner):
+    def retrieve(self, question, document_ids, k, scope):
         raise RuntimeError("De koopprijs bedraagt EUR 412.500,00")  # an error message holding document text
 
 
