@@ -24,7 +24,7 @@ Related repositories:
 | [`packages/rag`](../packages/rag/README.md) | Built | Ingestion (extraction in an isolated reader process, integrity checks and text repair, chunking, embeddings, storage) and retrieval |
 | [`packages/chat`](../packages/chat/README.md) | Built | Grounded answers: passages → numbered excerpts → answer citing `[n]`; server-side calculations; each citation checked against its own passage |
 | [`packages/chat-ui`](../packages/chat-ui/README.md) | Built | React/TypeScript chat interface (light theme), and the appliance's first-boot web setup as a second entry (`setup.html`, no sign-in); both on a small component library over React Aria Components (`src/ui`, suveryn-tracker#44). Builds to static files in `dist/`; in development Vite proxies `/v1` and `/health` to the gateway. How the static files are served in production (on the same origin as the API) is decided by suveryn-appliance |
-| `packages/mcp-host`, `connectors`, `playbooks` | Placeholders | Later phases |
+| `packages/mcp-host`, `connectors`, `playbooks` | Placeholders | Later phases; what they will be, and in what order, is in [docs/design/platform.md](design/platform.md) |
 
 Runtime services are **not** part of this repository. PostgreSQL with pgvector, Keycloak and the model server ([llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server`) are installed and configured by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance). This repository only contains clients for them. For development, [packages/api-gateway/keycloak](../packages/api-gateway/keycloak/README.md) describes a local Keycloak with the `suveryn` realm.
 
