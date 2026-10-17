@@ -55,7 +55,7 @@ writeFileSync(LOCK, JSON.stringify({ source: "https://github.com/suveryn/suveryn
 rmSync(CACHE, { recursive: true, force: true });
 console.log(`brand: ${Object.keys(files).length} files from suveryn-brand@${commit.slice(0, 7)}`);
 
-/** The light theme as CSS custom properties: colours, font families, spacing and radius. */
+/** The light theme as CSS custom properties: colours, font families and the type scale, spacing and radius. */
 function tokensCss(t, commit) {
   const colour = (v) => (typeof v === "object" ? v.light : v).replace(/^\{(.+)\}$/, "var(--$1)");
   const lines = [
@@ -71,8 +71,15 @@ function tokensCss(t, commit) {
     "  /* colour */",
     ...t.color.tokens.map((c) => `  --${c.name}: ${colour(c.value)};`),
     "",
-    "  /* type */",
+    "  /* type: the families, and the scale (tokens v3.2): a size, line height and weight per style. A",
+    "     stylesheet names the style (font-size: var(--text-ui-sm)), never a pixel size of its own. */",
     ...Object.entries(t.type.families).map(([k, v]) => `  --font-${k}: ${v};`),
+    ...t.type.groups.flatMap((g) => g.styles.flatMap((s) => [
+      `  --text-${s.name}: ${s.fontSize};`,
+      `  --leading-${s.name}: ${s.lineHeight};`,
+      `  --weight-${s.name}: ${s.fontWeight};`,
+      ...(s.letterSpacing ? [`  --tracking-${s.name}: ${s.letterSpacing};`] : []),
+    ])),
     "",
     "  /* spacing */",
     ...t.spacing.tokens.map((s) => `  --${s.name}: ${s.value};`),
