@@ -58,8 +58,10 @@ export type Health = {
   cases?: { status: "ready" | "failed" | "unavailable"; detail: string | null };
   directory?: { status: "ready" | "unavailable"; detail: string | null };
 };
-// admin: may open the administration page; office_wide: a new case is open to the whole office by default
-export type Me = { username: string; name: string; admin?: boolean; office_wide?: boolean };
+// admin: may open the administration page; office_wide: a new case is open to the whole office by
+// default; cases_keep: how long a closed case is kept before it is deleted ("manual": until deleted by hand)
+export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
+export type Me = { username: string; name: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing";
@@ -301,6 +303,8 @@ export type Case = {
   state: "open" | "closed";
   opened_at: string;
   closed_at: string | null;
+  keep_until: string | null;  // a closed case: when it is deleted (null: kept until deleted by hand)
+  keep: boolean;              // a closed case marked kept: never deleted by the period
   manager: string;
   created_by: string;
   updated_at: string;
@@ -308,9 +312,10 @@ export type Case = {
 };
 export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string> };
 
-/** The cases the signed-in user may see: open ones, most recently active first. */
-export async function listCases(): Promise<Case[]> {
-  const r = await fetch("/v1/cases");
+/** The cases the signed-in user may see, most recently active first: open ones, and with
+ *  `closed` the closed ones too (after the open ones). */
+export async function listCases(closed = false): Promise<Case[]> {
+  const r = await fetch(`/v1/cases${closed ? "?closed=true" : ""}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -382,6 +387,39 @@ export async function searchUsers(q: string): Promise<Person[]> {
 /** The case's access log, newest first (its manager and the administrators). */
 export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/events`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Closes a case (its manager only): read-only from then on, deleted after the office's keep period. */
+export async function closeCase(id: string): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/close`, { method: "POST" });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Reopens a closed case (its manager only): open again, no deletion planned. */
+export async function reopenCase(id: string): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/reopen`, { method: "POST" });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** A closed case's keep: `keep` true marks it kept (never deleted by the period), false lets the
+ *  period run again from now; `extend` adds one period to its deletion date. Its manager, or an
+ *  administrator. */
+export async function keepCase(id: string, change: { keep?: boolean; extend?: boolean }): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/keep`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Closed cases due for deletion within a month, soonest first: the ones the signed-in user
+ *  manages, or every one for an administrator. */
+export async function listDueCases(): Promise<Case[]> {
+  const r = await fetch("/v1/cases/due");
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
