@@ -12,6 +12,7 @@ from . import (  # noqa: F401 - the modules app.py includes
     conversations,
     documents,
     health,
+    playbooks,
     signin,
     usage,
 )
