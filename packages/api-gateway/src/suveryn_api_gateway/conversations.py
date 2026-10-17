@@ -230,11 +230,12 @@ class ConversationStore(PgStore):
             if delete_conversations:
                 n += self.delete(uuid.UUID(summary.id), owner)
                 continue
-            turns = self._execute("SELECT turns FROM conversations WHERE id = %s AND owner = %s",
-                                  (summary.id, owner)).fetchone()[0]
-            if redact(turns, lambda d: d == str(document_id)):
-                n += self._execute("UPDATE conversations SET turns = %s WHERE id = %s AND owner = %s",
-                                   (json.dumps(turns), summary.id, owner)).rowcount
+            with self.transaction():  # the row locked between reading and writing its turns
+                row = self._execute("SELECT turns FROM conversations WHERE id = %s AND owner = %s FOR UPDATE",
+                                    (summary.id, owner)).fetchone()
+                if row and redact(row[0], lambda d: d == str(document_id)):
+                    n += self._execute("UPDATE conversations SET turns = %s WHERE id = %s AND owner = %s",
+                                       (json.dumps(row[0]), summary.id, owner)).rowcount
         return n
 
     def delete_all(self, owner: str) -> int:

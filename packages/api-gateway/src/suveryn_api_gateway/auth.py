@@ -149,6 +149,7 @@ class Session:
     access_expires: float
     refresh_token: str | None
     refresh_expires: float | None
+    last_seen: float = field(default_factory=time.time)  # for the cap: the least recently seen go first
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -258,6 +259,8 @@ class OIDCProvider:
                     raise AuthUnavailable(f"sign-in keys unreachable: {type(e).__name__}") from e
                 self._keys = {}
                 for k in keys:
+                    if not k.get("kid"):
+                        continue  # every key is matched by its kid; one without can't be, and must not fill the None slot
                     if k.get("use", "sig") == "sig" and k.get("alg", "RS256") in self.settings.algorithms:
                         try:
                             self._keys[k.get("kid")] = PyJWK(k)
@@ -415,10 +418,15 @@ class Authenticator:
         return session
 
     def _prune(self) -> None:
+        """Make room under MAX_SESSIONS: the expired sessions go, then (still full) the least recently
+        seen, so the map can't grow without bound while every session is still valid."""
         now = time.time()
         for sid in [sid for sid, s in self._sessions.items()
                     if (s.refresh_expires or s.access_expires) < now]:
             del self._sessions[sid]
+        if len(self._sessions) >= MAX_SESSIONS:
+            for sid in sorted(self._sessions, key=lambda i: self._sessions[i].last_seen)[:len(self._sessions) - MAX_SESSIONS + 1]:
+                del self._sessions[sid]
 
     # ------------------------------------------------------------------ requests
     async def session_user(self, session_id: str | None) -> User | None:
@@ -426,6 +434,7 @@ class Authenticator:
         session = self._sessions.get(session_id or "")
         if session is None:
             return None
+        session.last_seen = time.time()
         if time.time() < session.access_expires - REFRESH_MARGIN_S:
             return session.user
         async with session.lock:

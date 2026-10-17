@@ -793,3 +793,18 @@ def test_store_closes_keeps_extends_reopens_and_finds_what_is_due(store):
     reopened = s.reopen_case(cid)
     assert reopened.state == "open" and reopened.closed_at is None and reopened.keep_until is None
     assert s.due_for_deletion() == []
+
+
+def test_store_writes_of_several_statements_are_all_or_nothing(store, monkeypatch):
+    """Review finding: a case without its manager (decision 6) must be impossible, even if the
+    connection goes halfway through creating it."""
+    s = store
+    alice = f"alice-{uuid.uuid4()}"
+    monkeypatch.setattr(s, "log", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("the log failed")))
+    with pytest.raises(RuntimeError):
+        s.create(CaseIn(**NEW), alice)
+    assert s._execute("SELECT count(*) FROM cases WHERE reference = %s", (NEW["reference"],)).fetchone()[0] == 0
+    assert s._execute('SELECT count(*) FROM case_members WHERE "user" = %s', (alice,)).fetchone()[0] == 0
+    monkeypatch.undo()
+    c = s.create(CaseIn(**NEW), alice)  # the connection is usable again after the rollback
+    assert s.role_of(uuid.UUID(c.id), alice) == "manager"

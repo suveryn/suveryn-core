@@ -68,6 +68,20 @@ def check_auth_settings(host: str) -> None:
               "(session cookies are only marked Secure with https)")
 
 
+def check_one_process() -> None:
+    """Refuse to start as several worker processes.
+
+    Sessions and rate limits live in this process's memory (one gateway per appliance, by design):
+    with two workers a sign-in would be known to one and not the other, and a limit would count
+    half. uvicorn starts workers from ``WEB_CONCURRENCY``; the gateway doesn't take ``--workers``
+    itself, so this is the one way to get there without editing code. Raises ``SystemExit``.
+    """
+    workers = os.environ.get("WEB_CONCURRENCY", "1").strip()
+    if workers not in ("", "1"):
+        raise SystemExit(f"WEB_CONCURRENCY={workers}: the gateway runs as one process (sessions and rate limits "
+                         "are in memory); run one gateway per appliance.")
+
+
 def not_dumpable() -> bool:
     """Make this process unreadable through /proc for other processes of the same user (Linux).
 
@@ -93,6 +107,7 @@ def run() -> None:
     """
     host = os.environ.get("SUVERYN_HOST", "127.0.0.1")
     check_auth_settings(host)
+    check_one_process()
     if not not_dumpable() and sys.platform.startswith("linux"):
         print("warning: couldn't make the gateway unreadable through /proc (prctl PR_SET_DUMPABLE)")
     private_tmp()
