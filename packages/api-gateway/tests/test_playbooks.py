@@ -88,6 +88,20 @@ def test_an_answer_that_isnt_the_table_is_unreadable():
     assert read_facts(DEED_INTAKE, response("| id | value | source |\n|---|---|---|\n| price | EUR 1 [1] | [1] |"), {}) is None
 
 
+def test_a_fact_may_be_named_by_its_label_in_any_language_but_never_by_position():
+    """Review 2026-10-17: a small model translates or paraphrases the id; a row is still never taken by position."""
+    translated = (TABLE.replace("| sellers |", "| Verkoper(s) |").replace("| buyers |", "| **Acquéreur(s)** |")
+                       .replace("| price |", "| Price |").replace("| agreement_date |", "| agreement date |"))
+    facts = {f.id: f for f in read_facts(DEED_INTAKE, response(translated), {DOC: "compromis.pdf"})}
+    assert facts["sellers"].value == "Jan Peeters en Marie Claes" and facts["buyers"].value == "Tom Janssens"
+    assert facts["price"].value == "EUR 412.500,00" and facts["agreement_date"].value == "3 oktober 2026"
+    shifted = TABLE.replace("| price | EUR 412.500,00 [1] | [1] |\n", "")  # a row left out: nothing moves up
+    facts = {f.id: f for f in read_facts(DEED_INTAKE, response(shifted), {DOC: "compromis.pdf"})}
+    assert not facts["price"].found and facts["deposit"].value.startswith("EUR 41.250,00")
+    facts = {f.id: f for f in read_facts(DEED_INTAKE, response(TABLE.replace("| price |", "| something else |")), {})}
+    assert not facts["price"].found  # an unknown name is dropped, not guessed
+
+
 def test_summary_text_uses_the_confirmed_values_and_the_language():
     from suveryn_api_gateway.playbooks import Run
     facts = read_facts(DEED_INTAKE, response(), {DOC: "compromis.pdf"})
@@ -98,6 +112,9 @@ def test_summary_text_uses_the_confirmed_values_and_the_language():
     text = summary_text(DEED_INTAKE, "2026/0417", run, "nl")
     assert text.startswith("Intake akte 2026/0417\n\nplaybook/be-notary/deed-intake 1.0")
     assert "Prijs: EUR 412.000,00 (compromis.pdf p. 1)" in text and "Kadastrale gegevens: —" in text
+    # provenance (review 2026-10-17): the run's version, not the playbook's as installed now
+    older = run.model_copy(update={"playbook_version": "0.9"})
+    assert "playbook/be-notary/deed-intake 0.9" in summary_text(DEED_INTAKE, "2026/0417", older, "nl")
 
 
 # ------------------------------------------------------------------ through the app (needs PostgreSQL for the runs)
@@ -200,6 +217,58 @@ def test_a_run_fails_by_kind_when_the_answer_isnt_the_table(runs):
         run = wait_for(c, f"/v1/cases/{cid}/playbooks/runs/{rid}", alice, "failed")
         assert run["error"] == "unreadable_answer" and run["facts"] == []
         assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"document_ids": [str(uuid.uuid4())]}, headers=alice).status_code == 404
+
+
+@needs_db
+def test_an_unreadable_answer_is_asked_for_once_more_with_a_stricter_reminder(runs):
+    """Review 2026-10-17: the second attempt carries the reminder; a readable second answer makes the run."""
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    captured: list = []
+    plain = llm_transport(captured, text="Ik weet het niet.")
+    good = llm_transport(captured, text=TABLE)
+    transport = httpx.MockTransport(lambda r: (good if "could not be read" in r.content.decode() else plain).handler(r))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=transport)
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).json()["id"]
+        run = wait_for(c, f"/v1/cases/{cid}/playbooks/runs/{rid}", alice, "checkpoint")
+        assert len(captured) == 2 and "could not be read" in captured[1]["messages"][-1]["content"]
+        assert captured[1]["max_tokens"] == 4096 and len(run["facts"]) == 13
+
+
+@needs_db
+def test_a_run_reading_when_the_gateway_stopped_is_failed_at_the_next_start(runs):
+    """Review 2026-10-17: a restart used to leave a run spinning forever."""
+    cid = uuid.uuid4()
+    run = runs.create(cid, DEED_INTAKE, [DOC], ALICE, None)
+    assert runs.interrupt(30 * 60) == 0  # the sweep: not stale yet
+    assert runs.interrupt(0) == 1        # start-up: every reading run is dead
+    got = runs.get(uuid.UUID(run.id), cid)
+    assert got.status == "failed" and got.error == "interrupted" and got.finished_at is not None
+    assert runs.interrupt(0) == 0
+    runs.delete_case(cid)
+
+
+@needs_db
+def test_starting_runs_shares_the_chat_rate_limit(runs):
+    from suveryn_api_gateway.ratelimit import RateLimits
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=TABLE))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory(),
+                     rate_limits=RateLimits(chat=2))
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        codes = [c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).status_code for _ in range(3)]
+        assert codes == [202, 202, 429]
 
 
 @needs_db

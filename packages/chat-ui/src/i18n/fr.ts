@@ -375,6 +375,8 @@ const fr: Messages = {
   noDocumentsToRead: "Ajoutez d'abord les documents du dossier : le compromis, le titre de propriété, les attestations.",
   playbookResult: "Résumé d'intake, produit par sūveryn",
   notASource: "Produit par sūveryn : jamais une source pour les réponses. Posez vos questions sur les documents déposés.",
+  runErrorInterrupted: "La lecture a été interrompue par un redémarrage de l'appliance. Relisez les documents.",
+  checkpointCaseClosed: "Ce dossier est clôturé. Rouvrez-le pour confirmer les données ; les valeurs vérifiées sont conservées d'ici là.",
   earlierRuns: "Lectures précédentes",
   runReading: "Lecture en cours",
   runCheckpoint: "À vérifier",
