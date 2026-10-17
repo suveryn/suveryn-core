@@ -16,13 +16,14 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, Lock, LogIn, ScrollText, Trash2, Users } from "lucide-react";
+import { AlertCircle, Folder, Lock, LogIn, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, listDueCases, type Case,
+  listMembers, shareConversation,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -121,11 +122,16 @@ function Chat({ me }: { me: Me }) {
   const [due, setDue] = useState<Case[]>([]);           // closed cases due for deletion soon (stage 3)
   const [showMembers, setShowMembers] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [names, setNames] = useState<Map<string, string>>(new Map());  // the open case's members, by id (stage 4)
   const caseId = currentCase?.id ?? null;
   // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an
   // office-wide appliance, or null for an administrator who only sees the case exists.
   const role = currentCase?.my_role ?? null;
   const closed = currentCase?.state === "closed";
+  // The open conversation as the sidebar lists it: someone else's shared one is read-only (stage 4).
+  const current = conversations.find((c) => c.id === conversationId);
+  const readOnly = !!current && !!current.owner && current.owner !== (me.sub ?? "");
+  const canShare = !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
   const manages = role === "manager";
   const administers = currentCase !== null && role === null && (me.admin ?? false);
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
@@ -178,7 +184,7 @@ function Chat({ me }: { me: Me }) {
 
   // Save the conversation whenever it changed and no answer is streaming.
   useEffect(() => {
-    if (!historyReady || busy || turns.length === 0) return;
+    if (!historyReady || busy || turns.length === 0 || readOnly) return;  // someone else's shared conversation is never saved over
     const saved = toSaved(turns);
     const body = JSON.stringify(saved);
     if (body === lastSaved.current) return;
@@ -187,7 +193,7 @@ function Chat({ me }: { me: Me }) {
     saveConversation(conversationId, conversationTitle(turns), saved, caseId)
       .then(refreshConversations)
       .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed(e.message)); });
-  }, [turns, busy, historyReady, conversationId, caseId, refreshConversations]);
+  }, [turns, busy, historyReady, conversationId, caseId, readOnly, refreshConversations]);
 
   // Poll uploads that are still being read, in the composer and in the conversation.
   useEffect(() => {
@@ -229,6 +235,7 @@ function Chat({ me }: { me: Me }) {
     health === null ? m.serverUnreachable :
     health.backend.status === "loading" ? m.modelStarting :
     health.status !== "ok" ? m.modelUnavailable :
+    readOnly ? m.sharedReadOnly(names.get(current!.owner!) || current!.owner!) :
     closed ? m.caseIsClosed :
     currentCase && role === "reader" ? m.readerCantAsk : null;
 
@@ -310,6 +317,11 @@ function Chat({ me }: { me: Me }) {
     // The case as the server has it now (the role may have changed since the list was read); the
     // server notes the opening in the case's access log.
     if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
+    setNames(new Map());
+    if (c && c.my_role !== null) listMembers(c.id).then((ms) => setNames(new Map(ms.map((x) => [x.user, x.name || x.username])))).catch(() => {});
+  };
+  const share = async (shared: boolean) => {
+    try { await shareConversation(conversationId, shared); refreshConversations(); } catch (e) { setProblem(m.shareFailed((e as Error).message)); }
   };
   const removeCase = async () => {
     if (!currentCase) return;
@@ -371,7 +383,7 @@ function Chat({ me }: { me: Me }) {
   const remove = async (d: StoredDocument) => {
     let using: string[] = [];
     if (historyReady) {
-      try { using = (await documentConversations(d.id)).map((c) => c.id); } catch { /* deleting still cleans them */ }
+      try { using = (await documentConversations(d.id, caseId)).map((c) => c.id); } catch { /* deleting still cleans them */ }
     }
     if (using.length > 0) setDeleting({ doc: d, conversations: using });
     else await deleteNow(d, "clean", []).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
@@ -396,7 +408,7 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "failed" ? m.documentsFailed : null}
                inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove}
                user={me} onSignOut={requestSignOut}
-               conversations={conversations} currentConversation={conversationId}
+               conversations={conversations} currentConversation={conversationId} me={me.sub ?? ""} names={names}
                historyNote={health === null || historyReady ? null :
                  health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
                onOpenConversation={(id) => { setView("chat"); openConversation(id); }} onDeleteConversation={removeConversation}
@@ -439,6 +451,15 @@ function Chat({ me }: { me: Me }) {
             <TextButton className="case-action" onPress={() => setShowMembers(true)}>
               <Users size={14} aria-hidden /> {m.members}
             </TextButton>
+            {canShare && (current?.shared ? (
+              <TextButton className="case-action" onPress={() => share(false)} title={m.sharedHint}>
+                <UsersRound size={14} aria-hidden /> {m.unshareConversation}
+              </TextButton>
+            ) : (
+              <TextButton className="case-action" onPress={() => share(true)} title={m.sharedHint}>
+                <Share2 size={14} aria-hidden /> {m.shareConversation}
+              </TextButton>
+            ))}
             {(manages || administers) && (
               <TextButton className="case-action" onPress={() => setShowLog(true)}>
                 <ScrollText size={14} aria-hidden /> {m.accessLog}
