@@ -149,6 +149,8 @@ The copies are committed, so building never needs the internet. `src/brand/brand
 
 **Colours are OKLCH** (brand tokens v3): every token in `tokens.css` is an `oklch()` value, exactly the colour its hex was, and every colour the library and the app derive from a token (a wash of the teal, a shadow or a dimmed border of the ink, the focus glow) is written as `oklch(from var(--token) l c h / alpha)`: the token's own hue and lightness with an alpha, never a new hex or rgba. The chart-colour test converts OKLCH to sRGB luminance (Ottosson's OKLab) for its contrast checks. Browsers draw both since 2023/24 (relative colour syntax: Chrome 119, Safari 16.4, Firefox 128), so there is no fallback.
 
+**Text sizes come from the type scale** (brand tokens v3.2): `tokens.css` carries the brand's fourteen text styles as `--text-<style>` (the size), `--leading-<style>` and `--weight-<style>`, and the stylesheets say which style a thing has (`font-size: var(--text-ui-sm)`), never a pixel size of their own; `npm test` fails on a literal `font-size` in `app.css`, `ui.css` or `setup.css`. Weight and colour may vary within a style; size and family may not. Before v3.2 this UI had eighteen sizes of its own and the site fourteen; the scale is the fix for that drift.
+
 ## Brand rules this UI keeps
 
 From the [brand guidelines](https://github.com/suveryn/suveryn-brand/blob/main/guidelines/brand-guidelines.md):
