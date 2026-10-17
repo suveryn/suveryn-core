@@ -4,7 +4,7 @@
  * uploads) of the case or space that is open. A document in needs_review is usable but names the
  * pages to check. Deleting a conversation or a document asks for confirmation first.
  */
-import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, Lock, LogOut, MessageSquare, Plus, Shield, Trash2, User, Users, XCircle } from "lucide-react";
+import { AlertTriangle, BarChart3, ClipboardList, FileText, Folder, FolderPlus, Loader2, Lock, LogOut, MessageSquare, Plus, Shield, Trash2, User, Users, XCircle } from "lucide-react";
 import { useState } from "react";
 import { fateLabel } from "./CaseState";
 import { reviewPages, type Case, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
@@ -178,14 +178,15 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
           ))}
           {documents.map((d) => (
             <li key={d.id} className="doc">
-              <Button variant="plain" className="doc-use" onPress={() => onUse(d)} isDisabled={inConversation.has(d.id)}
-                      title={inConversation.has(d.id) ? m.alreadyInConversation :
+              <Button variant="plain" className="doc-use" onPress={() => onUse(d)} isDisabled={inConversation.has(d.id) || d.origin === "playbook"}
+                      title={d.origin === "playbook" ? m.notASource : inConversation.has(d.id) ? m.alreadyInConversation :
                              d.status === "needs_review" ? m.useInConversationReview(reviewHint(reviewPages(d.warnings))) :
                              m.useInConversation}>
-                {d.status === "needs_review" ? <AlertTriangle size={15} aria-hidden /> : <FileText size={15} aria-hidden />}
+                {d.origin === "playbook" ? <ClipboardList size={15} aria-hidden /> :
+                 d.status === "needs_review" ? <AlertTriangle size={15} aria-hidden /> : <FileText size={15} aria-hidden />}
                 <span className="doc-name">{d.filename}</span>
                 <span className="doc-meta">
-                  {m.pages(d.pages)}
+                  {d.origin === "playbook" ? m.playbookResult : m.pages(d.pages)}
                   {d.status === "needs_review" &&
                     (reviewPages(d.warnings).length ? m.checkPages(pageList(reviewPages(d.warnings))) : m.checkNeeded)}
                   {inConversation.has(d.id) && m.inUse}
