@@ -203,7 +203,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
         async def sweep_due_cases() -> None:
             """Delete the closed cases whose keep period has passed (docs/design/cases.md, decision 11),
-            with their documents, conversations and log: once an hour, for as long as the app runs."""
+            with their documents, conversations and log, and the conversations whose own keep period
+            has passed (the data lifecycle, suveryn-tracker#31): once an hour, for as long as the app runs."""
             while True:
                 try:
                     store = app.state.cases.get()
@@ -211,11 +212,18 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                         for cid in await run_in_threadpool(store.due_for_deletion):
                             if await delete_case_everywhere(app, cid):
                                 log.info("case %s deleted: its keep period passed", cid)
+                    history = app.state.history.get() if app.state.history.configured else None
+                    if history is not None:
+                        settings: CaseSettings = app.state.case_settings
+                        if store is not None:
+                            settings = settings.with_overrides(await run_in_threadpool(store.overrides))
+                        history.keep = settings.conversations_keep
+                        await run_in_threadpool(history.purge)
                 except Exception as e:  # noqa: BLE001 - the sweep must outlive any one failure
-                    log.error("case sweep: %s", type(e).__name__)
+                    log.error("sweep: %s", type(e).__name__)
                 await asyncio.sleep(SWEEP_INTERVAL_S)
 
-        app.state.sweep = asyncio.create_task(sweep_due_cases()) if app.state.cases.configured else None
+        app.state.sweep = asyncio.create_task(sweep_due_cases()) if app.state.cases.configured or app.state.history.configured else None
         yield
         if app.state.sweep is not None:
             app.state.sweep.cancel()
