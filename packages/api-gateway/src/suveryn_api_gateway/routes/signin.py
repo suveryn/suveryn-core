@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError, AuthUnavailable
-from .common import ADMIN_ROLE, case_settings
+from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
 
 UI_LANGUAGES = {"en", "nl", "fr"}  # the chat UI's languages, passed on to Keycloak's login page
 
@@ -21,6 +21,7 @@ class Me(BaseModel):
 
     username: str
     name: str
+    sub: str = ""        # the Keycloak id: what owns documents and conversations, and whom a shared one names
     admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
     office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
     cases_keep: str = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
@@ -71,7 +72,7 @@ async def me(request: Request):
     """The signed-in user (username and display name), or 401."""
     authenticator, cases = _auth(request), case_settings(request)
     if not authenticator.enabled:
-        return Me(username="dev", name="Development (sign-in off)", admin=True, office_wide=cases.office_wide,
+        return Me(username="dev", name="Development (sign-in off)", sub=LOCAL_OWNER, admin=True, office_wide=cases.office_wide,
                   cases_keep=cases.keep)
     try:
         user = await authenticator.session_user(request.cookies.get(authenticator.settings.session_cookie))
@@ -79,7 +80,7 @@ async def me(request: Request):
         raise HTTPException(503, f"Sign-in is not available: {e}.") from e
     if user is None:
         raise HTTPException(401, "Sign in to continue.")
-    return Me(username=user.username, name=user.name, admin=ADMIN_ROLE in user.roles, office_wide=cases.office_wide,
+    return Me(username=user.username, name=user.name, sub=user.sub, admin=ADMIN_ROLE in user.roles, office_wide=cases.office_wide,
               cases_keep=cases.keep)
 
 

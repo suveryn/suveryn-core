@@ -165,6 +165,8 @@ export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>): string {
     case "closed": return m.eventClosed;
     case "reopened": return m.eventReopened;
     case "keep_changed": return m.eventKeepChanged;
+    case "conversation_shared": return m.eventConversationShared;
+    case "conversation_unshared": return m.eventConversationUnshared;
     default: return e.action;
   }
 }

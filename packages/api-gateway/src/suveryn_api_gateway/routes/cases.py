@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 
 from ..cases import (
+    AdminCase,
     Case,
     CaseEvent,
     CaseIn,
@@ -16,10 +17,13 @@ from ..cases import (
     KeepIn,
     Member,
     MemberIn,
+    SettingsIn,
+    SettingsOut,
     may,
 )
 from ..directory import DirectoryUnavailable, Person
 from .common import (
+    admin_or_403,
     case_for,
     case_settings,
     cases_or_503,
@@ -239,3 +243,38 @@ async def case_events(case_id: str, request: Request):
     if not may(caller, case, case.my_role, "read_log", case_settings(request).office_wide):
         raise HTTPException(403, "Only the case's manager or an administrator can see its access log.")
     return await run_in_threadpool(store.events, cid)
+
+
+# ------------------------------------------------------------------ the administrator's pages (stage 4)
+@router.get("/v1/admin/cases", response_model=list[AdminCase], responses={403: {"description": "Not an administrator"}})
+async def admin_cases(request: Request):
+    """Administrators: every case on the appliance, open ones first, with who manages it and how
+    many members it has; nothing from inside a case. For handing cases over before an account
+    goes (decision 6), and for seeing what is closed and due."""
+    admin_or_403(request)
+    return await run_in_threadpool(cases_or_503(request).list_all)
+
+
+@router.get("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
+async def admin_case_settings(request: Request):
+    """Administrators: the office's case settings as they apply now: the default access of a new
+    case and how long closed cases are kept. As provisioned, until changed here."""
+    admin_or_403(request)
+    store, effective = cases_or_503(request), case_settings(request)
+    meta = await run_in_threadpool(store.overrides_meta)
+    return SettingsOut(default_access=effective.default_access, keep=effective.keep,
+                       updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
+
+
+@router.put("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
+async def set_admin_case_settings(body: SettingsIn, request: Request):
+    """Administrators: change the default access (``office`` or ``members``) and the keep period
+    (``6m``, ``1y``, ``5y`` or ``manual``). Takes effect at once for new cases and for cases closed
+    from now on; a case already closed keeps its date (extend or keep it from the case)."""
+    admin_or_403(request)
+    changes = body.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(422, "Say what to change: default_access, or keep.")
+    user = getattr(request.state, "user", None)
+    await run_in_threadpool(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev")
+    return await admin_case_settings(request)
