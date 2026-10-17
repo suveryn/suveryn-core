@@ -81,6 +81,13 @@ class FakeDocuments:
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
+    def store_text(self, filename, text, scope, origin):
+        """A playbook's result (suveryn-tracker#51): stored as a document in the scope, never a source."""
+        did = str(uuid.uuid4())
+        self.docs[did] = (scope, origin)
+        self.stored_text = (filename, text)
+        return did
+
     def stop(self):
         pass
 
