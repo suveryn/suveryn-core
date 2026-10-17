@@ -40,6 +40,10 @@ class FakeConversations:
 
     def __init__(self):
         self.rows: dict[uuid.UUID, dict] = {}
+        self.keep = "manual"  # the gateway sets the office's period before listing (routes/common.py)
+
+    def purge(self):
+        return 0
 
     def summaries(self, owner, case_id=None):
         rows = sorted((r for r in self.rows.values() if r["case_id"] == case_id
@@ -196,13 +200,15 @@ def test_health_reports_history_ready(setup):
     assert c.get("/health").json()["history"]["status"] == "ready"
 
 
-def test_age_cap_must_be_whole_days(monkeypatch):
-    monkeypatch.setenv("SUVERYN_CONVERSATION_MAX_AGE_DAYS", "30")
-    assert ConversationSettings.from_env().max_age_days == 30
-    monkeypatch.setenv("SUVERYN_CONVERSATION_MAX_AGE_DAYS", "")
+def test_keep_period_is_one_of_the_offices_choices(monkeypatch):
+    """The data lifecycle (suveryn-tracker#31): the same periods as cases, nothing chosen for the office."""
+    monkeypatch.setenv("SUVERYN_CONVERSATIONS_KEEP", "6m")
+    assert ConversationSettings.from_env().max_age_days == 183
+    monkeypatch.setenv("SUVERYN_CONVERSATIONS_KEEP", "")
+    assert ConversationSettings.from_env().keep == "manual"
     assert ConversationSettings.from_env().max_age_days is None
-    for bad in ("0", "-1", "2.5", "a month"):
-        monkeypatch.setenv("SUVERYN_CONVERSATION_MAX_AGE_DAYS", bad)
+    for bad in ("30", "2y", "forever"):
+        monkeypatch.setenv("SUVERYN_CONVERSATIONS_KEEP", bad)
         with pytest.raises(ValueError):
             ConversationSettings.from_env()
 
@@ -266,13 +272,26 @@ def test_store_age_cap(store):
     old, new = uuid.uuid4(), uuid.uuid4()
     store.save(old, ALICE, ConversationIn(**BODY))
     store.save(new, ALICE, ConversationIn(**BODY))
-    store._execute("UPDATE conversations SET updated_at = now() - interval '31 days' WHERE id = %s", (old,))
-    capped = ConversationStore(ConversationSettings(database_url=URL, max_age_days=30))  # purges on start
+    store._execute("UPDATE conversations SET updated_at = now() - interval '200 days' WHERE id = %s", (old,))
+    capped = ConversationStore(ConversationSettings(database_url=URL, keep="6m"))  # purges on start
     try:
         assert [s.id for s in capped.summaries(ALICE)] == [str(new)]
         assert store.get(old, ALICE) is None  # deleted, not only hidden
     finally:
         capped.close()
+
+
+@needs_db
+def test_store_keep_period_changed_by_an_administrator(store):
+    """The gateway sets ``keep`` from the dashboard's setting; a shorter period deletes at the next listing."""
+    old, new = uuid.uuid4(), uuid.uuid4()
+    store.save(old, ALICE, ConversationIn(**BODY))
+    store.save(new, ALICE, ConversationIn(**BODY))
+    store._execute("UPDATE conversations SET updated_at = now() - interval '200 days' WHERE id = %s", (old,))
+    assert store.keep == "manual" and {s.id for s in store.summaries(ALICE)} == {str(old), str(new)}
+    store.keep = "6m"
+    assert [s.id for s in store.summaries(ALICE)] == [str(new)]
+    assert store.get(old, ALICE) is None
 
 
 # ---------------------------------------------------------------- deleted documents (suveryn-tracker#12)
