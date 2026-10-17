@@ -92,6 +92,37 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText):
   return writeExcelFile(sheets as never).toBlob();
 }
 
+export type IntakeExport = {
+  title: string; caseName: string; version: string; confirmedOn: string;
+  facts: { label: string; value: string; sources: string[] }[];
+  sourcesHeading: string; emptyValue: string; disclaimer: string;
+};
+
+/** A playbook run's confirmed facts as a Word document (suveryn-tracker#51): a heading, a table of
+ *  facts with where each was read from, and the disclaimer. The case's record; sūveryn's own layout
+ *  until the office's templates exist (suveryn-tracker#22). */
+export async function intakeToWord(x: IntakeExport): Promise<Blob> {
+  const d = await import("docx");
+  const cell = (text: string, bold = false) => new d.TableCell({ children: [new d.Paragraph({ children: [new d.TextRun({ text, bold })] })] });
+  const table = new d.Table({
+    width: { size: 100, type: d.WidthType.PERCENTAGE },
+    rows: [
+      new d.TableRow({ tableHeader: true, children: [cell("", true), cell("", true), cell(x.sourcesHeading, true)] }),
+      ...x.facts.map((f) => new d.TableRow({ children: [cell(f.label, true), cell(f.value || x.emptyValue), cell(f.sources.join(", "))] })),
+    ],
+  });
+  const doc = new d.Document({ sections: [{ children: [
+    new d.Paragraph({ text: x.title, heading: d.HeadingLevel.HEADING_1 }),
+    new d.Paragraph({ children: [new d.TextRun({ text: x.caseName })] }),
+    new d.Paragraph({ children: [new d.TextRun({ text: `${x.confirmedOn} · ${x.version}`, italics: true, size: 18 })] }),
+    new d.Paragraph({}),
+    table,
+    new d.Paragraph({}),
+    new d.Paragraph({ children: [new d.TextRun({ text: x.disclaimer, italics: true, size: 18 })] }),
+  ] }] });
+  return d.Packer.toBlob(doc);
+}
+
 /** Save a made file under a name (a click on a temporary link; nothing leaves the browser). */
 export function saveBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);

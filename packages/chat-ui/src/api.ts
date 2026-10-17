@@ -507,3 +507,61 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
+
+// ---------------------------------------------------------------- playbooks (suveryn-tracker#51, docs/design/playbooks.md)
+
+/** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
+export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; entitled: boolean; facts: string[] };
+/** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
+export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
+export type RunFact = {
+  id: string;
+  value: string;              // as the model read it, copied from the documents ("" when not found)
+  citations: FactCitation[];
+  issues: string[];           // figures, dates or names the check couldn't find in the cited passages
+  found: boolean;             // false: the documents don't contain it
+  confirmed: string | null;   // what the person confirmed, once they have
+};
+export type RunStatus = "reading" | "checkpoint" | "confirmed" | "failed";
+export type RunSummary = {
+  id: string; case_id: string; playbook_id: string; playbook_version: string; status: RunStatus; documents: string[];
+  started_by: string; started_at: string; finished_at: string | null; confirmed_by: string | null; confirmed_at: string | null;
+  model: string | null; error: string | null; result_document_id: string | null; out_of_date: boolean;
+};
+export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: number[] };
+
+export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function listRuns(caseId: string): Promise<RunSummary[]> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function getRun(caseId: string, runId: string): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Starts a run (a contributor's right): it reads the case's uploaded documents; poll the run until it reaches the checkpoint. */
+export async function startRun(caseId: string, slug: string, documentIds: string[] = []): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/${encodeURIComponent(slug)}/runs`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document_ids: documentIds }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. */
+export async function confirmRun(caseId: string, runId: string, facts: { id: string; confirmed: string }[], language: string): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/facts`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ facts, language }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}

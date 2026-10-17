@@ -94,7 +94,7 @@ class RunSummary(BaseModel):
     playbook_version: str
     status: Status
     documents: list[str]
-    started_by: str
+    started_by: str                      # the username, as the UI shows it (the access log holds the id)
     started_at: datetime
     finished_at: datetime | None = None
     confirmed_by: str | None = None

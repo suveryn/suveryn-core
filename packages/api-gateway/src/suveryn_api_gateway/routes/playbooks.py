@@ -109,7 +109,7 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     wanted = body.document_ids or list(uploaded)
     if not wanted or any(d not in uploaded for d in wanted):
         raise HTTPException(404, "Unknown document." if wanted else "This case has no documents to read.")
-    run = await run_in_threadpool(store.create, cid, pb, wanted, owner_of(request), None)
+    run = await run_in_threadpool(store.create, cid, pb, wanted, who(request)[0], None)  # the username: shown, as confirmed_by
     await log_access(request, cid, "playbook_started", {"playbook": pb.id, "version": pb.version, "run": run.id,
                                                         "documents": wanted})
     await touch_case(request, scope)
