@@ -11,9 +11,13 @@ conversation is listed for and readable by everyone who may read the case, read-
 (only the owner saves, shares, unshares or deletes it). The gateway checks the right in the case;
 the store only knows ``shared``.
 
-Retention: kept until the user deletes it (one conversation, or all of them when signing out).
-An administrator can cap the age with ``SUVERYN_CONVERSATION_MAX_AGE_DAYS``: older conversations
-(by last change) are no longer listed or returned, and are deleted on start and on each listing.
+Retention: kept until the user deletes it (one conversation, or all of them when signing out), or
+until the office's keep period for conversations passes (the data lifecycle, suveryn-tracker#31):
+``SUVERYN_CONVERSATIONS_KEEP`` as provisioned (``6m``, ``1y``, ``5y`` or ``manual``, the default:
+nothing is chosen for the office), changed by an administrator in the dashboard with the case
+settings (``conversations_keep`` in ``case_settings``). The gateway tells the store the period
+that applies (``keep``); conversations older than it, by last change and in cases too, are no
+longer listed or returned, and are deleted on start, on each listing and by the hourly sweep.
 
 Deleted documents (suveryn-tracker#12): saved answers quote the passages they cite. When a
 document is deleted, every passage of it is taken out of the owner's conversations
@@ -39,6 +43,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .cases import KEEP_PERIODS
 from .db import PgStore
 
 log = logging.getLogger("suveryn.gateway")
@@ -68,14 +73,20 @@ class ConversationSettings:
     """Where conversations are stored and for how long; build with ``from_env()``."""
 
     database_url: str = ""
-    max_age_days: int | None = None  # None: kept until deleted
+    keep: str = "manual"  # a KEEP_PERIODS key: how long a conversation is kept after its last change
+
+    @property
+    def max_age_days(self) -> int | None:
+        """The keep period in whole days; None: kept until deleted."""
+        period = KEEP_PERIODS.get(self.keep)
+        return period.days if period is not None else None
 
     @classmethod
     def from_env(cls) -> "ConversationSettings":
-        days = os.environ.get("SUVERYN_CONVERSATION_MAX_AGE_DAYS", "").strip()
-        if days and (not days.isdigit() or int(days) < 1):
-            raise ValueError("SUVERYN_CONVERSATION_MAX_AGE_DAYS must be a whole number of days, 1 or more")
-        return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), max_age_days=int(days) if days else None)
+        keep = os.environ.get("SUVERYN_CONVERSATIONS_KEEP", "manual").strip().lower() or "manual"
+        if keep not in KEEP_PERIODS:
+            raise ValueError("SUVERYN_CONVERSATIONS_KEEP must be '6m', '1y', '5y' or 'manual'")
+        return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), keep=keep)
 
 
 class SavedTurn(BaseModel):
@@ -162,22 +173,29 @@ class ConversationStore(PgStore):
     def __init__(self, settings: ConversationSettings):
         super().__init__(settings.database_url)
         self.settings = settings
+        self.keep = settings.keep  # as provisioned; the gateway sets what an administrator chose since
         self.purge()
 
+    @property
+    def max_age_days(self) -> int | None:
+        """The keep period that applies now, in whole days; None: kept until deleted."""
+        period = KEEP_PERIODS.get(self.keep)
+        return period.days if period is not None else None
+
     def _fresh(self) -> tuple[str, tuple]:
-        """SQL condition (and its parameters) for conversations within the admin's age cap."""
-        if self.settings.max_age_days is None:
+        """SQL condition (and its parameters) for conversations within the office's keep period."""
+        if self.max_age_days is None:
             return "true", ()
-        return "updated_at > now() - make_interval(days => %s)", (self.settings.max_age_days,)
+        return "updated_at > now() - make_interval(days => %s)", (self.max_age_days,)
 
     def purge(self) -> int:
-        """Delete every owner's conversations older than the age cap; returns how many."""
-        if self.settings.max_age_days is None:
+        """Delete every owner's conversations older than the keep period; returns how many."""
+        if self.max_age_days is None:
             return 0
         n = self._execute("DELETE FROM conversations WHERE updated_at <= now() - make_interval(days => %s)",
-                          (self.settings.max_age_days,)).rowcount
+                          (self.max_age_days,)).rowcount
         if n:
-            log.info("deleted %d conversations older than %d days", n, self.settings.max_age_days)
+            log.info("deleted %d conversations older than %d days", n, self.max_age_days)
         return n
 
     SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared"

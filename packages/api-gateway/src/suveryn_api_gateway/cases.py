@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS case_settings (
 );
 """
 
-SETTING_KEYS = ("default_access", "keep")  # what an administrator may change at runtime
+SETTING_KEYS = ("default_access", "keep", "conversations_keep")  # what an administrator may change at runtime
 
 
 class DuplicateReference(ValueError):
@@ -139,6 +139,7 @@ class CaseSettings:
     database_url: str = ""
     default_access: Literal["office", "members"] = "members"  # fail closed
     keep: Literal["6m", "1y", "5y", "manual"] = "manual"      # how long closed cases are kept; manual: until deleted by hand
+    conversations_keep: Literal["6m", "1y", "5y", "manual"] = "manual"  # saved conversations, from their last change
 
     @property
     def office_wide(self) -> bool:
@@ -156,6 +157,8 @@ class CaseSettings:
             changes["default_access"] = overrides["default_access"]
         if overrides.get("keep") in KEEP_PERIODS:
             changes["keep"] = overrides["keep"]
+        if overrides.get("conversations_keep") in KEEP_PERIODS:
+            changes["conversations_keep"] = overrides["conversations_keep"]
         return replace(self, **changes) if changes else self
 
     @classmethod
@@ -166,7 +169,11 @@ class CaseSettings:
         keep = os.environ.get("SUVERYN_CASES_KEEP", "manual").strip().lower() or "manual"
         if keep not in KEEP_PERIODS:
             raise ValueError("SUVERYN_CASES_KEEP must be '6m', '1y', '5y' or 'manual'")
-        return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), default_access=access, keep=keep)
+        conversations = os.environ.get("SUVERYN_CONVERSATIONS_KEEP", "manual").strip().lower() or "manual"
+        if conversations not in KEEP_PERIODS:
+            raise ValueError("SUVERYN_CONVERSATIONS_KEEP must be '6m', '1y', '5y' or 'manual'")
+        return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), default_access=access, keep=keep,
+                   conversations_keep=conversations)
 
 
 class CaseIn(BaseModel):
@@ -225,6 +232,7 @@ class SettingsOut(BaseModel):
 
     default_access: Literal["office", "members"]
     keep: Literal["6m", "1y", "5y", "manual"]
+    conversations_keep: Literal["6m", "1y", "5y", "manual"]
     updated_at: datetime | None = None  # None: as provisioned, never changed in the dashboard
     updated_by: str = ""
 
@@ -234,6 +242,7 @@ class SettingsIn(BaseModel):
 
     default_access: Literal["office", "members"] | None = None
     keep: Literal["6m", "1y", "5y", "manual"] | None = None
+    conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None
 
 
 class Member(BaseModel):
