@@ -14,7 +14,7 @@ from suveryn_engine import Citation, SourceRef
 from suveryn_engine.audit import audit
 from suveryn_engine.guard import instruction_like
 
-from .chunking import Chunker, location_label
+from .chunking import Chunk, Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
 from .integrity import (
@@ -181,6 +181,26 @@ class Rag:
         status, warnings = self.store.document_status(doc_id)
         return IngestResult(doc_id, name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,
                             ex.mixed_pages)
+
+    def store_text(self, filename: str, text: str, owner: str | None, case_id: uuid.UUID | None,
+                   origin: str) -> uuid.UUID:
+        """Store text sūveryn produced itself (a playbook's result, docs/design/playbooks.md) as a
+        document with its ``origin``: listed and searchable in its scope, deleted with it, but never
+        a source for answers (only ``uploaded`` documents are). Split into passages by paragraph,
+        each within the chunker's budget in characters; no pages (``page: null``). Not idempotent:
+        every result is its own document."""
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        limit = self.settings.chunk_max_tokens * 3  # characters; well under the embedder's window
+        chunks: list[Chunk] = []
+        for para in paragraphs:
+            pieces = [para[i:i + limit] for i in range(0, len(para), limit)] or [para]
+            for piece in pieces:
+                chunks.append(Chunk(len(chunks), piece, piece, None, None, [], "generated"))
+        if not chunks:
+            raise ValueError("nothing to store")
+        vectors = self.embedder.embed([c.embed_text for c in chunks])
+        digest = hashlib.sha256(f"{uuid.uuid4()}:{text}".encode()).hexdigest()  # unique: never de-duplicated
+        return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin)
 
     def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None,
                  document_ids: list[uuid.UUID] | None = None) -> list[RetrievedChunk]:
