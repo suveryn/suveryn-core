@@ -125,8 +125,20 @@ The playbook path segment is the id's last part (`deed-intake`); the full id is 
 Starting a run answers at once with the run in status `reading`; the client polls the run. The
 model call is one grounded request, like a chat question but with the playbook's own instructions
 and no history: the fields as a Markdown table the model fills, each cell citing [n]. The gateway
-parses the table, keeps the citations per fact and runs the check; a run where the model's answer
-can't be read as the table fails with `error: unreadable_answer` and can be started again.
+parses the table, keeps the citations per fact and runs the check. A row names its fact by id or by
+its label in any of the playbook's languages (a small model translates), never by position: a
+skipped row would shift every later fact onto the wrong label without anyone noticing. An answer
+that isn't the table is asked for once more with a stricter reminder; then the run fails with
+`error: unreadable_answer` and can be started again. Starting a run counts against the caller's
+chat rate limit (it is a model call). A run still `reading` when the gateway stops is failed as
+`interrupted` at the next start, and the hourly sweep fails one that has been reading for over
+thirty minutes, so nobody waits on a spinner for a call that no longer exists. A case closed while
+a run waits at its checkpoint keeps the run; the UI says to reopen the case to confirm.
+
+**Provenance in the result.** The summary document and its name carry the run's `playbook_id` and
+`playbook_version`, never the playbook as installed at confirmation time: a run started under 1.0
+and confirmed after an upgrade to 1.1 says 1.0, because 1.0 is what read the documents (outside
+review, 17 October 2026).
 
 ## The chat UI
 
