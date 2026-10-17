@@ -13,7 +13,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: var(--text-body);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -23,10 +23,10 @@ button { font: inherit; color: inherit; }
 
 /* type roles */
 h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
-.label { font-family: var(--font-body); font-size: 11px; line-height: 1.3; font-weight: 600; letter-spacing: 0.04em;
+.label { font-family: var(--font-body); font-size: var(--text-label); line-height: var(--leading-label); font-weight: var(--weight-label); letter-spacing: var(--tracking-label);
          text-transform: uppercase; color: var(--text-dimmer); }
-.caption { font-size: 12px; line-height: 1.5; color: var(--text-dim); margin: 0; }
-.wordmark { font-family: var(--font-wordmark); font-weight: 500; font-size: 22px; line-height: 1; color: var(--text); }
+.caption { font-size: var(--text-caption); line-height: 1.5; color: var(--text-dim); margin: 0; }
+.wordmark { font-family: var(--font-wordmark); font-weight: 500; font-size: var(--text-wordmark); line-height: 1; color: var(--text); }
 
 /* layout */
 /* One row exactly as high as the window: only the conversation (and a long sidebar) scroll, never the
@@ -52,10 +52,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                          background: none; border: none; padding: 7px var(--space-2); cursor: pointer; color: var(--text); }
 .doc-pending { cursor: default; color: var(--text-dim); }
 .doc-use:disabled { cursor: default; }
-.doc-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.doc-meta { grid-column: 2; font-size: 12px; color: var(--text-dim); }
-.doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: 12px; }
-.library .sublabel { margin: var(--space-1) var(--space-1) 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.doc-name { font-size: var(--text-body-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-meta { grid-column: 2; font-size: var(--text-caption); color: var(--text-dim); }
+.doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: var(--text-caption); }
+.library .sublabel { margin: var(--space-1) var(--space-1) 2px; font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.04em; }
 /* a case's conversations: mine, then what colleagues shared (stage 4), scrolling as one */
 .library .history-lists { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
 .library .history-lists ul { overflow: visible; flex: none; }
@@ -68,49 +68,49 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .library .case-list .doc-use { cursor: inherit; }
 .library .case-list [data-selected] .doc-name { font-weight: 600; }
 .library .case-search { margin: 0 var(--space-1) var(--space-1); }
-.library .new-case { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 12px;
+.library .new-case { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: var(--text-caption);
                      padding: 0 var(--space-1); align-self: flex-start; }
 .library .new-case:hover { color: var(--text); }
 .library .case-tools { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
 /* closed cases due for deletion within a month (stage 3): who manages them is warned here */
 .library .cases-due { margin: var(--space-1) var(--space-1) var(--space-2); padding: var(--space-2); border-radius: var(--radius-sm);
-                      background: oklch(from var(--accent) l c h / 0.12); color: var(--accent-ink); font-size: 12px; }
+                      background: oklch(from var(--accent) l c h / 0.12); color: var(--accent-ink); font-size: var(--text-caption); }
 .library .cases-due .caption { margin: 0 0 var(--space-1); color: inherit; display: flex; align-items: center; gap: var(--space-1); }
 .library .cases-due ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .library .cases-due li { display: flex; gap: var(--space-2); align-items: baseline; }
 .library .cases-due li button { font-weight: 600; color: inherit; }
 /* the case that is open, above its conversation */
 .case-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-6);
-             border-bottom: 1px solid var(--line); font-size: 13.5px; color: var(--text-dim); min-width: 0; }
+             border-bottom: 1px solid var(--line); font-size: var(--text-body-sm); color: var(--text-dim); min-width: 0; }
 .case-head .case-ref { font-weight: 600; color: var(--text); white-space: nowrap; }
 .case-head .case-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .case-head .case-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-.case-head .case-action { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 12px;
+.case-head .case-action { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: var(--text-caption);
                           white-space: nowrap; }
 .case-head .case-action:hover { color: var(--text); }
 /* a closed case: when it was closed and what becomes of it, with the manager's choices (CaseState.tsx) */
 .case-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-6);
-              border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text-dim); }
+              border-bottom: 1px solid var(--line); font-size: var(--text-caption); color: var(--text-dim); }
 .case-state[data-due] { background: oklch(from var(--accent) l c h / 0.12); color: var(--accent-ink); }
 .case-state .case-state-text { flex: 1; min-width: 0; }
-.case-state .case-action { display: inline-flex; align-items: center; gap: var(--space-1); color: inherit; font-size: 12px; white-space: nowrap; }
+.case-state .case-action { display: inline-flex; align-items: center; gap: var(--space-1); color: inherit; font-size: var(--text-caption); white-space: nowrap; }
 .case-state .case-action:hover { color: var(--text); }
 .case-state .case-state-error { flex-basis: 100%; margin: 0; }
 /* members and the access log (CaseMembers.tsx) */
 .case-access { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-4); }
 .member-list { list-style: none; margin: 0 0 var(--space-4); padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .member { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: var(--space-3); align-items: center;
-          padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+          padding: 6px 0; border-bottom: 1px solid var(--line); font-size: var(--text-body-sm); }
 .member-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.member-user { grid-column: 1; font-size: 12px; color: var(--text-dim); }
+.member-user { grid-column: 1; font-size: var(--text-caption); color: var(--text-dim); }
 .member-role { grid-column: 2; grid-row: 1 / span 2; }
-.member-role-text { grid-column: 2; grid-row: 1 / span 2; font-size: 12px; color: var(--text-dim); }
-.member .ui-text-button { grid-column: 3; grid-row: 1 / span 2; font-size: 12px; color: var(--text-dim); }
+.member-role-text { grid-column: 2; grid-row: 1 / span 2; font-size: var(--text-caption); color: var(--text-dim); }
+.member .ui-text-button { grid-column: 3; grid-row: 1 / span 2; font-size: var(--text-caption); color: var(--text-dim); }
 .member-add { display: flex; flex-direction: column; gap: var(--space-2); }
 .member-add .ui-field { margin-bottom: 0; }
 .member-add-row { display: flex; align-items: center; gap: var(--space-2); }
 .event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 50vh; overflow-y: auto; }
-.event { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); column-gap: var(--space-2); font-size: 13px; padding: 4px 0;
+.event { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); column-gap: var(--space-2); font-size: var(--text-ui-sm); padding: 4px 0;
          border-bottom: 1px solid var(--line); }
 .event-when { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .event-who { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -120,7 +120,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .doc-current .doc-name { font-weight: 600; }
 .sidebar-foot { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-1); color: var(--text-dimmer); }
 .sidebar-foot .caption { margin: 0; }
-.user { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--text); font-size: 13.5px; }
+.user { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--text); font-size: var(--text-body-sm); }
 .user-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .user .ui-text-button { color: var(--text-dim); flex: 0 0 auto; }
 
@@ -129,16 +129,16 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 
 /* usage and administration views (suveryn-tracker#7) */
 .sidebar-foot .usage-counter { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim);
-                 text-decoration: none; padding: 0; font-size: 12px; align-self: flex-start; }
+                 text-decoration: none; padding: 0; font-size: var(--text-caption); align-self: flex-start; }
 .sidebar-foot .usage-counter:hover { text-decoration: underline; color: var(--text); }
 .view { display: flex; flex-direction: column; gap: var(--space-4); padding-block: var(--space-6); }
 .view-head { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
-.view-head h1 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: 22px; }
-.view-head .ui-text-button { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: 13px; }
-.view-intro { margin: 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; max-width: 68ch; }
+.view-head h1 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-title); }
+.view-head .ui-text-button { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-dim); font-size: var(--text-ui-sm); }
+.view-intro { margin: 0; color: var(--text-dim); font-size: var(--text-body-sm); line-height: 1.55; max-width: 68ch; }
 .view h2.label { margin: var(--space-2) 0 0; }
 .tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--line); }
-.tab { padding: var(--space-2) 0; font-size: 13.5px; font-weight: 600; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+.tab { padding: var(--space-2) 0; font-size: var(--text-body-sm); font-weight: 600; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
        color: var(--text-dim); border-radius: 0; background: none; font-family: inherit; cursor: pointer; }
 .tab[data-focus-visible] { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
 .tab.on { color: var(--text); border-bottom-color: var(--accent); }
@@ -156,13 +156,13 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .range-dates .ui-field { margin: 0; }
 .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); margin: 0; }
 .totals div { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); }
-.totals dt { font-size: 12px; color: var(--text-dim); }
-.totals dd { margin: var(--space-1) 0 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.totals dt { font-size: var(--text-caption); color: var(--text-dim); }
+.totals dd { margin: var(--space-1) 0 0; font-size: var(--text-title); font-weight: 600; font-variant-numeric: tabular-nums; }
 .table-wrap { overflow-x: auto; }
-.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: var(--text-ui-sm); font-variant-numeric: tabular-nums; }
 .usage-table th, .usage-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 .usage-table th:first-child, .usage-table thead th:first-child { text-align: left; font-weight: 500; }
-.usage-table thead th { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+.usage-table thead th { font-size: var(--text-caption); color: var(--text-dim); font-weight: 500; }
 .rates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); border-top: 1px solid var(--line);
          padding-top: var(--space-4); margin-top: var(--space-2); }
 .rates h2 { flex-basis: 100%; }
@@ -177,29 +177,29 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 /* sign-in screen */
 .signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
           gap: var(--space-6); padding: var(--space-6) var(--space-4); text-align: center; background: var(--bg); }
-.signin h1 { font-size: clamp(24px, 4vw, 34px); line-height: 1.2; max-width: 22ch; }
+.signin h1 { font-size: clamp(var(--text-title), 4vw, var(--text-h2)); line-height: 1.2; max-width: 22ch; }
 .signin .ui-inline-notice { justify-content: center; margin: 0; max-width: 46ch; }
 .signin .ui-button { min-width: 160px; }
 
 /* empty state */
 .empty { margin: auto; text-align: center; display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-16); }
-.empty h1 { font-size: 28px; line-height: 1.2; }
-.empty p { color: var(--text-dim); margin: 0 auto; max-width: 52ch; font-size: 15px; }
+.empty h1 { font-size: var(--text-h2); line-height: 1.2; }
+.empty p { color: var(--text-dim); margin: 0 auto; max-width: 52ch; font-size: var(--text-body); }
 
 /* the user's turn: attachments above the only bubble */
 .turn-user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .attachments { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-.bubble { background: var(--surface-alt); border-radius: var(--radius-lg); padding: 9px 13px; font-size: 13.5px;
+.bubble { background: var(--surface-alt); border-radius: var(--radius-lg); padding: 9px 13px; font-size: var(--text-body-sm);
           line-height: 1.55; max-width: min(560px, 85%); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* the assistant's turn: no bubble */
 .turn-assistant { display: flex; gap: var(--space-3); align-items: flex-start; }
 .assistant-mark { flex: 0 0 auto; margin-top: 2px; }
-.answer { min-width: 0; flex: 1; font-size: 13.5px; line-height: 1.6; }
+.answer { min-width: 0; flex: 1; font-size: var(--text-body-sm); line-height: 1.6; }
 .answer p { margin: 0 0 var(--space-2); }
 .answer li { margin: 0 0 var(--space-1) 1.1em; padding-left: var(--space-1); }
 /* working indicator: three outlined rounded squares (the brand mark's shape), bouncing in turn */
-.waiting { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-dim); font-size: 13.5px; }
+.waiting { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-dim); font-size: var(--text-body-sm); }
 .waiting-dots { display: inline-flex; align-items: flex-end; gap: 4px; height: 13px; vertical-align: text-bottom; margin-left: 2px; }
 /* outlines with rounded corners, like the brand mark (radius about a quarter of the side) */
 .waiting-dots i { box-sizing: border-box; width: 7px; height: 7px; border-radius: 2px; border: 1.25px solid var(--text-dim);
@@ -210,12 +210,12 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 
 /* citations: teal-ink text on a translucent teal wash; reserved for sourced content */
 .cite-marker { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px;
-               padding: 0 4px; margin: 0 1px; vertical-align: 2px; font-size: 10.5px; font-weight: 600; line-height: 1;
+               padding: 0 4px; margin: 0 1px; vertical-align: 2px; font-size: var(--text-label); font-weight: 600; line-height: 1;
                color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
                border-radius: var(--radius-pill); cursor: pointer; }
 .cite-marker:hover, .cite-marker.active { background: oklch(from var(--teal) l c h / 0.22); }
 .sources { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
-.chip-citation { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+.chip-citation { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); font-weight: 600;
                  color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
                  border-radius: var(--radius-pill); padding: 5px 11px; cursor: pointer; }
 .chip-citation:hover, .chip-citation.active { background: oklch(from var(--teal) l c h / 0.22); }
@@ -224,14 +224,14 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                border-radius: var(--radius-md); }
 .source-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-2); }
 .source-head .label { color: var(--teal-ink); }
-.source-file { font-weight: 600; font-size: 13.5px; }
-.source-where { color: var(--text-dim); font-size: 12px; }
+.source-file { font-weight: 600; font-size: var(--text-body-sm); }
+.source-where { color: var(--text-dim); font-size: var(--text-caption); }
 .source-actions { margin-left: auto; display: inline-flex; gap: var(--space-2); }
 .copy-button { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--line);
-               border-radius: var(--radius-pill); padding: 4px 10px; font-size: 12px; color: var(--text); cursor: pointer; }
+               border-radius: var(--radius-pill); padding: 4px 10px; font-size: var(--text-caption); color: var(--text); cursor: pointer; }
 .copy-button:hover { background: var(--surface-alt); }
 .source-text { margin: 0 0 var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line);
-               font-size: 13.5px; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
+               font-size: var(--text-body-sm); white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 /* Facts of the citing sentence, marked in the passage (teal wash, like citations), which scrolls to the first. */
 .source-text { position: relative; }
 /* The sentences a claim rests on, lightly; the claim's figures, dates and names in them, stronger. */
@@ -241,7 +241,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 /* Tables in answers: a real table, so copy and paste into Excel or Word keeps the columns. */
 .answer-table { margin: var(--space-3) 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 .answer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.answer-table table { border-collapse: collapse; font-size: 13.5px; line-height: 1.45; }
+.answer-table table { border-collapse: collapse; font-size: var(--text-body-sm); line-height: 1.45; }
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
@@ -255,21 +255,21 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
               text-underline-offset: 3px; cursor: help; }
 
 .banner { display: flex; gap: var(--space-2); align-items: center; margin: 0; padding: var(--space-2) var(--space-6);
-          background: var(--surface-alt); border-bottom: 1px solid var(--line); font-size: 13.5px; }
+          background: var(--surface-alt); border-bottom: 1px solid var(--line); font-size: var(--text-body-sm); }
 
 /* attachment chip: outlined, unlike the citation chip */
-.chip-attachment { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; font-size: 11px; color: var(--text);
+.chip-attachment { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; font-size: var(--text-label); color: var(--text);
                    background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; }
 .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-status { color: var(--text-dim); white-space: nowrap; }
 .chip-remove { display: inline-flex; background: none; border: none; padding: 0; margin-left: 2px; color: var(--text-dim); cursor: pointer; }
 
 /* model tag: neutral */
-.chip-model { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; color: var(--text);
+.chip-model { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: var(--text-caption); color: var(--text);
               background: var(--surface-alt); border-radius: var(--radius-pill); padding: 4px 10px; white-space: nowrap; }
 .model-family { display: none; }
 .model-picker { position: relative; flex: 0 0 auto; }
-.chip-model-button { border: none; cursor: pointer; font: inherit; font-size: 12px; }
+.chip-model-button { border: none; cursor: pointer; font: inherit; font-size: var(--text-caption); }
 .chip-model-button[data-hovered] { background: var(--line); }
 /* the menu itself: .ui-popover and .ui-menu in src/ui/ui.css */
 .model-menu { min-width: 240px; }
@@ -283,7 +283,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .composer:focus-within { border-color: var(--text-dimmer); }
 .composer-field { flex: 1; min-width: 0; display: flex; }
 .composer textarea { flex: 1; min-width: 0; resize: none; border: none; outline: none; background: transparent;
-                     font: inherit; font-size: 15px; line-height: 1.5; padding: 7px var(--space-1); max-height: 160px;
+                     font: inherit; font-size: var(--text-body); line-height: 1.5; padding: 7px var(--space-1); max-height: 160px;
                      field-sizing: content; color: var(--text); }
 .composer textarea::placeholder { color: var(--text-dimmer); }
 .composer .chip-model, .composer .model-picker { margin-bottom: 6px; }
