@@ -107,8 +107,14 @@ Documents stored before cases existed have no `case_id` and keep their owner: fa
 Out of scope here: several people in one live conversation (a separate concept, as #10 says);
 syncing cases with the practice software (a connector, later).
 
+## Built
+
+- **Stage 1** (core PR #43): the case, the personal space, "ask about this case", `may`.
+- **Stage 2** (core PR #44, appliance #35): members and roles, the office's directory, handover, the access log, `SUVERYN_CASES_DEFAULT_ACCESS`.
+- **Stage 3**: closing, the keep period and deletion. `POST /v1/cases/{id}/close`, `/reopen`, `/keep` and `GET /v1/cases/due`; the office's period is `SUVERYN_CASES_KEEP` (`6m`, `1y`, `5y`, `manual`), from the appliance's `--cases-keep` or `CASES_KEEP`, default `manual` since nothing is chosen for the office. Closing sets `keep_until` one period ahead; from 30 days before, the case is listed for its manager and the administrators, who can extend it by one period, reopen it, or mark it *keep*; an hourly sweep in the gateway deletes what is due, the way deleting a case does. Decided while building: `set_keep` (extend, keep) is a right on a *closed* case, for its manager and the administrators; the office's period itself is the appliance setting (the admin dashboard will change it in stage 4). The confirmation and the warning are worded in the three languages in the chat UI (`closeCase*`, `deletedOn*` in `i18n/`); what deletion guarantees on the appliance is #31's.
+
 ## Open
 
 - Which named subject fields each notarial type defines (with the playbooks, #29).
 - Whether a reader may start a playbook run (proposed: no).
-- The wording of the closing confirmation and the deletion warning, in three languages.
+- The wording of the closing confirmation and the deletion warning, in three languages: a first version is in the chat UI (stage 3); to be read by a notary.

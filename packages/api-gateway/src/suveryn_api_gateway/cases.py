@@ -6,9 +6,17 @@ space (``case_id`` null) for everything outside a case, "ask about this case", t
 function ``may`` with its rules; then members with roles (reader, contributor, manager; exactly
 one manager, handed over by the manager or an administrator), the appliance's office-wide
 default, restriction by the manager, and the access log (``case_events``: who did what in a
-case, kept ``EVENT_RETENTION_DAYS`` and then deleted, as the sign-in events). Closing and the
-keep period, and shared conversations, come in stages 3 and 4; the data model already has their
-columns so nothing is migrated twice.
+case, kept ``EVENT_RETENTION_DAYS`` and then deleted, as the sign-in events); then stage 3:
+closing. A closed case is read-only (no uploads, no questions, no changes) and can be reopened by
+its manager while it is kept. The office chooses how long closed cases are kept
+(``SUVERYN_CASES_KEEP``: 6 months, 1 year, 5 years, or ``manual``, until deleted by hand; nothing
+is chosen for them, so the default is ``manual``). Closing sets ``keep_until``; in the month
+before it the case is listed as due (``due``) and its manager or an administrator can extend
+it by one period, reopen it, or mark it ``keep`` (never deleted by the period). Then the
+gateway's sweep (hourly) deletes the case with its documents, index, conversations and log. What
+deletion guarantees is the same as for a document (``Store.delete_document``: unreachable, not
+unrecoverable, until suveryn-tracker#31 decides secure erasure). Shared conversations come in
+stage 4.
 
 What is stored: the office's own file number (``reference``), a name, the case type, a short
 subject, who manages it and when it was opened. Never a client's name as a label (decision 2):
@@ -25,7 +33,8 @@ server. The rules, from the design:
    contributor also uploads, asks and runs playbooks, a manager also manages the case.
 3. In an office-wide appliance (``SUVERYN_CASES_DEFAULT_ACCESS=office``) everyone signed in is a
    reader of an unrestricted case. Membership adds rights, never takes them away.
-4. A closed case allows reading and exporting only, for everyone, and ``reopen`` for its manager.
+4. A closed case allows reading and exporting only, for everyone; and ``reopen`` and ``set_keep``
+   for its manager (``close`` is the manager's on an open case).
 5. The personal space is its owner's only, as before cases existed.
 
 Fail closed: the default access, when the appliance hasn't chosen one, is members only.
@@ -37,7 +46,7 @@ import json
 import os
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 import psycopg
@@ -48,16 +57,19 @@ from .db import PgStore
 Access = Literal["default", "restricted"]
 State = Literal["open", "closed"]
 Role = Literal["reader", "contributor", "manager"]
-Action = Literal["read", "contribute", "manage", "reopen", "list", "handover", "read_log", "set_keep"]
+Action = Literal["read", "contribute", "manage", "close", "reopen", "list", "handover", "read_log", "set_keep"]
 
 READ: frozenset[str] = frozenset({"read"})
 CONTRIBUTE: frozenset[str] = READ | {"contribute"}
-MANAGE: frozenset[str] = CONTRIBUTE | {"manage", "reopen", "read_log"}
+MANAGE: frozenset[str] = CONTRIBUTE | {"manage", "close", "reopen", "read_log", "set_keep"}
 ADMIN: frozenset[str] = frozenset({"list", "handover", "read_log", "set_keep"})
 RIGHTS: dict[str, frozenset[str]] = {"reader": READ, "contributor": CONTRIBUTE, "manager": MANAGE}
 MAX_SUBJECT_BYTES = 8 * 1024
 EVENT_RETENTION_DAYS = 180  # as the sign-in events (suveryn-tracker#16)
 MAX_EVENTS = 1000           # one listing of the access log
+DUE_WARNING_DAYS = 30       # a closed case is listed as due this long before its deletion
+KEEP_PERIODS: dict[str, timedelta | None] = {"6m": timedelta(days=183), "1y": timedelta(days=366),
+                                             "5y": timedelta(days=5 * 366), "manual": None}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -113,17 +125,25 @@ class CaseSettings:
 
     database_url: str = ""
     default_access: Literal["office", "members"] = "members"  # fail closed
+    keep: Literal["6m", "1y", "5y", "manual"] = "manual"      # how long closed cases are kept; manual: until deleted by hand
 
     @property
     def office_wide(self) -> bool:
         return self.default_access == "office"
+
+    @property
+    def keep_period(self) -> timedelta | None:
+        return KEEP_PERIODS[self.keep]
 
     @classmethod
     def from_env(cls) -> CaseSettings:
         access = os.environ.get("SUVERYN_CASES_DEFAULT_ACCESS", "members").strip().lower() or "members"
         if access not in ("office", "members"):
             raise ValueError("SUVERYN_CASES_DEFAULT_ACCESS must be 'office' or 'members'")
-        return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), default_access=access)
+        keep = os.environ.get("SUVERYN_CASES_KEEP", "manual").strip().lower() or "manual"
+        if keep not in KEEP_PERIODS:
+            raise ValueError("SUVERYN_CASES_KEEP must be '6m', '1y', '5y' or 'manual'")
+        return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), default_access=access, keep=keep)
 
 
 class CaseIn(BaseModel):
@@ -191,6 +211,14 @@ class HandoverIn(BaseModel):
     user: str = Field(min_length=1, max_length=200)
 
 
+class KeepIn(BaseModel):
+    """Body of ``POST /v1/cases/{id}/keep``: mark the case kept (never deleted by the period) or
+    not, or extend its deletion by one period."""
+
+    keep: bool | None = None
+    extend: bool = False
+
+
 class CaseEvent(BaseModel):
     """One line of a case's access log: who, when, what (never document text)."""
 
@@ -217,6 +245,8 @@ def may(who: Principal, case: Case, role: Role | None, action: Action, office_wi
     """
     if action == "read_log" and (who.admin or role == "manager"):
         return True  # decision 15: the manager and the administrators, open or closed
+    if action == "set_keep":
+        return case.state == "closed" and (who.admin or role == "manager")  # the keep period of a closed case
     if action in ADMIN:
         return who.admin  # rule 1: administrators, on every case; nobody else
     effective = role
@@ -225,10 +255,10 @@ def may(who: Principal, case: Case, role: Role | None, action: Action, office_wi
     if effective is None:
         return False
     if case.state == "closed":  # rule 4
-        if action == "reopen":
+        if action in ("reopen", "set_keep"):
             return effective == "manager"
         return action in READ
-    return action in RIGHTS[effective] - {"reopen", "read_log"}
+    return action in RIGHTS[effective] - {"reopen", "read_log", "set_keep"}
 
 
 class CaseStore(PgStore):
@@ -319,6 +349,58 @@ class CaseStore(PgStore):
         except psycopg.errors.UniqueViolation as e:
             raise DuplicateReference(body.reference or "") from e
         return self._case(row) if row else None
+
+    # ------------------------------------------------------------------ closing (stage 3)
+    def close_case(self, case_id: uuid.UUID, period: timedelta | None) -> Case | None:
+        """Close an open case: read-only from now, to be deleted after ``period`` (None: kept until
+        deleted by hand). None if the case doesn't exist or isn't open."""
+        now = datetime.now(UTC)
+        row = self._execute(
+            f"UPDATE cases SET state = 'closed', closed_at = %s, keep_until = %s, keep = false, updated_at = now()"
+            f" WHERE id = %s AND state = 'open' RETURNING {self._COLS}",
+            (now, now + period if period else None, case_id)).fetchone()
+        return self._case(row) if row else None
+
+    def reopen_case(self, case_id: uuid.UUID) -> Case | None:
+        """Reopen a closed case: open again, no deletion planned. None if it doesn't exist or is open."""
+        row = self._execute(
+            f"UPDATE cases SET state = 'open', closed_at = NULL, keep_until = NULL, keep = false, updated_at = now()"
+            f" WHERE id = %s AND state = 'closed' RETURNING {self._COLS}", (case_id,)).fetchone()
+        return self._case(row) if row else None
+
+    def set_keep(self, case_id: uuid.UUID, keep: bool | None, extend: bool, period: timedelta | None) -> Case | None:
+        """Mark a closed case kept (``keep`` True: never deleted by the period) or not (False: deleted
+        one period from now), and/or ``extend`` its deletion by one period from its current date (or
+        from now, if that date has passed). None if the case doesn't exist or isn't closed."""
+        row = self._execute("SELECT keep_until, keep FROM cases WHERE id = %s AND state = 'closed'", (case_id,)).fetchone()
+        if row is None:
+            return None
+        keep_until, kept = row
+        now = datetime.now(UTC)
+        if keep is not None:
+            kept = keep
+            if not keep:
+                keep_until = now + period if period else None
+        if extend and period:
+            keep_until = max(keep_until or now, now) + period
+        row = self._execute(f"UPDATE cases SET keep_until = %s, keep = %s, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
+                            (keep_until, kept, case_id)).fetchone()
+        return self._case(row) if row else None
+
+    def due(self, user: str, *, admin: bool, within: timedelta = timedelta(days=DUE_WARNING_DAYS)) -> list[Case]:
+        """Closed cases due for deletion within ``within`` (or overdue), not marked kept: for an
+        administrator all of them, for anyone else those they manage. Soonest first."""
+        rows = self._execute(
+            f'{self._SELECT}, m.role FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
+            " WHERE c.state = 'closed' AND NOT c.keep AND c.keep_until IS NOT NULL AND c.keep_until <= now() + %s"
+            "   AND (%s OR c.manager = %s) ORDER BY c.keep_until", (user, within, admin, user)).fetchall()
+        return [self._case(r[:-1], r[-1]) for r in rows]
+
+    def due_for_deletion(self) -> list[uuid.UUID]:
+        """The closed cases whose keep period has passed and that aren't marked kept."""
+        rows = self._execute("SELECT id FROM cases WHERE state = 'closed' AND NOT keep AND keep_until IS NOT NULL"
+                             " AND keep_until <= now()").fetchall()
+        return [r[0] for r in rows]
 
     def touch(self, case_id: uuid.UUID) -> None:
         """Note activity in the case (an upload, a question): the list is ordered by it."""

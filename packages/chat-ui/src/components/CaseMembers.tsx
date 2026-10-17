@@ -162,6 +162,9 @@ export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>): string {
     case "role_changed": return m.eventRoleChanged(roleLabel(String(d.role ?? ""), m));
     case "member_removed": return m.eventMemberRemoved;
     case "handed_over": return m.eventHandedOver;
+    case "closed": return m.eventClosed;
+    case "reopened": return m.eventReopened;
+    case "keep_changed": return m.eventKeepChanged;
     default: return e.action;
   }
 }
