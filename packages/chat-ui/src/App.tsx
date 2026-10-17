@@ -16,7 +16,7 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, Lock, LogIn, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, ClipboardList, Folder, Lock, LogIn, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
@@ -29,6 +29,7 @@ import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
 import { AccessLogDialog, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { CaseState } from "./components/CaseState";
+import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage } from "./components/Messages";
@@ -111,7 +112,7 @@ function Chat({ me }: { me: Me }) {
   const [conversationId, setConversationId] = useState(newConversationId);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
-  const [view, setView] = useState<"chat" | "usage" | "admin">("chat");
+  const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook">("chat");
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const [cases, setCases] = useState<Case[]>([]);
   const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
@@ -133,6 +134,8 @@ function Chat({ me }: { me: Me }) {
   const readOnly = !!current && !!current.owner && current.owner !== (me.sub ?? "");
   const canShare = !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
   const manages = role === "manager";
+  const contributes = role === "contributor" || role === "manager";
+  const hasPlaybook = currentCase?.type === "sale";  // the playbooks that fit a type (docs/design/playbooks.md); the gateway decides
   const administers = currentCase !== null && role === null && (me.admin ?? false);
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
@@ -439,6 +442,11 @@ function Chat({ me }: { me: Me }) {
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} /></div>}
+        {view === "playbook" && currentCase && (
+          <div className="conversation">
+            <PlaybookView kase={currentCase} canRun={contributes && !closed} documents={documents.filter((d) => d.origin === "uploaded").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
+          </div>
+        )}
         {view === "chat" && <>
         {currentCase && (
           <header className="case-head">
@@ -451,6 +459,11 @@ function Chat({ me }: { me: Me }) {
             <TextButton className="case-action" onPress={() => setShowMembers(true)}>
               <Users size={14} aria-hidden /> {m.members}
             </TextButton>
+            {hasPlaybook && !administers && (
+              <TextButton className="case-action" onPress={() => setView("playbook")}>
+                <ClipboardList size={14} aria-hidden /> {m.deedIntake}
+              </TextButton>
+            )}
             {canShare && (current?.shared ? (
               <TextButton className="case-action" onPress={() => share(false)} title={m.sharedHint}>
                 <UsersRound size={14} aria-hidden /> {m.unshareConversation}

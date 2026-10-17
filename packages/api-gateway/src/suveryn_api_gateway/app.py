@@ -60,6 +60,7 @@ from suveryn_engine import LlamaServerClient, LLMSettings, UsageRecord
 from . import routes
 from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
 from .cases import CaseSettings, CaseStore
+from .playbooks import RunStore
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import ConversationSettings, ConversationStore
 from .directory import Directory, DirectorySettings, LocalDirectory
@@ -137,7 +138,7 @@ def _connector(factory, settings):
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
                auth: Authenticator | None = None, conversations=None, usage=None, cases=None,
                case_settings: CaseSettings | None = None, directory=None,
-               rate_limits: RateLimits | None = None) -> FastAPI:
+               rate_limits: RateLimits | None = None, runs=None) -> FastAPI:
     """Build the FastAPI app.
 
     ``client``, ``documents``, ``auth``, ``conversations``, ``usage`` and ``cases`` let tests inject a
@@ -183,13 +184,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                    else _connector(UsageStore, UsageSettings.from_env()))
         app.state.cases = Database("case", cases, None if cases is not None or not own_db
                                    else _connector(CaseStore, cases_settings))
+        # Playbook runs (suveryn-tracker#51) live in the cases' database: no cases, no runs.
+        app.state.runs = Database("playbook run", runs, None if runs is not None or not own_db or not cases_settings.database_url
+                                  else (lambda: RunStore(cases_settings.database_url)))
+        app.state.running = set()  # the asyncio tasks reading for a run, kept until they finish
         if directory is not None:
             app.state.directory = directory
         elif not authenticator.enabled:
             app.state.directory = LocalDirectory(LOCAL_OWNER)
         else:
             app.state.directory = Directory(DirectorySettings.from_env())
-        for db in (app.state.history, app.state.usage, app.state.cases):
+        for db in (app.state.history, app.state.usage, app.state.cases, app.state.runs):
             await run_in_threadpool(db.get)
 
         async def record_usage(r: UsageRecord) -> None:
@@ -233,7 +238,10 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             await app.state.directory.aclose()
         if docs is not None:
             docs.stop()
-        for db, injected in ((app.state.history, conversations), (app.state.usage, usage), (app.state.cases, cases)):
+        for task in list(app.state.running):
+            task.cancel()
+        for db, injected in ((app.state.history, conversations), (app.state.usage, usage), (app.state.cases, cases),
+                             (app.state.runs, runs)):
             if injected is None and db.store is not None:
                 db.store.close()
 
@@ -314,7 +322,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         return await call_next(request)
 
     # The order matters where paths overlap: /v1/cases/due before /v1/cases/{case_id} (both in cases).
-    for module in (routes.signin, routes.health, routes.cases, routes.chat, routes.documents, routes.conversations, routes.usage):
+    for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.chat, routes.documents,
+                   routes.conversations, routes.usage):
         app.include_router(module.router)
     return app
 

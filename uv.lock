@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -16,6 +16,7 @@ members = [
     "suveryn-chat",
     "suveryn-core",
     "suveryn-engine",
+    "suveryn-playbooks",
     "suveryn-rag",
 ]
 
@@ -2998,6 +2999,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "suveryn-chat" },
     { name = "suveryn-engine" },
+    { name = "suveryn-playbooks" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -3009,6 +3011,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "suveryn-chat", editable = "packages/chat" },
     { name = "suveryn-engine", editable = "packages/engine" },
+    { name = "suveryn-playbooks", editable = "packages/playbooks" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 
@@ -3068,6 +3071,11 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.8" },
 ]
+
+[[package]]
+name = "suveryn-playbooks"
+version = "0.1.0"
+source = { editable = "packages/playbooks" }
 
 [[package]]
 name = "suveryn-rag"

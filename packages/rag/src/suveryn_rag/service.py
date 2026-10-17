@@ -344,6 +344,11 @@ class DocumentService:
         created, origin, who uploaded it."""
         return self._with_search(lambda rag: rag.store.list_documents(scope))
 
+    def store_text(self, filename: str, text: str, scope: Scope, origin: str) -> str:
+        """Store text sūveryn produced (a playbook's result) as a document in the scope, with its origin;
+        its id. Never a source for answers (``Rag.store_text``)."""
+        return str(self._with_search(lambda rag: rag.store_text(filename, text, scope.owner, scope.case_id, origin)))
+
     def delete(self, document_id: str, scope: Scope) -> bool:
         """Delete a document in the scope and its passages; False if it doesn't exist or is elsewhere."""
         return self._with_search(lambda rag: rag.store.delete_document(uuid.UUID(document_id), scope))

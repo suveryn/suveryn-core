@@ -15,6 +15,9 @@ const SAMPLES: Record<string, unknown[][]> = {
 function texts(l: Lang): [string, string][] {
   return Object.entries(TABLES[l]).flatMap(([k, v]) => {
     if (typeof v === "string") return [[k, v] as [string, string]];
+    if (typeof v === "object" && v !== null) {  // a vocabulary (intakeFacts): strings by key
+      return Object.entries(v as Record<string, string>).map(([sub, text]) => [`${k}.${sub}`, text] as [string, string]);
+    }
     const fn = v as (...a: unknown[]) => string;
     const samples = SAMPLES[k] ?? (ARRAYS[k] ? [ARRAYS[k], [[1]].concat()] : [["X", "Y", 3], ["Y", 2, null]]);
     return samples.map((args) => [k, fn(...(args as unknown[]))] as [string, string]);

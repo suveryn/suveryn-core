@@ -81,6 +81,8 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     if not await run_in_threadpool(docs.delete, document_id, scope):
         raise HTTPException(404, "Unknown document.")
     await log_access(request, scope.case_id, "document_deleted", {"document": document_id})
+    if scope.case_id is not None and (runs := request.app.state.runs.get()) is not None:
+        await run_in_threadpool(runs.mark_out_of_date, scope.case_id, document_id)  # a run that read it (docs/design/playbooks.md)
     if (store := history_or_none(request)) is not None:
         # In a case every member's conversations may cite the document: all of them are cleaned (or deleted).
         await run_in_threadpool(store.remove_document, owner, did, conversations == "delete", scope.case_id)
