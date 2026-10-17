@@ -5,6 +5,7 @@ gateway's validation runs exactly as in production. A live test against a real K
 described in ``keycloak/README.md``.
 """
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -28,7 +29,7 @@ from suveryn_api_gateway.auth import (
     OIDCProvider,
     safe_return_path,
 )
-from suveryn_api_gateway.main import check_auth_settings
+from suveryn_api_gateway.main import check_auth_settings, check_one_process
 from suveryn_api_gateway.ratelimit import RateLimits
 from suveryn_engine import LlamaServerClient, LLMSettings
 
@@ -74,7 +75,8 @@ class FakeKeycloak:
                                              "end_session_endpoint": f"{base}/logout"})
         if path.endswith("/certs"):
             jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key()))
-            return httpx.Response(200, json={"keys": [{**jwk, "kid": "k1", "alg": "RS256", "use": "sig"}]})
+            keys = getattr(self, "keys_override", None) or [{**jwk, "kid": "k1", "alg": "RS256", "use": "sig"}]
+            return httpx.Response(200, json={"keys": keys})
         if path.endswith("/token"):
             expected = "Basic " + base64.b64encode(b"suveryn-chat:s3cret").decode()
             if request.headers.get("authorization") != expected:
@@ -284,6 +286,17 @@ def test_sign_in_can_be_off_only_on_loopback(monkeypatch):
         check_auth_settings("0.0.0.0")
 
 
+def test_the_gateway_refuses_to_start_as_several_workers(monkeypatch):
+    """Sessions and rate limits are in memory: two workers would each know half (review finding)."""
+    monkeypatch.delenv("WEB_CONCURRENCY", raising=False)
+    check_one_process()
+    monkeypatch.setenv("WEB_CONCURRENCY", "1")
+    check_one_process()
+    monkeypatch.setenv("WEB_CONCURRENCY", "2")
+    with pytest.raises(SystemExit):
+        check_one_process()
+
+
 def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     realm = json.loads(REALM.read_text())
     assert realm["displayName"] == "sūveryn"  # used mid-sentence ("Sign in to sūveryn"): lower case
@@ -436,3 +449,32 @@ def test_access_log_never_contains_the_sign_in_code():
     assert StripQueryString().filter(record)
     assert "SECRET-CODE" not in record.getMessage() and "/auth/callback" in record.getMessage()
     assert any(isinstance(f, StripQueryString) for f in logging.getLogger("uvicorn.access").filters)
+
+
+def test_the_session_cap_holds_even_while_every_session_is_valid(monkeypatch):
+    """Review finding: pruning only the expired sessions let the map grow past MAX_SESSIONS as long
+    as every session was still valid. Now the least recently seen go."""
+    import suveryn_api_gateway.auth as auth_module
+    from suveryn_api_gateway.auth import User
+
+    monkeypatch.setattr(auth_module, "MAX_SESSIONS", 3)
+    a = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(FakeKeycloak().handler)))
+    tokens = {"id_token": "", "expires_in": 300, "refresh_token": "r", "refresh_expires_in": 1800}
+    first = a._new_session(User(sub="u1", username="u1", name="U1"), tokens)
+    later = [a._new_session(User(sub=f"u{i}", username=f"u{i}", name=f"U{i}"), tokens) for i in (2, 3)]
+    assert len(a._sessions) == 3
+    asyncio.run(a.session_user(first.id))  # seen again: it isn't the one to go
+    fourth = a._new_session(User(sub="u4", username="u4", name="U4"), tokens)
+    assert len(a._sessions) == 3 and first.id in a._sessions and fourth.id in a._sessions
+    assert later[0].id not in a._sessions  # the least recently seen went
+
+
+def test_a_jwks_key_without_a_kid_is_ignored(client, kc):
+    """A key with no kid can't be matched by one, and must not sit under None, where a token
+    without a kid header would find it."""
+    now = int(time.time())
+    claims = {"iss": ISSUER, "sub": "u", "iat": now, "exp": now + 300, "azp": "suveryn-chat", "typ": "Bearer"}
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(kc.key.public_key()))
+    kc.keys_override = [{**jwk, "alg": "RS256", "use": "sig"}]  # no kid at all
+    no_kid = jwt.encode(claims, kc.key, algorithm="RS256")        # no kid header either
+    assert bearer(client, no_kid) == 401
