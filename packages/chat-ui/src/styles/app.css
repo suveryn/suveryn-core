@@ -55,10 +55,15 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .doc-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doc-meta { grid-column: 2; font-size: 12px; color: var(--text-dim); }
 .doc-confirm { display: flex; gap: var(--space-2); padding-right: var(--space-2); font-size: 12px; }
+.library .sublabel { margin: var(--space-1) var(--space-1) 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+/* a case's conversations: mine, then what colleagues shared (stage 4), scrolling as one */
+.library .history-lists { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.library .history-lists ul { overflow: visible; flex: none; }
 /* cases (suveryn-tracker#10) and conversations take the room they need, up to 40% each; the
    document library gets the rest */
 .library.cases { flex: 0 1 auto; max-height: 40%; }
 .library.history { flex: 0 1 auto; max-height: 40%; }
+.library.documents { min-height: 5.5rem; }  /* never squeezed to nothing by long case and conversation lists */
 .library .case-list { overflow-y: auto; min-height: 0; }
 .library .case-list .doc-use { cursor: inherit; }
 .library .case-list [data-selected] .doc-name { font-weight: 600; }
@@ -133,7 +138,19 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .view-intro { margin: 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; max-width: 68ch; }
 .view h2.label { margin: var(--space-2) 0 0; }
 .tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--line); }
-.tab { padding: var(--space-2) 0; font-size: 13.5px; font-weight: 600; border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
+.tab { padding: var(--space-2) 0; font-size: 13.5px; font-weight: 600; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+       color: var(--text-dim); border-radius: 0; background: none; font-family: inherit; cursor: pointer; }
+.tab[data-focus-visible] { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--text); }
+/* the administrator's case pages (AdminCases.tsx, stage 4) */
+.case-settings { display: flex; flex-direction: column; gap: var(--space-2); }
+.case-settings-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
+.case-settings .caption { display: flex; align-items: center; gap: var(--space-1); margin: 0; }
+.cases-table th:first-child { white-space: nowrap; }
+.cases-table .cases-name { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.cases-table td, .cases-table thead th { text-align: left; }
+.cases-table tr[data-due] td, .cases-table tr[data-due] th { background: oklch(from var(--accent) l c h / 0.08); }
 .range { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); } /* level with the dates' fields, under their labels */
 .range-dates { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
 .range-dates .ui-field { margin: 0; }
@@ -289,7 +306,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
   .library { flex: 0 0 auto; }
   .library ul { max-height: 22vh; }
   .library.history { flex: 0 0 auto; max-height: none; }  /* the shrink and 40% cap are for the full-height sidebar only */
-  .library.history ul { max-height: 14vh; }
+  .library.history ul, .library.history .history-lists { max-height: 14vh; }
+  .library.history .history-lists ul { max-height: none; }
   .sidebar-foot .caption { display: none; }
   .conversation { padding-inline: var(--space-4); }
   .composer-wrap { padding-inline: var(--space-4); }

@@ -61,7 +61,7 @@ export type Health = {
 // admin: may open the administration page; office_wide: a new case is open to the whole office by
 // default; cases_keep: how long a closed case is kept before it is deleted ("manual": until deleted by hand)
 export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
-export type Me = { username: string; name: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod };
+export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing";
@@ -198,8 +198,8 @@ export async function deleteDocument(id: string, conversations: "clean" | "delet
 }
 
 /** The saved conversations that cite or attach a document (asked before deleting it). */
-export async function documentConversations(id: string): Promise<ConversationSummary[]> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}/conversations`);
+export async function documentConversations(id: string, caseId?: string | null): Promise<ConversationSummary[]> {
+  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}/conversations${inCase(caseId)}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -253,10 +253,22 @@ export function reviewPages(warnings: Warning[] | undefined): number[] {
 }
 
 /** A saved conversation in the list (GET /v1/conversations): no content, newest first. */
-export type ConversationSummary = { id: string; title: string; created_at: string; updated_at: string; case_id?: string | null };
+// owner: who started it (a Keycloak id); shared: shared with the case's members (stage 4), read-only for them
+export type ConversationSummary = {
+  id: string; title: string; created_at: string; updated_at: string; case_id?: string | null; owner?: string; shared?: boolean;
+};
 export type SavedConversation = ConversationSummary & { turns: Turn[] };
 
-/** The signed-in user's saved conversations in the personal space or in a case, most recently changed first. */
+/** Shares one of the signed-in user's conversations with its case, or stops sharing it (its owner only, open case). */
+export async function shareConversation(id: string, shared: boolean): Promise<ConversationSummary> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}/share`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shared }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** The signed-in user's saved conversations in the personal space, or in a case theirs and the shared ones, most recently changed first. */
 export async function listConversations(caseId?: string | null): Promise<ConversationSummary[]> {
   const r = await fetch(`/v1/conversations${inCase(caseId)}`);
   if (!r.ok) throw await responseError(r);
@@ -420,6 +432,30 @@ export async function keepCase(id: string, change: { keep?: boolean; extend?: bo
  *  manages, or every one for an administrator. */
 export async function listDueCases(): Promise<Case[]> {
   const r = await fetch("/v1/cases/due");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** The administrator's pages (stage 4): every case with its manager, and the office's two case settings. */
+export type AdminCase = Case & { manager_username: string; manager_name: string; members: number };
+export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; updated_at: string | null; updated_by: string };
+
+export async function listAdminCases(): Promise<AdminCase[]> {
+  const r = await fetch("/v1/admin/cases");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function getCaseSettings(): Promise<CaseSettings> {
+  const r = await fetch("/v1/admin/cases/settings");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep">>): Promise<CaseSettings> {
+  const r = await fetch("/v1/admin/cases/settings", {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
+  });
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
