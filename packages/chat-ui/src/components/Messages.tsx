@@ -65,7 +65,7 @@ function DownloadButton({ filename, text, what }: {
   );
 }
 
-function SourceCard({ n, citation, filename, terms = [], claims = [] }: { n: number; citation: Citation; filename: string; terms?: string[]; claims?: string[] }) {
+export function SourceCard({ n, citation, filename, terms = [], claims = [] }: { n: number; citation: Citation; filename: string; terms?: string[]; claims?: string[] }) {
   const m = useT();
   const quote = useRef<HTMLQuoteElement>(null);
   // Scroll the passage (not the page) to the first marked fact: a long passage shows only its start.

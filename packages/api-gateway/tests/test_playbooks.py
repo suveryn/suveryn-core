@@ -110,7 +110,7 @@ needs_db = pytest.mark.skipif(not URL, reason="SUVERYN_TEST_DATABASE_URL not set
 def runs():
     s = RunStore(URL)
     yield s
-    s._execute("DELETE FROM playbook_runs WHERE started_by IN (%s, %s)", (ALICE, BOB))
+    s._execute("DELETE FROM playbook_runs WHERE started_by IN (%s, %s, %s)", (ALICE, BOB, "notaris.test"))
     s.close()
 
 
