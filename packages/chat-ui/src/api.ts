@@ -438,7 +438,8 @@ export async function listDueCases(): Promise<Case[]> {
 
 /** The administrator's pages (stage 4): every case with its manager, and the office's two case settings. */
 export type AdminCase = Case & { manager_username: string; manager_name: string; members: number };
-export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; updated_at: string | null; updated_by: string };
+// conversations_keep: how long saved conversations are kept after their last change, in cases too (the data lifecycle, suveryn-tracker#31)
+export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; conversations_keep: KeepPeriod; updated_at: string | null; updated_by: string };
 
 export async function listAdminCases(): Promise<AdminCase[]> {
   const r = await fetch("/v1/admin/cases");
@@ -452,7 +453,7 @@ export async function getCaseSettings(): Promise<CaseSettings> {
   return r.json();
 }
 
-export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep">>): Promise<CaseSettings> {
+export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep">>): Promise<CaseSettings> {
   const r = await fetch("/v1/admin/cases/settings", {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
   });
