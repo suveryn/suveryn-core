@@ -7,6 +7,7 @@ license = "AGPL-3.0-or-later"
 dependencies = [
     "suveryn-engine",
     "suveryn-chat",
+    "suveryn-playbooks",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "python-multipart>=0.0.9",  # file uploads (POST /v1/documents)
@@ -25,6 +26,7 @@ suveryn-gateway = "suveryn_api_gateway.main:run"
 [tool.uv.sources]
 suveryn-engine = { workspace = true }
 suveryn-chat = { workspace = true }
+suveryn-playbooks = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -288,6 +288,9 @@ async def delete_case_everywhere(app: FastAPI, case_id: uuid.UUID) -> bool:
     history: Database = app.state.history
     if history.configured and (store := history.get()) is not None:
         await run_in_threadpool(store.delete_case, case_id)
+    runs: Database = app.state.runs
+    if runs.configured and (store := runs.get()) is not None:
+        await run_in_threadpool(store.delete_case, case_id)
     cases: Database = app.state.cases
     store = cases.get()
     return store is not None and await run_in_threadpool(store.delete, case_id)
