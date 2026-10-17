@@ -189,7 +189,14 @@ def usage_or_503(request: Request) -> UsageStore:
 
 # ------------------------------------------------------------------ cases and the scope
 def case_settings(request: Request) -> CaseSettings:
-    return request.app.state.case_settings
+    """The office's case settings as they apply now: what the appliance was provisioned with
+    (``app.state.case_settings``, from the environment) with what an administrator chose since in
+    the dashboard on top (``CaseStore.overrides``, stage 4). Without a case store, as provisioned."""
+    base: CaseSettings = request.app.state.case_settings
+    db: Database = request.app.state.cases
+    store = db.get() if db.configured else None
+    overrides = getattr(store, "overrides", None)
+    return base.with_overrides(overrides()) if overrides is not None else base
 
 
 def case_id_or_422(case_id: str) -> uuid.UUID:
@@ -208,6 +215,8 @@ async def visible_case(request: Request, case_id: str) -> tuple[CaseStore, uuid.
     if case is None or not (may(caller, case, case.my_role, "read", office_wide)
                             or may(caller, case, case.my_role, "list", office_wide)):
         raise HTTPException(404, "Unknown case.")
+    if case.my_role is None and office_wide and case.access == "default":
+        case = case.model_copy(update={"my_role": "reader"})  # rule 3, as the list reports it
     return store, cid, caller, case
 
 

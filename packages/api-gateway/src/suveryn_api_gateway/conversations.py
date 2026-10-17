@@ -6,7 +6,10 @@ the shape loosely (``SavedTurn``) and bounds the size; it never reads the text.
 
 Cases (suveryn-tracker#10): a conversation started in a case carries its ``case_id`` and is listed
 with that case; one without is in the owner's personal space. Either way it is private to whoever
-started it (sharing with the case's members comes in stage 4 of docs/design/cases.md).
+started it, unless its owner **shares** it with the case (decision 12, stage 4): a shared
+conversation is listed for and readable by everyone who may read the case, read-only for them
+(only the owner saves, shares, unshares or deletes it). The gateway checks the right in the case;
+the store only knows ``shared``.
 
 Retention: kept until the user deletes it (one conversation, or all of them when signing out).
 An administrator can cap the age with ``SUVERYN_CONVERSATION_MAX_AGE_DAYS``: older conversations
@@ -99,6 +102,14 @@ class ConversationSummary(BaseModel):
     created_at: datetime
     updated_at: datetime
     case_id: str | None = None
+    owner: str = ""        # who started it (a Keycloak id); the UI names them from the case's members
+    shared: bool = False   # shared with the case's members (stage 4)
+
+
+class ShareIn(BaseModel):
+    """Body of ``POST /v1/conversations/{id}/share``."""
+
+    shared: bool
 
 
 class Conversation(ConversationSummary):
@@ -169,26 +180,44 @@ class ConversationStore(PgStore):
             log.info("deleted %d conversations older than %d days", n, self.settings.max_age_days)
         return n
 
+    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared"
+
     @staticmethod
     def _summary(r) -> ConversationSummary:
         return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
-                                   case_id=str(r[4]) if r[4] else None)
+                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6])
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
-        """The owner's conversations in one place, most recently changed first: their personal
-        space (``case_id`` None) or one case."""
+        """The conversations in one place, most recently changed first: the owner's own in their
+        personal space (``case_id`` None), or in one case their own and the ones others shared."""
         self.purge()
         fresh, params = self._fresh()
-        rows = self._execute(f"SELECT id, title, created_at, updated_at, case_id FROM conversations"
-                             f" WHERE owner = %s AND case_id IS NOT DISTINCT FROM %s AND {fresh} ORDER BY updated_at DESC",
-                             (owner, case_id, *params)).fetchall()
+        rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
+                             f" WHERE case_id IS NOT DISTINCT FROM %s AND (owner = %s OR (shared AND case_id IS NOT NULL))"
+                             f" AND {fresh} ORDER BY updated_at DESC", (case_id, owner, *params)).fetchall()
         return [self._summary(r) for r in rows]
 
     def get(self, conversation_id: uuid.UUID, owner: str) -> Conversation | None:
+        """The owner's conversation; None if it is someone else's (see ``get_shared``)."""
         fresh, params = self._fresh()
-        r = self._execute(f"SELECT id, title, created_at, updated_at, case_id, turns FROM conversations"
+        r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                           f" WHERE id = %s AND owner = %s AND {fresh}", (conversation_id, owner, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[5]) if r else None
+        return Conversation(**self._summary(r).model_dump(), turns=r[7]) if r else None
+
+    def get_shared(self, conversation_id: uuid.UUID) -> Conversation | None:
+        """A conversation its owner shared with its case, whoever asks: the gateway checks the
+        caller may read that case before returning it."""
+        fresh, params = self._fresh()
+        r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
+                          f" WHERE id = %s AND shared AND case_id IS NOT NULL AND {fresh}", (conversation_id, *params)).fetchone()
+        return Conversation(**self._summary(r).model_dump(), turns=r[7]) if r else None
+
+    def set_shared(self, conversation_id: uuid.UUID, owner: str, shared: bool) -> ConversationSummary | None:
+        """Share the owner's conversation with its case, or stop sharing it. None if it isn't the
+        owner's or isn't in a case (a personal conversation can't be shared)."""
+        r = self._execute(f"UPDATE conversations SET shared = %s WHERE id = %s AND owner = %s AND case_id IS NOT NULL"
+                          f" RETURNING {self.SUMMARY}", (shared, conversation_id, owner)).fetchone()
+        return self._summary(r) if r else None
 
     def save(self, conversation_id: uuid.UUID, owner: str, body: ConversationIn,
              gone: Callable[[str], bool] | None = None) -> bool:
@@ -213,29 +242,34 @@ class ConversationStore(PgStore):
         return self._execute("DELETE FROM conversations WHERE id = %s AND owner = %s",
                              (conversation_id, owner)).rowcount > 0
 
-    def using_document(self, owner: str, document_id: uuid.UUID) -> list[ConversationSummary]:
-        """The owner's conversations that cite or attach this document, most recently changed first."""
+    def using_document(self, owner: str, document_id: uuid.UUID,
+                       case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
+        """The conversations that cite or attach this document, most recently changed first: the
+        owner's, or with ``case_id`` everyone's in that case (a case's document is cited by every
+        member who asked about it)."""
         fresh, params = self._fresh()
-        rows = self._execute(f"SELECT id, title, created_at, updated_at, case_id, turns FROM conversations"
-                             f" WHERE owner = %s AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
-                             (owner, f'%"{document_id}"%', *params)).fetchall()
-        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[5])]
+        whose, who = ("case_id = %s", case_id) if case_id is not None else ("owner = %s", owner)
+        rows = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
+                             f" WHERE {whose} AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
+                             (who, f'%"{document_id}"%', *params)).fetchall()
+        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[7])]
 
-    def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False) -> int:
-        """After deleting a document: take its passages out of the owner's conversations, or delete those
-        conversations (``delete_conversations``). Returns how many conversations were changed or deleted.
+    def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False,
+                        case_id: uuid.UUID | None = None) -> int:
+        """After deleting a document: take its passages out of the conversations that cite it (the
+        owner's, or with ``case_id`` everyone's in that case), or delete those conversations
+        (``delete_conversations``). Returns how many conversations were changed or deleted.
         A cleaned conversation keeps its date, so the sidebar's order doesn't change."""
         n = 0
-        for summary in self.using_document(owner, document_id):
+        for summary in self.using_document(owner, document_id, case_id):
             if delete_conversations:
-                n += self.delete(uuid.UUID(summary.id), owner)
+                n += self._execute("DELETE FROM conversations WHERE id = %s", (summary.id,)).rowcount
                 continue
             with self.transaction():  # the row locked between reading and writing its turns
-                row = self._execute("SELECT turns FROM conversations WHERE id = %s AND owner = %s FOR UPDATE",
-                                    (summary.id, owner)).fetchone()
+                row = self._execute("SELECT turns FROM conversations WHERE id = %s FOR UPDATE", (summary.id,)).fetchone()
                 if row and redact(row[0], lambda d: d == str(document_id)):
-                    n += self._execute("UPDATE conversations SET turns = %s WHERE id = %s AND owner = %s",
-                                       (json.dumps(row[0]), summary.id, owner)).rowcount
+                    n += self._execute("UPDATE conversations SET turns = %s WHERE id = %s",
+                                       (json.dumps(row[0]), summary.id)).rowcount
         return n
 
     def delete_all(self, owner: str) -> int:

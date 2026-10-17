@@ -8,6 +8,7 @@
  * never stores or returns text. Informational: nothing limits anyone.
  */
 import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
+import { AdminCases } from "./AdminCases";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
@@ -163,12 +164,27 @@ export function UsageView({ onBack }: { onBack: () => void }) {
 /** Administrators: the office's usage, per user, with the notional cloud cost and its rates. */
 export function AdminView({ onBack }: { onBack: () => void }) {
   const m = useT();
-  const r = useReport(getOfficeUsage);
-  const report = r.report as OfficeUsageReport | null;
+  const [tab, setTab] = useState<"usage" | "cases">("usage");
   return (
     <section className="view">
       <Header icon={<Shield size={18} aria-hidden />} title={m.administration} onBack={onBack} />
-      <nav className="tabs" aria-label={m.administration}><span className="tab on" aria-current="page">{m.adminUsage}</span></nav>
+      <nav className="tabs" aria-label={m.administration}>
+        <Button variant="plain" className={`tab${tab === "usage" ? " on" : ""}`} aria-current={tab === "usage" ? "page" : undefined}
+                onPress={() => setTab("usage")}>{m.adminUsage}</Button>
+        <Button variant="plain" className={`tab${tab === "cases" ? " on" : ""}`} aria-current={tab === "cases" ? "page" : undefined}
+                onPress={() => setTab("cases")}>{m.adminCases}</Button>
+      </nav>
+      {tab === "cases" ? <AdminCases /> : <AdminUsage />}
+    </section>
+  );
+}
+
+function AdminUsage() {
+  const m = useT();
+  const r = useReport(getOfficeUsage);
+  const report = r.report as OfficeUsageReport | null;
+  return (
+    <>
       <p className="view-intro">{m.adminIntro}</p>
       <RangePicker {...r} />
       {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
@@ -205,7 +221,7 @@ export function AdminView({ onBack }: { onBack: () => void }) {
           <RatesForm report={report} onSaved={r.refresh} />
         </>
       )}
-    </section>
+    </>
   );
 }
 

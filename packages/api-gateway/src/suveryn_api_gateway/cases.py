@@ -15,8 +15,13 @@ before it the case is listed as due (``due``) and its manager or an administrato
 it by one period, reopen it, or mark it ``keep`` (never deleted by the period). Then the
 gateway's sweep (hourly) deletes the case with its documents, index, conversations and log. What
 deletion guarantees is the same as for a document (``Store.delete_document``: unreachable, not
-unrecoverable, until suveryn-tracker#31 decides secure erasure). Shared conversations come in
-stage 4.
+unrecoverable, until suveryn-tracker#31 decides secure erasure). Stage 4: a conversation in a
+case can be shared with the case (``conversations.py``), and the office's two settings, the
+default access and the keep period, are changed by an administrator in the dashboard
+(``case_settings`` table): the environment gives the values the appliance was provisioned with,
+the table what an administrator chose since (``CaseStore.overrides``), and the gateway merges
+them on every request (``CaseSettings.with_overrides``). An administrator also lists every case
+(``list_all``, with who manages it) and hands cases over from there.
 
 What is stored: the office's own file number (``reference``), a name, the case type, a short
 subject, who manages it and when it was opened. Never a client's name as a label (decision 2):
@@ -45,7 +50,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -112,7 +117,15 @@ CREATE TABLE IF NOT EXISTS case_events (
 );
 CREATE INDEX IF NOT EXISTS case_events_case_at ON case_events (case_id, at DESC);
 CREATE INDEX IF NOT EXISTS case_events_at ON case_events (at);
+CREATE TABLE IF NOT EXISTS case_settings (
+    key        text PRIMARY KEY,
+    value      text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    updated_by text NOT NULL DEFAULT ''
+);
 """
+
+SETTING_KEYS = ("default_access", "keep")  # what an administrator may change at runtime
 
 
 class DuplicateReference(ValueError):
@@ -134,6 +147,16 @@ class CaseSettings:
     @property
     def keep_period(self) -> timedelta | None:
         return KEEP_PERIODS[self.keep]
+
+    def with_overrides(self, overrides: dict[str, str]) -> CaseSettings:
+        """These settings with what an administrator chose since provisioning (``CaseStore.overrides``)
+        on top; an unknown or invalid value is ignored, so a bad row can never lock the office out."""
+        changes = {}
+        if overrides.get("default_access") in ("office", "members"):
+            changes["default_access"] = overrides["default_access"]
+        if overrides.get("keep") in KEEP_PERIODS:
+            changes["keep"] = overrides["keep"]
+        return replace(self, **changes) if changes else self
 
     @classmethod
     def from_env(cls) -> CaseSettings:
@@ -186,6 +209,31 @@ class Case(BaseModel):
     created_at: datetime
     updated_at: datetime
     my_role: Role | None = None
+
+
+class AdminCase(Case):
+    """A case as the administrator's list shows it (stage 4): with its manager's name and how many
+    members it has. Nothing from inside the case."""
+
+    manager_username: str = ""
+    manager_name: str = ""
+    members: int = 0
+
+
+class SettingsOut(BaseModel):
+    """The office's case settings as they apply now (``GET /v1/admin/cases/settings``)."""
+
+    default_access: Literal["office", "members"]
+    keep: Literal["6m", "1y", "5y", "manual"]
+    updated_at: datetime | None = None  # None: as provisioned, never changed in the dashboard
+    updated_by: str = ""
+
+
+class SettingsIn(BaseModel):
+    """Body of ``PUT /v1/admin/cases/settings``: what to change; a field left out stays."""
+
+    default_access: Literal["office", "members"] | None = None
+    keep: Literal["6m", "1y", "5y", "manual"] | None = None
 
 
 class Member(BaseModel):
@@ -273,6 +321,8 @@ class CaseStore(PgStore):
     def __init__(self, settings: CaseSettings):
         super().__init__(settings.database_url)
         self.settings = settings
+        self._overrides: dict[str, str] | None = None
+        self._overrides_meta: tuple[datetime, str] | None = None
 
     COLUMNS = ("id", "reference", "name", "type", "subject", "access", "state", "opened_at", "closed_at",
                "keep_until", "keep", "manager", "created_by", "created_at", "updated_at")
@@ -413,6 +463,44 @@ class CaseStore(PgStore):
         """Delete the case and its members. Its documents and conversations are the other stores'
         to delete (the gateway does, by ``case_id``), before this."""
         return self._execute("DELETE FROM cases WHERE id = %s", (case_id,)).rowcount > 0
+
+    def list_all(self) -> list[AdminCase]:
+        """Every case, open ones first, most recently changed first, with its manager's name and
+        its member count: the administrator's list (stage 4). Nothing from inside a case."""
+        rows = self._execute(
+            f"{self._SELECT}, m.username, m.name, (SELECT count(*) FROM case_members x WHERE x.case_id = c.id)"
+            ' FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = c.manager'
+            " ORDER BY c.state = 'closed', c.updated_at DESC").fetchall()
+        return [AdminCase(**self._case(r[:-3]).model_dump(), manager_username=r[-3] or "", manager_name=r[-2] or "",
+                          members=r[-1]) for r in rows]
+
+    # ------------------------------------------------------------------ the office's settings (stage 4)
+    def overrides(self) -> dict[str, str]:
+        """What an administrator chose in the dashboard, by key (``SETTING_KEYS``); empty until
+        they change something. Read once and kept in memory (one gateway per appliance), refreshed
+        by ``set_overrides``."""
+        if self._overrides is None:
+            rows = self._execute("SELECT key, value, updated_at, updated_by FROM case_settings").fetchall()
+            self._overrides = {r[0]: r[1] for r in rows if r[0] in SETTING_KEYS}
+            self._overrides_meta = max(((r[2], r[3]) for r in rows), default=None)
+        return dict(self._overrides)
+
+    def overrides_meta(self) -> tuple[datetime, str] | None:
+        """When and by whom the settings were last changed in the dashboard; None if never."""
+        self.overrides()
+        return self._overrides_meta
+
+    def set_overrides(self, changes: dict[str, str], by: str) -> dict[str, str]:
+        """Store what an administrator chose; returns the overrides as they are now."""
+        with self.transaction():
+            for key, value in changes.items():
+                if key not in SETTING_KEYS:
+                    raise ValueError(f"not a setting: {key}")
+                self._execute("INSERT INTO case_settings (key, value, updated_at, updated_by) VALUES (%s, %s, now(), %s)"
+                              " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by",
+                              (key, value, by))
+        self._overrides = None
+        return self.overrides()
 
     def manages(self, user: str) -> int:
         """How many cases this user manages (an account can't go while it manages one, decision 6)."""
