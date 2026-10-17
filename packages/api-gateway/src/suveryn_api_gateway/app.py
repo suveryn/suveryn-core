@@ -48,6 +48,7 @@ over the limit the answer is 429 with ``Retry-After``.
 import asyncio
 import logging
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 
@@ -60,10 +61,10 @@ from suveryn_engine import LlamaServerClient, LLMSettings, UsageRecord
 from . import routes
 from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
 from .cases import CaseSettings, CaseStore
-from .playbooks import RunStore
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import ConversationSettings, ConversationStore
 from .directory import Directory, DirectorySettings, LocalDirectory
+from .playbooks import RunStore
 from .ratelimit import RateLimiter, RateLimits
 from .routes.common import (
     ADMIN_ROLE,
@@ -109,6 +110,7 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 # With sign-in off, only these clients may use /v1: this machine ("testclient" is Starlette's test client).
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "testclient"}
 SWEEP_INTERVAL_S = 3600  # how often closed cases past their keep period are deleted
+STALE_RUN_S = 30 * 60    # a playbook run reading this long has lost its model call
 
 
 def _too_many(wait: int) -> JSONResponse:
@@ -128,6 +130,15 @@ def _default_documents():
     service = DocumentService(RagSettings.from_env())
     service.start()
     return service
+
+
+_RUN_PATH = re.compile(r"^/v1/cases/[^/]+/playbooks/[^/]+/runs$")
+
+
+def _limit_path(path: str) -> str:
+    """The path a per-user limit is keyed on: starting a playbook run is a model call like a question,
+    so it shares the chat limit (review 2026-10-17)."""
+    return "/v1/chat" if _RUN_PATH.match(path) else path
 
 
 def _connector(factory, settings):
@@ -196,6 +207,10 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             app.state.directory = Directory(DirectorySettings.from_env())
         for db in (app.state.history, app.state.usage, app.state.cases, app.state.runs):
             await run_in_threadpool(db.get)
+        # A run reading when the gateway stopped is dead: its model call lived in this process.
+        run_store = app.state.runs.get()
+        if run_store is not None and (n := await run_in_threadpool(run_store.interrupt, 0)):
+            log.warning("%d playbook run(s) interrupted by the restart", n)
 
         async def record_usage(r: UsageRecord) -> None:
             """The engine's usage hook: store the call's counts (lost, not retried, without a database)."""
@@ -217,6 +232,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                         for cid in await run_in_threadpool(store.due_for_deletion):
                             if await delete_case_everywhere(app, cid):
                                 log.info("case %s deleted: its keep period passed", cid)
+                    runs_store = app.state.runs.get() if app.state.runs.configured else None
+                    if runs_store is not None:
+                        await run_in_threadpool(runs_store.interrupt, STALE_RUN_S)  # reading longer than any model call takes
                     history = app.state.history.get() if app.state.history.configured else None
                     if history is not None:
                         settings: CaseSettings = app.state.case_settings
@@ -296,7 +314,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             return JSONResponse({"detail": "Sign in to continue."}, status_code=401,
                                 headers={"WWW-Authenticate": 'Bearer realm="suveryn"'})
         request.state.user = user
-        limiter = per_user_limits.get((request.method, request.url.path))
+        limiter = per_user_limits.get((request.method, _limit_path(request.url.path)))
         if limiter is not None and (wait := limiter.hit(user.sub)) is not None:
             return _too_many(wait)
         return await call_next(request)
