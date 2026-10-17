@@ -289,15 +289,16 @@ class CaseStore(PgStore):
         """A new open case, managed by its creator, who is its first member."""
         case_id = uuid.uuid4()
         try:
-            row = self._execute(
-                "INSERT INTO cases (id, reference, name, type, subject, access, manager, created_by)"
-                f" VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING {self._COLS}",
-                (case_id, body.reference, body.name, body.type, json.dumps(body.subject), body.access, user, user)).fetchone()
+            with self.transaction():  # the case, its manager and the first log line: all or nothing
+                row = self._execute(
+                    "INSERT INTO cases (id, reference, name, type, subject, access, manager, created_by)"
+                    f" VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING {self._COLS}",
+                    (case_id, body.reference, body.name, body.type, json.dumps(body.subject), body.access, user, user)).fetchone()
+                self._execute('INSERT INTO case_members (case_id, "user", role, added_by, username, name)'
+                              " VALUES (%s, %s, %s, %s, %s, %s)", (case_id, user, "manager", user, username, name))
+                self.log(case_id, user, "created", {})
         except psycopg.errors.UniqueViolation as e:
             raise DuplicateReference(body.reference) from e
-        self._execute('INSERT INTO case_members (case_id, "user", role, added_by, username, name) VALUES (%s, %s, %s, %s, %s, %s)',
-                      (case_id, user, "manager", user, username, name))
-        self.log(case_id, user, "created", {})
         return self._case(row, "manager")
 
     def get(self, case_id: uuid.UUID, user: str) -> Case | None:
@@ -372,19 +373,21 @@ class CaseStore(PgStore):
         """Mark a closed case kept (``keep`` True: never deleted by the period) or not (False: deleted
         one period from now), and/or ``extend`` its deletion by one period from its current date (or
         from now, if that date has passed). None if the case doesn't exist or isn't closed."""
-        row = self._execute("SELECT keep_until, keep FROM cases WHERE id = %s AND state = 'closed'", (case_id,)).fetchone()
-        if row is None:
-            return None
-        keep_until, kept = row
-        now = datetime.now(UTC)
-        if keep is not None:
-            kept = keep
-            if not keep:
-                keep_until = now + period if period else None
-        if extend and period:
-            keep_until = max(keep_until or now, now) + period
-        row = self._execute(f"UPDATE cases SET keep_until = %s, keep = %s, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
-                            (keep_until, kept, case_id)).fetchone()
+        with self.transaction():  # read, decide, write: with the row locked, two changes at once can't lose one
+            row = self._execute("SELECT keep_until, keep FROM cases WHERE id = %s AND state = 'closed' FOR UPDATE",
+                                (case_id,)).fetchone()
+            if row is None:
+                return None
+            keep_until, kept = row
+            now = datetime.now(UTC)
+            if keep is not None:
+                kept = keep
+                if not keep:
+                    keep_until = now + period if period else None
+            if extend and period:
+                keep_until = max(keep_until or now, now) + period
+            row = self._execute(f"UPDATE cases SET keep_until = %s, keep = %s, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
+                                (keep_until, kept, case_id)).fetchone()
         return self._case(row) if row else None
 
     def due(self, user: str, *, admin: bool, within: timedelta = timedelta(days=DUE_WARNING_DAYS)) -> list[Case]:
@@ -446,7 +449,7 @@ class CaseStore(PgStore):
     def set_manager(self, case_id: uuid.UUID, user: str, by: str, username: str = "", name: str = "") -> Case | None:
         """Hand the case over: ``user`` becomes its manager (added as a member if needed), the
         previous manager stays on as a contributor. One transaction. None if the case doesn't exist."""
-        with self._conn.transaction():
+        with self.transaction():
             row = self._execute("SELECT manager FROM cases WHERE id = %s FOR UPDATE", (case_id,)).fetchone()
             if row is None:
                 return None
