@@ -894,7 +894,7 @@ def test_deleting_a_cases_document_cleans_every_members_conversations(office):
 
 
 def test_an_administrator_lists_every_case_and_changes_the_offices_settings(office):
-    c, kc, cases, _, _ = office
+    c, kc, cases, history, _ = office
     alice, bob, admin = as_user(kc, ALICE), as_user(kc, BOB), admin_headers(kc)
     assert c.get("/v1/admin/cases", headers=alice).status_code == 403
     assert c.get("/v1/admin/cases/settings", headers=alice).status_code == 403
@@ -909,10 +909,16 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     assert all("subject" not in x or x["subject"] == NEW["subject"] for x in listed)  # the case's label, nothing inside it
     # the settings: as provisioned (members, 6m) until changed here, then effective at once
     before = c.get("/v1/admin/cases/settings", headers=admin).json()
-    assert before == {"default_access": "members", "keep": "6m", "updated_at": None, "updated_by": ""}
+    assert before == {"default_access": "members", "keep": "6m", "conversations_keep": "manual", "updated_at": None, "updated_by": ""}
     assert c.put("/v1/admin/cases/settings", json={}, headers=admin).status_code == 422
     r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual"}, headers=admin)
     assert r.status_code == 200 and r.json()["default_access"] == "office" and r.json()["keep"] == "manual"
+    # the conversations period (the data lifecycle, suveryn-tracker#31) reaches the conversation store at the next listing
+    r = c.put("/v1/admin/cases/settings", json={"conversations_keep": "1y"}, headers=admin)
+    assert r.status_code == 200 and r.json()["conversations_keep"] == "1y" and r.json()["keep"] == "manual"
+    assert history.keep == "manual"
+    assert c.get("/v1/conversations", headers=alice).status_code == 200
+    assert history.keep == "1y"
     assert r.json()["updated_by"] and r.json()["updated_at"]  # the administrator's username, and when
     assert c.get(f"/v1/cases/{cid}", headers=as_user(kc, CARLA)).json()["my_role"] == "reader"  # office-wide now
     closed = c.post(f"/v1/cases/{cid}/close", headers=alice).json()
@@ -942,6 +948,8 @@ def test_store_lists_every_case_for_the_administrator_and_keeps_the_offices_sett
     merged = CaseSettings(database_url=URL, default_access="members", keep="6m").with_overrides(s.overrides())
     assert merged.office_wide and merged.keep == "1y"
     assert CaseSettings(keep="6m").with_overrides({"keep": "2y", "default_access": "everyone"}).keep == "6m"  # bad rows are ignored
+    assert CaseSettings().with_overrides({"conversations_keep": "5y"}).conversations_keep == "5y"
+    assert CaseSettings().with_overrides({"conversations_keep": "2y"}).conversations_keep == "manual"
     fresh = CaseStore(CaseSettings(database_url=URL))  # another store reads what was chosen
     try:
         assert fresh.overrides() == {"keep": "1y", "default_access": "office"}

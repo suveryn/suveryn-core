@@ -257,24 +257,28 @@ async def admin_cases(request: Request):
 
 @router.get("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
 async def admin_case_settings(request: Request):
-    """Administrators: the office's case settings as they apply now: the default access of a new
-    case and how long closed cases are kept. As provisioned, until changed here."""
+    """Administrators: the office's settings as they apply now: the default access of a new case,
+    how long closed cases are kept, and how long saved conversations are kept (the data lifecycle,
+    suveryn-tracker#31). As provisioned, until changed here."""
     admin_or_403(request)
     store, effective = cases_or_503(request), case_settings(request)
     meta = await run_in_threadpool(store.overrides_meta)
     return SettingsOut(default_access=effective.default_access, keep=effective.keep,
+                       conversations_keep=effective.conversations_keep,
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
 @router.put("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
 async def set_admin_case_settings(body: SettingsIn, request: Request):
-    """Administrators: change the default access (``office`` or ``members``) and the keep period
-    (``6m``, ``1y``, ``5y`` or ``manual``). Takes effect at once for new cases and for cases closed
-    from now on; a case already closed keeps its date (extend or keep it from the case)."""
+    """Administrators: change the default access (``office`` or ``members``), the keep period of
+    closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).
+    Takes effect at once for new cases and for cases closed from now on; a case already closed keeps
+    its date (extend or keep it from the case). The conversations period applies to every saved
+    conversation from its last change: shortening it deletes the older ones at the next listing or sweep."""
     admin_or_403(request)
     changes = body.model_dump(exclude_none=True)
     if not changes:
-        raise HTTPException(422, "Say what to change: default_access, or keep.")
+        raise HTTPException(422, "Say what to change: default_access, keep, or conversations_keep.")
     user = getattr(request.state, "user", None)
     await run_in_threadpool(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev")
     return await admin_case_settings(request)

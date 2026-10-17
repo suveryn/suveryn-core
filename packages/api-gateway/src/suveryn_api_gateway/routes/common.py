@@ -164,7 +164,7 @@ def cases_or_503(request: Request) -> CaseStore:
 
 def history_or_none(request: Request) -> ConversationStore | None:
     history: Database = request.app.state.history
-    return history.get() if history.configured else None
+    return with_keep(history.get(), request) if history.configured else None
 
 
 def history_or_503(request: Request) -> ConversationStore:
@@ -174,6 +174,14 @@ def history_or_503(request: Request) -> ConversationStore:
     store = history.get()
     if store is None:
         raise HTTPException(503, f"Saved conversations are not available right now: {history.error}.")
+    return with_keep(store, request)
+
+
+def with_keep(store: ConversationStore | None, request: Request) -> ConversationStore | None:
+    """The conversation store told the keep period that applies now (the office's setting, as
+    provisioned or as an administrator changed it since), so listing and purging use it."""
+    if store is not None:
+        store.keep = case_settings(request).conversations_keep
     return store
 
 

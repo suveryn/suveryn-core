@@ -73,24 +73,26 @@ function SettingsForm() {
   const [settings, setSettings] = useState<CaseSettings | null>(null);
   const [access, setAccess] = useState<"office" | "members">("members");
   const [keep, setKeep] = useState<KeepPeriod>("manual");
+  const [conversations, setConversations] = useState<KeepPeriod>("manual");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    getCaseSettings().then((s) => { setSettings(s); setAccess(s.default_access); setKeep(s.keep); })
+    getCaseSettings().then((s) => { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); })
       .catch((e: Error) => setError(m.settingsFailed(e.message)));
   }, [m]);
-  const changed = settings !== null && (access !== settings.default_access || keep !== settings.keep);
+  const changed = settings !== null && (access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep);
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      const s = await setCaseSettings({ default_access: access, keep });
+      const s = await setCaseSettings({ default_access: access, keep, conversations_keep: conversations });
       setSettings(s);
       setSaved(true);
     } catch (e) { setError(m.settingsFailed((e as Error).message)); } finally { setBusy(false); }
   };
   const keepLabel = (p: KeepPeriod) => (p === "manual" ? m.keepManual : m.keepFor(keepPeriodLabel(p, m) ?? p));
+  const conversationsLabel = (p: KeepPeriod) => (p === "manual" ? m.conversationsKeepManual : m.keepFor(keepPeriodLabel(p, m) ?? p));
   return (
     <section className="case-settings" aria-labelledby="case-settings-title">
       <h2 id="case-settings-title" className="label">{m.caseSettingsTitle}</h2>
@@ -101,6 +103,9 @@ function SettingsForm() {
         <SelectField name="keep" label={m.settingKeep} value={keep} size="small"
                      onChange={(v) => { setKeep(v as KeepPeriod); setSaved(false); }}
                      options={(["6m", "1y", "5y", "manual"] as KeepPeriod[]).map((p) => ({ id: p, label: keepLabel(p) }))} />
+        <SelectField name="conversations_keep" label={m.settingConversationsKeep} value={conversations} size="small"
+                     onChange={(v) => { setConversations(v as KeepPeriod); setSaved(false); }}
+                     options={(["6m", "1y", "5y", "manual"] as KeepPeriod[]).map((p) => ({ id: p, label: conversationsLabel(p) }))} />
         <Button size="small" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
       </div>
       <p className="caption">
