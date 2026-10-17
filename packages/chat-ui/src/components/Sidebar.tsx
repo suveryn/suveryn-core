@@ -4,7 +4,7 @@
  * uploads) of the case or space that is open. A document in needs_review is usable but names the
  * pages to check. Deleting a conversation or a document asks for confirmation first.
  */
-import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, Lock, LogOut, MessageSquare, Plus, Shield, Trash2, User, XCircle } from "lucide-react";
+import { AlertTriangle, BarChart3, FileText, Folder, FolderPlus, Loader2, Lock, LogOut, MessageSquare, Plus, Shield, Trash2, User, Users, XCircle } from "lucide-react";
 import { useState } from "react";
 import { fateLabel } from "./CaseState";
 import { reviewPages, type Case, type ConversationSummary, type Job, type Me, type StoredDocument } from "../api";
@@ -32,6 +32,8 @@ type Props = {
   onSignOut: () => void;
   conversations: ConversationSummary[];
   currentConversation: string;
+  me: string;                   // the signed-in user's id: whose conversations are "mine" (stage 4)
+  names: Map<string, string>;   // the case's members by id, to name who shared a conversation
   historyNote: string | null;   // why conversations aren't saved, if they aren't
   onOpenConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
@@ -51,7 +53,7 @@ type Props = {
 
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
 export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
-                         user, onSignOut, conversations, currentConversation, historyNote, onOpenConversation,
+                         user, onSignOut, conversations, currentConversation, me, names, historyNote, onOpenConversation,
                          onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin,
                          cases, currentCase, casesNote, onOpenCase, onNewCase, due, showClosed, onShowClosed }: Props) {
   const m = useT();
@@ -119,34 +121,51 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
       <section className="library history" aria-labelledby="history-title">
         <h2 id="history-title" className="label">{m.conversations}</h2>
         {historyNote && <p className="caption">{historyNote}</p>}
-        <ul>
-          {conversations.map((c) => (
-            <li key={c.id} className={`doc${c.id === currentConversation ? " doc-current" : ""}`}>
-              <Button variant="plain" className="doc-use" onPress={() => onOpenConversation(c.id)}
-                      aria-current={c.id === currentConversation ? "true" : undefined}>
-                <MessageSquare size={15} aria-hidden />
-                <span className="doc-name" title={c.title}>{c.title}</span>
-                <span className="doc-meta">{dayLabel(c.updated_at)}</span>
-              </Button>
-              {confirming === c.id ? (
-                <span className="doc-confirm">
-                  <TextButton danger onPress={() => { setConfirming(null); onDeleteConversation(c.id); }}>{m.delete}</TextButton>
-                  <TextButton autoFocus onPress={() => keep(c.id)}>{m.keep}</TextButton>
-                </span>
-              ) : (
-                <IconButton size="small" onPress={() => setConfirming(c.id)} label={m.deleteConversationLabel(c.title)} autoFocus={back === c.id}>
-                  <Trash2 size={14} aria-hidden />
-                </IconButton>
-              )}
-            </li>
-          ))}
-        </ul>
+        {(() => {
+          // In a case: the user's own first, then what colleagues shared (read-only, no bin). Elsewhere: all theirs.
+          const mine = conversations.filter((c) => !c.owner || c.owner === me);
+          const shared = conversations.filter((c) => c.owner && c.owner !== me);
+          const list = (items: ConversationSummary[], own: boolean) => (
+            <ul>
+              {items.map((c) => (
+                <li key={c.id} className={`doc${c.id === currentConversation ? " doc-current" : ""}`}>
+                  <Button variant="plain" className="doc-use" onPress={() => onOpenConversation(c.id)}
+                          aria-current={c.id === currentConversation ? "true" : undefined}
+                          title={own ? undefined : m.sharedBy(names.get(c.owner!) || c.owner!)}>
+                    {own && c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
+                    <span className="doc-name" title={c.title}>{c.title}</span>
+                    <span className="doc-meta">{own ? dayLabel(c.updated_at) : `${names.get(c.owner!) || c.owner} · ${dayLabel(c.updated_at)}`}</span>
+                  </Button>
+                  {own && (confirming === c.id ? (
+                    <span className="doc-confirm">
+                      <TextButton danger onPress={() => { setConfirming(null); onDeleteConversation(c.id); }}>{m.delete}</TextButton>
+                      <TextButton autoFocus onPress={() => keep(c.id)}>{m.keep}</TextButton>
+                    </span>
+                  ) : (
+                    <IconButton size="small" onPress={() => setConfirming(c.id)} label={m.deleteConversationLabel(c.title)} autoFocus={back === c.id}>
+                      <Trash2 size={14} aria-hidden />
+                    </IconButton>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          );
+          if (shared.length === 0) return list(mine, true);
+          return (
+            <div className="history-lists">
+              <p className="caption sublabel">{m.myConversations}</p>
+              {list(mine, true)}
+              <p className="caption sublabel">{m.sharedConversations}</p>
+              {list(shared, false)}
+            </div>
+          );
+        })()}
         {!historyNote && conversations.length === 0 && (
           <p className="caption">{m.conversationsEmpty}</p>
         )}
       </section>
 
-      <section className="library" aria-labelledby="library-title">
+      <section className="library documents" aria-labelledby="library-title">
         <h2 id="library-title" className="label">{m.documents}</h2>
         {!available && <p className="caption">{unavailableReason}</p>}
         <ul>

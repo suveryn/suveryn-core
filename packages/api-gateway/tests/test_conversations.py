@@ -42,13 +42,14 @@ class FakeConversations:
         self.rows: dict[uuid.UUID, dict] = {}
 
     def summaries(self, owner, case_id=None):
-        rows = sorted((r for r in self.rows.values() if r["owner"] == owner and r["case_id"] == case_id),
+        rows = sorted((r for r in self.rows.values() if r["case_id"] == case_id
+                       and (r["owner"] == owner or (r["shared"] and case_id is not None))),
                       key=lambda r: r["updated_at"], reverse=True)
         return [self._summary(r) for r in rows]
 
     @staticmethod
     def _summary(r):
-        return ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at")},
+        return ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at", "owner", "shared")},
                                    case_id=str(r["case_id"]) if r["case_id"] else None)
 
     def get(self, cid, owner):
@@ -56,6 +57,19 @@ class FakeConversations:
         if not r or r["owner"] != owner:
             return None
         return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
+
+    def get_shared(self, cid):
+        r = self.rows.get(cid)
+        if not r or not r["shared"] or r["case_id"] is None:
+            return None
+        return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
+
+    def set_shared(self, cid, owner, shared):
+        r = self.rows.get(cid)
+        if not r or r["owner"] != owner or r["case_id"] is None:
+            return None
+        r["shared"] = shared
+        return self._summary(r)
 
     def save(self, cid, owner, body: ConversationIn, gone=None):
         old = self.rows.get(cid)
@@ -67,18 +81,20 @@ class FakeConversations:
             redact(turns, gone)
         self.rows[cid] = {"id": str(cid), "owner": owner, "title": body.title, "turns": turns,
                           "created_at": old["created_at"] if old else now, "updated_at": now,
-                          "case_id": old["case_id"] if old else (uuid.UUID(body.case_id) if body.case_id else None)}
+                          "case_id": old["case_id"] if old else (uuid.UUID(body.case_id) if body.case_id else None),
+                          "shared": old["shared"] if old else False}
         return True
 
-    def using_document(self, owner, document_id):
-        rows = sorted((r for r in self.rows.values() if r["owner"] == owner), key=lambda r: r["updated_at"], reverse=True)
+    def using_document(self, owner, document_id, case_id=None):
+        rows = sorted((r for r in self.rows.values() if (r["case_id"] == case_id if case_id is not None else r["owner"] == owner)),
+                      key=lambda r: r["updated_at"], reverse=True)
         return [self._summary(r) for r in rows if str(document_id) in cited_documents(r["turns"])]
 
-    def remove_document(self, owner, document_id, delete_conversations=False):
-        hits = self.using_document(owner, document_id)
+    def remove_document(self, owner, document_id, delete_conversations=False, case_id=None):
+        hits = self.using_document(owner, document_id, case_id)
         for h in hits:
             if delete_conversations:
-                self.delete(uuid.UUID(h.id), owner)
+                del self.rows[uuid.UUID(h.id)]
             else:
                 redact(self.rows[uuid.UUID(h.id)]["turns"], lambda d: d == str(document_id))
         return len(hits)
@@ -367,3 +383,36 @@ def test_store_cleans_or_deletes_conversations_of_a_deleted_document(store):
     store.save(late, ALICE, ConversationIn(title="Prijs", turns=cited_turns()), gone=lambda d: d == DOC)
     cits = store.get(late, ALICE).turns[1]["citations"]
     assert cits[0]["removed"] and cits[0]["text"] == "" and cits[1]["text"] == "Verkoper: Jan Peeters."
+
+
+@needs_db
+def test_store_shares_a_conversation_with_its_case_and_cleans_every_members(store):
+    """Stage 4 of docs/design/cases.md: shared conversations, and a case's document taken out of
+    everyone's conversations when it is deleted."""
+    case, alices, bobs, personal = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    store.save(alices, ALICE, ConversationIn(**{**BODY, "case_id": str(case)}))
+    store.save(bobs, BOB, ConversationIn(**{**BODY, "case_id": str(case)}))
+    store.save(personal, ALICE, ConversationIn(**BODY))
+    assert [s.id for s in store.summaries(BOB, case)] == [str(bobs)]  # alice's is private
+    assert store.get_shared(alices) is None
+    assert store.set_shared(alices, BOB, True) is None       # not his
+    assert store.set_shared(personal, ALICE, True) is None   # not in a case
+    shared = store.set_shared(alices, ALICE, True)
+    assert shared.shared and shared.owner == ALICE
+    assert sorted((s.id, s.owner, s.shared) for s in store.summaries(BOB, case)) == sorted(
+        [(str(bobs), BOB, False), (str(alices), ALICE, True)])
+    assert store.get_shared(alices).turns == TURNS and store.get(alices, BOB) is None  # readable, not his
+    assert store.summaries(ALICE) == [store.summaries(ALICE)[0]] and store.summaries(ALICE)[0].id == str(personal)
+    assert store.set_shared(alices, ALICE, False).shared is False and store.get_shared(alices) is None
+    # the case's document is cited in bob's conversation too: everyone's are cleaned
+    doc = "11111111-1111-1111-1111-111111111111"
+    turns = [{"role": "user", "text": "?"}, {"role": "assistant", "text": "x [1]",
+             "citations": [{"n": 1, "text": "secret", "source": {"document_id": doc, "page": 1}}]}]
+    store.save(bobs, BOB, ConversationIn(title="b", turns=turns))
+    store.save(alices, ALICE, ConversationIn(title="a", turns=turns))
+    assert sorted(s.owner for s in store.using_document(ALICE, uuid.UUID(doc), case)) == [ALICE, BOB]
+    assert [s.owner for s in store.using_document(ALICE, uuid.UUID(doc))] == [ALICE]  # personal: own only
+    assert store.remove_document(ALICE, uuid.UUID(doc), case_id=case) == 2
+    assert store.get(bobs, BOB).turns[1]["citations"][0]["text"] == ""
+    assert store.remove_document(ALICE, uuid.UUID(doc), delete_conversations=True, case_id=case) == 2  # both, whoever's
+    assert store.delete_case(case) == 0

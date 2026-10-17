@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import _delete_case_everywhere, create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.cases import (
+    AdminCase,
     Case,
     CaseEvent,
     CaseIn,
@@ -144,6 +145,7 @@ class FakeCases:
         self.cases: dict[uuid.UUID, Case] = {}
         self.rows: dict[uuid.UUID, dict[str, Member]] = {}
         self.log_lines: list[tuple[uuid.UUID, str, str, dict]] = []
+        self.settings_rows = {}
 
     def create(self, body: CaseIn, user: str, username: str = "", name: str = "") -> Case:
         if any(c.reference.lower() == body.reference.lower() for c in self.cases.values()):
@@ -215,6 +217,27 @@ class FakeCases:
             if (role or admin) and (closed or c.state == "open"):
                 out.append(c.model_copy(update={"my_role": role}))
         return sorted(out, key=lambda c: (c.state != "open", -c.updated_at.timestamp()))
+
+    def list_all(self):
+        out = []
+        for cid, c in self.cases.items():
+            m = self.rows[cid].get(c.manager)
+            out.append(AdminCase(**c.model_dump(), manager_username=m.username if m else "", manager_name=m.name if m else "",
+                                 members=len(self.rows[cid])))
+        return sorted(out, key=lambda c: (c.state != "open", -c.updated_at.timestamp()))
+
+    settings_meta = None
+
+    def overrides(self):
+        return dict(self.settings_rows)
+
+    def overrides_meta(self):
+        return self.settings_meta
+
+    def set_overrides(self, changes, by):
+        self.settings_rows.update(changes)
+        self.settings_meta = (datetime.now(UTC), by)
+        return dict(self.settings_rows)
 
     def update(self, case_id, body: CaseUpdate):
         c = self.cases.get(case_id)
@@ -808,3 +831,120 @@ def test_store_writes_of_several_statements_are_all_or_nothing(store, monkeypatc
     monkeypatch.undo()
     c = s.create(CaseIn(**NEW), alice)  # the connection is usable again after the rollback
     assert s.role_of(uuid.UUID(c.id), alice) == "manager"
+
+
+# ------------------------------------------------------------------ stage 4: shared conversations, the administrator's pages
+def test_a_conversation_shared_with_the_case_is_read_only_for_the_other_members(office):
+    c, kc, _, history, _ = office
+    alice, bob, carla, admin = as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA), admin_headers(kc)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
+    conv = str(uuid.uuid4())
+    body = {"title": "Wat is de koopprijs?", "case_id": cid,
+            "turns": [{"role": "user", "text": "Wat is de koopprijs?"}, {"role": "assistant", "text": "€ 345.000 [1]"}]}
+    assert c.put(f"/v1/conversations/{conv}", json=body, headers=alice).status_code == 204
+    # private until shared: bob (a reader of the case) sees nothing, neither in the list nor by id
+    assert c.get(f"/v1/conversations?case={cid}", headers=bob).json() == []
+    assert c.get(f"/v1/conversations/{conv}", headers=bob).status_code == 404
+    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob).status_code == 404  # not his
+    r = c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=alice)
+    assert r.status_code == 200 and r.json()["shared"] and r.json()["owner"] == ALICE
+    listed = c.get(f"/v1/conversations?case={cid}", headers=bob).json()
+    assert [(x["id"], x["owner"], x["shared"]) for x in listed] == [(conv, ALICE, True)]
+    assert c.get(f"/v1/conversations/{conv}", headers=bob).json()["turns"][1]["text"] == "€ 345.000 [1]"
+    # read-only for bob: he can't save over it, share or unshare it, or delete it
+    assert c.put(f"/v1/conversations/{conv}", json={**body, "title": "mine now"}, headers=bob).status_code == 404
+    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": False}, headers=bob).status_code == 404
+    assert c.delete(f"/v1/conversations/{conv}", headers=bob).status_code == 404
+    assert c.get(f"/v1/conversations/{conv}", headers=alice).json()["title"] == "Wat is de koopprijs?"
+    # not for someone outside the case, nor for an administrator who isn't a member
+    assert c.get(f"/v1/conversations/{conv}", headers=carla).status_code == 404
+    assert c.get(f"/v1/conversations/{conv}", headers=admin).status_code == 404
+    # unshared: gone from bob's list again; the log noted both
+    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": False}, headers=alice).json()["shared"] is False
+    assert c.get(f"/v1/conversations?case={cid}", headers=bob).json() == []
+    actions = [e["action"] for e in c.get(f"/v1/cases/{cid}/events", headers=alice).json()]
+    assert actions[:2] == ["conversation_unshared", "conversation_shared"]
+    # a personal conversation can't be shared; nor can one in a closed case
+    personal = str(uuid.uuid4())
+    c.put(f"/v1/conversations/{personal}", json={**body, "case_id": None}, headers=alice)
+    assert c.post(f"/v1/conversations/{personal}/share", json={"shared": True}, headers=alice).status_code == 404
+    c.post(f"/v1/cases/{cid}/close", headers=alice)
+    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=alice).status_code == 403
+    assert c.get(f"/v1/conversations/{conv}", headers=alice).status_code == 200  # reading stays
+
+
+def test_deleting_a_cases_document_cleans_every_members_conversations(office):
+    c, kc, _, history, docs = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    doc = str(uuid.uuid4())
+    docs.docs[doc] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    turns = [{"role": "user", "text": "?"}, {"role": "assistant", "text": "x [1]",
+             "citations": [{"n": 1, "text": "De koopprijs bedraagt € 345.000.", "source": {"document_id": doc, "page": 3}}]}]
+    bobs = str(uuid.uuid4())
+    c.put(f"/v1/conversations/{bobs}", json={"title": "Bob's", "case_id": cid, "turns": turns}, headers=bob)
+    # the manager is asked which conversations cite it: bob's too, since it is the case's document
+    assert [x["owner"] for x in c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=alice).json()] == [BOB]
+    assert c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=bob).status_code == 403  # a contributor can't delete
+    assert c.delete(f"/v1/documents/{doc}?case={cid}", headers=alice).status_code == 204
+    cleaned = c.get(f"/v1/conversations/{bobs}", headers=bob).json()["turns"][1]["citations"][0]
+    assert cleaned["text"] == "" and cleaned["removed"] is True
+
+
+def test_an_administrator_lists_every_case_and_changes_the_offices_settings(office):
+    c, kc, cases, _, _ = office
+    alice, bob, admin = as_user(kc, ALICE), as_user(kc, BOB), admin_headers(kc)
+    assert c.get("/v1/admin/cases", headers=alice).status_code == 403
+    assert c.get("/v1/admin/cases/settings", headers=alice).status_code == 403
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
+    other = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=bob).json()["id"]
+    c.post(f"/v1/cases/{other}/close", headers=bob)
+    listed = c.get("/v1/admin/cases", headers=admin).json()
+    assert [(x["id"], x["state"], x["manager"], x["members"]) for x in listed] == [
+        (cid, "open", ALICE, 2), (other, "closed", BOB, 1)]
+    assert all(x["manager_name"] and x["manager_username"] for x in listed)  # the name as when the case was opened
+    assert all("subject" not in x or x["subject"] == NEW["subject"] for x in listed)  # the case's label, nothing inside it
+    # the settings: as provisioned (members, 6m) until changed here, then effective at once
+    before = c.get("/v1/admin/cases/settings", headers=admin).json()
+    assert before == {"default_access": "members", "keep": "6m", "updated_at": None, "updated_by": ""}
+    assert c.put("/v1/admin/cases/settings", json={}, headers=admin).status_code == 422
+    r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual"}, headers=admin)
+    assert r.status_code == 200 and r.json()["default_access"] == "office" and r.json()["keep"] == "manual"
+    assert r.json()["updated_by"] and r.json()["updated_at"]  # the administrator's username, and when
+    assert c.get(f"/v1/cases/{cid}", headers=as_user(kc, CARLA)).json()["my_role"] == "reader"  # office-wide now
+    closed = c.post(f"/v1/cases/{cid}/close", headers=alice).json()
+    assert closed["keep_until"] is None  # the new period applies to cases closed from now on
+    assert c.put("/v1/admin/cases/settings", json={"keep": "2y"}, headers=admin).status_code == 422
+
+
+def test_store_lists_every_case_for_the_administrator_and_keeps_the_offices_settings(store):
+    s = store
+    alice, bob = f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}"
+    c = s.create(CaseIn(**NEW), alice, "alice", "Alice Peeters")
+    s.set_member(uuid.UUID(c.id), bob, "reader", alice, "bob", "Bob Janssens")
+    other = s.create(CaseIn(**{**NEW, "reference": "2026/0418"}), bob, "bob", "Bob Janssens")
+    s.close_case(uuid.UUID(other.id), None)
+    mine = [x for x in s.list_all() if x.id in (c.id, other.id)]
+    assert [(x.id, x.state, x.manager_name, x.manager_username, x.members) for x in mine] == [
+        (c.id, "open", "Alice Peeters", "alice", 2), (other.id, "closed", "Bob Janssens", "bob", 1)]
+    # the settings: nothing chosen until an administrator does; then kept, and merged over the environment's
+    s._execute("DELETE FROM case_settings")
+    s._overrides = None
+    assert s.overrides() == {} and s.overrides_meta() is None
+    assert s.set_overrides({"keep": "1y"}, "admin") == {"keep": "1y"}
+    assert s.set_overrides({"default_access": "office"}, "admin") == {"keep": "1y", "default_access": "office"}
+    assert s.overrides_meta()[1] == "admin"
+    with pytest.raises(ValueError):
+        s.set_overrides({"colour": "teal"}, "admin")
+    merged = CaseSettings(database_url=URL, default_access="members", keep="6m").with_overrides(s.overrides())
+    assert merged.office_wide and merged.keep == "1y"
+    assert CaseSettings(keep="6m").with_overrides({"keep": "2y", "default_access": "everyone"}).keep == "6m"  # bad rows are ignored
+    fresh = CaseStore(CaseSettings(database_url=URL))  # another store reads what was chosen
+    try:
+        assert fresh.overrides() == {"keep": "1y", "default_access": "office"}
+    finally:
+        fresh.close()
+        s._execute("DELETE FROM case_settings")

@@ -11,9 +11,10 @@ from ..conversations import (
     Conversation,
     ConversationIn,
     ConversationSummary,
+    ShareIn,
     cited_documents,
 )
-from .common import Scope, history_or_503, owner_of, scope_of
+from .common import Scope, case_for, history_or_503, log_access, owner_of, scope_of
 
 router = APIRouter()
 
@@ -27,8 +28,9 @@ def _conversation_id(conversation_id: str) -> uuid.UUID:
 
 @router.get("/v1/conversations", response_model=list[ConversationSummary])
 async def list_conversations(request: Request, case: str | None = None):
-    """The caller's saved conversations in their personal space, or in the case ``case``, most
-    recently changed first (titles and dates, no content)."""
+    """The caller's saved conversations in their personal space, or in the case ``case`` their own
+    and the ones its members shared (``shared``, ``owner``), most recently changed first (titles
+    and dates, no content)."""
     store = history_or_503(request)
     scope = await scope_of(request, case, "read")
     return await run_in_threadpool(store.summaries, owner_of(request), scope.case_id)
@@ -37,12 +39,40 @@ async def list_conversations(request: Request, case: str | None = None):
 @router.get("/v1/conversations/{conversation_id}", response_model=Conversation,
             responses={404: {"description": "Unknown, expired or another user's conversation"}})
 async def get_conversation(conversation_id: str, request: Request):
-    """One of the caller's conversations with all its turns."""
+    """One of the caller's conversations with all its turns, or one shared with a case the caller
+    may read (read-only for them: saving it answers 404)."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
     found = await run_in_threadpool(store.get, cid, owner_of(request))
     if found is None:
-        raise HTTPException(404, "Unknown conversation.")
+        shared = await run_in_threadpool(store.get_shared, cid)
+        if shared is None:
+            raise HTTPException(404, "Unknown conversation.")
+        try:
+            await case_for(request, shared.case_id or "", "read")
+        except HTTPException:
+            raise HTTPException(404, "Unknown conversation.") from None  # a case they may not see: like a missing one
+        found = shared
     return found
+
+
+@router.post("/v1/conversations/{conversation_id}/share", response_model=ConversationSummary, responses={
+    403: {"description": "The case is closed, or the caller may not contribute to it"},
+    404: {"description": "Not the caller's conversation, or not in a case"}})
+async def share_conversation(conversation_id: str, body: ShareIn, request: Request):
+    """Share one of the caller's conversations with its case (decision 12), or stop sharing it.
+    Its owner only; a shared conversation is read-only for the case's other members. Noted in the
+    case's access log. A conversation in the personal space can't be shared."""
+    store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
+    own = await run_in_threadpool(store.get, cid, owner)
+    if own is None or own.case_id is None:
+        raise HTTPException(404, "Unknown conversation, or not in a case.")
+    await case_for(request, own.case_id, "contribute")  # sharing is a change in the case: not in a closed one
+    changed = await run_in_threadpool(store.set_shared, cid, owner, body.shared)
+    if changed is None:
+        raise HTTPException(404, "Unknown conversation.")
+    await log_access(request, uuid.UUID(own.case_id), "conversation_shared" if body.shared else "conversation_unshared",
+                     {"conversation": str(cid)})
+    return changed
 
 
 @router.put("/v1/conversations/{conversation_id}", status_code=204, responses={
