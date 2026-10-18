@@ -22,7 +22,7 @@ from suveryn_engine import (
 from suveryn_playbooks import DEED_INTAKE
 from suveryn_rag.store import Scope
 from test_auth import SETTINGS, FakeKeycloak
-from test_cases import ALICE, BOB, NEW, FakeCases, FakeDirectory
+from test_cases import ALICE, BOB, NEW, FakeCases, FakeDirectory, admin_headers
 from test_conversations import FakeConversations, as_user
 from test_documents import DOC, FakeDocuments, llm_transport
 
@@ -128,6 +128,7 @@ def runs():
     s = RunStore(URL)
     yield s
     s._execute("DELETE FROM playbook_runs WHERE started_by IN (%s, %s, %s)", (ALICE, BOB, "notaris.test"))
+    s._execute("DELETE FROM playbook_settings", ())
     s.close()
 
 
@@ -199,6 +200,28 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     assert c.get(f"/v1/cases/{cid}/playbooks/runs/{rid}", headers=alice).json()["out_of_date"] is True
     c.post(f"/v1/cases/{cid}/close", headers=alice)
     assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).status_code == 403
+
+
+@needs_db
+def test_an_admin_switches_a_playbook_off_and_it_leaves_every_case(office):
+    c, kc, _, docs, _ = office
+    alice, admin = as_user(kc, ALICE), admin_headers(kc)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    # the admin's list: every installed playbook, active unless switched off
+    assert c.get("/v1/admin/playbooks", headers=alice).status_code == 403
+    listed = c.get("/v1/admin/playbooks", headers=admin).json()
+    assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [("playbook/be-notary/deed-intake", True, ["sale"])]
+    assert c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=alice).status_code == 403
+    assert c.put("/v1/admin/playbooks/nope", json={"active": False}, headers=admin).status_code == 404
+    r = c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=admin)
+    assert r.status_code == 200 and r.json()["active"] is False
+    # off: it isn't offered in the case and can't be started
+    assert c.get(f"/v1/cases/{cid}/playbooks", headers=alice).json() == []
+    assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).status_code == 404
+    # on again
+    assert c.put("/v1/admin/playbooks/deed-intake", json={"active": True}, headers=admin).json()["active"] is True
+    assert [p["id"] for p in c.get(f"/v1/cases/{cid}/playbooks", headers=alice).json()] == ["playbook/be-notary/deed-intake"]
 
 
 @needs_db

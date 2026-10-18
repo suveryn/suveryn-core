@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     instruction_like_sources jsonb NOT NULL DEFAULT '[]'
 );
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
+CREATE TABLE IF NOT EXISTS playbook_settings (
+    playbook_id text PRIMARY KEY,
+    active boolean NOT NULL DEFAULT true,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    updated_by text NOT NULL DEFAULT ''
+);
 """
 
 Status = Literal["reading", "checkpoint", "confirmed", "failed"]
@@ -133,7 +139,8 @@ class ConfirmIn(BaseModel):
 
 
 class PlaybookOut(BaseModel):
-    """One playbook that fits a case (``GET /v1/cases/{id}/playbooks``)."""
+    """One playbook that fits a case (``GET /v1/cases/{id}/playbooks``), or one of all of them for the
+    administrator (``GET /v1/admin/playbooks``, with ``active``)."""
 
     id: str
     slug: str
@@ -142,6 +149,14 @@ class PlaybookOut(BaseModel):
     name: str
     covered: bool   # certified and in the appliance's manifest; false: runs with a warning, never blocked (§8)
     facts: list[str]
+    case_types: list[str] = Field(default_factory=list)
+    active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/sidebar.md, 15)
+
+
+class ActiveIn(BaseModel):
+    """Body of ``PUT /v1/admin/playbooks/{slug}``."""
+
+    active: bool
 
 
 # ------------------------------------------------------------------------- reading the model's table
@@ -325,3 +340,12 @@ class RunStore(PgStore):
 
     def delete_case(self, case_id: uuid.UUID) -> int:
         return self._execute("DELETE FROM playbook_runs WHERE case_id = %s", (case_id,)).rowcount
+
+    def inactive(self) -> set[str]:
+        """The playbook ids an administrator switched off (``playbook_settings``); every other is active."""
+        return {r[0] for r in self._execute("SELECT playbook_id FROM playbook_settings WHERE NOT active").fetchall()}
+
+    def set_active(self, playbook_id: str, active: bool, by: str) -> None:
+        self._execute("INSERT INTO playbook_settings (playbook_id, active, updated_at, updated_by) VALUES (%s, %s, now(), %s)"
+                      " ON CONFLICT (playbook_id) DO UPDATE SET active = EXCLUDED.active, updated_at = now(), updated_by = EXCLUDED.updated_by",
+                      (playbook_id, active, by))

@@ -6,11 +6,15 @@
  *   focus returns to the button.
  * - MenuButton: a menu of choices that act at once (the chat's model menu). With `selected`, its items
  *   are single-choice (menuitemradio) and the chosen one is ticked.
+ * - ActionMenu: a richer menu (the sidebar's account menu, a case's actions; docs/design/sidebar.md):
+ *   items with an icon and a meta text, separators, an item that opens a submenu (the language), a
+ *   header above the items and fine print under them. The trigger is any content; the button is
+ *   the menu's own, so the look of the trigger belongs to the caller's class.
  *
  * Both open in a Popover, positioned by React Aria with style properties set through the DOM, which
  * the appliance's CSP allows (it blocks only <style> elements and style attributes in markup).
  */
-import { Check, ChevronDown, CircleAlert } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Button as AriaButton,
@@ -24,6 +28,8 @@ import {
   Popover,
   Select as AriaSelect,
   SelectValue,
+  Separator,
+  SubmenuTrigger,
   Text,
   type Key,
   type Placement,
@@ -149,6 +155,97 @@ export function MenuButton({ children, menuLabel, items, selected, onAction, pla
             </MenuItem>
           ))}
         </Menu>
+      </Popover>
+    </MenuTrigger>
+  );
+}
+
+/** One entry of an ActionMenu: an action, or `"-"` for a separator between groups. */
+export type MenuEntry = "-" | {
+  id: string;
+  label: string;
+  /** A small icon before the label (decorative). */
+  icon?: ReactNode;
+  /** A short text after the label, dimmed ("1.2K tokens today"). */
+  meta?: string;
+  /** accent: for an action that stands out (an administrator's playbooks). */
+  tone?: "accent";
+  /** Entries of a submenu this item opens; `selected` is the ticked one. */
+  submenu?: MenuEntry[];
+  selected?: string;
+  isDisabled?: boolean;
+};
+
+type ActionMenuProps = {
+  /** The trigger's content. */
+  children: ReactNode;
+  /** The trigger's accessible name (required when its content is an icon or an avatar). */
+  "aria-label"?: string;
+  /** The menu's name. */
+  menuLabel: string;
+  entries: MenuEntry[];
+  onAction: (id: string) => void;
+  /** Shown above the items (an account's name), inside the popover. */
+  header?: ReactNode;
+  /** Shown under the items (fine print). */
+  footer?: ReactNode;
+  placement?: Placement;
+  /** The trigger's class (the look is the caller's). */
+  className?: string;
+  popoverClassName?: string;
+  isDisabled?: boolean;
+};
+
+function entries(items: MenuEntry[], onAction: (id: string) => void) {
+  return items.map((e, i) => {
+    if (e === "-") return <Separator key={`sep-${i}`} className="ui-menu-separator" />;
+    const content = (selected?: boolean) => (
+      <>
+        {e.icon && <span className="ui-menu-item-icon" aria-hidden>{e.icon}</span>}
+        <Text slot="label" className="ui-menu-item-label">{e.label}</Text>
+        {e.meta && <Text slot="description" className="ui-menu-item-meta">{e.meta}</Text>}
+        {e.submenu && <ChevronRight size={14} aria-hidden className="ui-menu-item-more" />}
+        {selected && <Check size={14} aria-hidden className="ui-menu-item-check" />}
+      </>
+    );
+    if (e.submenu) {
+      return (
+        <SubmenuTrigger key={e.id}>
+          <MenuItem id={e.id} textValue={e.label} className="ui-menu-item ui-menu-item-rich" data-tone={e.tone} isDisabled={e.isDisabled}>
+            {content()}
+          </MenuItem>
+          <Popover className="ui-popover ui-popover-sub" placement="end top" offset={-6}>
+            <Menu aria-label={e.label} className="ui-menu"
+                  selectionMode={e.selected === undefined ? undefined : "single"}
+                  selectedKeys={e.selected === undefined ? undefined : [e.selected]}
+                  onAction={(k: Key) => onAction(String(k))}>
+              {entries(e.submenu, onAction)}
+            </Menu>
+          </Popover>
+        </SubmenuTrigger>
+      );
+    }
+    return (
+      <MenuItem key={e.id} id={e.id} textValue={e.label} className="ui-menu-item ui-menu-item-rich" data-tone={e.tone} isDisabled={e.isDisabled}>
+        {({ isSelected }) => content(isSelected)}
+      </MenuItem>
+    );
+  });
+}
+
+export function ActionMenu({ children, menuLabel, entries: items, onAction, header, footer, placement = "bottom start",
+                             className, popoverClassName, isDisabled, ...rest }: ActionMenuProps) {
+  return (
+    <MenuTrigger>
+      <AriaButton className={cx("ui-menu-trigger", className)} aria-label={rest["aria-label"]} isDisabled={isDisabled}>
+        {children}
+      </AriaButton>
+      <Popover className={cx("ui-popover", "ui-popover-rich", popoverClassName)} placement={placement} offset={6}>
+        {header && <div className="ui-menu-header">{header}</div>}
+        <Menu aria-label={menuLabel} className="ui-menu" onAction={(k: Key) => onAction(String(k))}>
+          {entries(items, onAction)}
+        </Menu>
+        {footer && <div className="ui-menu-footer">{footer}</div>}
       </Popover>
     </MenuTrigger>
   );

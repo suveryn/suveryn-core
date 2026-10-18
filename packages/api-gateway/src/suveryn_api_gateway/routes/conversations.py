@@ -14,7 +14,7 @@ from ..conversations import (
     ShareIn,
     cited_documents,
 )
-from .common import Scope, case_for, history_or_503, log_access, owner_of, scope_of
+from .common import Scope, case_for, history_or_503, log_access, owner_of, readable_case_ids, scope_of
 
 router = APIRouter()
 
@@ -27,11 +27,14 @@ def _conversation_id(conversation_id: str) -> uuid.UUID:
 
 
 @router.get("/v1/conversations", response_model=list[ConversationSummary])
-async def list_conversations(request: Request, case: str | None = None):
+async def list_conversations(request: Request, case: str | None = None, all: bool = False):
     """The caller's saved conversations in their personal space, or in the case ``case`` their own
     and the ones its members shared (``shared``, ``owner``), most recently changed first (titles
-    and dates, no content)."""
+    and dates, no content). With ``all``: every one of their own, across the cases they may read
+    and their personal space (the sidebar's list, docs/design/sidebar.md)."""
     store = history_or_503(request)
+    if all:
+        return await run_in_threadpool(store.summaries_all, owner_of(request), await readable_case_ids(request))
     scope = await scope_of(request, case, "read")
     return await run_in_threadpool(store.summaries, owner_of(request), scope.case_id)
 
