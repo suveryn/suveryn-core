@@ -67,12 +67,15 @@ change that would make an old run unreadable is a new major one.
 given file; that is a liability question before it is a commercial one, and it can't be answered
 after the fact.
 
-**Entitlement.** One function, `entitled(playbook_id)`, is called before a run starts and reported
-by the API (`entitled: false` makes the UI say "not licensed on this appliance" instead of failing
-later). Today it always answers yes. It is the single place the licence check (commercial model:
-a signed file the office installs; the appliance holds the public key) lands, so activation never
-has to be threaded through the code afterwards. No licence file, catalogue or pack manifest is
-built now: those are extracted from the three playbooks, as the platform note says.
+**Coverage, never a block.** One function, `covered(playbook_id)`, says whether a playbook is
+certified and listed in the appliance's manifest (the licensing model, development context §8,
+suveryn-tracker#35). The API reports it (`covered` on `GET …/playbooks`) and the UI shows a warning
+when it is false; the run starts regardless, because the licensing model warns and never blocks: a
+notary's work never stops because of an invoice. Today it always answers yes. It is the single
+place the licence check lands, so activation never has to be threaded through the code afterwards.
+No manifest, catalogue or pack format is built now: those are extracted from the three playbooks,
+as the platform note says. (An earlier draft of this note and of the commercial model said an
+uncovered playbook doesn't start; §8 is the decision, and this note follows it.)
 
 **The case is the container.** As cases.md decided (decision 9), the playbook's state lives in its
 **run**, keyed by `case_id`; the case itself stays open or closed. A closed case can't start a run
@@ -114,7 +117,7 @@ coming from a deleted document, the same way a saved conversation does (suveryn-
 ## The API
 
 ```
-GET    /v1/cases/{id}/playbooks              which playbooks fit this case's type, with entitled
+GET    /v1/cases/{id}/playbooks              which playbooks fit this case's type, with covered
 POST   /v1/cases/{id}/playbooks/{playbook}/runs    start a run: {document_ids?}  (contributor)
 GET    /v1/cases/{id}/playbooks/runs          the case's runs, newest first        (reader)
 GET    /v1/cases/{id}/playbooks/runs/{run}    one run with its facts               (reader)
