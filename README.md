@@ -65,7 +65,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 Every `/v1/...` request needs a signed-in user: the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
 
-`GET /v1/models` lists the installed models: `[{"id": "qwen3.8-27b", "loaded": true, "default": true}, …]`.
+`GET /v1/models` lists the installed models: `[{"id": "qwen3.8-27b", "loaded": true, "default": true, "thinks": true}, …]`; `thinks` says the model family can reason before it answers (Qwen3; the chat shows a brain on the model chip).
 
 `POST /v1/chat` takes `{"messages": [{"role": "user", "content": "..."}], "document_ids": ["<uuid>"], "model": "<id>", "stream": false, "max_tokens": 1024, "temperature": 0}`. `model` is optional (default: the appliance's default model). The last message must be the user's question. `document_ids` is optional: without it the answer is not grounded in any document.
 

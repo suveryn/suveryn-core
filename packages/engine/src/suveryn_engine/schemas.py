@@ -82,6 +82,7 @@ class ModelInfo(BaseModel):
     id: str                 # what to send as ``ChatRequest.model``
     loaded: bool            # in GPU memory now; otherwise the first answer waits for it to load
     default: bool = False   # the appliance's default model
+    thinks: bool = False    # the model family can reason before answering (the UI's brain icon, docs/design/sidebar.md)
 
 
 class Calculation(BaseModel):

@@ -44,8 +44,8 @@ def client(router: bool, sent: list) -> TestClient:
 def test_router_lists_installed_models_with_load_state_and_default():
     with client(True, []) as c:
         assert c.get("/v1/models").json() == [
-            {"id": MISTRAL, "loaded": False, "default": False},
-            {"id": QWEN, "loaded": True, "default": True},
+            {"id": MISTRAL, "loaded": False, "default": False, "thinks": False},
+            {"id": QWEN, "loaded": True, "default": True, "thinks": True},  # a Qwen3 can think (sidebar.md)
         ]
 
 
@@ -69,7 +69,7 @@ def test_unknown_model_is_refused():
 def test_single_model_server_lists_its_one_model():
     sent = []
     with client(False, sent) as c:
-        assert c.get("/v1/models").json() == [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf", "loaded": True, "default": True}]
+        assert c.get("/v1/models").json() == [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf", "loaded": True, "default": True, "thinks": True}]
         assert c.post("/v1/chat", json=CHAT).json()["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
 
 

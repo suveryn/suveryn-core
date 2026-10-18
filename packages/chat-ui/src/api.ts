@@ -62,7 +62,9 @@ export type Health = {
 // default; cases_keep: how long a closed case is kept before it is deleted ("manual": until deleted by hand)
 export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
 // avatar: the ETag of the user's picture (null: initials are shown); see Avatar in the UI kit
-export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod; avatar?: string | null };
+// account_url: where the person changes their password (Keycloak's account console); null with sign-in off
+export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod; avatar?: string | null;
+                   account_url?: string | null };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing";
@@ -71,7 +73,8 @@ export type StreamStatus = {
   model: string | null;
 };
 /** An installed model (GET /v1/models); only one is in GPU memory at a time. */
-export type ModelInfo = { id: string; loaded: boolean; default: boolean };
+// thinks: the model can reason before it answers (shown as a brain in the composer; docs/design/sidebar.md)
+export type ModelInfo = { id: string; loaded: boolean; default: boolean; thinks?: boolean };
 
 /** The models installed on this appliance, with which one is loaded and which is the default. */
 export async function listModels(): Promise<ModelInfo[]> {
@@ -155,6 +158,14 @@ export async function getHealth(): Promise<Health | null> {
 /** `?case=<id>` on a request about a case; nothing for the personal space (suveryn-tracker#10). */
 const inCase = (caseId: string | null | undefined, first = true) =>
   caseId ? `${first ? "?" : "&"}case=${encodeURIComponent(caseId)}` : "";
+
+/** Every document the signed-in user may see, with where it is (`case_id` null: the personal space),
+ *  newest first: the sidebar's "Documents" (docs/design/sidebar.md). */
+export async function listAllDocuments(): Promise<(StoredDocument & { case_id: string | null })[]> {
+  const r = await fetch("/v1/documents/all");
+  if (!r.ok) throw await responseError(r);
+  return (await r.json()).documents;
+}
 
 /** The documents in the personal space, or in a case. */
 export async function listDocuments(caseId?: string | null): Promise<{ documents: StoredDocument[]; jobs: Job[] }> {
@@ -276,6 +287,14 @@ export async function listConversations(caseId?: string | null): Promise<Convers
   return r.json();
 }
 
+/** The signed-in user's own conversations everywhere they may still look (their space and every case
+ *  they may read), most recently changed first: the sidebar's "Conversations" (docs/design/sidebar.md). */
+export async function listAllConversations(): Promise<ConversationSummary[]> {
+  const r = await fetch("/v1/conversations?all=true");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
 export async function getConversation(id: string): Promise<SavedConversation> {
   const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`);
   if (!r.ok) throw await responseError(r);
@@ -322,6 +341,7 @@ export type Case = {
   created_by: string;
   updated_at: string;
   my_role: CaseRole | null;
+  pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/sidebar.md)
 };
 export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string> };
 
@@ -329,6 +349,15 @@ export type NewCase = { reference: string; name: string; type: string; subject: 
  *  `closed` the closed ones too (after the open ones). */
 export async function listCases(closed = false): Promise<Case[]> {
   const r = await fetch(`/v1/cases${closed ? "?closed=true" : ""}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Pins a case in the signed-in user's own sidebar, or unpins it (anyone who may read the case). */
+export async function pinCase(id: string, pinned: boolean): Promise<Case> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/pin`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned }),
+  });
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -513,7 +542,9 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 
 /** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
 /** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
-export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[] };
+/** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/sidebar.md). */
+export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
+                             case_types?: string[]; active?: boolean };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
 export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
 export type RunFact = {
@@ -534,6 +565,22 @@ export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: num
 
 export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Administrators: every installed playbook, with whether it is switched on. */
+export async function listAdminPlaybooks(): Promise<PlaybookInfo[]> {
+  const r = await fetch("/v1/admin/playbooks");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Administrators: switch a playbook on or off for the whole office. */
+export async function setPlaybookActive(slug: string, active: boolean): Promise<PlaybookInfo> {
+  const r = await fetch(`/v1/admin/playbooks/${encodeURIComponent(slug)}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active }),
+  });
   if (!r.ok) throw await responseError(r);
   return r.json();
 }

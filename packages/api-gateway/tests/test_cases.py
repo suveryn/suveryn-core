@@ -148,7 +148,14 @@ class FakeCases:
         self.cases: dict[uuid.UUID, Case] = {}
         self.rows: dict[uuid.UUID, dict[str, Member]] = {}
         self.log_lines: list[tuple[uuid.UUID, str, str, dict]] = []
+        self.pins: set[tuple[uuid.UUID, str]] = set()
         self.settings_rows = {}
+
+    def set_pinned(self, case_id, user, pinned):
+        (self.pins.add if pinned else self.pins.discard)((case_id, user))
+
+    def pinned_by(self, case_id, user):
+        return (case_id, user) in self.pins
 
     def create(self, body: CaseIn, user: str, username: str = "", name: str = "") -> Case:
         if any(c.reference.lower() == body.reference.lower() for c in self.cases.values()):
@@ -218,7 +225,7 @@ class FakeCases:
             if role is None and office_wide and c.access == "default":
                 role = "reader"
             if (role or admin) and (closed or c.state == "open"):
-                out.append(c.model_copy(update={"my_role": role}))
+                out.append(c.model_copy(update={"my_role": role, "pinned": (cid, user) in self.pins}))
         return sorted(out, key=lambda c: (c.state != "open", -c.updated_at.timestamp()))
 
     def list_all(self):
@@ -365,10 +372,29 @@ def test_documents_in_a_case_are_separate_from_the_personal_space(office):
     listed = c.get(f"/v1/documents?case={cid}", headers=alice).json()["documents"]
     assert [d["id"] for d in listed] == [in_case] and listed[0]["origin"] == "uploaded"
     assert c.get(f"/v1/documents?case={uuid.uuid4()}", headers=alice).status_code == 404
+    # the sidebar's "Documents": everything Alice may see, each with where it is (sidebar.md)
+    everything = {d["id"]: d["case_id"] for d in c.get("/v1/documents/all", headers=alice).json()["documents"]}
+    assert everything == {DOC: None, in_case: cid}
+    assert c.get("/v1/documents/all", headers=as_user(kc, BOB)).json()["documents"] == []  # not Bob's case
     # deleting takes the scope too: the personal document isn't in the case
     assert c.delete(f"/v1/documents/{DOC}?case={cid}", headers=alice).status_code == 404
     assert c.delete(f"/v1/documents/{in_case}?case={cid}", headers=alice).status_code == 204
     assert c.delete(f"/v1/documents/{DOC}", headers=alice).status_code == 204
+
+
+def test_a_reader_pins_a_case_in_their_own_sidebar(office):
+    """docs/design/sidebar.md: per user, anyone who may read the case, not logged."""
+    c, kc, cases, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
+    r = c.put(f"/v1/cases/{cid}/pin", json={"pinned": True}, headers=bob)
+    assert r.status_code == 200 and r.json()["pinned"] is True
+    assert [x["pinned"] for x in c.get("/v1/cases", headers=bob).json()] == [True]
+    assert [x["pinned"] for x in c.get("/v1/cases", headers=alice).json()] == [False]  # someone else's pin
+    assert c.put(f"/v1/cases/{cid}/pin", json={"pinned": False}, headers=bob).json()["pinned"] is False
+    assert c.put(f"/v1/cases/{cid}/pin", json={"pinned": True}, headers=as_user(kc, CARLA)).status_code == 404  # not hers to see
+    assert "pinned" not in [e["action"] for e in c.get(f"/v1/cases/{cid}/events", headers=alice).json()]
 
 
 def test_an_upload_goes_into_the_case_and_its_job_is_listed_there(office):
@@ -741,6 +767,13 @@ def test_store_creates_lists_updates_and_deletes(store):
     assert s.list(bob, office_wide=False) == []
     assert [x.my_role for x in s.list(bob, office_wide=True) if x.id == c.id] == ["reader"]
     assert [x.my_role for x in s.list(bob, office_wide=False, admin=True) if x.id == c.id] == [None]
+    # pins (docs/design/sidebar.md): per user, in the list and the single case
+    assert not s.list(alice, office_wide=False)[0].pinned
+    s.set_pinned(uuid.UUID(c.id), alice, True)
+    assert s.list(alice, office_wide=False)[0].pinned and s.get(uuid.UUID(c.id), alice).pinned and s.pinned_by(uuid.UUID(c.id), alice)
+    assert not s.list(bob, office_wide=True)[0].pinned  # someone else's pin
+    s.set_pinned(uuid.UUID(c.id), alice, False)
+    assert not s.get(uuid.UUID(c.id), alice).pinned
     changed = s.update(uuid.UUID(c.id), CaseUpdate(access="restricted", subject={"property": "elsewhere"}))
     assert changed.access == "restricted" and changed.subject == {"property": "elsewhere"} and changed.updated_at > c.updated_at
     assert [x.id for x in s.list(bob, office_wide=True) if x.id == c.id] == []
@@ -868,6 +901,11 @@ def test_a_conversation_shared_with_the_case_is_read_only_for_the_other_members(
     assert c.get(f"/v1/conversations?case={cid}", headers=bob).json() == []
     actions = [e["action"] for e in c.get(f"/v1/cases/{cid}/events", headers=alice).json()]
     assert actions[:2] == ["conversation_unshared", "conversation_shared"]
+    # the sidebar's list: Alice's own, across her case and her personal space; Bob's shared one isn't hers
+    mine = str(uuid.uuid4())
+    c.put(f"/v1/conversations/{mine}", json={"title": "Persoonlijk", "turns": body["turns"]}, headers=alice)
+    assert {x["id"] for x in c.get("/v1/conversations?all=true", headers=alice).json()} == {conv, mine}
+    assert c.get("/v1/conversations?all=true", headers=bob).json() == []
     # a personal conversation can't be shared; nor can one in a closed case
     personal = str(uuid.uuid4())
     c.put(f"/v1/conversations/{personal}", json={**body, "case_id": None}, headers=alice)
