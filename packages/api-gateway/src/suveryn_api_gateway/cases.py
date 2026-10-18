@@ -254,6 +254,8 @@ class Member(BaseModel):
     role: Role
     added_by: str
     added_at: datetime
+    admin: bool = False        # an administrator (the avatar's badge), from the directory
+    avatar: str | None = None  # the ETag of their picture, None without one
 
 
 class MemberIn(BaseModel):

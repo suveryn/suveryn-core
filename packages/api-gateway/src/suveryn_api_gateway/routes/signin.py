@@ -25,6 +25,7 @@ class Me(BaseModel):
     admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
     office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
     cases_keep: str = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
+    avatar: str | None = None   # the ETag of the user's picture, None without one (initials are shown)
 
 
 def _auth(request: Request) -> Authenticator:
@@ -73,7 +74,7 @@ async def me(request: Request):
     authenticator, cases = _auth(request), case_settings(request)
     if not authenticator.enabled:
         return Me(username="dev", name="Development (sign-in off)", sub=LOCAL_OWNER, admin=True, office_wide=cases.office_wide,
-                  cases_keep=cases.keep)
+                  cases_keep=cases.keep, avatar=await _avatar_etag(request, LOCAL_OWNER))
     try:
         user = await authenticator.session_user(request.cookies.get(authenticator.settings.session_cookie))
     except AuthUnavailable as e:
@@ -81,7 +82,16 @@ async def me(request: Request):
     if user is None:
         raise HTTPException(401, "Sign in to continue.")
     return Me(username=user.username, name=user.name, sub=user.sub, admin=ADMIN_ROLE in user.roles, office_wide=cases.office_wide,
-              cases_keep=cases.keep)
+              cases_keep=cases.keep, avatar=await _avatar_etag(request, user.sub))
+
+
+async def _avatar_etag(request: Request, sub: str) -> str | None:
+    """The ETag of the user's picture, if the avatar store is there (never an error: initials otherwise)."""
+    from fastapi.concurrency import run_in_threadpool
+
+    db = request.app.state.avatars
+    store = db.get() if db.configured else None
+    return await run_in_threadpool(store.etag, sub) if store is not None else None
 
 
 @router.post("/auth/logout")

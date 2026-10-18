@@ -14,7 +14,7 @@ import { compact } from "../lib/usage";
 import { pageList, reviewHint } from "../lib/review";
 import { Lockup } from "./Brand";
 import { LanguagePicker } from "./LanguagePicker";
-import { Button, IconButton, SearchField, SelectList, TextButton } from "../ui";
+import { Avatar, Button, IconButton, SearchField, SelectList, TextButton } from "../ui";
 
 const SEARCH_FROM = 6;  // cases: a search box once the list is longer than this
 const MY_SPACE = "my-space";
@@ -41,6 +41,7 @@ type Props = {
   onOpenUsage: () => void;
   admin: boolean;               // shows the administration link
   onOpenAdmin: () => void;
+  onOpenAvatar: () => void;
   cases: Case[];                // the open cases the user may see
   currentCase: Case | null;     // null: the personal space
   casesNote: string | null;     // why cases aren't available, if they aren't
@@ -54,7 +55,7 @@ type Props = {
 /** Library of stored documents. Clicking one adds it to the next message as an attachment. */
 export function Sidebar({ documents, jobs, available, unavailableReason, inConversation, onNewChat, onUse, onDelete,
                          user, onSignOut, conversations, currentConversation, me, names, historyNote, onOpenConversation,
-                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin,
+                         onDeleteConversation, tokensToday, onOpenUsage, admin, onOpenAdmin, onOpenAvatar,
                          cases, currentCase, casesNote, onOpenCase, onNewCase, due, showClosed, onShowClosed }: Props) {
   const m = useT();
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -212,6 +213,9 @@ export function Sidebar({ documents, jobs, available, unavailableReason, inConve
 
       <div className="sidebar-foot">
         <div className="user">
+          <Button variant="plain" className="user-avatar" onPress={onOpenAvatar} aria-label={m.avatarTitle}>
+            <Avatar name={user.name} sub={user.sub} etag={user.avatar} admin={user.admin} adminLabel={m.administrator} />
+          </Button>
           <span className="user-name" title={user.username}>{user.name}</span>
           <TextButton onPress={onSignOut}><LogOut size={14} aria-hidden /> {m.signOut}</TextButton>
         </div>
