@@ -28,6 +28,7 @@ import {
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
 import { AccessLogDialog, MembersDialog, roleLabel } from "./components/CaseMembers";
+import { AvatarDialog } from "./components/AvatarDialog";
 import { CaseState } from "./components/CaseState";
 import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
@@ -122,6 +123,9 @@ function Chat({ me }: { me: Me }) {
   const [showClosed, setShowClosed] = useState(false);  // the sidebar lists closed cases too
   const [due, setDue] = useState<Case[]>([]);           // closed cases due for deletion soon (stage 3)
   const [showMembers, setShowMembers] = useState(false);
+  const [showAvatar, setShowAvatar] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(me.avatar ?? null);  // the picture's ETag; null: initials
+  const self: Me = { ...me, avatar };
   const [showLog, setShowLog] = useState(false);
   const [names, setNames] = useState<Map<string, string>>(new Map());  // the open case's members, by id (stage 4)
   const caseId = currentCase?.id ?? null;
@@ -410,13 +414,13 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "unavailable" ? m.documentsUnavailable :
                  health.documents.status === "failed" ? m.documentsFailed : null}
                inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove}
-               user={me} onSignOut={requestSignOut}
+               user={self} onSignOut={requestSignOut}
                conversations={conversations} currentConversation={conversationId} me={me.sub ?? ""} names={names}
                historyNote={health === null || historyReady ? null :
                  health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
                onOpenConversation={(id) => { setView("chat"); openConversation(id); }} onDeleteConversation={removeConversation}
                tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
-               admin={me.admin ?? false} onOpenAdmin={() => setView("admin")}
+               admin={me.admin ?? false} onOpenAdmin={() => setView("admin")} onOpenAvatar={() => setShowAvatar(true)}
                cases={cases} currentCase={currentCase} onOpenCase={openCase} onNewCase={() => setNewCase(true)}
                due={due} showClosed={showClosed} onShowClosed={setShowClosed}
                casesNote={health === null || casesReady ? null :
@@ -425,6 +429,7 @@ function Chat({ me }: { me: Me }) {
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
       <DeleteCaseDialog open={deletingCase} kase={currentCase} onDelete={removeCase} onCancel={() => setDeletingCase(false)} />
       <CloseCaseDialog open={closingCase} kase={currentCase} period={me.cases_keep} onCloseCase={shutCase} onCancel={() => setClosingCase(false)} />
+      <AvatarDialog open={showAvatar} me={self} onClose={() => setShowAvatar(false)} onChanged={setAvatar} />
       {currentCase && (
         <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers}
                        officeWide={me.office_wide ?? false} onClose={() => setShowMembers(false)}
