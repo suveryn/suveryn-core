@@ -3,8 +3,7 @@
  * (which then returns here), the name from the console (changed there), and Start provisioning.
  */
 import { Lock, SquareTerminal } from "lucide-react";
-import { Button as AriaButton } from "react-aria-components";
-import { Form, Notice, Rows, type FieldErrors, type Row } from "../../ui";
+import { Form, Notice, Rows, TextButton, type FieldErrors, type Row } from "../../ui";
 import type { SetupState } from "../api";
 import { LOCALES, useLang, useText } from "../text";
 import { StepFooter } from "./common";
@@ -20,7 +19,7 @@ export function Review({ state, onBack, onEdit, onStart, headingId }: Props) {
   const ip = state.address.split("/")[0];
   const date = (iso: string) => new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
   const edit = (step: Editable, what: string) => (
-    <AriaButton className="ui-link-button" aria-label={t.editLabel(what)} onPress={() => onEdit(step)}>{t.edit}</AriaButton>
+    <TextButton link aria-label={t.editLabel(what)} onPress={() => onEdit(step)}>{t.edit}</TextButton>
   );
   const missing = { value: t.notAnswered };
 
