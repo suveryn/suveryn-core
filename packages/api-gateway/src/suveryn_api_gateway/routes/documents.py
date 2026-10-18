@@ -14,6 +14,7 @@ from .common import (
     history_or_none,
     log_access,
     owner_of,
+    readable_case_ids,
     scope_of,
     touch_case,
 )
@@ -54,6 +55,16 @@ async def document_job(job_id: str, request: Request):
     if job is None:
         raise HTTPException(404, "Unknown job.")
     return job.public()
+
+
+@router.get("/v1/documents/all")
+async def list_all_documents(request: Request):
+    """Every document the caller may see, newest first, with its ``case_id`` (null: their personal
+    space): the sidebar's "Documents" (docs/design/sidebar.md). No jobs: those are per place."""
+    docs = docs_or_503(request)
+    stored = await run_in_threadpool(docs.documents_many, owner_of(request), await readable_case_ids(request))
+    return {"documents": [dict(d, id=str(d["id"]), case_id=str(d["case_id"]) if d.get("case_id") else None,
+                               created_at=d["created_at"].isoformat()) for d in stored]}
 
 
 @router.get("/v1/documents")

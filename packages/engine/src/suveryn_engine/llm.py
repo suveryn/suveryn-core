@@ -54,6 +54,16 @@ class StreamChunk:
     usage: Usage | None = None
 
 
+THINKING_FAMILIES = ("qwen3",)  # model families that can reason before answering (shown with a brain icon)
+
+
+def can_think(model_id: str) -> bool:
+    """Whether the model family can think before answering, by its name: the only thing the model
+    server tells us about a preset. The appliance's presets switch thinking off for speed
+    (models/manifest.json: enable_thinking false), so this is a capability, not a mode."""
+    return any(f in model_id.lower() for f in THINKING_FAMILIES)
+
+
 class LlamaServerClient:
     """Talks to one llama-server instance.
 
@@ -110,9 +120,10 @@ class LlamaServerClient:
                 self._router = True
                 default = self.settings.default_model
                 return [ModelInfo(id=m["id"], loaded=(m.get("status") or {}).get("value") == "loaded",
-                                  default=m["id"] == default) for m in r.json()["data"]]
+                                  default=m["id"] == default, thinks=can_think(m["id"])) for m in r.json()["data"]]
             self._router = False
-            return [ModelInfo(id=await self.model_name(), loaded=True, default=True)]
+            name = await self.model_name()
+            return [ModelInfo(id=name, loaded=True, default=True, thinks=can_think(name))]
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as e:
             raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
 
