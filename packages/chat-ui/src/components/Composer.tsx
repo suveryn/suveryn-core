@@ -3,7 +3,7 @@
  * chip with a menu; docs/design/sidebar.md) and the model picker. Sending is disabled while the
  * model is unavailable or an attachment is still being read; Enter sends, Shift+Enter starts a new line.
  */
-import { ArrowUp, ClipboardList, Folder, Paperclip } from "lucide-react";
+import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Folder, Paperclip } from "lucide-react";
 import { useState, type KeyboardEvent } from "react";
 import type { ModelInfo, PlaybookInfo } from "../api";
 import type { Attachment } from "../types";
@@ -25,13 +25,15 @@ type Props = {
   onSend: (text: string) => void;
   /** The open case's reference, shown as a chip; nothing in the personal space. */
   caseReference?: string | null;
+  /** The open case's type as shown ("Verkoop"), for the playbook menu's title. */
+  caseType?: string | null;
   /** The playbooks that fit the open case (empty: no chip), and what to do when one is chosen. */
   playbooks?: PlaybookInfo[];
   onPlaybook?: (slug: string) => void;
 };
 
 export function Composer({ attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
-                          onRemoveAttachment, onSend, caseReference, playbooks = [], onPlaybook }: Props) {
+                          onRemoveAttachment, onSend, caseReference, caseType, playbooks = [], onPlaybook }: Props) {
   const m = useT();
   const [text, setText] = useState("");
   const waiting = attachments.some(isPending);
@@ -58,28 +60,39 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
           {attachments.map((a) => <AttachmentChip key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)} />)}
         </div>
       )}
+      {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). */}
       <div className="composer">
-        <FileButton accept={["application/pdf", ".pdf"]} multiple onSelect={onAttach}>
-          <IconButton label={m.attachPdf}><Paperclip size={18} aria-hidden /></IconButton>
-        </FileButton>
         <TextArea label={m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
                   placeholder={m.askPlaceholder} className="composer-field" />
-        {caseReference && <span className="chip-case" title={m.caseLabel(caseReference)}><Folder size={12} aria-hidden /> {caseReference}</span>}
-        {playbooks.length > 0 && onPlaybook && (
-          <ActionMenu className="chip-playbook" aria-label={m.playbookChip} menuLabel={m.playbookMenu} placement="top start"
-                      entries={playbooks.map((p) => ({ id: p.slug, label: p.name, icon: <ClipboardList size={14} />, meta: p.covered ? m.covered : m.notCovered,
-                                                       tone: p.covered ? undefined : "accent" as const }))}
-                      onAction={onPlaybook}>
-            <ClipboardList size={12} aria-hidden /> {m.playbook}
-          </ActionMenu>
-        )}
-        <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
-        <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
-          <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
-        </Button>
+        <div className="composer-tools">
+          <FileButton accept={["application/pdf", ".pdf"]} multiple onSelect={onAttach}>
+            <IconButton size="small" label={m.attachPdf}><Paperclip size={16} aria-hidden /></IconButton>
+          </FileButton>
+          {caseReference && <span className="chip-case"><Folder size={13} aria-hidden /> {m.caseLabel(caseReference)}</span>}
+          {playbooks.length > 0 && onPlaybook && (
+            <ActionMenu className="chip-playbook" aria-label={m.playbookChip} menuLabel={m.playbookMenu} placement="top start"
+                        popoverClassName="playbook-menu"
+                        header={<span className="ui-menu-eyebrow">{m.playbookMenuTitle(caseReference ?? "", caseType ?? "")}</span>}
+                        footer={m.playbookMenuFooter}
+                        entries={playbooks.map((p) => ({
+                          id: p.slug, label: m.playbookNames[p.slug as keyof typeof m.playbookNames] ?? p.name, icon: <ClipboardList size={16} />,
+                          description: `${m.playbookBlurbs[p.slug as keyof typeof m.playbookBlurbs] ?? p.pack} · v${p.version}`,
+                          meta: p.covered ? m.covered : m.notCovered, metaTone: p.covered ? "teal" as const : "warn" as const,
+                          metaIcon: p.covered ? <Check size={13} aria-hidden /> : <AlertTriangle size={13} aria-hidden />,
+                        }))}
+                        onAction={onPlaybook}>
+              <ClipboardList size={13} aria-hidden /> {m.playbook} <ChevronDown size={13} aria-hidden />
+            </ActionMenu>
+          )}
+          <span className="composer-space" />
+          <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
+          <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
+            <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
+          </Button>
+        </div>
       </div>
       <p className="composer-hint caption" role="status">
-        {reason ?? note ?? m.composerHint}
+        {reason ?? note ?? m.staysOnServer}
       </p>
     </div>
   );

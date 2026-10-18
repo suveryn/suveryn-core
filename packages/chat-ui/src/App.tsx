@@ -19,14 +19,14 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, Lock, LogIn, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, Folder, Lock, LogIn, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, type Case,
-  listMembers, shareConversation, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo,
+  listMembers, shareConversation, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -48,7 +48,7 @@ import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSav
 import { conversationHistory } from "./lib/history";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { locale, useT } from "./i18n";
-import { Button, I18nProvider, InlineNotice, TextButton } from "./ui";
+import { ActionMenu, Button, I18nProvider, InlineNotice } from "./ui";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
@@ -128,6 +128,7 @@ function Chat({ me }: { me: Me }) {
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
+  const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const [cases, setCases] = useState<Case[]>([]);
   const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
@@ -195,6 +196,12 @@ function Chat({ me }: { me: Me }) {
     try { setCases(await listCases(true)); } catch { /* the health check explains why */ }
   }, []);
   useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
+
+  // Administrators: the account menu says how many playbooks are on (read again on returning to the chat).
+  useEffect(() => {
+    if (!me.admin || view !== "chat") return;
+    listAdminPlaybooks().then((ps) => setActivePlaybooks(ps.filter((x) => x.active !== false).length)).catch(() => setActivePlaybooks(null));
+  }, [me.admin, view]);
 
   // The open case's playbooks (docs/design/playbooks.md): the composer's chip; none in the personal
   // space. Read again on returning to the chat: an administrator may just have switched one off.
@@ -475,7 +482,7 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "failed" ? m.documentsFailed : null}
                onNewConversation={(outside) => { if (outside && caseId) goTo(null); newChat(); }} onNewCase={() => setNewCase(true)}
                onOpenView={setView} onOpenConversation={openListed} onOpenDocument={openDocument} onOpenCase={openCase}
-               onCaseAction={caseAction} tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
+               onCaseAction={caseAction} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={() => setView("usage")}
                onOpenAdmin={(tab) => { setAdminTab(tab); setView("admin"); }} onOpenSettings={() => setShowSettings(true)}
                onOpenAvatar={() => setShowAvatar(true)} onSignOut={requestSignOut} />
       <SettingsDialog open={showSettings} me={self} onClose={() => setShowSettings(false)}
@@ -523,40 +530,42 @@ function Chat({ me }: { me: Me }) {
         )}
         {view === "chat" && <>
         {currentCase && (
+          // The canvas's header: a breadcrumb (the case, then the conversation) and one menu for the
+          // case's actions, so the line stays quiet (docs/design/sidebar.md).
           <header className="case-head">
-            {closed ? <Lock size={16} aria-hidden /> : <Folder size={16} aria-hidden />}
-            <span className="case-ref">{m.caseLabel(currentCase.reference)}</span>
-            <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
-            <span className="case-meta">{caseTypeLabel(currentCase.type, m)}
-              {typeof currentCase.subject.description === "string" && ` · ${currentCase.subject.description}`}
-              {role && ` · ${roleLabel(role, m)}`}</span>
-            <TextButton className="case-action" onPress={() => setShowMembers(true)}>
-              <Users size={14} aria-hidden /> {m.members}
-            </TextButton>
-            {canShare && (current?.shared ? (
-              <TextButton className="case-action" onPress={() => share(false)} title={m.sharedHint}>
-                <UsersRound size={14} aria-hidden /> {m.unshareConversation}
-              </TextButton>
-            ) : (
-              <TextButton className="case-action" onPress={() => share(true)} title={m.sharedHint}>
-                <Share2 size={14} aria-hidden /> {m.shareConversation}
-              </TextButton>
-            ))}
-            {(manages || administers) && (
-              <TextButton className="case-action" onPress={() => setShowLog(true)}>
-                <ScrollText size={14} aria-hidden /> {m.accessLog}
-              </TextButton>
-            )}
-            {manages && !closed && (
-              <TextButton className="case-action" onPress={() => setClosingCase(true)}>
-                <Lock size={14} aria-hidden /> {m.closeCase}
-              </TextButton>
-            )}
-            {manages && !closed && (
-              <TextButton className="case-action" onPress={() => setDeletingCase(true)}>
-                <Trash2 size={14} aria-hidden /> {m.deleteCase}
-              </TextButton>
-            )}
+            {closed ? <Lock size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
+            <span className="case-ref">{currentCase.reference}</span>
+            <span className="case-name" title={`${currentCase.name} · ${caseTypeLabel(currentCase.type, m)}${role ? ` · ${roleLabel(role, m)}` : ""}`}>{currentCase.name}</span>
+            {(current || turns.length > 0) && <>
+              <span className="case-sep" aria-hidden>·</span>
+              <span className="case-title">{current?.title ?? conversationTitle(turns)}</span>
+            </>}
+            <span className="case-space" />
+            <ActionMenu className="case-menu" aria-label={m.caseMenu(currentCase.reference)} menuLabel={m.caseMenu(currentCase.reference)}
+                        placement="bottom end"
+                        header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase.type, m)}
+                          {typeof currentCase.subject.description === "string" && ` · ${currentCase.subject.description}`}
+                          {role && ` · ${roleLabel(role, m)}`}</span>}
+                        entries={[
+                          { id: "members", label: m.members, icon: <Users size={16} /> },
+                          ...(canShare ? [current?.shared
+                            ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
+                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} /> }] : []),
+                          ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
+                          ...(manages && !closed ? ["-" as const,
+                            { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
+                            { id: "delete", label: m.deleteCase, icon: <Trash2 size={16} />, tone: "accent" as const }] : []),
+                        ]}
+                        onAction={(id) => {
+                          if (id === "members") setShowMembers(true);
+                          else if (id === "share") share(true);
+                          else if (id === "unshare") share(false);
+                          else if (id === "log") setShowLog(true);
+                          else if (id === "close") setClosingCase(true);
+                          else if (id === "delete") setDeletingCase(true);
+                        }}>
+              <MoreHorizontal size={16} aria-hidden />
+            </ActionMenu>
           </header>
         )}
         {currentCase && closed && (
@@ -589,6 +598,7 @@ function Chat({ me }: { me: Me }) {
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
                   onSend={send} caseReference={currentCase?.reference ?? null}
+                  caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
                   playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")} />
         </>}
         </>}

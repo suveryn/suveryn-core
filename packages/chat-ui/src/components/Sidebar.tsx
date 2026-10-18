@@ -14,7 +14,7 @@
  * Collapsed, it is a 60px rail of icons that open the same views; the state is remembered in this
  * browser. Nothing here decides a right: the lists come from the server, which already filtered them.
  */
-import { ChevronsUpDown, ClipboardList, FileText, Folder, FolderPlus, Languages, Link2, Lock, LogOut, MessageSquare, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pin, Plus, Search, Settings, Shield, Users, Gauge, ScrollText } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, FileText, Folder, FolderPlus, Languages, Link2, Lock, LogOut, MessageSquare, MoreHorizontal, PanelLeft, Pin, Plus, Search, Settings, Shield, Users, ScrollText } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
@@ -22,7 +22,7 @@ import { LANGS, lang, setLang, TABLES_FOR_TESTS as TABLES, useT, type Lang } fro
 import { dayLabel } from "../lib/conversations";
 import { compact } from "../lib/usage";
 import { Lockup } from "./Brand";
-import { ActionMenu, Avatar, Button, Expander, IconBadge, IconButton, TextButton, type MenuEntry } from "../ui";
+import { ActionMenu, Avatar, Button, Expander, IconBadge, IconButton, type MenuEntry } from "../ui";
 
 const RECENT = 5;  // rows under an expanded section
 export type SideView = "conversations" | "cases" | "documents" | "search";
@@ -51,6 +51,8 @@ type Props = {
   onOpenCase: (c: Case) => void;
   onCaseAction: (c: Case, action: CaseAction) => void;
   tokensToday: number | null;
+  /** Administrators: how many playbooks are switched on (null: not known). */
+  activePlaybooks: number | null;
   onOpenUsage: () => void;
   onOpenAdmin: (tab: "usage" | "cases" | "playbooks") => void;
   onOpenSettings: () => void;
@@ -70,14 +72,15 @@ export function Sidebar(p: Props) {
 
   // ---------------------------------------------------------------- the account menu
   const accountEntries: MenuEntry[] = [
-    { id: "usage", label: m.myUsage, icon: <Gauge size={16} />, meta: p.tokensToday === null ? undefined : m.tokensToday(compact(p.tokensToday)) },
+    // The order of the canvas's account menu (artboard "Accountmenu open").
+    { id: "usage", label: m.myUsage, icon: <BarChart3 size={16} />, meta: p.tokensToday === null ? undefined : m.tokensToday(compact(p.tokensToday)) },
     { id: "settings", label: m.settings, icon: <Settings size={16} />, meta: m.settingsMeta },
-    { id: "language", label: m.language, icon: <Languages size={16} />, meta: TABLES[lang()].languageName, submenu: langEntries, selected: `lang:${lang()}` },
     ...(p.admin ? [
-      "-" as const,
       { id: "admin", label: m.administration, icon: <Shield size={16} />, meta: m.adminMeta, tone: "accent" as const },
-      { id: "playbooks", label: m.playbooks, icon: <ClipboardList size={16} />, meta: m.playbooksMeta, tone: "accent" as const },
+      { id: "playbooks", label: m.playbooks, icon: <ClipboardList size={16} />, tone: "accent" as const,
+        meta: p.activePlaybooks === null ? m.playbooksMeta : m.playbooksActive(p.activePlaybooks) },
     ] : []),
+    { id: "language", label: m.language, icon: <Languages size={16} />, meta: TABLES[lang()].languageName, submenu: langEntries, selected: `lang:${lang()}` },
     "-",
     { id: "signout", label: m.signOut, icon: <LogOut size={16} /> },
   ];
@@ -92,10 +95,10 @@ export function Sidebar(p: Props) {
   const accountHeader = (
     <>
       <Button variant="plain" className="user-avatar" onPress={p.onOpenAvatar} aria-label={m.avatarTitle}>
-        <Avatar name={p.user.name} sub={p.user.sub} etag={p.user.avatar} admin={p.user.admin} adminLabel={m.administrator} size="large" />
+        <Avatar name={p.user.name} sub={p.user.sub} etag={p.user.avatar} admin={p.user.admin} adminLabel={m.administrator} />
       </Button>
       <span className="account-who">
-        <span className="account-name">{p.user.name}{p.user.admin && <span className="account-role"> · {m.administrator}</span>}</span>
+        <span className="account-name">{p.user.name}{p.user.admin && <span className="account-role"> · {m.administratorTitle}</span>}</span>
         <span className="account-user">{p.user.username}</span>
       </span>
     </>
@@ -127,12 +130,12 @@ export function Sidebar(p: Props) {
         <Button variant="plain" className="rail-mark" onPress={() => p.onCollapse(false)} aria-label={m.expandSidebar}>
           <img src={icon} width={30} height={30} alt="" />
         </Button>
-        <IconButton label={m.expandSidebar} onPress={() => p.onCollapse(false)}><PanelLeftOpen size={18} aria-hidden /></IconButton>
+        <IconButton label={m.expandSidebar} onPress={() => p.onCollapse(false)}><PanelLeft size={18} aria-hidden /></IconButton>
         <IconButton label={m.search} onPress={() => p.onOpenView("search")}><Search size={18} aria-hidden /></IconButton>
         <ActionMenu className="rail-new" aria-label={m.newMenu} menuLabel={m.newMenu} entries={newEntries} onAction={onNew} placement="right top">
           <Plus size={18} aria-hidden />
         </ActionMenu>
-        <IconButton label={m.cases} onPress={() => p.onOpenView("cases")}><Folder size={18} aria-hidden /></IconButton>
+        <IconButton label={m.cases} onPress={() => p.onOpenView("cases")} className={p.currentCase ? "rail-current" : undefined}><Folder size={18} aria-hidden /></IconButton>
         <IconButton label={m.documents} onPress={() => p.onOpenView("documents")}><FileText size={18} aria-hidden /></IconButton>
         <IconButton label={m.conversations} onPress={() => p.onOpenView("conversations")}><MessageSquare size={18} aria-hidden /></IconButton>
         <span className="rail-space" />
@@ -153,6 +156,7 @@ export function Sidebar(p: Props) {
         {guide ? <span className="side-dot" aria-hidden /> : r ? <IconBadge badge={<Link2 />}>{face}</IconBadge> : face}
         <span className="side-text">{c.title}</span>
         {!guide && <span className="side-meta">{r ? `${r} · ` : ""}{dayLabel(c.updated_at)}</span>}
+        {guide && (shared || (c.owner && c.owner !== p.user.sub)) && <Users size={14} className="side-shared" role="img" aria-label={m.sharedConversations} />}
       </Button>
     );
   };
@@ -163,7 +167,7 @@ export function Sidebar(p: Props) {
       <Button key={d.id} variant="plain" className="side-sub" onPress={() => p.onOpenDocument(d)} title={r ? m.inCase(r) : m.notInACase}>
         {r ? <IconBadge badge={<Link2 />}>{face}</IconBadge> : face}
         <span className="side-text">{d.filename}</span>
-        <span className="side-meta">{r ? `${r} · ` : ""}{m.pages(d.pages)}</span>
+        <span className="side-meta">{r ? `${r} · ` : ""}{m.pagesShort(d.pages)}</span>
       </Button>
     );
   };
@@ -175,7 +179,7 @@ export function Sidebar(p: Props) {
     </Button>
   );
   const more = (label: string, view: SideView) => (
-    <TextButton className="side-more" onPress={() => p.onOpenView(view)}>{label}</TextButton>
+    <Button variant="plain" className="side-more" onPress={() => p.onOpenView(view)}>{label}</Button>
   );
   const caseActions = (c: Case): MenuEntry[] => [
     { id: "open", label: m.open, icon: <Folder size={16} /> },
@@ -190,12 +194,12 @@ export function Sidebar(p: Props) {
       <div className="side-top">
         <Lockup />
         <IconButton size="small" label={m.search} onPress={() => p.onOpenView("search")}><Search size={16} aria-hidden /></IconButton>
-        <IconButton size="small" label={m.collapseSidebar} onPress={() => p.onCollapse(true)}><PanelLeftClose size={16} aria-hidden /></IconButton>
+        <IconButton size="small" label={m.collapseSidebar} onPress={() => p.onCollapse(true)}><PanelLeft size={16} aria-hidden /></IconButton>
       </div>
 
       <nav className="side-nav" aria-label={m.navigation}>
         <ActionMenu className="side-new" aria-label={m.newMenu} menuLabel={m.newMenu} entries={newEntries} onAction={onNew}>
-          <Plus size={16} aria-hidden /> <span className="side-new-text">{m.newLabel}</span> <ChevronsUpDown size={14} aria-hidden />
+          <Plus size={16} aria-hidden /> <span className="side-new-text">{m.newLabel}</span> <ChevronDown size={14} aria-hidden />
         </ActionMenu>
 
         <Expander label={m.conversations} icon={<MessageSquare size={16} />} title={m.conversationsHint} expanded={!!open.conversations}
