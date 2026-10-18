@@ -66,12 +66,12 @@ If the model is starting or unreachable, the composer says so and sending is dis
 
 ## Components (suveryn-tracker#44)
 
-Screens are built from a small component library in [`src/ui/`](src/ui/), shared by the chat and the web setup; every chat screen (the conversation, the sidebar, the dialogs, usage and administration) is on it. It sits on [React Aria Components](https://react-spectrum.adobe.com/react-aria/) (Adobe, Apache-2.0), which gives keyboard use, focus handling and screen-reader semantics, and has no look of its own; the look is `src/ui/ui.css`, from the brand tokens, through React Aria's `data-*` states (`[data-selected]`, `[data-focus-visible]`, …). Product screens use only `src/ui`, never React Aria directly.
+Screens are built from a small component library in [`src/ui/`](src/ui/), shared by the chat and the web setup; every chat screen (the conversation, the sidebar, the dialogs, usage and administration) is on it. It sits on [React Aria Components](https://react-spectrum.adobe.com/react-aria/) (Adobe, Apache-2.0), which gives keyboard use, focus handling and screen-reader semantics, and has no look of its own; the look is `src/ui/ui.css`, from the brand tokens, through React Aria's `data-*` states (`[data-selected]`, `[data-focus-visible]`, …). Product screens use only `src/ui`, never React Aria directly; `src/ui/kit-only.test.ts` fails when one does.
 
 | Component | For |
 |---|---|
 | `Button`, `LinkButton`, `CopyButton` | primary, secondary or quiet, or `plain` (behaviour only, for a screen's own pieces such as citation markers and chips); a link that looks like a button; copy with a *Copied* confirmation |
-| `TextButton`, `IconButton` | a button that reads as a text link (Cancel, Keep, Sign out); a button with only an icon, its name also its tooltip |
+| `TextButton`, `IconButton` | a button that reads as a text link (Cancel, Keep, Sign out; with `link`, an underlined link in running text: the setup's Edit and Replace); a button with only an icon, its name also its tooltip |
 | `TextField`, `PasswordField`, `TextArea` | label, hint and error tied to the field; a show/hide toggle; several lines (the question box) |
 | `NumberField`, `DateField` | a number in the interface's language ("2,5" in Dutch and French); a date as day, month and year in the language's order |
 | `Form`, `FormError` | errors shown on submit only (React 19 action), focus to the first field in error; a message for the whole form |
