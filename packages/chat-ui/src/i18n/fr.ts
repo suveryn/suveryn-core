@@ -368,7 +368,7 @@ const fr: Messages = {
   deedIntake: "Intake de l'acte",
   deedIntakeIntro: "Sūveryn lit les documents du dossier pour y trouver les données qu'un acte de vente requiert et montre chacune à côté du passage dont elle provient. Rien n'est définitif avant que vous ayez vérifié chaque donnée.",
   noPlaybookForType: "Il n'y a pas encore de playbook pour ce type de dossier.",
-  playbookNotLicensed: "Ce playbook n'est pas sous licence sur cette appliance.",
+  playbookNotCovered: "Ce playbook n'est pas couvert par le contrat de support de cette appliance : il fonctionne, mais sans certification, mises à jour ni support. Un administrateur voit les détails dans le tableau de bord.",
   startIntake: "Lire les documents",
   runAgain: "Relire les documents",
   playbookVersion: (v: string) => `Intake de l'acte ${v}`,

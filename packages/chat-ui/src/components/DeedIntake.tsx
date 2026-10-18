@@ -84,10 +84,10 @@ export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChang
       </header>
       <p className="view-intro">{m.deedIntakeIntro}</p>
       {playbooks && !deedIntake && <p className="caption">{m.noPlaybookForType}</p>}
-      {deedIntake && !deedIntake.entitled && (
-        <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.playbookNotLicensed}</InlineNotice>
+      {deedIntake && !deedIntake.covered && (
+        <InlineNotice icon={<AlertTriangle size={14} />}>{m.playbookNotCovered}</InlineNotice>
       )}
-      {deedIntake?.entitled && canRun && kase.state === "open" && current?.status !== "reading" && (
+      {deedIntake && canRun && kase.state === "open" && current?.status !== "reading" && (
         <div className="playbook-start">
           <Button onPress={start} isDisabled={busy || documents === 0}><Play size={14} aria-hidden /> {current ? m.runAgain : m.startIntake}</Button>
           <span className="caption">{documents === 0 ? m.noDocumentsToRead : m.playbookVersion(deedIntake.version)}</span>

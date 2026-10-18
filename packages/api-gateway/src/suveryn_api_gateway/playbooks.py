@@ -12,7 +12,8 @@ confirms or corrects every fact (``confirm``), and the summary is stored in the 
 with origin ``playbook`` (never a source for answers: cases.md, decision 7).
 
 Identity and provenance: every run records ``playbook_id`` and ``playbook_version``; so does the
-result document's name. ``suveryn_playbooks.entitled`` is checked before a run starts.
+result document's name. ``suveryn_playbooks.covered`` is reported with the playbooks; an uncovered
+playbook runs with a warning, never a block (the licensing model, development context §8).
 
 Review notes:
 - The model's answer and the passages are document text: never logged. Errors are stored by kind.
@@ -139,7 +140,7 @@ class PlaybookOut(BaseModel):
     pack: str
     version: str
     name: str
-    entitled: bool
+    covered: bool   # certified and in the appliance's manifest; false: runs with a warning, never blocked (§8)
     facts: list[str]
 
 
