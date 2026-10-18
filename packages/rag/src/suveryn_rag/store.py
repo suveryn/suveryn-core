@@ -230,6 +230,17 @@ class Store:
         keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by")
         return [dict(zip(keys, r)) for r in rows]
 
+    def list_documents_many(self, owner: str, case_ids: list[uuid.UUID]) -> list[dict]:
+        """The owner's personal documents and every document of the cases given (the sidebar's
+        "Documents", docs/design/sidebar.md), newest first, with ``case_id``."""
+        rows = self._conn.execute(
+            "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
+            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner, d.case_id"
+            "  FROM documents d WHERE (d.case_id IS NULL AND d.owner IS NOT DISTINCT FROM %s) OR d.case_id = ANY(%s)"
+            " ORDER BY d.created_at DESC LIMIT 1000", (owner, case_ids)).fetchall()
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by", "case_id")
+        return [dict(zip(keys, r)) for r in rows]
+
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
         """(status, warnings) of a stored document, or None if it doesn't exist."""
         row = self._conn.execute("SELECT status, warnings FROM documents WHERE id = %s", (document_id,)).fetchone()

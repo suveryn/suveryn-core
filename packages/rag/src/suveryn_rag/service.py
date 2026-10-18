@@ -344,6 +344,10 @@ class DocumentService:
         created, origin, who uploaded it."""
         return self._with_search(lambda rag: rag.store.list_documents(scope))
 
+    def documents_many(self, owner: str, case_ids: list[uuid.UUID]) -> list[dict]:
+        """The owner's personal documents and those of the cases given, with ``case_id`` (no text)."""
+        return self._with_search(lambda rag: rag.store.list_documents_many(owner, case_ids))
+
     def store_text(self, filename: str, text: str, scope: Scope, origin: str) -> str:
         """Store text sūveryn produced (a playbook's result) as a document in the scope, with its origin;
         its id. Never a source for answers (``Rag.store_text``)."""

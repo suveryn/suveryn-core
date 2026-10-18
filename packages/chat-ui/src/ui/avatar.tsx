@@ -6,10 +6,28 @@
  * is none, or it fails to load, the initials show instead (never a broken image).
  */
 import { Shield } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { cx } from "./Button";
 
 export type AvatarSize = "small" | "normal" | "large" | "huge";  // 24, 32, 48, 96 px
+
+/**
+ * A small badge over the corner of an icon or a picture: the administrator's shield on an avatar,
+ * the link on a conversation that is in a case (docs/design/sidebar.md). `badge` is the small icon;
+ * the children are what it sits on. Decorative: the meaning is in the parent's accessible name.
+ */
+export function IconBadge({ badge, children, className, tone = "teal" }: {
+  badge: ReactNode; children: ReactNode; className?: string;
+  /** teal: a system-level signal (in a case); accent: a person's standing (the administrator's shield). */
+  tone?: "teal" | "accent";
+}) {
+  return (
+    <span className={cx("ui-badged", className)}>
+      {children}
+      <span className="ui-badge" data-tone={tone} aria-hidden>{badge}</span>
+    </span>
+  );
+}
 
 /** Up to two initials from a display name: the first letters of its first and last word. */
 export function initialsOf(name: string): string {
@@ -47,7 +65,7 @@ export function Avatar({ name, sub, etag, admin, size = "normal", adminLabel, cl
           ? <img className="ui-avatar-picture" src={url} alt="" draggable={false} onError={() => setFailed(true)} />
           : <span className="ui-avatar-initials" aria-hidden>{initialsOf(name)}</span>}
       </span>
-      {admin && <span className="ui-avatar-badge" aria-hidden><Shield /></span>}
+      {admin && <span className="ui-badge ui-avatar-badge" data-tone="accent" aria-hidden><Shield /></span>}
     </span>
   );
 }

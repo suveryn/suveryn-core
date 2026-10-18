@@ -54,6 +54,11 @@ class FakeDocuments:
                  "uploaded_by": "local-dev"}
                 for d, (s, origin) in self.docs.items() if s == scope]
 
+    def documents_many(self, owner, case_ids):
+        """The owner's personal documents and every document in ``case_ids``, each with its case id."""
+        wanted = [Scope.personal(owner), *(Scope.case(c) for c in case_ids)]
+        return [dict(d, case_id=s.case_id) for s in wanted for d in self.documents(s)]
+
     def in_scope(self, document_ids, scope, sources_only=False):
         return all(d in self.docs and self.docs[d][0] == scope and (not sources_only or self.docs[d][1] == "uploaded")
                    for d in document_ids)

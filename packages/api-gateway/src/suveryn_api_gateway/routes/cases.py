@@ -17,6 +17,7 @@ from ..cases import (
     KeepIn,
     Member,
     MemberIn,
+    PinIn,
     SettingsIn,
     SettingsOut,
     may,
@@ -110,6 +111,16 @@ async def delete_case(case_id: str, request: Request):
     if not await delete_case_everywhere(request.app, uuid.UUID(case.id)):
         raise HTTPException(404, "Unknown case.")
     return Response(status_code=204)
+
+
+@router.put("/v1/cases/{case_id}/pin", response_model=Case, responses={404: {"description": "Unknown case"}})
+async def pin_case(case_id: str, body: PinIn, request: Request):
+    """Pin or unpin the case in the caller's own sidebar (docs/design/sidebar.md): anyone who may
+    read it; per user, never shared, not in the access log."""
+    case = await case_for(request, case_id, "read")
+    store, cid = cases_or_503(request), uuid.UUID(case.id)
+    await run_in_threadpool(store.set_pinned, cid, owner_of(request), body.pinned)
+    return case.model_copy(update={"pinned": body.pinned})
 
 
 # ------------------------------------------------------------------ closing and the keep period (stage 3)

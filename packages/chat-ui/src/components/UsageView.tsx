@@ -9,6 +9,7 @@
  */
 import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
 import { AdminCases } from "./AdminCases";
+import { AdminPlaybooks } from "./AdminPlaybooks";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
@@ -130,7 +131,7 @@ function ByKind({ report }: { report: UsageReport }) {
   return <p className="caption">{kinds.map(([k, v]) => `${m.kind(k)}: ${compact(v.total_tokens)}`).join(" · ")}</p>;
 }
 
-function Header({ icon, title, onBack }: { icon: React.ReactNode; title: string; onBack: () => void }) {
+export function ViewHeader({ icon, title, onBack }: { icon: React.ReactNode; title: string; onBack: () => void }) {
   const m = useT();
   return (
     <header className="view-head">
@@ -146,7 +147,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
   const r = useReport(getMyUsage);
   return (
     <section className="view">
-      <Header icon={<BarChart3 size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
+      <ViewHeader icon={<BarChart3 size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
       <p className="view-intro">{m.usageIntro}</p>
       <RangePicker {...r} />
       {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
@@ -162,19 +163,24 @@ export function UsageView({ onBack }: { onBack: () => void }) {
 }
 
 /** Administrators: the office's usage, per user, with the notional cloud cost and its rates. */
-export function AdminView({ onBack }: { onBack: () => void }) {
+export type AdminTab = "usage" | "cases" | "playbooks";
+
+export function AdminView({ onBack, initialTab = "usage" }: { onBack: () => void; initialTab?: AdminTab }) {
   const m = useT();
-  const [tab, setTab] = useState<"usage" | "cases">("usage");
+  const [tab, setTab] = useState<AdminTab>(initialTab);
+  useEffect(() => { setTab(initialTab); }, [initialTab]);
   return (
     <section className="view">
-      <Header icon={<Shield size={18} aria-hidden />} title={m.administration} onBack={onBack} />
+      <ViewHeader icon={<Shield size={18} aria-hidden />} title={m.administration} onBack={onBack} />
       <nav className="tabs" aria-label={m.administration}>
         <Button variant="plain" className={`tab${tab === "usage" ? " on" : ""}`} aria-current={tab === "usage" ? "page" : undefined}
                 onPress={() => setTab("usage")}>{m.adminUsage}</Button>
         <Button variant="plain" className={`tab${tab === "cases" ? " on" : ""}`} aria-current={tab === "cases" ? "page" : undefined}
                 onPress={() => setTab("cases")}>{m.adminCases}</Button>
+        <Button variant="plain" className={`tab${tab === "playbooks" ? " on" : ""}`} aria-current={tab === "playbooks" ? "page" : undefined}
+                onPress={() => setTab("playbooks")}>{m.adminPlaybooks}</Button>
       </nav>
-      {tab === "cases" ? <AdminCases /> : <AdminUsage />}
+      {tab === "cases" ? <AdminCases /> : tab === "playbooks" ? <AdminPlaybooks /> : <AdminUsage />}
     </section>
   );
 }

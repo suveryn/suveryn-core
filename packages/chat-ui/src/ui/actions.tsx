@@ -8,12 +8,14 @@ import { Link as AriaLink, ProgressBar } from "react-aria-components";
 import { Button, cx } from "./Button";
 
 /** A link (it goes somewhere) styled as a button, or as a quiet text link with variant "text". */
-export function LinkButton({ href, children, variant = "primary", className }: {
+export function LinkButton({ href, children, variant = "primary", className, newTab }: {
   href: string; children: ReactNode; variant?: "primary" | "secondary" | "text"; className?: string;
+  /** Opens in a new tab (another site: the account console). */
+  newTab?: boolean;
 }) {
   return (
     <AriaLink href={href} className={cx(variant === "text" ? "ui-text-link" : "ui-button", className)}
-              data-variant={variant === "text" ? undefined : variant}>
+              data-variant={variant === "text" ? undefined : variant} target={newTab ? "_blank" : undefined} rel={newTab ? "noopener" : undefined}>
       {children}
     </AriaLink>
   );

@@ -1,15 +1,15 @@
 /**
- * The question box: text, the paperclip for PDFs, attachment chips and the model picker. Sending is
- * disabled while the model is unavailable or an attachment is still being read; Enter sends,
- * Shift+Enter starts a new line.
+ * The question box: text, the paperclip for PDFs, attachment chips, the case's playbooks (a teal
+ * chip with a menu; docs/design/sidebar.md) and the model picker. Sending is disabled while the
+ * model is unavailable or an attachment is still being read; Enter sends, Shift+Enter starts a new line.
  */
-import { ArrowUp, Paperclip } from "lucide-react";
+import { ArrowUp, ClipboardList, Folder, Paperclip } from "lucide-react";
 import { useState, type KeyboardEvent } from "react";
-import type { ModelInfo } from "../api";
+import type { ModelInfo, PlaybookInfo } from "../api";
 import type { Attachment } from "../types";
 import { isPending } from "../types";
 import { useT } from "../i18n";
-import { Button, FileButton, IconButton, TextArea } from "../ui";
+import { ActionMenu, Button, FileButton, IconButton, TextArea } from "../ui";
 import { AttachmentChip } from "./Chips";
 import { loadingNote, ModelPicker } from "./ModelPicker";
 
@@ -23,10 +23,15 @@ type Props = {
   onAttach: (files: File[]) => void;
   onRemoveAttachment: (key: string) => void;
   onSend: (text: string) => void;
+  /** The open case's reference, shown as a chip; nothing in the personal space. */
+  caseReference?: string | null;
+  /** The playbooks that fit the open case (empty: no chip), and what to do when one is chosen. */
+  playbooks?: PlaybookInfo[];
+  onPlaybook?: (slug: string) => void;
 };
 
 export function Composer({ attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
-                          onRemoveAttachment, onSend }: Props) {
+                          onRemoveAttachment, onSend, caseReference, playbooks = [], onPlaybook }: Props) {
   const m = useT();
   const [text, setText] = useState("");
   const waiting = attachments.some(isPending);
@@ -59,6 +64,15 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
         </FileButton>
         <TextArea label={m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
                   placeholder={m.askPlaceholder} className="composer-field" />
+        {caseReference && <span className="chip-case" title={m.caseLabel(caseReference)}><Folder size={12} aria-hidden /> {caseReference}</span>}
+        {playbooks.length > 0 && onPlaybook && (
+          <ActionMenu className="chip-playbook" aria-label={m.playbookChip} menuLabel={m.playbookMenu} placement="top start"
+                      entries={playbooks.map((p) => ({ id: p.slug, label: p.name, icon: <ClipboardList size={14} />, meta: p.covered ? m.covered : m.notCovered,
+                                                       tone: p.covered ? undefined : "accent" as const }))}
+                      onAction={onPlaybook}>
+            <ClipboardList size={12} aria-hidden /> {m.playbook}
+          </ActionMenu>
+        )}
         <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
         <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
           <ArrowUp size={16} strokeWidth={2.2} aria-hidden />

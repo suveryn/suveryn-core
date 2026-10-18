@@ -215,6 +215,17 @@ class ConversationStore(PgStore):
                              f" AND {fresh} ORDER BY updated_at DESC", (case_id, owner, *params)).fetchall()
         return [self._summary(r) for r in rows]
 
+    def summaries_all(self, owner: str, case_ids: list[uuid.UUID]) -> list[ConversationSummary]:
+        """Every conversation of the owner's own, in their personal space and in the cases they may
+        still read (``case_ids``), most recently changed first (the sidebar's "Conversations",
+        docs/design/sidebar.md). Others' shared conversations stay in their case's own list."""
+        self.purge()
+        fresh, params = self._fresh()
+        rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
+                             f" WHERE owner = %s AND (case_id IS NULL OR case_id = ANY(%s)) AND {fresh}"
+                             " ORDER BY updated_at DESC LIMIT 500", (owner, case_ids, *params)).fetchall()
+        return [self._summary(r) for r in rows]
+
     def get(self, conversation_id: uuid.UUID, owner: str) -> Conversation | None:
         """The owner's conversation; None if it is someone else's (see ``get_shared``)."""
         fresh, params = self._fresh()

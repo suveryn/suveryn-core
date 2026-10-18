@@ -11,19 +11,22 @@
  * - Cases (suveryn-tracker#10): the sidebar opens a case or the personal space; documents,
  *   uploads, conversations and questions are then that case's (the gateway checks the right),
  *   and switching starts a new chat there. The personal space is the user's own, as before cases.
+ * - The sidebar (docs/design/sidebar.md) lists conversations, cases and documents across every
+ *   place at once; opening one of them goes to its place first. Pinned cases are the user's own
+ *   choice (per user, on the server). The sidebar collapses to a rail, remembered in this browser.
  * - Each question is sent with the completed earlier turns (lib/history.ts) and every document
  *   used so far in the conversation that still exists.
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, ClipboardList, Folder, Lock, LogIn, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, Folder, Lock, LogIn, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, listDueCases, type Case,
-  listMembers, shareConversation,
+  deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, type Case,
+  listMembers, shareConversation, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -35,9 +38,11 @@ import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage } from "./components/Messages";
 import { LanguagePicker } from "./components/LanguagePicker";
-import { Sidebar } from "./components/Sidebar";
+import { CasesView, ConversationsView, DocumentsView, SearchView } from "./components/ListViews";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { Sidebar, type AllDocument, type CaseAction, type SideView } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
-import { AdminView, UsageView } from "./components/UsageView";
+import { AdminView, UsageView, type AdminTab } from "./components/UsageView";
 import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
@@ -47,6 +52,8 @@ import { Button, I18nProvider, InlineNotice, TextButton } from "./ui";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
+const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
+const readCollapsed = () => { try { return localStorage.getItem(SIDEBAR_KEY) === "collapsed"; } catch { return false; } };
 let counter = 0;
 // Unique across page loads too: turns of a reopened conversation keep the ids they were saved with.
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
@@ -113,15 +120,20 @@ function Chat({ me }: { me: Me }) {
   const [conversationId, setConversationId] = useState(newConversationId);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
-  const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook">("chat");
+  const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook" | SideView>("chat");
+  const [adminTab, setAdminTab] = useState<AdminTab>("usage");
+  const [collapsed, setCollapsedState] = useState(readCollapsed);
+  const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
+  const [showSettings, setShowSettings] = useState(false);
+  const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere
+  const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
+  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const [cases, setCases] = useState<Case[]>([]);
   const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
   const [newCase, setNewCase] = useState(false);
   const [deletingCase, setDeletingCase] = useState(false);
   const [closingCase, setClosingCase] = useState(false);
-  const [showClosed, setShowClosed] = useState(false);  // the sidebar lists closed cases too
-  const [due, setDue] = useState<Case[]>([]);           // closed cases due for deletion soon (stage 3)
   const [showMembers, setShowMembers] = useState(false);
   const [showAvatar, setShowAvatar] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(me.avatar ?? null);  // the picture's ETag; null: initials
@@ -139,7 +151,6 @@ function Chat({ me }: { me: Me }) {
   const canShare = !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
   const manages = role === "manager";
   const contributes = role === "contributor" || role === "manager";
-  const hasPlaybook = currentCase?.type === "sale";  // the playbooks that fit a type (docs/design/playbooks.md); the gateway decides
   const administers = currentCase !== null && role === null && (me.admin ?? false);
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
@@ -174,14 +185,24 @@ function Chat({ me }: { me: Me }) {
 
   const refreshConversations = useCallback(async () => {
     try { setConversations(await listConversations(caseId)); } catch { /* the health check explains why */ }
+    try { setAllConversations(await listAllConversations()); } catch { /* same */ }
   }, [caseId]);
   useEffect(() => { if (historyReady && !administers) refreshConversations(); }, [historyReady, refreshConversations, administers]);
+  useEffect(() => { if (documentsReady) listAllDocuments().then(setAllDocuments).catch(() => {}); }, [documentsReady, documents, caseId]);
 
+  // Every case the user may see, open and closed: the sidebar's rows and its pinned cases.
   const refreshCases = useCallback(async () => {
-    try { setCases(await listCases(showClosed)); } catch { /* the health check explains why */ }
-    try { setDue(await listDueCases()); } catch { /* same */ }
-  }, [showClosed]);
+    try { setCases(await listCases(true)); } catch { /* the health check explains why */ }
+  }, []);
   useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
+
+  // The open case's playbooks (docs/design/playbooks.md): the composer's chip; none in the personal
+  // space. Read again on returning to the chat: an administrator may just have switched one off.
+  useEffect(() => {
+    if (view !== "chat") return;
+    if (!caseId || role === null) { setPlaybooks([]); return; }
+    casePlaybooks(caseId).then(setPlaybooks).catch(() => setPlaybooks([]));
+  }, [caseId, role, view]);
 
   // The sidebar's usage counter: today's own tokens, refreshed after each answer.
   useEffect(() => {
@@ -313,19 +334,48 @@ function Chat({ me }: { me: Me }) {
     lastSaved.current = "";
   };
 
-  // Opening a case or the personal space: a new chat there; the sidebar's lists follow `caseId`.
-  const openCase = (c: Case | null) => {
-    if ((c?.id ?? null) === caseId) { setView("chat"); return; }
+  // Going to a case or the personal space without starting a chat: the lists follow `caseId`. The
+  // case as the server has it now (the role may have changed since the list was read); the server
+  // notes the opening in the case's access log.
+  const goTo = (c: Case | null) => {
     setCurrentCase(c);
     setDocuments([]);
     setJobs([]);
     setConversations([]);
-    newChat();
-    // The case as the server has it now (the role may have changed since the list was read); the
-    // server notes the opening in the case's access log.
-    if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
     setNames(new Map());
+    if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
     if (c && c.my_role !== null) listMembers(c.id).then((ms) => setNames(new Map(ms.map((x) => [x.user, x.name || x.username])))).catch(() => {});
+  };
+  // Opening a case or the personal space: a new chat there.
+  const openCase = (c: Case | null) => {
+    if ((c?.id ?? null) === caseId) { setView("chat"); return; }
+    goTo(c);
+    newChat();
+  };
+  const caseById = (id: string | null | undefined) => (id ? cases.find((c) => c.id === id) ?? null : null);
+  // A conversation from a list that spans every place: go to its place first (docs/design/sidebar.md).
+  const openListed = (c: ConversationSummary) => {
+    const target = c.case_id ?? null;
+    if (target !== caseId) goTo(caseById(target));
+    setView("chat");
+    openConversation(c.id);
+  };
+  // A document from the list of everything: go to its place, with the document ready to ask about.
+  const openDocument = (d: AllDocument) => {
+    const target = d.case_id ?? null;
+    if (target !== caseId) { goTo(caseById(target)); newChat(); }
+    setView("chat");
+    if (d.origin !== "playbook") addDocument(d);
+  };
+  const pin = async (c: Case, pinned: boolean) => {
+    try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed((e as Error).message)); }
+  };
+  const caseAction = (c: Case, action: CaseAction) => {
+    if (action === "open") openCase(c);
+    else if (action === "unpin") pin(c, false);
+    else if (action === "members") { if (c.id !== caseId) goTo(c); setShowMembers(true); }
+    else if (action === "log") { if (c.id !== caseId) goTo(c); setShowLog(true); }
+    else if (action === "close") { if (c.id !== caseId) goTo(c); setClosingCase(true); }
   };
   const share = async (shared: boolean) => {
     try { await shareConversation(conversationId, shared); refreshConversations(); } catch (e) { setProblem(m.shareFailed((e as Error).message)); }
@@ -346,12 +396,11 @@ function Chat({ me }: { me: Me }) {
   const shutCase = async () => {
     if (!currentCase) return;
     caseChanged(await closeCase(currentCase.id));
-    setShowClosed(true);  // so the case stays in the sidebar
     setClosingCase(false);
   };
 
   const openConversation = async (id: string) => {
-    if (id === conversationId) return;
+    if (id === conversationId) { setView("chat"); return; }
     try {
       const c = await getConversation(id);
       abort.current?.abort();
@@ -386,17 +435,24 @@ function Chat({ me }: { me: Me }) {
   };
 
   // Deleting a document (suveryn-tracker#12): if saved conversations cite it, ask whether they go too.
-  const [deleting, setDeleting] = useState<{ doc: StoredDocument; conversations: string[] } | null>(null);
-  const remove = async (d: StoredDocument) => {
+  const [deleting, setDeleting] = useState<{ doc: StoredDocument; conversations: string[]; where: string | null } | null>(null);
+  const remove = async (d: StoredDocument, where: string | null = caseId) => {
     let using: string[] = [];
     if (historyReady) {
-      try { using = (await documentConversations(d.id, caseId)).map((c) => c.id); } catch { /* deleting still cleans them */ }
+      try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch { /* deleting still cleans them */ }
     }
-    if (using.length > 0) setDeleting({ doc: d, conversations: using });
-    else await deleteNow(d, "clean", []).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
+    if (using.length > 0) setDeleting({ doc: d, conversations: using, where });
+    else await deleteNow(d, "clean", [], where).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
   };
-  const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[]) => {
-    await deleteDocument(d.id, conversations, caseId);
+  // A document deleted from the list of everything (docs/design/sidebar.md): asked in its own place.
+  const removeListed = (d: AllDocument) => {
+    const target = d.case_id ?? null;
+    if (target !== caseId) { goTo(caseById(target)); newChat(); }
+    setView("chat");
+    remove(d, target);
+  };
+  const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[], where: string | null = caseId) => {
+    await deleteDocument(d.id, conversations, where);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
     if (conversations === "delete" && using.includes(conversationId)) newChat();
     else if (usesDocument(turns, d.id)) setTurns((ts) => withoutDocument(ts, d.id));  // as the server cleaned it
@@ -407,24 +463,23 @@ function Chat({ me }: { me: Me }) {
 
   // ---------------------------------------------------------------- view
   return (
-    <div className="app">
-      <Sidebar documents={documents} jobs={jobs} available={documentsReady}
-               unavailableReason={health === null ? null :
+    <div className="app" data-sidebar={collapsed ? "collapsed" : undefined}>
+      <Sidebar user={self} admin={me.admin ?? false} collapsed={collapsed} onCollapse={setCollapsed}
+               conversations={allConversations} caseConversations={conversations} documents={allDocuments} cases={cases}
+               currentCase={currentCase} currentConversation={conversationId}
+               casesNote={health === null || casesReady ? null : health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable}
+               historyNote={health === null || historyReady ? null : health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
+               documentsNote={health === null || documentsReady ? null :
                  health.documents.status === "starting" ? m.documentsStarting :
                  health.documents.status === "unavailable" ? m.documentsUnavailable :
                  health.documents.status === "failed" ? m.documentsFailed : null}
-               inConversation={conversationDocs} onNewChat={newChat} onUse={addDocument} onDelete={remove}
-               user={self} onSignOut={requestSignOut}
-               conversations={conversations} currentConversation={conversationId} me={me.sub ?? ""} names={names}
-               historyNote={health === null || historyReady ? null :
-                 health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
-               onOpenConversation={(id) => { setView("chat"); openConversation(id); }} onDeleteConversation={removeConversation}
-               tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
-               admin={me.admin ?? false} onOpenAdmin={() => setView("admin")} onOpenAvatar={() => setShowAvatar(true)}
-               cases={cases} currentCase={currentCase} onOpenCase={openCase} onNewCase={() => setNewCase(true)}
-               due={due} showClosed={showClosed} onShowClosed={setShowClosed}
-               casesNote={health === null || casesReady ? null :
-                 health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable} />
+               onNewConversation={(outside) => { if (outside && caseId) goTo(null); newChat(); }} onNewCase={() => setNewCase(true)}
+               onOpenView={setView} onOpenConversation={openListed} onOpenDocument={openDocument} onOpenCase={openCase}
+               onCaseAction={caseAction} tokensToday={tokensToday} onOpenUsage={() => setView("usage")}
+               onOpenAdmin={(tab) => { setAdminTab(tab); setView("admin"); }} onOpenSettings={() => setShowSettings(true)}
+               onOpenAvatar={() => setShowAvatar(true)} onSignOut={requestSignOut} />
+      <SettingsDialog open={showSettings} me={self} onClose={() => setShowSettings(false)}
+                      onPicture={() => { setShowSettings(false); setShowAvatar(true); }} />
       <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
       <DeleteCaseDialog open={deletingCase} kase={currentCase} onDelete={removeCase} onCancel={() => setDeletingCase(false)} />
@@ -438,7 +493,7 @@ function Chat({ me }: { me: Me }) {
       {currentCase && <AccessLogDialog open={showLog} kase={currentCase} onClose={() => setShowLog(false)} />}
       <DeleteDocumentDialog open={deleting !== null} filename={deleting?.doc.filename ?? ""}
                             conversations={deleting?.conversations.length ?? 0}
-                            onDelete={(what) => deleteNow(deleting!.doc, what, deleting!.conversations)}
+                            onDelete={(what) => deleteNow(deleting!.doc, what, deleting!.conversations, deleting!.where)}
                             onCancel={() => setDeleting(null)} />
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
@@ -446,7 +501,21 @@ function Chat({ me }: { me: Me }) {
       <main className="main">
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
-        {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} /></div>}
+        {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}
+        {view === "conversations" && <div className="conversation">
+          <ConversationsView conversations={allConversations} cases={cases} current={conversationId} me={me.sub ?? ""}
+                             onOpen={openListed} onDelete={(c) => removeConversation(c.id)} onBack={() => setView("chat")} />
+        </div>}
+        {view === "documents" && <div className="conversation">
+          <DocumentsView documents={allDocuments} jobs={jobs} cases={cases} onOpen={openDocument} onDelete={removeListed} onBack={() => setView("chat")} />
+        </div>}
+        {view === "cases" && <div className="conversation">
+          <CasesView cases={cases} current={caseId} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onBack={() => setView("chat")} />
+        </div>}
+        {view === "search" && <div className="conversation">
+          <SearchView conversations={allConversations} documents={allDocuments} cases={cases} current={caseId}
+                      onOpenConversation={openListed} onOpenDocument={openDocument} onOpenCase={openCase} onBack={() => setView("chat")} />
+        </div>}
         {view === "playbook" && currentCase && (
           <div className="conversation">
             <PlaybookView kase={currentCase} canRun={contributes && !closed} documents={documents.filter((d) => d.origin === "uploaded").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
@@ -464,11 +533,6 @@ function Chat({ me }: { me: Me }) {
             <TextButton className="case-action" onPress={() => setShowMembers(true)}>
               <Users size={14} aria-hidden /> {m.members}
             </TextButton>
-            {hasPlaybook && !administers && (
-              <TextButton className="case-action" onPress={() => setView("playbook")}>
-                <ClipboardList size={14} aria-hidden /> {m.deedIntake}
-              </TextButton>
-            )}
             {canShare && (current?.shared ? (
               <TextButton className="case-action" onPress={() => share(false)} title={m.sharedHint}>
                 <UsersRound size={14} aria-hidden /> {m.unshareConversation}
@@ -524,7 +588,8 @@ function Chat({ me }: { me: Me }) {
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
-                  onSend={send} />
+                  onSend={send} caseReference={currentCase?.reference ?? null}
+                  playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")} />
         </>}
         </>}
       </main>

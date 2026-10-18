@@ -9,7 +9,7 @@ office's directory when a colleague is added.
 
 The avatar is the brand mark's outer boundary: a rounded square whose corner radius is a quarter
 of the side (suveryn-brand `logo/suveryn-icon.svg`: `rx` 5 on 20), with a teal border (`--teal`, at
-least 2 px, 7% of the side). Initials sit on a light teal wash in Space Grotesk, the first letters
+least 1.5 px, 5% of the side; docs/design/sidebar.md, 13). Initials sit on a light teal wash in Space Grotesk, the first letters
 of the first and last word of the display name, upper case, at most two. An administrator (realm
 role `suveryn-admin`) wears a small accent-coloured shield over the bottom-right corner, outside
 the clipped face so the corner never cuts it. Sizes: 24, 32, 48 and 96 px. The component is
