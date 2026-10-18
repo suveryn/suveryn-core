@@ -26,6 +26,7 @@ class Me(BaseModel):
     office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
     cases_keep: str = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
     avatar: str | None = None   # the ETag of the user's picture, None without one (initials are shown)
+    account_url: str | None = None  # Keycloak's account console (password, second factor): the settings dialog links to it
 
 
 def _auth(request: Request) -> Authenticator:
@@ -82,7 +83,8 @@ async def me(request: Request):
     if user is None:
         raise HTTPException(401, "Sign in to continue.")
     return Me(username=user.username, name=user.name, sub=user.sub, admin=ADMIN_ROLE in user.roles, office_wide=cases.office_wide,
-              cases_keep=cases.keep, avatar=await _avatar_etag(request, user.sub))
+              cases_keep=cases.keep, avatar=await _avatar_etag(request, user.sub),
+              account_url=f"{authenticator.settings.issuer}/account" if authenticator.settings.issuer else None)
 
 
 async def _avatar_etag(request: Request, sub: str) -> str | None:

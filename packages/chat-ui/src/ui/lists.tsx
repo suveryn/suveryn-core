@@ -57,14 +57,16 @@ export function ComboBoxField({ name, label, description, options, value, onChan
   );
 }
 
-export function SearchField({ label, value, onChange, placeholder, className }: {
+export function SearchField({ label, value, onChange, placeholder, className, autoFocus }: {
   /** The accessible name ("Find a case"); shown as the placeholder when none is given. */
   label: string; value: string; onChange: (value: string) => void; placeholder?: string; className?: string;
+  /** The field takes the focus when it appears (a search view opened for it). */
+  autoFocus?: boolean;
 }) {
   return (
     <AriaSearchField aria-label={label} value={value} onChange={onChange} className={cx("ui-search", className)}>
       <Search size={14} aria-hidden className="ui-search-icon" />
-      <Input className="ui-search-input" placeholder={placeholder ?? label} />
+      <Input className="ui-search-input" placeholder={placeholder ?? label} autoFocus={autoFocus} />
       <AriaButton className="ui-search-clear"><X size={14} aria-hidden /></AriaButton>
     </AriaSearchField>
   );

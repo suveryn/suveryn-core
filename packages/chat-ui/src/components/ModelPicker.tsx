@@ -7,7 +7,7 @@
  * while it loads, and other people's questions wait too. The menu and the note under the
  * composer say so; nothing is hidden.
  */
-import { Cpu } from "lucide-react";
+import { Brain, Cpu } from "lucide-react";
 import type { ModelInfo } from "../api";
 import { t, useT } from "../i18n";
 import { modelName } from "../lib/model";
@@ -35,15 +35,16 @@ export function ModelPicker({ models, chosen, onChoose }: Props) {
 
   const name = modelName(current?.id);
   if (!current || !name) return null;
+  // A model that can reason before it answers wears a brain instead of the chip (docs/design/sidebar.md).
   const label = (
     <>
-      <Cpu size={12} aria-hidden />
+      {current.thinks ? <Brain size={12} className="model-thinks" role="img" aria-label={m.modelThinks} /> : <Cpu size={12} aria-hidden />}
       <span className="model-full">{name.full}</span>
       <span className="model-family">{name.family}</span>
     </>
   );
   if (models.length < 2) {
-    return <span className="chip-model" title={m.modelTag(name.full)}>{label}</span>;
+    return <span className="chip-model" title={m.modelTag(name.full) + (current.thinks ? `, ${m.modelThinks}` : "")}>{label}</span>;
   }
   return (
     <span className="model-picker">
@@ -58,7 +59,7 @@ export function ModelPicker({ models, chosen, onChoose }: Props) {
         items={models.map((x) => ({
           id: x.id,
           label: modelName(x.id)?.full ?? x.id,
-          description: x.loaded ? m.modelReady : m.modelLoadsWhenChosen,
+          description: (x.loaded ? m.modelReady : m.modelLoadsWhenChosen) + (x.thinks ? ` · ${m.modelThinks}` : ""),
         }))}
       >
         {label}
