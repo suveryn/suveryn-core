@@ -14,9 +14,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_chat import DocumentsUnavailable
 from suveryn_engine import BackendError, ChatMessage, ChatRequest
-from suveryn_playbooks import Playbook, by_slug, covered, for_case_type
+from suveryn_playbooks import PLAYBOOKS, Playbook, by_slug, covered, for_case_type
 
 from ..playbooks import (
+    ActiveIn,
     ConfirmIn,
     PlaybookOut,
     Run,
@@ -29,6 +30,7 @@ from ..playbooks import (
 from .common import (
     DocumentNotFound,
     Scope,
+    admin_or_403,
     case_for,
     docs_or_503,
     log_access,
@@ -62,17 +64,48 @@ def _run_id(run_id: str) -> uuid.UUID:
         raise HTTPException(422, f"Not a run id: {run_id!r}") from None
 
 
-def _out(p: Playbook) -> PlaybookOut:
+def _out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
     return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
-                       facts=[f.id for f in p.facts])
+                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive)
+
+
+async def _inactive(request: Request) -> set[str]:
+    """The playbooks an administrator switched off (docs/design/sidebar.md, 15); none when the
+    runs store isn't there, so the list of playbooks still answers."""
+    db = request.app.state.runs
+    store = db.get() if db.configured else None
+    return set() if store is None else await run_in_threadpool(store.inactive)
 
 
 @router.get("/v1/cases/{case_id}/playbooks", response_model=list[PlaybookOut])
 async def case_playbooks(case_id: str, request: Request):
-    """The playbooks that fit this case's type, each with whether it is covered by the appliance's
-    support agreement (``covered`` false: it runs, with a warning; never a block)."""
+    """The playbooks that fit this case's type and are switched on, each with whether it is covered
+    by the appliance's support agreement (``covered`` false: it runs, with a warning; never a block)."""
     case = await case_for(request, case_id, "read")
-    return [_out(p) for p in for_case_type(case.type)]
+    inactive = await _inactive(request)
+    return [_out(p, inactive) for p in for_case_type(case.type) if p.id not in inactive]
+
+
+@router.get("/v1/admin/playbooks", response_model=list[PlaybookOut])
+async def admin_playbooks(request: Request):
+    """Every installed playbook with its case types and whether it is switched on (an administrator's
+    list; docs/design/sidebar.md, 15)."""
+    admin_or_403(request)
+    inactive = await _inactive(request)
+    return [_out(p, inactive) for p in PLAYBOOKS]
+
+
+@router.put("/v1/admin/playbooks/{playbook}", response_model=PlaybookOut, responses={404: {"description": "No such playbook"}})
+async def set_playbook_active(playbook: str, body: ActiveIn, request: Request):
+    """Switch a playbook on or off for the whole office: off, it leaves every case's menu and can't
+    be started; runs already made stay."""
+    admin_or_403(request)
+    pb = by_slug(playbook)
+    if pb is None:
+        raise HTTPException(404, "No such playbook.")
+    store = runs_or_503(request)
+    await run_in_threadpool(store.set_active, pb.id, body.active, who(request)[0])
+    return _out(pb, await _inactive(request))
 
 
 @router.get("/v1/cases/{case_id}/playbooks/runs", response_model=list[RunSummary])
@@ -102,7 +135,7 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     the run until it reaches ``checkpoint`` (or ``failed``)."""
     pb = by_slug(playbook)
     case = await case_for(request, case_id, "contribute")
-    if pb is None or case.type not in pb.case_types:
+    if pb is None or case.type not in pb.case_types or pb.id in await _inactive(request):
         raise HTTPException(404, "No such playbook for this case.")
     # Not covered by the support agreement? It runs anyway: the licensing model warns, never blocks
     # (development context §8); the UI shows the warning from GET …/playbooks.

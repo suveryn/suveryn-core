@@ -116,6 +116,12 @@ CREATE TABLE IF NOT EXISTS case_events (
     detail   jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS case_events_case_at ON case_events (case_id, at DESC);
+CREATE TABLE IF NOT EXISTS case_pins (
+    case_id   uuid NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
+    "user"    text NOT NULL,
+    pinned_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (case_id, "user")
+);
 CREATE INDEX IF NOT EXISTS case_events_at ON case_events (at);
 CREATE TABLE IF NOT EXISTS case_settings (
     key        text PRIMARY KEY,
@@ -216,6 +222,7 @@ class Case(BaseModel):
     created_at: datetime
     updated_at: datetime
     my_role: Role | None = None
+    pinned: bool = False  # by the caller, for the sidebar's "pinned" section (docs/design/sidebar.md)
 
 
 class AdminCase(Case):
@@ -268,6 +275,12 @@ class HandoverIn(BaseModel):
     """Body of ``POST /v1/cases/{id}/handover``: the member (or colleague) who takes the case over."""
 
     user: str = Field(min_length=1, max_length=200)
+
+
+class PinIn(BaseModel):
+    """Body of ``PUT /v1/cases/{id}/pin``: whether the caller pins the case in their sidebar."""
+
+    pinned: bool
 
 
 class KeepIn(BaseModel):
@@ -341,10 +354,10 @@ class CaseStore(PgStore):
     _SELECT = "SELECT " + ", ".join(f"c.{c}" for c in COLUMNS)
 
     @classmethod
-    def _case(cls, row, role: str | None = None) -> Case:
+    def _case(cls, row, role: str | None = None, pinned: bool = False) -> Case:
         values = dict(zip(cls.COLUMNS, row))
         values["id"] = str(values["id"])
-        return Case(**values, my_role=role)
+        return Case(**values, my_role=role, pinned=pinned)
 
     def create(self, body: CaseIn, user: str, username: str = "", name: str = "") -> Case:
         """A new open case, managed by its creator, who is its first member."""
@@ -365,9 +378,11 @@ class CaseStore(PgStore):
     def get(self, case_id: uuid.UUID, user: str) -> Case | None:
         """The case with the user's role in it (None if not a member), or None if it doesn't exist."""
         row = self._execute(
-            f'{self._SELECT}, m.role FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
-            " WHERE c.id = %s", (user, case_id)).fetchone()
-        return self._case(row[:-1], row[-1]) if row else None
+            f'{self._SELECT}, m.role, (p."user" IS NOT NULL) FROM cases c'
+            ' LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
+            ' LEFT JOIN case_pins p ON p.case_id = c.id AND p."user" = %s'
+            " WHERE c.id = %s", (user, user, case_id)).fetchone()
+        return self._case(row[:-2], row[-2], row[-1]) if row else None
 
     def role_of(self, case_id: uuid.UUID, user: str) -> Role | None:
         row = self._execute('SELECT role FROM case_members WHERE case_id = %s AND "user" = %s', (case_id, user)).fetchone()
@@ -384,16 +399,28 @@ class CaseStore(PgStore):
         if admin:
             visible.append("true")
         rows = self._execute(
-            f'{self._SELECT}, m.role FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
+            f'{self._SELECT}, m.role, (p."user" IS NOT NULL) FROM cases c'
+            ' LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
+            ' LEFT JOIN case_pins p ON p.case_id = c.id AND p."user" = %s'
             f" WHERE ({' OR '.join(visible)}) AND (%s OR c.state = 'open')"
-            " ORDER BY (c.state = 'open') DESC, c.updated_at DESC", (user, closed)).fetchall()
+            " ORDER BY (c.state = 'open') DESC, c.updated_at DESC", (user, user, closed)).fetchall()
         cases = []
         for row in rows:
-            role = row[-1]
+            role, pinned = row[-2], row[-1]
             if role is None and office_wide and row[5] == "default":
                 role = "reader"
-            cases.append(self._case(row[:-1], role))
+            cases.append(self._case(row[:-2], role, pinned))
         return cases
+
+    def set_pinned(self, case_id: uuid.UUID, user: str, pinned: bool) -> None:
+        """Pin or unpin a case for one user (the sidebar's "pinned" section, docs/design/sidebar.md)."""
+        if pinned:
+            self._execute('INSERT INTO case_pins (case_id, "user") VALUES (%s, %s) ON CONFLICT DO NOTHING', (case_id, user))
+        else:
+            self._execute('DELETE FROM case_pins WHERE case_id = %s AND "user" = %s', (case_id, user))
+
+    def pinned_by(self, case_id: uuid.UUID, user: str) -> bool:
+        return self._execute('SELECT 1 FROM case_pins WHERE case_id = %s AND "user" = %s', (case_id, user)).fetchone() is not None
 
     def update(self, case_id: uuid.UUID, body: CaseUpdate) -> Case | None:
         """Change what ``body`` sets; None if the case doesn't exist."""

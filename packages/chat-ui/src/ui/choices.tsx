@@ -7,6 +7,7 @@
  * - RadioList: compact options, each with a title and a description, and optional content under an
  *   option (the setup's approved-destination chips).
  * - Segmented: a row of short options side by side (the usage period: Hour, Day, Week, …).
+ * - Switch: on or off, applied at once (a playbook's "active").
  *
  * Each option's name is its title and its description is read after it (aria-labelledby and
  * aria-describedby): without that, the label wraps both and a screen reader reads the description twice.
@@ -15,7 +16,8 @@
  */
 import { Check, CircleAlert } from "lucide-react";
 import { useId, type ReactNode } from "react";
-import { Checkbox as AriaCheckbox, Radio, RadioGroup } from "react-aria-components";
+import { Checkbox as AriaCheckbox, Radio, RadioGroup, Switch as AriaSwitch } from "react-aria-components";
+import { cx } from "./Button";
 import { useFieldError } from "./forms";
 
 export type Choice = {
@@ -95,6 +97,19 @@ export function Checkbox({ name, children, checked, onChange }: { name: string; 
         </span>
       )}
     </div>
+  );
+}
+
+/** On or off, applied at once (a playbook's "active" in the administration): React Aria's Switch,
+ *  a role="switch" the keyboard toggles with Space. */
+export function Switch({ label, checked, onChange, isDisabled, className }: {
+  label: string; checked: boolean; onChange: (checked: boolean) => void; isDisabled?: boolean; className?: string;
+}) {
+  return (
+    <AriaSwitch isSelected={checked} onChange={onChange} isDisabled={isDisabled} className={cx("ui-switch", className)}>
+      <span className="ui-switch-track" aria-hidden><span className="ui-switch-thumb" /></span>
+      <span className="ui-switch-label">{label}</span>
+    </AriaSwitch>
   );
 }
 

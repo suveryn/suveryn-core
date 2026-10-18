@@ -136,6 +136,69 @@
 .ui-menu-button { display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; }
 .ui-menu-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
+/* the rich menu (ActionMenu): icon, label, meta in one row; a header and fine print around the items */
+.ui-menu-trigger { font-family: inherit; cursor: pointer; }  /* the size is the caller's class */
+.ui-menu-trigger[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-popover-rich { min-width: 272px; max-width: 360px; }
+.ui-popover-sub { min-width: 10rem; }
+.ui-menu-item-rich { grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 10px; padding: 7px 10px; min-height: 36px; }
+.ui-menu-item-rich .ui-menu-item-icon { display: flex; color: var(--text-dim); }
+.ui-menu-item-rich .ui-menu-item-label { grid-column: 2; font-size: var(--text-ui-sm); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-menu-item-rich .ui-menu-item-meta { grid-column: 3; display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-caption); color: var(--text-dimmer); white-space: nowrap; }
+.ui-menu-item-rich .ui-menu-item-meta[data-tone="teal"] { color: var(--teal-ink); }
+.ui-menu-item-rich .ui-menu-item-meta[data-tone="warn"] { color: var(--accent-ink); }
+.ui-menu-item-rich[data-described] { align-items: center; row-gap: 2px; padding-block: 8px; }
+.ui-menu-item-rich[data-described] .ui-menu-item-icon { grid-row: 1 / span 2; }
+.ui-menu-item-rich[data-described] .ui-menu-item-label { font-weight: 600; white-space: normal; }
+.ui-menu-item-rich[data-described] .ui-menu-item-meta { grid-row: 1 / span 2; }
+.ui-menu-item-rich .ui-menu-item-desc-line { grid-column: 2; font-size: var(--text-caption); line-height: var(--leading-caption); color: var(--text-dim); }
+.ui-menu-eyebrow { font-size: var(--text-label); line-height: var(--leading-label); font-weight: var(--weight-label); letter-spacing: var(--tracking-label);
+                   text-transform: uppercase; color: var(--text-dim); }
+.ui-menu-header:has(.ui-menu-eyebrow) { border-bottom: 0; padding-bottom: 2px; margin-bottom: 0; }
+.ui-menu-item-rich .ui-menu-item-more, .ui-menu-item-rich .ui-menu-item-check { grid-column: 4; color: var(--text-dim); }
+.ui-menu-item-rich[data-tone="accent"] .ui-menu-item-icon { color: var(--accent-ink); }
+.ui-menu-item-rich[data-disabled] { opacity: 0.5; cursor: default; }
+.ui-menu-separator { height: 1px; margin: 4px 2px; background: var(--line); }
+.ui-menu-header { display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.ui-menu-footer { padding: 8px 10px 4px; border-top: 1px solid var(--line); margin-top: 4px; font-size: var(--text-caption); line-height: var(--leading-caption); color: var(--text-dimmer); }
+
+/* a row that expands in place (Expander) */
+.ui-expander-row { display: flex; align-items: center; gap: 2px; border-radius: var(--radius-sm); }
+.ui-expander-row:hover { background: var(--surface-alt); }
+.ui-expander-label { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 0; background: transparent;
+                     border-radius: var(--radius-sm); font: inherit; font-size: var(--text-ui); line-height: var(--leading-control); color: var(--text); text-align: left; cursor: pointer; }
+.ui-expander-label[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-expander-label[aria-current] { font-weight: 600; }
+.ui-expander-icon { display: flex; flex: none; color: var(--text-dim); }
+.ui-expander-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-expander-meta { flex: none; font-size: var(--text-caption); color: var(--text-dimmer); }
+.ui-expander-toggle { display: flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; margin-right: 4px; border: 0; border-radius: var(--radius-sm);
+                      background: transparent; color: var(--text-dim); cursor: pointer; }
+.ui-expander-toggle svg { transition: transform 120ms ease-out; transform: rotate(-90deg); }
+.ui-expander[data-expanded] > .ui-expander-row > .ui-expander-toggle svg { transform: none; }
+@media (prefers-reduced-motion: reduce) { .ui-expander-toggle svg { transition: none; } }
+.ui-expander-toggle[data-hovered] { background: var(--line); color: var(--text); }
+.ui-expander-toggle[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-expander-panel { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 4px; }
+
+/* a switch */
+.ui-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; font-size: var(--text-body-sm); cursor: pointer; }
+.ui-switch-track { position: relative; flex: none; width: 36px; height: 20px; border-radius: var(--radius-pill); background: var(--control-off); transition: background 120ms; }
+.ui-switch-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform 120ms; }
+.ui-switch[data-selected] .ui-switch-track { background: var(--teal-ink); }
+.ui-switch[data-selected] .ui-switch-thumb { transform: translateX(16px); }
+.ui-switch[data-focus-visible] .ui-switch-track { box-shadow: 0 0 0 3px var(--focus-glow); }
+.ui-switch[data-disabled] { opacity: 0.5; cursor: default; }
+
+/* a small badge over the corner of an icon (IconBadge); the avatar's administrator badge is one too */
+.ui-badged { position: relative; display: inline-flex; flex: none; }
+.ui-badge { position: absolute; right: -6px; bottom: -4px; display: grid; place-items: center; width: 11px; height: 11px; border-radius: 30%;
+            background: transparent; color: var(--teal-ink); }
+.ui-badge svg { stroke-width: 2.5; }
+.ui-badge[data-tone="accent"] { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 1.5px var(--surface); }
+.ui-badge svg { width: 100%; height: 100%; }
+.ui-badge[data-tone="accent"] svg { width: 70%; height: 70%; }
+
 /* ------------------------------------------------------------------------------------------------ layout pieces */
 .ui-steps { margin-bottom: 28px; }
 .ui-steps .ui-eyebrow { min-height: 36px; display: flex; align-items: center; margin-bottom: 12px; padding-right: 11.5rem; }
@@ -418,17 +481,15 @@
 .ui-avatar { --avatar: 32px; position: relative; display: inline-block; flex: none; width: var(--avatar); height: var(--avatar);
              font-family: var(--font-display); font-weight: 600; user-select: none; }
 .ui-avatar-face { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 25%; box-sizing: border-box;
-                  border: max(2px, calc(var(--avatar) * 0.07)) solid var(--teal); background: oklch(from var(--teal) l c h / 0.14);
+                  border: max(1.5px, calc(var(--avatar) * 0.05)) solid var(--teal); background: oklch(from var(--teal) l c h / 0.14);
                   color: var(--teal-ink); overflow: hidden; }
 .ui-avatar[data-size="small"] { --avatar: 24px; }
 .ui-avatar[data-size="large"] { --avatar: 48px; }
 .ui-avatar[data-size="huge"] { --avatar: 96px; }
 .ui-avatar-initials { font-size: calc(var(--avatar) * 0.38); line-height: 1; letter-spacing: 0.02em; }
 .ui-avatar-picture { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ui-avatar-badge { position: absolute; right: -3px; bottom: -3px; display: grid; place-items: center;
-                   width: min(calc(var(--avatar) * 0.42), 26px); height: min(calc(var(--avatar) * 0.42), 26px); border-radius: 30%;
-                   background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--surface); }
-.ui-avatar-badge svg { width: 70%; height: 70%; }
+.ui-avatar-badge { right: -3px; bottom: -3px; width: min(calc(var(--avatar) * 0.42), 26px); height: min(calc(var(--avatar) * 0.42), 26px);
+                   box-shadow: 0 0 0 2px var(--surface); }
 .ui-avatar[data-size="small"] .ui-avatar-badge { width: 12px; height: 12px; box-shadow: 0 0 0 1.5px var(--surface); }
 
 /* slider */

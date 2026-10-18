@@ -285,6 +285,17 @@ async def scope_of(request: Request, case: str | None, action: str) -> Scope:
     return Scope.case(uuid.UUID(found.id))
 
 
+async def readable_case_ids(request: Request) -> list[uuid.UUID]:
+    """The cases the caller may read (open and closed): what the sidebar's lists span."""
+    db: Database = request.app.state.cases
+    store = db.get() if db.configured else None
+    if store is None:
+        return []
+    caller, office_wide = principal(request), case_settings(request).office_wide
+    cases = await run_in_threadpool(store.list, caller.sub, office_wide=office_wide, admin=caller.admin, closed=True)
+    return [uuid.UUID(c.id) for c in cases if may(caller, c, c.my_role, "read", office_wide)]
+
+
 async def touch_case(request: Request, scope: Scope) -> None:
     """Note activity in the scope's case, if it is one: the case list is ordered by it."""
     if scope.case_id is not None and (store := request.app.state.cases.get()) is not None:
