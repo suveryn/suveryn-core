@@ -403,6 +403,9 @@ class CaseStore(PgStore):
             return self._case(row) if row else None
         if "subject" in fields:
             fields["subject"] = json.dumps(fields["subject"])
+        for k in fields:
+            if not re.match(r'^[a-zA-Z0-9_]+$', str(k)):
+                raise ValueError("Invalid input")
         sets = ", ".join(f"{k} = %s" for k in fields)
         try:
             row = self._execute(
