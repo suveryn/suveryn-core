@@ -368,7 +368,7 @@ const nl: Messages = {
   deedIntake: "Intake akte",
   deedIntakeIntro: "Sūveryn leest de documenten van het dossier op de gegevens die een verkoopakte nodig heeft en toont elk gegeven naast de passage waar het vandaan komt. Niets is definitief voor u elk gegeven hebt nagekeken.",
   noPlaybookForType: "Voor dit type dossier is er nog geen playbook.",
-  playbookNotLicensed: "Dit playbook is niet gelicentieerd op deze appliance.",
+  playbookNotCovered: "Dit playbook valt niet onder de ondersteuningsovereenkomst van deze appliance: het werkt, maar zonder certificering, updates of ondersteuning. Een beheerder ziet de details in het dashboard.",
   startIntake: "Documenten lezen",
   runAgain: "Documenten opnieuw lezen",
   playbookVersion: (v: string) => `Intake akte ${v}`,
