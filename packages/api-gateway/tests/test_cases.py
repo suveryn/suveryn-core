@@ -134,6 +134,9 @@ class FakeDirectory:
     async def get(self, sub):
         return next((p for p in self.people if p.sub == sub), None)
 
+    async def admins(self):
+        return {ADMIN}  # the avatar's badge (routes/common.py with_faces)
+
     async def aclose(self):
         pass
 
@@ -561,7 +564,7 @@ def test_the_manager_adds_colleagues_from_the_directory_with_a_role(office):
     assert [p["username"] for p in c.get("/v1/users?q=ja", headers=alice).json()] == ["bob"]
     assert c.get(f"/v1/cases/{cid}/members", headers=alice).json()[0] == {
         "user": ALICE, "username": "notaris.test", "name": "Test Notaris", "role": "manager", "added_by": ALICE,
-        "added_at": c.get(f"/v1/cases/{cid}/members", headers=alice).json()[0]["added_at"]}
+        "added_at": c.get(f"/v1/cases/{cid}/members", headers=alice).json()[0]["added_at"], "admin": False, "avatar": None}
     assert c.get(f"/v1/cases/{cid}/members", headers=bob).status_code == 404  # not yet a member: unknown case
     r = c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
     assert r.status_code == 200 and r.json()["name"] == "Bob Janssens" and r.json()["role"] == "reader"

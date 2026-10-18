@@ -35,6 +35,7 @@ from .common import (
     remember_user,
     visible_case,
     who,
+    with_faces,
 )
 
 router = APIRouter()
@@ -166,16 +167,18 @@ async def list_users(request: Request, q: str = ""):
     """The office's accounts (id, username, name) whose username, name or email contains ``q``,
     to add a colleague to a case. From Keycloak, through the ``suveryn-directory`` client."""
     try:
-        return await request.app.state.directory.search(q)
+        people = await request.app.state.directory.search(q)
     except DirectoryUnavailable as e:
         raise HTTPException(503, f"The office's directory is not available right now: {e}.") from e
+    return await with_faces(request, people)
 
 
 @router.get("/v1/cases/{case_id}/members", response_model=list[Member], responses={404: {"description": "Unknown case"}})
 async def list_members(case_id: str, request: Request):
     """The case's members and their roles, the manager first (anyone who may read the case)."""
     case = await case_for(request, case_id, "read")
-    return await run_in_threadpool(cases_or_503(request).members, uuid.UUID(case.id))
+    members = await run_in_threadpool(cases_or_503(request).members, uuid.UUID(case.id))
+    return await with_faces(request, members, key="user")
 
 
 @router.put("/v1/cases/{case_id}/members/{user}", response_model=Member, responses={

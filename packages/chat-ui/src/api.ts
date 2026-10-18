@@ -61,7 +61,8 @@ export type Health = {
 // admin: may open the administration page; office_wide: a new case is open to the whole office by
 // default; cases_keep: how long a closed case is kept before it is deleted ("manual": until deleted by hand)
 export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
-export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod };
+// avatar: the ETag of the user's picture (null: initials are shown); see Avatar in the UI kit
+export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod; avatar?: string | null };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing";
@@ -354,9 +355,9 @@ export async function updateCase(id: string, changes: Partial<NewCase> & { acces
 }
 
 /** A member of a case, with the name as it was when they were added. */
-export type Member = { user: string; username: string; name: string; role: CaseRole; added_by: string; added_at: string };
+export type Member = { user: string; username: string; name: string; role: CaseRole; added_by: string; added_at: string; admin?: boolean; avatar?: string | null };
 /** One of the office's accounts, from the directory (Keycloak), to add to a case. */
-export type Person = { sub: string; username: string; name: string };
+export type Person = { sub: string; username: string; name: string; admin?: boolean; avatar?: string | null };
 /** One line of a case's access log: who did what, when (never document text). */
 export type CaseEvent = { id: number; user: string; at: string; action: string; detail: Record<string, unknown> };
 
@@ -565,4 +566,19 @@ export async function confirmRun(caseId: string, runId: string, facts: { id: str
   });
   if (!r.ok) throw await responseError(r);
   return r.json();
+}
+
+// ---------------------------------------------------------------- avatars (docs/design/avatars.md)
+
+/** Sets the caller's picture: the square the crop dialog made (PNG). The server re-encodes it; returns the new ETag. */
+export async function setMyAvatar(image: Blob): Promise<string> {
+  const r = await fetch("/v1/me/avatar", { method: "PUT", headers: { "Content-Type": image.type || "image/png" }, body: image });
+  if (!r.ok) throw await responseError(r);
+  return (await r.json()).avatar as string;
+}
+
+/** Removes the caller's picture: their initials are shown again. */
+export async function removeMyAvatar(): Promise<void> {
+  const r = await fetch("/v1/me/avatar", { method: "DELETE" });
+  if (!r.ok) throw await responseError(r);
 }

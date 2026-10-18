@@ -73,7 +73,7 @@
     {
       "clientId": "suveryn-directory",
       "name": "Sūveryn directory",
-      "description": "The gateway's read-only view of the office's accounts, to add colleagues to a case (suveryn-tracker#10): a service account with view-users only, no sign-in flow",
+      "description": "The gateway's read-only view of the office's accounts, to add colleagues to a case (suveryn-tracker#10) and to know who administers (the avatar's badge): a service account with view-users and view-realm, both read-only, no sign-in flow",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -99,7 +99,7 @@
       "username": "service-account-suveryn-directory",
       "enabled": true,
       "serviceAccountClientId": "suveryn-directory",
-      "clientRoles": { "realm-management": ["view-users"] }
+      "clientRoles": { "realm-management": ["view-users", "view-realm"] }
     }
   ]
 }

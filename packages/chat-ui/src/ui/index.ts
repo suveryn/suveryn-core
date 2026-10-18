@@ -10,6 +10,7 @@ import "./csp";
 import "./ui.css";
 
 export { CopyButton, LinkButton, Progress } from "./actions";
+export { Avatar, avatarUrl, initialsOf, type AvatarSize } from "./avatar";
 export { Button, cx, IconButton, TextButton, type ButtonProps } from "./Button";
 export { Checkbox, RadioCards, RadioList, Segmented, type Choice } from "./choices";
 export { DateField, NumberField, PasswordField, TextArea, TextField, type FieldSize } from "./fields";
@@ -19,6 +20,7 @@ export { Form, FormError, useFieldError, useFormPending, type FieldErrors } from
 export { Card, Chips, Facts, InlineNotice, Note, Notice, Rows, StatusList, Steps, type Fact, type Row, type Status, type StatusItem } from "./layout";
 export { ComboBoxField, SearchField, SelectList, type ListEntry } from "./lists";
 export { MenuButton, Select, SelectField, type Option } from "./menus";
+export { Slider } from "./slider";
 export { QrCode } from "./QrCode";
 export { I18nProvider } from "react-aria-components";
 export { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "./charts";
