@@ -357,6 +357,13 @@ def setup_flow(browser):
     check("step 4: a manifest shows the agreement (users, valid until, check-in, certified)",
           all(pg.get_by_text(t).count() for t in ("Sūveryn Enterprise", "30 September 2027", "31 December 2026", "3 connectors · 4 playbooks")))
     pg.screenshot(path=OUT / "setup-4-manifest-en.png", full_page=True)
+    replace = pg.get_by_role("button", name="Replace the manifest")
+    with pg.expect_file_chooser() as fc:
+        replace.click()
+    fc.value.set_files(files=[{"name": "manifest-2.yaml", "mimeType": "application/x-yaml", "buffer": b"edition: y"}])
+    pg.get_by_text("Enabled named accounts").wait_for()
+    check("step 4: the replace link opens the file picker and the new manifest shows",
+          replace.count() == 1 and pg.get_by_text("Sūveryn Enterprise").count() >= 1)
     pg.get_by_role("button", name="Continue").click()
 
     pg.get_by_role("heading", name="Backups", level=1).wait_for()
