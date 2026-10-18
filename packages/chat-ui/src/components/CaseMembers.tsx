@@ -18,7 +18,7 @@ import {
 } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, ComboBoxField, Dialog, InlineNotice, Segmented, Select, TextButton } from "../ui";
+import { Avatar, Button, ComboBoxField, Dialog, InlineNotice, Segmented, Select, TextButton } from "../ui";
 
 type Props = {
   open: boolean;
@@ -101,6 +101,8 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
         <ul className="member-list">
           {members.map((member) => (
             <li key={member.user} className="member">
+              <Avatar name={member.name || member.username || member.user} sub={member.user} etag={member.avatar} admin={member.admin}
+                      adminLabel={m.administrator} size="small" className="member-avatar" />
               <span className="member-name">{member.name || member.username || member.user}</span>
               <span className="member-user">{member.username}</span>
               {canManage && member.role !== "manager" ? (

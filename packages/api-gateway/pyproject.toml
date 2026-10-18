@@ -13,6 +13,7 @@ dependencies = [
     "python-multipart>=0.0.9",  # file uploads (POST /v1/documents)
     "pyjwt[crypto]>=2.10",  # validating Keycloak's tokens (RS256 via cryptography)
     "psycopg[binary]>=3.2",  # saved conversations in PostgreSQL (conversations.py)
+    "pillow>=10",  # avatars: a bounded decoder that re-encodes every uploaded picture (avatars.py)
 ]
 
 [project.urls]

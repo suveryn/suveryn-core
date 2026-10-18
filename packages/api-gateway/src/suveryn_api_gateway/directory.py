@@ -16,12 +16,16 @@ and the API answers 503; with sign-in off (development on one machine) it holds 
 """
 
 import asyncio
+import logging
 import os
 import time
 from dataclasses import dataclass
 
 import httpx
 from pydantic import BaseModel
+
+log = logging.getLogger("suveryn.gateway")
+ADMIN_ROLE = "suveryn-admin"  # the realm role; routes/common.py names the same
 
 CACHE_S = 30
 MAX_RESULTS = 20
@@ -64,6 +68,8 @@ class Person(BaseModel):
     sub: str
     username: str
     name: str
+    admin: bool = False  # holds the realm role suveryn-admin (the avatar's badge); filled in by ``admins()``
+    avatar: str | None = None  # the ETag of their picture, None without one (routes/common.py ``with_faces``)
 
 
 class Directory:
@@ -74,6 +80,8 @@ class Directory:
         self._http = httpx.AsyncClient(timeout=10.0, transport=transport)
         self._token: tuple[str, float] = ("", 0.0)
         self._cache: dict[str, tuple[float, list[Person]]] = {}
+        self._admins: tuple[float, set[str]] | None = None
+        self._admins_warned = False
         self._lock = asyncio.Lock()
 
     @property
@@ -126,6 +134,29 @@ class Directory:
             raise DirectoryUnavailable(f"the sign-in service refused the user lookup (HTTP {r.status_code})")
         return _person(r.json())
 
+    async def admins(self) -> set[str]:
+        """The ids of the accounts holding the realm role ``suveryn-admin``, for the badge on their
+        avatar; cached ``CACHE_S``. Keycloak answers this through ``/roles/{role}/users``, which needs
+        the ``view-realm`` right as well as ``view-users``; without it the answer is empty (logged
+        once, never an error: a missing badge is cosmetic)."""
+        if not self.configured:
+            return set()
+        async with self._lock:
+            if self._admins is not None and time.monotonic() - self._admins[0] < CACHE_S:
+                return self._admins[1]
+            found: set[str] = set()
+            try:
+                r = await self._admin_get(f"/roles/{ADMIN_ROLE}/users", {"max": "200", "briefRepresentation": "true"})
+                if r.status_code == 200:
+                    found = {u["id"] for u in r.json() if u.get("id")}
+                elif not self._admins_warned:
+                    log.warning("the directory client can't list administrators (HTTP %d): no badge on their avatars", r.status_code)
+                    self._admins_warned = True
+            except (httpx.HTTPError, DirectoryUnavailable) as e:
+                log.info("administrators not listed: %s", type(e).__name__)
+            self._admins = (time.monotonic(), found)
+            return found
+
     async def _admin_get(self, path: str, params: dict | None = None) -> httpx.Response:
         token = await self._access_token()
         try:
@@ -175,6 +206,9 @@ class LocalDirectory:
 
     async def get(self, sub: str) -> Person | None:
         return next((p for p in self._people if p.sub == sub), None)
+
+    async def admins(self) -> set[str]:
+        return {p.sub for p in self._people}  # with sign-in off, the one local user administers
 
     async def aclose(self) -> None:
         pass

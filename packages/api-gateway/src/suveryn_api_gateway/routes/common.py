@@ -251,6 +251,20 @@ async def log_access(request: Request, case_id: uuid.UUID | None, action: str, d
         log.error("case access log not written: %s", type(e).__name__)
 
 
+async def with_faces(request: Request, people: list, key: str = "sub") -> list:
+    """People (``Person`` or ``Member``) with what their avatar needs: ``admin`` from the directory
+    (never an error: a missing badge is cosmetic) and ``avatar``, the ETag of their picture."""
+    subs = [getattr(p, key) for p in people]
+    try:
+        admins = await request.app.state.directory.admins()
+    except Exception:  # noqa: BLE001 - the directory may be down; the list still answers
+        admins = set()
+    db: Database = request.app.state.avatars
+    store = db.get() if db.configured else None
+    etags = await run_in_threadpool(store.etags, subs) if store is not None and subs else {}
+    return [p.model_copy(update={"admin": getattr(p, key) in admins, "avatar": etags.get(getattr(p, key))}) for p in people]
+
+
 async def person_or_404(request: Request, sub: str) -> Person:
     """A colleague by their id, from the office's directory (404 if not an enabled account)."""
     try:
