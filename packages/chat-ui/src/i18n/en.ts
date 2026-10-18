@@ -400,6 +400,8 @@ const en = {
   noDocumentsToRead: "Add the case's documents first: the agreement, the title deed, the certificates.",
   playbookResult: "Intake summary, made by sūveryn",
   notASource: "Made by sūveryn: never a source for answers. Ask about the uploaded documents.",
+  runErrorInterrupted: "The reading was interrupted by a restart of the appliance. Read the documents again.",
+  checkpointCaseClosed: "This case is closed. Reopen it to confirm the facts; the checked values are kept until then.",
   earlierRuns: "Earlier runs",
   runReading: "Reading",
   runCheckpoint: "To check",

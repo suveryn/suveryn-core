@@ -375,6 +375,8 @@ const nl: Messages = {
   noDocumentsToRead: "Voeg eerst de documenten van het dossier toe: het compromis, de eigendomstitel, de attesten.",
   playbookResult: "Intakesamenvatting, gemaakt door sūveryn",
   notASource: "Gemaakt door sūveryn: nooit een bron voor antwoorden. Stel uw vragen over de opgeladen documenten.",
+  runErrorInterrupted: "Het lezen werd onderbroken door een herstart van de appliance. Lees de documenten opnieuw.",
+  checkpointCaseClosed: "Dit dossier is afgesloten. Heropen het om de gegevens te bevestigen; de nagekeken waarden blijven tot dan bewaard.",
   earlierRuns: "Eerdere lezingen",
   runReading: "Aan het lezen",
   runCheckpoint: "Na te kijken",
