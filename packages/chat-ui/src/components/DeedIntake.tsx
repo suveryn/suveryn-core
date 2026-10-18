@@ -120,6 +120,7 @@ function statusLabel(status: Run["status"], m: ReturnType<typeof useT>): string 
 function errorLabel(error: string | null, m: ReturnType<typeof useT>): string {
   const known: Record<string, string> = {
     unreadable_answer: m.runErrorUnreadable, model_unavailable: m.runErrorModel, documents_unavailable: m.runErrorDocuments,
+    interrupted: m.runErrorInterrupted,
     document_missing: m.runErrorDocuments, server_error: m.runErrorServer,
   };
   return known[error ?? ""] ?? m.runErrorServer;
@@ -183,7 +184,7 @@ function RunPanel({ run, kase, canRun, onConfirmed }: { run: Run; kase: Case; ca
             {atCheckpoint && canRun && (
               <Button onPress={confirm} isDisabled={busy}><Check size={14} aria-hidden /> {busy ? m.saving : m.confirmAll}</Button>
             )}
-            {atCheckpoint && !canRun && <span className="caption">{m.checkpointReadOnly}</span>}
+            {atCheckpoint && !canRun && <span className="caption">{kase.state === "closed" ? m.checkpointCaseClosed : m.checkpointReadOnly}</span>}
             {run.status === "confirmed" && (
               <>
                 <Button onPress={word} variant="secondary"><Download size={14} aria-hidden /> {m.downloadWord}</Button>
