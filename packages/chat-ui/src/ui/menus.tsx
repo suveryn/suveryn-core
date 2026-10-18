@@ -168,6 +168,12 @@ export type MenuEntry = "-" | {
   icon?: ReactNode;
   /** A short text after the label, dimmed ("1.2K tokens today"). */
   meta?: string;
+  /** teal: a good sign ("Covered"); warn: a warning that never blocks ("Not covered"). */
+  metaTone?: "teal" | "warn";
+  /** A small icon before the meta (decorative). */
+  metaIcon?: ReactNode;
+  /** A second line under the label. */
+  description?: string;
   /** accent: for an action that stands out (an administrator's playbooks). */
   tone?: "accent";
   /** Entries of a submenu this item opens; `selected` is the ticked one. */
@@ -203,7 +209,10 @@ function entries(items: MenuEntry[], onAction: (id: string) => void) {
       <>
         {e.icon && <span className="ui-menu-item-icon" aria-hidden>{e.icon}</span>}
         <Text slot="label" className="ui-menu-item-label">{e.label}</Text>
-        {e.meta && <Text slot="description" className="ui-menu-item-meta">{e.meta}</Text>}
+        {e.description && <Text slot="description" className="ui-menu-item-desc-line">{e.description}</Text>}
+        {e.meta && (e.description
+          ? <span className="ui-menu-item-meta" data-tone={e.metaTone}>{e.metaIcon}{e.meta}</span>
+          : <Text slot="description" className="ui-menu-item-meta" data-tone={e.metaTone}>{e.metaIcon}{e.meta}</Text>)}
         {e.submenu && <ChevronRight size={14} aria-hidden className="ui-menu-item-more" />}
         {selected && <Check size={14} aria-hidden className="ui-menu-item-check" />}
       </>
@@ -211,7 +220,8 @@ function entries(items: MenuEntry[], onAction: (id: string) => void) {
     if (e.submenu) {
       return (
         <SubmenuTrigger key={e.id}>
-          <MenuItem id={e.id} textValue={e.label} className="ui-menu-item ui-menu-item-rich" data-tone={e.tone} isDisabled={e.isDisabled}>
+          <MenuItem id={e.id} textValue={e.label} className="ui-menu-item ui-menu-item-rich" data-tone={e.tone} isDisabled={e.isDisabled}
+                    data-described={e.description ? true : undefined}>
             {content()}
           </MenuItem>
           <Popover className="ui-popover ui-popover-sub" placement="end top" offset={-6}>
@@ -226,7 +236,8 @@ function entries(items: MenuEntry[], onAction: (id: string) => void) {
       );
     }
     return (
-      <MenuItem key={e.id} id={e.id} textValue={e.label} className="ui-menu-item ui-menu-item-rich" data-tone={e.tone} isDisabled={e.isDisabled}>
+      <MenuItem key={e.id} id={e.id} textValue={e.label} className="ui-menu-item ui-menu-item-rich" data-tone={e.tone} isDisabled={e.isDisabled}
+                data-described={e.description ? true : undefined}>
         {({ isSelected }) => content(isSelected)}
       </MenuItem>
     );

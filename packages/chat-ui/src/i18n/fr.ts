@@ -493,6 +493,14 @@ const fr: Messages = {
   playbooksEmpty: "Aucun playbook n'est installé.",
   playbookChangeFailed: (why: string) => `Le playbook n'a pas pu être modifié : ${why}`,
   pinFailed: (why: string) => `Le dossier n'a pas pu être épinglé : ${why}`,
+  pagesShort: (n: number) => `${n} p.`,
+  playbooksActive: (n: number) => `${n} ${n === 1 ? "actif" : "actifs"}`,
+  administratorTitle: "Administrateur",
+  playbookMenuTitle: (reference: string, type: string) => `Playbooks pour le dossier ${reference}${type ? ` · ${type}` : ""}`,
+  playbookMenuFooter: "Les playbooks proposés ici sont choisis par l'administrateur sous Administration › Playbooks.",
+  playbookNames: { "deed-intake": "Intake de l'acte" },
+  playbookBlurbs: { "deed-intake": "Lit dans les documents les faits nécessaires à l'acte" },
+  caseMenu: (reference: string) => `Dossier ${reference} : actions`,
 };
 
 export default fr;

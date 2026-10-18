@@ -518,6 +518,14 @@ const en = {
   playbooksEmpty: "No playbooks are installed.",
   playbookChangeFailed: (why: string) => `The playbook couldn't be changed: ${why}`,
   pinFailed: (why: string) => `The case couldn't be pinned: ${why}`,
+  pagesShort: (n: number) => `${n} p.`,
+  playbooksActive: (n: number) => `${n} active`,
+  administratorTitle: "Administrator",
+  playbookMenuTitle: (reference: string, type: string) => `Playbooks for case ${reference}${type ? ` · ${type}` : ""}`,
+  playbookMenuFooter: "Which playbooks appear here is decided by the administrator under Administration › Playbooks.",
+  playbookNames: { "deed-intake": "Deed intake" },
+  playbookBlurbs: { "deed-intake": "Reads the facts for the deed from the documents" },
+  caseMenu: (reference: string) => `Case ${reference}: actions`,
 };
 
 export type Messages = typeof en;
