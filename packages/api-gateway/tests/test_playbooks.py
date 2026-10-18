@@ -160,9 +160,9 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
-    # which playbooks fit: a sale gets deed intake, entitled
+    # which playbooks fit: a sale gets deed intake, covered
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["entitled"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.0")]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.0")]
     # a reader can't start; a contributor can, and the run reads only the uploaded document
     assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=bob).status_code == 403
     assert c.post(f"/v1/cases/{cid}/playbooks/estate-intake/runs", json={}, headers=alice).status_code == 404

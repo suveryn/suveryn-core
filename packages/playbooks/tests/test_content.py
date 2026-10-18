@@ -1,4 +1,4 @@
-from suveryn_playbooks import PLAYBOOKS, by_slug, entitled, find, for_case_type
+from suveryn_playbooks import PLAYBOOKS, by_slug, covered, find, for_case_type
 
 
 def test_identity_is_the_platforms():
@@ -13,9 +13,9 @@ def test_identity_is_the_platforms():
         assert all(f"| {f.id} | | |" in p.instructions for f in p.facts)
 
 
-def test_deed_intake_fits_a_sale_and_is_entitled():
+def test_deed_intake_fits_a_sale_and_is_covered():
     p = by_slug("deed-intake")
     assert p is not None and p.id == "playbook/be-notary/deed-intake" and p.pack == "pack/be-notary"
     assert for_case_type("sale") == [p] and for_case_type("estate") == []
-    assert find(p.id) is p and entitled(p.id) and not entitled("playbook/be-notary/nothing")
+    assert find(p.id) is p and covered(p.id) and not covered("playbook/be-notary/nothing")
     assert len(p.facts) == 13

@@ -511,7 +511,8 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 // ---------------------------------------------------------------- playbooks (suveryn-tracker#51, docs/design/playbooks.md)
 
 /** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
-export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; entitled: boolean; facts: string[] };
+/** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
+export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
 export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
 export type RunFact = {

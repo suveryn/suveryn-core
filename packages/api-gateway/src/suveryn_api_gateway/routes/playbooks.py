@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_chat import DocumentsUnavailable
 from suveryn_engine import BackendError, ChatMessage, ChatRequest
-from suveryn_playbooks import Playbook, by_slug, entitled, for_case_type
+from suveryn_playbooks import Playbook, by_slug, covered, for_case_type
 
 from ..playbooks import (
     ConfirmIn,
@@ -63,13 +63,14 @@ def _run_id(run_id: str) -> uuid.UUID:
 
 
 def _out(p: Playbook) -> PlaybookOut:
-    return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, entitled=entitled(p.id),
+    return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
                        facts=[f.id for f in p.facts])
 
 
 @router.get("/v1/cases/{case_id}/playbooks", response_model=list[PlaybookOut])
 async def case_playbooks(case_id: str, request: Request):
-    """The playbooks that fit this case's type, each with whether this appliance may run it."""
+    """The playbooks that fit this case's type, each with whether it is covered by the appliance's
+    support agreement (``covered`` false: it runs, with a warning; never a block)."""
     case = await case_for(request, case_id, "read")
     return [_out(p) for p in for_case_type(case.type)]
 
@@ -92,7 +93,7 @@ async def get_run(case_id: str, run_id: str, request: Request):
 
 
 @router.post("/v1/cases/{case_id}/playbooks/{playbook}/runs", response_model=Run, status_code=202, responses={
-    403: {"description": "Not a contributor, or the case is closed, or the playbook isn't licensed"},
+    403: {"description": "Not a contributor, or the case is closed"},
     404: {"description": "No such case, playbook or document"},
 })
 async def start_run(case_id: str, playbook: str, body: StartIn, request: Request):
@@ -103,8 +104,8 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     case = await case_for(request, case_id, "contribute")
     if pb is None or case.type not in pb.case_types:
         raise HTTPException(404, "No such playbook for this case.")
-    if not entitled(pb.id):
-        raise HTTPException(403, "This playbook isn't licensed on this appliance.")
+    # Not covered by the support agreement? It runs anyway: the licensing model warns, never blocks
+    # (development context §8); the UI shows the warning from GET …/playbooks.
     docs, store, cid = docs_or_503(request), runs_or_503(request), uuid.UUID(case.id)
     scope = Scope.case(cid)
     stored = await run_in_threadpool(docs.documents, scope)

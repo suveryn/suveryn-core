@@ -393,7 +393,7 @@ const en = {
   deedIntake: "Deed intake",
   deedIntakeIntro: "Sūveryn reads the case's documents for the facts a deed of sale needs and shows each one next to the passage it comes from. Nothing is final until you have checked every fact.",
   noPlaybookForType: "There is no playbook for this type of case yet.",
-  playbookNotLicensed: "This playbook isn't licensed on this appliance.",
+  playbookNotCovered: "This playbook isn't covered by this appliance's support agreement: it works, but without certification, updates or support. An administrator can see the details in the dashboard.",
   startIntake: "Read the documents",
   runAgain: "Read the documents again",
   playbookVersion: (v: string) => `Deed intake ${v}`,

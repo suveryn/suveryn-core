@@ -7,8 +7,10 @@ record, every document a playbook produces, and later the registry and the licen
 chosen once and never change. The version is separate from the id: a change that changes results
 is a new minor version, a change that makes an old run unreadable a new major one.
 
-``entitled(playbook_id)`` is the single place a licence check lands (the commercial model: a signed
-file the office installs). Today every official playbook is entitled on every appliance.
+``covered(playbook_id)`` is the single place the licence check lands: whether the playbook is
+certified and listed in the appliance's manifest (development context §8, suveryn-tracker#35). A
+playbook that isn't covered still runs: the licensing model warns and never blocks. Today every
+official playbook is covered on every appliance.
 """
 
 from __future__ import annotations
@@ -50,9 +52,12 @@ class Playbook:
         return int(self.version.split(".")[0])
 
 
-def entitled(playbook_id: str) -> bool:
-    """Whether this appliance may run the playbook. The licence check lands here (commercial model);
-    until there is one, every official playbook is entitled."""
+def covered(playbook_id: str) -> bool:
+    """Whether the playbook is certified and covered by the appliance's support agreement (listed in
+    its manifest by id and fingerprint). The licence check lands here and nowhere else. It never
+    decides whether a run starts: an uncovered playbook runs with a warning to everyone (the
+    licensing model, §8: "a warning, never a block"). Until there is a manifest, every official
+    playbook is covered."""
     return find(playbook_id) is not None
 
 
@@ -74,4 +79,4 @@ from .be_notary.deed_intake import (
 
 PLAYBOOKS: tuple[Playbook, ...] = (DEED_INTAKE,)
 
-__all__ = ["PLAYBOOKS", "Fact", "FactKind", "Playbook", "by_slug", "entitled", "find", "for_case_type"]
+__all__ = ["PLAYBOOKS", "Fact", "FactKind", "Playbook", "by_slug", "covered", "find", "for_case_type"]
