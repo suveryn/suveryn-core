@@ -6,8 +6,7 @@
  */
 import { Clock } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Button as AriaButton, FileTrigger } from "react-aria-components";
-import { CopyButton, FileDrop, Form, Notice, QrCode, Rows, type FieldErrors } from "../../ui";
+import { CopyButton, FileButton, FileDrop, Form, Notice, QrCode, Rows, TextButton, type FieldErrors } from "../../ui";
 import { checkManifest, skipManifest, type Manifest, type SetupState } from "../api";
 import { LOCALES, useLang, useText, type Text } from "../text";
 import { checkThenSave, errorsFrom, StepFooter } from "./common";
@@ -115,8 +114,8 @@ function ManifestRows({ manifest: m, t, locale, onReplace, error }: {
 
 function ReplaceButton({ label, onFile }: { label: string; onFile: (f: File) => void }) {
   return (
-    <FileTrigger acceptedFileTypes={[".yaml", ".yml"]} onSelect={(f) => { const file = f?.[0]; if (file) onFile(file); }}>
-      <AriaButton className="ui-link-button setup-replace">{label}</AriaButton>
-    </FileTrigger>
+    <FileButton accept={[".yaml", ".yml"]} onSelect={(files) => { if (files[0]) onFile(files[0]); }}>
+      <TextButton link className="setup-replace">{label}</TextButton>
+    </FileButton>
   );
 }
