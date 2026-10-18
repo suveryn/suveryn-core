@@ -365,7 +365,7 @@ const nl: Messages = {
   instructionLike: (sources) =>
     `${sources.length > 1 ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst die zich tot een AI richt (zoals „negeer de instructies”). Sūveryn heeft die als documentinhoud behandeld, niet als opdracht, maar controleer dit antwoord extra zorgvuldig in de documenten.`,
   // playbooks (suveryn-tracker#51): intake akte
-  deedIntake: "Intake akte",
+  deedIntake: "Akte-intake",
   deedIntakeIntro: "Sūveryn leest de documenten van het dossier op de gegevens die een verkoopakte nodig heeft en toont elk gegeven naast de passage waar het vandaan komt. Niets is definitief voor u elk gegeven hebt nagekeken.",
   noPlaybookForType: "Voor dit type dossier is er nog geen playbook.",
   playbookNotCovered: "Dit playbook valt niet onder de ondersteuningsovereenkomst van deze appliance: het werkt, maar zonder certificering, updates of ondersteuning. Een beheerder ziet de details in het dashboard.",
@@ -493,6 +493,14 @@ const nl: Messages = {
   playbooksEmpty: "Er zijn geen playbooks geïnstalleerd.",
   playbookChangeFailed: (why: string) => `Het playbook kon niet gewijzigd worden: ${why}`,
   pinFailed: (why: string) => `Het dossier kon niet vastgezet worden: ${why}`,
+  pagesShort: (n: number) => `${n} p.`,
+  playbooksActive: (n: number) => `${n} actief`,
+  administratorTitle: "Administrator",
+  playbookMenuTitle: (reference: string, type: string) => `Playbooks voor dossier ${reference}${type ? ` · ${type}` : ""}`,
+  playbookMenuFooter: "Welke playbooks hier staan, bepaalt de beheerder onder Beheer › Playbooks.",
+  playbookNames: { "deed-intake": "Akte-intake" },
+  playbookBlurbs: { "deed-intake": "Leest de feiten voor de akte uit de documenten" },
+  caseMenu: (reference: string) => `Dossier ${reference}: acties`,
 };
 
 export default nl;
