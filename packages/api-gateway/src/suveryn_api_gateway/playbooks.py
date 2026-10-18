@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -144,7 +145,7 @@ class PlaybookOut(BaseModel):
 
 # ------------------------------------------------------------------------- reading the model's table
 
-_ROW = re.compile(r"^\s*\|?\s*([a-z_]+)\s*\|(.*?)\|(.*?)\|?\s*$")
+_ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
 _MARKER = re.compile(r"\[(\d{1,2})\]")
 _NOT_FOUND = re.compile(r"^\s*(-|—|n/?a|none|niet (gevonden|vermeld)|non (trouvé|mentionné)|not (found|mentioned|stated))\s*\.?\s*$", re.IGNORECASE)
 
@@ -156,16 +157,24 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
     The check reuses the chat's, both halves: ``citation_issues`` (a figure, date or name that is in
     a passage but not the cited one) works on the whole answer and reports by marker occurrence, so
     markers are counted here in the same order to map them to facts; ``unverified_figures`` (a figure
-    in no passage at all: made up or worked out) is matched to the fact whose value writes it."""
+    in no passage at all: made up or worked out) is matched to the fact whose value writes it, a
+    substring match that can attach a figure to two facts that both write it (tolerable: both get
+    the warning, and a person looks at both).
+
+    The first column names the fact: its id as given, or, since a small model sometimes translates
+    or paraphrases, its label in any of the playbook's languages (review 2026-10-17). Rows are never
+    taken by position: a skipped row would shift every fact after it onto the wrong label, silently,
+    which is worse than a run that fails and is started again."""
     citations = response.citations
     rows: dict[str, tuple[str, list[int]]] = {}
     marker_facts: list[str] = []  # which fact the i-th valid marker (in text order) belongs to
+    names = _fact_names(playbook)
     for line in response.answer.splitlines():
         m = _ROW.match(line)
         if not m or m.group(1) in ("id",) or set(m.group(2).strip()) <= {"-", ":"}:
             continue
-        fact_id, value, source = m.group(1), m.group(2).strip(), m.group(3)
-        if fact_id not in {f.id for f in playbook.facts} or fact_id in rows:
+        fact_id, value, source = names.get(_fold(m.group(1))), m.group(2).strip(), m.group(3)
+        if fact_id is None or fact_id in rows:
             continue
         # markers in the value cell count first (text order), then the source cell
         numbers = cited_numbers(value, len(citations)) + cited_numbers(source, len(citations))
@@ -184,9 +193,27 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
         value, numbers = rows.get(f.id, ("", []))
         found = bool(value) and not _NOT_FOUND.match(value)
         cited = [_cite(n, citations[n - 1], filenames) for n in numbers if 0 < n <= len(citations)]
+        # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
         facts.append(RunFact(id=f.id, value=value[:MAX_VALUE] if found else "", citations=cited if found else [],
                              issues=list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else [], found=found))
     return facts
+
+
+def _fold(text: str) -> str:
+    """A fact's name as the model may write it: case, accents, surrounding marks and spacing ignored."""
+    text = "".join(c for c in unicodedata.normalize("NFKD", text.casefold()) if not unicodedata.combining(c))
+    return re.sub(r"[\s_*`'\"()-]+", " ", text).strip()
+
+
+def _fact_names(playbook: Playbook) -> dict[str, str]:
+    """Every way the first column may name a fact (id, label in each language, id with spaces) -> id."""
+    names = {}
+    for f in playbook.facts:
+        names[_fold(f.id)] = f.id
+        for labels in playbook.languages.values():
+            if f.id in labels:
+                names[_fold(labels[f.id])] = f.id
+    return names
 
 
 def _valid(text: str, available: int) -> list[int]:
@@ -201,10 +228,14 @@ def _cite(n: int, c: Citation, filenames: dict[str, str]) -> FactCitation:
 
 def summary_text(playbook: Playbook, reference: str, run: Run, language: str) -> str:
     """The confirmed facts as the result document's text: a heading, one paragraph per fact, the
-    sources. Stored in the case with origin ``playbook`` and offered as a Word download by the UI."""
+    sources. Stored in the case with origin ``playbook`` and offered as a Word download by the UI.
+
+    Provenance: the id and version written are the **run's** (what read the documents), never the
+    playbook as installed now: a run started under 1.0 and confirmed after an upgrade says 1.0
+    (review 2026-10-17). ``playbook`` only supplies the labels."""
     labels = playbook.languages.get(language) or playbook.languages["en"]
     title = {"nl": "Intake akte", "fr": "Intake de l'acte"}.get(language, "Deed intake")
-    lines = [f"{title} {reference}", f"{playbook.id} {playbook.version}"]
+    lines = [f"{title} {reference}", f"{run.playbook_id} {run.playbook_version}"]
     for f in run.facts:
         value = f.confirmed if f.confirmed is not None else f.value
         sources = ", ".join(f"{c.filename}{f' p. {c.page}' if c.page else ''}" for c in f.citations)
@@ -258,6 +289,16 @@ class RunStore(PgStore):
         """The run couldn't be read; ``error`` is a kind, never text."""
         self._execute("UPDATE playbook_runs SET status = 'failed', error = %s, finished_at = now() WHERE id = %s AND status = 'reading'",
                       (error, run_id))
+
+    def interrupt(self, older_than_s: int = 0) -> int:
+        """Runs still ``reading`` whose model call can no longer be running: ``failed``, error
+        ``interrupted``; how many. The call lives in the gateway's process (one per appliance), so at
+        start-up every reading run is dead (``older_than_s`` 0), and the hourly sweep gives up on one
+        that has been reading for longer than any model call takes (review 2026-10-17: a restart
+        used to leave a run spinning forever)."""
+        return self._execute("UPDATE playbook_runs SET status = 'failed', error = 'interrupted', finished_at = now()"
+                             " WHERE status = 'reading' AND started_at <= now() - make_interval(secs => %s)",
+                             (older_than_s,)).rowcount
 
     def confirm(self, run_id: uuid.UUID, case_id: uuid.UUID, confirmed: dict[str, str], by: str) -> Run | None:
         """The checkpoint passed: every fact's confirmed value; None if the run isn't at the checkpoint."""
