@@ -132,3 +132,31 @@ def test_a_failed_upload_releases_its_reservation(tmp_path, monkeypatch):
     with pytest.raises(UploadRejected):
         docs.accept_upload(io.BytesIO(b"not a pdf"), "a.pdf", "user-a")
     docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "a.pdf", "user-a")  # the slot is free again
+
+
+def test_word_excel_markdown_and_csv_are_accepted_and_kept_with_their_extension(tmp_path):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))  # no worker: everything stays queued
+    for name, head in [("deed.pdf", b"%PDF-1.7"), ("Notes.DOCX", b"PK\x03\x04rest"), ("prices.xlsx", b"PK\x03\x04rest"),
+                       ("notes.md", b"# Title\n"), ("list.csv", b"name;amount\n")]:
+        job = docs.accept_upload(io.BytesIO(head), name, "user-a")
+        assert job.filename == name
+    stored = sorted(p.suffix for p in (tmp_path / "uploads").iterdir())
+    assert stored == [".csv", ".docx", ".md", ".pdf", ".xlsx"]  # the reader goes by the extension
+
+
+@pytest.mark.parametrize("name, head, says", [
+    ("old.doc", b"\xd0\xcf\x11\xe0", r"only PDF, Word \(\.docx\), Excel \(\.xlsx\), Markdown \(\.md\) and CSV files"),
+    ("macro.xlsm", b"PK\x03\x04", "only PDF"),
+    ("renamed.docx", b"%PDF-1.7", "not a valid Word file"),   # the content must fit the extension
+    ("encrypted.xlsx", b"\xd0\xcf\x11\xe0", "not a valid Excel file"),  # a password-protected workbook isn't a zip
+    ("binary.csv", b"ab\x00cd", "not a valid CSV file"),
+    ("deed.pdf", b"PK\x03\x04", "not a valid PDF file"),
+    ("empty.md", b"", "empty"),
+])
+def test_other_files_are_refused_and_leave_nothing_behind(tmp_path, name, head, says):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    with pytest.raises(UploadRejected, match=says) as e:
+        docs.accept_upload(io.BytesIO(head), name, "user-a")
+    assert e.value.status == 415
+    assert not list((tmp_path / "uploads").glob("*")) if (tmp_path / "uploads").exists() else True
+    assert not docs.pending_jobs("user-a")

@@ -3086,10 +3086,12 @@ source = { editable = "packages/rag" }
 dependencies = [
     { name = "docling" },
     { name = "ocrmypdf" },
+    { name = "openpyxl" },
     { name = "pgvector" },
     { name = "pikepdf" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pypdfium2" },
+    { name = "python-docx" },
     { name = "sentence-transformers" },
     { name = "suveryn-engine" },
 ]
@@ -3098,10 +3100,12 @@ dependencies = [
 requires-dist = [
     { name = "docling", specifier = ">=2.40" },
     { name = "ocrmypdf", specifier = ">=16.0" },
+    { name = "openpyxl", specifier = ">=3.1" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "pikepdf", specifier = ">=10.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pypdfium2", specifier = ">=5.0" },
+    { name = "python-docx", specifier = ">=1.1" },
     { name = "sentence-transformers", specifier = ">=3.0" },
     { name = "suveryn-engine", editable = "packages/engine" },
 ]

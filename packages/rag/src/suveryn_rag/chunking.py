@@ -27,6 +27,7 @@ class Chunk:
     page_end: int | None
     headings: list[str]
     origin: str = "chunker"  # "chunker", or "text_recovered" / "furniture_restored" / "text_layer_recovered" (see integrity)
+    place: str | None = None  # a spreadsheet passage's cells, e.g. "Prices!A2:D31" (formats)
 
 
 @dataclass
@@ -43,9 +44,11 @@ def chunk_pages(chunk) -> tuple[int | None, int | None]:
     return (pages[0], pages[-1]) if pages else (None, None)
 
 
-def location_label(page_start: int | None, page_end: int | None, headings: list[str]) -> str | None:
-    """Human-readable position, e.g. 'p. 3-4 · Artikel 2 - Koopprijs'."""
-    parts = []
+def location_label(page_start: int | None, page_end: int | None, headings: list[str],
+                   place: str | None = None) -> str | None:
+    """Human-readable position, e.g. 'p. 3-4 · Article 2 - Price', 'Article 2 › Price' (a Word or Markdown
+    file has no pages) or 'Prices!A2:D31' (cells in a spreadsheet)."""
+    parts = [place] if place else []
     if page_start is not None:
         parts.append(f"p. {page_start}" if page_end in (None, page_start) else f"p. {page_start}-{page_end}")
     if headings:

@@ -5,8 +5,9 @@
  */
 import type { Citation } from "../api";
 import { locale, t } from "../i18n";
+import { DOCUMENT_EXTENSION } from "./formats";
 
-/** One source as plain text: "[n] file.pdf, p. 3 · Artikel 4" and the passage on the next lines. */
+/** One source as plain text: "[n] file.pdf, p. 3 · Article 4" and the passage on the next lines. */
 export function formatSource(n: number, citation: Citation, filename: string): string {
   const where = citation.source?.location ?? (citation.source?.page ? `p. ${citation.source.page}` : "");
   return `[${n}] ${filename}${where ? `, ${where}` : ""}\n${citation.text.trim()}`;
@@ -56,7 +57,7 @@ export type Format = "txt" | "md";
 
 /** File name for one source, e.g. "source-1_akte_p3.txt". */
 export function sourceFileName(n: number, filename: string, page: number | null | undefined, format: Format = "txt"): string {
-  const base = safeFileName(filename.replace(/\.pdf$/i, ""));
+  const base = safeFileName(filename.replace(DOCUMENT_EXTENSION, ""));
   return `source-${n}_${base}${page ? `_p${page}` : ""}.${format}`;
 }
 

@@ -250,7 +250,7 @@ def test_document_endpoints_503_when_unavailable_or_starting():
         assert c.get("/health").json()["documents"]["status"] == "starting"
 
 
-def test_upload_rejects_non_pdf():
+def test_upload_rejects_other_file_types():
     import pytest
     pytest.importorskip("suveryn_rag")
     import tempfile
@@ -265,7 +265,10 @@ def test_upload_rejects_non_pdf():
         r = c.post("/v1/documents", files={"file": ("notes.txt", io.BytesIO(b"hello"), "text/plain")})
         assert r.status_code == 415
         uploads = svc.settings.work_dir / "uploads"
-        assert not any(uploads.iterdir())  # the rejected upload is not left behind
+        assert not uploads.exists() or not any(uploads.iterdir())  # the rejected upload is not left behind
+        r = c.post("/v1/documents", files={"file": ("renamed.docx", io.BytesIO(b"%PDF-1.7"), "application/pdf")})
+        assert r.status_code == 415 and "not a valid Word file" in r.json()["detail"]  # the content must fit
+        assert not any(uploads.iterdir())
     assert not uploads.exists()  # and the upload folder is removed on shutdown
 
 

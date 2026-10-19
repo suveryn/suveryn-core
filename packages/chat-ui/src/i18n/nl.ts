@@ -29,13 +29,14 @@ const nl: Messages = {
   streamCutOff: "de verbinding werd verbroken voordat het antwoord volledig was",
   tooManyRequests: (seconds) => `te veel verzoeken; probeer het${seconds ? ` over ${seconds} seconden` : " zo meteen"} opnieuw`,
   fileTooLarge: "het bestand is groter dan de server aanvaardt",
+  fileNotSupported: "dit bestand kan niet worden toegevoegd: sūveryn leest pdf, Word (.docx), Excel (.xlsx), Markdown (.md) en CSV",
   conversationTooLong: "dit gesprek is te lang om te bewaren; begin een nieuw gesprek om verder te gaan",
   requestRejected: "de server kon dit verzoek niet aanvaarden",
   notFound: "het bestaat niet meer (het werd mogelijk verwijderd)",
   forbidden: "u hebt hiervoor geen toestemming",
   serverUnavailable: "dit deel van de server is nu niet beschikbaar; probeer het later opnieuw",
 
-  emptyIntro: "Voeg een akte of een andere pdf toe en stel er een vraag over. Antwoorden vermelden de pagina waarop ze steunen, zodat u elk bedrag kunt nakijken.",
+  emptyIntro: "Voeg een akte of een ander document toe (pdf, Word, Excel, Markdown of CSV) en stel er een vraag over. Antwoorden vermelden de pagina, het onderdeel of de cellen waarop ze steunen, zodat u elk bedrag kunt nakijken.",
 
   newChat: "Nieuw gesprek",
   conversations: "Gesprekken",
@@ -46,7 +47,7 @@ const nl: Messages = {
   delete: "Verwijderen",
   keep: "Behouden",
   documents: "Documenten",
-  documentsEmpty: "Nog geen documenten. Voeg een pdf toe aan een bericht om er een toe te voegen.",
+  documentsEmpty: "Nog geen documenten. Voeg een document toe aan een bericht om er een toe te voegen.",
   pages: (n) => `${n} ${n === 1 ? "pagina" : "pagina's"}`,
   checkPages: (pages) => ` · controleer ${pages}`,
   checkNeeded: " · controle nodig",
@@ -216,7 +217,7 @@ const nl: Messages = {
   cancel: "Annuleren",
   deleteHistoryFailed: (why) => `Uw geschiedenis kon niet worden verwijderd, dus u bent nog ingelogd: ${why}`,
 
-  attachPdf: "Een pdf toevoegen",
+  attachDocument: "Een document toevoegen (pdf, Word, Excel, Markdown of CSV)",
   yourQuestion: "Uw vraag",
   askPlaceholder: "Stel een vraag over uw documenten…",
   send: "Bericht versturen",

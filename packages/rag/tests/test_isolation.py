@@ -28,8 +28,21 @@ def test_a_document_comes_back_as_validated_json(reader):
     from docling_core.types.doc import DoclingDocument
 
     ex = reader.extract(Path("deed.pdf"))
-    assert isinstance(ex.document, DoclingDocument) and ex.document.texts[0].text == "Een akte."
-    assert (ex.pages, ex.ocr_pages, ex.page_texts) == (1, 0, ["Een akte."])
+    assert isinstance(ex.document, DoclingDocument) and ex.document.texts[0].text == "A deed."
+    assert (ex.pages, ex.ocr_pages, ex.page_texts) == (1, 0, ["A deed."])
+
+
+def test_a_spreadsheet_comes_back_as_passages_with_their_cells(reader):
+    ex = reader.extract(Path("prices.xlsx"))
+    assert ex.document is None and ex.pages == 0
+    assert [(p.text, p.headings, p.place) for p in ex.passages] == [("| Item | Amount |\n| Price | 300000 |", [], "Prices!A1:B2")]
+    assert ex.furniture == ["a footer"]
+
+
+def test_malformed_passages_are_refused_and_the_reader_replaced(reader):
+    with pytest.raises(ExtractionFailed, match="invalid answer"):
+        reader.extract(Path("bad.xlsx"))
+    assert reader.extract(Path("next.pdf")).pages == 1
 
 
 def test_the_reader_gets_no_secrets(reader, monkeypatch):
@@ -106,7 +119,7 @@ def test_uploads_wait_privately_and_only_the_one_being_read_is_in_the_inbox(tmp_
     inbox = tmp_path / "inbox"
     inbox.mkdir(mode=0o750)
     docs = DocumentService(RagSettings(work_dir=tmp_path / "work", extract_inbox=inbox))
-    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 test"), "akte.pdf", "user-a")
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 test"), "deed.pdf", "user-a")
     docs.accept_upload(io.BytesIO(b"%PDF-1.7 other"), "b.pdf", "user-b")
     # waiting: in the gateway's private folder, not where the reader can see them (security review)
     assert not list(inbox.glob("*.pdf"))

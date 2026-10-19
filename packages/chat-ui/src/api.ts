@@ -142,6 +142,7 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
   switch (status) {
     case 429: return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
     case 413: return typeof detail === "string" && /conversation/i.test(detail) ? m.conversationTooLong : m.fileTooLarge;
+    case 415: return m.fileNotSupported;
     case 422: return m.requestRejected;
     case 404: return m.notFound;
     case 403: return m.forbidden;
@@ -191,7 +192,7 @@ export async function listDocuments(caseId?: string | null): Promise<{ documents
 }
 
 /**
- * Uploads a PDF and resolves with its job. Uses XMLHttpRequest rather than fetch because only
+ * Uploads a document (PDF, Word, Excel, Markdown or CSV: lib/formats.ts) and resolves with its job. Uses XMLHttpRequest rather than fetch because only
  * XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
  */
 export function uploadDocument(file: File, onProgress?: (fraction: number) => void, caseId?: string | null): Promise<Job> {

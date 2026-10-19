@@ -26,8 +26,11 @@ def test_chunk_pages_without_provenance():
 
 def test_location_label():
     assert location_label(3, 3, []) == "p. 3"
-    assert location_label(3, 4, ["Artikel 2 — Koopprijs"]) == "p. 3-4 · Artikel 2 — Koopprijs"
+    assert location_label(3, 4, ["Article 2 — Price"]) == "p. 3-4 · Article 2 — Price"
     assert location_label(None, None, []) is None
+    # a Word or Markdown file has sections, no pages; a spreadsheet has cells
+    assert location_label(None, None, ["Article 2", "Price"]) == "Article 2 › Price"
+    assert location_label(None, None, [], "Prices!A2:D31") == "Prices!A2:D31"
 
 
 def test_private_workdir_is_private_redirects_temp_and_is_removed(tmp_path):

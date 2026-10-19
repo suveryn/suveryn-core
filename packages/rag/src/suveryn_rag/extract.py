@@ -71,6 +71,10 @@ class Extraction:
     # Pages with text that Docling still couldn't lay out (after the CPU retry, see ``Extractor``): their
     # text is recovered from the text layer, without structure, and the document needs review.
     layout_failed_pages: list[int] = field(default_factory=list)
+    # A Word, Excel, Markdown or CSV file (``formats``): its passages, already placed (section or
+    # cell range), and the text outside its body; ``document`` is None and there are no pages.
+    passages: list | None = None
+    furniture: list[str] = field(default_factory=list)
 
 
 def page_count(pdf: Path) -> int:
@@ -210,9 +214,18 @@ class Extractor:
         self._cpu_converter = cpu_converter
 
     def extract(self, pdf: Path, owner: str | None = None) -> Extraction:
-        """Extract one PDF. The original file is only read; every intermediate file lives in a
-        private work directory that is deleted before this returns, also on errors. ``owner`` is
-        for ``IsolatedExtractor``'s interface; in-process there is no reader to replace."""
+        """Extract one file: a PDF here, a Word, Excel, Markdown or CSV file (by its extension) in
+        ``formats``. The original file is only read; every intermediate file lives in a private work
+        directory that is deleted before this returns, also on errors. ``owner`` is for
+        ``IsolatedExtractor``'s interface; in-process there is no reader to replace."""
+        from . import formats
+
+        kind = formats.kind_of(pdf.name)
+        if kind not in (None, "pdf"):
+            t0 = time.perf_counter()
+            reading = formats.read(pdf, kind, self.settings.chunk_max_tokens * 3)
+            return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0, passages=reading.passages,
+                              furniture=reading.furniture, timings={"read": time.perf_counter() - t0})
         import ocrmypdf
 
         pages = page_count(pdf)
