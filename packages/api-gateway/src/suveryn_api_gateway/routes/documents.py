@@ -1,11 +1,14 @@
-"""Documents: upload (a job, polled until ready), list, delete, and which conversations cite one.
+"""Documents: upload (a job, polled until ready), list, delete, which conversations cite one, and
+answers saved to a case.
 Available when ``suveryn-rag`` is installed and a database is configured; otherwise 503."""
 
+import json
 import uuid
 from typing import Literal
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..conversations import ConversationSummary
 from .common import (
@@ -93,14 +96,17 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     try:
         scope = await scope_of(request, case, "manage")
     except HTTPException as e:
-        # Its uploader may delete their own upload that carries sūveryn's export mark and that nobody
-        # confirmed yet: the card's delete action (docs/design/sidebar.md §6, resolved while building).
+        # A contributor may delete what they put there themselves, in two cases (docs/design/sidebar.md):
+        # their upload that carries sūveryn's export mark and that nobody confirmed yet (the card's
+        # delete action, §6), and an answer they saved to the case (*Undo*, §5).
         if e.status_code != 403 or not case:
             raise
         scope = await scope_of(request, case, "contribute")
         mine = [d for d in await run_in_threadpool(docs.documents, scope) if str(d["id"]) == document_id]
         prov = (mine[0].get("provenance") or {}) if mine else {}
-        if not (mine and mine[0].get("uploaded_by") == owner and "noticed" in prov and "confirmed" not in prov):
+        noticed = "noticed" in prov and "confirmed" not in prov
+        saved = mine and mine[0].get("origin") == "answer"
+        if not (mine and mine[0].get("uploaded_by") == owner and (noticed or saved)):
             raise
     if not await run_in_threadpool(docs.delete, document_id, scope):
         raise HTTPException(404, "Unknown document.")
@@ -139,3 +145,80 @@ async def document_conversations(document_id: str, request: Request, case: str |
         return []
     scope = await scope_of(request, case, "manage")
     return await run_in_threadpool(store.using_document, owner_of(request), did, scope.case_id)
+
+
+# ---------------------------------------------------------------------- answers saved to a case
+MAX_CONTENT_BYTES = 2_000_000  # an answer, its sources' passages and its checks; a long one is ~100 kB
+
+
+class SavedCitation(BaseModel):
+    """A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out."""
+
+    model_config = ConfigDict(extra="allow")
+    text: str = Field(max_length=200_000)
+    source: dict | None = None
+
+
+class AnswerContent(BaseModel):
+    """What rebuilds the Word file (the chat UI's own data): the question, the answer as written, its
+    sources and checks, and the file names of the sources as they were."""
+
+    model_config = ConfigDict(extra="allow")
+    question: str = Field(max_length=20_000)
+    answer: str = Field(max_length=200_000)
+    citations: list[SavedCitation] = Field(default_factory=list, max_length=200)
+    filenames: dict[str, str] = Field(default_factory=dict)
+
+
+class SaveAnswerIn(BaseModel):
+    """Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/sidebar.md §5)."""
+
+    filename: str = Field(min_length=6, max_length=200, pattern=r"^[^/\\\x00-\x1f]+\.docx$")
+    text: str = Field(min_length=1, max_length=200_000)  # what search finds: the question and the answer
+    content: AnswerContent
+    conversation_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+    message_id: str = Field(min_length=1, max_length=100)
+
+    @field_validator("content")
+    @classmethod
+    def not_too_large(cls, v: AnswerContent) -> AnswerContent:
+        if len(v.model_dump_json()) > MAX_CONTENT_BYTES:
+            raise ValueError("the answer is too large to save")
+        return v
+
+
+@router.post("/v1/cases/{case_id}/documents", status_code=201, responses={
+    200: {"description": "This answer was saved before: that document"},
+    403: {"description": "Not a contributor, or the case is closed"}, 404: {"description": "No such case here"}})
+async def save_answer(case_id: str, body: SaveAnswerIn, request: Request, response: Response):
+    """Save an answer to its case, as a document with origin ``answer`` (docs/design/sidebar.md §5): a
+    contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
+    deleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).
+    Saving the same message again gives the document already saved. Logged as ``answer_saved``."""
+    docs = docs_or_503(request)
+    scope = await scope_of(request, case_id, "contribute")
+    owner = owner_of(request)
+    found = await run_in_threadpool(docs.saved_answer, scope, body.message_id)
+    if found:
+        response.status_code = 200
+        return {"id": found[0], "filename": found[1], "created": False}
+    provenance = {"conversation": body.conversation_id, "message": body.message_id}
+    document_id = await run_in_threadpool(docs.store_text, body.filename, body.text, scope, "answer", provenance,
+                                          json.loads(body.content.model_dump_json()), owner)
+    await touch_case(request, scope)
+    await log_access(request, scope.case_id, "answer_saved", {"document": document_id})
+    return {"id": document_id, "filename": body.filename, "created": True}
+
+
+@router.get("/v1/documents/{document_id}/content", responses={404: {"description": "Not here, or nothing to rebuild"}})
+async def document_content(document_id: str, request: Request, case: str | None = None):
+    """What rebuilds a document sūveryn made (a saved answer's Word file, built in the browser): for
+    whoever may read it."""
+    docs = docs_or_503(request)
+    _document_id(document_id)
+    scope = await scope_of(request, case, "read")
+    found = await run_in_threadpool(docs.content, document_id, scope)
+    if found is None:
+        raise HTTPException(404, "Unknown document.")
+    filename, origin, content = found
+    return {"id": document_id, "filename": filename, "origin": origin, "content": content}

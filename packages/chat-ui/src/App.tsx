@@ -26,7 +26,7 @@ import {
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, type Case,
-  listMembers, shareConversation, confirmAsSource, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
+  listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -36,7 +36,8 @@ import { CaseState } from "./components/CaseState";
 import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
-import { AssistantMessage, UserMessage } from "./components/Messages";
+import { AssistantMessage, UserMessage, type SaveToCase } from "./components/Messages";
+import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { CasesView, ConversationsView, DocumentsView, SearchView } from "./components/ListViews";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -48,7 +49,7 @@ import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSav
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { claimRedirect, clearRedirect } from "./lib/signin";
-import { locale, useT } from "./i18n";
+import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, I18nProvider, InlineNotice } from "./ui";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
@@ -130,6 +131,9 @@ function Chat({ me }: { me: Me }) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
   const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook" | SideView>("chat");
+  const [documentsQuery, setDocumentsQuery] = useState("");  // Documents opened from a saved answer: filtered on its case
+  const [savedHere, setSavedHere] = useState<Set<string>>(new Set());  // answers saved during this visit: Undo is offered
+  useEffect(() => { if (view !== "documents") setDocumentsQuery(""); }, [view]);
   const [adminTab, setAdminTab] = useState<AdminTab>("usage");
   const [collapsed, setCollapsedState] = useState(readCollapsed);
   const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
@@ -368,6 +372,46 @@ function Chat({ me }: { me: Me }) {
     }
   };
 
+  // Save to case (docs/design/sidebar.md §5): a finished answer in a case, for a contributor, the case open.
+  const setTurn = (id: string, patch: Partial<AssistantTurn>) =>
+    setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
+  const saveControls = (t: AssistantTurn, question: string): SaveToCase | null => {
+    if (!currentCase || !caseId || !contributes || closed || readOnly || t.status !== "done") return null;
+    const here = savedHere.has(t.id);
+    const exists = !!t.saved && (here || documents.some((d) => d.id === t.saved!.documentId));
+    return {
+      caseRef: currentCase.reference, saved: exists ? t.saved! : null, undoable: here && exists,
+      onSave: async () => {
+        try {
+          const content = savedAnswer(t, question, filenames, currentCase.reference);
+          const r = await saveAnswerToCase(caseId, { filename: answerFileName(question), text: searchText(content), content,
+                                                    conversation_id: conversationId, message_id: t.id });
+          setTurn(t.id, { saved: { documentId: r.id, filename: r.filename } });
+          setSavedHere((s) => new Set(s).add(t.id));
+          refreshDocuments();
+        } catch (e) { setProblem(m.saveToCaseFailed((e as Error).message)); }
+      },
+      onOpen: () => { setDocumentsQuery(currentCase.reference); setView("documents"); },
+      onUndo: async () => {
+        if (!t.saved) return;
+        try {
+          await deleteDocument(t.saved.documentId, "clean", caseId);
+          setTurn(t.id, { saved: undefined });
+          setSavedHere((s) => { const n = new Set(s); n.delete(t.id); return n; });
+          refreshDocuments();
+        } catch (e) { setProblem(m.undoSaveFailed((e as Error).message)); }
+      },
+    };
+  };
+  // A saved answer's Word file, built again from what was saved.
+  const downloadSaved = async (d: AllDocument) => {
+    try {
+      const { content } = await documentContent(d.id, d.case_id);
+      const { saveBlob } = await import("./lib/office");
+      saveBlob(d.filename, await savedWord(content, m, lang()));
+    } catch (e) { setProblem(m.downloadFailedWhy((e as Error).message)); }
+  };
+
   // Stop: the request is aborted, which closes the connection; the gateway then stops the model.
   const stop = () => {
     if (!abort.current) return;
@@ -394,6 +438,7 @@ function Chat({ me }: { me: Me }) {
     setProblem(null);
     setConversationId(newConversationId());
     lastSaved.current = "";
+    setSavedHere(new Set());
   };
 
   // Going to a case or the personal space without starting a chat: the lists follow `caseId`. The
@@ -469,6 +514,7 @@ function Chat({ me }: { me: Me }) {
       const opened = fromSaved(c.turns);
       lastSaved.current = JSON.stringify(toSaved(opened));
       setConversationId(id);
+      setSavedHere(new Set());
       setTurns(opened);
       setPending([]);
       setProblem(null);
@@ -569,7 +615,8 @@ function Chat({ me }: { me: Me }) {
                              onOpen={openListed} onDelete={(c) => removeConversation(c.id)} onBack={() => setView("chat")} />
         </div>}
         {view === "documents" && <div className="conversation">
-          <DocumentsView documents={allDocuments} jobs={jobs} cases={cases} onOpen={openDocument} onDelete={removeListed}
+          <DocumentsView key={documentsQuery} initialQuery={documentsQuery} onDownload={downloadSaved}
+                         documents={allDocuments} jobs={jobs} cases={cases} onOpen={openDocument} onDelete={removeListed}
                          onUseAsSource={async (d) => {
                            try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(() => {}); refreshDocuments(); }
                            catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
@@ -647,7 +694,8 @@ function Chat({ me }: { me: Me }) {
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
               <AssistantMessage key={t.id} turn={t} filenames={filenames} caseRef={currentCase?.reference ?? null}
-                                question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""} />))
+                                question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""}
+                                save={saveControls(t, turns[i - 1]?.role === "user" ? turns[i - 1].text : "")} />))
           )}
           <div ref={endRef} />
         </div>
