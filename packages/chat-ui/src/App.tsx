@@ -19,7 +19,8 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, Lock, LogIn, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, Folder, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
@@ -50,7 +51,7 @@ import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { lang, locale, useT } from "./i18n";
-import { ActionMenu, Button, I18nProvider, InlineNotice } from "./ui";
+import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
@@ -131,6 +132,8 @@ function Chat({ me }: { me: Me }) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
   const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook" | SideView>("chat");
+  const narrow = useMedia(NARROW);
+  const [drawer, setDrawer] = useState(false);
   const [documentsQuery, setDocumentsQuery] = useState("");  // Documents opened from a saved answer: filtered on its case
   const [savedHere, setSavedHere] = useState<Set<string>>(new Set());  // answers saved during this visit: Undo is offered
   useEffect(() => { if (view !== "documents") setDocumentsQuery(""); }, [view]);
@@ -372,6 +375,61 @@ function Chat({ me }: { me: Me }) {
     }
   };
 
+  // The start screen: no case, nothing asked yet. First use: no conversations and no cases yet.
+  const start = view === "chat" && !currentCase && turns.length === 0;
+  const firstUse = start && allConversations.length === 0 && cases.length === 0;
+  const firstName = (me.name || me.username).split(/\s+/)[0];
+  const viewTitle = view === "conversations" ? m.conversations : view === "cases" ? m.cases : view === "documents" ? m.documents
+    : view === "search" ? m.search : view === "usage" ? m.myUsage : view === "admin" ? m.administration : "";
+
+  // The left column (docs/design/sidebar.md §2); on a narrow screen a drawer that closes once something is chosen.
+  const closing = <A extends unknown[]>(f: (...a: A) => unknown) => (...a: A) => { setDrawer(false); f(...a); };
+  const sidebar = (inDrawer: boolean) => (
+      <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={me.admin ?? false} collapsed={inDrawer ? false : collapsed} onCollapse={setCollapsed}
+               conversations={allConversations} caseConversations={conversations} documents={allDocuments} cases={cases}
+               currentCase={currentCase} currentConversation={conversationId}
+               casesNote={health === null || casesReady ? null : health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable}
+               historyNote={health === null || historyReady ? null : health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
+               documentsNote={health === null || documentsReady ? null :
+                 health.documents.status === "starting" ? m.documentsStarting :
+                 health.documents.status === "unavailable" ? m.documentsUnavailable :
+                 health.documents.status === "failed" ? m.documentsFailed : null}
+               onNewConversation={closing((outside) => { if (outside && caseId) goTo(null); newChat(); })} onNewCase={closing(() => setNewCase(true))}
+               onOpenView={closing(setView)} onOpenConversation={closing(openListed)} onOpenDocument={closing(openDocument)} onOpenCase={closing(openCase)}
+               onCaseAction={closing(caseAction)} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
+               onOpenAdmin={closing((tab) => { setAdminTab(tab); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
+               onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} />
+  );
+
+  // The open case's one menu: in its header, or in the top bar on a narrow screen.
+  const caseMenu = currentCase && (
+            <ActionMenu className="case-menu" aria-label={m.caseMenu(currentCase!.reference)} menuLabel={m.caseMenu(currentCase!.reference)}
+                        placement="bottom end"
+                        header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase!.type, m)}
+                          {typeof currentCase!.subject.description === "string" && ` · ${currentCase!.subject.description}`}
+                          {role && ` · ${roleLabel(role, m)}`}</span>}
+                        entries={[
+                          { id: "members", label: m.members, icon: <Users size={16} /> },
+                          ...(canShare ? [current?.shared
+                            ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
+                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} /> }] : []),
+                          ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
+                          ...(manages && !closed ? ["-" as const,
+                            { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
+                            { id: "delete", label: m.deleteCase, icon: <Trash2 size={16} />, tone: "accent" as const }] : []),
+                        ]}
+                        onAction={(id) => {
+                          if (id === "members") setShowMembers(true);
+                          else if (id === "share") share(true);
+                          else if (id === "unshare") share(false);
+                          else if (id === "log") setShowLog(true);
+                          else if (id === "close") setClosingCase(true);
+                          else if (id === "delete") setDeletingCase(true);
+                        }}>
+              <MoreHorizontal size={16} aria-hidden />
+            </ActionMenu>
+  );
+
   // Save to case (docs/design/sidebar.md §5): a finished answer in a case, for a contributor, the case open.
   const setTurn = (id: string, patch: Partial<AssistantTurn>) =>
     setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
@@ -572,20 +630,9 @@ function Chat({ me }: { me: Me }) {
   // ---------------------------------------------------------------- view
   return (
     <div className="app" data-sidebar={collapsed ? "collapsed" : undefined}>
-      <Sidebar user={self} admin={me.admin ?? false} collapsed={collapsed} onCollapse={setCollapsed}
-               conversations={allConversations} caseConversations={conversations} documents={allDocuments} cases={cases}
-               currentCase={currentCase} currentConversation={conversationId}
-               casesNote={health === null || casesReady ? null : health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable}
-               historyNote={health === null || historyReady ? null : health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
-               documentsNote={health === null || documentsReady ? null :
-                 health.documents.status === "starting" ? m.documentsStarting :
-                 health.documents.status === "unavailable" ? m.documentsUnavailable :
-                 health.documents.status === "failed" ? m.documentsFailed : null}
-               onNewConversation={(outside) => { if (outside && caseId) goTo(null); newChat(); }} onNewCase={() => setNewCase(true)}
-               onOpenView={setView} onOpenConversation={openListed} onOpenDocument={openDocument} onOpenCase={openCase}
-               onCaseAction={caseAction} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={() => setView("usage")}
-               onOpenAdmin={(tab) => { setAdminTab(tab); setView("admin"); }} onOpenSettings={() => setShowSettings(true)}
-               onOpenAvatar={() => setShowAvatar(true)} onSignOut={requestSignOut} />
+{narrow
+        ? <Drawer isOpen={drawer} onClose={() => setDrawer(false)} label={m.navigation}>{sidebar(true)}</Drawer>
+        : sidebar(false)}
       <SettingsDialog open={showSettings} me={self} onClose={() => setShowSettings(false)}
                       onPicture={() => { setShowSettings(false); setShowAvatar(true); }} />
       <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
@@ -606,7 +653,18 @@ function Chat({ me }: { me: Me }) {
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
 
-      <main className="main">
+      <main className="main" data-start={start || undefined}>
+        {narrow && (
+          // Narrow screens (§2, artboard 15): a 56px bar with the menu button and where you are.
+          <header className="top-bar">
+            <IconButton label={m.openMenu} onPress={() => setDrawer(true)}><Menu size={20} aria-hidden /></IconButton>
+            <span className="top-bar-where">
+              {currentCase && <span className="top-bar-case">{closed ? <Lock size={12} aria-hidden /> : <Folder size={12} aria-hidden />} <b>{currentCase.reference}</b> {currentCase.name}</span>}
+              <span className="top-bar-title">{view === "chat" ? (current?.title ?? (turns.length ? conversationTitle(turns) : m.newConversation)) : viewTitle}</span>
+            </span>
+            {view === "chat" && caseMenu}
+          </header>
+        )}
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}
@@ -647,31 +705,7 @@ function Chat({ me }: { me: Me }) {
               <span className="case-title">{current?.title ?? conversationTitle(turns)}</span>
             </>}
             <span className="case-space" />
-            <ActionMenu className="case-menu" aria-label={m.caseMenu(currentCase.reference)} menuLabel={m.caseMenu(currentCase.reference)}
-                        placement="bottom end"
-                        header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase.type, m)}
-                          {typeof currentCase.subject.description === "string" && ` · ${currentCase.subject.description}`}
-                          {role && ` · ${roleLabel(role, m)}`}</span>}
-                        entries={[
-                          { id: "members", label: m.members, icon: <Users size={16} /> },
-                          ...(canShare ? [current?.shared
-                            ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
-                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} /> }] : []),
-                          ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
-                          ...(manages && !closed ? ["-" as const,
-                            { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
-                            { id: "delete", label: m.deleteCase, icon: <Trash2 size={16} />, tone: "accent" as const }] : []),
-                        ]}
-                        onAction={(id) => {
-                          if (id === "members") setShowMembers(true);
-                          else if (id === "share") share(true);
-                          else if (id === "unshare") share(false);
-                          else if (id === "log") setShowLog(true);
-                          else if (id === "close") setClosingCase(true);
-                          else if (id === "delete") setDeletingCase(true);
-                        }}>
-              <MoreHorizontal size={16} aria-hidden />
-            </ActionMenu>
+            {caseMenu}
           </header>
         )}
         {currentCase && closed && (
@@ -686,7 +720,22 @@ function Chat({ me }: { me: Me }) {
           </div>
         ) : <>
         <div className="conversation">
-          {turns.length === 0 ? (
+          {start ? (
+            // The start screen (§2, artboards 01 and 12): a welcome over the question box; on first use the
+            // two ways in.
+            <div className="start" data-first={firstUse || undefined}>
+              <div className="start-head"><img src={icon} width={36} height={36} alt="" /><h1>{m.welcome(firstName)}</h1></div>
+              {firstUse && <>
+                <p className="start-intro">{m.firstUseIntro}</p>
+                <div className="start-cards">
+                  <section className="start-card"><MessageSquare size={18} aria-hidden /><h2>{m.askCardTitle}</h2><p>{m.askCardText}</p></section>
+                  <section className="start-card"><Folder size={18} aria-hidden /><h2>{m.caseCardTitle}</h2><p>{m.caseCardText}</p>
+                    {casesReady && <Button variant="secondary" size="small" onPress={() => setNewCase(true)}><FolderPlus size={14} aria-hidden /> {m.newCase}</Button>}
+                  </section>
+                </div>
+              </>}
+            </div>
+          ) : turns.length === 0 ? (
             <div className="empty">
               <h1>{currentCase ? currentCase.name : TAGLINE}</h1>
               {!closed && <p>{currentCase ? m.caseEmptyIntro : m.emptyIntro}</p>}
@@ -707,7 +756,10 @@ function Chat({ me }: { me: Me }) {
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
-                  playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")} />
+                  playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")}
+                  compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : undefined}
+                  workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),
+                                                                  onChoose: openCase, onNew: () => setNewCase(true) } : null} />
         </>}
         </>}
       </main>

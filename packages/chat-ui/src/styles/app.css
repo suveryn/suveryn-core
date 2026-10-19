@@ -60,19 +60,34 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .side-sub[aria-current] { color: var(--text); font-weight: 600; }
 .side-sub[data-guide] { padding-left: 0; }
 .side-dot { flex: none; width: 7px; height: 7px; margin-left: -4px !important; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--control-off); background: var(--surface); }
-.side-sub[aria-current] .side-dot { background: var(--accent); border-color: var(--accent); }
+.side-sub[aria-current] .side-dot, .side-dot[data-current] { background: var(--accent); border-color: var(--accent); }
 .side-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-text b { font-weight: 600; }
 .side-dim { color: var(--text-dim); font-weight: 400; }
 .side-meta { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-caption); color: var(--text-dimmer); white-space: nowrap; }
-.side-more { margin: 0 0 0 24px; padding: 6px var(--space-2); width: calc(100% - 24px); border: 0; border-left: 1px solid var(--line); background: transparent;
-             font-size: var(--text-caption); color: var(--text-dim); text-align: left; cursor: pointer; }
-.side-more[data-hovered] { color: var(--text); }
-.side-more[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
 .side-shared { flex: none; color: var(--text-dim); }
 .side-note { margin: 2px 0 4px 24px; padding-left: var(--space-2); }
-.side-pinned { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-3); }
-.side-pinned h2 { padding: 0 10px; margin-bottom: var(--space-1); }
+/* the navigation rows (§2): they open an overview, they don't expand */
+.side-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
+            background: transparent; color: var(--text); font: inherit; font-size: var(--text-ui); text-align: left; cursor: pointer; }
+.side-row[data-hovered], .side-row[aria-current] { background: var(--surface-alt); }
+.side-row[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.side-row-icon { display: flex; flex: none; color: var(--text-dim); }
+.side-row[aria-current] .side-row-icon { color: var(--text); }
+/* Pinned and Recent: a small label with its icon, then the rows */
+.side-section { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-4); }
+.side-label { display: flex; align-items: center; gap: 6px; padding: 0 10px; margin: 0 0 var(--space-1); color: var(--text-dimmer); }
+.side-first { margin: var(--space-4) 0 0; padding: 0 10px; }
+.side-recent { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
+               background: transparent; color: var(--text); font: inherit; font-size: var(--text-ui-sm); text-align: left; cursor: pointer; }
+.side-recent > svg { flex: none; color: var(--text-dimmer); }
+.side-recent[data-hovered] { background: var(--surface-alt); }
+.side-recent[aria-current] { background: var(--surface-alt); font-weight: 600; }
+.side-recent[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+/* a pinned case's conversations on a hairline aligned with the case icon */
+.side-guide { display: flex; flex-direction: column; gap: 1px; margin-left: 37px; border-left: 1px solid var(--line); }
+.side-guide .side-sub { width: 100%; margin-left: 0; }
+.side-guide .side-note { margin-left: 0; }
 .side-case .ui-expander-label { font-size: var(--text-ui-sm); }
 .side-case .ui-expander-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; }
 .side-actions { width: 28px; height: 28px; margin-right: 4px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-sm);
@@ -244,6 +259,27 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .signin .ui-button { min-width: 160px; }
 
 /* empty state */
+/* the start screen (§2, artboards 01 and 12): the welcome and the question box together, in the middle */
+.main[data-start] .conversation { flex: 0 0 auto; margin-top: auto; overflow: visible; }
+.main[data-start] .composer-wrap { margin-bottom: auto; }
+.start { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); text-align: center; }
+.start-head { display: flex; align-items: center; gap: var(--space-3); }
+.start-head h1 { margin: 0; font-size: var(--text-h2); line-height: 1.2; }
+.start[data-first] .start-head { flex-direction: column; }
+@media (max-width: 767px) { .start-head { flex-direction: column; } }
+.start-intro { margin: 0; color: var(--text-dim); font-size: var(--text-body); }
+.start-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); width: 100%; text-align: left; }
+.start-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--line);
+              border-radius: var(--radius-md); background: var(--bg); }
+.start-card h2 { margin: 0; font-size: var(--text-h3); font-weight: 600; }
+.start-card p { margin: 0; font-size: var(--text-body-sm); color: var(--text-dim); }
+.start-card .ui-button { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: auto; }
+@media (max-width: 640px) { .start-cards { grid-template-columns: minmax(0, 1fr); } }
+.chip-work-in-case { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 1px dashed var(--line);
+                     border-radius: var(--radius-pill); background: transparent; color: var(--text-dim); font-size: var(--text-ui-sm); white-space: nowrap; cursor: pointer; }
+.chip-work-in-case[data-hovered] { background: var(--surface-alt); color: var(--text); }
+.chip-work-in-case[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.composer-hint svg { vertical-align: -1px; }
 .empty { margin: auto; text-align: center; display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-16); }
 .empty h1 { font-size: var(--text-h2); line-height: 1.2; }
 .empty p { color: var(--text-dim); margin: 0 auto; max-width: 52ch; font-size: var(--text-body); }
@@ -417,19 +453,32 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin, .waiting-dots i { animation: none; } }
 
-/* narrow screens: library above the conversation, model tag shortened to its family */
+/* narrow screens (docs/design/sidebar.md §2, artboard 15): below 768px the column is a drawer
+   (ui/dialog.tsx Drawer), a 56px top bar says where you are, every target is 44px, and the composer is
+   one pill; the model chip shortens to its family from 860px down */
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--line); padding: var(--space-3) var(--space-4); gap: var(--space-3); }
-  /* the library keeps its height and scrolls itself, instead of collapsing in the short header */
-  .library { flex: 0 0 auto; }
-  .library ul { max-height: 22vh; }
-  .library.history { flex: 0 0 auto; max-height: none; }  /* the shrink and 40% cap are for the full-height sidebar only */
-  .library.history ul, .library.history .history-lists { max-height: 14vh; }
-  .library.history .history-lists ul { max-height: none; }
-  .sidebar-foot .caption { display: none; }
   .conversation { padding-inline: var(--space-4); }
   .composer-wrap { padding-inline: var(--space-4); }
   .model-full { display: none; }
   .model-family { display: inline; }
 }
+@media (max-width: 767px) {
+  .app, .app[data-sidebar="collapsed"] { grid-template-columns: minmax(0, 1fr); }
+  .case-head { display: none; }
+  .main .ui-icon-button, .main .send-button, .main .copy-button, .composer-more, .side-row, .side-recent, .side-sub, .side-new,
+  .ui-drawer .ui-icon-button, .ui-drawer .ui-expander-label, .ui-drawer .ui-expander-toggle, .ui-drawer .side-actions, .account-row { min-height: 44px; }
+  .main .ui-icon-button, .ui-drawer .ui-icon-button, .main .send-button, .composer-more, .ui-drawer .ui-expander-toggle, .ui-drawer .side-actions { min-width: 44px; }
+  .ui-drawer .sidebar { height: 100%; border-right: 0; }
+  .side-actions { opacity: 1; }
+}
+.top-bar { display: flex; align-items: center; gap: var(--space-2); min-height: 56px; padding: 0 var(--space-2); border-bottom: 1px solid var(--line); }
+.top-bar-where { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.top-bar-case { display: flex; align-items: center; gap: 4px; font-size: var(--text-caption); color: var(--text-dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.top-bar-case b { color: var(--text); font-weight: 600; }
+.top-bar-title { font-size: var(--text-ui); font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.composer[data-compact] { flex-direction: row; align-items: flex-end; padding: 6px 6px 6px var(--space-4); border-radius: var(--radius-pill); }
+.composer[data-compact] .composer-tools { margin-left: 0; flex: none; }
+.composer-more { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-pill);
+                 background: transparent; color: var(--text-dim); cursor: pointer; }
+.composer-more[data-hovered] { background: var(--surface-alt); color: var(--text); }
+.composer-more[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
