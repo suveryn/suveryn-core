@@ -18,7 +18,7 @@ import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, FileText, Folder
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
-import { LANGS, lang, setLang, TABLES_FOR_TESTS as TABLES, useT, type Lang } from "../i18n";
+import { LANGS, LANGUAGE_NAMES, lang, setLang, useT, type Lang } from "../i18n";
 import { dayLabel } from "../lib/conversations";
 import { compact } from "../lib/usage";
 import { Lockup } from "./Brand";
@@ -70,7 +70,7 @@ export function Sidebar(p: Props) {
   const ref = (caseId: string | null | undefined) => (caseId ? byId.get(caseId)?.reference ?? null : null);
   const openCases = p.cases.filter((c) => c.state === "open");
   const pinned = p.cases.filter((c) => c.pinned);
-  const langEntries: MenuEntry[] = LANGS.map((l) => ({ id: `lang:${l}`, label: TABLES[l].languageName }));
+  const langEntries: MenuEntry[] = LANGS.map((l) => ({ id: `lang:${l}`, label: LANGUAGE_NAMES[l] }));
 
   // ---------------------------------------------------------------- the account menu
   const accountEntries: MenuEntry[] = [
@@ -82,7 +82,7 @@ export function Sidebar(p: Props) {
       { id: "playbooks", label: m.playbooks, icon: <ClipboardList size={16} />, tone: "accent" as const,
         meta: p.activePlaybooks === null ? m.playbooksMeta : m.playbooksActive(p.activePlaybooks) },
     ] : []),
-    { id: "language", label: m.language, icon: <Languages size={16} />, meta: TABLES[lang()].languageName, submenu: langEntries, selected: `lang:${lang()}` },
+    { id: "language", label: m.language, icon: <Languages size={16} />, meta: LANGUAGE_NAMES[lang()], submenu: langEntries, selected: `lang:${lang()}` },
     "-",
     { id: "signout", label: m.signOut, icon: <LogOut size={16} /> },
   ];

@@ -2,7 +2,6 @@
 import type { Messages } from "./en";
 
 const fr: Messages = {
-  languageName: "Français",
   language: "Langue",
 
   signIn: "Se connecter",
@@ -365,8 +364,7 @@ const fr: Messages = {
   instructionLike: (sources) =>
     `${sources.length > 1 ? `Les sources ${sources.join(", ")} contiennent` : `La source ${sources[0]} contient`} un texte adressé à une IA (comme « ignorez les instructions »). Sūveryn l'a traité comme le contenu du document, pas comme une consigne, mais vérifiez cette réponse avec un soin particulier dans les documents.`,
   // playbooks (suveryn-tracker#51) : intake de l'acte
-  deedIntake: "Intake de l'acte",
-  deedIntakeIntro: "Sūveryn lit les documents du dossier pour y trouver les données qu'un acte de vente requiert et montre chacune à côté du passage dont elle provient. Rien n'est définitif avant que vous ayez vérifié chaque donnée.",
+  playbookIntro: "sūveryn lit les documents du dossier pour y trouver les données dont ce playbook a besoin et montre chacune à côté du passage dont elle provient. Rien n'est définitif avant que vous ayez vérifié chaque donnée.",
   noPlaybookForType: "Il n'y a pas encore de playbook pour ce type de dossier.",
   playbookNotCovered: "Ce playbook n'est pas couvert par le contrat de support de cette appliance : il fonctionne, mais sans certification, mises à jour ni support. Un administrateur voit les détails dans le tableau de bord.",
   startIntake: "Lire les documents",
@@ -403,12 +401,6 @@ const fr: Messages = {
   summaryInCase: "Le résumé se trouve parmi les documents du dossier.",
   wordDisclaimer: "Lu dans les documents par sūveryn et confirmé par une personne. Vérifiez chaque donnée par rapport aux sources de l'acte avant usage.",
   confirmedBy: (who: string, day: string) => `Confirmé par ${who} le ${day}`,
-  intakeFacts: {
-    sellers: "Vendeur(s)", buyers: "Acquéreur(s)", property: "Bien", cadastral: "Données cadastrales", price: "Prix",
-    deposit: "Acompte ou garantie", agreement_date: "Compromis signé le", deed_deadline: "Acte à passer pour le",
-    conditions: "Conditions suspensives", title: "Titre de propriété", epc: "Certificat PEB", soil: "Attestation du sol",
-    occupancy: "Occupation à la délivrance",
-  } as Record<string, string>,
   // avatars (docs/design/avatars.md)
   administrator: "administrateur",
   avatarTitle: "Votre photo",
@@ -498,8 +490,6 @@ const fr: Messages = {
   administratorTitle: "Administrateur",
   playbookMenuTitle: (reference: string, type: string) => `Playbooks pour le dossier ${reference}${type ? ` · ${type}` : ""}`,
   playbookMenuFooter: "Les playbooks proposés ici sont choisis par l'administrateur sous Administration › Playbooks.",
-  playbookNames: { "deed-intake": "Intake de l'acte" },
-  playbookBlurbs: { "deed-intake": "Lit dans les documents les faits nécessaires à l'acte" },
   caseMenu: (reference: string) => `Dossier ${reference} : actions`,
 
   // origin: source or made by sūveryn (docs/design/sidebar.md §6)

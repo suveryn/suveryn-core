@@ -9,7 +9,7 @@
  * leaked passwords on the appliance, shared with Keycloak's passwordBlacklist (open point, #37).
  */
 import type { FieldErrors } from "../ui";
-import type { Text } from "./text";
+import type { Text } from "./i18n";
 
 export const MIN_PASSWORD = 15;
 
