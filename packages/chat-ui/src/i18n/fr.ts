@@ -221,6 +221,9 @@ const fr: Messages = {
   yourQuestion: "Votre question",
   askPlaceholder: "Posez une question sur vos documents…",
   send: "Envoyer le message",
+  stop: "Arrêter",
+  stopTitle: "Arrêter (Échap)",
+  keepTyping: "Vous pouvez déjà continuer à écrire…",
   waitingForDocuments: "En attente de la lecture de vos documents…",
   composerHint: "Les réponses proviennent des documents de cette conversation et indiquent la page dont elles proviennent.",
 
@@ -259,6 +262,7 @@ const fr: Messages = {
 
   answerFailed: (why) => `La réponse n'a pas pu être terminée : ${why}. Rien de cette tentative n'est affiché ; posez donc à nouveau votre question.`,
   answerInterrupted: "Cette réponse a été interrompue.",
+  answerStopped: "Arrêté. Cette réponse est incomplète, et ses montants et ses sources n'ont pas été vérifiés.",
   sources: "Sources",
   copySources: "Copier les sources",
   allCitedSources: "toutes les sources citées",
