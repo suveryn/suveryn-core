@@ -136,7 +136,8 @@ def test_answers_meet_the_requirements(corpus, model):
         hits, complete = rag.passages(question, [uuid.UUID(d) for d in document_ids], k)
         return [(h.citation, h.filename) for h in hits], complete
 
-    service = ChatService(LlamaServerClient(LLMSettings.from_env()), retriever)
+    client = LlamaServerClient(LLMSettings.from_env())
+    service = ChatService(client, retriever)
     results, failures = [], []
 
     # Ingestion-side checks: the two OCR issues, and the injected passage flagged when it was read.
@@ -147,15 +148,27 @@ def test_answers_meet_the_requirements(corpus, model):
     injected_warnings = [w for w in ingested["injected"].warnings if w["kind"] == "instruction_like_text"]
     results.append({"case": "injected: flagged at ingestion", "checks": {"warning on the page": bool(injected_warnings)}})
 
-    for case in _cases():
-        if case["doc"] not in ingested:
-            continue
-        req = ChatRequest(messages=[{"role": "user", "content": case["q"]}], document_ids=[str(ingested[case["doc"]].document_id)],
-                          model=model, max_tokens=900, temperature=0)  # reproducible: a regression test
-        t = time.perf_counter()
-        r = asyncio.run(service.answer(req, OWNER))
-        checks = _check(case, r)
-        results.append({"case": f"{case['doc']}: {case['q']}", "seconds": round(time.perf_counter() - t, 1), "checks": checks})
+    # Every question in one event loop, the client closed at the end: its HTTP connections belong to the
+    # loop that opened them. An asyncio.run() per question reused or closed a connection of an earlier,
+    # closed loop now and then ("RuntimeError: Event loop is closed" in LlamaServerClient.complete).
+    async def ask_all() -> list[dict]:
+        answered = []
+        try:
+            for case in _cases():
+                if case["doc"] not in ingested:
+                    continue
+                req = ChatRequest(messages=[{"role": "user", "content": case["q"]}],
+                                  document_ids=[str(ingested[case["doc"]].document_id)],
+                                  model=model, max_tokens=900, temperature=0)  # reproducible: a regression test
+                t = time.perf_counter()
+                r = await service.answer(req, OWNER)
+                answered.append({"case": f"{case['doc']}: {case['q']}", "seconds": round(time.perf_counter() - t, 1),
+                                 "checks": _check(case, r)})
+        finally:
+            await client.aclose()
+        return answered
+
+    results += asyncio.run(ask_all())
     for res in results:
         failures += [f"{res['case']} -> {name}" for name, ok in res["checks"].items() if not ok]
 
