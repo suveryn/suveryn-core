@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
-  type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
+  type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, type Case,
   listMembers, shareConversation, confirmAsSource, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
@@ -164,6 +164,7 @@ function Chat({ me }: { me: Me }) {
   const administers = currentCase !== null && role === null && (me.admin ?? false);
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
+  const stopped = useRef(false);  // the person pressed Stop: the abort keeps what was written
   const endRef = useRef<HTMLDivElement>(null);
 
   const documentsReady = health?.documents.status === "ready";
@@ -337,27 +338,53 @@ function Chat({ me }: { me: Me }) {
     setBusy(true);
     setProblem(null);
     abort.current = new AbortController();
+    stopped.current = false;
     const update = (patch: Partial<AssistantTurn>) =>
       setTurns((ts) => ts.map((t) => (t.id === reply.id ? ({ ...t, ...patch } as AssistantTurn) : t)));
     let streamed = "";
+    let sources: Citation[] = [];
     try {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
         update({ text: streamed });
-      }, abort.current.signal, chosenModel, (step) => update({ step }), caseId);
+      }, abort.current.signal, chosenModel, (step) => update({ step }), caseId, (c) => { sources = c; });
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
                instructionLikeSources: done.instruction_like_sources ?? [],
                status: "done", model: done.model });
     } catch (e) {
-      // Gateway contract: after an error, discard any partial answer.
-      update({ text: "", status: "error", error: (e as Error).message });
+      if (stopped.current) {
+        // Stopped (docs/design/sidebar.md §5): what was written stays, with the passages its markers
+        // point to, marked unchecked; the server has stopped the model.
+        update({ text: streamed, citations: sources, status: "stopped", step: undefined });
+      } else {
+        // Gateway contract: after an error, discard any partial answer.
+        update({ text: "", status: "error", error: (e as Error).message });
+      }
     } finally {
       setBusy(false);
       abort.current = null;
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
   };
+
+  // Stop: the request is aborted, which closes the connection; the gateway then stops the model.
+  const stop = () => {
+    if (!abort.current) return;
+    stopped.current = true;
+    abort.current.abort();
+  };
+  // Esc stops an answer being written, wherever the focus is, unless a menu or dialog takes it first.
+  useEffect(() => {
+    if (!busy) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if ((e.target as Element | null)?.closest?.("[role=dialog], [role=menu], [role=listbox], [role=alertdialog]")) return;
+      stop();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [busy]);
 
   const newChat = () => {
     setView("chat");
@@ -630,7 +657,7 @@ function Chat({ me }: { me: Me }) {
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
-                  onSend={send} caseReference={currentCase?.reference ?? null}
+                  onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
                   playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")} />
         </>}

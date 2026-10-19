@@ -8,8 +8,9 @@ from .service import (
            DocumentsUnavailable,
            Done,
            Retriever,
+           Sources,
            Status,
 )
 
-__all__ = ["GROUNDED_INSTRUCTIONS", "PASSAGES", "ChatService", "Delta", "DocumentsUnavailable", "Done", "Retriever", "Status",
+__all__ = ["GROUNDED_INSTRUCTIONS", "PASSAGES", "ChatService", "Delta", "DocumentsUnavailable", "Done", "Retriever", "Sources", "Status",
            "cited_numbers", "grounded_messages"]

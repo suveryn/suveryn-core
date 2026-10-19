@@ -26,7 +26,7 @@ export type AssistantTurn = {
   unverifiedFigures?: string[]; // figures to check: in no source and not calculated by the server
   citationIssues?: CitationIssue[]; // facts a cited source doesn't contain (suveryn-tracker#11)
   instructionLikeSources?: number[]; // passages given to the model whose text addresses an AI (suveryn-tracker#21)
-  status: "streaming" | "done" | "error";
+  status: "streaming" | "done" | "stopped" | "error"; // stopped: the person stopped it; the text so far stays, unchecked
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents
   error?: string;

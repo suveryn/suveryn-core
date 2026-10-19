@@ -268,11 +268,13 @@ bounce in turn; they stand still under `prefers-reduced-motion`.
 - No step list, no caret.
 - `aria-live="polite"`, `aria-busy`.
 
+Built in phase b: *Stop* (Esc) in the send button's place, with the input still usable for the
+next question.
+
 Not yet built:
 
 - A collapsed "Thought for 14 s" button above the answer, in *Thorough* only, that opens the
   reasoning.
-- *Stop* (Esc) in the send button's place, with the input still usable for the next question.
 
 **Citations and the source panel** (artboard 11).
 
@@ -401,7 +403,7 @@ playbook is never covered.
 ## 9. What to build first
 
 1. ~~**Source or Made**, with the upload mark (section 6).~~ Built (phase a, d9e0df2).
-2. ***Stop***.
+2. ~~***Stop***.~~ Built (phase b).
 3. ***Save to case***, with its API change.
 4. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
    is built.
@@ -494,6 +496,20 @@ here.
     answer or Excel table exported by sūveryn and uploaded again is noticed like a PDF. CSV
     carries no mark, as decided.
   - Lists show "Word", "Excel", "Markdown" or "CSV" where a PDF shows its pages.
+- **Phase b, Stop (19 October).**
+  - Stopping keeps what was written, with the note "Stopped. This answer is incomplete, and its
+    figures and sources were not checked." Its markers still open their passages: the server now
+    sends a grounded answer's passages before its first word (SSE event `sources`). The checks
+    (calculations, figures, citations) only run on a finished answer, so none are shown, and Word
+    export is offered for finished answers only.
+  - A stopped answer is saved with the conversation, but not sent to the model as history for the
+    next question: it may stop mid-sentence.
+  - The server stops the model: the gateway watches the connection from the start (also before the
+    first word, while the model reads), and when it closes, closes its own to llama-server, which
+    stops generating. The tokens used until then are still recorded for the person, from
+    llama-server's running counts.
+  - Esc stops wherever the focus is, except in an open menu or dialog, which Esc closes first. After
+    stopping, the focus goes to the question box.
 
 ## Open
 

@@ -246,6 +246,7 @@ export async function streamChat(
   model?: string | null,          // an id from listModels(); null or undefined: the default model
   onStatus?: (status: StreamStatus) => void,
   caseId?: string | null,         // the case the documents are in; null or undefined: the personal space
+  onSources?: (citations: Citation[]) => void,  // a grounded answer's passages, before its first word
 ): Promise<ChatResponse> {
   const r = await fetch("/v1/chat", {
     method: "POST",
@@ -260,6 +261,7 @@ export async function streamChat(
   const parser = createSSEParser(({ event, data }) => {
     const payload = JSON.parse(data);
     if (event === "status") onStatus?.(payload as StreamStatus);
+    else if (event === "sources") onSources?.(payload.citations as Citation[]);
     else if (event === "delta") onDelta(payload.text);
     else if (event === "done") done = payload as ChatResponse;
     else if (event === "error") failure = payload.message ?? "unknown error";

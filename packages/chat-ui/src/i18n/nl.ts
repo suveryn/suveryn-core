@@ -221,6 +221,9 @@ const nl: Messages = {
   yourQuestion: "Uw vraag",
   askPlaceholder: "Stel een vraag over uw documenten…",
   send: "Bericht versturen",
+  stop: "Stoppen",
+  stopTitle: "Stoppen (Esc)",
+  keepTyping: "U kunt al verder typen…",
   waitingForDocuments: "Wachten tot uw documenten gelezen zijn…",
   composerHint: "Antwoorden komen uit de documenten in dit gesprek en vermelden de pagina waarop ze steunen.",
 
@@ -259,6 +262,7 @@ const nl: Messages = {
 
   answerFailed: (why) => `Het antwoord kon niet worden voltooid: ${why}. Er wordt niets van deze poging getoond; stel uw vraag dus opnieuw.`,
   answerInterrupted: "Dit antwoord werd onderbroken.",
+  answerStopped: "Gestopt. Dit antwoord is onvolledig, en de bedragen en bronnen werden niet nagekeken.",
   sources: "Bronnen",
   copySources: "Bronnen kopiëren",
   allCitedSources: "alle vermelde bronnen",
