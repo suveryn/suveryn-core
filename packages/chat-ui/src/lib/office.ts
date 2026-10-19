@@ -17,6 +17,13 @@ export type OfficeText = {
   disclaimer: string;                        // check every figure against the source
 };
 
+/** Brand colours in the files, as Word needs them (sRGB hex): suveryn-brand tokens v3.3, light theme. A Word
+ *  file has no CSS variables, so the values are written here and a test checks them against tokens.css. */
+export const OFFICE_COLOURS = {
+  accentInk: "BE2E00",   // --accent-ink: a figure to check, underlined as on screen
+  textDimmer: "737476",  // --text-dimmer (#010205 at 0.55) on white: the export mark, small and light
+};
+
 const DATE = (d: Date, lang: string) => d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
 const where = (s: SourceItem) => s.citation.source?.location ?? (s.citation.source?.page ? `p. ${s.citation.source.page}` : "");
 
@@ -27,7 +34,7 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
     s.kind === "cite" ? new d.TextRun({ text: `[${s.n}]`, superScript: true })
     // a figure to check: a wavy accent-ink underline, as on screen (no separate yellow)
     : new d.TextRun({ text: s.text, bold: s.kind === "bold" || (s.kind === "flag" && s.bold),
-                      underline: s.kind === "flag" ? { type: d.UnderlineType.WAVE, color: "C42F00" } : undefined }));
+                      underline: s.kind === "flag" ? { type: d.UnderlineType.WAVE, color: OFFICE_COLOURS.accentInk } : undefined }));
   const table = (t: Table) => new d.Table({
     width: { size: 100, type: d.WidthType.PERCENTAGE },
     rows: [t.header, ...t.rows].map((row, r) => new d.TableRow({
@@ -68,7 +75,7 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
  *  "Save as PDF" and the upload check finds it; light so it doesn't compete with the document. */
 function markFooter(d: typeof import("docx"), mark: string | undefined) {
   if (!mark) return undefined;
-  return { default: new d.Footer({ children: [new d.Paragraph({ children: [new d.TextRun({ text: mark, size: 14, color: "8A8A8A" })] })] }) };
+  return { default: new d.Footer({ children: [new d.Paragraph({ children: [new d.TextRun({ text: mark, size: 14, color: OFFICE_COLOURS.textDimmer })] })] }) };
 }
 
 /** One table as an Excel workbook: the table (with each row's sources), the sources, what to check. */
