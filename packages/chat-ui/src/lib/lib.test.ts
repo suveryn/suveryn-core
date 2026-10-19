@@ -475,3 +475,36 @@ describe("server errors and long conversations", () => {
     expect(sent.at(-1)).toEqual({ role: "assistant", content: "antwoord 149" });
   });
 });
+
+// ---------------------------------------------------------------- origin: source or made (docs/design/sidebar.md §6)
+import { exportRef } from "./marks";
+import { originKind, originText } from "./origin";
+import { TABLES_FOR_TESTS } from "../i18n";
+
+describe("sūveryn's own output (docs/design/sidebar.md §6)", () => {
+  it("an export reference is stable, short and of its kind", () => {
+    expect(exportRef("A", "t1-2")).toMatch(/^A-[0-9a-f]{8}$/);
+    expect(exportRef("A", "t1-2")).toBe(exportRef("A", "t1-2"));
+    expect(exportRef("A", "t1-2")).not.toBe(exportRef("A", "t1-3"));
+    expect(exportRef("P", "run")).toMatch(/^P-[0-9a-f]{8}$/);
+  });
+
+  it("the mark line carries the reference the server looks for, in every language", () => {
+    // the same expression as suveryn_rag.marks.REF, after accents are removed
+    const REF = /suveryn-ref[\s:]*([AP])-([0-9a-f]{8})\b/i;
+    for (const m of Object.values(TABLES_FOR_TESTS)) {
+      const line = m.exportMark("answer", "2026/0611", "19-10-2026", "A-3f9c2e1b").normalize("NFKD").replace(/\p{M}/gu, "");
+      expect(line.match(REF)?.slice(1)).toEqual(["A", "3f9c2e1b"]);
+    }
+  });
+
+  it("origin: uploads are sources, sūveryn's output is made, a noticed upload waits for a person", () => {
+    const m = TABLES_FOR_TESTS.en;
+    const noticed = { ref: "A-3f9c2e1b", kind: "answer" as const, line: "…" };
+    expect(originText({ origin: "uploaded", source: true }, m)).toEqual({ word: "Source", detail: "uploaded" });
+    expect(originText({ origin: "playbook", source: false, provenance: { version: "1.0" } }, m)).toEqual({ word: "Made", detail: "playbook v1.0" });
+    expect(originKind({ origin: "uploaded", source: false, provenance: { noticed } })).toBe("pending");
+    expect(originText({ origin: "uploaded", source: true, provenance: { noticed, confirmed: { by: "a", at: "" } } }, m))
+      .toEqual({ word: "Source", detail: "uploaded, was an answer" });
+  });
+});

@@ -102,4 +102,6 @@ export type AnswerExport = {
   blocks: Block[];
   checks: string[];
   sources: SourceItem[];
+  /** sūveryn's export mark (lib/marks.ts): in the Word footer and under the Excel sources. */
+  mark?: string;
 };

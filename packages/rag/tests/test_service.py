@@ -38,7 +38,7 @@ class FakeIngest:
         self.calls += 1
         if self.calls <= self.down:
             raise psycopg.OperationalError("server closed the connection unexpectedly")
-        return type("R", (), {"document_id": uuid.uuid4(), "status": "ok", "pages": 1, "ocr_pages": 0, "warnings": []})()
+        return type("R", (), {"document_id": uuid.uuid4(), "status": "ok", "pages": 1, "ocr_pages": 0, "warnings": [], "noticed": None})()
 
 
 def running(tmp_path: Path, ingest) -> DocumentService:

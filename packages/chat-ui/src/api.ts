@@ -36,6 +36,14 @@ export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "fa
 export type Warning = { page: number | null; kind: string; detail: string };
 export type Job = {
   id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
+  noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
+};
+/** sūveryn's export mark found in an upload (docs/design/sidebar.md §6): the line as it stands in the file. */
+export type Noticed = { ref: string; kind: "answer" | "playbook"; line: string };
+/** More about where a document came from (docs/design/sidebar.md §6). */
+export type Provenance = {
+  playbook?: string; version?: string; run?: string;               // a playbook's result
+  noticed?: Noticed; confirmed?: { by: string; at: string };      // an upload that looked like sūveryn's own output
 };
 export type StoredDocument = {
   id: string;
@@ -48,6 +56,8 @@ export type StoredDocument = {
   chunks: number;
   origin?: "uploaded" | "generated" | "playbook"; // only uploaded documents are sources for answers (suveryn-tracker#10)
   uploaded_by?: string | null;
+  source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)
+  provenance?: Provenance | null;
 };
 export type Health = {
   status: "ok" | "degraded";
@@ -158,6 +168,12 @@ export async function getHealth(): Promise<Health | null> {
 /** `?case=<id>` on a request about a case; nothing for the personal space (suveryn-tracker#10). */
 const inCase = (caseId: string | null | undefined, first = true) =>
   caseId ? `${first ? "?" : "&"}case=${encodeURIComponent(caseId)}` : "";
+
+/** Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/sidebar.md §6). */
+export async function confirmAsSource(documentId: string, caseId?: string | null): Promise<void> {
+  const r = await fetch(`/v1/documents/${encodeURIComponent(documentId)}/source${inCase(caseId)}`, { method: "POST" });
+  if (!r.ok) throw await responseError(r);
+}
 
 /** Every document the signed-in user may see, with where it is (`case_id` null: the personal space),
  *  newest first: the sidebar's "Documents" (docs/design/sidebar.md). */
