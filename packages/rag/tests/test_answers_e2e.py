@@ -117,6 +117,7 @@ def _check(case: dict, r) -> dict[str, bool]:
         "cites a source": bool(cited),
         "no unverified figures": not r.unverified_figures,
         "citations match their sources": not r.citation_issues,
+        "no [*] from an earlier answer": "[*]" not in answer,
     }
     for e in case.get("expect", []):
         checks[f"says {e!r}"] = _plain(e) in _plain(answer)
