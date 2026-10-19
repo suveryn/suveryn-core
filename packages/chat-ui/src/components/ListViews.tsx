@@ -10,6 +10,7 @@ import { useState } from "react";
 import type { Case, ConversationSummary, Job } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
+import { formatName } from "../lib/formats";
 import { originKind, originText, type OriginKind } from "../lib/origin";
 import { caseTypeLabel } from "./CaseDialogs";
 import type { AllDocument } from "./Sidebar";
@@ -109,7 +110,7 @@ export function DocumentsView({ documents, jobs, cases, onOpen, onDelete, onUseA
               <Button variant="plain" className="item-open" onPress={() => onOpen(d)} title={kind === "source" ? m.useInConversation : m.notASource}>
                 {k ? <IconBadge badge={<Link2 />}>{face}</IconBadge> : face}
                 <span className="item-name">{d.filename}</span>
-                <span className="item-meta">{k ? `${k.reference} · ${k.name} · ` : `${m.mySpace} · `}{d.pages ? m.pages(d.pages) : ""}</span>
+                <span className="item-meta">{[k ? `${k.reference} · ${k.name}` : m.mySpace, d.pages ? m.pages(d.pages) : formatName(d.filename)].filter(Boolean).join(" · ")}</span>
               </Button>
               <span className="item-origin" data-kind={kind}>
                 <span className="item-origin-text" title={kind === "pending" ? d.provenance?.noticed?.line : undefined}>
@@ -211,7 +212,7 @@ export function SearchView({ conversations, documents, cases, current, onOpenCon
             <Button variant="plain" className="item-open" onPress={() => onOpenDocument(d)}>
               <FileText size={16} aria-hidden />
               <span className="item-name">{d.filename}</span>
-              <span className="item-meta">{d.case_id && byId.get(d.case_id) ? `${byId.get(d.case_id)!.reference} · ` : ""}{m.pages(d.pages)}</span>
+              <span className="item-meta">{[d.case_id ? byId.get(d.case_id)?.reference : "", d.pages ? m.pages(d.pages) : formatName(d.filename)].filter(Boolean).join(" · ")}</span>
             </Button>
           </li>
         ))}

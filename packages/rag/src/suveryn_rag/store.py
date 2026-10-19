@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'chunker';
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
+-- A spreadsheet passage's cells, e.g. 'Prices!A2:D31' (formats.py); NULL for everything else.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS place text;
 CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
@@ -131,6 +133,7 @@ class StoredChunk:
     origin: str
     score: float       # fused rank score (higher is better), only comparable within one query
     similarity: float  # cosine similarity to the question, 1.0 = identical direction
+    place: str | None = None  # a spreadsheet passage's cells (formats.py)
 
 
 class Store:
@@ -225,9 +228,9 @@ class Store:
         with self._conn.cursor() as cur:
             cur.executemany(
                 "INSERT INTO chunks (document_id, chunk_index, text, page_start, page_end, headings, origin,"
-                " embedding, tsv) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, to_tsvector('simple', %s))",
+                " embedding, tsv, place) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, to_tsvector('simple', %s), %s)",
                 [(doc_id, c.index, c.text, c.page_start, c.page_end, c.headings, c.origin, e,
-                  c.text + " " + " ".join(c.headings))
+                  " ".join([c.text, *c.headings, c.place or ""]), c.place)
                  for c, e in zip(chunks, embeddings, strict=True)])
 
     def list_documents(self, scope: Scope) -> list[dict]:
@@ -348,7 +351,7 @@ class Store:
             {keyword_cte}
             SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
                    COALESCE(1.0 / ({RRF_K} + vec.r), 0) + COALESCE(1.0 / ({RRF_K} + kw.r), 0) AS score,
-                   1 - (c.embedding <=> %(q)s) AS similarity
+                   1 - (c.embedding <=> %(q)s) AS similarity, c.place
               FROM chunks c
               JOIN documents d ON d.id = c.document_id
               LEFT JOIN vec ON vec.id = c.id
@@ -357,7 +360,7 @@ class Store:
              ORDER BY score DESC, similarity DESC
              LIMIT %(k)s""", {"q": query, "docs": docs, "tsq": tsq, "k": k,
                                                   "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
-        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
+        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]), r[10])
                 for r in rows]
 
     def best_chunks(self, query: np.ndarray, question: str, document_ids: list[uuid.UUID], max_chars: int,
@@ -389,7 +392,7 @@ class Store:
                       FROM chunks c WHERE c.document_id = ANY(%(docs)s) AND c.text ~ %(min_words)s)
             SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
                    COALESCE(1.0 / ({RRF_K} + (SELECT r FROM vec WHERE vec.id = c.id)), 0) + {keyword} AS score,
-                   1 - (c.embedding <=> %(q)s) AS similarity
+                   1 - (c.embedding <=> %(q)s) AS similarity, c.place
               FROM chunks c JOIN documents d ON d.id = c.document_id
              WHERE c.document_id = ANY(%(docs)s)
              ORDER BY score DESC, similarity DESC""",
@@ -404,7 +407,7 @@ class Store:
             size += len(r[3])
         order = {d: i for i, d in enumerate(document_ids)}
         chosen.sort(key=lambda r: (order[r[0]], r[4] if r[4] is not None else 1 << 30, r[2]))
-        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]))
+        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]), r[10])
                 for r in chosen]
 
     def document_chunks(self, document_ids: list[uuid.UUID], max_chars: int, max_chunks: int) -> list[StoredChunk] | None:
@@ -420,9 +423,10 @@ class Store:
         if size > max_chars or count > max_chunks:
             return None
         rows = self._conn.execute(
-            "SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin"
+            "SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,"
+            "       c.place"
             "  FROM chunks c JOIN documents d ON d.id = c.document_id"
             " WHERE c.document_id = ANY(%(docs)s)"
             " ORDER BY array_position(%(docs)s, c.document_id), c.page_start NULLS LAST, c.chunk_index",
             {"docs": document_ids}).fetchall()
-        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], 0.0, 0.0) for r in rows]
+        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], 0.0, 0.0, r[8]) for r in rows]

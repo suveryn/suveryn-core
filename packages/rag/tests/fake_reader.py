@@ -1,7 +1,8 @@
-"""A stand-in for the PDF reader process (suveryn_rag.isolation), for test_isolation.py.
+"""A stand-in for the document reader process (suveryn_rag.isolation), for test_isolation.py.
 
 Runs the real reader loop (``serve``) with a fake extraction. The file name asks for a behaviour:
-crash, hang, garbage, env (report the names of PATH and SUVERYN_* variables), anything else: a one-page document.
+crash, hang, garbage, env (report the names of PATH and SUVERYN_* variables), a spreadsheet's passages
+(prices.xlsx), malformed passages (bad.xlsx), anything else: a one-page document.
 """
 
 import os
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from docling_core.types.doc import DoclingDocument
 from suveryn_rag.extract import Extraction
+from suveryn_rag.formats import Passage
 from suveryn_rag.isolation import protocol_streams, serve
 
 
@@ -28,9 +30,16 @@ def fake_extract(pdf: Path) -> Extraction:
         raise RuntimeError(" ".join(sorted(k for k in os.environ if k.startswith("SUVERYN_") or k == "PATH")))
     if pdf.stem == "fails":
         raise ValueError("no pages")
+    if pdf.name == "prices.xlsx":
+        return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0, timings={"read": 0.1},
+                          passages=[Passage("| Item | Amount |\n| Price | 300000 |", [], "Prices!A1:B2")],
+                          furniture=["a footer"])
+    if pdf.name == "bad.xlsx":
+        return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0,
+                          passages=[Passage("text", [7], None)])  # headings must be strings
     doc = DoclingDocument(name=pdf.stem)
-    doc.add_text(label="text", text="Een akte.")
-    return Extraction(document=doc, pages=1, ocr_pages=0, mixed_pages=0, page_texts=["Een akte."],
+    doc.add_text(label="text", text="A deed.")
+    return Extraction(document=doc, pages=1, ocr_pages=0, mixed_pages=0, page_texts=["A deed."],
                       timings={"layout": 0.1})
 
 

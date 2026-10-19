@@ -1,10 +1,11 @@
-"""Reading uploaded PDFs in a separate process, away from the gateway's secrets (suveryn-tracker#15).
+"""Reading uploaded files in a separate process, away from the gateway's secrets (suveryn-tracker#15).
 
-Why: an uploaded PDF is untrusted input, and reading it runs large native parsers: pypdfium2,
+Why: an uploaded file is untrusted input. Reading a PDF runs large native parsers: pypdfium2,
 qpdf (pikepdf), Ghostscript and Tesseract (through OCRmyPDF) and Docling. Ghostscript in
 particular has a history of memory-safety flaws. Until the 2026-10 code review they ran inside the
 gateway's own process, so a malicious PDF could crash the gateway for everyone or, with a working
 exploit, read the database URL, the Keycloak client secret and other users' documents in memory.
+Word, Excel, Markdown and CSV files (``formats``: zip archives of XML, and text) are read here too.
 
 How (``IsolatedExtractor``):
 
@@ -13,7 +14,7 @@ How (``IsolatedExtractor``):
   connection, and an environment without secrets (``child_env`` removes the database URL, the
   sign-in settings and anything named like a secret, password, token or key).
 - **Only JSON comes back**: the Docling document (``DoclingDocument``, validated by pydantic), the
-  page texts and counts. Never pickle: unpickling what a compromised process sends would hand it
+  page texts and counts; for the other formats the passages, each checked for its types. Never pickle: unpickling what a compromised process sends would hand it
   code execution in the gateway, which is exactly what the separation prevents.
 - **A fresh reader for every owner**: when the next document belongs to someone else, the reader
   is replaced first. A reader taken over by one user's malicious PDF never sees, or answers for,
@@ -55,6 +56,7 @@ from typing import IO
 
 from .config import RagSettings
 from .extract import Extraction
+from .formats import Passage
 
 STARTUP_TIMEOUT_S = 600          # loading Docling's models: 20-40 s on a GPU, longer on a CPU
 MAX_MESSAGE_BYTES = 512 << 20    # a 60-page deed's document is a few MB of JSON
@@ -85,13 +87,36 @@ def child_env(environ: dict[str, str] | None = None) -> dict[str, str]:
 def _settings_for_child(settings: RagSettings) -> dict:
     """What the reader needs to know: OCR and device settings, never the database URL."""
     return {"device": settings.device, "ocr_languages": settings.ocr_languages, "ocr_jobs": settings.ocr_jobs,
-            "work_dir": str(settings.extract_work_dir or settings.work_dir), "max_pages": settings.max_pages}
+            "work_dir": str(settings.extract_work_dir or settings.work_dir), "max_pages": settings.max_pages,
+            "chunk_max_tokens": settings.chunk_max_tokens}
 
 
-def _document_from_json(data: dict):
+def _document_from_json(data: dict | None):
+    if data is None:  # a Word, Excel, Markdown or CSV file: passages instead
+        return None
     from docling_core.types.doc import DoclingDocument
 
     return DoclingDocument.model_validate(data)
+
+
+def _strings(value) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise TypeError("expected a list of strings")
+    return list(value)
+
+
+def _passages_from_json(data) -> list[Passage] | None:
+    """The passages of a non-PDF file, every field checked: the reader is not trusted to send the right types."""
+    if data is None:
+        return None
+    if not isinstance(data, list):
+        raise TypeError("expected a list of passages")
+    out = []
+    for p in data:
+        if not isinstance(p, dict) or not isinstance(p.get("text"), str) or not isinstance(p.get("place"), (str, type(None))):
+            raise TypeError("malformed passage")
+        out.append(Passage(p["text"], _strings(p.get("headings", [])), p["place"]))
+    return out
 
 
 class IsolatedExtractor:
@@ -172,7 +197,7 @@ class IsolatedExtractor:
 
     # ------------------------------------------------------------------ Extractor's interface
     def extract(self, pdf: Path, owner: str | None = None) -> Extraction:
-        """Read one PDF of ``owner`` in the reader process. Raises ``ExtractionFailed``."""
+        """Read one file of ``owner`` in the reader process. Raises ``ExtractionFailed``."""
         with self._lock:
             # Someone else's document: a reader that read another owner's PDF is not trusted with it.
             if self._proc is None or self._proc.poll() is not None or (self._served and owner != self._owner):
@@ -180,7 +205,7 @@ class IsolatedExtractor:
                 self._start()
             self._owner, self._served = owner, True
             try:
-                self._proc.stdin.write(json.dumps({"pdf": str(pdf)}).encode() + b"\n")
+                self._proc.stdin.write(json.dumps({"file": str(pdf)}).encode() + b"\n")
             except OSError:
                 self._stop()
                 raise ExtractionFailed("the document reader stopped") from None
@@ -193,7 +218,9 @@ class IsolatedExtractor:
                                   ocr_pages=int(r["ocr_pages"]), mixed_pages=int(r["mixed_pages"]),
                                   page_texts=[str(t) for t in r["page_texts"]],
                                   timings={str(k): float(v) for k, v in r["timings"].items()},
-                                  layout_failed_pages=[int(n) for n in r.get("layout_failed_pages", [])])
+                                  layout_failed_pages=[int(n) for n in r.get("layout_failed_pages", [])],
+                                  passages=_passages_from_json(r.get("passages")),
+                                  furniture=_strings(r.get("furniture", [])))
             except (KeyError, TypeError, ValueError, AttributeError) as e:
                 self._stop()  # a reader that sends malformed answers isn't trusted with the next document
                 raise ExtractionFailed(f"the document reader sent an invalid answer ({type(e).__name__})") from None
@@ -214,7 +241,7 @@ def make_extractor(settings: RagSettings):
 
 # ---------------------------------------------------------------------- the reader's side
 def serve(extract: Callable[[Path], Extraction], requests: IO[bytes], answers: IO[bytes]) -> None:
-    """Answer ``{"pdf": path}`` lines with one JSON line each, until the gateway closes ``requests``."""
+    """Answer ``{"file": path}`` lines with one JSON line each, until the gateway closes ``requests``."""
 
     def send(message: dict) -> None:
         answers.write(json.dumps(message, ensure_ascii=False).encode() + b"\n")
@@ -223,11 +250,13 @@ def serve(extract: Callable[[Path], Extraction], requests: IO[bytes], answers: I
     send({"ready": True})
     for line in requests:
         try:
-            ex = extract(Path(json.loads(line)["pdf"]))
+            ex = extract(Path(json.loads(line)["file"]))
             doc = ex.document.export_to_dict() if hasattr(ex.document, "export_to_dict") else ex.document
+            passages = None if ex.passages is None else [
+                {"text": p.text, "headings": p.headings, "place": p.place} for p in ex.passages]
             send({"ok": True, "document": doc, "pages": ex.pages, "ocr_pages": ex.ocr_pages,
                   "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
-                  "layout_failed_pages": ex.layout_failed_pages})
+                  "layout_failed_pages": ex.layout_failed_pages, "passages": passages, "furniture": ex.furniture})
         except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
             send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"})
 
@@ -265,6 +294,7 @@ def main() -> None:
         settings = RagSettings(database_url="", device=options["device"], ocr_languages=options["ocr_languages"],
                                ocr_jobs=int(options["ocr_jobs"]), work_dir=Path(options["work_dir"]),
                                max_pages=int(options.get("max_pages", RagSettings.max_pages)),
+                               chunk_max_tokens=int(options.get("chunk_max_tokens", RagSettings.chunk_max_tokens)),
                                isolate_extraction=False)
         own_workspace(settings.work_dir)
         extractor = Extractor(settings)

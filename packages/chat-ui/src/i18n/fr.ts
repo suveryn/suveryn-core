@@ -29,13 +29,14 @@ const fr: Messages = {
   streamCutOff: "la connexion a été coupée avant que la réponse soit complète",
   tooManyRequests: (seconds) => `trop de demandes ; réessayez${seconds ? ` dans ${seconds} secondes` : " dans un instant"}`,
   fileTooLarge: "le fichier dépasse la taille acceptée par le serveur",
+  fileNotSupported: "ce fichier ne peut pas être ajouté : sūveryn lit les fichiers PDF, Word (.docx), Excel (.xlsx), Markdown (.md) et CSV",
   conversationTooLong: "cette conversation est trop longue pour être enregistrée ; commencez-en une nouvelle pour continuer",
   requestRejected: "le serveur n'a pas pu accepter cette demande",
   notFound: "cela n'existe plus (peut-être supprimé)",
   forbidden: "vous n'avez pas l'autorisation pour cela",
   serverUnavailable: "cette partie du serveur n'est pas disponible pour le moment ; réessayez plus tard",
 
-  emptyIntro: "Joignez un acte ou un autre PDF et posez votre question. Les réponses indiquent la page dont elles proviennent, pour que vous puissiez vérifier chaque montant.",
+  emptyIntro: "Joignez un acte ou un autre document (PDF, Word, Excel, Markdown ou CSV) et posez votre question. Les réponses indiquent la page, la section ou les cellules dont elles proviennent, pour que vous puissiez vérifier chaque montant.",
 
   newChat: "Nouvelle conversation",
   conversations: "Conversations",
@@ -46,7 +47,7 @@ const fr: Messages = {
   delete: "Supprimer",
   keep: "Conserver",
   documents: "Documents",
-  documentsEmpty: "Aucun document pour l'instant. Joignez un PDF à un message pour en ajouter un.",
+  documentsEmpty: "Aucun document pour l'instant. Joignez un document à un message pour en ajouter un.",
   pages: (n) => `${n} ${n === 1 ? "page" : "pages"}`,
   checkPages: (pages) => ` · vérifier ${pages}`,
   checkNeeded: " · vérification nécessaire",
@@ -216,7 +217,7 @@ const fr: Messages = {
   cancel: "Annuler",
   deleteHistoryFailed: (why) => `Votre historique n'a pas pu être supprimé ; vous êtes donc toujours connecté : ${why}`,
 
-  attachPdf: "Joindre un PDF",
+  attachDocument: "Joindre un document (PDF, Word, Excel, Markdown ou CSV)",
   yourQuestion: "Votre question",
   askPlaceholder: "Posez une question sur vos documents…",
   send: "Envoyer le message",
