@@ -15,6 +15,7 @@ import {
 } from "../api";
 import { lang, locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
+import { exportRef } from "../lib/marks";
 import { intakeToWord, saveBlob } from "../lib/office";
 import { Button, InlineNotice, TextArea, TextButton } from "../ui";
 import { SourceCard } from "./Messages";
@@ -148,6 +149,8 @@ function RunPanel({ run, kase, canRun, onConfirmed }: { run: Run; kase: Case; ca
       facts: run.facts.map((f) => ({ label: factLabel(f.id, m), value: f.confirmed ?? f.value,
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
+      // sūveryn's mark (lib/marks.ts): uploaded again, this file asks before it becomes a source
+      mark: m.exportMark("playbook", kase.reference, new Date().toLocaleDateString(locale()), exportRef("P", run.id)),
     });
     saveBlob(`${m.deedIntake} ${kase.reference}.docx`.replace(/[/\\]/g, "-"), blob);
   };

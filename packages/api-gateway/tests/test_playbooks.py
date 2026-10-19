@@ -190,6 +190,7 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     # the summary is a document in the case with origin playbook, named after the playbook and the case
     name, text = docs.stored_text
     assert name == "Deed intake 2026/0417 (1.0).txt" and "Prijs: EUR 412.000,00" in text
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.0", "run": rid}  # where it came from
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(f"/v1/cases/{cid}/playbooks/runs/{rid}/facts", json=confirm, headers=alice).status_code == 409
     # the access log has both steps

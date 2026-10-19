@@ -17,6 +17,7 @@ from .common import (
     readable_case_ids,
     scope_of,
     touch_case,
+    who,
 )
 
 router = APIRouter()
@@ -88,7 +89,18 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     its passages are taken out of them; with ``conversations=delete`` those conversations are deleted.
     """
     docs, did, owner = docs_or_503(request), _document_id(document_id), owner_of(request)
-    scope = await scope_of(request, case, "manage")
+    try:
+        scope = await scope_of(request, case, "manage")
+    except HTTPException as e:
+        # Its uploader may delete their own upload that carries sūveryn's export mark and that nobody
+        # confirmed yet: the card's delete action (docs/design/sidebar.md §6, resolved while building).
+        if e.status_code != 403 or not case:
+            raise
+        scope = await scope_of(request, case, "contribute")
+        mine = [d for d in await run_in_threadpool(docs.documents, scope) if str(d["id"]) == document_id]
+        prov = (mine[0].get("provenance") or {}) if mine else {}
+        if not (mine and mine[0].get("uploaded_by") == owner and "noticed" in prov and "confirmed" not in prov):
+            raise
     if not await run_in_threadpool(docs.delete, document_id, scope):
         raise HTTPException(404, "Unknown document.")
     await log_access(request, scope.case_id, "document_deleted", {"document": document_id})
@@ -98,6 +110,22 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
         # In a case every member's conversations may cite the document: all of them are cleaned (or deleted).
         await run_in_threadpool(store.remove_document, owner, did, conversations == "delete", scope.case_id)
     return Response(status_code=204)
+
+
+@router.post("/v1/documents/{document_id}/source", responses={404: {"description": "Not here, or nothing was noticed"}})
+async def use_as_source(document_id: str, request: Request, case: str | None = None):
+    """Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/sidebar.md
+    §6): the person decides, the system only said what it
+    noticed. The uploader's right in their personal space, a contributor's in a case (as uploading);
+    in a case the decision goes to its access log. Idempotent."""
+    docs = docs_or_503(request)
+    _document_id(document_id)
+    scope = await scope_of(request, case, "contribute")
+    noticed = await run_in_threadpool(docs.confirm_source, document_id, scope, who(request)[0])
+    if noticed is None:
+        raise HTTPException(404, "Unknown document, or nothing to confirm.")
+    await log_access(request, scope.case_id, "source_confirmed", {"document": document_id, "ref": noticed.get("ref")})
+    return {"id": document_id, "source": True}
 
 
 @router.get("/v1/documents/{document_id}/conversations", response_model=list[ConversationSummary])

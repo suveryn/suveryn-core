@@ -9,6 +9,8 @@ const SAMPLES: Record<string, unknown[][]> = {
   citationIssue: [[2, "410.000", [3], null], [1, "Peters", [1], "Peeters"], [2, "12/03/2021", [], null], [2, "X", [1, 3], null]],
   deleteDocumentDialogBody: [[1], [3]], deleteDocumentAndConversations: [[1], [3]],
   instructionLike: [[[2]], [[1, 3]]],
+  exportMark: [["answer", "2026/0611", "19-10-2026", "A-3f9c2e1b"], ["playbook", null, "19-10-2026", "P-0a1b2c3d"]],
+  originPlaybook: [["1.0"], [null]], originWasOutput: [["answer"], ["playbook"]], noticedTitle: [["answer"], ["playbook"]],
 };
 
 /** Every string of a table, with functions called on sample arguments. */

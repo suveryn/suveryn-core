@@ -55,6 +55,10 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS case_id uuid;
 -- Where the document came from: uploaded, generated (by sūveryn: an export, a draft) or playbook.
 -- Only uploaded documents are sources for answers: the AI never cites its own earlier output.
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'uploaded';
+-- More about where it came from (docs/design/sidebar.md §6): for a playbook result the playbook and
+-- its version; for an upload that carries sūveryn's own export mark, what was noticed ("noticed")
+-- and, once a person chose to use it as a source anyway, who and when ("confirmed").
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS provenance jsonb;
 -- A file is de-duplicated within its scope only: the same PDF in two personal spaces, or in two
 -- cases, is two documents, so an upload can never return a document from elsewhere.
 ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_sha256_key;
@@ -80,6 +84,12 @@ CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 """
+
+
+# A source for answers (cases.md decision 7): uploaded, and not sūveryn's own export coming back
+# unless a person chose to use it anyway (docs/design/sidebar.md §6). Constants only, no input.
+SOURCE = ("d.origin = 'uploaded' AND NOT (coalesce(d.provenance, '{}') ? 'noticed'"
+          " AND NOT coalesce(d.provenance, '{}') ? 'confirmed')")
 
 
 @dataclass(frozen=True)
@@ -190,7 +200,8 @@ class Store:
 
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                      embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
-                     owner: str | None = None, case_id: uuid.UUID | None = None, origin: str = "uploaded") -> uuid.UUID:
+                     owner: str | None = None, case_id: uuid.UUID | None = None, origin: str = "uploaded",
+                     provenance: dict | None = None) -> uuid.UUID:
         """Store a document and its chunks in one transaction (all or nothing), uploaded by ``owner``
         into the case ``case_id`` (or their personal space), with its ``origin``.
 
@@ -202,11 +213,11 @@ class Store:
         status = "needs_review" if any(w.needs_review for w in warnings) else "ok"
         with self._conn.transaction():
             doc_id = self._conn.execute(
-                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner, case_id, origin)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner, case_id, origin,"
+                " provenance) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (filename, sha256, pages, ocr_pages, status,
                  json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner, case_id,
-                 origin)).fetchone()[0]
+                 origin, json.dumps(provenance) if provenance else None)).fetchone()[0]
             self._insert_chunks(doc_id, chunks, embeddings)
         return doc_id
 
@@ -225,9 +236,11 @@ class Store:
         where, params = scope.where("d")
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
-            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner"
+            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner, d.provenance,"
+            f"       ({SOURCE})"
             f"  FROM documents d WHERE {where} ORDER BY d.created_at DESC", params).fetchall()
-        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by")
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by",
+                "provenance", "source")
         return [dict(zip(keys, r)) for r in rows]
 
     def list_documents_many(self, owner: str, case_ids: list[uuid.UUID]) -> list[dict]:
@@ -235,10 +248,12 @@ class Store:
         "Documents", docs/design/sidebar.md), newest first, with ``case_id``."""
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
-            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner, d.case_id"
+            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner, d.case_id, d.provenance,"
+            f"       ({SOURCE})"
             "  FROM documents d WHERE (d.case_id IS NULL AND d.owner IS NOT DISTINCT FROM %s) OR d.case_id = ANY(%s)"
             " ORDER BY d.created_at DESC LIMIT 1000", (owner, case_ids)).fetchall()
-        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by", "case_id")
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by", "case_id",
+                "provenance", "source")
         return [dict(zip(keys, r)) for r in rows]
 
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
@@ -248,12 +263,23 @@ class Store:
 
     def in_scope(self, document_ids: list[uuid.UUID], scope: Scope, sources_only: bool = False) -> set[uuid.UUID]:
         """Which of these documents are in ``scope`` (the others don't exist or are elsewhere). With
-        ``sources_only``, only uploaded documents count: never sūveryn's own output as a source."""
-        where, params = scope.where()
-        only = " AND origin = 'uploaded'" if sources_only else ""
-        rows = self._conn.execute(f"SELECT id FROM documents WHERE id = ANY(%s) AND {where}{only}",
+        ``sources_only``, only sources count (``SOURCE``): never sūveryn's own output as a source."""
+        where, params = scope.where("d")
+        only = f" AND ({SOURCE})" if sources_only else ""
+        rows = self._conn.execute(f"SELECT d.id FROM documents d WHERE d.id = ANY(%s) AND {where}{only}",
                                   (list(document_ids), *params)).fetchall()
         return {r[0] for r in rows}
+
+    def confirm_source(self, document_id: uuid.UUID, scope: Scope, by: str) -> dict | None:
+        """A person chose to use a noticed upload as a source anyway: record who and when; the mark
+        that was noticed, or None if the document isn't in ``scope`` or wasn't noticed. Idempotent."""
+        where, params = scope.where()
+        row = self._conn.execute(
+            "UPDATE documents SET provenance = provenance || jsonb_build_object('confirmed',"
+            "       jsonb_build_object('by', %s::text, 'at', now()))"
+            f" WHERE id = %s AND {where} AND provenance ? 'noticed' RETURNING provenance -> 'noticed'",
+            (by, document_id, *params)).fetchone()
+        return row[0] if row else None
 
     def delete_document(self, document_id: uuid.UUID, scope: Scope | None = None) -> bool:
         """Delete a document (only one in ``scope`` when given); its chunks go with it (ON DELETE CASCADE).

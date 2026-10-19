@@ -142,7 +142,8 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     docs, store, cid = docs_or_503(request), runs_or_503(request), uuid.UUID(case.id)
     scope = Scope.case(cid)
     stored = await run_in_threadpool(docs.documents, scope)
-    uploaded = {str(d["id"]): d["filename"] for d in stored if d.get("origin", "uploaded") == "uploaded"}
+    # Only sources (cases.md decision 7): uploads, never sūveryn's own output (docs/design/sidebar.md §6).
+    uploaded = {str(d["id"]): d["filename"] for d in stored if d.get("source", d.get("origin", "uploaded") == "uploaded")}
     wanted = body.document_ids or list(uploaded)
     if not wanted or any(d not in uploaded for d in wanted):
         raise HTTPException(404, "Unknown document." if wanted else "This case has no documents to read.")
@@ -206,7 +207,8 @@ async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Reque
         name = f"{pb.name} {case.reference} ({run.playbook_version}).txt"  # the run's version, never the installed one
         try:
             document_id = await run_in_threadpool(docs.store_text, name, summary_text(pb, case.reference, run, body.language),
-                                                  Scope.case(cid), "playbook")
+                                                  Scope.case(cid), "playbook",
+                                                  {"playbook": pb.id, "version": run.playbook_version, "run": run.id})
             await run_in_threadpool(store.set_result, rid, document_id)
             run = run.model_copy(update={"result_document_id": document_id})
         except Exception as e:  # noqa: BLE001 - the confirmation stands; the document can be made again
