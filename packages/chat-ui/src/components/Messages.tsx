@@ -4,14 +4,14 @@
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
  * "not sourced" notices that tell a reader what to check.
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpreadsheet, FileText, Square } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpreadsheet, FileText, FolderInput, Square } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Button, InlineNotice, MenuButton } from "../ui";
+import { Button, InlineNotice, MenuButton, TextButton } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
-import { lang, locale, useT } from "../i18n";
-import { exportRef } from "../lib/marks";
+import { lang, useT } from "../i18n";
 import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
-import { checkLines, type AnswerExport } from "../lib/export";
+import type { AnswerExport } from "../lib/export";
+import { answerExport, officeText } from "../lib/saved";
 import { statusText } from "../lib/status";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
@@ -112,10 +112,21 @@ export function SourceCard({ n, citation, filename, terms = [], claims = [] }: {
  * The assistant's turn: no bubble, marked by the teal brand-mark outline. Citation markers [n]
  * become buttons that open the source (citations[n-1]); only cited sources are listed below.
  */
-export function AssistantMessage({ turn, question, filenames, caseRef = null }: {
+/** Saving an answer to its case (docs/design/sidebar.md §5): only in a case, for a contributor. */
+export type SaveToCase = {
+  caseRef: string;
+  saved: { documentId: string; filename: string } | null;  // saved, and still in the case
+  undoable: boolean;                                       // saved during this visit: Undo is offered
+  onSave: () => Promise<void>;
+  onOpen: () => void;
+  onUndo: () => Promise<void>;
+};
+
+export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
   /** The case the conversation is in (null: personal), named in the export mark. */
   caseRef?: string | null;
+  save?: SaveToCase | null;
 }) {
   const m = useT();
   const [open, setOpen] = useState<number | null>(null);
@@ -139,15 +150,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null }: 
   const issues = turn.status === "done" ? turn.citationIssues ?? [] : [];
   const flaggedMarkers = new Set(issues.map((i) => i.marker));
   const blocks = toBlocks(turn.text, settled ? available : 0, turn.status === "done" ? flagged : []);
-  // Word and Excel downloads carry the same warnings and sources as the chat (lib/export.ts).
-  const exported = (): AnswerExport => ({
-    question, answeredOn: new Date(), model: turn.model, blocks,
-    checks: [...checkLines(turn.calculations ?? [], flagged, issues, m),
-             ...(turn.instructionLikeSources?.length ? [m.instructionLike(turn.instructionLikeSources)] : [])],
-    sources: cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
-    // sūveryn's mark (lib/marks.ts): so that this file, uploaded again, is recognised and asks first.
-    mark: m.exportMark("answer", caseRef, new Date().toLocaleDateString(locale()), exportRef("A", turn.id)),
-  });
+  // Word and Excel downloads carry the same warnings and sources as the chat (lib/saved.ts).
+  const exported = (): AnswerExport => answerExport(turn, question, nameOf, m, caseRef);
   const render = (segments: Segment[]) => segments.map((s, j) =>
     s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :
     s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
@@ -209,6 +213,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null }: 
                             const { answerToWord } = await import("../lib/office");
                             return [`${safeFileName(question)}.docx`, await answerToWord(exported(), officeText(m), lang())];
                           }} />
+            {save && <SaveToCaseActions save={save} />}
           </div>
         )}
 
@@ -299,13 +304,41 @@ function OfficeButton({ kind, label, what, make }: {
   );
 }
 
-function officeText(m: ReturnType<typeof useT>) {
-  return {
-    answeredOn: m.answeredOn, checkHeading: m.toCheck, sourcesHeading: m.sources, sourceRemoved: m.sourceRemoved,
-    sourceColumn: m.sourceColumn, sheetTable: m.sheetTable, sheetSources: m.sources, sheetChecks: m.toCheck,
-    columns: { n: m.columnNumber, document: m.columnDocument, where: m.columnWhere, passage: m.columnPassage },
-    disclaimer: m.exportDisclaimer,
+/**
+ * *Save to case*, then "✓ Saved to case 123 as <file>.docx" with *Open* and, during this visit, *Undo*
+ * (docs/design/sidebar.md §5, artboard 16). The focus follows: to *Open* once saved, back to *Save to
+ * case* after Undo, so a keyboard user isn't left on a button that disappeared.
+ */
+function SaveToCaseActions({ save }: { save: SaveToCase }) {
+  const m = useT();
+  const [busy, setBusy] = useState(false);
+  const here = useRef<HTMLSpanElement>(null);
+  const moved = useRef(false);
+  useEffect(() => {
+    if (!moved.current) return;
+    moved.current = false;
+    here.current?.querySelector("button")?.focus();
+  }, [save.saved]);
+  const act = async (what: () => Promise<void>) => {
+    setBusy(true);
+    try { await what(); moved.current = true; } finally { setBusy(false); }
   };
+  return (
+    <span className="save-to-case" ref={here}>
+      {save.saved ? (<>
+        <span role="status" className="saved-note">
+          <Check size={13} aria-hidden /> {m.savedToCase(save.caseRef)} <strong>{save.saved.filename}</strong>
+        </span>
+        <TextButton link onPress={save.onOpen}>{m.openSaved}</TextButton>
+        {save.undoable && <TextButton isDisabled={busy} onPress={() => act(save.onUndo)}>{m.undoSave}</TextButton>}
+      </>) : (
+        <Button variant="plain" className="copy-button" isDisabled={busy} onPress={() => act(save.onSave)}
+                aria-label={m.saveToCaseWhat(save.caseRef)} title={m.saveToCaseWhat(save.caseRef)}>
+          <FolderInput size={13} aria-hidden /><span aria-live="polite">{busy ? m.savingToCase : m.saveToCase}</span>
+        </Button>
+      )}
+    </span>
+  );
 }
 
 /**

@@ -220,7 +220,7 @@ class Rag:
         return IngestResult(doc_id, name, 0, 0, len(chunks), False, ex.timings, status, stored_warnings, 0, noticed)
 
     def store_text(self, filename: str, text: str, owner: str | None, case_id: uuid.UUID | None,
-                   origin: str, provenance: dict | None = None) -> uuid.UUID:
+                   origin: str, provenance: dict | None = None, content: dict | None = None) -> uuid.UUID:
         """Store text sūveryn produced itself (a playbook's result, docs/design/playbooks.md) as a
         document with its ``origin``: listed and searchable in its scope, deleted with it, but never
         a source for answers (only ``uploaded`` documents are). Split into passages by paragraph,
@@ -237,7 +237,7 @@ class Rag:
             raise ValueError("nothing to store")
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         digest = hashlib.sha256(f"{uuid.uuid4()}:{text}".encode()).hexdigest()  # unique: never de-duplicated
-        return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin, provenance)
+        return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin, provenance, content)
 
     def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None,
                  document_ids: list[uuid.UUID] | None = None) -> list[RetrievedChunk]:

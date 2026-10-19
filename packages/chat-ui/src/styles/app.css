@@ -308,6 +308,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
 .answer-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+/* Save to case (docs/design/sidebar.md §5): the button, then what was saved with Open and Undo */
+.save-to-case { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.saved-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-caption); color: var(--text); }
+.saved-note strong { font-weight: 600; }
 /* A marker whose source doesn't contain everything its sentence says (suveryn-tracker#11): accent-ink ring. */
 .cite-marker.flagged { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
 /* A deleted document's citation or attachment (suveryn-tracker#12). */
