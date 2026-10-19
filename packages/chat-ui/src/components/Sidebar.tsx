@@ -23,6 +23,7 @@ import { dayLabel } from "../lib/conversations";
 import { compact } from "../lib/usage";
 import { Lockup } from "./Brand";
 import { OriginIcon } from "./ListViews";
+import { formatName } from "../lib/formats";
 import { originKind } from "../lib/origin";
 import { ActionMenu, Avatar, Button, Expander, IconBadge, IconButton, type MenuEntry } from "../ui";
 
@@ -169,7 +170,7 @@ export function Sidebar(p: Props) {
       <Button key={d.id} variant="plain" className="side-sub" onPress={() => p.onOpenDocument(d)} title={r ? m.inCase(r) : m.notInACase}>
         {r ? <IconBadge badge={<Link2 />}>{face}</IconBadge> : face}
         <span className="side-text">{d.filename}</span>
-        <span className="side-meta">{r ? `${r} · ` : ""}{m.pagesShort(d.pages)}</span>
+        <span className="side-meta">{[r, d.pages ? m.pagesShort(d.pages) : formatName(d.filename)].filter(Boolean).join(" · ")}</span>
       </Button>
     );
   };

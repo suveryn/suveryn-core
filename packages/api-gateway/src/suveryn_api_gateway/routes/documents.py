@@ -32,9 +32,10 @@ def _document_id(document_id: str) -> uuid.UUID:
 
 @router.post("/v1/documents", status_code=202, responses={
     411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
-    415: {"description": "Not a PDF"}, 503: {"description": "Unavailable"}})
+    415: {"description": "Not a PDF, Word, Excel, Markdown or CSV file"}, 503: {"description": "Unavailable"}})
 async def upload_document(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
-    """Add a PDF to the caller's personal space, or to the case ``case`` (a contributor's right).
+    """Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
+    Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
     Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is ``ready`` (or
     ``needs_review``), then use its ``document_id`` in chat requests."""
     docs = docs_or_503(request)

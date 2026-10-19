@@ -86,7 +86,7 @@ def _hit(r) -> RetrievedChunk:
     return RetrievedChunk(
         citation=Citation(text=r.text, source=SourceRef(
             document_id=str(r.document_id), page=r.page_start,
-            location=location_label(r.page_start, r.page_end, r.headings))),
+            location=location_label(r.page_start, r.page_end, r.headings, r.place))),
         score=r.score, filename=r.filename)
 
 
@@ -126,7 +126,8 @@ class Rag:
 
     def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None,
                case_id: uuid.UUID | None = None) -> IngestResult:
-        """Extract, chunk, embed and store one PDF; return its id, status and warnings.
+        """Extract, chunk, embed and store one file (a PDF, or a Word, Excel, Markdown or CSV file, by its
+        extension: ``formats``); return its id, status and warnings.
 
         Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
         again, unless the stored copy was read poorly (``should_read_again``): then it is read again
@@ -149,6 +150,8 @@ class Rag:
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf, owner=owner)
+        if ex.passages is not None:
+            return self._store_passages(ex, existing, name, digest, owner, case_id)
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
@@ -187,6 +190,34 @@ class Rag:
         status, warnings = self.store.document_status(doc_id)
         return IngestResult(doc_id, name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,
                             ex.mixed_pages, noticed)
+
+    def _store_passages(self, ex, existing: uuid.UUID | None, name: str, digest: str, owner: str | None,
+                        case_id: uuid.UUID | None) -> IngestResult:
+        """Store a Word, Excel, Markdown or CSV file read by ``formats``: its passages are already placed
+        and complete, so the PDF checks (page coverage, recovery, encoding) don't apply. Text addressed
+        to an AI is flagged as in a PDF, and the mark is looked for in the body and outside it."""
+        t = time.perf_counter()
+        chunks = [Chunk(i, p.text, "\n".join([*p.headings, p.text]), None, None, list(p.headings), place=p.place)
+                  for i, p in enumerate(ex.passages)]
+        if not chunks:
+            raise ValueError("the file has no text")
+        kinds = sorted({k for c in chunks for k in instruction_like(c.text)})
+        warnings = [IntegrityWarning(None, "instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))] if kinds else []
+        vectors = self.embedder.embed([c.embed_text for c in chunks])
+        ex.timings["embed"] = time.perf_counter() - t
+        t = time.perf_counter()
+        noticed = None
+        if existing:
+            doc_id = self.store.replace_document(existing, name, 0, 0, chunks, vectors, warnings)
+        else:
+            noticed = find_mark([*ex.furniture, *(c.text for c in chunks)])
+            doc_id = self.store.add_document(name, digest, 0, 0, chunks, vectors, warnings, owner, case_id,
+                                             provenance={"noticed": noticed} if noticed else None)
+        if kinds:
+            audit("instruction_like_document", user=owner, document=str(doc_id), pages=[], kinds=kinds)
+        ex.timings["store"] = time.perf_counter() - t
+        status, stored_warnings = self.store.document_status(doc_id)
+        return IngestResult(doc_id, name, 0, 0, len(chunks), False, ex.timings, status, stored_warnings, 0, noticed)
 
     def store_text(self, filename: str, text: str, owner: str | None, case_id: uuid.UUID | None,
                    origin: str, provenance: dict | None = None) -> uuid.UUID:

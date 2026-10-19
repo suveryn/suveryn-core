@@ -42,6 +42,7 @@ from typing import BinaryIO
 from suveryn_engine import Citation
 
 from .config import RagSettings
+from .formats import SUFFIX, kind_of, looks_like
 from .store import Scope
 
 log = logging.getLogger("suveryn.rag")
@@ -59,8 +60,13 @@ WAITING = ("receiving", "queued", "processing")  # counted against the queue lim
 JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten after an hour
 
 
+# What an upload may be (formats.py); said when anything else is uploaded.
+ACCEPTED = "PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files"
+LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv": "CSV"}
+
+
 class UploadRejected(ValueError):
-    """The upload is not a PDF, is empty, or is too large. ``status`` is the HTTP status to answer with."""
+    """The upload is not a file type sūveryn reads, is empty, or is too large. ``status`` is the HTTP status to answer with."""
 
     def __init__(self, message: str, status: int):
         super().__init__(message)
@@ -238,8 +244,9 @@ class DocumentService:
         """Delete every waiting upload, and the provisioned inbox's files (not the inbox itself)."""
         shutil.rmtree(self._uploads, ignore_errors=True)
         if self._inbox is not None:
-            for leftover in self._inbox.glob("*.pdf"):
-                leftover.unlink(missing_ok=True)
+            for suffix in set(SUFFIX.values()):  # uploads only: other files in the inbox aren't ours
+                for leftover in self._inbox.glob(f"*{suffix}"):
+                    leftover.unlink(missing_ok=True)
 
     def _prepare_uploads(self) -> None:
         self._uploads.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -261,8 +268,12 @@ class DocumentService:
 
     # ------------------------------------------------------------------ uploads and jobs
     def accept_upload(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Job:
-        """Store an uploaded PDF privately and queue it, uploaded by ``owner`` into the case ``case_id``
-        (or their personal space). Raises ``UploadRejected``."""
+        """Store an uploaded file privately and queue it, uploaded by ``owner`` into the case ``case_id``
+        (or their personal space). A PDF, Word, Excel, Markdown or CSV file, by its extension, and its
+        first bytes must fit (``formats.looks_like``); the reader checks the rest. Raises ``UploadRejected``."""
+        kind = kind_of(filename or "document.pdf")
+        if kind is None:
+            raise UploadRejected(f"only {ACCEPTED} can be added", 415)
         self._prepare_uploads()
         job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner,
                   case_id=case_id, status="receiving")
@@ -274,13 +285,15 @@ class DocumentService:
             if len(waiting) >= MAX_QUEUED or sum(j.owner == owner for j in waiting) >= MAX_QUEUED_PER_OWNER:
                 raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
             self._jobs[job.id] = job
-        path = self._uploads / f"{job.id}.pdf"
+        path = self._uploads / f"{job.id}{SUFFIX[kind]}"  # the reader goes by the extension
         size = 0
         try:
             with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
-                head = src.read(5)
-                if head != b"%PDF-":
-                    raise UploadRejected("only PDF files can be added", 415)
+                head = src.read(8)
+                if not head:
+                    raise UploadRejected("the file is empty", 415)
+                if not looks_like(kind, head):
+                    raise UploadRejected(f"the file is not a valid {LABELS[kind]} file", 415)
                 out.write(head)
                 size = len(head)
                 while block := src.read(1 << 20):

@@ -4,6 +4,15 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
 
 ## Pipeline
 
+PDFs go through the steps below. **Word (.docx), Excel (.xlsx), Markdown (.md) and CSV** files are read
+directly ([`formats.py`](src/suveryn_rag/formats.py)), in the same sandboxed reader: their text and structure
+are in the file, so there is no OCR, layout model or page check. Each passage keeps its place: the section
+(the headings above it) in Word and Markdown, the cells in Excel notation (`Prices!A2:D31`) in a
+spreadsheet. Excel values are read as last calculated, never as formulas; a sheet's first row is repeated in
+every passage of that sheet; a long Word table is split by rows. Word headers and footers and Markdown
+comments are not stored, only checked for sūveryn's export mark ([`marks.py`](src/suveryn_rag/marks.py)).
+Limits: 300 MB unpacked for an Office file, 250,000 filled cells, 5 million characters.
+
 1. **Extraction (`extract.py`)** uses the `ocr_fast` approach from the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md#document-extraction):
    - Pages with a usable text layer (at least 50 characters) and no large images are not OCR'd; their exact text is kept.
    - [OCRmyPDF](https://github.com/ocrmypdf/OCRmyPDF) (Tesseract, `nld+fra+eng`) runs in parallel, in `redo_ocr` mode, on:
@@ -48,7 +57,7 @@ PostgreSQL and pgvector are provisioned outside this repository (by [suveryn-app
 
 - Intermediate files (searchable PDFs, OCR work files) are written only to a private `0700` directory under `SUVERYN_WORK_DIR`. They are deleted as soon as a document is processed, also on errors. While a document is processed, both `tempfile` and `TMPDIR` point there, so OCRmyPDF and its subprocesses do not use `/tmp`.
 - Uploads and work folders left behind by a crash are deleted when the document service starts.
-- **Uploaded PDFs are read in a separate process** ([`isolation.py`](src/suveryn_rag/isolation.py)). The PDF parsers (pypdfium2, qpdf, Ghostscript, Tesseract, Docling) run there, without the database URL, the sign-in settings or anything named like a secret in its environment, and with no core dumps. Only JSON comes back (validated, never pickle). A crash or a document that takes longer than `SUVERYN_EXTRACT_TIMEOUT_S` fails that document only: the reader and everything it started are killed, and a fresh one reads the next. A document of another user also gets a fresh reader, so a reader taken over by one user's PDF never sees another's. Waiting uploads stay in the gateway's private folder; only the document being read is in the reader's inbox. A separate user, no network and seccomp are for the appliance to add through `SUVERYN_EXTRACT_WRAPPER`; without it the gateway refuses to read documents unless `SUVERYN_EXTRACT_UNSANDBOXED=1` (development). At most 20 documents per user (200 in all) wait at once, and a PDF over `SUVERYN_MAX_PAGES` pages is refused. The reader has its own copy of Docling's models, and on a GPU its own CUDA context (about 0.9 GB of GPU memory, measured on an RTX 4090).
+- **Uploaded files are read in a separate process** ([`isolation.py`](src/suveryn_rag/isolation.py)), Word and Excel files too. The PDF parsers (pypdfium2, qpdf, Ghostscript, Tesseract, Docling) run there, without the database URL, the sign-in settings or anything named like a secret in its environment, and with no core dumps. Only JSON comes back (validated, never pickle). A crash or a document that takes longer than `SUVERYN_EXTRACT_TIMEOUT_S` fails that document only: the reader and everything it started are killed, and a fresh one reads the next. A document of another user also gets a fresh reader, so a reader taken over by one user's PDF never sees another's. Waiting uploads stay in the gateway's private folder; only the document being read is in the reader's inbox. A separate user, no network and seccomp are for the appliance to add through `SUVERYN_EXTRACT_WRAPPER`; without it the gateway refuses to read documents unless `SUVERYN_EXTRACT_UNSANDBOXED=1` (development). At most 20 documents per user (200 in all) wait at once, and a PDF over `SUVERYN_MAX_PAGES` pages is refused. The reader has its own copy of Docling's models, and on a GPU its own CUDA context (about 0.9 GB of GPU memory, measured on an RTX 4090).
 - Extracted text and file names are stored in PostgreSQL. Encryption at rest and retention are open items (see [known limitations](../../docs/architecture.md#6-known-limitations)).
 
 ## Models stay offline
@@ -101,7 +110,8 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 ```
 
 - `test_integrity.py` and `test_units.py` are fast unit tests (`test_units.py` also checks the offline guard).
-- `test_isolation.py` checks the separate PDF reader with a fake one (`fake_reader.py`): no secrets in its environment, JSON only, a crash, a hang and garbage fail only that document.
+- `test_isolation.py` checks the separate reader with a fake one (`fake_reader.py`): no secrets in its environment, JSON only, a crash, a hang and garbage fail only that document.
+- `test_formats.py` checks the Word, Excel, Markdown and CSV readers: sections, cell ranges, tables, content controls and tracked changes, nothing left out, the limits, and the mark in the chat's own Word and Excel exports (`fixtures/marked-answer.docx`, `fixtures/marked-table.xlsx`).
 - `test_store.py` checks storage and search against a real pgvector database.
 - `test_answers_e2e.py` is the harness for model updates (suveryn-tracker#21): answers through the whole pipeline, per model, against the citation requirement, the expected facts, the two OCR issues, an injected instruction and server-side sums. See its docstring and `docs/architecture.md` §7. Pages the layout model couldn't read (after a CPU retry when the GPU ran out of memory, `extract.convert_with_fallback`) get a `layout_failed` warning and put the document in `needs_review`. Ingestion adds an `instruction_like_text` warning on pages with text addressed to an AI; it doesn't change the document's status.
 - `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It also includes a soil report that exists only as a pasted-in image. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:

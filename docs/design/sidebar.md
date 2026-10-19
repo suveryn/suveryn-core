@@ -476,6 +476,24 @@ here.
     survives conversion to PDF. This was tested with a Word export saved as PDF by LibreOffice, in
     `packages/rag/tests/fixtures`.
   - The full table layout of the Documents overview is left to phase d.
+- **Other upload formats, between phases a and b (19 October).** Uploads can be Word (.docx),
+  Excel (.xlsx), Markdown (.md) and CSV as well as PDF (`suveryn_rag.formats`).
+  - Read directly from the file, in the same sandboxed reader as PDFs; no OCR, no layout model.
+    Older .doc and .xls, macro-enabled and password-protected files are refused with the list of
+    what can be added.
+  - **Where a passage comes from:** in Word and Markdown, its section (the headings above it, e.g.
+    "Article 2 › Price"); in Excel and CSV, its cells in Excel's own notation ("Prices!A2:D31",
+    "A2:D31"). The cell notation is the same in every language, so it needs no translation, and it
+    is what an Excel user types to go there. Word and Markdown have no pages, so the citation chip
+    shows the file name only and the source card the section.
+  - Excel values are read as last calculated, never as formulas. Each sheet's first row is
+    repeated at the top of every passage of that sheet, so the model always sees what the columns
+    are. Hidden sheets are read: their text is in the file.
+  - Word headers and footers, and Markdown comments, are not stored as passages (as a PDF's
+    repeating headers and footers aren't), but they are checked for the export mark, so a Word
+    answer or Excel table exported by sūveryn and uploaded again is noticed like a PDF. CSV
+    carries no mark, as decided.
+  - Lists show "Word", "Excel", "Markdown" or "CSV" where a PDF shows its pages.
 
 ## Open
 
