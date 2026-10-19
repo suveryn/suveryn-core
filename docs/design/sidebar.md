@@ -527,6 +527,23 @@ here.
   - *Open* shows Documents searched on the case's reference. A saved answer has a download button
     there.
   - Saving is logged in the case's access log ("saved an answer to the case").
+- **Phase d, part 1: the column (19 October).** Phase d is built in two parts: the column (§2) now, the
+  overviews (§4) next.
+  - The navigation rows open their overview and no longer expand. *Recent* shows the eight newest
+    conversations; the full list is the Conversations overview.
+  - *New chat* in the *New* menu is always personal. A conversation in a case starts from the case
+    itself (its pinned row, or the Cases overview).
+  - Recent rows get their three-dot menu with phase e, together with pinning a personal
+    conversation, *Rename* and *Move to a case*; until then a row has no menu.
+  - The account menu's header has no office name yet: the server doesn't send one.
+  - Opening an overview leaves the column as the person last set it (the artboards draw it
+    collapsed, the spec doesn't ask for it).
+  - Start screen: "Welcome, <first name>" over the question box; *Work in a case* lists the open cases
+    the person is a member of and *New case*. First use (no conversations and no cases): the two cards
+    and "Personal conversation · only you see this" under the box.
+  - Narrow screens: the drawer is a modal (focus inside, Escape or the scrim closes it, the focus
+    returns to the menu button) and closes once something is chosen. The composer's "+" holds the
+    document, the case's playbooks and the model.
 
 ## Open
 
