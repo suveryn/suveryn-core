@@ -8,7 +8,8 @@ import { useState, type KeyboardEvent } from "react";
 import type { ModelInfo, PlaybookInfo } from "../api";
 import type { Attachment } from "../types";
 import { isPending } from "../types";
-import { useT } from "../i18n";
+import { lang, useT } from "../i18n";
+import { playbookWords } from "../lib/playbooks";
 import { ActionMenu, Button, FileButton, IconButton, TextArea } from "../ui";
 import { AttachmentChip } from "./Chips";
 import { loadingNote, ModelPicker } from "./ModelPicker";
@@ -81,8 +82,8 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
                         header={<span className="ui-menu-eyebrow">{m.playbookMenuTitle(caseReference ?? "", caseType ?? "")}</span>}
                         footer={m.playbookMenuFooter}
                         entries={playbooks.map((p) => ({
-                          id: p.slug, label: m.playbookNames[p.slug as keyof typeof m.playbookNames] ?? p.name, icon: <ClipboardList size={16} />,
-                          description: `${m.playbookBlurbs[p.slug as keyof typeof m.playbookBlurbs] ?? p.pack} · v${p.version}`,
+                          id: p.slug, label: playbookWords(p, lang()).title, icon: <ClipboardList size={16} />,
+                          description: [playbookWords(p, lang()).summary, `v${p.version}`].filter(Boolean).join(" · "),
                           meta: p.covered ? m.covered : m.notCovered, metaTone: p.covered ? "teal" as const : "warn" as const,
                           metaIcon: p.covered ? <Check size={13} aria-hidden /> : <AlertTriangle size={13} aria-hidden />,
                         }))}

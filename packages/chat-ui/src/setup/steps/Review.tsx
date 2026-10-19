@@ -5,7 +5,7 @@
 import { Lock, SquareTerminal } from "lucide-react";
 import { Form, Notice, Rows, TextButton, type FieldErrors, type Row } from "../../ui";
 import type { SetupState } from "../api";
-import { LOCALES, useLang, useText } from "../text";
+import { LOCALES, useLang, useText } from "../i18n";
 import { StepFooter } from "./common";
 
 export type Editable = 1 | 2 | 3 | 4 | 5;

@@ -22,7 +22,7 @@ import { Complete, Provisioning } from "./steps/Provisioning";
 import { Review, type Editable } from "./steps/Review";
 import { Support } from "./steps/Support";
 import { Welcome } from "./steps/Welcome";
-import { initialLang, LANGS, LOCALES, setLang, TEXT, useLang, useText, type Lang } from "./text";
+import { initialLang, LANGS, LANGUAGE_NAMES, LOCALES, setLang, useLang, useText, type Lang } from "./i18n";
 
 const TOTAL = 6;
 type Screen = 0 | 1 | 2 | 3 | 4 | 5 | 6 | "provisioning" | "complete";
@@ -86,7 +86,7 @@ export function SetupApp() {
             icon={<Languages size={16} />}
             value={language}
             onChange={(l) => setLang(l as Lang)}
-            options={LANGS.map((l) => ({ id: l, label: TEXT[l].languageName, lang: l }))}
+            options={LANGS.map((l) => ({ id: l, label: LANGUAGE_NAMES[l], lang: l }))}
           />
           {failed ? (
             <p className="setup-lead setup-no-steps" role="alert">{t.unreachable}</p>

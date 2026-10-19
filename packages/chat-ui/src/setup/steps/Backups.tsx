@@ -10,7 +10,7 @@ import { Button, Checkbox, Form, Notice, PasswordField, RadioCards, SelectField,
          type FieldErrors } from "../../ui";
 import { getState, saveBackups, testShare, type BackupsAnswer, type Retention, type SetupState, type UsbDisk } from "../api";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../recoveryKey";
-import { LOCALES, useLang, useText } from "../text";
+import { LOCALES, useLang, useText } from "../i18n";
 import { checkThenSave, StepFooter } from "./common";
 
 type Target = "usb" | "share" | "later";

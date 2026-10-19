@@ -20,6 +20,22 @@ from typing import Literal
 
 FactKind = Literal["text", "amount", "date"]
 
+# The product's interface languages, in this order: the server's one list (docs/translations.md).
+# The gateway uses it for the sign-in page's language; the chat UI has the same list in
+# packages/chat-ui/src/i18n/languages.ts and the Keycloak realm in supportedLocales;
+# tests/test_content.py checks that they all agree and that every playbook has its words in each.
+LANGUAGES = ("en", "nl", "fr")
+
+
+@dataclass(frozen=True)
+class Wording:
+    """A playbook's words in one language: its title ("Deed intake"), one line on what it does, and
+    a label per fact id. The playbook carries them, so a new playbook or pack needs no UI change."""
+
+    title: str
+    summary: str
+    labels: dict[str, str]
+
 
 @dataclass(frozen=True)
 class Fact:
@@ -36,11 +52,15 @@ class Playbook:
     id: str            # playbook/<pack>/<name>
     pack: str          # pack/<profession-jurisdiction>
     version: str       # "1.0"
-    name: str          # the result document's name, in English; the UI translates the label
+    name: str          # in English: the stored result's file name ("Deed intake 2026/0417 (1.0).txt")
     case_types: tuple[str, ...]  # which case types it fits (cases.md: the type decides which playbooks fit)
     facts: tuple[Fact, ...]
     instructions: str  # what the model is told, after the grounded instructions, before the excerpts
-    languages: dict[str, dict[str, str]] = field(default_factory=dict)  # fact id -> label, per language; the UI's
+    text: dict[str, Wording] = field(default_factory=dict)  # per language (LANGUAGES): title, summary, fact labels
+
+    def wording(self, language: str) -> Wording:
+        """The words in ``language``, else in English."""
+        return self.text.get(language) or self.text["en"]
 
     @property
     def slug(self) -> str:
@@ -50,6 +70,19 @@ class Playbook:
     @property
     def major(self) -> int:
         return int(self.version.split(".")[0])
+
+
+def pack_text(package: str, slug: str) -> dict[str, Wording]:
+    """A playbook's words in every language, from its pack's ``text/<language>.json`` (one file per
+    language for the whole pack, so a new language is one new file per pack; docs/translations.md)."""
+    import json
+    from importlib.resources import files
+
+    out = {}
+    for lang in LANGUAGES:
+        entry = json.loads(files(package).joinpath("text", f"{lang}.json").read_text(encoding="utf-8"))[slug]
+        out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]))
+    return out
 
 
 def covered(playbook_id: str) -> bool:
@@ -79,4 +112,5 @@ from .be_notary.deed_intake import (
 
 PLAYBOOKS: tuple[Playbook, ...] = (DEED_INTAKE,)
 
-__all__ = ["PLAYBOOKS", "Fact", "FactKind", "Playbook", "by_slug", "covered", "find", "for_case_type"]
+__all__ = ["LANGUAGES", "PLAYBOOKS", "Fact", "FactKind", "Playbook", "Wording", "by_slug", "covered", "find", "for_case_type",
+           "pack_text"]

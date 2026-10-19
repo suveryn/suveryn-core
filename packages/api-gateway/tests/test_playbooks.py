@@ -109,12 +109,14 @@ def test_summary_text_uses_the_confirmed_values_and_the_language():
         f.confirmed = "EUR 412.000,00" if f.id == "price" else f.value
     run = Run(id=str(uuid.uuid4()), case_id=str(uuid.uuid4()), playbook_id=DEED_INTAKE.id, playbook_version="1.0",
               status="confirmed", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts)
-    text = summary_text(DEED_INTAKE, "2026/0417", run, "nl")
-    assert text.startswith("Intake akte 2026/0417\n\nplaybook/be-notary/deed-intake 1.0")
-    assert "Prijs: EUR 412.000,00 (compromis.pdf p. 1)" in text and "Kadastrale gegevens: —" in text
+    # the title and labels are the playbook's own words in that language (suveryn_playbooks, docs/translations.md)
+    text = summary_text(DEED_INTAKE, "2026/0417", run, "fr")
+    assert text.startswith("Intake de l'acte 2026/0417\n\nplaybook/be-notary/deed-intake 1.0")
+    assert "Prix: EUR 412.000,00 (compromis.pdf p. 1)" in text and "Données cadastrales: —" in text
+    assert summary_text(DEED_INTAKE, "2026/0417", run, "de").startswith("Deed intake 2026/0417")  # unknown: English
     # provenance (review 2026-10-17): the run's version, not the playbook's as installed now
     older = run.model_copy(update={"playbook_version": "0.9"})
-    assert "playbook/be-notary/deed-intake 0.9" in summary_text(DEED_INTAKE, "2026/0417", older, "nl")
+    assert "playbook/be-notary/deed-intake 0.9" in summary_text(DEED_INTAKE, "2026/0417", older, "en")
 
 
 # ------------------------------------------------------------------ through the app (needs PostgreSQL for the runs)
@@ -164,6 +166,9 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     # which playbooks fit: a sale gets deed intake, covered
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
     assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.0")]
+    # the playbook's own words, in every interface language (docs/translations.md)
+    assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["title"] == "Deed intake"
+    assert fits[0]["text"]["en"]["labels"]["price"] == "Price"
     # a reader can't start; a contributor can, and the run reads only the uploaded document
     assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=bob).status_code == 403
     assert c.post(f"/v1/cases/{cid}/playbooks/estate-intake/runs", json={}, headers=alice).status_code == 404
@@ -179,7 +184,7 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     assert [x["id"] for x in c.get(f"/v1/cases/{cid}/playbooks/runs", headers=bob).json()] == [rid]
     # the checkpoint: a reader can't confirm; the contributor corrects the price and confirms the rest
     confirm = {"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}, {"id": "cadastral", "confirmed": "Gent 5e afd., sectie B, nr. 123"}],
-               "language": "nl"}
+               "language": "en"}
     assert c.put(f"/v1/cases/{cid}/playbooks/runs/{rid}/facts", json=confirm, headers=bob).status_code == 403
     assert c.put(f"/v1/cases/{cid}/playbooks/runs/{rid}/facts", json={"facts": [{"id": "x", "confirmed": ""}]}, headers=alice).status_code == 422
     r = c.put(f"/v1/cases/{cid}/playbooks/runs/{rid}/facts", json=confirm, headers=alice)
@@ -189,7 +194,7 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     assert by["sellers"]["confirmed"] == "Jan Peeters en Marie Claes" and by["cadastral"]["confirmed"].startswith("Gent")
     # the summary is a document in the case with origin playbook, named after the playbook and the case
     name, text = docs.stored_text
-    assert name == "Deed intake 2026/0417 (1.0).txt" and "Prijs: EUR 412.000,00" in text
+    assert name == "Deed intake 2026/0417 (1.0).txt" and "Price: EUR 412.000,00" in text
     assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.0", "run": rid}  # where it came from
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(f"/v1/cases/{cid}/playbooks/runs/{rid}/facts", json=confirm, headers=alice).status_code == 409
