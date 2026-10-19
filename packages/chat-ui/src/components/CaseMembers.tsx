@@ -159,6 +159,7 @@ export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>): string {
     case "asked": return m.eventAsked(Array.isArray(d.documents) ? d.documents.length : 0);
     case "document_deleted": return m.eventDocumentDeleted;
     case "source_confirmed": return m.eventSourceConfirmed;
+    case "answer_saved": return m.eventAnswerSaved;
     case "changed": return m.eventChanged;
     case "access_changed": return d.access === "restricted" ? m.eventRestricted : m.eventOpenedToOffice;
     case "member_added": return m.eventMemberAdded(roleLabel(String(d.role ?? ""), m));

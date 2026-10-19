@@ -5,6 +5,7 @@
 import { createSSEParser } from "./lib/sse";
 import { lang, t } from "./i18n";
 import type { Turn } from "./types";
+import type { SavedAnswer } from "./lib/saved";
 
 type SourceRef = { document_id: string; page: number | null; location: string | null };
 /** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
@@ -54,7 +55,7 @@ export type StoredDocument = {
   warnings: Warning[];
   created_at: string;
   chunks: number;
-  origin?: "uploaded" | "generated" | "playbook"; // only uploaded documents are sources for answers (suveryn-tracker#10)
+  origin?: "uploaded" | "generated" | "playbook" | "answer"; // only uploaded documents are sources for answers (suveryn-tracker#10)
   uploaded_by?: string | null;
   source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)
   provenance?: Provenance | null;
@@ -174,6 +175,25 @@ const inCase = (caseId: string | null | undefined, first = true) =>
 export async function confirmAsSource(documentId: string, caseId?: string | null): Promise<void> {
   const r = await fetch(`/v1/documents/${encodeURIComponent(documentId)}/source${inCase(caseId)}`, { method: "POST" });
   if (!r.ok) throw await responseError(r);
+}
+
+/** An answer saved to its case (docs/design/sidebar.md §5): a document with origin answer, never a source.
+ *  Saving the same answer again gives the document already saved (`created` false). */
+export async function saveAnswerToCase(caseId: string, body: {
+  filename: string; text: string; content: SavedAnswer; conversation_id: string; message_id: string;
+}): Promise<{ id: string; filename: string; created: boolean }> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/documents`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** What rebuilds a document sūveryn made (a saved answer's Word file). */
+export async function documentContent(documentId: string, caseId?: string | null): Promise<{ filename: string; origin: string; content: SavedAnswer }> {
+  const r = await fetch(`/v1/documents/${encodeURIComponent(documentId)}/content${inCase(caseId)}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
 }
 
 /** Every document the signed-in user may see, with where it is (`case_id` null: the personal space),
