@@ -3,8 +3,8 @@
  * chip with a menu; docs/design/sidebar.md) and the model picker. Sending is disabled while the
  * model is unavailable or an attachment is still being read; Enter sends, Shift+Enter starts a new line.
  */
-import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Folder, Paperclip } from "lucide-react";
-import { useState, type KeyboardEvent } from "react";
+import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Folder, Paperclip, Square } from "lucide-react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import type { ModelInfo, PlaybookInfo } from "../api";
 import type { Attachment } from "../types";
 import { isPending } from "../types";
@@ -28,6 +28,8 @@ type Props = {
   onUseAsSource?: (key: string) => void;
   onDeleteAttachment?: (key: string) => void;
   onSend: (text: string) => void;
+  /** Stop the answer being written (docs/design/sidebar.md §5): in the send button's place, and Esc. */
+  onStop?: () => void;
   /** The open case's reference, shown as a chip; nothing in the personal space. */
   caseReference?: string | null;
   /** The open case's type as shown ("Verkoop"), for the playbook menu's title. */
@@ -38,10 +40,11 @@ type Props = {
 };
 
 export function Composer({ attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
-                          onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, caseReference, caseType,
+                          onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
                           playbooks = [], onPlaybook }: Props) {
   const m = useT();
   const [text, setText] = useState("");
+  const wrap = useRef<HTMLDivElement>(null);
   const waiting = attachments.some(isPending);
   const reason = disabledReason ?? (waiting ? m.waitingForDocuments : null);
   const note = loadingNote(models, chosenModel);
@@ -52,15 +55,24 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
     onSend(text.trim());
     setText("");
   };
+  // Stopping: the button gives way to send, so the focus goes to the question box, where the next
+  // question may already be typed (the input stays usable while an answer is written).
+  const stop = () => {
+    onStop?.();
+    wrap.current?.querySelector("textarea")?.focus();
+  };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      send();
+      send();  // while an answer is written this does nothing: the text waits
+    } else if (e.key === "Escape" && busy && onStop) {
+      e.preventDefault();
+      stop();
     }
   };
 
   return (
-    <div className="composer-wrap">
+    <div className="composer-wrap" ref={wrap}>
       {attachments.length > 0 && (
         <div className="attachments pending">
           {attachments.map((a) => <AttachmentChip key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)}
@@ -71,7 +83,7 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
       {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). */}
       <div className="composer">
         <TextArea label={m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
-                  placeholder={m.askPlaceholder} className="composer-field" />
+                  placeholder={busy ? m.keepTyping : m.askPlaceholder} className="composer-field" />
         <div className="composer-tools">
           <FileButton accept={ACCEPTED_FILES} multiple onSelect={onAttach}>
             <IconButton size="small" label={m.attachDocument}><Paperclip size={16} aria-hidden /></IconButton>
@@ -94,9 +106,13 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
           )}
           <span className="composer-space" />
           <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
-          <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
-            <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
-          </Button>
+          {busy && onStop
+            ? <Button variant="plain" className="send-button" onPress={stop} aria-label={m.stop} title={m.stopTitle}>
+                <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden />
+              </Button>
+            : <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
+                <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
+              </Button>}
         </div>
       </div>
       <p className="composer-hint caption" role="status">

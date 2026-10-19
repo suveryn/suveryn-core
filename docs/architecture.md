@@ -240,7 +240,7 @@ Reviewers: check changes against these.
 - [ ] If it changes retrieval: are hit@1/3/5 and page accuracy on the regression set at least as good as before?
 - [ ] If it changes grounding limits: do `WHOLE_DOCUMENT_CHARS` and the history still fit a slot's context share, and does the chunk cap keep markers to two digits?
 - [ ] If it touches `calc.py`: are mixed or ambiguous number styles refused rather than guessed, does every failure become a visible `[calculation not possible: …]`, and do the streamed and non-streamed paths give the same text?
-- [ ] If it touches the UI: is model output still rendered only as React text (no HTML), and is a partial answer discarded after an `error` event?
+- [ ] If it touches the UI: is model output still rendered only as React text (no HTML), and is a partial answer discarded after an `error` event (a stopped one is kept, marked unchecked)?
 - [ ] If it touches the UI or adds a browser dependency: does it keep to [content-security-policy.md](content-security-policy.md) (no inline `<style>` or script, nothing written into the page at run time, no `data:` or other host), and does `npm test` (`src/csp.test.ts`) pass? A new library is checked under the real policy first.
 - [ ] If it adds an endpoint: is it under `/v1` (signed-in only) or deliberately public, does a state-changing endpoint keep the same-origin check, and does anything that touches documents or conversations take its scope from `routes.common.scope_of` (the caller's personal space, or a case checked with `cases.may`), never a bare owner?
 - [ ] If it touches `auth.py`: do the sign-in tests (`test_auth.py`) and `keycloak/live_login_check.py` still pass, and does no token, code or cookie reach the browser or a log?
