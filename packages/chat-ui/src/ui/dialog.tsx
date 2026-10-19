@@ -32,3 +32,24 @@ export function Dialog({ isOpen, onClose, title, busy, children, actions }: {
     </ModalOverlay>
   );
 }
+
+/**
+ * A panel that slides over the page from the left, over a scrim (docs/design/sidebar.md §2, narrow
+ * screens): the column as a 320px drawer. A modal like Dialog: the focus moves in and stays, Escape
+ * or a tap on the scrim closes it, and the focus returns to the menu button.
+ */
+export function Drawer({ isOpen, onClose, label, children }: {
+  isOpen: boolean;
+  onClose: () => void;
+  /** The drawer's accessible name ("Navigation"). */
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <ModalOverlay isOpen={isOpen} onOpenChange={(open) => { if (!open) onClose(); }} isDismissable className="ui-drawer-overlay">
+      <Modal className="ui-drawer">
+        <AriaDialog className="ui-drawer-dialog" aria-label={label}>{children}</AriaDialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
