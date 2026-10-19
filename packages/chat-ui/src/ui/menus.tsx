@@ -23,7 +23,9 @@ import {
   ListBox,
   ListBoxItem,
   Menu,
+  Header,
   MenuItem,
+  MenuSection,
   MenuTrigger,
   Popover,
   Select as AriaSelect,
@@ -161,7 +163,7 @@ export function MenuButton({ children, menuLabel, items, selected, onAction, pla
 }
 
 /** One entry of an ActionMenu: an action, or `"-"` for a separator between groups. */
-export type MenuEntry = "-" | {
+export type MenuEntry = "-" | { heading: string; items: MenuEntry[] } | {
   id: string;
   label: string;
   /** A small icon before the label (decorative). */
@@ -205,6 +207,14 @@ type ActionMenuProps = {
 function entries(items: MenuEntry[], onAction: (id: string) => void) {
   return items.map((e, i) => {
     if (e === "-") return <Separator key={`sep-${i}`} className="ui-menu-separator" />;
+    if ("heading" in e) {  // a group under a small label ("Administrators only")
+      return (
+        <MenuSection key={`section-${i}`} className="ui-menu-section">
+          <Header className="ui-menu-section-title">{e.heading}</Header>
+          {entries(e.items, onAction)}
+        </MenuSection>
+      );
+    }
     const content = (selected?: boolean) => (
       <>
         {e.icon && <span className="ui-menu-item-icon" aria-hidden>{e.icon}</span>}
