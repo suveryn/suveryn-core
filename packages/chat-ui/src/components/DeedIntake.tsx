@@ -13,7 +13,8 @@ import {
   casePlaybooks, confirmRun, getRun, listRuns, startRun,
   type Case, type Citation, type PlaybookInfo, type Run, type RunFact, type RunSummary,
 } from "../api";
-import { lang, locale, useT } from "../i18n";
+import { lang, locale, useLang, useT } from "../i18n";
+import { playbookWords, type PlaybookWords } from "../lib/playbooks";
 import { dayLabel } from "../lib/conversations";
 import { exportRef } from "../lib/marks";
 import { intakeToWord, saveBlob } from "../lib/office";
@@ -22,15 +23,12 @@ import { SourceCard } from "./Messages";
 
 const POLL_MS = 1500;
 
-/** The label of a fact in the interface language: the playbook's own vocabulary (suveryn_playbooks). */
-export function factLabel(id: string, m: ReturnType<typeof useT>): string {
-  return m.intakeFacts[id] ?? id;
-}
 
 export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChanged }: {
   kase: Case; canRun: boolean; documents: number; onBack: () => void; onDocumentsChanged: () => void;
 }) {
   const m = useT();
+  const language = useLang();
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[] | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [current, setCurrent] = useState<Run | null>(null);
@@ -81,9 +79,9 @@ export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChang
     <section className="view playbook-view">
       <header className="view-head">
         <TextButton onPress={onBack}><ArrowLeft size={14} aria-hidden /> {m.backToChat}</TextButton>
-        <h1><ClipboardList size={18} aria-hidden /> {m.deedIntake}</h1>
+        <h1><ClipboardList size={18} aria-hidden /> {playbookWords(deedIntake, language).title || m.playbooks}</h1>
       </header>
-      <p className="view-intro">{m.deedIntakeIntro}</p>
+      <p className="view-intro">{m.playbookIntro}</p>
       {playbooks && !deedIntake && <p className="caption">{m.noPlaybookForType}</p>}
       {deedIntake && !deedIntake.covered && (
         <InlineNotice icon={<AlertTriangle size={14} />}>{m.playbookNotCovered}</InlineNotice>
@@ -95,7 +93,8 @@ export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChang
         </div>
       )}
       {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
-      {current && <RunPanel key={current.id} run={current} kase={kase} canRun={canRun && kase.state === "open"} onConfirmed={confirmed} />}
+      {current && <RunPanel key={current.id} run={current} kase={kase} canRun={canRun && kase.state === "open"} onConfirmed={confirmed}
+                            words={playbookWords(playbooks?.find((p) => p.id === current.playbook_id) ?? deedIntake, language)} />}
       {runs.length > 1 && (
         <section className="playbook-runs" aria-labelledby="earlier-runs">
           <h2 id="earlier-runs" className="label">{m.earlierRuns}</h2>
@@ -127,7 +126,11 @@ function errorLabel(error: string | null, m: ReturnType<typeof useT>): string {
   return known[error ?? ""] ?? m.runErrorServer;
 }
 
-function RunPanel({ run, kase, canRun, onConfirmed }: { run: Run; kase: Case; canRun: boolean; onConfirmed: (run: Run) => void }) {
+function RunPanel({ run, kase, canRun, words, onConfirmed }: {
+  run: Run; kase: Case; canRun: boolean; onConfirmed: (run: Run) => void;
+  /** The run's playbook's words in the interface language (its title and fact labels). */
+  words: PlaybookWords;
+}) {
   const m = useT();
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(run.facts.map((f) => [f.id, f.confirmed ?? f.value])));
   const [open, setOpen] = useState<string | null>(null);
@@ -144,15 +147,15 @@ function RunPanel({ run, kase, canRun, onConfirmed }: { run: Run; kase: Case; ca
   };
   const word = async () => {
     const blob = await intakeToWord({
-      title: `${m.deedIntake} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
+      title: `${words.title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
       confirmedOn: m.confirmedBy(run.confirmed_by ?? "", new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })),
-      facts: run.facts.map((f) => ({ label: factLabel(f.id, m), value: f.confirmed ?? f.value,
+      facts: run.facts.map((f) => ({ label: words.labels[f.id] ?? f.id, value: f.confirmed ?? f.value,
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
       // sūveryn's mark (lib/marks.ts): uploaded again, this file asks before it becomes a source
       mark: m.exportMark("playbook", kase.reference, new Date().toLocaleDateString(locale()), exportRef("P", run.id)),
     });
-    saveBlob(`${m.deedIntake} ${kase.reference}.docx`.replace(/[/\\]/g, "-"), blob);
+    saveBlob(`${words.title} ${kase.reference}.docx`.replace(/[/\\]/g, "-"), blob);
   };
   const checked = useMemo(() => run.facts.filter((f) => f.found).length, [run]);
   return (
@@ -177,7 +180,7 @@ function RunPanel({ run, kase, canRun, onConfirmed }: { run: Run; kase: Case; ca
           <p className="caption">{atCheckpoint ? m.checkpointIntro(checked, run.facts.length) : m.confirmedIntro}</p>
           <ol className="playbook-facts">
             {run.facts.map((f) => (
-              <FactRow key={f.id} fact={f} value={values[f.id] ?? ""} editable={atCheckpoint && canRun}
+              <FactRow key={f.id} fact={f} label={words.labels[f.id] ?? f.id} value={values[f.id] ?? ""} editable={atCheckpoint && canRun}
                        open={open === f.id} onOpen={() => setOpen(open === f.id ? null : f.id)}
                        onChange={(v) => setValues((vs) => ({ ...vs, [f.id]: v }))} />
             ))}
@@ -201,11 +204,10 @@ function RunPanel({ run, kase, canRun, onConfirmed }: { run: Run; kase: Case; ca
   );
 }
 
-function FactRow({ fact, value, editable, open, onOpen, onChange }: {
-  fact: RunFact; value: string; editable: boolean; open: boolean; onOpen: () => void; onChange: (v: string) => void;
+function FactRow({ fact, label, value, editable, open, onOpen, onChange }: {
+  fact: RunFact; label: string; value: string; editable: boolean; open: boolean; onOpen: () => void; onChange: (v: string) => void;
 }) {
   const m = useT();
-  const label = factLabel(fact.id, m);
   const first = fact.citations[0];
   const citation: Citation | null = first ? { text: first.text, source: { document_id: first.document_id, page: first.page, location: first.location } } : null;
   const corrected = fact.confirmed !== null && fact.confirmed !== fact.value;

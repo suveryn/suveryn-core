@@ -135,7 +135,15 @@ class ConfirmIn(BaseModel):
     read, or empty), and the language of the summary document."""
 
     facts: list[ConfirmedFact] = Field(min_length=1, max_length=100)
-    language: Literal["en", "nl", "fr"] = "en"
+    language: str = Field(default="en", pattern=r"^[a-z]{2}$")  # one of LANGUAGES; another falls back to English
+
+
+class PlaybookWords(BaseModel):
+    """A playbook's words in one language (``suveryn_playbooks.Wording``)."""
+
+    title: str
+    summary: str
+    labels: dict[str, str]
 
 
 class PlaybookOut(BaseModel):
@@ -150,6 +158,7 @@ class PlaybookOut(BaseModel):
     covered: bool   # certified and in the appliance's manifest; false: runs with a warning, never blocked (§8)
     facts: list[str]
     case_types: list[str] = Field(default_factory=list)
+    text: dict[str, PlaybookWords] = Field(default_factory=dict)  # per language: what the UI shows (docs/translations.md)
     active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/sidebar.md, 15)
 
 
@@ -226,9 +235,9 @@ def _fact_names(playbook: Playbook) -> dict[str, str]:
     names = {}
     for f in playbook.facts:
         names[_fold(f.id)] = f.id
-        for labels in playbook.languages.values():
-            if f.id in labels:
-                names[_fold(labels[f.id])] = f.id
+        for words in playbook.text.values():
+            if f.id in words.labels:
+                names[_fold(words.labels[f.id])] = f.id
     return names
 
 
@@ -249,9 +258,9 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
     Provenance: the id and version written are the **run's** (what read the documents), never the
     playbook as installed now: a run started under 1.0 and confirmed after an upgrade says 1.0
     (review 2026-10-17). ``playbook`` only supplies the labels."""
-    labels = playbook.languages.get(language) or playbook.languages["en"]
-    title = {"nl": "Intake akte", "fr": "Intake de l'acte"}.get(language, "Deed intake")
-    lines = [f"{title} {reference}", f"{run.playbook_id} {run.playbook_version}"]
+    words = playbook.wording(language)
+    labels = words.labels
+    lines = [f"{words.title} {reference}", f"{run.playbook_id} {run.playbook_version}"]
     for f in run.facts:
         value = f.confirmed if f.confirmed is not None else f.value
         sources = ", ".join(f"{c.filename}{f' p. {c.page}' if c.page else ''}" for c in f.citations)

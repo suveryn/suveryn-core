@@ -7,7 +7,7 @@ import { FileBadge, FileKey, FileText, Info, KeyRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { Chips, FilePick, Form, Note, RadioCards, readText, type FieldErrors } from "../../ui";
 import { saveCertificate, type CertificateAnswer, type SetupState } from "../api";
-import { useText } from "../text";
+import { useText } from "../i18n";
 import { errorsFrom, StepFooter } from "./common";
 
 type Props = { state: SetupState; onBack: () => void; onDone: (c: CertificateAnswer) => void; headingId: string };

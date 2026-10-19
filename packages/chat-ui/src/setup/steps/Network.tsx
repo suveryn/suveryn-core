@@ -7,7 +7,7 @@ import { Globe, Network as NetworkIcon, Server, SquareTerminal, WifiOff } from "
 import { useState } from "react";
 import { Chips, Facts, Form, RadioCards, RadioList } from "../../ui";
 import { saveNetwork, type NetworkAnswer, type NetworkMode, type Outgoing, type SetupState } from "../api";
-import { useText } from "../text";
+import { useText } from "../i18n";
 import { checkThenSave, StepFooter } from "./common";
 
 type Props = {
