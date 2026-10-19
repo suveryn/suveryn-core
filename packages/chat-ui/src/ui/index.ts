@@ -23,6 +23,7 @@ export { Card, Chips, Facts, InlineNotice, Note, Notice, Rows, StatusList, Steps
 export { ComboBoxField, SearchField, SelectList, type ListEntry } from "./lists";
 export { ActionMenu, MenuButton, Select, SelectField, type MenuEntry, type Option } from "./menus";
 export { Slider } from "./slider";
+export { DataTable, FilterSelect, FilterToggle, Pager, PinToggle, type SortDescriptor, type TableColumn } from "./table";
 export { QrCode } from "./QrCode";
 export { I18nProvider } from "react-aria-components";
 export { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "./charts";

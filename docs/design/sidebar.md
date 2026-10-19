@@ -544,6 +544,35 @@ here.
   - Narrow screens: the drawer is a modal (focus inside, Escape or the scrim closes it, the focus
     returns to the menu button) and closes once something is chosen. The composer's "+" holds the
     document, the case's playbooks and the model.
+- **Phase d, part 2: the overviews (19 October).**
+  - One table for the three (`ui/table.tsx`, React Aria's `Table`): arrow keys move between rows and
+    cells, Enter opens the row, a cell's own buttons (the pin, a count, the row menu) are reached with
+    the arrow keys. 25 rows per page; at that size the rows aren't virtualised, which would gain
+    nothing.
+  - The sort is one `Select` per page, as drawn, not the column headers.
+  - New: `GET /v1/cases/overview` (each case with its members, the manager first, and its last
+    activity, when and who, from the access log), and `GET /v1/conversations?all=true` now also lists
+    the conversations colleagues shared with a case the caller may read, with `messages` and the
+    owner's name. An administrator who isn't a member sees no members of a case, only that it exists.
+  - A case's counts are what the person may see: every document in it, and the conversations in
+    their own list (their own and the shared ones). Each count opens that overview filtered on the
+    case. *Open* after saving an answer (phase c) now does the same, instead of searching on the
+    reference.
+  - Status of a case: *Open*; *Open · n documents to check* when pages need checking; closed with its
+    deletion date, or *kept until deleted*. Status of a document: the case's closure first, then *Not
+    a source* for sūveryn's own output (*Confirmed* for a playbook result someone confirmed), then *To
+    check* with the pages, or *Ready*. Uploads still being read, or failed, show in the place that is
+    open, as before.
+  - Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Conversations:
+    *Open*, *Delete* (one's own). Documents: *Use in this conversation* (sources, open case),
+    *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice),
+    *Delete*. *Delete* follows the server's rule (`lib/overviews.ts`, tested). The conversations'
+    *Pin*, *Rename* and *Move to a case*, and their pin column, come with phase e.
+  - *Upload* on Documents puts the files in the place that is open, ready to ask about, and goes back
+    to the conversation. *New conversation* starts one in the place that is open.
+  - The last-activity and added columns are truncated at 200 px with the full text as a tooltip, and
+    a status wraps, so the row menu stays visible at 1440 px with the column open. On a phone the
+    table scrolls inside its box.
 
 ## Open
 

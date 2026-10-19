@@ -26,7 +26,7 @@ import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, type Case,
+  deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview,
   listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
 import { Lockup } from "./components/Brand";
@@ -40,7 +40,8 @@ import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, UserMessage, type SaveToCase } from "./components/Messages";
 import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
 import { LanguagePicker } from "./components/LanguagePicker";
-import { CasesView, ConversationsView, DocumentsView, SearchView } from "./components/ListViews";
+import { SearchView } from "./components/ListViews";
+import { CasesOverview, ConversationsOverview, DocumentsOverview } from "./components/Overviews";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar, type AllDocument, type CaseAction, type SideView } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -134,9 +135,13 @@ function Chat({ me }: { me: Me }) {
   const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook" | SideView>("chat");
   const narrow = useMedia(NARROW);
   const [drawer, setDrawer] = useState(false);
-  const [documentsQuery, setDocumentsQuery] = useState("");  // Documents opened from a saved answer: filtered on its case
+  // The Conversations and Documents overviews' case filter: "all" from the column, a case's id from
+  // its count in the Cases overview, from the case itself or from an answer saved there (docs/design/sidebar.md §4).
+  const [overviewFilter, setOverviewFilter] = useState("all");
+  const [overviewCases, setOverviewCases] = useState<CaseOverview[] | null>(null);
   const [savedHere, setSavedHere] = useState<Set<string>>(new Set());  // answers saved during this visit: Undo is offered
-  useEffect(() => { if (view !== "documents") setDocumentsQuery(""); }, [view]);
+  useEffect(() => { if (view !== "documents" && view !== "conversations") setOverviewFilter("all"); }, [view]);
+  const showOverview = (v: "documents" | "conversations", filter = "all") => { setOverviewFilter(filter); setView(v); };
   const [adminTab, setAdminTab] = useState<AdminTab>("usage");
   const [collapsed, setCollapsedState] = useState(readCollapsed);
   const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
@@ -213,6 +218,13 @@ function Chat({ me }: { me: Me }) {
     try { setCases(await listCases(true)); } catch { /* the health check explains why */ }
   }, []);
   useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
+  // The overviews' cases, with their members and last activity: read again whenever one is opened
+  // and when the cases change. Until then (or if it fails) the plain list, without members.
+  const inOverview = view === "cases" || view === "conversations" || view === "documents";
+  useEffect(() => {
+    if (!casesReady || !inOverview) return;
+    listCasesOverview().then(setOverviewCases).catch(() => setOverviewCases(null));
+  }, [casesReady, inOverview, cases]);
 
   // Administrators: the account menu says how many playbooks are on (read again on returning to the chat).
   useEffect(() => {
@@ -395,7 +407,7 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "unavailable" ? m.documentsUnavailable :
                  health.documents.status === "failed" ? m.documentsFailed : null}
                onNewConversation={closing((outside) => { if (outside && caseId) goTo(null); newChat(); })} onNewCase={closing(() => setNewCase(true))}
-               onOpenView={closing(setView)} onOpenConversation={closing(openListed)} onOpenDocument={closing(openDocument)} onOpenCase={closing(openCase)}
+               onOpenView={closing((v: SideView) => { setOverviewFilter("all"); setView(v); })} onOpenConversation={closing(openListed)} onOpenDocument={closing(openDocument)} onOpenCase={closing(openCase)}
                onCaseAction={closing(caseAction)} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
                onOpenAdmin={closing((tab) => { setAdminTab(tab); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
                onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} />
@@ -449,7 +461,7 @@ function Chat({ me }: { me: Me }) {
           refreshDocuments();
         } catch (e) { setProblem(m.saveToCaseFailed((e as Error).message)); }
       },
-      onOpen: () => { setDocumentsQuery(currentCase.reference); setView("documents"); },
+      onOpen: () => showOverview("documents", currentCase.id),
       onUndo: async () => {
         if (!t.saved) return;
         try {
@@ -532,6 +544,8 @@ function Chat({ me }: { me: Me }) {
     setView("chat");
     if (originKind(d) === "source") addDocument(d);  // never sūveryn's own output (cases.md decision 7)
   };
+  const casesWithMembers: CaseOverview[] = overviewCases
+    ?? cases.map((c) => ({ ...c, members: [], last_activity_at: null, last_activity_by: "" }));
   const pin = async (c: Case, pinned: boolean) => {
     try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed((e as Error).message)); }
   };
@@ -668,20 +682,23 @@ function Chat({ me }: { me: Me }) {
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}
-        {view === "conversations" && <div className="conversation">
-          <ConversationsView conversations={allConversations} cases={cases} current={conversationId} me={me.sub ?? ""}
-                             onOpen={openListed} onDelete={(c) => removeConversation(c.id)} onBack={() => setView("chat")} />
+        {view === "conversations" && <div className="conversation conversation-wide">
+          <ConversationsOverview key={overviewFilter} initialCase={overviewFilter} conversations={allConversations} cases={casesWithMembers} me={me}
+                                 onOpen={openListed} onDelete={(c) => removeConversation(c.id)} onNew={newChat} />
         </div>}
-        {view === "documents" && <div className="conversation">
-          <DocumentsView key={documentsQuery} initialQuery={documentsQuery} onDownload={downloadSaved}
-                         documents={allDocuments} jobs={jobs} cases={cases} onOpen={openDocument} onDelete={removeListed}
-                         onUseAsSource={async (d) => {
-                           try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(() => {}); refreshDocuments(); }
-                           catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
-                         }} onBack={() => setView("chat")} />
+        {view === "documents" && <div className="conversation conversation-wide">
+          <DocumentsOverview key={overviewFilter} initialCase={overviewFilter} onDownload={downloadSaved} me={me}
+                             documents={allDocuments} jobs={jobs} jobsCase={caseId} cases={casesWithMembers} onOpen={openDocument} onDelete={removeListed}
+                             onUpload={(files) => { setView("chat"); if (documentsReady) attachFiles(files); else setProblem(m.documentsCantBeAdded); }}
+                             onUseAsSource={async (d) => {
+                               try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(() => {}); refreshDocuments(); }
+                               catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
+                             }} />
         </div>}
-        {view === "cases" && <div className="conversation">
-          <CasesView cases={cases} current={caseId} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onBack={() => setView("chat")} />
+        {view === "cases" && <div className="conversation conversation-wide">
+          <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations} officeWide={me.office_wide ?? false}
+                         onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
+                         onShowDocuments={(id) => showOverview("documents", id)} onShowConversations={(id) => showOverview("conversations", id)} />
         </div>}
         {view === "search" && <div className="conversation">
           <SearchView conversations={allConversations} documents={allDocuments} cases={cases} current={caseId}
