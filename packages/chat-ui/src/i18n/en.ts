@@ -38,6 +38,7 @@ const en = {
   // Server errors, by HTTP status (the server's own text is English).
   tooManyRequests: (seconds: number | null) => `too many requests; try again${seconds ? ` in ${seconds} seconds` : " shortly"}`,
   fileTooLarge: "the file is larger than the server accepts",
+  fileNotSupported: "this file can't be added: sūveryn reads PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files",
   conversationTooLong: "this conversation is too long to save; start a new one to continue",
   requestRejected: "the server couldn't accept this request",
   notFound: "it no longer exists (it may have been deleted)",
@@ -45,7 +46,7 @@ const en = {
   serverUnavailable: "this part of the server isn't available right now; try again later",
 
   // empty state
-  emptyIntro: "Attach a deed or another PDF and ask about it. Answers cite the page they come from, so you can check every figure.",
+  emptyIntro: "Attach a deed or another document (PDF, Word, Excel, Markdown or CSV) and ask about it. Answers cite the page, section or cells they come from, so you can check every figure.",
 
   // sidebar
   newChat: "New chat",
@@ -57,7 +58,7 @@ const en = {
   delete: "Delete",
   keep: "Keep",
   documents: "Documents",
-  documentsEmpty: "No documents yet. Attach a PDF to a message to add one.",
+  documentsEmpty: "No documents yet. Attach a document to a message to add one.",
   pages: (n: number) => `${n} ${n === 1 ? "page" : "pages"}`,
   checkPages: (pages: string) => ` · check ${pages}`,
   checkNeeded: " · check needed",
@@ -231,7 +232,7 @@ const en = {
   deleteHistoryFailed: (why: string) => `Your history couldn't be deleted, so you are still signed in: ${why}`,
 
   // composer
-  attachPdf: "Attach a PDF",
+  attachDocument: "Attach a document (PDF, Word, Excel, Markdown or CSV)",
   yourQuestion: "Your question",
   askPlaceholder: "Ask about your documents…",
   send: "Send message",
