@@ -11,6 +11,7 @@ from ..cases import (
     Case,
     CaseEvent,
     CaseIn,
+    CaseOverview,
     CaseUpdate,
     DuplicateReference,
     HandoverIn,
@@ -49,6 +50,28 @@ async def list_cases(request: Request, closed: bool = False):
     store, caller = cases_or_503(request), principal(request)
     return await run_in_threadpool(store.list, caller.sub, office_wide=case_settings(request).office_wide,
                                    admin=caller.admin, closed=closed)
+
+
+@router.get("/v1/cases/overview", response_model=list[CaseOverview])
+async def cases_overview(request: Request):
+    """Every case the caller may see, open and closed, as the Cases overview shows them
+    (docs/design/sidebar.md §4): each with its members (the manager first, with their pictures'
+    ETags) and its last activity, who and when. An administrator who isn't a member sees no members."""
+    store, caller = cases_or_503(request), principal(request)
+    cases = await run_in_threadpool(store.list, caller.sub, office_wide=case_settings(request).office_wide,
+                                    admin=caller.admin, closed=True)
+    inside = [uuid.UUID(c.id) for c in cases if c.my_role is not None]
+    members = await run_in_threadpool(store.members_of, inside) if inside else {}
+    last = await run_in_threadpool(store.last_activity, inside) if inside else {}
+    faced = {m.user: m for m in await with_faces(request, [m for ms in members.values() for m in ms], key="user")}
+    out = []
+    for c in cases:
+        cid = uuid.UUID(c.id)
+        people = [faced.get(m.user, m) for m in members.get(cid, [])]
+        at, by = last.get(cid, (None, ""))
+        name = next((m.name or m.username for m in people if m.user == by), "")
+        out.append(CaseOverview(**c.model_dump(), members=people, last_activity_at=at or c.updated_at, last_activity_by=name))
+    return out
 
 
 @router.post("/v1/cases", response_model=Case, status_code=201, responses={409: {"description": "A case with this reference exists"}})

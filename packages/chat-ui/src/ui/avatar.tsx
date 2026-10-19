@@ -19,7 +19,7 @@ export type AvatarSize = "small" | "normal" | "large" | "huge";  // 24, 32, 48, 
 export function IconBadge({ badge, children, className, tone = "teal" }: {
   badge: ReactNode; children: ReactNode; className?: string;
   /** teal: a system-level signal (in a case); accent: a person's standing (the administrator's shield). */
-  tone?: "teal" | "accent";
+  tone?: "teal" | "accent" | "neutral";
 }) {
   return (
     <span className={cx("ui-badged", className)}>
