@@ -13,6 +13,7 @@ from .schemas import (
     SourceRef,
     StreamDelta,
     StreamError,
+    StreamSources,
     StreamStatus,
     Usage,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "StreamChunk",
     "StreamDelta",
     "StreamError",
+    "StreamSources",
     "StreamStatus",
     "Usage",
     "UsageRecord",

@@ -4,7 +4,7 @@
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
  * "not sourced" notices that tell a reader what to check.
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpreadsheet, FileText, Square } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button, InlineNotice, MenuButton } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
@@ -134,9 +134,11 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null }: 
     .map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) }));
   const allSources = formatSources(citedItems);
   const flagged = turn.unverifiedFigures ?? [];
+  // A stopped answer keeps its markers and the passages they point to, but was never checked.
+  const settled = turn.status === "done" || turn.status === "stopped";
   const issues = turn.status === "done" ? turn.citationIssues ?? [] : [];
   const flaggedMarkers = new Set(issues.map((i) => i.marker));
-  const blocks = toBlocks(turn.text, turn.status === "done" ? available : 0, turn.status === "done" ? flagged : []);
+  const blocks = toBlocks(turn.text, settled ? available : 0, turn.status === "done" ? flagged : []);
   // Word and Excel downloads carry the same warnings and sources as the chat (lib/export.ts).
   const exported = (): AnswerExport => ({
     question, answeredOn: new Date(), model: turn.model, blocks,
@@ -171,7 +173,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null }: 
   return (
     <div className="turn-assistant">
       <AssistantMark />
-      <div className="answer" aria-live={turn.status === "streaming" ? "polite" : undefined}>
+      {/* still live when stopped, so the notice that it stopped is read out */}
+      <div className="answer" aria-live={turn.status === "streaming" || turn.status === "stopped" ? "polite" : undefined}>
         {blocks.map((b, i) => (b.kind === "table"
           ? <AnswerTable key={i} table={b} render={render} done={turn.status === "done"} exported={exported} />
           : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
@@ -186,7 +189,11 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null }: 
           <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.instructionLike(turn.instructionLikeSources!)}</InlineNotice>
         )}
 
-        {turn.status === "done" && open !== null && turn.citations[open - 1] && (
+        {turn.status === "stopped" && (
+          <InlineNotice icon={<Square size={12} fill="currentColor" strokeWidth={0} />}>{m.answerStopped}</InlineNotice>
+        )}
+
+        {settled && open !== null && turn.citations[open - 1] && (
           <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])}
                       {...(() => {
                         const one = openOcc === null ? undefined : markerClaims(turn.text, available)[openOcc];
@@ -205,7 +212,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null }: 
           </div>
         )}
 
-        {turn.status === "done" && cited.length > 0 && (
+        {settled && cited.length > 0 && (
           <div className="sources">
             <span className="label">{m.sources}</span>
             {cited.map((n) => (

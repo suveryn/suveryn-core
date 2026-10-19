@@ -122,3 +122,70 @@ def test_health_unreachable_is_503(make_client):
         r = c.get("/health")
     assert r.status_code == 503
     assert r.json()["backend"]["reachable"] is False
+
+
+def endless_backend(state: dict, words: int):
+    """A llama-server that writes ``words`` words and then keeps generating until the connection closes."""
+    import asyncio
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"data": [{"id": f"/workspace/models/{MODEL}"}]})
+        if request.url.path != "/v1/chat/completions":
+            return httpx.Response(404)
+
+        async def body():
+            try:
+                for i in range(words):
+                    yield f"data: {json.dumps({'choices': [{'delta': {'content': f'word{i} '}, 'finish_reason': None}]})}\n\n".encode()
+                await asyncio.sleep(3600)
+                yield b"data: [DONE]\n\n"
+            finally:
+                state["closed"] = True
+
+        return httpx.Response(200, content=body(), headers={"content-type": "text/event-stream"})
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize("words, stop_after", [(0, "status"), (2, "delta")])
+def test_closing_the_connection_stops_the_model(words, stop_after):
+    """*Stop* (docs/design/sidebar.md §5): the browser closes the request. The gateway notices at once, also
+    before the first word while the model reads, and closes its own connection to llama-server."""
+    import anyio
+
+    state: dict = {}
+    app = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=endless_backend(state, words)),
+                     load_documents=False, auth=Authenticator.disabled())
+
+    async def ask() -> list[str]:
+        gone = anyio.Event()
+        events: list[str] = []
+        body = json.dumps({**REQ, "stream": True}).encode()
+        sent_body = False
+
+        async def receive():
+            nonlocal sent_body
+            if not sent_body:
+                sent_body = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            await gone.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            if message["type"] == "http.response.body" and message.get("body"):
+                events.extend(line[7:] for line in message["body"].decode().split("\n") if line.startswith("event: "))
+                if stop_after in events and events.count("delta") >= (2 if stop_after == "delta" else 0):
+                    gone.set()  # the person pressed Stop
+
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.4"}, "http_version": "1.1",
+                 "method": "POST", "scheme": "http", "path": "/v1/chat", "raw_path": b"/v1/chat", "query_string": b"",
+                 "root_path": "", "headers": [(b"content-type", b"application/json"), (b"host", b"test")],
+                 "client": ("127.0.0.1", 1), "server": ("test", 80)}
+        with anyio.fail_after(10):  # without the stop, the fake model would write for an hour
+            await app(scope, receive, send)
+        return events
+
+    with TestClient(app) as c:  # runs the app's start-up, then the request on the same event loop
+        events = c.portal.call(ask)
+    assert state.get("closed")  # llama-server's connection was closed: it stops generating
+    assert "done" not in events and "error" not in events

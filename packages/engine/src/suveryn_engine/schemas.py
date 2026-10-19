@@ -165,6 +165,14 @@ class StreamStatus(BaseModel):
     model: str | None = None
 
 
+class StreamSources(BaseModel):
+    """The passages a grounded answer is written from, sent before its first word (SSE event ``sources``):
+    the same list as ``ChatResponse.citations``, so an answer the person stops still shows what its
+    markers point to. Not sent for a plain answer."""
+
+    citations: list[Citation]
+
+
 class StreamError(BaseModel):
     """Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,
     document search is unavailable, or an unexpected server error occurred (reported generically)."""

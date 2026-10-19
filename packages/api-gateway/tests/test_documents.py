@@ -206,11 +206,13 @@ def test_grounded_stream_ends_with_done_including_citations():
     with client(FakeDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
         blocks = r.read().decode().strip().split("\n\n")
     events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in blocks]
-    assert [e for e, _ in events] == ["status", "status", "delta", "done"]
+    assert [e for e, _ in events] == ["status", "sources", "status", "delta", "done"]
     # the real steps: the documents are searched, then the model reads the passages it was given
     assert events[0][1]["step"] == "searching"
-    assert (events[1][1]["step"], events[1][1]["passages"], events[1][1]["complete"]) == ("reading", 1, True)
+    assert (events[2][1]["step"], events[2][1]["passages"], events[2][1]["complete"]) == ("reading", 1, True)
     assert events[-1][1]["citations"][0]["source"]["page"] == 2
+    # the passages come before the first word, so an answer the person stops keeps its sources
+    assert events[1][1]["citations"] == events[-1][1]["citations"]
 
 
 def test_plain_chat_without_documents_is_unsourced():

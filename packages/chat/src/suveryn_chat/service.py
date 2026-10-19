@@ -6,6 +6,7 @@ nothing about a conversation is stored server-side.
 
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import aclosing
 from dataclasses import dataclass
 
 from suveryn_engine import (
@@ -64,6 +65,14 @@ class Status:
     passages: int | None = None
     complete: bool | None = None
     model: str | None = None
+
+
+@dataclass
+class Sources:
+    """The passages a grounded answer is written from, before its first word (see ``StreamSources``).
+    A person who stops the answer still has what its markers point to."""
+
+    citations: list[Citation]
 
 
 @dataclass
@@ -126,16 +135,20 @@ class ChatService:
                                            "unverified_figures": unverified, "citation_issues": issues,
                                            "instruction_like_sources": _suspicious(citations, owner, response.model)})
 
-    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Delta | Done]:
-        """Status steps, then answer text as it is generated, then the complete answer with citations.
+    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Delta | Done]:
+        """Status steps, then for a grounded answer its passages, then answer text as it is generated,
+        then the complete answer with citations.
 
         Status steps are the pipeline's real stages, so a UI can say what is happening: searching
         the documents, loading a model, reading the passages or writing. Raises ``BackendError``
-        (possibly after some deltas) or ``DocumentsUnavailable``.
+        (possibly after some deltas) or ``DocumentsUnavailable``. Closing the generator stops the
+        model (``LLMClient.stream``).
         """
         if req.document_ids:
             yield Status("searching")
         prepared, citations, complete = await self._retrieve(req, owner)
+        if req.document_ids:
+            yield Sources(citations)
         if loading := await self._model_to_load(req):
             yield Status("loading_model", model=loading)
         elif req.document_ids:
@@ -146,13 +159,14 @@ class ChatService:
         calc = CalcRewriter(_source(citations)) if req.document_ids else None
         parts: list[str] = []
         finish_reason, usage = None, Usage()
-        async for chunk in self.llm.stream(prepared, user=owner, kind="chat"):
-            text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
-            if text:
-                parts.append(text)
-                yield Delta(text)
-            finish_reason = chunk.finish_reason or finish_reason
-            usage = chunk.usage or usage
+        async with aclosing(self.llm.stream(prepared, user=owner, kind="chat")) as chunks:
+            async for chunk in chunks:
+                text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
+                if text:
+                    parts.append(text)
+                    yield Delta(text)
+                finish_reason = chunk.finish_reason or finish_reason
+                usage = chunk.usage or usage
         if calc and (rest := calc.flush()):
             parts.append(rest)
             yield Delta(rest)
