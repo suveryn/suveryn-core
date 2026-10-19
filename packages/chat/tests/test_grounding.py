@@ -1,4 +1,5 @@
 from suveryn_chat import cited_numbers, grounded_messages
+from suveryn_chat.grounding import without_earlier_markers
 from suveryn_engine import ChatMessage, Citation, SourceRef
 
 
@@ -25,6 +26,14 @@ def test_earlier_answers_keep_their_citations_as_neutral_markers():
     msgs = grounded_messages(history, "En de waarborg?", [cit("Waarborg EUR 41.250,00.", 3)], ["akte.pdf"])
     assert msgs[2].content == "De koopprijs is EUR 412.500,00 [*][*]."
     assert msgs[1].content == "Wat is de prijs [1]?"  # a question is the user's own text
+
+
+def test_a_copied_earlier_marker_is_taken_out_of_the_answer():
+    """The model sometimes writes [*] itself, copied from the history; it points at nothing."""
+    assert without_earlier_markers("De hypotheek wordt gevestigd in vierde rang [*].") == "De hypotheek wordt gevestigd in vierde rang."
+    assert without_earlier_markers("Prijs [1] en waarborg [*][2].") == "Prijs [1] en waarborg [2]."
+    assert without_earlier_markers("| Prijs | EUR 10 [*] |\n| Datum | 1 mei [*]") == "| Prijs | EUR 10 |\n| Datum | 1 mei"
+    assert without_earlier_markers("Geen markering.") == "Geen markering."
 
 
 def test_the_last_words_before_the_question_ask_for_citations():
