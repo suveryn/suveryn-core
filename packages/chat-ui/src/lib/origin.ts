@@ -18,13 +18,14 @@ export function originKind(d: Pick<StoredDocument, "origin" | "source" | "proven
   return d.source === false ? "pending" : "source";
 }
 
-/** "Source · uploaded", "Made · playbook v1.0", "Source · uploaded, was an answer", "Waiting for your choice". */
+/** "Source · uploaded", "Made · playbook v1.0", "Made · answer, saved", "Source · uploaded, was an answer", "Waiting for your choice". */
 export function originText(d: Pick<StoredDocument, "origin" | "source" | "provenance">, m: Messages): { word: string; detail: string } {
   const kind = originKind(d);
   const p = d.provenance;
   if (kind === "pending") return { word: m.originPending, detail: m.noticedTitle(p?.noticed?.kind ?? "answer") };
   if (kind === "made") {
-    return { word: m.originMade, detail: d.origin === "playbook" ? m.originPlaybook(p?.version ?? null) : m.originExport };
+    return { word: m.originMade, detail: d.origin === "playbook" ? m.originPlaybook(p?.version ?? null)
+                                   : d.origin === "answer" ? m.originAnswerSaved : m.originExport };
   }
   return { word: m.originSource, detail: p?.confirmed && p.noticed ? m.originWasOutput(p.noticed.kind) : m.originUploaded };
 }
