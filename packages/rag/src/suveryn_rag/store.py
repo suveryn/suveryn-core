@@ -59,6 +59,10 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'upl
 -- its version; for an upload that carries sūveryn's own export mark, what was noticed ("noticed")
 -- and, once a person chose to use it as a source anyway, who and when ("confirmed").
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS provenance jsonb;
+-- What sūveryn made, as the UI needs it to rebuild the file (docs/design/sidebar.md §5): a saved
+-- answer's question, text, sources and checks. Not in the lists; read one document at a time. Its
+-- sources' passages are taken out when their document is deleted (``delete_document``).
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS content jsonb;
 -- A file is de-duplicated within its scope only: the same PDF in two personal spaces, or in two
 -- cases, is two documents, so an upload can never return a document from elsewhere.
 ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_sha256_key;
@@ -86,6 +90,20 @@ CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 """
+
+
+def without(content: dict, document_id: str) -> dict:
+    """A saved answer's content without a deleted document's passages and file name, as the chat UI cleans a
+    conversation (``withoutDocument``): the citation keeps its page and is marked ``removed``; the answer stays."""
+    out = dict(content)
+    out["citations"] = [
+        {"text": "", "source": {"document_id": document_id, "page": (c.get("source") or {}).get("page"), "location": None},
+         "removed": True}
+        if isinstance(c, dict) and (c.get("source") or {}).get("document_id") == document_id else c
+        for c in content.get("citations") or []]
+    if isinstance(content.get("filenames"), dict):
+        out["filenames"] = {k: v for k, v in content["filenames"].items() if k != document_id}
+    return out
 
 
 # A source for answers (cases.md decision 7): uploaded, and not sūveryn's own export coming back
@@ -204,7 +222,7 @@ class Store:
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                      embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
                      owner: str | None = None, case_id: uuid.UUID | None = None, origin: str = "uploaded",
-                     provenance: dict | None = None) -> uuid.UUID:
+                     provenance: dict | None = None, content: dict | None = None) -> uuid.UUID:
         """Store a document and its chunks in one transaction (all or nothing), uploaded by ``owner``
         into the case ``case_id`` (or their personal space), with its ``origin``.
 
@@ -217,10 +235,11 @@ class Store:
         with self._conn.transaction():
             doc_id = self._conn.execute(
                 "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner, case_id, origin,"
-                " provenance) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                " provenance, content) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (filename, sha256, pages, ocr_pages, status,
                  json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner, case_id,
-                 origin, json.dumps(provenance) if provenance else None)).fetchone()[0]
+                 origin, json.dumps(provenance) if provenance else None,
+                 json.dumps(content) if content is not None else None)).fetchone()[0]
             self._insert_chunks(doc_id, chunks, embeddings)
         return doc_id
 
@@ -284,8 +303,24 @@ class Store:
             (by, document_id, *params)).fetchone()
         return row[0] if row else None
 
+    def saved_answer(self, scope: Scope, message: str) -> tuple[uuid.UUID, str] | None:
+        """(id, file name) of the answer ``message`` already saved in the scope (docs/design/sidebar.md §5), or None."""
+        where, params = scope.where()
+        row = self._conn.execute(f"SELECT id, filename FROM documents WHERE origin = 'answer' AND {where}"
+                                 " AND provenance->>'message' = %s ORDER BY created_at LIMIT 1", (*params, message)).fetchone()
+        return (row[0], row[1]) if row else None
+
+    def content(self, document_id: uuid.UUID, scope: Scope) -> tuple[str, str, dict] | None:
+        """(file name, origin, content) of a document in the scope that sūveryn made with content, or None."""
+        where, params = scope.where()
+        row = self._conn.execute(f"SELECT filename, origin, content FROM documents WHERE id = %s AND {where}"
+                                 " AND content IS NOT NULL", (document_id, *params)).fetchone()
+        return (row[0], row[1], row[2]) if row else None
+
     def delete_document(self, document_id: uuid.UUID, scope: Scope | None = None) -> bool:
         """Delete a document (only one in ``scope`` when given); its chunks go with it (ON DELETE CASCADE).
+        Saved answers in the same scope that cite it lose its passages and its file name (``without``),
+        in the same transaction, as saved conversations do (suveryn-tracker#12).
 
         Review note: this makes the text unreachable, not unrecoverable. PostgreSQL keeps dead
         rows in the table files until VACUUM rewrites them, and changes stay in the write-ahead
@@ -293,9 +328,23 @@ class Store:
         VACUUM FULL) is an open item (docs/architecture.md §6).
         """
         if scope is None:  # operator tools (suveryn-forget)
-            return self._conn.execute("DELETE FROM documents WHERE id = %s", (document_id,)).rowcount > 0
-        where, params = scope.where()
-        return self._conn.execute(f"DELETE FROM documents WHERE id = %s AND {where}", (document_id, *params)).rowcount > 0
+            where, params = "true", ()
+        else:
+            where, params = scope.where()
+        with self._conn.transaction():
+            gone = self._conn.execute(f"DELETE FROM documents WHERE id = %s AND {where} RETURNING case_id, owner",
+                                      (document_id, *params)).fetchone()
+            if gone is None:
+                return False
+            # the answers saved where it was (the same case, or the same personal space)
+            near = Scope.case(gone[0]) if gone[0] is not None else Scope.personal(gone[1])
+            near_where, near_params = near.where()
+            for other, content in self._conn.execute(
+                    f"SELECT id, content FROM documents WHERE content IS NOT NULL AND {near_where}"
+                    " AND content::text LIKE %s", (*near_params, f"%{document_id}%")).fetchall():
+                self._conn.execute("UPDATE documents SET content = %s WHERE id = %s",
+                                   (json.dumps(without(content, str(document_id))), other))
+        return True
 
     def delete_scope(self, scope: Scope) -> int:
         """Delete every document in a scope (a case being deleted), chunks with them; how many."""

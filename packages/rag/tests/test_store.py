@@ -205,3 +205,37 @@ def test_word_and_spreadsheet_passages_are_stored_with_their_place(tmp_path):
     finally:
         rag.store.delete_document(r.document_id)
         rag.store.close()
+
+
+def test_a_saved_answer_keeps_its_content_and_loses_a_deleted_sources_passages():
+    """docs/design/sidebar.md §5: a saved answer's content rebuilds its file; when a document it cites is
+    deleted, that document's passages and name are taken out of it, as from saved conversations."""
+    store = Store(URL, DIM)
+    case = Scope.case(uuid.uuid4())
+    sha = lambda: f"sha-{uuid.uuid4()}"
+    source = store.add_document("deed.pdf", sha(), 1, 0, [Chunk(0, "The price is 300,000.", "", 1, 1, [])],
+                                np.stack([unit(1)]), owner="user-a", case_id=case.case_id)
+    keep = str(uuid.uuid4())
+    content = {"question": "What is the price?", "answer": "300,000 [1] [2].",
+               "citations": [{"text": "The price is 300,000.", "source": {"document_id": str(source), "page": 1, "location": "p. 1"}},
+                             {"text": "Another passage.", "source": {"document_id": keep, "page": 3, "location": "p. 3"}}],
+               "filenames": {str(source): "deed.pdf", keep: "other.pdf"}}
+    answer = store.add_document("What is the price.docx", sha(), 0, 0, [Chunk(0, "300,000.", "", None, None, [], "generated")],
+                                np.stack([unit(2)]), owner="user-a", case_id=case.case_id, origin="answer",
+                                provenance={"conversation": "c", "message": "m-1"}, content=content)
+    try:
+        assert store.saved_answer(case, "m-1") == (answer, "What is the price.docx")
+        assert store.saved_answer(case, "m-2") is None
+        assert store.saved_answer(Scope.case(uuid.uuid4()), "m-1") is None  # another case
+        assert store.content(answer, case) == ("What is the price.docx", "answer", content)
+        assert store.content(source, case) is None  # an upload has nothing to rebuild
+        assert "content" not in store.list_documents(case)[0]
+        assert store.delete_document(source, case)
+        _, _, cleaned = store.content(answer, case)
+        assert cleaned["citations"][0] == {"text": "", "source": {"document_id": str(source), "page": 1, "location": None},
+                                           "removed": True}
+        assert cleaned["citations"][1] == content["citations"][1] and cleaned["filenames"] == {keep: "other.pdf"}
+        assert cleaned["answer"] == content["answer"]  # the answer stays
+    finally:
+        store.delete_scope(case)
+        store.close()
