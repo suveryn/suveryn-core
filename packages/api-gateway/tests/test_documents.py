@@ -91,13 +91,28 @@ class FakeDocuments:
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
-    def store_text(self, filename, text, scope, origin, provenance=None):
-        """A playbook's result (suveryn-tracker#51): stored as a document in the scope, never a source."""
+    def store_text(self, filename, text, scope, origin, provenance=None, content=None, by=None):
+        """A playbook's result (suveryn-tracker#51) or a saved answer (docs/design/sidebar.md §5): stored as a
+        document in the scope, never a source."""
         did = str(uuid.uuid4())
         self.docs[did] = (scope, origin)
         self.stored_text = (filename, text)
         self.stored_provenance = provenance
+        self.provenances = {**getattr(self, "provenances", {}), did: provenance}
+        self.contents = {**getattr(self, "contents", {}), did: (filename, origin, content)}
+        if by:
+            self.uploaders[did] = by
         return did
+
+    def saved_answer(self, scope, message):
+        for did, prov in getattr(self, "provenances", {}).items():
+            if did in self.docs and self.docs[did] == (scope, "answer") and (prov or {}).get("message") == message:
+                return did, self.contents[did][0]
+        return None
+
+    def content(self, document_id, scope):
+        found = getattr(self, "contents", {}).get(document_id)
+        return found if found and found[2] is not None and self.docs.get(document_id, (None,))[0] == scope else None
 
     def confirm_source(self, document_id, scope, by):
         """An upload with sūveryn's own export mark, used as a source anyway (docs/design/sidebar.md §6)."""

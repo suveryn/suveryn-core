@@ -428,6 +428,67 @@ def test_the_uploader_may_delete_their_own_noticed_upload_while_nobody_has_confi
     assert c.delete(f"/v1/documents/{again}?case={cid}", headers=bob).status_code == 204
 
 
+def saved(question="What is the price?", message="m-1", **over):
+    """An answer as the chat saves it to a case (docs/design/sidebar.md §5)."""
+    return {"filename": "What is the price.docx", "text": f"{question}\n\nThe price is EUR 300,000.",
+            "content": {"question": question, "answer": "The price is EUR 300,000 [1].", "answeredOn": "2026-10-19T10:00:00Z",
+                        "citations": [{"text": "The price is EUR 300,000.", "source": {"document_id": DOC, "page": 2}}],
+                        "filenames": {DOC: "deed.pdf"}, "turnId": message},
+            "conversation_id": str(uuid.uuid4()), "message_id": message, **over}
+
+
+def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
+    """Saving an answer is a contributor's right; it becomes a document with origin answer, never a source,
+    logged; saving the same answer again gives the same document; the one who saved it may delete it
+    (*Undo*), another contributor may not."""
+    c, kc, _, _, docs = office
+    alice, bob, carla = as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
+    assert c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=carla).status_code == 403  # a reader
+    r = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=bob)
+    assert r.status_code == 201 and r.json()["created"] is True and r.json()["filename"] == "What is the price.docx"
+    did = r.json()["id"]
+    again = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=bob)
+    assert again.status_code == 200 and again.json() == {"id": did, "filename": "What is the price.docx", "created": False}
+    listed = {d["id"]: d for d in c.get(f"/v1/documents?case={cid}", headers=carla).json()["documents"]}
+    assert listed[did]["origin"] == "answer" and listed[did]["source"] is False and listed[did]["uploaded_by"] == BOB
+    assert "content" not in listed[did]  # not in the lists; read one at a time
+    assert docs.provenances[did]["message"] == "m-1"
+    got = c.get(f"/v1/documents/{did}/content?case={cid}", headers=carla)  # a reader may download it
+    assert got.status_code == 200 and got.json()["content"]["answer"] == "The price is EUR 300,000 [1]."
+    assert c.get(f"/v1/documents/{did}/content", headers=carla).status_code == 404  # not in her personal space
+    assert c.get(f"/v1/documents/{DOC}/content", headers=alice).status_code == 404  # an upload: nothing to rebuild
+    ask = {"messages": [{"role": "user", "content": "What is the price?"}], "document_ids": [did], "case_id": cid}
+    assert c.post("/v1/chat", json=ask, headers=bob).status_code == 404  # never a source (cases.md decision 7)
+    assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "answer_saved"
+    other = c.post(f"/v1/cases/{cid}/documents", json=saved(message="m-2"), headers=alice).json()["id"]
+    assert c.delete(f"/v1/documents/{other}?case={cid}", headers=bob).status_code == 403  # Alice's
+    assert c.delete(f"/v1/documents/{did}?case={cid}", headers=bob).status_code == 204    # his own: Undo
+
+
+@pytest.mark.parametrize("change, status", [
+    ({"filename": "../../etc/passwd.docx"}, 422), ({"filename": "answer.pdf"}, 422), ({"text": ""}, 422),
+    ({"conversation_id": "x"}, 422), ({"content": {"answer": "no question"}}, 422),
+])
+def test_a_saved_answer_is_checked(office, change, status):
+    c, kc, _, _, _ = office
+    alice = as_user(kc, ALICE)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    assert c.post(f"/v1/cases/{cid}/documents", json=saved(**change), headers=alice).status_code == status
+
+
+def test_a_closed_case_takes_no_saved_answer(office):
+    c, kc, cases, _, _ = office
+    alice = as_user(kc, ALICE)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    cases.close_case(uuid.UUID(cid))
+    r = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=alice)
+    assert r.status_code == 403 and "closed" in r.json()["detail"]
+    assert c.post(f"/v1/cases/{uuid.uuid4()}/documents", json=saved(), headers=alice).status_code == 404
+
+
 def test_a_reader_pins_a_case_in_their_own_sidebar(office):
     """docs/design/sidebar.md: per user, anyone who may read the case, not logged."""
     c, kc, cases, _, _ = office

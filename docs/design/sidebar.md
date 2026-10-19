@@ -404,7 +404,7 @@ playbook is never covered.
 
 1. ~~**Source or Made**, with the upload mark (section 6).~~ Built (phase a, d9e0df2).
 2. ~~***Stop***.~~ Built (phase b).
-3. ***Save to case***, with its API change.
+3. ~~***Save to case***, with its API change.~~ Built (phase c).
 4. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
    is built.
 5. **Markdown and CSV**, and **pinned personal conversations**.
@@ -510,6 +510,23 @@ here.
     llama-server's running counts.
   - Esc stops wherever the focus is, except in an open menu or dialog, which Esc closes first. After
     stopping, the focus goes to the question box.
+- **Phase c, Save to case (19 October).**
+  - What is stored is what builds the Word file, not the file: the question, the answer as written, its
+    sources with their file names as they were, its checks and the answer's id (`documents.content`,
+    not in the lists). The file is built again in the browser on download, the same as from the chat,
+    mark included (the mark's reference comes from the answer's id). The question and the answer are
+    also stored as text, so search finds the answer.
+  - The file is named after the answer's own question ("What is the price.docx"), not the
+    conversation's title, so several answers saved from one conversation can be told apart.
+  - Saving the same answer again gives the document already saved, not a second one.
+  - Deleting a document takes its passages and file name out of the answers saved where it was, as
+    out of saved conversations (suveryn-tracker#12); the answer itself stays.
+  - Who may delete it: the case's manager, and, as a contributor, the person who saved it (*Undo*).
+    *Undo* is offered only during the visit in which it was saved; afterwards the toolbar still says
+    where it was saved, with *Open*.
+  - *Open* shows Documents searched on the case's reference. A saved answer has a download button
+    there.
+  - Saving is logged in the case's access log ("saved an answer to the case").
 
 ## Open
 

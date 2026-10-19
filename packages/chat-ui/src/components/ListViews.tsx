@@ -5,7 +5,7 @@
  * case the document is in with the document ready to ask about. Nothing here decides a right: the
  * server already filtered the lists.
  */
-import { AlertTriangle, FileOutput, FileText, Filter, Folder, Link2, Loader2, Lock, MessageSquare, Pin, Search, Trash2, Users, XCircle } from "lucide-react";
+import { AlertTriangle, Download, FileOutput, FileText, Filter, Folder, Link2, Loader2, Lock, MessageSquare, Pin, Search, Trash2, Users, XCircle } from "lucide-react";
 import { useState } from "react";
 import type { Case, ConversationSummary, Job } from "../api";
 import { useT } from "../i18n";
@@ -64,15 +64,19 @@ export function ConversationsView({ conversations, cases, current, me, onOpen, o
   );
 }
 
-export function DocumentsView({ documents, jobs, cases, onOpen, onDelete, onUseAsSource, onBack }: Shared & {
+export function DocumentsView({ documents, jobs, cases, onOpen, onDelete, onUseAsSource, onDownload, initialQuery = "", onBack }: Shared & {
   documents: AllDocument[]; onOpen: (d: AllDocument) => void; onDelete: (d: AllDocument) => void;
+  /** A saved answer's Word file, built again (docs/design/sidebar.md §5). */
+  onDownload?: (d: AllDocument) => void;
+  /** What the search starts with: a case's reference when opened from an answer saved there. */
+  initialQuery?: string;
   /** An upload that looks like sūveryn's own output: use it as a source anyway (docs/design/sidebar.md §6). */
   onUseAsSource: (d: AllDocument) => void;
   /** Uploads still being read, or failed, in the place that is open (they aren't documents yet). */
   jobs: Job[];
 }) {
   const m = useT();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [origin, setOrigin] = useState<"all" | "sources" | "made">("all");
   const q = query.trim().toLowerCase();
   const byId = new Map(cases.map((c) => [c.id, c]));
@@ -118,6 +122,9 @@ export function DocumentsView({ documents, jobs, cases, onOpen, onDelete, onUseA
                 </span>
                 {kind === "pending" && <TextButton link onPress={() => onUseAsSource(d)}>{m.useAsSource}</TextButton>}
               </span>
+              {d.origin === "answer" && onDownload && (
+                <IconButton size="small" label={m.downloadSavedWhat(d.filename)} onPress={() => onDownload(d)}><Download size={14} aria-hidden /></IconButton>
+              )}
               <IconButton size="small" label={m.deleteDocumentLabel(d.filename)} onPress={() => onDelete(d)}><Trash2 size={14} aria-hidden /></IconButton>
             </li>
           );

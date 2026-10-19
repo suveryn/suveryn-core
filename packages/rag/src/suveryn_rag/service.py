@@ -363,11 +363,22 @@ class DocumentService:
         """The owner's personal documents and those of the cases given, with ``case_id`` (no text)."""
         return self._with_search(lambda rag: rag.store.list_documents_many(owner, case_ids))
 
-    def store_text(self, filename: str, text: str, scope: Scope, origin: str, provenance: dict | None = None) -> str:
-        """Store text sūveryn produced (a playbook's result) as a document in the scope, with its origin
-        and provenance; its id. Never a source for answers (``Rag.store_text``)."""
-        return str(self._with_search(lambda rag: rag.store_text(filename, text, scope.owner, scope.case_id, origin,
-                                                                 provenance)))
+    def store_text(self, filename: str, text: str, scope: Scope, origin: str, provenance: dict | None = None,
+                   content: dict | None = None, by: str | None = None) -> str:
+        """Store text sūveryn produced (a playbook's result, a saved answer) as a document in the scope, with
+        its origin, provenance and content (what rebuilds its file); its id. ``by`` is who stored it, when a
+        person did. Never a source for answers (``Rag.store_text``)."""
+        return str(self._with_search(lambda rag: rag.store_text(filename, text, by or scope.owner, scope.case_id, origin,
+                                                                 provenance, content)))
+
+    def saved_answer(self, scope: Scope, message: str) -> tuple[str, str] | None:
+        """(id, file name) of the answer ``message`` already saved in the scope, or None."""
+        found = self._with_search(lambda rag: rag.store.saved_answer(scope, message))
+        return (str(found[0]), found[1]) if found else None
+
+    def content(self, document_id: str, scope: Scope) -> tuple[str, str, dict] | None:
+        """(file name, origin, content) of a document sūveryn made, in the scope, or None."""
+        return self._with_search(lambda rag: rag.store.content(uuid.UUID(document_id), scope))
 
     def confirm_source(self, document_id: str, scope: Scope, by: str) -> dict | None:
         """Use a noticed upload as a source anyway (docs/design/sidebar.md §6); the mark, or None."""
