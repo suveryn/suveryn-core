@@ -8,7 +8,7 @@ import { Check, CircleAlert, Info, LoaderCircle, Lock, TriangleAlert } from "luc
 import { useEffect, useState } from "react";
 import { Button, LinkButton, Notice, Progress, StatusList, type StatusItem } from "../../ui";
 import { getProgress, startProvisioning, type Progress as ProgressState, type SetupState, type StepId } from "../api";
-import { useText, type Text } from "../text";
+import { useText, type Text } from "../i18n";
 
 function items(p: ProgressState, state: SetupState, t: Text): StatusItem[] {
   return p.steps.map((s) => {

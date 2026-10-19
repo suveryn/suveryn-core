@@ -8,7 +8,7 @@ import { Clock } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { CopyButton, FileButton, FileDrop, Form, Notice, QrCode, Rows, TextButton, type FieldErrors } from "../../ui";
 import { checkManifest, skipManifest, type Manifest, type SetupState } from "../api";
-import { LOCALES, useLang, useText, type Text } from "../text";
+import { LOCALES, useLang, useText, type Text } from "../i18n";
 import { checkThenSave, errorsFrom, StepFooter } from "./common";
 
 /** The portal's registration page (placeholder until the portal exists; the console's C8 uses the same). */

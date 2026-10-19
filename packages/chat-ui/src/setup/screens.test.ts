@@ -12,7 +12,7 @@ import { bech32, makeRecoveryKey, recoveryKeyFile } from "./recoveryKey";
 import { diskSize } from "./steps/Backups";
 import { errorsFrom } from "./steps/common";
 import { groupedFingerprint, registrationUrl } from "./steps/Support";
-import { TEXT } from "./text";
+import { TEXT } from "./i18n";
 
 const CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /** The 32 bytes in a bech32 string (without checking its checksum). */

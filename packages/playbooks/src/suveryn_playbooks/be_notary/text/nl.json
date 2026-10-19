@@ -1,0 +1,21 @@
+{
+  "deed-intake": {
+    "title": "Akte-intake",
+    "summary": "Leest de feiten voor de akte uit de documenten",
+    "labels": {
+      "sellers": "Verkoper(s)",
+      "buyers": "Koper(s)",
+      "property": "Goed",
+      "cadastral": "Kadastrale gegevens",
+      "price": "Prijs",
+      "deposit": "Voorschot of waarborg",
+      "agreement_date": "Compromis getekend op",
+      "deed_deadline": "Akte te verlijden tegen",
+      "conditions": "Opschortende voorwaarden",
+      "title": "Eigendomstitel",
+      "epc": "Energieprestatiecertificaat",
+      "soil": "Bodemattest",
+      "occupancy": "Bewoning bij levering"
+    }
+  }
+}

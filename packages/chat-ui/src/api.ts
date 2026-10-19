@@ -560,7 +560,9 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 /** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
 /** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/sidebar.md). */
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
-                             case_types?: string[]; active?: boolean };
+                             case_types?: string[]; active?: boolean;
+                             /** Per language: its title, one line on what it does, its fact labels (the playbook carries them). */
+                             text?: Record<string, { title: string; summary: string; labels: Record<string, string> }> };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
 export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
 export type RunFact = {

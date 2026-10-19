@@ -2,50 +2,35 @@ import { afterEach, describe, expect, it } from "vitest";
 import { dayLabel } from "../lib/conversations";
 import { statusText } from "../lib/status";
 import { LANGS, pickLang, setLang, t, TABLES_FOR_TESTS as TABLES, type Lang } from ".";
+import { copyProblems, strings } from "./rules";
 
 const ARRAYS: Record<string, unknown[]> = { pageList: [[1, 3]], reviewHint: [[1, 3]], calcMissing: [["1.000,00"]], unverified: [["1.000,00", "2,5"]] };
-/** Functions with several typed arguments: two samples each, covering their branches. */
+/** Sample arguments for functions whose arguments the defaults don't fit: two or more each, covering their branches. */
 const SAMPLES: Record<string, unknown[][]> = {
+  ...Object.fromEntries(Object.entries(ARRAYS).map(([k, a]) => [k, [a, [[1]]]])),
   citationIssue: [[2, "410.000", [3], null], [1, "Peters", [1], "Peeters"], [2, "12/03/2021", [], null], [2, "X", [1, 3], null]],
   deleteDocumentDialogBody: [[1], [3]], deleteDocumentAndConversations: [[1], [3]],
   instructionLike: [[[2]], [[1, 3]]],
   exportMark: [["answer", "2026/0611", "19-10-2026", "A-3f9c2e1b"], ["playbook", null, "19-10-2026", "P-0a1b2c3d"]],
   originPlaybook: [["1.0"], [null]], originWasOutput: [["answer"], ["playbook"]], noticedTitle: [["answer"], ["playbook"]],
 };
-
-/** Every string of a table, with functions called on sample arguments. */
-function texts(l: Lang): [string, string][] {
-  return Object.entries(TABLES[l]).flatMap(([k, v]) => {
-    if (typeof v === "string") return [[k, v] as [string, string]];
-    if (typeof v === "object" && v !== null) {  // a vocabulary (intakeFacts): strings by key
-      return Object.entries(v as Record<string, string>).map(([sub, text]) => [`${k}.${sub}`, text] as [string, string]);
-    }
-    const fn = v as (...a: unknown[]) => string;
-    const samples = SAMPLES[k] ?? (ARRAYS[k] ? [ARRAYS[k], [[1]].concat()] : [["X", "Y", 3], ["Y", 2, null]]);
-    return samples.map((args) => [k, fn(...(args as unknown[]))] as [string, string]);
-  });
-}
+const texts = (l: Lang) => strings(TABLES[l], SAMPLES);
 
 afterEach(() => setLang("en"));
 
 describe("interface languages (suveryn-tracker#8)", () => {
-  it("every language has every string", () => {
+  it("every language has every string, and keeps the copy rules (docs/translations.md)", () => {
     const keys = Object.keys(TABLES.en).sort();
-    for (const l of LANGS) expect(Object.keys(TABLES[l]).sort()).toEqual(keys);
-    for (const l of LANGS) for (const [k, v] of texts(l)) expect(v.trim(), `${l}.${k}`).not.toBe("");
+    for (const l of LANGS) expect(Object.keys(TABLES[l]).sort(), l).toEqual(keys);
+    for (const l of LANGS) expect(copyProblems(l, texts(l)), l).toEqual([]);
   });
 
-  it("Dutch is formal: u/uw, never je/jij/jouw", () => {
-    const informal = texts("nl").filter(([, v]) => /(^|[^\p{L}])(je|jij|jouw|jullie)(?![\p{L}])/iu.test(v));
-    expect(informal).toEqual([]);
-  });
-
-  it("sūveryn is lower case except at the start of a sentence", () => {
-    for (const l of LANGS) {
-      const wrong = texts(l).filter(([, v]) => /(?<![.!?:]\s|^)Sūveryn/u.test(v) || /suveryn/i.test(v.replaceAll("sūveryn", "").replaceAll("Sūveryn", ""))
-        || /[.!?]\s+sūveryn/u.test(v));  // and capitalised at the start of a sentence (security review: "… sūveryn heeft")
-      expect(wrong, l).toEqual([]);
-    }
+  it("the copy rules catch what they are for", () => {
+    expect(copyProblems("nl", [["a", "Heeft u dit?"], ["b", "Heb je dit?"], ["c", ""]]).map(([k, w]) => `${k}: ${w}`))
+      .toEqual(["b: informal Dutch", "c: empty"]);
+    expect(copyProblems("fr", [["a", "Vous avez"], ["b", "Tu as"], ["c", "l'acte"]]).map(([k]) => k)).toEqual(["b"]);
+    expect(copyProblems("en", [["a", "Made by sūveryn."], ["b", "Ask Sūveryn"], ["c", "Done. sūveryn knows"], ["d", "Sūveryn Labs"],
+                               ["e", "a — b"], ["f", "suveryn"]]).map(([k]) => k)).toEqual(["b", "c", "e", "f"]);
   });
 
   it("picks the browser's language when supported, else English", () => {

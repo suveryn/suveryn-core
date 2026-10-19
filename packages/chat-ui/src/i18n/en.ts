@@ -7,7 +7,6 @@
  * the website. Server messages (error details, calculation errors) arrive in English.
  */
 const en = {
-  languageName: "English",
   language: "Language",
 
   // sign-in
@@ -390,8 +389,7 @@ const en = {
     `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text addressed to an AI (such as "ignore the instructions"). Sūveryn treated it as part of the document, not as an instruction, but check this answer against the documents with extra care.`,
   // downloaded sources
   // playbooks (suveryn-tracker#51): deed intake
-  deedIntake: "Deed intake",
-  deedIntakeIntro: "Sūveryn reads the case's documents for the facts a deed of sale needs and shows each one next to the passage it comes from. Nothing is final until you have checked every fact.",
+  playbookIntro: "sūveryn reads the case's documents for the facts this playbook needs and shows each one next to the passage it comes from. Nothing is final until you have checked every fact.",
   noPlaybookForType: "There is no playbook for this type of case yet.",
   playbookNotCovered: "This playbook isn't covered by this appliance's support agreement: it works, but without certification, updates or support. An administrator can see the details in the dashboard.",
   startIntake: "Read the documents",
@@ -428,12 +426,6 @@ const en = {
   summaryInCase: "The summary is in the case's documents.",
   wordDisclaimer: "Read from the documents by sūveryn and confirmed by a person. Check every fact against the deed's sources before use.",
   confirmedBy: (who: string, day: string) => `Confirmed by ${who} on ${day}`,
-  intakeFacts: {
-    sellers: "Seller(s)", buyers: "Buyer(s)", property: "Property", cadastral: "Cadastral data", price: "Price",
-    deposit: "Advance or guarantee", agreement_date: "Agreement signed on", deed_deadline: "Deed to be signed by",
-    conditions: "Suspensive conditions", title: "Title", epc: "Energy certificate", soil: "Soil certificate",
-    occupancy: "Occupancy at delivery",
-  } as Record<string, string>,
   // avatars (docs/design/avatars.md)
   administrator: "administrator",
   avatarTitle: "Your picture",
@@ -523,8 +515,6 @@ const en = {
   administratorTitle: "Administrator",
   playbookMenuTitle: (reference: string, type: string) => `Playbooks for case ${reference}${type ? ` · ${type}` : ""}`,
   playbookMenuFooter: "Which playbooks appear here is decided by the administrator under Administration › Playbooks.",
-  playbookNames: { "deed-intake": "Deed intake" },
-  playbookBlurbs: { "deed-intake": "Reads the facts for the deed from the documents" },
   caseMenu: (reference: string) => `Case ${reference}: actions`,
 
   // origin: source or made by sūveryn (docs/design/sidebar.md §6)

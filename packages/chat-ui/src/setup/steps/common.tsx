@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import { Button, FormError, useFormPending, type FieldErrors } from "../../ui";
 import { Refused } from "../api";
-import type { Text } from "../text";
+import type { Text } from "../i18n";
 
 /** The appliance refused or failed: its codes as messages, by field; anything else as one message. */
 export function errorsFrom(e: unknown, t: Text): FieldErrors {
