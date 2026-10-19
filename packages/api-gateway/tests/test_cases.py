@@ -214,6 +214,16 @@ class FakeCases:
     def log(self, case_id, user, action, detail=None):
         self.log_lines.append((case_id, user, action, detail or {}))
 
+    def members_of(self, case_ids):
+        return {cid: self.members(cid) for cid in case_ids if cid in self.rows}
+
+    def last_activity(self, case_ids):
+        out = {}
+        for cid, user, _, _ in self.log_lines:
+            if cid in case_ids:
+                out[cid] = (datetime.now(UTC), user)
+        return out
+
     def events(self, case_id, limit=1000):
         lines = [l for l in self.log_lines if l[0] == case_id][-limit:][::-1]
         return [CaseEvent(id=i, user=u, at=datetime.now(UTC), action=a, detail=d) for i, (_, u, a, d) in enumerate(lines)]
@@ -556,6 +566,43 @@ def test_conversations_are_listed_with_their_case(office):
     # a later save doesn't move it
     c.put(f"/v1/conversations/{in_case}", json={"title": "Dossier 2", "turns": turns}, headers=alice)
     assert [x["id"] for x in c.get(f"/v1/conversations?case={cid}", headers=alice).json()] == [in_case]
+
+
+def test_the_cases_overview_has_members_and_the_last_activity(office):
+    """docs/design/sidebar.md §4: open and closed cases, each with its members (the manager first) and who did
+    something last; an administrator who isn't a member sees only that the case exists."""
+    c, kc, cases, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    closed = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=alice).json()["id"]
+    cases.close_case(uuid.UUID(closed))
+    c.get(f"/v1/cases/{cid}", headers=bob)  # Bob opens it: the last activity
+    rows = {x["id"]: x for x in c.get("/v1/cases/overview", headers=alice).json()}
+    assert set(rows) == {cid, closed}  # closed ones too
+    assert [(m["user"], m["role"]) for m in rows[cid]["members"]] == [(ALICE, "manager"), (BOB, "contributor")]
+    assert rows[cid]["last_activity_by"] == "Bob Janssens" and rows[cid]["last_activity_at"]
+    assert rows[closed]["state"] == "closed"
+    admin = {x["id"]: x for x in c.get("/v1/cases/overview", headers=admin_headers(kc)).json()}
+    assert admin[cid]["my_role"] is None and admin[cid]["members"] == [] and admin[cid]["last_activity_by"] == ""
+
+
+def test_a_colleagues_shared_conversation_is_in_everyones_list_with_their_name(office):
+    """§4: the Conversations overview lists the ones colleagues shared with a case the caller may read, with
+    the colleague's name and the number of messages; unshared, it is theirs alone again."""
+    c, kc, _, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    conv = str(uuid.uuid4())
+    turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
+    c.put(f"/v1/conversations/{conv}", json={"title": "Bob's", "turns": turns, "case_id": cid}, headers=bob)
+    assert conv not in [x["id"] for x in c.get("/v1/conversations?all=true", headers=alice).json()]
+    c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)
+    listed = {x["id"]: x for x in c.get("/v1/conversations?all=true", headers=alice).json()}
+    assert listed[conv]["owner_name"] == "Bob Janssens" and listed[conv]["messages"] == 2 and listed[conv]["shared"]
+    own = {x["id"]: x for x in c.get("/v1/conversations?all=true", headers=bob).json()}
+    assert own[conv]["owner_name"] == ""  # his own: no name needed
 
 
 def test_deleting_a_case_deletes_its_documents_and_conversations(office):
@@ -921,6 +968,13 @@ def test_store_members_handover_and_the_log(store):
     s.log(cid, carla, "asked", {"documents": ["x"]})
     events = s.events(cid)
     assert [(e.user, e.action) for e in events] == [(carla, "asked"), (alice, "opened"), (alice, "created")]
+    # the overviews read several cases at once
+    other = uuid.UUID(s.create(CaseIn(**{**NEW, "reference": f"R-{uuid.uuid4().hex[:6]}"}), bob, "bob", "Bob Janssens").id)
+    members = s.members_of([cid, other])
+    assert [m.user for m in members[cid]] == [carla, alice] and [m.user for m in members[other]] == [bob]
+    last = s.last_activity([cid, other])
+    assert last[cid][1] == carla and last[other][1] == bob
+    s.delete(other)
     assert events[0].detail == {"documents": ["x"]}
     s._execute("UPDATE case_events SET at = now() - interval '181 days' WHERE case_id = %s AND action = 'created'", (cid,))
     assert [e.action for e in s.events(cid)] == ["asked", "opened"]  # purged after 180 days
