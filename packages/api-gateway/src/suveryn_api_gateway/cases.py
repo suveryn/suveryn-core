@@ -225,6 +225,16 @@ class Case(BaseModel):
     pinned: bool = False  # by the caller, for the sidebar's "pinned" section (docs/design/sidebar.md)
 
 
+class CaseOverview(Case):
+    """A case as the Cases overview shows it (docs/design/sidebar.md §4): with its members (the
+    manager first) and its last activity, who and when, from the access log. For an administrator who
+    isn't a member, no members: only that the case exists."""
+
+    members: list[Member] = []
+    last_activity_at: datetime | None = None
+    last_activity_by: str = ""  # their name as the case knows it, or empty
+
+
 class AdminCase(Case):
     """A case as the administrator's list shows it (stage 4): with its manager's name and how many
     members it has. Nothing from inside the case."""
@@ -592,6 +602,22 @@ class CaseStore(PgStore):
             row = self._execute(f"UPDATE cases SET manager = %s, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
                                 (user, case_id)).fetchone()
         return self._case(row, self.role_of(case_id, by))
+
+    def members_of(self, case_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Member]]:
+        """The members of several cases at once, the manager first, then by name (the overviews)."""
+        rows = self._execute('SELECT case_id, "user", username, name, role, added_by, added_at FROM case_members'
+                             " WHERE case_id = ANY(%s) ORDER BY case_id, (role = 'manager') DESC, lower(name), username",
+                             (list(case_ids),)).fetchall()
+        out: dict[uuid.UUID, list[Member]] = {c: [] for c in case_ids}
+        for r in rows:
+            out.setdefault(r[0], []).append(Member(user=r[1], username=r[2], name=r[3], role=r[4], added_by=r[5], added_at=r[6]))
+        return out
+
+    def last_activity(self, case_ids: list[uuid.UUID]) -> dict[uuid.UUID, tuple[datetime, str]]:
+        """Per case, the latest line of its access log: when, and who (their Keycloak id)."""
+        rows = self._execute('SELECT DISTINCT ON (case_id) case_id, at, "user" FROM case_events WHERE case_id = ANY(%s)'
+                             " ORDER BY case_id, at DESC, id DESC", (list(case_ids),)).fetchall()
+        return {r[0]: (r[1], r[2]) for r in rows}
 
     # ------------------------------------------------------------------ the access log (stage 2)
     def log(self, case_id: uuid.UUID, user: str, action: str, detail: dict | None = None) -> None:

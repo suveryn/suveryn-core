@@ -307,6 +307,8 @@ export function reviewPages(warnings: Warning[] | undefined): number[] {
 // owner: who started it (a Keycloak id); shared: shared with the case's members (stage 4), read-only for them
 export type ConversationSummary = {
   id: string; title: string; created_at: string; updated_at: string; case_id?: string | null; owner?: string; shared?: boolean;
+  messages?: number;    // how many turns it has (the Conversations overview)
+  owner_name?: string;  // a colleague's shared conversation: their name as the case knows it
 };
 export type SavedConversation = ConversationSummary & { turns: Turn[] };
 
@@ -388,6 +390,17 @@ export type NewCase = { reference: string; name: string; type: string; subject: 
  *  `closed` the closed ones too (after the open ones). */
 export async function listCases(closed = false): Promise<Case[]> {
   const r = await fetch(`/v1/cases${closed ? "?closed=true" : ""}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** A case as the Cases overview shows it (docs/design/sidebar.md §4): its members (the manager first)
+ *  and its last activity, when and who. An administrator who isn't a member gets no members. */
+export type CaseOverview = Case & { members: Member[]; last_activity_at: string | null; last_activity_by: string };
+
+/** Every case the signed-in user may see, open and closed, for the Cases overview. */
+export async function listCasesOverview(): Promise<CaseOverview[]> {
+  const r = await fetch("/v1/cases/overview");
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
