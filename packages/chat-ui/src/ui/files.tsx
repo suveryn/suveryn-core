@@ -10,7 +10,7 @@
  */
 import { CircleAlert, FileUp } from "lucide-react";
 import type { ReactNode } from "react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button as AriaButton, FileTrigger } from "react-aria-components";
 import { cx } from "./Button";
 import { useFieldError } from "./forms";
@@ -115,4 +115,18 @@ export function FileButton({ accept, multiple, onSelect, children }: {
       {children}
     </FileTrigger>
   );
+}
+
+/**
+ * The file picker opened from code, for an action that isn't a button of its own (a menu item: the
+ * narrow composer's "+" menu). Render `input` once; `open()` shows the picker. The browser only allows
+ * it right after a press, which a menu item's action is.
+ */
+export function useFilePicker(accept: string[], multiple: boolean, onSelect: (files: File[]) => void) {
+  const ref = useRef<HTMLInputElement>(null);
+  const input = (
+    <input ref={ref} type="file" accept={accept.join(",")} multiple={multiple} hidden tabIndex={-1} aria-hidden
+           onChange={(e) => { const files = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ""; if (files.length) onSelect(files); }} />
+  );
+  return { input, open: () => ref.current?.click() };
 }
