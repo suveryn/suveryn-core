@@ -8,18 +8,21 @@ and logged by exception type only, because exception messages can contain docume
 import json
 import logging
 import uuid
+from contextlib import aclosing
 
+import anyio
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from suveryn_chat import ChatService, Delta, DocumentsUnavailable, Done, Status
+from suveryn_chat import ChatService, Delta, DocumentsUnavailable, Done, Sources, Status
 from suveryn_engine import (
     BackendError,
     ChatRequest,
     ChatResponse,
     StreamDelta,
     StreamError,
+    StreamSources,
     StreamStatus,
 )
 
@@ -39,8 +42,9 @@ router = APIRouter()
 
 @router.post("/v1/chat", response_model=ChatResponse, responses={
     200: {"content": {"text/event-stream": {}},
-          "description": "With stream=true: SSE events `status` ({step, ...}), `delta` ({text}), then `done` (a full ChatResponse) "
-                         "or `error` ({message})."},
+          "description": "With stream=true: SSE events `status` ({step, ...}), for a grounded answer `sources` ({citations}), "
+                         "`delta` ({text}), then `done` (a full ChatResponse) or `error` ({message}). Closing the connection "
+                         "stops the answer: the model stops writing."},
     404: {"description": "A document id doesn't exist or belongs to another user"},
     422: {"description": "Invalid request, e.g. a malformed document id"},
     502: {"description": "Model backend unreachable or returned an error"},
@@ -88,8 +92,33 @@ async def chat(req: ChatRequest, request: Request):
             raise HTTPException(503, str(e)) from e
         except BackendError as e:
             raise HTTPException(status_code=502, detail=str(e)) from e
-    return StreamingResponse(_stream(chat_service, req, owner), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StopOnDisconnect(_stream(chat_service, req, owner), media_type="text/event-stream",
+                            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+class StopOnDisconnect(StreamingResponse):
+    """A streamed answer that stops as soon as the client goes: the person pressed *Stop*, started a new
+    chat or closed the tab (docs/design/sidebar.md §5).
+
+    Starlette notices a closed connection only when it next sends something (ASGI 2.4); before the first
+    word, while the model reads the passages, that can be half a minute of the GPU for nobody. So the
+    connection is watched from the start, and the stream is cancelled the moment it closes: the chat
+    service's generator is closed, which closes the connection to llama-server, which stops generating.
+    """
+
+    async def __call__(self, scope, receive, send) -> None:
+        async with anyio.create_task_group() as group:
+
+            async def stream() -> None:
+                try:
+                    await self.stream_response(send)
+                except OSError:
+                    pass  # the client went while a chunk was being sent: as a disconnect
+                group.cancel_scope.cancel()
+
+            group.start_soon(stream)
+            await self.listen_for_disconnect(receive)
+            group.cancel_scope.cancel()
 
 
 def _sse(event: str, payload: BaseModel) -> str:
@@ -100,19 +129,23 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
     """Translate the chat service's events into the gateway's SSE contract.
 
     Event order: zero or more ``status`` events (pipeline steps before the first word: searching,
-    loading_model, reading, writing), zero or more ``delta`` events, then exactly one of ``done`` (a complete
+    loading_model, reading, writing), for a grounded answer one ``sources`` event (its passages, so a
+    stopped answer keeps what its markers point to), zero or more ``delta`` events, then exactly one of ``done`` (a complete
     ``ChatResponse``, the same shape as the JSON answer, with citations) or ``error``. A client
     that saw ``delta`` events followed by ``error`` must discard the partial answer.
     """
     try:
-        async for event in chat_service.answer_stream(req, owner):
-            if isinstance(event, Status):
-                yield _sse("status", StreamStatus(step=event.step, passages=event.passages,
-                                                  complete=event.complete, model=event.model))
-            elif isinstance(event, Delta):
-                yield _sse("delta", StreamDelta(text=event.text))
-            elif isinstance(event, Done):
-                yield _sse("done", event.response)
+        async with aclosing(chat_service.answer_stream(req, owner)) as events:
+            async for event in events:
+                if isinstance(event, Status):
+                    yield _sse("status", StreamStatus(step=event.step, passages=event.passages,
+                                                      complete=event.complete, model=event.model))
+                elif isinstance(event, Sources):
+                    yield _sse("sources", StreamSources(citations=event.citations))
+                elif isinstance(event, Delta):
+                    yield _sse("delta", StreamDelta(text=event.text))
+                elif isinstance(event, Done):
+                    yield _sse("done", event.response)
     except (BackendError, DocumentsUnavailable, json.JSONDecodeError) as e:
         yield _sse("error", StreamError(message=str(e)))
     except DocumentNotFound:
