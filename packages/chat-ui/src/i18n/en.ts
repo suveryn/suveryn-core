@@ -236,6 +236,9 @@ const en = {
   yourQuestion: "Your question",
   askPlaceholder: "Ask about your documents…",
   send: "Send message",
+  stop: "Stop",
+  stopTitle: "Stop (Esc)",
+  keepTyping: "You can keep typing…",
   waitingForDocuments: "Waiting for your documents to be read…",
   composerHint: "Answers come from the documents in this conversation and cite the page they come from.",
 
@@ -279,6 +282,7 @@ const en = {
   // answers
   answerFailed: (why: string) => `The answer couldn't be completed: ${why}. Nothing from this attempt is shown, so ask again.`,
   answerInterrupted: "This answer was interrupted.",
+  answerStopped: "Stopped. This answer is incomplete, and its figures and sources were not checked.",
   sources: "Sources",
   copySources: "Copy sources",
   allCitedSources: "all cited sources",

@@ -21,6 +21,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
+import anyio
 import httpx
 
 from .config import LLMSettings
@@ -169,6 +170,9 @@ class LlamaServerClient:
         }
         if stream:
             payload["stream_options"] = {"include_usage": True}
+            # llama-server: token counts on every chunk, so an answer stopped halfway still counts
+            # what it used (``stream``); other servers ignore the field.
+            payload["timings_per_token"] = True
         return payload
 
     async def _record(self, user: str | None, kind: Kind, model: str | None, usage: Usage | None) -> None:
@@ -217,9 +221,15 @@ class LlamaServerClient:
         Text chunks come first; the finish reason and token usage arrive in the last events.
         Raises ``BackendError`` on connection failures or a non-200 response, possibly after
         some text has already been yielded; the caller must handle a partial answer. With
-        ``user``, the token counts go to ``on_usage`` when llama-server reports them (at the end;
-        a stream that breaks off before that is not recorded).
+        ``user``, the token counts go to ``on_usage`` when llama-server reports them at the end.
+
+        Stopping: closing this generator (or cancelling the task reading it, as the gateway does
+        when the person stops the answer or goes away) closes the connection to llama-server, which
+        then stops generating. What was used until then is still recorded: llama-server's running
+        counts (``timings_per_token``), or else the chunks received, without the prompt.
         """
+        recorded = False
+        prompt_n = predicted_n = chunks = 0
         try:
             async with self._http.stream("POST", "/v1/chat/completions", json=self._payload(req, stream=True)) as r:
                 if r.status_code != 200:
@@ -232,17 +242,29 @@ class LlamaServerClient:
                     if data == "[DONE]":
                         break
                     d = json.loads(data)
+                    if isinstance(t := d.get("timings"), dict):
+                        prompt_n = int(t.get("prompt_n") or prompt_n)
+                        predicted_n = int(t.get("predicted_n") or predicted_n)
                     chunk = StreamChunk()
                     if d.get("choices"):
                         c = d["choices"][0]
                         chunk.text = (c.get("delta") or {}).get("content") or ""
                         chunk.finish_reason = c.get("finish_reason")
+                        chunks += bool(chunk.text)
                     if d.get("usage"):
                         u = d["usage"]
                         chunk.usage = Usage(prompt_tokens=u.get("prompt_tokens", 0),
                                             completion_tokens=u.get("completion_tokens", 0))
+                        recorded = True
                         await self._record(user, kind, req.model, chunk.usage)
                     if chunk.text or chunk.finish_reason or chunk.usage:
                         yield chunk
         except httpx.HTTPError as e:
             raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
+        finally:
+            if not recorded and (prompt_n or predicted_n or chunks):
+                # Stopped or broken off before llama-server's final counts: record what was used.
+                # Shielded: when the gateway cancels the stream, this still runs to the end.
+                with anyio.CancelScope(shield=True):
+                    await self._record(user, kind, req.model, Usage(prompt_tokens=prompt_n,
+                                                                   completion_tokens=predicted_n or chunks))
