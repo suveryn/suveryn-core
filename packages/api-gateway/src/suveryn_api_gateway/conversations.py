@@ -115,6 +115,8 @@ class ConversationSummary(BaseModel):
     case_id: str | None = None
     owner: str = ""        # who started it (a Keycloak id); the UI names them from the case's members
     shared: bool = False   # shared with the case's members (stage 4)
+    messages: int = 0      # how many turns (questions and answers): the Conversations overview (docs/design/sidebar.md §4)
+    owner_name: str = ""   # a colleague's name, for one shared with a case (the overview's "From"); empty for the caller's own
 
 
 class ShareIn(BaseModel):
@@ -198,12 +200,12 @@ class ConversationStore(PgStore):
             log.info("deleted %d conversations older than %d days", n, self.max_age_days)
         return n
 
-    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared"
+    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, jsonb_array_length(turns)"
 
     @staticmethod
     def _summary(r) -> ConversationSummary:
         return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
-                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6])
+                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7] or 0)
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
         """The conversations in one place, most recently changed first: the owner's own in their
@@ -217,13 +219,13 @@ class ConversationStore(PgStore):
 
     def summaries_all(self, owner: str, case_ids: list[uuid.UUID]) -> list[ConversationSummary]:
         """Every conversation of the owner's own, in their personal space and in the cases they may
-        still read (``case_ids``), most recently changed first (the sidebar's "Conversations",
-        docs/design/sidebar.md). Others' shared conversations stay in their case's own list."""
+        still read (``case_ids``), and the ones colleagues shared with those cases, most recently
+        changed first (the column's Recent and the Conversations overview, docs/design/sidebar.md §2, §4)."""
         self.purge()
         fresh, params = self._fresh()
         rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
-                             f" WHERE owner = %s AND (case_id IS NULL OR case_id = ANY(%s)) AND {fresh}"
-                             " ORDER BY updated_at DESC LIMIT 500", (owner, case_ids, *params)).fetchall()
+                             f" WHERE ((owner = %s AND (case_id IS NULL OR case_id = ANY(%s))) OR (shared AND case_id = ANY(%s)))"
+                             f" AND {fresh} ORDER BY updated_at DESC LIMIT 500", (owner, case_ids, case_ids, *params)).fetchall()
         return [self._summary(r) for r in rows]
 
     def get(self, conversation_id: uuid.UUID, owner: str) -> Conversation | None:
@@ -231,7 +233,7 @@ class ConversationStore(PgStore):
         fresh, params = self._fresh()
         r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                           f" WHERE id = %s AND owner = %s AND {fresh}", (conversation_id, owner, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[7]) if r else None
+        return Conversation(**self._summary(r).model_dump(), turns=r[8]) if r else None
 
     def get_shared(self, conversation_id: uuid.UUID) -> Conversation | None:
         """A conversation its owner shared with its case, whoever asks: the gateway checks the
@@ -239,7 +241,7 @@ class ConversationStore(PgStore):
         fresh, params = self._fresh()
         r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                           f" WHERE id = %s AND shared AND case_id IS NOT NULL AND {fresh}", (conversation_id, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[7]) if r else None
+        return Conversation(**self._summary(r).model_dump(), turns=r[8]) if r else None
 
     def set_shared(self, conversation_id: uuid.UUID, owner: str, shared: bool) -> ConversationSummary | None:
         """Share the owner's conversation with its case, or stop sharing it. None if it isn't the
@@ -281,7 +283,7 @@ class ConversationStore(PgStore):
         rows = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                              f" WHERE {whose} AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
                              (who, f'%"{document_id}"%', *params)).fetchall()
-        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[7])]
+        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[8])]
 
     def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False,
                         case_id: uuid.UUID | None = None) -> int:
