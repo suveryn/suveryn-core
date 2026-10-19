@@ -59,7 +59,7 @@ class SourceRef(BaseModel):
 
     document_id: str
     page: int | None = Field(default=None, ge=1, description="1-based page number in the source document")
-    location: str | None = Field(default=None, description="Finer position, e.g. 'p. 3-4 · Artikel 2 - Koopprijs'")
+    location: str | None = Field(default=None, description="Finer position, e.g. 'p. 3-4 · Article 2 - Price', 'Article 2 › Price' or 'Prices!A2:D31'")
 
 
 class Citation(BaseModel):

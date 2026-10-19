@@ -1,5 +1,5 @@
 /**
- * The question box: text, the paperclip for PDFs, attachment chips, the case's playbooks (a teal
+ * The question box: text, the paperclip for documents, attachment chips, the case's playbooks (a teal
  * chip with a menu; docs/design/sidebar.md) and the model picker. Sending is disabled while the
  * model is unavailable or an attachment is still being read; Enter sends, Shift+Enter starts a new line.
  */
@@ -9,6 +9,7 @@ import type { ModelInfo, PlaybookInfo } from "../api";
 import type { Attachment } from "../types";
 import { isPending } from "../types";
 import { lang, useT } from "../i18n";
+import { ACCEPTED_FILES } from "../lib/formats";
 import { playbookWords } from "../lib/playbooks";
 import { ActionMenu, Button, FileButton, IconButton, TextArea } from "../ui";
 import { AttachmentChip } from "./Chips";
@@ -72,8 +73,8 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
         <TextArea label={m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
                   placeholder={m.askPlaceholder} className="composer-field" />
         <div className="composer-tools">
-          <FileButton accept={["application/pdf", ".pdf"]} multiple onSelect={onAttach}>
-            <IconButton size="small" label={m.attachPdf}><Paperclip size={16} aria-hidden /></IconButton>
+          <FileButton accept={ACCEPTED_FILES} multiple onSelect={onAttach}>
+            <IconButton size="small" label={m.attachDocument}><Paperclip size={16} aria-hidden /></IconButton>
           </FileButton>
           {caseReference && <span className="chip-case"><Folder size={13} aria-hidden /> {m.caseLabel(caseReference)}</span>}
           {playbooks.length > 0 && onPlaybook && (
