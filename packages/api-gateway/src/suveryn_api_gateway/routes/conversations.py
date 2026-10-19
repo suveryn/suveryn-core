@@ -34,7 +34,9 @@ async def list_conversations(request: Request, case: str | None = None, all: boo
     and their personal space (the sidebar's list, docs/design/sidebar.md)."""
     store = history_or_503(request)
     if all:
-        return await run_in_threadpool(store.summaries_all, owner_of(request), await readable_case_ids(request))
+        owner, case_ids = owner_of(request), await readable_case_ids(request)
+        found = await run_in_threadpool(store.summaries_all, owner, case_ids)
+        return await with_owner_names(request, found, owner)
     scope = await scope_of(request, case, "read")
     return await run_in_threadpool(store.summaries, owner_of(request), scope.case_id)
 
@@ -124,3 +126,17 @@ async def delete_all_conversations(request: Request):
     """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
     store = history_or_503(request)
     return {"deleted": await run_in_threadpool(store.delete_all, owner_of(request))}
+
+
+async def with_owner_names(request: Request, conversations: list[ConversationSummary], me: str) -> list[ConversationSummary]:
+    """A colleague's shared conversation with their name as its case knows it (the Conversations
+    overview's "From", docs/design/sidebar.md §4); the caller's own stay without one."""
+    others = {uuid.UUID(c.case_id) for c in conversations if c.owner != me and c.case_id}
+    db = request.app.state.cases
+    store = db.get() if db.configured else None
+    if not others or store is None:
+        return conversations
+    members = await run_in_threadpool(store.members_of, list(others))
+    names = {(str(cid), m.user): m.name or m.username for cid, ms in members.items() for m in ms}
+    return [c.model_copy(update={"owner_name": names.get((c.case_id or "", c.owner), "")}) if c.owner != me else c
+            for c in conversations]

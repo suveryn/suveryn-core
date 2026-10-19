@@ -46,7 +46,8 @@ class FakeConversations:
         return 0
 
     def summaries_all(self, owner, case_ids):
-        rows = sorted((r for r in self.rows.values() if r["owner"] == owner and (r["case_id"] is None or r["case_id"] in case_ids)),
+        rows = sorted((r for r in self.rows.values() if (r["owner"] == owner and (r["case_id"] is None or r["case_id"] in case_ids))
+                       or (r["shared"] and r["case_id"] in case_ids)),
                       key=lambda r: r["updated_at"], reverse=True)
         return [self._summary(r) for r in rows]
 
@@ -59,7 +60,7 @@ class FakeConversations:
     @staticmethod
     def _summary(r):
         return ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at", "owner", "shared")},
-                                   case_id=str(r["case_id"]) if r["case_id"] else None)
+                                   case_id=str(r["case_id"]) if r["case_id"] else None, messages=len(r["turns"]))
 
     def get(self, cid, owner):
         r = self.rows.get(cid)
@@ -288,7 +289,8 @@ def test_store_age_cap(store):
 
 @needs_db
 def test_store_lists_all_of_the_owners_conversations_across_cases(store):
-    """The sidebar's list (docs/design/sidebar.md): own conversations in the personal space and in readable cases."""
+    """The column's Recent and the Conversations overview (docs/design/sidebar.md §2, §4): own conversations in
+    the personal space and in readable cases, and the ones colleagues shared with those cases."""
     mine_personal, mine_in_case, mine_elsewhere, others = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     case_a, case_b = uuid.uuid4(), uuid.uuid4()
     store.save(mine_personal, ALICE, ConversationIn(**BODY))
@@ -296,8 +298,12 @@ def test_store_lists_all_of_the_owners_conversations_across_cases(store):
     store.save(mine_elsewhere, ALICE, ConversationIn(**BODY, case_id=str(case_b)))
     store.save(others, BOB, ConversationIn(**BODY, case_id=str(case_a)))
     store.set_shared(others, BOB, True)
-    ids = {s.id for s in store.summaries_all(ALICE, [case_a])}
-    assert ids == {str(mine_personal), str(mine_in_case)}  # not the case she can't read, not Bob's shared one
+    found = {s.id: s for s in store.summaries_all(ALICE, [case_a])}
+    assert set(found) == {str(mine_personal), str(mine_in_case), str(others)}  # not the case she can't read
+    assert found[str(others)].owner == BOB and found[str(others)].shared
+    assert found[str(mine_personal)].messages == len(BODY["turns"])
+    store.set_shared(others, BOB, False)
+    assert str(others) not in {s.id for s in store.summaries_all(ALICE, [case_a])}  # no longer shared: Bob's alone
 
 
 @needs_db
