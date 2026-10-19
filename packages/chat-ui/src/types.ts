@@ -1,17 +1,18 @@
 /** UI-side types for the conversation: turns and attachments. Wire types are in api.ts. */
-import type { Calculation, Citation, CitationIssue, JobStatus, StreamStatus } from "./api";
+import type { Calculation, Citation, CitationIssue, JobStatus, Noticed, StreamStatus } from "./api";
 
 /** A file attached to the user's turn. Lives on the user's message, never on the reply. */
 export type Attachment = {
   key: string;
   filename: string;
-  status: "uploading" | JobStatus;
+  status: "uploading" | "noticed" | JobStatus;  // noticed: read, but it looks like sūveryn's own output (asks first)
   jobId?: string;
   documentId?: string;
   error?: string;
   progress?: number; // upload progress, 0-1, while status is "uploading"
   reviewPages?: number[]; // with status needs_review: pages where text may be missing
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
+  noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)
 };
 
 export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[] };

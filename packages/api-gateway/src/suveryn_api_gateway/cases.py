@@ -1,4 +1,4 @@
-"""Cases (dossiers), suveryn-tracker#10: the file a confidential profession works on, with its
+"""Cases, suveryn-tracker#10: the file a confidential profession works on, with its
 documents and conversations. Design: docs/design/cases.md.
 
 Stages 1 and 2 of that design are here: the case with its creator as manager, the personal

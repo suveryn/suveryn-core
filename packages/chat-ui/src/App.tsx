@@ -26,7 +26,7 @@ import {
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, deleteCase, getCase, closeCase, type Case,
-  listMembers, shareConversation, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
+  listMembers, shareConversation, confirmAsSource, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -46,6 +46,7 @@ import { AdminView, UsageView, type AdminTab } from "./components/UsageView";
 import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
+import { originKind } from "./lib/origin";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { locale, useT } from "./i18n";
 import { ActionMenu, Button, I18nProvider, InlineNotice } from "./ui";
@@ -56,6 +57,14 @@ const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (
 const readCollapsed = () => { try { return localStorage.getItem(SIDEBAR_KEY) === "collapsed"; } catch { return false; } };
 let counter = 0;
 // Unique across page loads too: turns of a reopened conversation keep the ids they were saved with.
+/** An attachment as its upload job says it is now. An upload that carries sūveryn's own export mark is
+ *  read but waits for the person's choice before it is a source (docs/design/sidebar.md §6): never
+ *  blocked, never used unasked. */
+function attachmentFromJob(a: Attachment, j: Job): Attachment {
+  const noticed = j.noticed && (j.status === "ready" || j.status === "needs_review") ? j.noticed : undefined;
+  return { ...a, status: noticed ? "noticed" : j.status, noticed, documentId: j.document_id ?? undefined,
+           error: j.error ?? undefined, reviewPages: reviewPages(j.warnings) };
+}
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
 
 /**
@@ -242,8 +251,7 @@ function Chat({ me }: { me: Me }) {
       }));
       const apply = (a: Attachment): Attachment => {
         const j = a.jobId ? updates.get(a.jobId) : undefined;
-        return j ? { ...a, status: j.status, documentId: j.document_id ?? undefined, error: j.error ?? undefined,
-                     reviewPages: reviewPages(j.warnings) } : a;
+        return j ? attachmentFromJob(a, j) : a;
       };
       setPending((p) => p.map(apply));
       setTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
@@ -282,7 +290,7 @@ function Chat({ me }: { me: Me }) {
       try {
         const job = await uploadDocument(file, (fraction) =>
           setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId);
-        setPending((p) => p.map((a) => (a.key === key ? { ...a, status: job.status, jobId: job.id } : a)));
+        setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob({ ...a, jobId: job.id }, job) : a)));
         refreshDocuments();
       } catch (e) {
         setPending((p) => p.map((a) => (a.key === key ? { ...a, status: "failed", error: (e as Error).message } : a)));
@@ -294,6 +302,26 @@ function Chat({ me }: { me: Me }) {
     if (pending.some((a) => a.documentId === d.id)) return;
     setPending((p) => [...p, { key: nextId(), filename: d.filename, status: d.status === "needs_review" ? "needs_review" : "ready",
                                documentId: d.id, reviewPages: reviewPages(d.warnings) }]);
+  };
+
+  // An upload that looks like sūveryn's own output (docs/design/sidebar.md §6): the person decides.
+  const useNoticedAsSource = async (key: string) => {
+    const a = pending.find((x) => x.key === key);
+    if (!a?.documentId) return;
+    try {
+      await confirmAsSource(a.documentId, caseId);
+      setPending((p) => p.map((x) => (x.key === key ? { ...x, status: x.reviewPages?.length ? "needs_review" : "ready", noticed: undefined } : x)));
+      refreshDocuments();
+    } catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
+  };
+  const deleteNoticed = async (key: string) => {
+    const a = pending.find((x) => x.key === key);
+    if (!a?.documentId) return;
+    try {
+      await deleteDocument(a.documentId, "clean", caseId);
+      setPending((p) => p.filter((x) => x.key !== key));
+      refreshDocuments();
+    } catch (e) { setProblem(m.deleteDocumentFailed(a.filename, (e as Error).message)); }
   };
 
   const send = async (text: string) => {
@@ -372,7 +400,7 @@ function Chat({ me }: { me: Me }) {
     const target = d.case_id ?? null;
     if (target !== caseId) { goTo(caseById(target)); newChat(); }
     setView("chat");
-    if (d.origin !== "playbook") addDocument(d);
+    if (originKind(d) === "source") addDocument(d);  // never sūveryn's own output (cases.md decision 7)
   };
   const pin = async (c: Case, pinned: boolean) => {
     try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed((e as Error).message)); }
@@ -514,7 +542,11 @@ function Chat({ me }: { me: Me }) {
                              onOpen={openListed} onDelete={(c) => removeConversation(c.id)} onBack={() => setView("chat")} />
         </div>}
         {view === "documents" && <div className="conversation">
-          <DocumentsView documents={allDocuments} jobs={jobs} cases={cases} onOpen={openDocument} onDelete={removeListed} onBack={() => setView("chat")} />
+          <DocumentsView documents={allDocuments} jobs={jobs} cases={cases} onOpen={openDocument} onDelete={removeListed}
+                         onUseAsSource={async (d) => {
+                           try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(() => {}); refreshDocuments(); }
+                           catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
+                         }} onBack={() => setView("chat")} />
         </div>}
         {view === "cases" && <div className="conversation">
           <CasesView cases={cases} current={caseId} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onBack={() => setView("chat")} />
@@ -525,7 +557,7 @@ function Chat({ me }: { me: Me }) {
         </div>}
         {view === "playbook" && currentCase && (
           <div className="conversation">
-            <PlaybookView kase={currentCase} canRun={contributes && !closed} documents={documents.filter((d) => d.origin === "uploaded").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
+            <PlaybookView kase={currentCase} canRun={contributes && !closed} documents={documents.filter((d) => originKind(d) === "source").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
           </div>
         )}
         {view === "chat" && <>
@@ -587,7 +619,7 @@ function Chat({ me }: { me: Me }) {
             </div>
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
-              <AssistantMessage key={t.id} turn={t} filenames={filenames}
+              <AssistantMessage key={t.id} turn={t} filenames={filenames} caseRef={currentCase?.reference ?? null}
                                 question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""} />))
           )}
           <div ref={endRef} />
@@ -597,6 +629,7 @@ function Chat({ me }: { me: Me }) {
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
+                  onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
                   playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")} />

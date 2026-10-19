@@ -22,6 +22,8 @@ import { LANGS, lang, setLang, TABLES_FOR_TESTS as TABLES, useT, type Lang } fro
 import { dayLabel } from "../lib/conversations";
 import { compact } from "../lib/usage";
 import { Lockup } from "./Brand";
+import { OriginIcon } from "./ListViews";
+import { originKind } from "../lib/origin";
 import { ActionMenu, Avatar, Button, Expander, IconBadge, IconButton, type MenuEntry } from "../ui";
 
 const RECENT = 5;  // rows under an expanded section
@@ -162,7 +164,7 @@ export function Sidebar(p: Props) {
   };
   const documentRow = (d: AllDocument) => {
     const r = ref(d.case_id);
-    const face = d.origin === "playbook" ? <ClipboardList size={15} aria-hidden /> : <FileText size={15} aria-hidden />;
+    const face = <OriginIcon kind={originKind(d)} size={15} />;  // the origin icon follows the document (docs/design/sidebar.md §6)
     return (
       <Button key={d.id} variant="plain" className="side-sub" onPress={() => p.onOpenDocument(d)} title={r ? m.inCase(r) : m.notInACase}>
         {r ? <IconBadge badge={<Link2 />}>{face}</IconBadge> : face}

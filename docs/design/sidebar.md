@@ -349,6 +349,32 @@ cannot be closed completely, but the common case can be caught:
 - `App.tsx`: the three overviews in the main area; Administration gains a Playbooks tab.
 - `i18n/*.ts`: every new string in the three languages.
 
+## Resolved while building
+
+- **Phase a, Bron or Gemaakt (19 October).**
+  - Stored origins stay in English: `uploaded`, `generated`, `playbook`, and later `answer`; the Dutch
+    words appear only on screen.
+  - A document's `provenance` (jsonb) says more: a playbook result's playbook, version and run; for an
+    upload that carries sūveryn's export mark, the mark as found, and who confirmed it and when.
+    "Source" is decided in one place (`suveryn_rag.store.SOURCE`): uploaded, and not a noticed upload
+    that nobody confirmed. Retrieval, the chat's document check and playbook runs all use it.
+  - **The mark** is one plain line, not a hash and not document properties: "Gemaakt door sūveryn:
+    antwoord uit dossier 2026/0611, 19-10-2026 · sūveryn-ref A-3f9c2e1b", small and light in the Word
+    footer and at the end of the Excel sources sheet; Markdown gets it as a comment (phase e); CSV
+    carries none (Filip, 19 October). The words follow the interface language; `sūveryn-ref` and the
+    code don't, so it is found in any language. It is real text, so it survives "Save as PDF" (tested
+    with a Word export saved as PDF by LibreOffice, `packages/rag/tests/fixtures`); hidden text would
+    not. A scanned printout is not caught: a hint, not a guarantee.
+  - **The upload check** reads the mark from the PDF's text layer (footers included) while the upload
+    is read. The upload is stored, never blocked; the attachment card says what was noticed, quotes the
+    line, and offers *Toch als bron gebruiken* (`POST /v1/documents/{id}/source`, logged as
+    `source_confirmed`) and *Verwijderen*. Meanwhile a question can be sent; the document is just not
+    used. *Verwijderen* is allowed to its uploader even as a contributor (deleting is otherwise the
+    dossierbeheerder's), only while nobody has confirmed it.
+  - Documenten: *Herkomst* per row with its icon (`file-text` Bron, `file-output` Gemaakt, a triangle
+    while it waits for a choice), the *Herkomst* filter (alle, bronnen, gemaakt) and the legend; the
+    same icon in the column's document rows. The full table layout of the overview is phase d.
+
 ## Open
 
 - **Playbook creation by an administrator**: decide after the third hand-built playbook

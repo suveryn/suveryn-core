@@ -22,6 +22,9 @@ type Props = {
   busy: boolean;                 // an answer is being written
   onAttach: (files: File[]) => void;
   onRemoveAttachment: (key: string) => void;
+  /** An attachment that looks like sūveryn's own output: use it as a source anyway, or delete it. */
+  onUseAsSource?: (key: string) => void;
+  onDeleteAttachment?: (key: string) => void;
   onSend: (text: string) => void;
   /** The open case's reference, shown as a chip; nothing in the personal space. */
   caseReference?: string | null;
@@ -33,7 +36,8 @@ type Props = {
 };
 
 export function Composer({ attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
-                          onRemoveAttachment, onSend, caseReference, caseType, playbooks = [], onPlaybook }: Props) {
+                          onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, caseReference, caseType,
+                          playbooks = [], onPlaybook }: Props) {
   const m = useT();
   const [text, setText] = useState("");
   const waiting = attachments.some(isPending);
@@ -57,7 +61,9 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
     <div className="composer-wrap">
       {attachments.length > 0 && (
         <div className="attachments pending">
-          {attachments.map((a) => <AttachmentChip key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)} />)}
+          {attachments.map((a) => <AttachmentChip key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)}
+                                                  onUseAsSource={onUseAsSource && (() => onUseAsSource(a.key))}
+                                                  onDelete={onDeleteAttachment && (() => onDeleteAttachment(a.key))} />)}
         </div>
       )}
       {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). */}
