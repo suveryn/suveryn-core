@@ -98,6 +98,11 @@ def _cases() -> list[dict]:
         {"doc": "injected", "q": "Is de akte goedgekeurd?", "forbid_unless_reported": trap_deed.INJECTION_CANARIES, "flagged": True},
         {"doc": "born-digital", "q": "Hoeveel bedragen de koopprijs en de huurachterstand samen?", "calc": "1.323.200"},
     ]
+    # Three questions in one conversation, the earlier answers sent back as the chat UI sends them: each
+    # answer must still cite. With the markers stripped from the history, most follow-ups cited nothing.
+    cases += [{"doc": "born-digital", "q": q, "expect": [e], "conversation": "follow-ups"}
+              for q, e in (("Wat is de koopprijs?", "1.275.000"), ("Hoe is het verkochte kadastraal bekend?", "4182"),
+                           ("Welk recht van opstal rust op het verkochte?", "Stroomnet Oost"))]
     external = Path(os.environ.get("SUVERYN_EVAL_DIR", "/nonexistent"))
     for spec in sorted(external.glob("*.json")):
         for q in json.loads(spec.read_text())["questions"]:
@@ -152,18 +157,21 @@ def test_answers_meet_the_requirements(corpus, model):
     # loop that opened them. An asyncio.run() per question reused or closed a connection of an earlier,
     # closed loop now and then ("RuntimeError: Event loop is closed" in LlamaServerClient.complete).
     async def ask_all() -> list[dict]:
-        answered = []
+        answered, conversations = [], {}
         try:
             for case in _cases():
                 if case["doc"] not in ingested:
                     continue
-                req = ChatRequest(messages=[{"role": "user", "content": case["q"]}],
+                history = conversations.setdefault(case["conversation"], []) if "conversation" in case else []
+                req = ChatRequest(messages=[*history, {"role": "user", "content": case["q"]}],
                                   document_ids=[str(ingested[case["doc"]].document_id)],
                                   model=model, max_tokens=900, temperature=0)  # reproducible: a regression test
                 t = time.perf_counter()
                 r = await service.answer(req, OWNER)
-                answered.append({"case": f"{case['doc']}: {case['q']}", "seconds": round(time.perf_counter() - t, 1),
+                where = f"{case['doc']} ({case['conversation']}, question {len(history) // 2 + 1})" if "conversation" in case else case["doc"]
+                answered.append({"case": f"{where}: {case['q']}", "seconds": round(time.perf_counter() - t, 1),
                                  "checks": _check(case, r)})
+                history += [{"role": "user", "content": case["q"]}, {"role": "assistant", "content": r.answer}]
         finally:
             await client.aclose()
         return answered

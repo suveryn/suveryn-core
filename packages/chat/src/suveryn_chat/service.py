@@ -214,8 +214,8 @@ def _source(citations: list[Citation]) -> str:
 def _cited_sources(answer: str, citations: list[Citation]) -> list[str]:
     """The passages calculation figures are checked against: the ones the answer cites.
 
-    An answer that cites nothing (typically a follow-up such as "calculate it", whose earlier
-    answers the model sees without their markers) is checked against every passage it was given:
+    An answer that cites nothing (rarer since earlier answers reach the model with [*] markers, see
+    grounding.CITE_AGAIN) is checked against every passage it was given:
     a figure that is in none of them is still reported, and the UI already says no source is cited.
     """
     cited = [citations[n - 1].text for n in cited_numbers(answer, len(citations))]
