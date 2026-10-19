@@ -8,7 +8,8 @@ import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpre
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button, InlineNotice, MenuButton } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
-import { lang, useT } from "../i18n";
+import { lang, locale, useT } from "../i18n";
+import { exportRef } from "../lib/marks";
 import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
 import { checkLines, type AnswerExport } from "../lib/export";
 import { statusText } from "../lib/status";
@@ -111,8 +112,10 @@ export function SourceCard({ n, citation, filename, terms = [], claims = [] }: {
  * The assistant's turn: no bubble, marked by the teal brand-mark outline. Citation markers [n]
  * become buttons that open the source (citations[n-1]); only cited sources are listed below.
  */
-export function AssistantMessage({ turn, question, filenames }: {
+export function AssistantMessage({ turn, question, filenames, caseRef = null }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
+  /** The case the conversation is in (null: personal), named in the export mark. */
+  caseRef?: string | null;
 }) {
   const m = useT();
   const [open, setOpen] = useState<number | null>(null);
@@ -140,6 +143,8 @@ export function AssistantMessage({ turn, question, filenames }: {
     checks: [...checkLines(turn.calculations ?? [], flagged, issues, m),
              ...(turn.instructionLikeSources?.length ? [m.instructionLike(turn.instructionLikeSources)] : [])],
     sources: cited.map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
+    // sūveryn's mark (lib/marks.ts): so that this file, uploaded again, is recognised and asks first.
+    mark: m.exportMark("answer", caseRef, new Date().toLocaleDateString(locale()), exportRef("A", turn.id)),
   });
   const render = (segments: Segment[]) => segments.map((s, j) =>
     s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :

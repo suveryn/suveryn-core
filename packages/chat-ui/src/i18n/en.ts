@@ -526,6 +526,28 @@ const en = {
   playbookNames: { "deed-intake": "Deed intake" },
   playbookBlurbs: { "deed-intake": "Reads the facts for the deed from the documents" },
   caseMenu: (reference: string) => `Case ${reference}: actions`,
+
+  // origin: source or made by sūveryn (docs/design/sidebar.md §6)
+  exportMark: (kind: "answer" | "playbook", caseRef: string | null, date: string, ref: string) =>
+    `Made by sūveryn: ${kind === "answer" ? "answer" : "playbook result"}${caseRef ? ` from case ${caseRef}` : ""}, ${date} · sūveryn-ref ${ref}`,
+  origin: "Origin",
+  originSource: "Source",
+  originMade: "Made",
+  originUploaded: "uploaded",
+  originExport: "export",
+  originPlaybook: (version: string | null) => (version ? `playbook v${version}` : "playbook"),
+  originWasOutput: (kind: "answer" | "playbook") => `uploaded, was ${kind === "answer" ? "an answer" : "a playbook result"}`,
+  originPending: "Waiting for your choice",
+  originFilterAll: "All",
+  originFilterSources: "Sources",
+  originFilterMade: "Made",
+  originLegend: "Source: what someone uploaded; sūveryn may cite it. Made: what sūveryn produced itself, such as a playbook result; never a source.",
+  noticedTitle: (kind: "answer" | "playbook") => `This looks like ${kind === "answer" ? "an answer" : "a playbook result"} from sūveryn`,
+  noticedHint: "It becomes a source only if you choose so.",
+  noticedFound: (line: string) => `Found in the file: ${line}`,
+  useAsSource: "Use as a source anyway",
+  useAsSourceFailed: (why: string) => `It couldn't be made a source: ${why}`,
+  eventSourceConfirmed: "used sūveryn's own output as a source anyway",
 };
 
 export type Messages = typeof en;

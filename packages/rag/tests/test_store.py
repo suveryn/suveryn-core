@@ -100,6 +100,22 @@ def test_documents_are_isolated_per_scope():
         assert store.in_scope([c, g], case) == {c, g}
         assert store.in_scope([c, g], case, sources_only=True) == {c}
         assert store.list_documents(case)[0]["origin"] == "generated"
+        # an upload carrying sūveryn's own export mark (docs/design/sidebar.md §6): not a source until
+        # a person confirms it; only in its own scope; the confirmation records who
+        mark = {"ref": "A-3f9c2e1b", "kind": "answer", "line": "Made by suveryn · suveryn-ref A-3f9c2e1b"}
+        n = store.add_document("returned.pdf", sha + "-n", 1, 0, chunk, np.stack([unit(4)]), owner=alice.owner,
+                               case_id=case.case_id, provenance={"noticed": mark})
+        ids.append(n)
+        assert store.in_scope([c, n], case, sources_only=True) == {c}
+        listed = {d["id"]: d for d in store.list_documents(case)}
+        assert listed[n]["source"] is False and listed[c]["source"] is True and listed[g]["source"] is False
+        assert listed[n]["provenance"]["noticed"]["ref"] == "A-3f9c2e1b"
+        assert store.confirm_source(n, alice, "alice") is None  # not in her personal space
+        assert store.confirm_source(c, case, "alice") is None   # nothing was noticed on a plain upload
+        assert store.confirm_source(n, case, "alice")["ref"] == "A-3f9c2e1b"
+        assert store.in_scope([c, n], case, sources_only=True) == {c, n}
+        confirmed = {d["id"]: d for d in store.list_documents_many(alice.owner, [case.case_id])}[n]
+        assert confirmed["source"] is True and confirmed["provenance"]["confirmed"]["by"] == "alice"
     finally:
         store.delete_document(a)
         store.delete_document(legacy)

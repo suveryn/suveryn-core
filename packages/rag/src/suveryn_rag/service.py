@@ -95,6 +95,7 @@ class Job:
     warnings: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     db_retries: int = 0     # how often the database was unreachable while reading it
+    noticed: dict | None = None  # the file carries sūveryn's export mark (marks.py): not a source until confirmed
 
     finished_at: float | None = None
 
@@ -186,6 +187,7 @@ class DocumentService:
             # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
             job.document_id, job.status = str(r.document_id), job_status(r.status)
             job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
+            job.noticed = r.noticed
         except Exception as e:  # noqa: BLE001 - a failed document must not stop the worker
             if _is_connection_error(e) and job.db_retries < MAX_DB_RETRIES:
                 # Not the document's fault: wait for the database, then read it again.
@@ -348,10 +350,15 @@ class DocumentService:
         """The owner's personal documents and those of the cases given, with ``case_id`` (no text)."""
         return self._with_search(lambda rag: rag.store.list_documents_many(owner, case_ids))
 
-    def store_text(self, filename: str, text: str, scope: Scope, origin: str) -> str:
-        """Store text sūveryn produced (a playbook's result) as a document in the scope, with its origin;
-        its id. Never a source for answers (``Rag.store_text``)."""
-        return str(self._with_search(lambda rag: rag.store_text(filename, text, scope.owner, scope.case_id, origin)))
+    def store_text(self, filename: str, text: str, scope: Scope, origin: str, provenance: dict | None = None) -> str:
+        """Store text sūveryn produced (a playbook's result) as a document in the scope, with its origin
+        and provenance; its id. Never a source for answers (``Rag.store_text``)."""
+        return str(self._with_search(lambda rag: rag.store_text(filename, text, scope.owner, scope.case_id, origin,
+                                                                 provenance)))
+
+    def confirm_source(self, document_id: str, scope: Scope, by: str) -> dict | None:
+        """Use a noticed upload as a source anyway (docs/design/sidebar.md §6); the mark, or None."""
+        return self._with_search(lambda rag: rag.store.confirm_source(uuid.UUID(document_id), scope, by))
 
     def delete(self, document_id: str, scope: Scope) -> bool:
         """Delete a document in the scope and its passages; False if it doesn't exist or is elsewhere."""

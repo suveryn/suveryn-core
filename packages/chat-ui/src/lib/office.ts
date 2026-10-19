@@ -60,7 +60,15 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
     }
   }
   body.push(new d.Paragraph({ children: [new d.TextRun({ text: text.disclaimer, italics: true, size: 16 })] }));
-  return d.Packer.toBlob(new d.Document({ creator: "sūveryn", title: a.question, sections: [{ children: body }] }));
+  return d.Packer.toBlob(new d.Document({ creator: "sūveryn", title: a.question,
+                                          sections: [{ children: body, footers: markFooter(d, a.mark) }] }));
+}
+
+/** sūveryn's export mark (lib/marks.ts) as a small, light footer line: real text, so it survives
+ *  "Save as PDF" and the upload check finds it; light so it doesn't compete with the document. */
+function markFooter(d: typeof import("docx"), mark: string | undefined) {
+  if (!mark) return undefined;
+  return { default: new d.Footer({ children: [new d.Paragraph({ children: [new d.TextRun({ text: mark, size: 14, color: "8A8A8A" })] })] }) };
 }
 
 /** One table as an Excel workbook: the table (with each row's sources), the sources, what to check. */
@@ -86,6 +94,8 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText):
                                 { value: where(s) }, { value: s.citation.removed ? "" : s.citation.text.trim(), wrap: true }])],
     columns: [{ width: 8 }, { width: 30 }, { width: 24 }, { width: 80 }],
   }];
+  // sūveryn's export mark (lib/marks.ts): under the sources, never in the table people work with.
+  if (a.mark) sheets[1].data.push([], [{ value: a.mark, fontStyle: "italic" as const }] as never);
   if (a.checks.length) {
     sheets.push({ sheet: text.sheetChecks, stickyRowsCount: 0, data: a.checks.map((c) => [{ value: c, wrap: true }]) as never, columns: [{ width: 100 }] });
   }
@@ -96,6 +106,7 @@ export type IntakeExport = {
   title: string; caseName: string; version: string; confirmedOn: string;
   facts: { label: string; value: string; sources: string[] }[];
   sourcesHeading: string; emptyValue: string; disclaimer: string;
+  mark?: string;  // sūveryn's export mark (lib/marks.ts), in the footer
 };
 
 /** A playbook run's confirmed facts as a Word document (suveryn-tracker#51): a heading, a table of
@@ -111,7 +122,7 @@ export async function intakeToWord(x: IntakeExport): Promise<Blob> {
       ...x.facts.map((f) => new d.TableRow({ children: [cell(f.label, true), cell(f.value || x.emptyValue), cell(f.sources.join(", "))] })),
     ],
   });
-  const doc = new d.Document({ sections: [{ children: [
+  const doc = new d.Document({ sections: [{ footers: markFooter(d, x.mark), children: [
     new d.Paragraph({ text: x.title, heading: d.HeadingLevel.HEADING_1 }),
     new d.Paragraph({ children: [new d.TextRun({ text: x.caseName })] }),
     new d.Paragraph({ children: [new d.TextRun({ text: `${x.confirmedOn} · ${x.version}`, italics: true, size: 18 })] }),

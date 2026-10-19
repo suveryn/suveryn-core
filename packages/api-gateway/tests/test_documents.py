@@ -32,6 +32,8 @@ class FakeDocuments:
     def __init__(self, state="ready", owner="local-dev"):
         self.state, self.error, self.jobs, self.deleted, self.seen, self.uploads = state, None, {}, [], {}, []
         self.docs = {DOC: (Scope.personal(owner), "uploaded")}  # document id -> (scope, origin)
+        self.noticed, self.confirmed = {}, {}  # document id -> the mark noticed; -> who confirmed it
+        self.uploaders = {}  # document id -> who uploaded it (default local-dev)
 
     def accept_upload(self, src, filename, owner, case_id=None):
         self.uploads.append((filename, owner, case_id))
@@ -51,7 +53,10 @@ class FakeDocuments:
         from datetime import datetime
         return [{"id": uuid.UUID(d), "filename": "akte.pdf", "pages": 5, "ocr_pages": 5, "status": "ok",
                  "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12, "origin": origin,
-                 "uploaded_by": "local-dev"}
+                 "uploaded_by": self.uploaders.get(d, "local-dev"),
+                 "source": origin == "uploaded" and (d not in self.noticed or d in self.confirmed),
+                 "provenance": ({"noticed": self.noticed[d], **({"confirmed": {"by": self.confirmed[d]}} if d in self.confirmed else {})}
+                                if d in self.noticed else None)}
                 for d, (s, origin) in self.docs.items() if s == scope]
 
     def documents_many(self, owner, case_ids):
@@ -60,8 +65,8 @@ class FakeDocuments:
         return [dict(d, case_id=s.case_id) for s in wanted for d in self.documents(s)]
 
     def in_scope(self, document_ids, scope, sources_only=False):
-        return all(d in self.docs and self.docs[d][0] == scope and (not sources_only or self.docs[d][1] == "uploaded")
-                   for d in document_ids)
+        return all(d in self.docs and self.docs[d][0] == scope and (not sources_only or (
+                   self.docs[d][1] == "uploaded" and (d not in self.noticed or d in self.confirmed))) for d in document_ids)
 
     def existing(self, document_ids, scope):
         return {d for d in document_ids if d in self.docs and self.docs[d][0] == scope}
@@ -86,12 +91,20 @@ class FakeDocuments:
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
-    def store_text(self, filename, text, scope, origin):
+    def store_text(self, filename, text, scope, origin, provenance=None):
         """A playbook's result (suveryn-tracker#51): stored as a document in the scope, never a source."""
         did = str(uuid.uuid4())
         self.docs[did] = (scope, origin)
         self.stored_text = (filename, text)
+        self.stored_provenance = provenance
         return did
+
+    def confirm_source(self, document_id, scope, by):
+        """An upload with sūveryn's own export mark, used as a source anyway (docs/design/sidebar.md §6)."""
+        if document_id not in self.noticed or self.docs.get(document_id, (None,))[0] != scope:
+            return None
+        self.confirmed[document_id] = by
+        return self.noticed[document_id]
 
     def stop(self):
         pass
