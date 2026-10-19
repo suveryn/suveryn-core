@@ -364,6 +364,24 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .item-static .item-meta { grid-column: 1; }
 .item-static .ui-switch { margin-right: var(--space-2); }
 .item .item-pinned { color: var(--accent-ink); }
+/* a document's origin, source or made, ink only (docs/design/sidebar.md §1, §6) */
+.item-origin { display: flex; align-items: center; gap: var(--space-3); flex: 0 0 auto; max-width: 45%; font-size: var(--text-caption); color: var(--text-dim); }
+.item-origin-text { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-origin b { color: var(--text); font-weight: 600; }
+.item-origin .ui-link-button { font-size: var(--text-caption); white-space: nowrap; }
+.view-legend { margin-top: var(--space-2); max-width: 68ch; }
+.view-filter .ui-select-button { width: auto; min-width: 10rem; }
+.view-filter-on .ui-select-button { background: var(--surface-alt); border-color: var(--text-dim); color: var(--text); }
+@media (max-width: 720px) { .item-doc { flex-wrap: wrap; } .item-origin { max-width: none; padding-left: 36px; } }
+/* an upload that looks like sūveryn's own output: a card with the person's two choices */
+.chip-noticed { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 420px; padding: 8px 10px;
+                white-space: normal; }
+.chip-noticed-head { display: flex; align-items: center; gap: 6px; width: 100%; }
+.chip-noticed-head .chip-name { flex: 1; }
+.chip-noticed-title { font-weight: 600; font-size: var(--text-caption); }
+.chip-noticed-line { font-size: var(--text-caption); color: var(--text-dim); overflow-wrap: anywhere; }
+.chip-noticed-hint { font-size: var(--text-caption); color: var(--text-dim); }
+.chip-noticed-actions { display: flex; gap: var(--space-3); margin-top: 2px; font-size: var(--text-caption); }
 /* the settings dialog */
 .settings-rows { display: flex; flex-direction: column; gap: var(--space-4); margin-bottom: var(--space-4); }
 .settings-row { display: flex; align-items: center; gap: var(--space-3); }

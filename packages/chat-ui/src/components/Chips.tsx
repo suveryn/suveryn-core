@@ -6,7 +6,7 @@
 import { AlertTriangle, FileText, Loader2, X, XCircle } from "lucide-react";
 import type { Citation } from "../api";
 import { useT } from "../i18n";
-import { Button } from "../ui";
+import { Button, TextButton } from "../ui";
 import { pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
 
@@ -14,12 +14,41 @@ import type { Attachment } from "../types";
  * Attachment chip: a file the user attached to their own message. Outlined (bg fill, line
  * border), deliberately unlike the citation chip.
  */
-export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () => void }) {
+export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
+  a: Attachment; onRemove?: () => void;
+  /** For an upload that looks like sūveryn's own output (docs/design/sidebar.md §6): the person's two choices. */
+  onUseAsSource?: () => void; onDelete?: () => void;
+}) {
   const m = useT();
   const STATUS_LABEL: Record<Attachment["status"], string> = {
     uploading: m.uploading, queued: m.waiting, processing: m.reading, ready: "",
-    needs_review: m.readyCheckNeeded, failed: m.couldntBeRead,
+    needs_review: m.readyCheckNeeded, failed: m.couldntBeRead, noticed: m.originPending,
   };
+  if (a.status === "noticed" && a.noticed) {
+    // Read and stored, but not a source until the person says so; never blocked (cases.md decision 7).
+    return (
+      <span className="chip-attachment chip-noticed" role="group" aria-label={`${a.filename}: ${m.noticedTitle(a.noticed.kind)}`}>
+        <span className="chip-noticed-head">
+          <AlertTriangle size={13} aria-hidden />
+          <span className="chip-name">{a.filename}</span>
+          {onRemove && (
+            <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile(a.filename)}>
+              <X size={12} aria-hidden />
+            </Button>
+          )}
+        </span>
+        <span className="chip-noticed-title">{m.noticedTitle(a.noticed.kind)}</span>
+        <span className="chip-noticed-line" title={a.noticed.line}>{m.noticedFound(a.noticed.line)}</span>
+        <span className="chip-noticed-hint">{m.noticedHint}</span>
+        {(onUseAsSource || onDelete) && (
+          <span className="chip-noticed-actions">
+            {onUseAsSource && <TextButton link onPress={onUseAsSource}>{m.useAsSource}</TextButton>}
+            {onDelete && <TextButton onPress={onDelete}>{m.delete}</TextButton>}
+          </span>
+        )}
+      </span>
+    );
+  }
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages(pageList(a.reviewPages)) : STATUS_LABEL[a.status];
   const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}` : (a.error ?? a.filename);
@@ -30,7 +59,7 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
     <span className="chip-attachment" title={title}>
       {busy ? <Loader2 size={12} className="spin" aria-hidden /> :
         a.status === "failed" ? <XCircle size={12} aria-hidden /> :
-        a.status === "needs_review" ? <AlertTriangle size={12} aria-hidden /> :
+        a.status === "needs_review" || a.status === "noticed" ? <AlertTriangle size={12} aria-hidden /> :
         <FileText size={12} aria-hidden />}
       <span className="chip-name">{a.filename}</span>
       {label && (
