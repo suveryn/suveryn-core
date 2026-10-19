@@ -1,0 +1,21 @@
+{
+  "deed-intake": {
+    "title": "Deed intake",
+    "summary": "Reads the facts for the deed from the documents",
+    "labels": {
+      "sellers": "Seller(s)",
+      "buyers": "Buyer(s)",
+      "property": "Property",
+      "cadastral": "Cadastral data",
+      "price": "Price",
+      "deposit": "Advance or guarantee",
+      "agreement_date": "Agreement signed on",
+      "deed_deadline": "Deed to be signed by",
+      "conditions": "Suspensive conditions",
+      "title": "Title",
+      "epc": "Energy certificate",
+      "soil": "Soil certificate",
+      "occupancy": "Occupancy at delivery"
+    }
+  }
+}

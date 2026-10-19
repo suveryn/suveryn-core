@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Form, Note, PasswordField, TextField } from "../../ui";
 import { checkAdministrator } from "../administrator";
 import { saveAdministrator, type AdministratorAnswer, type SetupState } from "../api";
-import { useText } from "../text";
+import { useText } from "../i18n";
 import { checkThenSave, StepFooter } from "./common";
 
 type Props = {

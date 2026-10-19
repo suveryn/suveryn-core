@@ -66,7 +66,8 @@ def _run_id(run_id: str) -> uuid.UUID:
 
 def _out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
     return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
-                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive)
+                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
+                       text={lang: {"title": w.title, "summary": w.summary, "labels": w.labels} for lang, w in p.text.items()})
 
 
 async def _inactive(request: Request) -> set[str]:
