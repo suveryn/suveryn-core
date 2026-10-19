@@ -23,7 +23,7 @@ from suveryn_engine.audit import audit
 from suveryn_engine.guard import instruction_like
 
 from .calc import CalcRewriter, unverified_figures
-from .grounding import cited_numbers, grounded_messages
+from .grounding import cited_numbers, grounded_messages, without_earlier_markers
 from .support import citation_issues
 
 # Passages to answer a question from, within the given documents of one user or case:
@@ -186,7 +186,9 @@ def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
     each citation against its own passage (``support.citation_issues``).
 
     The streamed text doesn't have the added markers yet; the ``Done`` answer does, and replaces it.
+    A [*] the model copied from an earlier answer is taken out first (``without_earlier_markers``).
     """
+    answer = without_earlier_markers(answer)
     answer = calc.cite_figures(answer, [c.text for c in citations], set(cited_numbers(answer, len(citations))))
     calculations = calc.check_figures(_cited_sources(answer, citations))
     asked = "\n".join(m.content for m in req.messages if m.role == "user")

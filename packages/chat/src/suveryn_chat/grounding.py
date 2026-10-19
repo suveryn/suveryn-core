@@ -75,6 +75,16 @@ CITE_AGAIN = ("(Cite the excerpts above as [1], [2] after every statement in thi
 # answer still reads as a cited one (stripped, the model took the uncited answers for the style to follow).
 # The prompt doesn't name [*]: told about it, Mistral Small 3.2 wrote [*] itself instead of citing.
 EARLIER_MARKER = "[*]"
+# Now and then the model copies it into a new answer (2 of 28 follow-ups on real documents): it points
+# at nothing, so it is taken out. With the space before it where punctuation, a table cell's end or the
+# line's end follows ("rang [*]." becomes "rang."); on its own before another marker ("[*][2]" is "[2]").
+_COPIED_AT_END = re.compile(r"[ \t]*" + re.escape(EARLIER_MARKER) + r"(?=[.,;:!?)]|[ \t]*\||$)", re.MULTILINE)
+_COPIED = re.compile(re.escape(EARLIER_MARKER))
+
+
+def without_earlier_markers(answer: str) -> str:
+    """The answer without [*] markers copied from earlier answers in the history (see EARLIER_MARKER)."""
+    return _COPIED.sub("", _COPIED_AT_END.sub("", answer))
 
 # Tells the model what the excerpts cover, so it can answer general questions about a whole
 # document, and knows that "not found" means "not in the passages selected" when it is a selection.
