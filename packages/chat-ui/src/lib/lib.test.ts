@@ -145,7 +145,7 @@ describe("conversation history", () => {
     ] as Turn[];
     expect(conversationHistory(turns)).toEqual([
       { role: "user", content: "Vraag 1" },
-      { role: "assistant", content: "Antwoord." },
+      { role: "assistant", content: "Antwoord [1]." },  // with its marker: the server makes it [*]
     ]);
   });
 });
