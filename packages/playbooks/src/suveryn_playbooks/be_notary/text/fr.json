@@ -1,0 +1,21 @@
+{
+  "deed-intake": {
+    "title": "Intake de l'acte",
+    "summary": "Lit dans les documents les faits nécessaires à l'acte",
+    "labels": {
+      "sellers": "Vendeur(s)",
+      "buyers": "Acquéreur(s)",
+      "property": "Bien",
+      "cadastral": "Données cadastrales",
+      "price": "Prix",
+      "deposit": "Acompte ou garantie",
+      "agreement_date": "Compromis signé le",
+      "deed_deadline": "Acte à passer pour le",
+      "conditions": "Conditions suspensives",
+      "title": "Titre de propriété",
+      "epc": "Certificat PEB",
+      "soil": "Attestation du sol",
+      "occupancy": "Occupation à la délivrance"
+    }
+  }
+}

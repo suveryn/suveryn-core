@@ -5,7 +5,7 @@ agreement, the earlier title deed, the certificates) and checked by a person at 
 Thirteen facts, no more: every fact is a line the notary has to check.
 """
 
-from .. import Fact, Playbook
+from .. import Fact, Playbook, pack_text
 
 FACTS = (
     Fact("sellers", "the selling party or parties, as named in the agreement (full names as written)"),
@@ -34,21 +34,6 @@ INSTRUCTIONS = (
     "| id | value | source |\n|---|---|---|\n"
 )
 
-LABELS = {
-    "en": {"sellers": "Seller(s)", "buyers": "Buyer(s)", "property": "Property", "cadastral": "Cadastral data",
-           "price": "Price", "deposit": "Advance or guarantee", "agreement_date": "Agreement signed on",
-           "deed_deadline": "Deed to be signed by", "conditions": "Suspensive conditions", "title": "Title",
-           "epc": "Energy certificate", "soil": "Soil certificate", "occupancy": "Occupancy at delivery"},
-    "nl": {"sellers": "Verkoper(s)", "buyers": "Koper(s)", "property": "Goed", "cadastral": "Kadastrale gegevens",
-           "price": "Prijs", "deposit": "Voorschot of waarborg", "agreement_date": "Compromis getekend op",
-           "deed_deadline": "Akte te verlijden tegen", "conditions": "Opschortende voorwaarden", "title": "Eigendomstitel",
-           "epc": "Energieprestatiecertificaat", "soil": "Bodemattest", "occupancy": "Bewoning bij levering"},
-    "fr": {"sellers": "Vendeur(s)", "buyers": "Acquéreur(s)", "property": "Bien", "cadastral": "Données cadastrales",
-           "price": "Prix", "deposit": "Acompte ou garantie", "agreement_date": "Compromis signé le",
-           "deed_deadline": "Acte à passer pour le", "conditions": "Conditions suspensives", "title": "Titre de propriété",
-           "epc": "Certificat PEB", "soil": "Attestation du sol", "occupancy": "Occupation à la délivrance"},
-}
-
 DEED_INTAKE = Playbook(
     id="playbook/be-notary/deed-intake",
     pack="pack/be-notary",
@@ -57,5 +42,5 @@ DEED_INTAKE = Playbook(
     case_types=("sale",),
     facts=FACTS,
     instructions=INSTRUCTIONS + "".join(f"| {f.id} | | |\n" for f in FACTS),
-    languages=LABELS,
+    text=pack_text(__package__, "deed-intake"),
 )

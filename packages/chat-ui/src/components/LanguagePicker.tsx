@@ -4,13 +4,13 @@
  * button that opens a list, as in the web setup.
  */
 import { Languages } from "lucide-react";
-import { LANGS, setLang, TABLES_FOR_TESTS as TABLES, useT, lang, type Lang } from "../i18n";
+import { LANGS, LANGUAGE_NAMES, setLang, useT, lang, type Lang } from "../i18n";
 import { Select } from "../ui";
 
 export function LanguagePicker() {
   const m = useT();
   return (
     <Select label={m.language} icon={<Languages size={14} />} value={lang()} onChange={(l) => setLang(l as Lang)}
-            options={LANGS.map((l) => ({ id: l, label: TABLES[l].languageName, lang: l }))} className="language" />
+            options={LANGS.map((l) => ({ id: l, label: LANGUAGE_NAMES[l], lang: l }))} className="language" />
   );
 }

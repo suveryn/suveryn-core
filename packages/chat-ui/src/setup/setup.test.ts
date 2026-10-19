@@ -4,37 +4,24 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PREVENT_SCROLL_STYLE, reactAriaCsp } from "../../vite.config";
 import { checkAdministrator, isCommonPassword } from "./administrator";
-import { LANGS, pickLang, TEXT } from "./text";
+import { copyProblems, strings } from "../i18n/rules";
+import { LANGS, pickLang, TEXT } from "./i18n";
 
 const en = TEXT.en;
 const ok = { name: "Filip Tack", email: "filip@firm.example", password: "correct horse battery", confirm: "correct horse battery" };
 
-/** Every string in a language's table, functions called with sample values, nested tables walked. */
-function strings(v: unknown, path: string): [string, string][] {
-  if (typeof v === "string") return [[path, v]];
-  if (typeof v === "function") return [[path, String((v as (...a: unknown[]) => unknown)(1, 6, "x"))],
-                                      [`${path}(365)`, String((v as (...a: unknown[]) => unknown)(365, 2, "y"))]];
-  if (Array.isArray(v)) return v.flatMap((x, i) => strings(x, `${path}[${i}]`));
-  return Object.entries(v as object).flatMap(([k, x]) => strings(x, `${path}.${k}`));
-}
 const keysOf = (v: unknown, path = ""): string[] =>
   v && typeof v === "object" && !Array.isArray(v)
     ? Object.entries(v).flatMap(([k, x]) => [`${path}.${k}`, ...keysOf(x, `${path}.${k}`)]) : [];
+/** Defaults that fit the setup's functions (counts, days, names). */
+const SAMPLES_FOR = (fns: string[]) => Object.fromEntries(fns.map((k) => [k, [[1, 6, "x"], [365, 2, "y"]]]));
 
 describe("the web setup's text", () => {
-  it("has every string in every language, none empty", () => {
+  it("has every string in every language, and keeps the copy rules (docs/translations.md)", () => {
+    const fns = Object.entries(en).filter(([, v]) => typeof v === "function").map(([k]) => k);
     for (const l of LANGS) {
       expect(keysOf(TEXT[l]).sort(), l).toEqual(keysOf(en).sort());
-      for (const [k, s] of strings(TEXT[l], l)) expect(s.trim(), k).not.toBe("");
-    }
-  });
-  it("is formal in Dutch and French, lower-case sūveryn mid-sentence, no em dashes", () => {
-    const all = (l: keyof typeof TEXT) => strings(TEXT[l], l).map(([, s]) => s).join("\n");
-    expect(all("nl")).not.toMatch(/\b(je|jij|jouw|jullie)\b/i);
-    expect(all("fr")).not.toMatch(/\b(tu|ton|ta|tes)\b/);
-    for (const l of LANGS) {
-      expect(all(l)).not.toContain("—");
-      expect(all(l)).not.toMatch(/[a-z,] Sūveryn\b(?! Labs)/);
+      expect(copyProblems(l, strings(TEXT[l], SAMPLES_FOR(fns))), l).toEqual([]);
     }
   });
   it("keeps the tagline in English", () => {

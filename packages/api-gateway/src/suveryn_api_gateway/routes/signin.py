@@ -7,11 +7,12 @@ is in ``app.py``.
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
+from suveryn_playbooks import LANGUAGES
 
 from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError, AuthUnavailable
 from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
 
-UI_LANGUAGES = {"en", "nl", "fr"}  # the chat UI's languages, passed on to Keycloak's login page
+UI_LANGUAGES = set(LANGUAGES)  # the interface languages (docs/translations.md), passed on to Keycloak's login page
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ def _cookie(request: Request, response: Response, name: str, value: str, max_age
 
 @router.get("/auth/login", include_in_schema=False)
 async def login(request: Request, return_to: str = "/", lang: str | None = None):
-    """Start signing in: redirect to the Keycloak login page, in the UI's language (``lang``: en, nl or fr)."""
+    """Start signing in: redirect to the Keycloak login page, in the UI's language (``lang``, one of LANGUAGES)."""
     try:
         url, login_cookie = await _auth(request).start_login(return_to)
     except AuthUnavailable as e:

@@ -1,7 +1,7 @@
 /** Setup screen 0: Welcome (design web-00-welcome.html). What setup does, and two things to know first. */
 import { Fingerprint, Lock } from "lucide-react";
 import { Button, Notice } from "../../ui";
-import { useText } from "../text";
+import { useText } from "../i18n";
 
 export function Welcome({ onStart, headingId }: { onStart: () => void; headingId: string }) {
   const t = useText();
