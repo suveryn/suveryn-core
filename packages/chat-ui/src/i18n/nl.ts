@@ -501,6 +501,28 @@ const nl: Messages = {
   playbookNames: { "deed-intake": "Akte-intake" },
   playbookBlurbs: { "deed-intake": "Leest de feiten voor de akte uit de documenten" },
   caseMenu: (reference: string) => `Dossier ${reference}: acties`,
+
+  // origin: source or made by sūveryn (docs/design/sidebar.md §6)
+  exportMark: (kind: "answer" | "playbook", caseRef: string | null, date: string, ref: string) =>
+    `Gemaakt door sūveryn: ${kind === "answer" ? "antwoord" : "playbookresultaat"}${caseRef ? ` uit dossier ${caseRef}` : ""}, ${date} · sūveryn-ref ${ref}`,
+  origin: "Herkomst",
+  originSource: "Bron",
+  originMade: "Gemaakt",
+  originUploaded: "geüpload",
+  originExport: "export",
+  originPlaybook: (version: string | null) => (version ? `playbook v${version}` : "playbook"),
+  originWasOutput: (kind: "answer" | "playbook") => `geüpload, was ${kind === "answer" ? "een antwoord" : "een playbookresultaat"}`,
+  originPending: "Wacht op uw keuze",
+  originFilterAll: "Alle",
+  originFilterSources: "Bronnen",
+  originFilterMade: "Gemaakt",
+  originLegend: "Bron: wat iemand heeft geüpload; sūveryn mag het citeren. Gemaakt: wat sūveryn zelf maakte, zoals een playbookresultaat; nooit een bron.",
+  noticedTitle: (kind: "answer" | "playbook") => `Dit lijkt ${kind === "answer" ? "een antwoord" : "een playbookresultaat"} van sūveryn`,
+  noticedHint: "Het wordt pas een bron als u daarvoor kiest.",
+  noticedFound: (line: string) => `Gevonden in het bestand: ${line}`,
+  useAsSource: "Toch als bron gebruiken",
+  useAsSourceFailed: (why: string) => `Het kon geen bron worden: ${why}`,
+  eventSourceConfirmed: "gebruikte eigen uitvoer van sūveryn toch als bron",
 };
 
 export default nl;

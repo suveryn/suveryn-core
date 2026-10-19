@@ -382,6 +382,52 @@ def test_documents_in_a_case_are_separate_from_the_personal_space(office):
     assert c.delete(f"/v1/documents/{DOC}", headers=alice).status_code == 204
 
 
+def test_suveryns_own_output_coming_back_is_no_source_until_a_contributor_says_so(office):
+    """docs/design/sidebar.md §6: an upload with the export mark is stored, never blocked, and not
+    used as a source until someone who may upload there chooses to; the case's log says so."""
+    c, kc, _, _, docs = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
+    back = str(uuid.uuid4())
+    docs.docs[back] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    docs.noticed[back] = {"ref": "A-3f9c2e1b", "kind": "answer", "line": "Made by sūveryn · sūveryn-ref A-3f9c2e1b"}
+    listed = {d["id"]: d for d in c.get(f"/v1/documents?case={cid}", headers=alice).json()["documents"]}
+    assert listed[back]["source"] is False and listed[back]["provenance"]["noticed"]["ref"] == "A-3f9c2e1b"
+    ask = {"messages": [{"role": "user", "content": "What is the price?"}], "document_ids": [back], "case_id": cid}
+    assert c.post("/v1/chat", json=ask, headers=alice).status_code == 404  # not a source yet
+    assert c.post(f"/v1/documents/{back}/source?case={cid}", headers=bob).status_code == 403  # a reader can't decide
+    assert c.post(f"/v1/documents/{DOC}/source", headers=alice).status_code == 404  # nothing was noticed
+    r = c.post(f"/v1/documents/{back}/source?case={cid}", headers=alice)
+    assert r.status_code == 200 and r.json() == {"id": back, "source": True}
+    assert docs.confirmed[back] == "notaris.test"
+    events = c.get(f"/v1/cases/{cid}/events", headers=alice).json()
+    assert events[0]["action"] == "source_confirmed" and events[0]["detail"]["ref"] == "A-3f9c2e1b"
+    assert c.get(f"/v1/documents?case={cid}", headers=alice).json()["documents"][0]["source"] is True
+
+
+def test_the_uploader_may_delete_their_own_noticed_upload_while_nobody_has_confirmed_it(office):
+    """Deleting from the card is the uploader's right even as a contributor (deleting is otherwise the
+    manager's); once confirmed, or someone else's, it is the manager's right again."""
+    c, kc, _, _, docs = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    mark = {"ref": "A-3f9c2e1b", "kind": "answer", "line": "sūveryn-ref A-3f9c2e1b"}
+    def upload_by(user):
+        did = str(uuid.uuid4())
+        docs.docs[did], docs.noticed[did], docs.uploaders[did] = (Scope.case(uuid.UUID(cid)), "uploaded"), mark, user
+        return did
+    bobs, alices, plain = upload_by(BOB), upload_by(ALICE), str(uuid.uuid4())
+    docs.docs[plain], docs.uploaders[plain] = (Scope.case(uuid.UUID(cid)), "uploaded"), BOB
+    assert c.delete(f"/v1/documents/{alices}?case={cid}", headers=bob).status_code == 403  # not his upload
+    assert c.delete(f"/v1/documents/{plain}?case={cid}", headers=bob).status_code == 403   # nothing noticed: the manager's
+    c.post(f"/v1/documents/{bobs}/source?case={cid}", headers=bob)
+    assert c.delete(f"/v1/documents/{bobs}?case={cid}", headers=bob).status_code == 403    # confirmed: the manager's
+    again = upload_by(BOB)
+    assert c.delete(f"/v1/documents/{again}?case={cid}", headers=bob).status_code == 204
+
+
 def test_a_reader_pins_a_case_in_their_own_sidebar(office):
     """docs/design/sidebar.md: per user, anyone who may read the case, not logged."""
     c, kc, cases, _, _ = office

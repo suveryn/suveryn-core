@@ -501,6 +501,28 @@ const fr: Messages = {
   playbookNames: { "deed-intake": "Intake de l'acte" },
   playbookBlurbs: { "deed-intake": "Lit dans les documents les faits nécessaires à l'acte" },
   caseMenu: (reference: string) => `Dossier ${reference} : actions`,
+
+  // origin: source or made by sūveryn (docs/design/sidebar.md §6)
+  exportMark: (kind: "answer" | "playbook", caseRef: string | null, date: string, ref: string) =>
+    `Créé par sūveryn : ${kind === "answer" ? "réponse" : "résultat de playbook"}${caseRef ? ` du dossier ${caseRef}` : ""}, ${date} · sūveryn-ref ${ref}`,
+  origin: "Origine",
+  originSource: "Source",
+  originMade: "Créé",
+  originUploaded: "importé",
+  originExport: "export",
+  originPlaybook: (version: string | null) => (version ? `playbook v${version}` : "playbook"),
+  originWasOutput: (kind: "answer" | "playbook") => `importé, était ${kind === "answer" ? "une réponse" : "un résultat de playbook"}`,
+  originPending: "En attente de votre choix",
+  originFilterAll: "Toutes",
+  originFilterSources: "Sources",
+  originFilterMade: "Créés",
+  originLegend: "Source : ce que quelqu'un a importé ; sūveryn peut le citer. Créé : ce que sūveryn a produit lui-même, comme un résultat de playbook ; jamais une source.",
+  noticedTitle: (kind: "answer" | "playbook") => `Ceci ressemble à ${kind === "answer" ? "une réponse" : "un résultat de playbook"} de sūveryn`,
+  noticedHint: "Il ne devient une source que si vous le choisissez.",
+  noticedFound: (line: string) => `Trouvé dans le fichier : ${line}`,
+  useAsSource: "L'utiliser quand même comme source",
+  useAsSourceFailed: (why: string) => `Il n'a pas pu devenir une source : ${why}`,
+  eventSourceConfirmed: "a quand même utilisé un résultat de sūveryn comme source",
 };
 
 export default fr;

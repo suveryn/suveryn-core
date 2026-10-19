@@ -26,6 +26,7 @@ from .integrity import (
     words,
 )
 from .isolation import make_extractor
+from .marks import find_mark
 from .store import Scope, Store
 
 
@@ -43,6 +44,7 @@ class IngestResult:
     status: str = "ok"  # "ok" or "needs_review"
     warnings: list[dict] = field(default_factory=list)
     mixed_pages: int = 0  # of the OCR'd pages: digital text plus large images (e.g. a pasted-in scan)
+    noticed: dict | None = None  # sūveryn's own export mark found in the file (marks.py): not a source yet
 
 
 # Uploading the same file again normally returns the stored copy. It is read again when that copy was
@@ -169,21 +171,25 @@ class Rag:
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()
+        noticed = None
         if existing:
             doc_id = self.store.replace_document(existing, name, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
         else:
+            # sūveryn's own export coming back (docs/design/sidebar.md §6): stored, but not a source
+            # until a person says so. The text layer has the footers the chunks may leave out.
+            noticed = find_mark([*ex.page_texts, *(c.text for c in chunks)])
             doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings,
-                                             owner, case_id)
+                                             owner, case_id, provenance={"noticed": noticed} if noticed else None)
         if suspicious:
             audit("instruction_like_document", user=owner, document=str(doc_id), pages=sorted(suspicious),
                   kinds=sorted({k for kinds in suspicious.values() for k in kinds}))
         ex.timings["store"] = time.perf_counter() - t
         status, warnings = self.store.document_status(doc_id)
         return IngestResult(doc_id, name, ex.pages, ex.ocr_pages, len(chunks), False, ex.timings, status, warnings,
-                            ex.mixed_pages)
+                            ex.mixed_pages, noticed)
 
     def store_text(self, filename: str, text: str, owner: str | None, case_id: uuid.UUID | None,
-                   origin: str) -> uuid.UUID:
+                   origin: str, provenance: dict | None = None) -> uuid.UUID:
         """Store text sūveryn produced itself (a playbook's result, docs/design/playbooks.md) as a
         document with its ``origin``: listed and searchable in its scope, deleted with it, but never
         a source for answers (only ``uploaded`` documents are). Split into passages by paragraph,
@@ -200,7 +206,7 @@ class Rag:
             raise ValueError("nothing to store")
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         digest = hashlib.sha256(f"{uuid.uuid4()}:{text}".encode()).hexdigest()  # unique: never de-duplicated
-        return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin)
+        return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin, provenance)
 
     def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None,
                  document_ids: list[uuid.UUID] | None = None) -> list[RetrievedChunk]:
