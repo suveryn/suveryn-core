@@ -664,6 +664,20 @@ here.
   - The question being typed is kept for the browser tab (`lib/draft.ts`, sessionStorage) until it
     is sent, emptied or the person signs out, so it survives signing in again after the server
     restarted. Sessions themselves stay in the gateway's memory (docs/architecture.md).
+- **After the Pod check of 13469bf (20 October).**
+  - A question in a case reads what its conversation attached; with nothing attached, the case's
+    sources, newest first, up to the server's 50 (`lib/questionDocuments.ts`), as its empty state and
+    the line under the question box say. Before, such a question read nothing and answered "not
+    based on your documents" in a case full of them. Attaching is choosing: an attached document
+    keeps the answer to it rather than mixing in passages from similar documents (two deeds in one
+    case). The model's context doesn't grow with the case: the server gives at most about 48,000
+    characters, whole documents when they fit, else the best-matching passages. sūveryn's own
+    output and uploads waiting for a choice are never read. More than 50 sources is an open point.
+  - In a case, its documents are read again every 30 seconds while the page is visible, and when it
+    is shown again: a colleague's upload reaches the header's count and the next question.
+  - Download names lose a trailing dot ("…rol..md" became "…rol.md").
+  - The tagline "AI for work that can't leave the premises" stays English in every language, on the
+    sign-in screens too (Filip, 20 October): a brand line, as on the website. Not a translation gap.
 
 ## Open
 
