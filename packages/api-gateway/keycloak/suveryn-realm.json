@@ -94,6 +94,9 @@
       }
     }
   ],
+  "clientScopeMappings": {
+    "realm-management": [{ "client": "suveryn-directory", "roles": ["view-users", "view-realm"] }]
+  },
   "users": [
     {
       "username": "service-account-suveryn-directory",

@@ -655,6 +655,15 @@ here.
     Excel sheet's last column of sources. A cell that starts with `=`, `+`, `-` or `@` and isn't a
     number gets a leading `'`, so it can't run as a formula when the file is opened. No mark: a CSV
     has nowhere to keep one that survives editing.
+- **After the Pod check of d1f1918 (20 October).**
+  - The Documents and Conversations overviews read their lists again whenever one is opened, as the
+    Cases overview already did: a colleague's upload, shared conversation or saved answer appears
+    without reloading the page.
+  - The *From* column shows a colleague's own initials when the case's member list doesn't name
+    them (not loaded yet, or no longer a member), never the viewer's.
+  - The question being typed is kept for the browser tab (`lib/draft.ts`, sessionStorage) until it
+    is sent, emptied or the person signs out, so it survives signing in again after the server
+    restarted. Sessions themselves stay in the gateway's memory (docs/architecture.md).
 
 ## Open
 
