@@ -7,11 +7,12 @@
  */
 import { AlertCircle, AlertTriangle, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, FolderInput, Square, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Button, IconButton, InlineNotice, MenuButton, TextButton, Toolbar } from "../ui";
+import { Button, IconButton, InlineNotice, MenuButton, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
 import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, stripMarkers, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
 import type { AnswerExport } from "../lib/export";
+import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
 import { verdictOf } from "../lib/sources";
 import { statusText } from "../lib/status";
@@ -338,11 +339,18 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
           <Toolbar label={m.answerActions} className="answer-actions">
             <CopyButton label={m.copy} what={m.answerWithSources}
                         text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />
-            <OfficeButton kind="word" label={m.downloadWord} what={m.downloadWordWhat}
-                          make={async () => {
-                            const { answerToWord } = await import("../lib/office");
-                            return [`${safeFileName(question)}.docx`, await answerToWord(exported(), officeText(m), lang())];
-                          }} />
+            <DownloadFormats kind="answer"
+                             formats={[{ id: "docx", label: m.downloadWord, what: m.downloadWordWhat },
+                                       { id: "md", label: m.markdownFile, what: m.downloadMarkdownWhat }]}
+                             make={async (format) => {
+                               const name = `${safeFileName(question)}.${format}`;
+                               if (format === "md") {
+                                 const { answerToMarkdown } = await import("../lib/textfiles");
+                                 return [name, new Blob([answerToMarkdown(exported(), officeText(m), lang())], { type: "text/markdown;charset=utf-8" })];
+                               }
+                               const { answerToWord } = await import("../lib/office");
+                               return [name, await answerToWord(exported(), officeText(m), lang())];
+                             }} />
             {save && <SaveToCaseActions save={save} />}
           </Toolbar>
         )}
@@ -384,27 +392,41 @@ function AnswerTable({ table, render, done, exported }: {
         </table>
       </div>
       {done && (
-        <OfficeButton kind="excel" label={m.downloadExcel} what={m.downloadExcelWhat}
-                      make={async () => {
-                        const a = exported();
-                        const { tableToExcel } = await import("../lib/office");
-                        return [`${safeFileName(a.question)}.xlsx`, await tableToExcel(table, a, officeText(m))];
-                      }} />
+        <DownloadFormats kind="table"
+                         formats={[{ id: "xlsx", label: m.downloadExcel, what: m.downloadExcelWhat },
+                                   { id: "csv", label: m.csvFile, what: m.downloadCsvWhat }]}
+                         make={async (format) => {
+                           const a = exported(), name = `${safeFileName(a.question)}.${format}`;
+                           if (format === "csv") {
+                             const { tableToCsv } = await import("../lib/textfiles");
+                             return [name, new Blob([tableToCsv(table, officeText(m))], { type: "text/csv;charset=utf-8" })];
+                           }
+                           const { tableToExcel } = await import("../lib/office");
+                           return [name, await tableToExcel(table, a, officeText(m))];
+                         }} />
       )}
     </div>
   );
 }
 
-/** A download made in the browser (Word or Excel); says so if it fails. */
-function OfficeButton({ kind, label, what, make }: {
-  kind: "word" | "excel"; label: string; what: string; make: () => Promise<[string, Blob]>;
+/**
+ * A download made in the browser, as a split button (docs/design/sidebar.md §6, "Other formats"): the
+ * word makes the person's default format; the chevron's menu offers both, and the one chosen becomes
+ * the default (lib/downloadFormat.ts). Says so if the file can't be made.
+ */
+function DownloadFormats({ kind, formats, make }: {
+  kind: FormatKind; formats: { id: string; label: string; what: string }[]; make: (format: string) => Promise<[string, Blob]>;
 }) {
   const m = useT();
+  const preferred = useFormat(kind);
+  const current = formats.find((f) => f.id === preferred) ?? formats[0];
   const [state, setState] = useState<"idle" | "busy" | "failed">("idle");
-  const run = async () => {
+  // Not disabled while busy: a disabled button loses the focus, which would drop to the page.
+  const run = async (format: string) => {
+    if (state === "busy") return;
     setState("busy");
     try {
-      const [name, blob] = await make();
+      const [name, blob] = await make(format);
       const { saveBlob } = await import("../lib/office");
       saveBlob(name, blob);
       setState("idle");
@@ -412,11 +434,15 @@ function OfficeButton({ kind, label, what, make }: {
       setState("failed");
     }
   };
+  const Icon = kind === "table" ? FileSpreadsheet : FileText;
   return (
-    <Button variant="plain" className="copy-button" aria-label={what} title={what} onPress={run} isDisabled={state === "busy"}>
-      {kind === "word" ? <FileText size={13} aria-hidden /> : <FileSpreadsheet size={13} aria-hidden />}
-      <span aria-live="polite">{state === "busy" ? m.preparingDownload : state === "failed" ? m.downloadFailed : label}</span>
-    </Button>
+    <SplitButton className="copy-button" label={current.what} onPress={() => run(current.id)}
+                 moreLabel={m.otherFormats} menuLabel={m.downloadFormat} selected={current.id}
+                 items={formats.map(({ id, label }) => ({ id, label }))}
+                 onAction={(id) => { rememberFormat(kind, id as never); void run(id); }}>
+      <Icon size={13} aria-hidden />
+      <span aria-live="polite">{state === "busy" ? m.preparingDownload : state === "failed" ? m.downloadFailed : current.label}</span>
+    </SplitButton>
   );
 }
 
