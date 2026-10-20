@@ -43,6 +43,7 @@ from suveryn_harness import Citation
 
 from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like
+from .reading import Cancelled, Progress, Unreadable, Watch
 from .store import Scope
 
 log = logging.getLogger("suveryn.rag")
@@ -93,7 +94,7 @@ class Job:
     filename: str
     owner: str
     case_id: uuid.UUID | None = None
-    status: str = "queued"  # receiving | queued | processing | ready | needs_review | failed
+    status: str = "queued"  # receiving | queued | processing | ready | needs_review | failed | cancelled
     document_id: str | None = None
     error: str | None = None
     pages: int | None = None
@@ -102,6 +103,10 @@ class Job:
     created_at: float = field(default_factory=time.time)
     db_retries: int = 0     # how often the database was unreachable while reading it
     noticed: dict | None = None  # the file carries sūveryn's export mark (marks.py): not a source until confirmed
+    progress: Progress | None = None  # how far reading has got (reading.Progress), while processing
+    error_code: str | None = None     # why it failed, for the interface to say in its language (reading.CODES)
+    error_detail: dict = field(default_factory=dict)  # the numbers that message needs (pages, max, minutes)
+    cancel_requested: bool = False    # the person cancelled it while it was read; the worker stops it
 
     finished_at: float | None = None
 
@@ -110,6 +115,7 @@ class Job:
         out = asdict(self)
         out.pop("owner")
         out.pop("db_retries")
+        out.pop("cancel_requested")
         out["case_id"] = str(self.case_id) if self.case_id else None
         return out
 
@@ -178,6 +184,9 @@ class DocumentService:
         (suveryn-core review 2026-10-13: a failed reconnect used to end the worker silently)."""
         while True:
             job, path = self._queue.get()
+            if job.status == "cancelled":  # cancelled while it waited: never read
+                self._discard(path)
+                continue
             try:
                 self._process(job, path)
             except Exception as e:  # noqa: BLE001 - last resort: the worker must outlive any one document
@@ -187,13 +196,17 @@ class DocumentService:
 
     def _process(self, job: Job, path: Path) -> None:
         job.status = "processing"
+        watch = Watch(report=lambda p: setattr(job, "progress", p), cancelled=lambda: job.cancel_requested)
         try:
             staged = self._stage(job, path)
-            r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner, case_id=job.case_id)  # the file on disk has a random name
+            r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner, case_id=job.case_id,  # the file on disk has a random name
+                                    watch=watch)
             # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
             job.document_id, job.status = str(r.document_id), job_status(r.status)
             job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
             job.noticed = r.noticed
+        except Cancelled:
+            job.status = "cancelled"
         except Exception as e:  # noqa: BLE001 - a failed document must not stop the worker
             if _is_connection_error(e) and job.db_retries < MAX_DB_RETRIES:
                 # Not the document's fault: wait for the database, then read it again.
@@ -202,7 +215,11 @@ class DocumentService:
                 job.status = "queued"
                 self._queue.put((job, path))
                 return
-            job.status, job.error = "failed", f"{type(e).__name__}: {str(e)[:200]}"
+            # A reason sūveryn knows is its own sentence; anything else names the exception (for the log).
+            job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else f"{type(e).__name__}: {str(e)[:200]}"
+            job.error_code = e.code if isinstance(e, Unreadable) else "unreadable"
+            job.error_detail = e.detail if isinstance(e, Unreadable) else {}
+        job.progress = None
         job.finished_at = time.time()
         self._discard(path)
 
@@ -306,7 +323,11 @@ class DocumentService:
             with self._jobs_lock:
                 self._jobs.pop(job.id, None)  # release the reservation
             raise
-        job.status = "queued"
+        with self._jobs_lock:
+            if job.status == "cancelled":  # cancelled while it was still arriving
+                path.unlink(missing_ok=True)
+                return job
+            job.status = "queued"
         self._queue.put((job, path))
         return job
 
@@ -321,6 +342,25 @@ class DocumentService:
         with self._jobs_lock:
             job = self._jobs.get(job_id)
             return job if job is not None and job.owner == owner else None
+
+    def cancel(self, job_id: str, owner: str) -> bool | None:
+        """Cancel the owner's upload: one still arriving or waiting is never read; one being read is
+        stopped (the reader with it) before it is stored, but one already being stored finishes and is
+        a document like any other. True if cancelled or asked to stop, False if it has finished (it is a
+        document now: delete that instead), None if unknown or someone else's."""
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.owner != owner:
+                return None
+            if job.status == "cancelled":
+                return True
+            if job.status in ("receiving", "queued"):
+                job.status, job.finished_at = "cancelled", time.time()
+                return True
+            if job.status == "processing":
+                job.cancel_requested = True
+                return True
+            return False
 
     def pending_jobs(self, owner: str, scope: Scope | None = None) -> list[Job]:
         """The owner's jobs not yet in the store: queued, processing, or failed (not one still being

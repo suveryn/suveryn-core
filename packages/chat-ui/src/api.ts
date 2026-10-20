@@ -33,11 +33,16 @@ export type ChatResponse = {
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
 
-export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "failed";
+export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "failed" | "cancelled";
+/** How far reading has got (suveryn_rag.reading.Progress): text recognition page by page, the layout, storing. */
+export type JobProgress = { step: "read" | "ocr" | "layout" | "store"; done: number | null; total: number | null };
 export type Warning = { page: number | null; kind: string; detail: string };
 export type Job = {
   id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
   pages?: number | null;
+  progress?: JobProgress | null;
+  error_code?: string | null;              // why it failed (suveryn_rag.reading.CODES), for the interface to say
+  error_detail?: Record<string, number>;   // the numbers that needs: pages, max, minutes
   noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
 };
 /** sūveryn's export mark found in an upload (docs/design/sidebar.md §6): the line as it stands in the file. */
@@ -216,7 +221,8 @@ export async function listDocuments(caseId?: string | null): Promise<{ documents
  * Uploads a document (PDF, Word, Excel, Markdown or CSV: lib/formats.ts) and resolves with its job. Uses XMLHttpRequest rather than fetch because only
  * XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
  */
-export function uploadDocument(file: File, onProgress?: (fraction: number) => void, caseId?: string | null): Promise<Job> {
+export function uploadDocument(file: File, onProgress?: (fraction: number) => void, caseId?: string | null,
+                               signal?: AbortSignal): Promise<Job> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("file", file, file.name);
@@ -230,6 +236,8 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
       else reject(new Error(httpErrorText(xhr.status, xhr.response?.detail, xhr.getResponseHeader("Retry-After"))));
     };
     xhr.onerror = () => reject(new Error(t().uploadInterrupted));
+    xhr.onabort = () => reject(new DOMException("cancelled", "AbortError"));
+    signal?.addEventListener("abort", () => xhr.abort(), { once: true });
     xhr.send(form);
   });
 }
@@ -238,6 +246,13 @@ export async function getJob(id: string): Promise<Job> {
   const r = await fetch(`/v1/documents/jobs/${encodeURIComponent(id)}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
+}
+
+/** Cancels an upload still waiting or being read (docs/design/sidebar.md §5). One already read is a
+ *  document (409) and one unknown is gone (404): both are fine to ignore here. */
+export async function cancelJob(id: string): Promise<void> {
+  const r = await fetch(`/v1/documents/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!r.ok && r.status !== 404 && r.status !== 409) throw await responseError(r);
 }
 
 /** Deletes a document. Saved conversations citing it lose its passages ("clean") or are deleted too. */
