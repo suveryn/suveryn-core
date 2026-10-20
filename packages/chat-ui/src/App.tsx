@@ -19,25 +19,25 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, Folder, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, FileText, Folder, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
-  deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview,
+  deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
-import { AccessLogDialog, MembersDialog, roleLabel } from "./components/CaseMembers";
+import { AccessLogDialog, CaseFaces, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { AvatarDialog } from "./components/AvatarDialog";
 import { CaseState } from "./components/CaseState";
 import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
-import { AssistantMessage, UserMessage, type SaveToCase } from "./components/Messages";
+import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
 import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { SearchView } from "./components/ListViews";
@@ -161,8 +161,13 @@ function Chat({ me }: { me: Me }) {
   const [avatar, setAvatar] = useState<string | null>(me.avatar ?? null);  // the picture's ETag; null: initials
   const self: Me = { ...me, avatar };
   const [showLog, setShowLog] = useState(false);
-  const [names, setNames] = useState<Map<string, string>>(new Map());  // the open case's members, by id (stage 4)
+  const [caseMembers, setCaseMembers] = useState<Member[]>([]);  // the open case's members (stage 4), for its header
+  const names = useMemo(() => new Map(caseMembers.map((x) => [x.user, x.name || x.username])), [caseMembers]);
+  // The source open in the panel beside the conversation (docs/design/sidebar.md §5): which answer, which source.
+  const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
+  const openCaseId = useRef(caseId);
+  openCaseId.current = caseId;
   // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an
   // office-wide appliance, or null for an administrator who only sees the case exists.
   const role = currentCase?.my_role ?? null;
@@ -500,6 +505,28 @@ function Chat({ me }: { me: Me }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [busy]);
 
+  // The source panel: a citation opens its source there; the same one again closes it. It closes when
+  // the conversation, the place or the view changes, and with Esc when no answer is being written
+  // (while one is, Esc stops it; inside the panel Esc closes the panel: Messages.tsx).
+  const openSource = (turnId: string) => (s: OpenSource) =>
+    setSource((cur) => (cur?.turnId === turnId && cur.n === s.n && cur.occ === s.occ ? null : { ...s, turnId }));
+  useEffect(() => setSource(null), [conversationId, caseId, view]);
+  useEffect(() => {
+    if (!source || busy) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if ((e.target as Element | null)?.closest?.("[role=dialog], [role=menu], [role=listbox], [role=alertdialog]")) return;
+      setSource(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [source, busy]);
+  const sourceTurn = source ? turns.find((t): t is AssistantTurn => t.id === source.turnId && t.role === "assistant") : undefined;
+  const sourcePanel = view === "chat" && source && sourceTurn && sourceTurn.citations[source.n - 1] && (
+    <SourcePanel key={source.turnId} turn={sourceTurn} open={source} filenames={filenames} caseRef={currentCase?.reference ?? null}
+                 onSource={openSource(source.turnId)} onClose={() => setSource(null)} />
+  );
+
   const newChat = () => {
     setView("chat");
     abort.current?.abort();
@@ -519,10 +546,13 @@ function Chat({ me }: { me: Me }) {
     setDocuments([]);
     setJobs([]);
     setConversations([]);
-    setNames(new Map());
+    setCaseMembers([]);
     if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
-    if (c && c.my_role !== null) listMembers(c.id).then((ms) => setNames(new Map(ms.map((x) => [x.user, x.name || x.username])))).catch(() => {});
+    if (c && c.my_role !== null) loadMembers(c.id);
   };
+  // A case's members, unless another case was opened meanwhile.
+  const loadMembers = (id: string) =>
+    listMembers(id).then((ms) => { if (openCaseId.current === id) setCaseMembers(ms); }).catch(() => {});
   // Opening a case or the personal space: a new chat there.
   const openCase = (c: Case | null) => {
     if ((c?.id ?? null) === caseId) { setView("chat"); return; }
@@ -643,7 +673,7 @@ function Chat({ me }: { me: Me }) {
 
   // ---------------------------------------------------------------- view
   return (
-    <div className="app" data-sidebar={collapsed ? "collapsed" : undefined}>
+    <div className="app" data-sidebar={collapsed ? "collapsed" : undefined} data-panel={sourcePanel && !narrow ? true : undefined}>
 {narrow
         ? <Drawer isOpen={drawer} onClose={() => setDrawer(false)} label={m.navigation}>{sidebar(true)}</Drawer>
         : sidebar(false)}
@@ -656,7 +686,7 @@ function Chat({ me }: { me: Me }) {
       <AvatarDialog open={showAvatar} me={self} onClose={() => setShowAvatar(false)} onChanged={setAvatar} />
       {currentCase && (
         <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers}
-                       officeWide={me.office_wide ?? false} onClose={() => setShowMembers(false)}
+                       officeWide={me.office_wide ?? false} onClose={() => { setShowMembers(false); loadMembers(currentCase.id); }}
                        onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); }} />
       )}
       {currentCase && <AccessLogDialog open={showLog} kase={currentCase} onClose={() => setShowLog(false)} />}
@@ -667,7 +697,7 @@ function Chat({ me }: { me: Me }) {
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
 
-      <main className="main" data-start={start || undefined}>
+      <main className="main" data-start={start || undefined} data-case={view === "chat" && currentCase ? true : undefined}>
         {narrow && (
           // Narrow screens (§2, artboard 15): a 56px bar with the menu button and where you are.
           <header className="top-bar">
@@ -711,17 +741,30 @@ function Chat({ me }: { me: Me }) {
         )}
         {view === "chat" && <>
         {currentCase && (
-          // The canvas's header: a breadcrumb (the case, then the conversation) and one menu for the
-          // case's actions, so the line stays quiet (docs/design/sidebar.md).
+          // The case header (docs/design/sidebar.md §5, artboard 02): the case and its type, the
+          // conversation, the members (the manager set apart), its documents and one menu for the case's actions.
           <header className="case-head">
             {closed ? <Lock size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
             <span className="case-ref">{currentCase.reference}</span>
-            <span className="case-name" title={`${currentCase.name} · ${caseTypeLabel(currentCase.type, m)}${role ? ` · ${roleLabel(role, m)}` : ""}`}>{currentCase.name}</span>
+            <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
+            <span className="case-type">{caseTypeLabel(currentCase.type, m)}</span>
             {(current || turns.length > 0) && <>
-              <span className="case-sep" aria-hidden>·</span>
+              <span className="case-sep" aria-hidden>/</span>
               <span className="case-title">{current?.title ?? conversationTitle(turns)}</span>
             </>}
             <span className="case-space" />
+            {caseMembers.length > 0 && (
+              <Button variant="plain" className="case-members" onPress={() => setShowMembers(true)}
+                      aria-label={m.headMembers(caseMembers.map((x) => (x.role === "manager" ? m.asManager(x.name || x.username) : x.name || x.username)).join(", "))}>
+                <CaseFaces members={caseMembers} />
+              </Button>
+            )}
+            {!administers && (
+              <Button variant="plain" className="case-documents" onPress={() => showOverview("documents", currentCase.id)}
+                      aria-label={m.documentsOfCase(currentCase.reference, documents.length)}>
+                <FileText size={14} aria-hidden /> {m.documentCount(documents.length)}
+              </Button>
+            )}
             {caseMenu}
           </header>
         )}
@@ -760,6 +803,7 @@ function Chat({ me }: { me: Me }) {
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
               <AssistantMessage key={t.id} turn={t} filenames={filenames} caseRef={currentCase?.reference ?? null}
+                                source={source?.turnId === t.id ? source : null} onSource={openSource(t.id)}
                                 question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""}
                                 save={saveControls(t, turns[i - 1]?.role === "user" ? turns[i - 1].text : "")} />))
           )}
@@ -780,6 +824,9 @@ function Chat({ me }: { me: Me }) {
         </>}
         </>}
       </main>
+      {sourcePanel && (narrow
+        ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source(source!.n)}>{sourcePanel}</Drawer>
+        : sourcePanel)}
     </div>
   );
 }
