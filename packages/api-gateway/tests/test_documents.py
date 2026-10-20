@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
-from suveryn_engine import Citation, LlamaServerClient, LLMSettings, SourceRef
+from suveryn_harness import Citation, LlamaServerClient, LLMSettings, SourceRef
 from suveryn_rag.store import Scope
 
 DOC = str(uuid.uuid4())

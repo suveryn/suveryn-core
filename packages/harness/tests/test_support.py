@@ -1,8 +1,8 @@
-"""suveryn-tracker#11: each citation is checked against its own passage (suveryn_chat.support)."""
+"""suveryn-tracker#11: each citation is checked against its own passage (suveryn_harness.support)."""
 
 import pytest
-from suveryn_chat.support import citation_issues
-from suveryn_engine import Calculation, Citation, SourceRef
+from suveryn_harness import Calculation, Citation, SourceRef
+from suveryn_harness.support import citation_issues
 
 
 def passage(text: str) -> Citation:

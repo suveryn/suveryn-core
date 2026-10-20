@@ -1,7 +1,7 @@
 """Public request/response shapes for chat completions.
 
 Every answer carries a ``citations`` list. Plain answers have ``citations: []``. Answers to a
-request with ``document_ids`` are grounded in retrieved passages (``suveryn_chat``) and carry
+request with ``document_ids`` are grounded in retrieved passages (``suveryn_harness``) and carry
 those passages as citations with ``source`` filled in (document, page, location).
 
 Review invariant: clients must treat ``source: null`` (and an empty ``citations`` list) as
@@ -86,7 +86,7 @@ class ModelInfo(BaseModel):
 
 
 class Calculation(BaseModel):
-    """A calculation in a grounded answer, computed exactly by the server (``suveryn_chat.calc``).
+    """A calculation in a grounded answer, computed exactly by the server (``suveryn_harness.calc``).
 
     The model only chooses the figures; the result is never the model's own arithmetic.
     ``figures_not_in_sources`` lists figures that don't appear (as whole numbers) in the passages

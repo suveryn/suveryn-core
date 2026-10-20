@@ -43,8 +43,12 @@ URL = os.environ.get("SUVERYN_TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not URL, reason="SUVERYN_TEST_DATABASE_URL not set")
 
 import trap_deed  # noqa: E402
-from suveryn_chat import ChatService  # noqa: E402
-from suveryn_engine import ChatRequest, LlamaServerClient, LLMSettings  # noqa: E402
+from suveryn_harness import (
+    ChatRequest,
+    ChatService,
+    LlamaServerClient,
+    LLMSettings,
+)
 from suveryn_rag.config import RagSettings  # noqa: E402
 from suveryn_rag.integrity import norm  # noqa: E402
 from suveryn_rag.store import Scope

@@ -2,7 +2,7 @@
 
 Every call to the model server goes through ``LlamaServerClient``, so usage is captured here,
 once, for chat answers, summaries and playbook steps alike. The client hands each call's counts
-to a ``UsageRecorder`` (the gateway stores them in PostgreSQL); the engine itself stores nothing.
+to a ``UsageRecorder`` (the gateway stores them in PostgreSQL); the harness itself stores nothing.
 
 Only counts are recorded: who (the Keycloak user id), when, which kind of call, which model, and
 llama-server's own prompt/completion token counts. Never prompt or answer text. The counts are

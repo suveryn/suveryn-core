@@ -22,7 +22,7 @@ from suveryn_api_gateway.conversations import (
     cited_documents,
     redact,
 )
-from suveryn_engine import LlamaServerClient, LLMSettings
+from suveryn_harness import LlamaServerClient, LLMSettings
 from test_auth import SETTINGS, FakeKeycloak
 from test_documents import llm_transport
 
