@@ -370,6 +370,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-actions { margin: var(--space-2) 0 0 -8px; }
 .answer-actions .copy-button { border-color: transparent; color: var(--text-dim); }
 .answer-actions .copy-button:hover, .answer-actions .copy-button[data-focus-visible] { background: var(--surface-alt); color: var(--text); }
+/* A split download button (Word or Markdown, Excel or CSV): the hairline between the two halves stays. */
+.copy-button.ui-split-more { padding-inline: 6px; border-inline-start-color: var(--line); }
 /* Save to case (docs/design/sidebar.md §5): the button, then what was saved with Open and Undo */
 .save-to-case { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .saved-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-caption); color: var(--text); }

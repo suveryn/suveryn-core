@@ -6,6 +6,10 @@
  *   focus returns to the button.
  * - MenuButton: a menu of choices that act at once (the chat's model menu). With `selected`, its items
  *   are single-choice (menuitemradio) and the chosen one is ticked.
+ * - SplitButton: a button that acts at once (download in the default format) with a chevron beside it
+ *   that opens a single-choice menu of the other ways (the formats; docs/design/sidebar.md §6). The two
+ *   are separate buttons in a group, each with its own name, so a screen reader hears "Word (.docx),
+ *   Download this answer…" and then "Other formats, menu".
  * - ActionMenu: a richer menu (the sidebar's account menu, a case's actions; docs/design/sidebar.md):
  *   items with an icon and a meta text, separators, an item that opens a submenu (the language), a
  *   header above the items and fine print under them. The trigger is any content; the button is
@@ -159,6 +163,59 @@ export function MenuButton({ children, menuLabel, items, selected, onAction, pla
         </Menu>
       </Popover>
     </MenuTrigger>
+  );
+}
+
+type SplitButtonProps = {
+  /** The main button's content: what pressing it does ("Word (.docx)"). */
+  children: ReactNode;
+  /** The main button's accessible name and tooltip, when its content doesn't say enough. */
+  label?: string;
+  onPress: () => void;
+  /** Disables the main button only: the menu stays open to keyboard users, and focus returns to it. */
+  isDisabled?: boolean;
+  /** The chevron's accessible name ("Other formats") and the menu's name. */
+  moreLabel: string;
+  menuLabel: string;
+  items: Option[];
+  /** The item the main button does, ticked in the menu. */
+  selected: string;
+  onAction: (id: string) => void;
+  placement?: Placement;
+  /** A class for each of the two buttons (they share the look of the caller's buttons). */
+  className?: string;
+};
+
+export function SplitButton({ children, label, onPress, isDisabled, moreLabel, menuLabel, items, selected, onAction,
+                              placement = "bottom end", className }: SplitButtonProps) {
+  return (
+    <div role="group" className="ui-split-button">
+      <AriaButton className={cx("ui-split-main", className)} aria-label={label} onPress={onPress} isDisabled={isDisabled}
+                  {...(label ? { title: label } : {})}>
+        {children}
+      </AriaButton>
+      <MenuTrigger>
+        <AriaButton className={cx("ui-split-more", className)} aria-label={moreLabel}>
+          <ChevronDown size={12} aria-hidden />
+        </AriaButton>
+        <Popover className="ui-popover" placement={placement} offset={6}>
+          <Menu aria-label={menuLabel} className="ui-menu" selectionMode="single" selectedKeys={[selected]}
+                onAction={(k: Key) => onAction(String(k))}>
+            {items.map((i) => (
+              <MenuItem key={i.id} id={i.id} textValue={i.label} className="ui-menu-item">
+                {({ isSelected }) => (
+                  <>
+                    <Text slot="label" className="ui-menu-item-label">{i.label}</Text>
+                    {i.description && <Text slot="description" className="ui-menu-item-desc">{i.description}</Text>}
+                    {isSelected && <Check size={14} aria-hidden className="ui-menu-item-check" />}
+                  </>
+                )}
+              </MenuItem>
+            ))}
+          </Menu>
+        </Popover>
+      </MenuTrigger>
+    </div>
   );
 }
 
