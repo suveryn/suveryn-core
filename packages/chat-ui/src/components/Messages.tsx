@@ -234,7 +234,7 @@ export type SaveToCase = {
  *  panel shows what that claim rests on; null from the source list: every claim citing it. */
 export type OpenSource = { n: number; occ: number | null };
 
-export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource }: {
+export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource, onRegenerate = null }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
   /** The case the conversation is in (null: personal), named in the export mark. */
   caseRef?: string | null;
@@ -242,6 +242,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
   /** This answer's source open in the panel, if any; ``onSource`` opens one (or closes it, pressed again). */
   source?: OpenSource | null;
   onSource: (s: OpenSource) => void;
+  /** A failed or cut-off answer, the last one: ask the same question again. */
+  onRegenerate?: (() => void) | null;
 }) {
   const m = useT();
   const open = source?.n ?? null;
@@ -275,11 +277,20 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
                         + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</Button>);
 
   if (turn.status === "error") {
+    // A cut-off answer keeps what arrived, unchecked, and says so under its last word (§5, artboard 09);
+    // any other failure shows nothing of the attempt (the gateway's contract).
     return (
       <div className="turn-assistant">
         <AssistantMark />
         <div className="answer">
-          <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.answerFailed(turn.error ?? "")}</InlineNotice>
+          {turn.cutOff && blocks.map((b, i) => (b.kind === "table"
+            ? <AnswerTable key={i} table={b} render={render} done={false} exported={exported} />
+            : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
+          <p className="answer-failed">
+            <AlertCircle size={14} aria-hidden />
+            <span>{turn.cutOff ? m.answerCutOff : m.answerFailed(turn.error ?? "")}</span>
+            {onRegenerate && <Button size="small" onPress={onRegenerate} title={m.regenerateWhat}>{m.regenerate}</Button>}
+          </p>
         </div>
       </div>
     );

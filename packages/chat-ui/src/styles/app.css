@@ -472,7 +472,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .send-button { width: 32px; height: 32px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
                background: var(--accent); color: var(--on-accent); border: none; border-radius: var(--radius-pill); cursor: pointer; }
 .send-button:hover:not(:disabled) { background: var(--accent-hover); }
-.send-button:disabled { opacity: 0.4; cursor: default; }
+.send-button:disabled { background: var(--surface-alt); color: var(--text-dimmer); cursor: not-allowed; }  /* grey, never a faded orange (§5) */
 .composer-hint { padding: 0 var(--space-4); text-align: center; }
 
 .spin { animation: spin 1s linear infinite; }
@@ -569,3 +569,29 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .source-panel-verdict > svg { flex: none; margin-top: 1px; }
 .source-panel-verdict:not([data-ok]) > svg { color: var(--accent-ink); }
 .source-panel-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-5) var(--space-5); }
+
+/* ------------------------------------------------------------------------------------------------ attachment cards (§5, artboard 13) */
+.attachment-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2); }
+.card-attachment { display: flex; flex-direction: column; gap: 6px; width: 220px; padding: 8px 6px 10px 12px; box-sizing: border-box;
+                   border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); }
+.card-attachment[data-state="failed"] { border-color: var(--text-dimmer); }
+.card-attachment[data-state="noticed"] { width: 300px; }
+.card-attachment-top { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.card-attachment-top > svg { flex: none; color: var(--text-dim); }
+.card-attachment-name { flex: 1; min-width: 0; font-size: var(--text-ui-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-attachment .ui-progress { margin-right: 6px; }
+.card-attachment .ui-progress-fill { background: var(--text-dim); }
+.card-attachment-state { display: flex; align-items: flex-start; gap: 6px; padding-right: 6px; font-size: var(--text-caption); line-height: 1.4; color: var(--text-dim); }
+.card-attachment-state > svg { flex: none; margin-top: 1px; color: var(--text); }
+.card-attachment-state[data-tone="warn"] { color: var(--text); }
+.card-attachment-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ------------------------------------------------------------------------------------------------ the server unreachable (§5, artboard 09) */
+.offline-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 10px var(--space-6);
+               background: var(--surface-alt); border-bottom: 1px solid var(--line); color: var(--text); font-size: var(--text-body-sm); }
+.offline-bar > svg { flex: none; }
+.offline-bar-text { flex: 1; min-width: 240px; margin: 0; line-height: 1.5; }
+.offline-bar-text strong { font-weight: 600; }
+.answer-failed { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0 0;
+                 font-size: var(--text-caption); color: var(--text-dim); }
+.answer-failed > svg { flex: none; color: var(--accent-ink); }
