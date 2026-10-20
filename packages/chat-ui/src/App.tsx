@@ -243,6 +243,13 @@ function Chat({ me }: { me: Me }) {
     if (!casesReady || !inOverview) return;
     listCasesOverview().then(setOverviewCases).catch(() => setOverviewCases(null));
   }, [casesReady, inOverview, cases]);
+  // The documents and conversations, read again whenever an overview is opened: a colleague's upload,
+  // shared conversation or saved answer appears without reloading the page (Pod check of d1f1918).
+  useEffect(() => {
+    if (!inOverview) return;
+    if (documentsReady) listAllDocuments().then(setAllDocuments).catch(() => {});
+    if (historyReady && !administers) listAllConversations().then(setAllConversations).catch(() => {});
+  }, [inOverview, view, documentsReady, historyReady, administers]);
 
   // Administrators: the account menu says how many playbooks are on (read again on returning to the chat).
   useEffect(() => {
