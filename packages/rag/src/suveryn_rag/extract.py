@@ -28,6 +28,7 @@ import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
 
 from .config import RagSettings
+from .reading import Progress, Unreadable, Watch
 from .workspace import private_workdir
 
 log = logging.getLogger("suveryn.rag")
@@ -78,7 +79,13 @@ class Extraction:
 
 
 def page_count(pdf: Path) -> int:
-    doc = pdfium.PdfDocument(str(pdf))
+    """The PDF's pages. A file PDFium can't open is ``Unreadable``: protected with a password, or damaged."""
+    try:
+        doc = pdfium.PdfDocument(str(pdf))
+    except pdfium.PdfiumError as e:
+        if "password" in str(e).lower():
+            raise Unreadable("the PDF is protected with a password", "password") from None
+        raise Unreadable("the file is damaged or not a valid PDF", "damaged") from None
     try:
         return len(doc)
     finally:
@@ -213,24 +220,30 @@ class Extractor:
             return self._cpu
         self._cpu_converter = cpu_converter
 
-    def extract(self, pdf: Path, owner: str | None = None) -> Extraction:
+    def extract(self, pdf: Path, owner: str | None = None, watch: Watch | None = None) -> Extraction:
         """Extract one file: a PDF here, a Word, Excel, Markdown or CSV file (by its extension) in
         ``formats``. The original file is only read; every intermediate file lives in a private work
         directory that is deleted before this returns, also on errors. ``owner`` is for
-        ``IsolatedExtractor``'s interface; in-process there is no reader to replace."""
+        ``IsolatedExtractor``'s interface; in-process there is no reader to replace. ``watch`` hears how
+        far it has got (``reading``) and is asked between steps whether to stop."""
         from . import formats
 
+        watch = watch or Watch()
         kind = formats.kind_of(pdf.name)
         if kind not in (None, "pdf"):
+            watch.report(Progress("read"))
             t0 = time.perf_counter()
             reading = formats.read(pdf, kind, self.settings.chunk_max_tokens * 3)
             return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0, passages=reading.passages,
                               furniture=reading.furniture, timings={"read": time.perf_counter() - t0})
         import ocrmypdf
 
+        from . import ocr_progress
+
         pages = page_count(pdf)
         if pages > self.settings.max_pages:  # before OCR: one huge PDF would hold up everyone's documents
-            raise ValueError(f"the document has {pages} pages; at most {self.settings.max_pages} can be read")
+            raise Unreadable(f"the document has {pages} pages; at most {self.settings.max_pages} can be read",
+                             "too_many_pages", pages=pages, max=self.settings.max_pages)
         t0 = time.perf_counter()
         profiles = page_profiles(pdf)
         to_ocr = plan_ocr(profiles)
@@ -238,6 +251,8 @@ class Extractor:
         with private_workdir(self.settings.work_dir) as work:
             source = pdf
             if to_ocr:
+                watch.check()
+                watch.report(Progress("ocr", 0, pages))
                 t = time.perf_counter()
                 source = work / "searchable.pdf"
                 # redo_ocr + pages: OCR the image content of exactly the selected pages, keep their
@@ -250,10 +265,18 @@ class Extractor:
                 # invalidate_digital_signatures lets OCRmyPDF go ahead. Only the private copies are
                 # affected, which are read for their text and deleted; the uploaded original is
                 # never changed, and sūveryn doesn't check signatures.
-                ocrmypdf.ocr(without_form(pdf, work / "flattened.pdf"), source, language=self.settings.ocr_languages.split("+"), jobs=self.settings.ocr_jobs,
-                             pages=",".join(map(str, to_ocr)), redo_ocr=True, output_type="pdf", optimize=0,
-                             progress_bar=False, tesseract_timeout=180, invalidate_digital_signatures=True)
+                # Page by page: ``ocr_progress`` passes OCRmyPDF's page count on to the watch.
+                with ocr_progress.reporting(lambda done, total: watch.report(Progress("ocr", done, total))):
+                    try:
+                        ocrmypdf.ocr(without_form(pdf, work / "flattened.pdf"), source, language=self.settings.ocr_languages.split("+"),
+                                     jobs=self.settings.ocr_jobs, pages=",".join(map(str, to_ocr)), redo_ocr=True, output_type="pdf",
+                                     optimize=0, progress_bar=True, plugins=["suveryn_rag.ocr_progress"], tesseract_timeout=180,
+                                     invalidate_digital_signatures=True)
+                    except ocrmypdf.exceptions.EncryptedPdfError:
+                        raise Unreadable("the PDF is protected with a password", "password") from None
                 timings["ocr"] = time.perf_counter() - t
+            watch.check()
+            watch.report(Progress("layout", None, pages))
             t = time.perf_counter()
             document, device, errors = convert_with_fallback(source, self._converter, self._cpu_converter, self._on_gpu)
             timings["layout"] = time.perf_counter() - t

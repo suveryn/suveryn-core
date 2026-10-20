@@ -34,7 +34,7 @@ class FakeIngest:
     def __init__(self, down: int, failing_reconnects: int):
         self.down, self.store, self.calls = down, FakeStore(failing_reconnects), 0
 
-    def ingest(self, path, filename, owner, case_id=None):
+    def ingest(self, path, filename, owner, case_id=None, watch=None):
         self.calls += 1
         if self.calls <= self.down:
             raise psycopg.OperationalError("server closed the connection unexpectedly")
@@ -160,3 +160,65 @@ def test_other_files_are_refused_and_leave_nothing_behind(tmp_path, name, head, 
     assert e.value.status == 415
     assert not list((tmp_path / "uploads").glob("*")) if (tmp_path / "uploads").exists() else True
     assert not docs.pending_jobs("user-a")
+
+
+# ------------------------------------------------------------------ progress, cancelling, reasons (sidebar.md §5)
+from suveryn_rag.reading import Progress, Unreadable
+
+
+class WatchedIngest:
+    """Reports a page, then waits until it is cancelled (or ``finish`` is set); or fails with ``fails``."""
+
+    def __init__(self, fails: Exception | None = None):
+        self.store, self.fails, self.started, self.finish = FakeStore(0), fails, threading.Event(), threading.Event()
+
+    def ingest(self, path, filename, owner, case_id=None, watch=None):
+        if self.fails:
+            raise self.fails
+        watch.report(Progress("ocr", 1, 4))
+        self.started.set()
+        while not self.finish.is_set():
+            watch.check()
+            time.sleep(0.01)
+        return type("R", (), {"document_id": uuid.uuid4(), "status": "ok", "pages": 4, "ocr_pages": 1, "warnings": [], "noticed": None})()
+
+
+def test_a_job_shows_how_far_reading_has_got_and_can_be_cancelled(tmp_path):
+    ingest = WatchedIngest()
+    docs = running(tmp_path, ingest)
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
+    assert ingest.started.wait(5)
+    assert docs.job(job.id, "user-a").public()["progress"] == {"step": "ocr", "done": 1, "total": 4}
+    assert docs.cancel(job.id, "user-b") is None  # someone else's
+    assert docs.cancel(job.id, "user-a") is True
+    assert wait(lambda: job.status == "cancelled")
+    assert job.progress is None and "cancel_requested" not in job.public()
+    assert job not in docs.pending_jobs("user-a")  # not a failure to show
+    assert not list((tmp_path / "uploads").glob("*"))  # its file is gone
+
+
+def test_a_waiting_upload_cancelled_is_never_read_and_a_finished_one_cant_be(tmp_path):
+    ingest = WatchedIngest()
+    docs = running(tmp_path, ingest)
+    first = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
+    waiting = docs.accept_upload(io.BytesIO(b"%PDF-1.7 b"), "b.pdf", "user-a")
+    assert ingest.started.wait(5)
+    assert docs.cancel(waiting.id, "user-a") is True and waiting.status == "cancelled"
+    ingest.finish.set()
+    assert wait(lambda: first.status == "ready")
+    assert docs.cancel(first.id, "user-a") is False  # a document now: delete it instead
+    time.sleep(0.1)
+    assert waiting.status == "cancelled" and waiting.progress is None  # never read
+
+
+def test_a_failure_carries_its_code_for_the_interface(tmp_path):
+    docs = running(tmp_path, WatchedIngest(fails=Unreadable("the document has 900 pages; at most 500 can be read",
+                                                            "too_many_pages", pages=900, max=500)))
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
+    assert wait(lambda: job.status == "failed")
+    out = job.public()
+    assert (out["error_code"], out["error_detail"]) == ("too_many_pages", {"pages": 900, "max": 500})
+    assert out["error"] == "the document has 900 pages; at most 500 can be read"  # the English sentence stays for the API
+    docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("boom")))
+    other = docs2.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
+    assert wait(lambda: other.status == "failed") and other.error_code == "unreadable"

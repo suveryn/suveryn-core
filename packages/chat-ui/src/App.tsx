@@ -23,7 +23,7 @@ import { AlertCircle, FileText, Folder, FolderPlus, Lock, LogIn, Menu, MessageSq
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
+  cancelJob, deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
@@ -67,7 +67,9 @@ let counter = 0;
 function attachmentFromJob(a: Attachment, j: Job): Attachment {
   const noticed = j.noticed && (j.status === "ready" || j.status === "needs_review") ? j.noticed : undefined;
   return { ...a, status: noticed ? "noticed" : j.status, noticed, documentId: j.document_id ?? undefined,
-           error: j.error ?? undefined, reviewPages: reviewPages(j.warnings), pages: j.pages ?? undefined };
+           error: j.error ?? undefined, reviewPages: reviewPages(j.warnings), pages: j.pages ?? undefined,
+           reading: j.status === "processing" ? j.progress ?? null : null, errorCode: j.error_code ?? undefined,
+           errorDetail: j.error_detail ?? undefined };
 }
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
 const HEALTH_EVERY = 10_000;
@@ -129,6 +131,7 @@ function Chat({ me }: { me: Me }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState<Attachment[]>([]); // attachments for the next message
+  const uploads = useRef(new Map<string, AbortController>());  // uploads still being sent, by card
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState(newConversationId);
@@ -288,7 +291,8 @@ function Chat({ me }: { me: Me }) {
         const j = a.jobId ? updates.get(a.jobId) : undefined;
         return j ? attachmentFromJob(a, j) : a;
       };
-      setPending((p) => p.map(apply));
+      // A job cancelled (here, or in another tab) leaves the composer.
+      setPending((p) => p.map(apply).filter((a) => a.status !== "cancelled"));
       setTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
       if ([...updates.values()].some((j) => !["queued", "processing"].includes(j.status))) refreshDocuments();
     }, 1500);
@@ -322,15 +326,31 @@ function Chat({ me }: { me: Me }) {
   const attachFiles = async (files: File[]) => {
     for (const file of files) {
       const key = nextId();
+      const abort = new AbortController();
+      uploads.current.set(key, abort);
       setPending((p) => [...p, { key, filename: file.name, status: "uploading" }]);
       try {
         const job = await uploadDocument(file, (fraction) =>
-          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId);
+          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId, abort.signal);
         setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob({ ...a, jobId: job.id }, job) : a)));
         refreshDocuments();
       } catch (e) {
+        if ((e as Error).name === "AbortError") continue;  // cancelled while it was sent: its card is gone
         setPending((p) => p.map((a) => (a.key === key ? { ...a, status: "failed", error: (e as Error).message } : a)));
+      } finally {
+        uploads.current.delete(key);
       }
+    }
+  };
+  // The card's × (docs/design/sidebar.md §5): a document still on its way or being read is cancelled
+  // (the upload stopped, or the server's job); one that is read only leaves this question.
+  const removeAttachment = (key: string) => {
+    const a = pending.find((x) => x.key === key);
+    setPending((p) => p.filter((x) => x.key !== key));
+    if (!a) return;
+    if (a.status === "uploading") uploads.current.get(key)?.abort();
+    else if ((a.status === "queued" || a.status === "processing") && a.jobId) {
+      cancelJob(a.jobId).then(refreshDocuments).catch((e: Error) => setProblem(e.message));
     }
   };
 
@@ -845,7 +865,7 @@ function Chat({ me }: { me: Me }) {
                   disabledReason={disabledReason}
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem(m.documentsCantBeAdded))}
-                  onRemoveAttachment={(key) => setPending((p) => p.filter((a) => a.key !== key))}
+                  onRemoveAttachment={removeAttachment}
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
