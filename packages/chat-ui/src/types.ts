@@ -10,6 +10,7 @@ export type Attachment = {
   documentId?: string;
   error?: string;
   progress?: number; // upload progress, 0-1, while status is "uploading"
+  pages?: number;    // once read: its pages (none for Word, Markdown and CSV)
   reviewPages?: number[]; // with status needs_review: pages where text may be missing
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)
@@ -32,6 +33,8 @@ export type AssistantTurn = {
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents
   error?: string;
+  /** The connection dropped mid-answer: the text so far stays, unchecked, with *Regenerate* (§5). */
+  cutOff?: boolean;
   model?: string;
 };
 
@@ -39,3 +42,6 @@ export type Turn = UserTurn | AssistantTurn;
 
 export const isReady = (a: Attachment) => a.status === "ready" || a.status === "needs_review";
 export const isPending = (a: Attachment) => ["uploading", "queued", "processing"].includes(a.status);
+/** Stays in the composer when a question is sent (§5): still being read (it counts for the next
+ *  question once ready), or failed (its card offers another file). */
+export const staysInComposer = (a: Attachment) => isPending(a) || a.status === "failed";

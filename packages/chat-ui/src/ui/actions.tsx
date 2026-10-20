@@ -47,10 +47,12 @@ export function CopyButton({ text, label, copiedLabel, onFail }: { text: string;
   );
 }
 
-/** A determinate progress bar with a visible label (what is happening now). */
-export function Progress({ value, label, valueText }: { value: number; label: string; valueText?: string }) {
+/** A progress bar with a visible label (what is happening now). Without ``value`` it is indeterminate:
+ *  something is happening, how far along isn't known (a document being read). */
+export function Progress({ value, label, valueText }: { value?: number; label: string; valueText?: string }) {
   return (
-    <ProgressBar value={value} minValue={0} maxValue={100} className="ui-progress" aria-label={label} valueLabel={valueText}>
+    <ProgressBar value={value} isIndeterminate={value === undefined} minValue={0} maxValue={100} className="ui-progress"
+                 aria-label={label} valueLabel={valueText}>
       {({ percentage }) => (
         <span className="ui-progress-track">
           {/* A style property set through the DOM, which the CSP allows (docs/content-security-policy.md). */}
