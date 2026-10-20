@@ -464,6 +464,9 @@
 .ui-drawer-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
 .ui-drawer-overlay[data-entering] .ui-drawer { animation: ui-slide 150ms ease-out; }
 @keyframes ui-slide { from { transform: translateX(-100%); } }
+.ui-drawer[data-side="right"] { inset: 0 0 0 auto; width: min(440px, 100vw); background: var(--bg); border-right: 0; border-left: 1px solid var(--line); }
+.ui-drawer-overlay[data-entering] .ui-drawer[data-side="right"] { animation-name: ui-slide-right; }
+@keyframes ui-slide-right { from { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .ui-drawer-overlay[data-entering], .ui-drawer-overlay[data-entering] .ui-drawer { animation: none; } }
 .ui-dialog { padding: var(--space-6); outline: none; }
 .ui-dialog-title { margin: 0 0 var(--space-3); font-size: var(--text-subtitle); }
@@ -575,3 +578,6 @@
 .ui-pin[data-selected] { color: var(--text); }
 .ui-pin[data-selected] svg { fill: currentColor; }
 .ui-pin[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 1px; }
+
+/* a toolbar: quiet buttons in a row (an answer's actions, docs/design/sidebar.md §6) */
+.ui-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
