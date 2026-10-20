@@ -135,6 +135,14 @@
 .ui-menu-item-check { grid-column: 2; grid-row: 1 / span 2; }
 .ui-menu-button { display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; }
 .ui-menu-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+/* A split button: the action and its chevron as one shape, joined by a hairline. */
+.ui-split-button { display: inline-flex; align-items: stretch; }
+.ui-split-main, .ui-split-more { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.ui-split-button > .ui-split-main { border-start-end-radius: 0; border-end-end-radius: 0; }
+.ui-split-button > .ui-split-more { border-start-start-radius: 0; border-end-start-radius: 0; margin-inline-start: -1px;
+                                    padding-inline: 6px; border-inline-start: 1px solid var(--line); }
+.ui-split-main[data-focus-visible], .ui-split-more[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; position: relative; z-index: 1; }
+.ui-split-main[data-disabled], .ui-split-more[data-disabled] { cursor: default; opacity: 0.6; }
 
 /* the rich menu (ActionMenu): icon, label, meta in one row; a header and fine print around the items */
 .ui-menu-trigger { font-family: inherit; cursor: pointer; }  /* the size is the caller's class */

@@ -21,7 +21,7 @@ export { FileButton, FileDrop, FilePick, readText, useFilePicker } from "./files
 export { Form, FormError, useFieldError, useFormPending, type FieldErrors } from "./forms";
 export { Card, Chips, Facts, InlineNotice, Note, Notice, Rows, StatusList, Steps, type Fact, type Row, type Status, type StatusItem } from "./layout";
 export { ComboBoxField, SearchField, SelectList, type ListEntry } from "./lists";
-export { ActionMenu, MenuButton, Select, SelectField, type MenuEntry, type Option } from "./menus";
+export { ActionMenu, MenuButton, Select, SelectField, SplitButton, type MenuEntry, type Option } from "./menus";
 export { Slider } from "./slider";
 export { DataTable, FilterSelect, FilterToggle, Pager, PinToggle, type SortDescriptor, type TableColumn } from "./table";
 export { QrCode } from "./QrCode";
