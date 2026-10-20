@@ -16,7 +16,7 @@ import { ACCEPTED_FILES } from "../lib/formats";
 import { playbookWords } from "../lib/playbooks";
 import { modelName } from "../lib/model";
 import { ActionMenu, Button, FileButton, IconButton, TextArea, useFilePicker, type MenuEntry } from "../ui";
-import { AttachmentChip } from "./Chips";
+import { AttachmentCard } from "./Chips";
 import { defaultModel, loadingNote, ModelPicker } from "./ModelPicker";
 
 type Props = {
@@ -60,7 +60,8 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
   const wrap = useRef<HTMLDivElement>(null);
   const picker = useFilePicker(ACCEPTED_FILES, true, onAttach);
   const waiting = attachments.some(isPending);
-  const reason = disabledReason ?? (waiting ? m.waitingForDocuments : null);
+  // A document still being read doesn't hold the question back: it counts for the next one once ready (§5).
+  const reason = disabledReason;
   const note = loadingNote(models, chosenModel);
   const canSend = !reason && !busy && text.trim().length > 0;
   const attachLabel = caseReference ? m.attachToCase(caseReference) : m.attachDocument;
@@ -117,18 +118,22 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
     else workInCase?.onChoose(workInCase.cases.find((c) => `case:${c.id}` === id)!);
   };
 
+  // The cards sit inside the question box; on a narrow screen, where the box is one pill, above it.
+  const cards = attachments.length > 0 && (
+      <ul className="attachment-cards" aria-label={m.attachedDocuments}>
+        {attachments.map((a) => <AttachmentCard key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)}
+                                                onUseAsSource={onUseAsSource && (() => onUseAsSource(a.key))}
+                                                onDelete={onDeleteAttachment && (() => onDeleteAttachment(a.key))}
+                                                onReplace={(files) => { onRemoveAttachment(a.key); onAttach(files); }} />)}
+      </ul>
+  );
   return (
     <div className="composer-wrap" ref={wrap}>
-      {attachments.length > 0 && (
-        <div className="attachments pending">
-          {attachments.map((a) => <AttachmentChip key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)}
-                                                  onUseAsSource={onUseAsSource && (() => onUseAsSource(a.key))}
-                                                  onDelete={onDeleteAttachment && (() => onDeleteAttachment(a.key))} />)}
-        </div>
-      )}
+      {compact && cards}
       {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). On a
           narrow screen one pill: the question, "+" and send. */}
       <div className="composer" data-compact={compact || undefined}>
+        {!compact && cards}
         <TextArea label={caseReference ? m.questionInCase(caseReference) : m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
                   placeholder={busy ? m.keepTyping : placeholder ?? (caseReference ? m.askInCase(caseReference) : m.askPlaceholder)} className="composer-field" />
         <div className="composer-tools">
@@ -172,7 +177,7 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
       </div>
       <p className="composer-hint caption" role="status">
         {/* Where answers come from (§5): only this case's documents, or a personal chat only you see. */}
-        {reason ?? note ?? (hint ? <><Lock size={12} aria-hidden /> {hint}</>
+        {reason ?? note ?? (waiting ? m.readingCountsLater : null) ?? (hint ? <><Lock size={12} aria-hidden /> {hint}</>
           : caseReference ? m.caseOnlyDocuments(caseReference) : <><Lock size={12} aria-hidden /> {m.personalHint}</>)}
       </p>
     </div>

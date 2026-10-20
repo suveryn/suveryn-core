@@ -37,6 +37,7 @@ export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "fa
 export type Warning = { page: number | null; kind: string; detail: string };
 export type Job = {
   id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
+  pages?: number | null;
   noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
 };
 /** sūveryn's export mark found in an upload (docs/design/sidebar.md §6): the line as it stands in the file. */
