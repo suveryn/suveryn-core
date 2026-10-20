@@ -254,6 +254,9 @@ class DocumentService:
         self._check_inbox()
         staged = self._inbox / path.name
         with open(os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640), "wb") as out, open(path, "rb") as src:
+            # Set, not left to the umask: under umask 077 the reader's group couldn't read it, and every
+            # upload failed as "damaged" (Pod check of d1f1918, the test runner started from a shell).
+            os.fchmod(out.fileno(), 0o640)
             shutil.copyfileobj(src, out)
         return staged
 
