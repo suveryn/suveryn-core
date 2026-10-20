@@ -331,8 +331,9 @@ source per row; amounts become numbers, and anything ambiguous stays text.
 - Every format has the same content. CSV is UTF-8 with semicolons (as Belgian Excel expects) and the
   source as a column.
 - The last format chosen becomes the person's default.
-- New code: `toMarkdown` and `tableToCsv` next to `lib/office.ts`, built on `segmentText`,
-  `tableRows` and `checkLines` in `lib/export.ts`.
+- The code: `answerToMarkdown` and `tableToCsv` in `lib/textfiles.ts`, next to `lib/office.ts` and
+  built on the same `AnswerExport` and `tableRows`; the default in `lib/downloadFormat.ts`; the
+  kit's `SplitButton`.
 
 **Save to case** stores the Word file as a case document with origin `answer`, next to `upload` and
 `playbook`.
@@ -634,6 +635,26 @@ here.
     `no_text`, `unsupported`, `timeout`, `unreadable`) and its numbers, which the card says in the
     interface's language (`failureText`, tested). The English sentence stays in `error` for the API
     and the log; without a code (an unexpected error) the card says to try again or another file.
+- **Other formats (20 October, phase e part 1).**
+  - The split button is two buttons in a group: the word, named for what it does ("Download this
+    answer as a Word document, with its sources"), and the chevron, "Other formats", which opens a
+    single-choice menu with the default ticked. Choosing a format downloads it at once and makes it
+    the default. In the answer toolbar the arrow keys reach both halves.
+  - The default is per kind (answers, tables), kept in this browser (`suveryn.format.answer`,
+    `suveryn.format.table`); without storage it holds for the page. Every button on the page follows
+    a change at once.
+  - While a file is made the buttons stay enabled and a second press is ignored: a disabled button
+    loses the focus, which then dropped to the page after choosing from the menu.
+  - Markdown: the question as the heading, the date and model, the answer with its [n] markers
+    (tables as Markdown tables, lists as lists), *To check*, each cited source with its passage as a
+    quote, the disclaimer, and the export mark as an HTML comment, which the upload check reads as
+    furniture (checked with `suveryn_rag.formats.read_markdown` and `marks.find_mark`). What the
+    model wrote is escaped, so it can't add headings, links or HTML. `--` in a mark can't close the
+    comment early.
+  - CSV: UTF-8 with a byte order mark, semicolons and CRLF, as Belgian Excel opens it, with the
+    Excel sheet's last column of sources. A cell that starts with `=`, `+`, `-` or `@` and isn't a
+    number gets a leading `'`, so it can't run as a formula when the file is opened. No mark: a CSV
+    has nowhere to keep one that survives editing.
 
 ## Open
 
