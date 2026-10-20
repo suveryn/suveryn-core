@@ -9,7 +9,7 @@
 import "./csp";
 import "./ui.css";
 
-export { CopyButton, LinkButton, Progress } from "./actions";
+export { CopyButton, LinkButton, Progress, Toolbar } from "./actions";
 export { Avatar, avatarUrl, IconBadge, initialsOf, type AvatarSize } from "./avatar";
 export { Button, cx, IconButton, TextButton, type ButtonProps } from "./Button";
 export { Checkbox, RadioCards, RadioList, Segmented, Switch, type Choice } from "./choices";
