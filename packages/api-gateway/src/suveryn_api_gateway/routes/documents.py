@@ -55,11 +55,32 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
 
 @router.get("/v1/documents/jobs/{job_id}")
 async def document_job(job_id: str, request: Request):
-    """State of one of the caller's uploads: queued, processing, ready, needs_review or failed."""
+    """State of one of the caller's uploads: queued, processing, ready, needs_review, failed or cancelled;
+    while processing, how far reading has got (``progress``: step, pages done, pages); when failed, why
+    (``error``, in English, and ``error_code`` with ``error_detail`` for the interface to say in its language)."""
     job = docs_or_503(request).job(job_id, owner_of(request))
     if job is None:
         raise HTTPException(404, "Unknown job.")
     return job.public()
+
+
+@router.delete("/v1/documents/jobs/{job_id}", status_code=204, responses={
+    404: {"description": "Unknown job"}, 409: {"description": "Already read: it is a document, delete that instead"}})
+async def cancel_job(job_id: str, request: Request):
+    """Cancel one of the caller's uploads (docs/design/sidebar.md §5, the attachment card's ×): one still
+    waiting is never read; one being read is stopped, its reader with it, before it is stored. One
+    already being stored finishes. Noted in the case's access log."""
+    docs, owner = docs_or_503(request), owner_of(request)
+    job = docs.job(job_id, owner)
+    if job is None:
+        raise HTTPException(404, "Unknown job.")
+    done = await run_in_threadpool(docs.cancel, job_id, owner)
+    if done is None:
+        raise HTTPException(404, "Unknown job.")
+    if done is False:
+        raise HTTPException(409, "This upload has been read: it is a document now.")
+    await log_access(request, job.case_id, "upload_cancelled", {"job": job_id})
+    return Response(status_code=204)
 
 
 @router.get("/v1/documents/all")
