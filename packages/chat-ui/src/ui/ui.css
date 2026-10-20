@@ -348,7 +348,9 @@
 /* progress */
 .ui-progress-track { display: block; height: 4px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
 .ui-progress-fill { display: block; height: 100%; background: var(--accent); transition: width 300ms ease; }
-@media (prefers-reduced-motion: reduce) { .ui-progress-fill { transition: none; } }
+.ui-progress[data-indeterminate] .ui-progress-fill { width: 30% !important; animation: ui-progress-slide 1.4s ease-in-out infinite; }
+@keyframes ui-progress-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .ui-progress-fill { transition: none; } .ui-progress[data-indeterminate] .ui-progress-fill { animation: none; width: 100% !important; opacity: 0.35; } }
 
 /* QR code: always dark on white, whatever the theme (phone cameras) */
 .ui-qr { display: block; border-radius: var(--radius-sm); }

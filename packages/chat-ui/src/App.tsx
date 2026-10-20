@@ -33,6 +33,7 @@ import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
 import { AccessLogDialog, CaseFaces, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { AvatarDialog } from "./components/AvatarDialog";
+import { OfflineBar } from "./components/OfflineBar";
 import { CaseState } from "./components/CaseState";
 import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
@@ -53,7 +54,7 @@ import { originKind } from "./lib/origin";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
-import { isPending, isReady, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
+import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -66,9 +67,10 @@ let counter = 0;
 function attachmentFromJob(a: Attachment, j: Job): Attachment {
   const noticed = j.noticed && (j.status === "ready" || j.status === "needs_review") ? j.noticed : undefined;
   return { ...a, status: noticed ? "noticed" : j.status, noticed, documentId: j.document_id ?? undefined,
-           error: j.error ?? undefined, reviewPages: reviewPages(j.warnings) };
+           error: j.error ?? undefined, reviewPages: reviewPages(j.warnings), pages: j.pages ?? undefined };
 }
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
+const HEALTH_EVERY = 10_000;
 
 /**
  * Sign-in gate. Signed out on arrival (first visit, after signing out): straight to Keycloak's
@@ -197,17 +199,25 @@ function Chat({ me }: { me: Me }) {
     } catch { /* document handling unavailable; the health check explains why */ }
   }, [caseId]);
 
+  // The server's health, every HEALTH_EVERY ms; *Try now* (the server-unreachable bar) checks at once.
+  // ``reachable`` is false only after a check found nothing: not while the first one runs.
+  const [checks, setChecks] = useState(0);
+  const [reachable, setReachable] = useState(true);
+  const [nextCheck, setNextCheck] = useState(0);
+  const checkNow = () => setChecks((c) => c + 1);
   useEffect(() => {
     let alive = true;
-    const tick = async () => {
+    (async () => {
       const h = await getHealth();
-      if (alive) setHealth(h);
+      if (!alive) return;
+      setHealth(h);
+      setReachable(h !== null);
       try { const m = await listModels(); if (alive) setModels(m); } catch { /* the health check explains why */ }
-    };
-    tick();
-    const t = setInterval(tick, 10000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+    })();
+    setNextCheck(Date.now() + HEALTH_EVERY);
+    const t = setTimeout(checkNow, HEALTH_EVERY);
+    return () => { alive = false; clearTimeout(t); };
+  }, [checks]);
 
   useEffect(() => { if (documentsReady && !administers) refreshDocuments(); }, [documentsReady, refreshDocuments, administers]);
 
@@ -300,6 +310,7 @@ function Chat({ me }: { me: Me }) {
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
 
   const disabledReason =
+    !reachable ? m.offlineSend :
     health === null ? m.serverUnreachable :
     health.backend.status === "loading" ? m.modelStarting :
     health.status !== "ok" ? m.modelUnavailable :
@@ -326,7 +337,7 @@ function Chat({ me }: { me: Me }) {
   const addDocument = (d: StoredDocument) => {
     if (pending.some((a) => a.documentId === d.id)) return;
     setPending((p) => [...p, { key: nextId(), filename: d.filename, status: d.status === "needs_review" ? "needs_review" : "ready",
-                               documentId: d.id, reviewPages: reviewPages(d.warnings) }]);
+                               documentId: d.id, reviewPages: reviewPages(d.warnings), pages: d.pages || undefined }]);
   };
 
   // An upload that looks like sūveryn's own output (docs/design/sidebar.md §6): the person decides.
@@ -349,15 +360,18 @@ function Chat({ me }: { me: Me }) {
     } catch (e) { setProblem(m.deleteDocumentFailed(a.filename, (e as Error).message)); }
   };
 
-  const send = async (text: string) => {
-    const attachments = pending.filter((a) => !isPending(a));
+  // ``again``: Regenerate asks the last question once more, with the documents it had.
+  const send = async (text: string, again?: Attachment[]) => {
+    // What is read goes with the question; a document still being read, or one that failed, stays in
+    // the composer: the first counts for the next question once it is ready (§5).
+    const attachments = again ?? pending.filter((a) => !staysInComposer(a));
     const user: UserTurn = { id: nextId(), role: "user", text, attachments };
     const docIds = new Set(conversationDocs);
     for (const a of attachments) if (isReady(a) && a.documentId) docIds.add(a.documentId);
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0 };
     const history: WireMessage[] = conversationHistory(turns);
 
-    setPending([]);
+    if (!again) setPending((p) => p.filter(staysInComposer));
     setTurns((ts) => [...ts, user, reply]);
     setBusy(true);
     setProblem(null);
@@ -381,15 +395,31 @@ function Chat({ me }: { me: Me }) {
         // Stopped (docs/design/sidebar.md §5): what was written stays, with the passages its markers
         // point to, marked unchecked; the server has stopped the model.
         update({ text: streamed, citations: sources, status: "stopped", step: undefined });
+      } else if (streamed && (e instanceof TypeError || (e as Error).message === m.streamCutOff)) {
+        // The connection dropped mid-answer (§5, artboard 09): what arrived stays, unchecked, with
+        // *Regenerate*; the server is checked at once, so the bar says whether it can be reached.
+        update({ text: streamed, citations: sources, status: "error", cutOff: true, error: m.answerCutOff, step: undefined });
+        checkNow();
       } else {
         // Gateway contract: after an error, discard any partial answer.
         update({ text: "", status: "error", error: (e as Error).message });
+        if (e instanceof TypeError) checkNow();
       }
     } finally {
       setBusy(false);
       abort.current = null;
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
+  };
+
+  // Regenerate: the last question again, with the documents it had, in place of its failed answer.
+  const last = turns[turns.length - 1];
+  const canRegenerate = !busy && !disabledReason && last?.role === "assistant" && last.status === "error"
+    && turns[turns.length - 2]?.role === "user";
+  const regenerate = () => {
+    const question = turns[turns.length - 2] as UserTurn;
+    setTurns((ts) => ts.slice(0, -2));
+    send(question.text, question.attachments);
   };
 
   // The start screen: no case, nothing asked yet. First use: no conversations and no cases yet.
@@ -709,6 +739,7 @@ function Chat({ me }: { me: Me }) {
             {view === "chat" && caseMenu}
           </header>
         )}
+        {!reachable && <OfflineBar nextCheck={nextCheck} onTryNow={checkNow} />}
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}
@@ -804,6 +835,7 @@ function Chat({ me }: { me: Me }) {
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
               <AssistantMessage key={t.id} turn={t} filenames={filenames} caseRef={currentCase?.reference ?? null}
                                 source={source?.turnId === t.id ? source : null} onSource={openSource(t.id)}
+                                onRegenerate={canRegenerate && t.id === last?.id ? regenerate : null}
                                 question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""}
                                 save={saveControls(t, turns[i - 1]?.role === "user" ? turns[i - 1].text : "")} />))
           )}
