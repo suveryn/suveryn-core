@@ -40,6 +40,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 
 /* sidebar (docs/design/sidebar.md): one column, 272px, or a 60px rail when collapsed */
 .app[data-sidebar="collapsed"] { grid-template-columns: 60px minmax(0, 1fr); }
+/* the source panel beside the conversation (docs/design/sidebar.md §5) */
+.app[data-panel] { grid-template-columns: 272px minmax(0, 1fr) 440px; }
+.app[data-panel][data-sidebar="collapsed"] { grid-template-columns: 60px minmax(0, 1fr) 440px; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--line); padding: var(--space-3) var(--space-3) var(--space-3);
            display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow-y: auto; }
 .lockup { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-1); }
@@ -122,10 +125,26 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 
 .case-head { display: flex; align-items: center; gap: var(--space-2); height: 52px; padding: 0 var(--space-4) 0 var(--space-6); box-sizing: border-box;
              border-bottom: 1px solid var(--line); font-size: var(--text-ui-sm); color: var(--text-dim); min-width: 0; }
-.case-head .case-ref { font-weight: 600; color: var(--text); white-space: nowrap; }
+.case-head .case-ref { font-family: var(--font-display); font-weight: 600; color: var(--text); white-space: nowrap; }
 .case-head .case-name { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
 .case-head .case-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
 .case-head .case-space { flex: 1; }
+.case-head .case-name { color: var(--text); }
+.case-head .case-type { flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--line);
+                        border-radius: var(--radius-pill); font-size: var(--text-caption); color: var(--text-dim); white-space: nowrap; }
+.case-head .case-sep { color: var(--text-dimmer); }
+.case-head .case-title { color: var(--text-dim); }
+.case-members, .case-documents { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0;
+                                 border-radius: var(--radius-sm); background: transparent; color: var(--text-dim); font: inherit;
+                                 font-size: var(--text-ui-sm); white-space: nowrap; cursor: pointer; }
+.case-members[data-hovered], .case-documents[data-hovered] { background: var(--surface-alt); color: var(--text); }
+.case-members[data-focus-visible], .case-documents[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 1px; }
+.case-faces { display: inline-flex; align-items: center; gap: 10px; }
+.case-faces-stack { display: inline-flex; gap: 4px; }
+.case-faces-more { font-size: var(--text-caption); color: var(--text-dim); align-self: center; }
+/* a conversation in a case: the pane and its header on case-surface; the question bubbles white (§5, artboard 02) */
+.main[data-case] { background: var(--case-surface); }
+.main[data-case] .bubble { background: var(--bg); border: 1px solid var(--line); }
 .case-menu { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm);
              background: transparent; color: var(--text-dim); }
 .case-menu[data-hovered], .case-menu[aria-expanded="true"] { background: var(--surface-alt); color: var(--text); }
@@ -311,12 +330,15 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                padding: 0 4px; margin: 0 1px; vertical-align: 2px; font-size: var(--text-label); font-weight: 600; line-height: 1;
                color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
                border-radius: var(--radius-pill); cursor: pointer; }
-.cite-marker:hover, .cite-marker.active { background: oklch(from var(--teal) l c h / 0.22); }
+.cite-marker:hover { background: oklch(from var(--teal) l c h / 0.22); }
+/* the marker whose source is open: filled teal, ink text, never white (§5) */
+.cite-marker.active { background: var(--teal); border-color: var(--teal); color: var(--ink); }
 .sources { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
 .chip-citation { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); font-weight: 600;
                  color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
                  border-radius: var(--radius-pill); padding: 5px 11px; cursor: pointer; }
-.chip-citation:hover, .chip-citation.active { background: oklch(from var(--teal) l c h / 0.22); }
+.chip-citation:hover { background: oklch(from var(--teal) l c h / 0.22); }
+.chip-citation.active { background: var(--teal); border-color: var(--teal); color: var(--ink); }
 .cite-num { font-variant-numeric: tabular-nums; }
 .source-card { margin: var(--space-3) 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--line);
                border-radius: var(--radius-md); }
@@ -328,6 +350,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .copy-button { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--line);
                border-radius: var(--radius-pill); padding: 4px 10px; font-size: var(--text-caption); color: var(--text); cursor: pointer; }
 .copy-button:hover { background: var(--surface-alt); }
+.copy-button.ui-menu-button { font-size: var(--text-caption); }  /* the kit's menu button resets the font */
 .source-text { margin: 0 0 var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line);
                font-size: var(--text-body-sm); white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 /* Facts of the citing sentence, marked in the passage (teal wash, like citations), which scrolls to the first. */
@@ -343,7 +366,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
-.answer-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+/* An answer's actions (§6): a quiet toolbar, its buttons borderless until hovered. */
+.answer-actions { margin: var(--space-2) 0 0 -8px; }
+.answer-actions .copy-button { border-color: transparent; color: var(--text-dim); }
+.answer-actions .copy-button:hover, .answer-actions .copy-button[data-focus-visible] { background: var(--surface-alt); color: var(--text); }
 /* Save to case (docs/design/sidebar.md §5): the button, then what was saved with Open and Undo */
 .save-to-case { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .saved-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-caption); color: var(--text); }
@@ -523,3 +549,23 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .overview-legend { display: inline-flex; gap: var(--space-4); flex-wrap: wrap; }
 .overview-legend > span { display: inline-flex; align-items: center; gap: 4px; }
 .overview-legend b { color: var(--text); }
+
+/* ------------------------------------------------------------------------------------------------ the source panel (§5, artboard 11) */
+.source-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--bg); border-left: 1px solid var(--line); outline: none; }
+.source-panel:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.source-panel-head { display: flex; align-items: center; gap: var(--space-2); min-height: 56px; padding: 8px 12px 8px 20px; box-sizing: border-box;
+                     border-bottom: 1px solid var(--line); }
+.source-panel-num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box;
+                    border-radius: var(--radius-pill); background: var(--teal); color: var(--ink); font-size: var(--text-caption); font-weight: 600; }
+.source-panel-title { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.source-panel-file { font-size: var(--text-ui); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-panel-where, .source-panel-count { font-size: var(--text-caption); color: var(--text-dim); white-space: nowrap; }
+.source-panel-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); }
+/* the passage dimmed, what the claim rests on in ink on a teal wash */
+.source-panel-text { position: relative; margin: 0; font-size: var(--text-body-sm); line-height: 1.7; white-space: pre-wrap; color: var(--text-dim); }
+.source-panel-text mark { color: var(--text); }
+.source-panel-verdict { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; padding: 10px 12px; border-radius: var(--radius-sm);
+                        background: var(--surface-alt); font-size: var(--text-caption); line-height: 1.5; color: var(--text); }
+.source-panel-verdict > svg { flex: none; margin-top: 1px; }
+.source-panel-verdict:not([data-ok]) > svg { color: var(--accent-ink); }
+.source-panel-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-5) var(--space-5); }

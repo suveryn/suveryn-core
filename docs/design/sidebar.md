@@ -573,6 +573,30 @@ here.
   - The last-activity and added columns are truncated at 200 px with the full text as a tooltip, and
     a status wraps, so the row menu stays visible at 1440 px with the column open. On a phone the
     table scrolls inside its box.
+- **The conversation pane, part 1: the case, the composer and the source panel (20 October).** Section 5
+  is built in two parts: this one, then the attachment cards and the server-unreachable states.
+  - The case header (artboard 02): the case and its type, the conversation, the members (the manager
+    first, with the folder badge; the button opens *Members*), the document count (opens Documents
+    filtered on the case) and the case's menu. The case's members are read when it opens and again
+    after the *Members* dialog closes.
+  - In a case the pane is `case-surface`; the question bubbles are white with a line, as drawn.
+  - The composer drops its case chip: the header, the placeholder ("Ask about case 123…") and the line
+    under the box name the case. A personal chat's line is "Personal conversation · only you see
+    this" (the first-use hint, now always), instead of "Documents and answers stay on this server".
+  - The source panel (artboard 11) replaces the card under the answer. It is not modal: the
+    conversation stays usable. The focus moves into it when a citation opens it and back to that
+    citation when it closes. Esc closes it from inside it; elsewhere Esc stops an answer being
+    written first, as in phase b, and otherwise closes the panel. Below 768 px it is a drawer from the
+    right, which is modal.
+  - The verdict in words: for a marker, whether its sentence's names, dates and figures are in the
+    passage; for a source chip, whether everything the answer takes from that source is; the check's
+    findings otherwise; "not checked" for a stopped answer.
+  - *Open document at p. 3* is not built: sūveryn keeps a document's text, not the file it was read
+    from, so there is no page to open. The panel keeps *Download* next to *Copy passage*.
+  - The active marker and the active source chip are filled teal with ink text. The chip's former
+    wash failed contrast on `case-surface` (4.39:1).
+  - The answer's actions are a kit `Toolbar` after the sources (one Tab stop, arrow keys), with a new
+    *Copy*: the answer without markers, then its sources.
 
 ## Open
 

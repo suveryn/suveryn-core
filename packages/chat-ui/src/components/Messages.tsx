@@ -2,16 +2,18 @@
  * The conversation turns. Only the user's turn has a bubble; the assistant's reply has none and is
  * marked by the teal brand-mark outline. Model output is rendered as React text only (lib/answer.ts),
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
- * "not sourced" notices that tell a reader what to check.
+ * "not sourced" notices that tell a reader what to check. A citation opens its passage in the source
+ * panel beside the conversation (``SourcePanel``, docs/design/sidebar.md §5, artboard 11).
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, Copy, Download, FileSpreadsheet, FileText, FolderInput, Square } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, FolderInput, Square, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Button, InlineNotice, MenuButton, TextButton } from "../ui";
+import { Button, IconButton, InlineNotice, MenuButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
-import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
+import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, stripMarkers, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
 import type { AnswerExport } from "../lib/export";
 import { answerExport, officeText } from "../lib/saved";
+import { verdictOf } from "../lib/sources";
 import { statusText } from "../lib/status";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
@@ -108,6 +110,112 @@ export function SourceCard({ n, citation, filename, terms = [], claims = [] }: {
   );
 }
 
+/** The id of the source panel: the open citation marker points at it (``aria-controls``). */
+export const SOURCE_PANEL = "source-panel";
+
+/** A citation's file name as shown: "Source removed" for a deleted document's, "Unnamed document" if unknown. */
+export function sourceName(c: Citation, filenames: Map<string, string>, m: ReturnType<typeof useT>): string {
+  return c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument;
+}
+
+/** What the passage says for the claim(s) that cite it: the claim of the marker opened, or every claim citing ``n``. */
+function passageMarks(turn: AssistantTurn, n: number, occ: number | null) {
+  const available = turn.citations.length;
+  const one = occ === null ? undefined : markerClaims(turn.text, available)[occ];
+  return one?.n === n ? { terms: termsOf(one.claim), claims: [one.claim] }
+    : { terms: claimTerms(turn.text, available).get(n) ?? [], claims: claimTexts(turn.text, available).get(n) ?? [] };
+}
+
+/**
+ * The source panel (docs/design/sidebar.md §5, artboard 11): one source of an answer beside the
+ * conversation. The file, the page and the case; previous and next between the answer's sources; the
+ * passage, with the sentences the claim rests on in a teal wash and the rest dimmed; what the check
+ * found, in words; *Copy passage* and the download. Esc closes it (from inside it, or anywhere when no
+ * answer is being written: App), and the focus goes back to what opened it.
+ *
+ * Not here: *Open document at p. 3*. sūveryn keeps a document's text, not the file it was read from,
+ * so there is no page to open (docs/design/sidebar.md, "Resolved while building").
+ */
+export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose }: {
+  turn: AssistantTurn; open: OpenSource; filenames: Map<string, string>; caseRef: string | null;
+  onSource: (s: OpenSource) => void; onClose: () => void;
+}) {
+  const m = useT();
+  const here = useRef<HTMLElement>(null);
+  const opener = useRef<Element | null>(null);
+  const { n, occ } = open;
+  // The focus moves into the panel when a citation outside it opens a source, and back to the last
+  // such citation when the panel closes.
+  useEffect(() => {
+    const from = document.activeElement;
+    if (here.current && !here.current.contains(from)) {
+      opener.current = from;
+      here.current.focus();
+    }
+  }, [n, occ]);
+  useEffect(() => () => { if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus(); }, []);
+  const quote = useRef<HTMLQuoteElement>(null);
+  const available = turn.citations.length;
+  const cited = citedNumbers(turn.text, available);
+  const citation = turn.citations[n - 1];
+  const at = cited.indexOf(n);
+  const filename = sourceName(citation, filenames, m);
+  const { terms, claims } = passageMarks(turn, n, occ);
+  // Scroll the passage (not the page) to the first marked sentence: a long passage shows only its start.
+  useEffect(() => {
+    const box = quote.current, first = box?.querySelector("mark");
+    if (box && first instanceof HTMLElement) box.scrollTop = Math.max(0, first.offsetTop - box.clientHeight / 3);
+  }, [n, occ]);
+  const found = verdictOf(turn, n, occ);
+  const verdict = found === null ? null
+    : found.kind === "unchecked" ? { ok: false, text: m.verdictUnchecked }
+    : found.kind === "issues" ? { ok: false, text: [...new Set(found.issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))].join(" ") }
+    : { ok: true, text: found.kind === "source" ? m.verdictSource : m.verdictSentence };
+  const go = (to: number) => onSource({ n: cited[to], occ: null });
+
+  return (
+    <aside id={SOURCE_PANEL} className="source-panel" aria-label={m.source(n)} ref={here} tabIndex={-1}
+           onKeyDown={(e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); onClose(); } }}>
+      <header className="source-panel-head">
+        <span className="cite-num source-panel-num" aria-hidden>{n}</span>
+        <span className="source-panel-title">
+          <span className="source-panel-file">{filename}</span>
+          <span className="source-panel-where">{m.sourcePlace(citation.source?.page ?? null, caseRef)}</span>
+        </span>
+        {cited.length > 1 && at >= 0 && <>
+          <IconButton size="small" label={m.previousSource} isDisabled={at === 0} onPress={() => go(at - 1)}><ChevronLeft size={16} aria-hidden /></IconButton>
+          <span className="source-panel-count">{m.sourceOf(at + 1, cited.length)}</span>
+          <IconButton size="small" label={m.nextSource} isDisabled={at === cited.length - 1} onPress={() => go(at + 1)}><ChevronRight size={16} aria-hidden /></IconButton>
+        </>}
+        <IconButton size="small" label={m.closeSource} onPress={onClose}><X size={16} aria-hidden /></IconButton>
+      </header>
+      <div className="source-panel-body">
+        {citation.removed ? <p className="caption">{m.sourceRemovedCaption}</p> : <>
+          <blockquote className="source-panel-text" ref={quote}>
+            {markPassage(citation.text, claims, terms).map((part, i) => (part.mark
+              ? <mark key={i} className={part.mark === "term" ? "source-match" : "source-span"}>{part.text}</mark>
+              : <Fragment key={i}>{part.text}</Fragment>))}
+          </blockquote>
+          {verdict && (
+            <p className="source-panel-verdict" data-ok={verdict.ok || undefined}>
+              {verdict.ok ? <Check size={14} aria-hidden /> : <AlertTriangle size={14} aria-hidden />}
+              <span>{verdict.text}</span>
+            </p>
+          )}
+          <p className="caption">{m.sourceCaption}</p>
+        </>}
+      </div>
+      {!citation.removed && (
+        <footer className="source-panel-actions">
+          <CopyButton text={formatSource(n, citation, filename)} label={m.copyPassage} what={m.passageWhat(n)} />
+          <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
+                          text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />
+        </footer>
+      )}
+    </aside>
+  );
+}
+
 /**
  * The assistant's turn: no bubble, marked by the teal brand-mark outline. Citation markers [n]
  * become buttons that open the source (citations[n-1]); only cited sources are listed below.
@@ -122,24 +230,26 @@ export type SaveToCase = {
   onUndo: () => Promise<void>;
 };
 
-export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null }: {
+/** The source open in the panel: its number and, opened from a marker, which marker (``occ``), so the
+ *  panel shows what that claim rests on; null from the source list: every claim citing it. */
+export type OpenSource = { n: number; occ: number | null };
+
+export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
   /** The case the conversation is in (null: personal), named in the export mark. */
   caseRef?: string | null;
   save?: SaveToCase | null;
+  /** This answer's source open in the panel, if any; ``onSource`` opens one (or closes it, pressed again). */
+  source?: OpenSource | null;
+  onSource: (s: OpenSource) => void;
 }) {
   const m = useT();
-  const [open, setOpen] = useState<number | null>(null);
+  const open = source?.n ?? null;
+  const openOcc = source?.occ ?? null;
   const available = turn.citations.length;
   const cited = citedNumbers(turn.text, available);
-  const nameOf = (c: Citation) => (c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument);
-  // The marker clicked (its ``occ``), so the card shows what that claim rests on; null from the source list: every claim.
-  const [openOcc, setOpenOcc] = useState<number | null>(null);
-  const toggle = (n: number, occ: number | null = null) => {
-    const closing = open === n && openOcc === occ;
-    setOpen(closing ? null : n);
-    setOpenOcc(closing ? null : occ);
-  };
+  const nameOf = (c: Citation) => sourceName(c, filenames, m);
+  const toggle = (n: number, occ: number | null = null) => onSource({ n, occ });
   // Copy and download only what is still there: a deleted document's passage was taken out.
   const citedItems = cited.filter((n) => !turn.citations[n - 1].removed)
     .map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) }));
@@ -158,6 +268,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
     s.kind === "flag" ? <mark key={j} className="unverified" title={m.unverifiedTitle}>
                           {s.bold ? <strong>{s.text}</strong> : s.text}</mark> :
     <Button key={j} variant="plain" className={`cite-marker${open === s.n && (openOcc === null || openOcc === s.occ) ? " active" : ""}${flaggedMarkers.has(s.occ) ? " flagged" : ""}`}
+            aria-controls={open === s.n ? SOURCE_PANEL : undefined}
             onPress={() => toggle(s.n, s.occ)} aria-expanded={open === s.n && (openOcc === null || openOcc === s.occ)}
             title={flaggedMarkers.has(s.occ) ? m.citationIssueTitle : undefined}
             aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)
@@ -197,25 +308,6 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
           <InlineNotice icon={<Square size={12} fill="currentColor" strokeWidth={0} />}>{m.answerStopped}</InlineNotice>
         )}
 
-        {settled && open !== null && turn.citations[open - 1] && (
-          <SourceCard n={open} citation={turn.citations[open - 1]} filename={nameOf(turn.citations[open - 1])}
-                      {...(() => {
-                        const one = openOcc === null ? undefined : markerClaims(turn.text, available)[openOcc];
-                        return one?.n === open ? { terms: termsOf(one.claim), claims: [one.claim] }
-                          : { terms: claimTerms(turn.text, available).get(open) ?? [], claims: claimTexts(turn.text, available).get(open) ?? [] };
-                      })()} />
-        )}
-
-        {turn.status === "done" && turn.text && (
-          <div className="answer-actions">
-            <OfficeButton kind="word" label={m.downloadWord} what={m.downloadWordWhat}
-                          make={async () => {
-                            const { answerToWord } = await import("../lib/office");
-                            return [`${safeFileName(question)}.docx`, await answerToWord(exported(), officeText(m), lang())];
-                          }} />
-            {save && <SaveToCaseActions save={save} />}
-          </div>
-        )}
 
         {settled && cited.length > 0 && (
           <div className="sources">
@@ -229,6 +321,19 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
                             text={(f) => (f === "md" ? sourcesMarkdown(question, citedItems, new Date())
                                                      : sourcesDocument(question, allSources, new Date()))} />}
           </div>
+        )}
+
+        {turn.status === "done" && turn.text && (
+          <Toolbar label={m.answerActions} className="answer-actions">
+            <CopyButton label={m.copy} what={m.answerWithSources}
+                        text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />
+            <OfficeButton kind="word" label={m.downloadWord} what={m.downloadWordWhat}
+                          make={async () => {
+                            const { answerToWord } = await import("../lib/office");
+                            return [`${safeFileName(question)}.docx`, await answerToWord(exported(), officeText(m), lang())];
+                          }} />
+            {save && <SaveToCaseActions save={save} />}
+          </Toolbar>
         )}
 
         {turn.status === "done" && cited.length === 0 && (

@@ -10,7 +10,7 @@
  * AccessLogDialog: who did what in the case, newest first (decision 15), for the manager and the
  * administrators. Names come from the member list; a user no longer a member is shown by id.
  */
-import { AlertCircle, ArrowRightLeft, ScrollText, Trash2, UserPlus } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, Folder, ScrollText, Trash2, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   handOver, listCaseEvents, listMembers, removeMember, searchUsers, setMember, updateCase,
@@ -18,7 +18,7 @@ import {
 } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Avatar, Button, ComboBoxField, Dialog, InlineNotice, Segmented, Select, TextButton } from "../ui";
+import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, TextButton } from "../ui";
 
 type Props = {
   open: boolean;
@@ -207,5 +207,28 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
       )}
       {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
+  );
+}
+
+/** A case's members as faces (the case header, docs/design/sidebar.md §5): the manager first, set apart
+ *  with the folder badge, then up to three others overlapping, then "+n". Decorative: the button
+ *  around it names everyone. */
+export function CaseFaces({ members }: { members: Member[] }) {
+  const m = useT();
+  const manager = members.find((x) => x.role === "manager");
+  const others = members.filter((x) => x !== manager);
+  const face = (x: Member) => (
+    <Avatar key={x.user} name={x.name || x.username} sub={x.user} etag={x.avatar} admin={x.admin} adminLabel={m.administrator} size="small" />
+  );
+  return (
+    <span className="case-faces" aria-hidden>
+      {manager && <IconBadge badge={<Folder />} tone="neutral">{face(manager)}</IconBadge>}
+      {others.length > 0 && (
+        <span className="case-faces-stack">
+          {others.slice(0, 3).map(face)}
+          {others.length > 3 && <span className="case-faces-more">{m.moreMembers(others.length - 3)}</span>}
+        </span>
+      )}
+    </span>
   );
 }
