@@ -597,6 +597,27 @@ here.
     wash failed contrast on `case-surface` (4.39:1).
   - The answer's actions are a kit `Toolbar` after the sources (one Tab stop, arrow keys), with a new
     *Copy*: the answer without markers, then its sources.
+- **The conversation pane, part 2: attachment cards and the server unreachable (20 October).**
+  - Attachments in the composer are cards (artboard 13), inside the question box; on a narrow screen,
+    where the box is one pill, above it. In the user's turn they stay chips.
+  - Asking no longer waits for documents being read. A question goes with what is read; a document
+    still being read, and one that failed, stay in the composer, and the first counts for the next
+    question once it is ready (`staysInComposer`, tested). The line under the box says so.
+  - *Reading* shows the upload's share, then an indeterminate bar: the reader doesn't report its
+    pages as it goes, so there is no "page 4 of 12" yet. It needs the reader to send progress (a
+    follow-up). Its × takes the document out of this question; the upload itself goes on and stays
+    in Documents, since the server has no way to cancel a job yet.
+  - *Failed* gives the reason the server sends, as a sentence, in English: the reader reports
+    reasons as text, not codes (`failureReason`, tested). Translating them needs codes from the
+    reader (a follow-up). *Another file* replaces the card.
+  - The server-unreachable bar (artboard 09) shows after a health check found nothing, not while the
+    first one runs; it counts down to the next check (every 10 seconds) and *Try now* checks at once.
+    Its title is announced once; the countdown isn't. The composer keeps the text and says why it
+    can't send; the send button is grey when disabled, never a faded orange.
+  - A cut-off answer (the connection dropped, or the stream ended without its last event) keeps
+    what arrived, unchecked, under "Answer interrupted: the connection dropped." Any other failure
+    still shows nothing of the attempt (the gateway's contract). Both offer *Regenerate* on the last
+    answer: the same question again, with the documents it had, in place of the failed answer.
 
 ## Open
 

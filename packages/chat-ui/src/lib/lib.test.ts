@@ -508,3 +508,19 @@ describe("sūveryn's own output (docs/design/sidebar.md §6)", () => {
       .toEqual({ word: "Source", detail: "uploaded, was an answer" });
   });
 });
+
+describe("attachment cards (docs/design/sidebar.md §5)", () => {
+  it("says why an upload failed without the exception's name", async () => {
+    const { failureReason } = await import("./review");
+    expect(failureReason("ValueError: the file is not a valid Word file")).toBe("The file is not a valid Word file.");
+    expect(failureReason("the file is too large.")).toBe("The file is too large.");
+    expect(failureReason(undefined)).toBe("");
+  });
+
+  it("keeps a document still being read, or one that failed, in the composer when a question is sent", async () => {
+    const { staysInComposer } = await import("../types");
+    const card = (status: string) => ({ key: status, filename: "a.pdf", status }) as Parameters<typeof staysInComposer>[0];
+    expect(["uploading", "queued", "processing", "failed"].map((s) => staysInComposer(card(s)))).toEqual([true, true, true, true]);
+    expect(["ready", "needs_review", "noticed"].map((s) => staysInComposer(card(s)))).toEqual([false, false, false]);
+  });
+});
