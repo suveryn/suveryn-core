@@ -1,5 +1,5 @@
 /** UI-side types for the conversation: turns and attachments. Wire types are in api.ts. */
-import type { Calculation, Citation, CitationIssue, JobStatus, Noticed, StreamStatus } from "./api";
+import type { Calculation, Citation, CitationIssue, JobProgress, JobStatus, Noticed, StreamStatus } from "./api";
 
 /** A file attached to the user's turn. Lives on the user's message, never on the reply. */
 export type Attachment = {
@@ -11,6 +11,9 @@ export type Attachment = {
   error?: string;
   progress?: number; // upload progress, 0-1, while status is "uploading"
   pages?: number;    // once read: its pages (none for Word, Markdown and CSV)
+  reading?: JobProgress | null;  // while the server reads it: how far it has got
+  errorCode?: string;            // failed: why, as the reader's code (lib/review.ts failureText)
+  errorDetail?: Record<string, number>;
   reviewPages?: number[]; // with status needs_review: pages where text may be missing
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)

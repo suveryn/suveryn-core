@@ -455,13 +455,13 @@ describe("finding the cited facts in a long passage", () => {
 
 describe("server errors and long conversations", () => {
   it("says what went wrong in the interface's language, not as HTTP codes", () => {
-    setLang("nl");
+    setLang("nl", false);
     expect(httpErrorText(429, "Too many requests. Try again in 12 seconds.", "12")).toBe("te veel verzoeken; probeer het over 12 seconden opnieuw");
     expect(httpErrorText(422, [{ loc: ["body", "messages"], msg: "too long" }])).toBe("de server kon dit verzoek niet aanvaarden");  // was "HTTP 422"
     expect(httpErrorText(413, "This conversation is too long to save.")).toMatch(/^dit gesprek is te lang/);
     expect(httpErrorText(413, "The file is larger than 100 MB.")).toMatch(/^het bestand is groter/);
     expect(httpErrorText(418, "I'm a teapot")).toBe("I'm a teapot");  // others keep the server's text
-    setLang("en");
+    setLang("en", false);
   });
 
   it("sends at most the last 40 messages of a long conversation, starting with a question", () => {
@@ -522,5 +522,19 @@ describe("attachment cards (docs/design/sidebar.md §5)", () => {
     const card = (status: string) => ({ key: status, filename: "a.pdf", status }) as Parameters<typeof staysInComposer>[0];
     expect(["uploading", "queued", "processing", "failed"].map((s) => staysInComposer(card(s)))).toEqual([true, true, true, true]);
     expect(["ready", "needs_review", "noticed"].map((s) => staysInComposer(card(s)))).toEqual([false, false, false]);
+  });
+});
+
+describe("why an upload couldn't be read, in the interface's language (suveryn_rag.reading)", () => {
+  it("says the reader's code in words, with its numbers", async () => {
+    const { failureText } = await import("./review");
+    const { setLang, t } = await import("../i18n");
+    setLang("nl", false);
+    expect(failureText(t(), "password")).toBe("Het is beveiligd met een wachtwoord.");
+    expect(failureText(t(), "too_many_pages", { pages: 900, max: 500 })).toBe("Het heeft 900 pagina's; er kunnen er hoogstens 500 gelezen worden.");
+    expect(failureText(t(), "timeout", { minutes: 30 })).toBe("Lezen duurde langer dan 30 minuten.");
+    setLang("en", false);
+    expect(failureText(t(), undefined, {}, "ValueError: the file is not a valid Word file")).toBe("The file is not a valid Word file.");  // no code: the server's words
+    expect(failureText(t(), "something-new", {}, "boom")).toBe("Boom.");
   });
 });

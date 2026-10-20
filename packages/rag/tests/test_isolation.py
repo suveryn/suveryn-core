@@ -205,3 +205,55 @@ def test_the_reader_works_in_its_own_folder(tmp_path, monkeypatch):
     own_workspace(reader)
     assert os.environ["TMPDIR"] == str(reader) and tempfile.gettempdir() == str(reader)
     assert not list(reader.glob("doc-*")) and (reader.stat().st_mode & 0o777) == 0o700
+
+
+# ---------------------------------------------------------------------- progress, cancelling, reasons (sidebar.md §5)
+import time
+
+from suveryn_rag.reading import Cancelled, Progress, Watch
+
+
+def test_progress_comes_through_page_by_page_before_the_answer(reader, tmp_path):
+    seen: list[Progress] = []
+    ex = reader.extract(Path("progress.pdf"), watch=Watch(report=seen.append))
+    assert [(p.step, p.done, p.total) for p in seen] == [("ocr", 1, 3), ("ocr", 2, 3), ("ocr", 3, 3), ("layout", None, 3)]
+    assert ex.pages == 1  # and the answer still arrives whole
+    assert reader.extract(Path("next.pdf")).pages == 1  # nothing left over for the next document
+
+
+def test_a_cancelled_document_stops_the_reader_at_once_and_the_next_one_is_read(reader, tmp_path):
+    asked = {"stop": False}
+    seen: list[Progress] = []
+
+    def report(p):
+        seen.append(p)
+        asked["stop"] = p.step == "layout"  # the person cancels once reading has started
+
+    started = time.monotonic()
+    with pytest.raises(Cancelled):
+        reader.extract(Path("slow.pdf"), watch=Watch(report=report, cancelled=lambda: asked["stop"]))
+    assert time.monotonic() - started < 3  # not the minute "slow" would take
+    assert reader.extract(Path("after.pdf")).pages == 1
+
+
+def test_a_reason_comes_with_its_code_and_numbers(reader, tmp_path):
+    with pytest.raises(ExtractionFailed) as e:
+        reader.extract(Path("locked.pdf"))
+    assert e.value.code == "password" and "password" in str(e.value)
+    with pytest.raises(ExtractionFailed) as e:
+        reader.extract(Path("big.pdf"))
+    assert e.value.code == "too_many_pages" and e.value.detail == {"pages": 900, "max": 500}
+    with pytest.raises(ExtractionFailed) as e:
+        reader.extract(Path("fails.pdf"))
+    assert e.value.code == "unreadable"  # no code from the reader: the generic one
+    with pytest.raises(ExtractionFailed) as e:
+        reader.extract(Path("crash.pdf"))
+    assert e.value.code == "damaged"
+
+
+def test_malformed_progress_from_the_reader_is_ignored():
+    from suveryn_rag.isolation import _progress_from_json
+    assert _progress_from_json({"step": "ocr", "done": 2, "total": 9}) == Progress("ocr", 2, 9)
+    assert _progress_from_json({"step": "rm -rf", "done": 1}) is None
+    assert _progress_from_json({"step": "ocr", "done": "2", "total": -1}) == Progress("ocr", None, None)
+    assert _progress_from_json(["ocr"]) is None

@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
 
+from .reading import Unreadable
+
 # File types by extension. The upload check (``looks_like``) and the reader confirm the content.
 KINDS = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".md": "md", ".markdown": "md", ".csv": "csv"}
 SUFFIX = {"pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "md": ".md", "csv": ".csv"}
@@ -77,10 +79,10 @@ def read(path: Path, kind: str, limit: int) -> Reading:
     Raises ValueError with a message that can be shown when the file can't be read."""
     reader = {"docx": read_docx, "xlsx": read_xlsx, "md": read_markdown, "csv": read_csv}.get(kind)
     if reader is None:
-        raise ValueError(f"no reader for {kind} files")
+        raise Unreadable(f"no reader for {kind} files", "unsupported")
     reading = reader(Path(path), limit)
     if sum(len(p.text) for p in reading.passages) > MAX_CHARS:
-        raise ValueError("the document has too much text to be read")
+        raise Unreadable("the document has too much text to be read", "too_large")
     return reading
 
 
@@ -207,11 +209,11 @@ def check_zip(path: Path, member: str, what: str) -> None:
         with zipfile.ZipFile(path) as z:
             infos = z.infolist()
     except zipfile.BadZipFile:
-        raise ValueError(f"the file is not a valid {what} file") from None
+        raise Unreadable(f"the file is not a valid {what} file", "damaged") from None
     if member not in {i.filename for i in infos}:
-        raise ValueError(f"the file is not a valid {what} file")
+        raise Unreadable(f"the file is not a valid {what} file", "damaged")
     if len(infos) > MAX_ZIP_ENTRIES or sum(i.file_size for i in infos) > MAX_UNPACKED_BYTES:
-        raise ValueError(f"the {what} file is too large once unpacked")
+        raise Unreadable(f"the {what} file is too large once unpacked", "too_large")
 
 
 def _text_of(element) -> str:
@@ -274,7 +276,7 @@ def read_docx(path: Path, limit: int) -> Reading:
     try:
         document = docx.Document(str(path))
     except Exception:  # noqa: BLE001 - python-docx raises many kinds for a broken file
-        raise ValueError("the file is not a valid Word file") from None
+        raise Unreadable("the file is not a valid Word file", "damaged") from None
     styles = _heading_styles(document)
     stack: list[list] = []  # [level, heading, has text under it]
     items: list[tuple[str, list[str], object]] = []  # ("text", headings, text) or ("table", headings, rows)
@@ -345,7 +347,7 @@ def read_xlsx(path: Path, limit: int) -> Reading:
     try:
         workbook = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
     except Exception:  # noqa: BLE001 - openpyxl raises many kinds for a broken file
-        raise ValueError("the file is not a valid Excel file") from None
+        raise Unreadable("the file is not a valid Excel file", "damaged") from None
     passages: list[Passage] = []
     cells = 0
     try:
@@ -357,7 +359,7 @@ def read_xlsx(path: Path, limit: int) -> Reading:
                 if row:
                     cells += sum(1 for c in row if c)
                     if cells > MAX_CELLS:
-                        raise ValueError(f"the workbook has more than {MAX_CELLS:,} filled cells".replace(",", " "))
+                        raise Unreadable(f"the workbook has more than {MAX_CELLS:,} filled cells".replace(",", " "), "too_large")
                     rows.append((number, row))
             passages += rows_in_passages(rows, limit, sheet=sheet.title, cells=True)
     finally:
@@ -394,7 +396,7 @@ def read_csv(path: Path, limit: int) -> Reading:
         if row:
             cells += sum(1 for c in row if c)
             if cells > MAX_CELLS:
-                raise ValueError(f"the file has more than {MAX_CELLS:,} filled cells".replace(",", " "))
+                raise Unreadable(f"the file has more than {MAX_CELLS:,} filled cells".replace(",", " "), "too_large")
             rows.append((number, row))
     return Reading(rows_in_passages(rows, limit, cells=True))
 

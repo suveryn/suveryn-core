@@ -606,10 +606,11 @@ here.
   - *Reading* shows the upload's share, then an indeterminate bar: the reader doesn't report its
     pages as it goes, so there is no "page 4 of 12" yet. It needs the reader to send progress (a
     follow-up). Its × takes the document out of this question; the upload itself goes on and stays
-    in Documents, since the server has no way to cancel a job yet.
+    in Documents, since the server has no way to cancel a job yet. (Both done since: see "Reading
+    progress, cancelling and reasons" below.)
   - *Failed* gives the reason the server sends, as a sentence, in English: the reader reports
     reasons as text, not codes (`failureReason`, tested). Translating them needs codes from the
-    reader (a follow-up). *Another file* replaces the card.
+    reader (a follow-up, done since: below). *Another file* replaces the card.
   - The server-unreachable bar (artboard 09) shows after a health check found nothing, not while the
     first one runs; it counts down to the next check (every 10 seconds) and *Try now* checks at once.
     Its title is announced once; the countdown isn't. The composer keeps the text and says why it
@@ -618,6 +619,21 @@ here.
     what arrived, unchecked, under "Answer interrupted: the connection dropped." Any other failure
     still shows nothing of the attempt (the gateway's contract). Both offer *Regenerate* on the last
     answer: the same question again, with the documents it had, in place of the failed answer.
+- **Reading progress, cancelling and reasons (20 October).** The three follow-ups of part 2, on the server.
+  - Progress: the reader process reports how far it has got before its answer (`{"progress": ...}`
+    lines; `suveryn_rag.reading`). Text recognition counts pages (an OCRmyPDF progress plugin,
+    `ocr_progress.py`): the card says "Recognising text · page 4 of 12" with a bar. Docling reads the
+    layout of the whole document at once and reports no pages, so that step says "Reading the layout
+    of 12 pages" with a moving bar; then "Storing". Only scanned pages are recognised, so a
+    born-digital PDF goes straight to the layout step.
+  - Cancelling: the card's × on a document still on its way stops the upload in the browser; on one
+    waiting or being read, `DELETE /v1/documents/jobs/{id}` cancels it. One waiting is never read; one
+    being read stops at once (the reader is killed, OCR and all, and a fresh one reads the next); one
+    already being stored finishes, and is a document like any other. Noted in the case's access log.
+  - Reasons: a failure carries a code (`password`, `damaged`, `too_many_pages`, `too_large`,
+    `no_text`, `unsupported`, `timeout`, `unreadable`) and its numbers, which the card says in the
+    interface's language (`failureText`, tested). The English sentence stays in `error` for the API
+    and the log; without a code (an unexpected error) the card says to try again or another file.
 
 ## Open
 

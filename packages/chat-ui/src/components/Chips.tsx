@@ -8,7 +8,7 @@ import type { Citation } from "../api";
 import { useT } from "../i18n";
 import { Button, FileButton, IconButton, Progress, TextButton } from "../ui";
 import { ACCEPTED_FILES } from "../lib/formats";
-import { failureReason, pageList, reviewHint } from "../lib/review";
+import { failureText, pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
 
 /**
@@ -28,21 +28,29 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const icon = a.status === "failed" ? <XCircle size={14} aria-hidden />
     : a.status === "noticed" ? <FileOutput size={14} aria-hidden /> : <FileText size={14} aria-hidden />;
+  // While the server reads it: page by page during text recognition, then the layout, then storing.
+  const r = a.status === "processing" ? a.reading : null;
   const state = a.status === "uploading" ? m.cardUploading(Math.floor((a.progress ?? 0) * 100))
-    : a.status === "queued" ? m.cardWaiting : a.status === "processing" ? m.cardReading : null;
-  const why = failureReason(a.error);
+    : a.status === "queued" ? m.cardWaiting
+    : r?.step === "ocr" && r.done !== null && r.total ? m.cardRecognising(Math.max(1, Math.min(r.done + 1, r.total)), r.total)
+    : r?.step === "layout" ? m.cardLayout(r.total) : r?.step === "store" ? m.cardStoring
+    : a.status === "processing" ? m.cardReading : null;
+  const value = a.status === "uploading" && a.progress !== undefined ? a.progress * 100
+    : r?.step === "ocr" && r.done !== null && r.total ? (r.done / r.total) * 100 : undefined;
+  const why = failureText(m, a.errorCode, a.errorDetail, a.error);
   return (
     <li className="card-attachment" data-state={a.status} aria-busy={busy || undefined}>
       <span className="card-attachment-top">
         {icon}
         <span className="card-attachment-name" title={a.filename}>{a.filename}</span>
-        <IconButton size="small" label={a.status === "failed" ? m.removeFile(a.filename) : m.removeFromQuestion(a.filename)} onPress={onRemove}>
+        <IconButton size="small" onPress={onRemove}
+                    label={busy ? m.cancelUpload(a.filename) : a.status === "failed" ? m.removeFile(a.filename) : m.removeFromQuestion(a.filename)}>
           <X size={14} aria-hidden />
         </IconButton>
       </span>
       {busy && state && (
         <>
-          <Progress label={state} value={a.status === "uploading" && a.progress !== undefined ? a.progress * 100 : undefined} />
+          <Progress label={state} value={value} />
           <span className="card-attachment-state">{state}</span>
         </>
       )}
@@ -89,7 +97,7 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
   const m = useT();
   const STATUS_LABEL: Record<Attachment["status"], string> = {
     uploading: m.uploading, queued: m.waiting, processing: m.reading, ready: "",
-    needs_review: m.readyCheckNeeded, failed: m.couldntBeRead, noticed: m.originPending,
+    needs_review: m.readyCheckNeeded, failed: m.couldntBeRead, noticed: m.originPending, cancelled: "",
   };
   if (a.status === "noticed" && a.noticed) {
     // Read and stored, but not a source until the person says so; never blocked (cases.md decision 7).
@@ -118,7 +126,8 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
   }
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages(pageList(a.reviewPages)) : STATUS_LABEL[a.status];
-  const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}` : (a.error ?? a.filename);
+  const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}`
+    : a.status === "failed" ? `${a.filename}: ${failureText(m, a.errorCode, a.errorDetail, a.error)}` : a.filename;
   if (a.removed) {  // the document was deleted and its name taken out (suveryn-tracker#12)
     return <span className="chip-attachment chip-removed"><XCircle size={12} aria-hidden /><span className="chip-name">{m.documentRemoved}</span></span>;
   }
