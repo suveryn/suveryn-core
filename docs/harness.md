@@ -37,7 +37,7 @@ The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/s
 
 ## 1. Passages
 
-The person chooses the documents (or the case's documents are used). The harness asks for their
+The person chooses the documents; in a case where none are chosen, the case's sources are used (the chat UI's `lib/questionDocuments.ts`). The harness asks for their
 text through one interface, `Retriever`; finding the text is the job of `packages/rag`:
 
 - small documents (together up to about 48,000 characters) are given **whole**, in reading order, so

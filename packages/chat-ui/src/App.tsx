@@ -51,6 +51,7 @@ import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
+import { questionDocuments } from "./lib/questionDocuments";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
@@ -223,6 +224,17 @@ function Chat({ me }: { me: Me }) {
   }, [checks]);
 
   useEffect(() => { if (documentsReady && !administers) refreshDocuments(); }, [documentsReady, refreshDocuments, administers]);
+  // In a case, the case's documents are read again every 30 seconds while the page is visible, and when it
+  // is shown again: a colleague's upload or deletion reaches the header's count and the next question
+  // (Pod check of 13469bf: the count stayed at 0 until a reload).
+  useEffect(() => {
+    if (!caseId || !documentsReady || administers) return;
+    const again = () => { if (document.visibilityState === "visible") refreshDocuments(); };
+    const t = setInterval(again, 30_000);
+    window.addEventListener("focus", again);
+    document.addEventListener("visibilitychange", again);
+    return () => { clearInterval(t); window.removeEventListener("focus", again); document.removeEventListener("visibilitychange", again); };
+  }, [caseId, documentsReady, administers, refreshDocuments]);
 
   const refreshConversations = useCallback(async () => {
     try { setConversations(await listConversations(caseId)); } catch { /* the health check explains why */ }
@@ -393,8 +405,10 @@ function Chat({ me }: { me: Me }) {
     // the composer: the first counts for the next question once it is ready (§5).
     const attachments = again ?? pending.filter((a) => !staysInComposer(a));
     const user: UserTurn = { id: nextId(), role: "user", text, attachments };
-    const docIds = new Set(conversationDocs);
-    for (const a of attachments) if (isReady(a) && a.documentId) docIds.add(a.documentId);
+    const chosen = new Set(conversationDocs);
+    for (const a of attachments) if (isReady(a) && a.documentId) chosen.add(a.documentId);
+    // In a case with nothing attached, the case's sources (lib/questionDocuments.ts).
+    const docIds = new Set(questionDocuments(chosen, caseId ? documents : null));
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0 };
     const history: WireMessage[] = conversationHistory(turns);
 
