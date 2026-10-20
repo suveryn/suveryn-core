@@ -9,21 +9,19 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing
 from dataclasses import dataclass
 
-from suveryn_engine import (
-    BackendError,
+from .audit import audit
+from .calc import CalcRewriter, unverified_figures
+from .grounding import cited_numbers, grounded_messages, without_earlier_markers
+from .guard import instruction_like
+from .llm import BackendError, LlamaServerClient
+from .schemas import (
     Calculation,
     ChatRequest,
     ChatResponse,
     Citation,
     CitationIssue,
-    LlamaServerClient,
     Usage,
 )
-from suveryn_engine.audit import audit
-from suveryn_engine.guard import instruction_like
-
-from .calc import CalcRewriter, unverified_figures
-from .grounding import cited_numbers, grounded_messages, without_earlier_markers
 from .support import citation_issues
 
 # Passages to answer a question from, within the given documents of one user or case:

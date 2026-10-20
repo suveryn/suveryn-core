@@ -12,8 +12,8 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from suveryn_chat import DocumentsUnavailable
-from suveryn_engine import BackendError, ChatMessage, ChatRequest
+from suveryn_harness import BackendError, DocumentsUnavailable
+from suveryn_harness.facts import Unreadable, read_playbook
 from suveryn_playbooks import PLAYBOOKS, Playbook, by_slug, covered, for_case_type
 
 from ..playbooks import (
@@ -24,7 +24,6 @@ from ..playbooks import (
     RunStore,
     RunSummary,
     StartIn,
-    read_facts,
     summary_text,
 )
 from .common import (
@@ -41,10 +40,6 @@ from .common import (
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
-READ_TOKENS = 4096  # the table: thirteen rows with their citations, with room for a verbose conditions row
-STRICTER = ("\n\nYour previous answer could not be read as the table. Answer with the table only: the header row, "
-            "then exactly one row per fact id, in the order given, with the id copied exactly as written in the "
-            "first column. No text before or after the table.")
 
 
 def runs_or_503(request: Request) -> RunStore:
@@ -159,29 +154,21 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
 
 
 async def _read(app, store: RunStore, run: Run, pb: Playbook, filenames: dict[str, str], owner: str) -> None:
-    """The model call for a run, after the request has answered. Errors are stored by kind only. An
-    answer that isn't the table is asked for once more, with a stricter reminder, before the run
-    fails (review 2026-10-17: a small model's most likely failure, and a retry is cheaper than a person's)."""
+    """The model call for a run, after the request has answered (``suveryn_harness.facts``: asked
+    twice before the answer counts as unreadable). Errors are stored by kind only."""
     run_id = uuid.UUID(run.id)
-    for attempt, instructions in enumerate((pb.instructions, pb.instructions + STRICTER)):
-        req = ChatRequest(messages=[ChatMessage(role="user", content=instructions)], document_ids=list(filenames),
-                          case_id=run.case_id, max_tokens=READ_TOKENS)
-        try:
-            response = await app.state.chat.answer(req, owner)
-        except (BackendError, DocumentsUnavailable, DocumentNotFound) as e:
-            await run_in_threadpool(store.fail, run_id, {BackendError: "model_unavailable", DocumentsUnavailable: "documents_unavailable",
-                                                         DocumentNotFound: "document_missing"}[type(e)])
-            return
-        except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
-            log.error("playbook run failed: %s", type(e).__name__)
-            await run_in_threadpool(store.fail, run_id, "server_error")
-            return
-        facts = read_facts(pb, response, filenames)
-        if facts is not None:
-            await run_in_threadpool(store.read, run_id, facts, response.model, response.instruction_like_sources)
-            return
-        log.info("playbook run %s: answer %d not readable as the table", run.id, attempt + 1)
-    await run_in_threadpool(store.fail, run_id, "unreadable_answer")
+    try:
+        facts, response = await read_playbook(lambda req: app.state.chat.answer(req, owner), pb, filenames, run.case_id,
+                                              on_retry=lambda n: log.info("playbook run %s: answer %d not readable as the table", run.id, n))
+    except (BackendError, DocumentsUnavailable, DocumentNotFound, Unreadable) as e:
+        await run_in_threadpool(store.fail, run_id, {BackendError: "model_unavailable", DocumentsUnavailable: "documents_unavailable",
+                                                     DocumentNotFound: "document_missing", Unreadable: "unreadable_answer"}[type(e)])
+        return
+    except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
+        log.error("playbook run failed: %s", type(e).__name__)
+        await run_in_threadpool(store.fail, run_id, "server_error")
+        return
+    await run_in_threadpool(store.read, run_id, facts, response.model, response.instruction_like_sources)
 
 
 @router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts", response_model=Run, responses={

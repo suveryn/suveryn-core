@@ -29,7 +29,7 @@ from suveryn_api_gateway.cases import (
     may,
 )
 from suveryn_api_gateway.directory import Person
-from suveryn_engine import LlamaServerClient, LLMSettings
+from suveryn_harness import LlamaServerClient, LLMSettings
 from suveryn_rag.store import Scope
 from test_auth import SETTINGS, FakeKeycloak
 from test_conversations import FakeConversations, as_user

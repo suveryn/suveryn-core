@@ -13,9 +13,8 @@ resolution-markers = [
 [manifest]
 members = [
     "suveryn-api-gateway",
-    "suveryn-chat",
     "suveryn-core",
-    "suveryn-engine",
+    "suveryn-harness",
     "suveryn-playbooks",
     "suveryn-rag",
 ]
@@ -2998,8 +2997,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
-    { name = "suveryn-chat" },
-    { name = "suveryn-engine" },
+    { name = "suveryn-harness" },
     { name = "suveryn-playbooks" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -3011,22 +3009,10 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
     { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "suveryn-chat", editable = "packages/chat" },
-    { name = "suveryn-engine", editable = "packages/engine" },
+    { name = "suveryn-harness", editable = "packages/harness" },
     { name = "suveryn-playbooks", editable = "packages/playbooks" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-
-[[package]]
-name = "suveryn-chat"
-version = "0.1.0"
-source = { editable = "packages/chat" }
-dependencies = [
-    { name = "suveryn-engine" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "suveryn-engine", editable = "packages/engine" }]
 
 [[package]]
 name = "suveryn-core"
@@ -3034,8 +3020,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "suveryn-api-gateway" },
-    { name = "suveryn-chat" },
-    { name = "suveryn-engine" },
+    { name = "suveryn-harness" },
 ]
 
 [package.dev-dependencies]
@@ -3048,8 +3033,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "suveryn-api-gateway", editable = "packages/api-gateway" },
-    { name = "suveryn-chat", editable = "packages/chat" },
-    { name = "suveryn-engine", editable = "packages/engine" },
+    { name = "suveryn-harness", editable = "packages/harness" },
 ]
 
 [package.metadata.requires-dev]
@@ -3060,13 +3044,14 @@ dev = [
 ]
 
 [[package]]
-name = "suveryn-engine"
+name = "suveryn-harness"
 version = "0.1.0"
-source = { editable = "packages/engine" }
+source = { editable = "packages/harness" }
 dependencies = [
     { name = "anyio" },
     { name = "httpx" },
     { name = "pydantic" },
+    { name = "suveryn-playbooks" },
 ]
 
 [package.metadata]
@@ -3074,6 +3059,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.8" },
+    { name = "suveryn-playbooks", editable = "packages/playbooks" },
 ]
 
 [[package]]
@@ -3095,7 +3081,7 @@ dependencies = [
     { name = "pypdfium2" },
     { name = "python-docx" },
     { name = "sentence-transformers" },
-    { name = "suveryn-engine" },
+    { name = "suveryn-harness" },
 ]
 
 [package.metadata]
@@ -3109,7 +3095,7 @@ requires-dist = [
     { name = "pypdfium2", specifier = ">=5.0" },
     { name = "python-docx", specifier = ">=1.1" },
     { name = "sentence-transformers", specifier = ">=3.0" },
-    { name = "suveryn-engine", editable = "packages/engine" },
+    { name = "suveryn-harness", editable = "packages/harness" },
 ]
 
 [[package]]

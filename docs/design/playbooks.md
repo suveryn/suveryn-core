@@ -21,7 +21,7 @@ Deed intake does that reading and leaves the writing-down to be checked:
    list of facts: the parties, the property, the price and what was paid, the dates, the
    conditions, the certificates. Every fact must cite the passage it comes from; the server
    checks each cited figure, date and name against that passage with the same rule-based check
-   as a chat answer (`suveryn_chat.support`), and a fact the model couldn't find is left empty,
+   as a chat answer (`suveryn_harness.support`; the table is read by `suveryn_harness.facts`), and a fact the model couldn't find is left empty,
    never guessed.
 3. The **checkpoint**: the facts are shown next to their passages, one by one, each with its
    source page and the check's verdict. The notary confirms, corrects or clears each one. Nothing

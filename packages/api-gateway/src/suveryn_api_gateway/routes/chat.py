@@ -15,11 +15,16 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from suveryn_chat import ChatService, Delta, DocumentsUnavailable, Done, Sources, Status
-from suveryn_engine import (
+from suveryn_harness import (
     BackendError,
     ChatRequest,
     ChatResponse,
+    ChatService,
+    Delta,
+    DocumentsUnavailable,
+    Done,
+    Sources,
+    Status,
     StreamDelta,
     StreamError,
     StreamSources,

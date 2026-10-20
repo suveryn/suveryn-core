@@ -29,9 +29,8 @@ import re
 import unicodedata
 from decimal import Decimal
 
-from suveryn_engine import Calculation, Citation, CitationIssue
-
 from .calc import DATE, TEXT_FIGURE, _value, source_decimal_separator
+from .schemas import Calculation, Citation, CitationIssue
 
 GROUP = re.compile(r"(?:\[\d{1,2}\])+")
 BOLD = re.compile(r"\*\*[^*]+\*\*")
