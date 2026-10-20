@@ -319,6 +319,11 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     [service_account] = realm["users"]
     assert service_account["serviceAccountClientId"] == "suveryn-directory"
     assert service_account["clientRoles"] == {"realm-management": ["view-users", "view-realm"]}  # both read-only (avatars.md)
+    # The client has fullScopeAllowed false, so its token carries only roles mapped to its scope: without
+    # this mapping the token has no roles and Keycloak's admin API refuses the user list (403; the Pod
+    # check of d1f1918 found it on a fresh install).
+    assert directory["fullScopeAllowed"] is False
+    assert realm["clientScopeMappings"] == {"realm-management": [{"client": "suveryn-directory", "roles": ["view-users", "view-realm"]}]}
     # suveryn-tracker#7: the administrator role exists, nobody has it by default, and it reaches the
     # chat client's access token (the client has fullScopeAllowed false, so it must be mapped).
     from suveryn_api_gateway.app import ADMIN_ROLE
