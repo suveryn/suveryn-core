@@ -41,6 +41,15 @@ class FakeDocuments:
         self.jobs[job.id] = job
         return job
 
+    def cancel(self, job_id, owner):
+        job = self.jobs.get(job_id)
+        if job is None or job.owner != owner:
+            return None
+        if job.status in ("ready", "needs_review", "failed"):
+            return False
+        job.status = "cancelled"
+        return True
+
     def job(self, job_id, owner):
         job = self.jobs.get(job_id)
         return job if job is not None and job.owner == owner else None
@@ -327,3 +336,35 @@ class UnreachableDatabase(FakeDocuments):
 def test_database_unreachable_is_503():
     with client(UnreachableDatabase()) as c:
         assert c.get("/v1/documents").status_code == 503
+
+
+def test_an_upload_can_be_cancelled_until_it_is_read():
+    """docs/design/sidebar.md §5: the attachment card's ×. The real queue (no worker: it stays waiting)."""
+    import pytest
+    pytest.importorskip("suveryn_rag")
+    import tempfile
+    from pathlib import Path
+
+    from suveryn_rag.config import RagSettings
+    from suveryn_rag.service import DocumentService
+
+    svc = DocumentService(RagSettings(work_dir=Path(tempfile.mkdtemp())))
+    svc.state = "ready"
+    with client(svc) as c:
+        job = c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7 a"), "application/pdf")}).json()
+        assert job["progress"] is None and job["error_code"] is None and "cancel_requested" not in job
+        assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 204
+        assert c.get(f"/v1/documents/jobs/{job['id']}").json()["status"] == "cancelled"
+        assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 204  # again: still cancelled
+        assert svc.pending_jobs("local-dev") == []  # not shown as waiting or failed
+        assert c.delete("/v1/documents/jobs/nope").status_code == 404
+
+
+def test_a_read_upload_or_someone_elses_cant_be_cancelled():
+    docs = FakeDocuments()
+    with client(docs) as c:
+        job = c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7"), "application/pdf")}).json()
+        docs.jobs[job["id"]].status = "ready"
+        assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 409
+        docs.jobs[job["id"]].status, docs.jobs[job["id"]].owner = "queued", "someone-else"
+        assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 404

@@ -57,16 +57,19 @@ from typing import IO
 from .config import RagSettings
 from .extract import Extraction
 from .formats import Passage
+from .reading import Cancelled, Progress, Unreadable, Watch
 
 STARTUP_TIMEOUT_S = 600          # loading Docling's models: 20-40 s on a GPU, longer on a CPU
+CANCEL_CHECK_S = 0.25            # how often a cancel request is looked at while the reader works
 MAX_MESSAGE_BYTES = 512 << 20    # a 60-page deed's document is a few MB of JSON
 # Environment variables the reader never gets. Matched anywhere in the name, case-insensitive.
 SECRET_ENV = re.compile(r"SECRET|PASSW|TOKEN|CREDENTIAL|API_?KEY|PRIVATE|_KEY$|DATABASE_URL|^PG|^SUVERYN_OIDC"
                         r"|^AWS_|^AZURE_|^GOOGLE_APPLICATION|^RUNPOD|^SSH_", re.IGNORECASE)
 
 
-class ExtractionFailed(RuntimeError):
-    """The reader couldn't read this document (it failed, crashed or took too long). Safe to show."""
+class ExtractionFailed(Unreadable):
+    """The reader couldn't read this document (it failed, crashed or took too long). Safe to show. Its
+    ``code`` comes from the reader when it knows why (``reading.Unreadable``), else from what happened."""
 
 
 def child_env(environ: dict[str, str] | None = None) -> dict[str, str]:
@@ -145,6 +148,7 @@ class IsolatedExtractor:
     def _start(self) -> None:
         self._proc = subprocess.Popen(self._command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       env=child_env(), start_new_session=True, bufsize=0)
+        self._pending = bytearray()
         try:
             hello = self._receive(time.monotonic() + STARTUP_TIMEOUT_S, "loading took too long")
         except ExtractionFailed as e:
@@ -167,26 +171,34 @@ class IsolatedExtractor:
             if pipe:
                 pipe.close()
 
-    def _receive(self, deadline: float, too_slow: str) -> dict:
-        """One JSON line from the reader before ``deadline``; kills the reader on any problem."""
-        buf = bytearray()
+    def _receive(self, deadline: float, too_slow: str, watch: Watch | None = None) -> dict:
+        """The reader's next JSON line before ``deadline``; kills the reader on any problem, and when
+        ``watch`` says the person cancelled (``Cancelled``). The reader may send several lines at once
+        (progress, then the answer): what follows a line waits in ``_pending`` for the next call."""
         with selectors.DefaultSelector() as sel:
             sel.register(self._proc.stdout, selectors.EVENT_READ)
-            while not buf.endswith(b"\n"):
-                left = deadline - time.monotonic()
-                if left <= 0 or not sel.select(left):
+            while b"\n" not in self._pending:
+                if watch is not None and watch.cancelled():
                     self._stop()
-                    raise ExtractionFailed(too_slow)
+                    raise Cancelled
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    self._stop()
+                    raise ExtractionFailed(too_slow, "timeout", minutes=max(1, round(self.timeout_s / 60)))
+                if not sel.select(min(left, CANCEL_CHECK_S)):
+                    continue
                 block = os.read(self._proc.stdout.fileno(), 1 << 20)
                 if not block:
                     self._stop()
-                    raise ExtractionFailed("the document reader stopped (the file may be damaged or malformed)")
-                buf += block
-                if len(buf) > MAX_MESSAGE_BYTES:
+                    raise ExtractionFailed("the document reader stopped (the file may be damaged or malformed)", "damaged")
+                self._pending += block
+                if len(self._pending) > MAX_MESSAGE_BYTES:
                     self._stop()
                     raise ExtractionFailed("the document reader sent too much data")
+        line, _, rest = bytes(self._pending).partition(b"\n")
+        self._pending = bytearray(rest)
         try:
-            message = json.loads(buf)
+            message = json.loads(line)
         except ValueError:
             self._stop()
             raise ExtractionFailed("the document reader sent an unreadable answer") from None
@@ -196,8 +208,9 @@ class IsolatedExtractor:
         return message
 
     # ------------------------------------------------------------------ Extractor's interface
-    def extract(self, pdf: Path, owner: str | None = None) -> Extraction:
-        """Read one file of ``owner`` in the reader process. Raises ``ExtractionFailed``."""
+    def extract(self, pdf: Path, owner: str | None = None, watch: Watch | None = None) -> Extraction:
+        """Read one file of ``owner`` in the reader process. Raises ``ExtractionFailed``, or ``Cancelled``
+        when ``watch`` says so: the reader is stopped at once (OCR and all) and a fresh one reads the next."""
         with self._lock:
             # Someone else's document: a reader that read another owner's PDF is not trusted with it.
             if self._proc is None or self._proc.poll() is not None or (self._served and owner != self._owner):
@@ -209,10 +222,17 @@ class IsolatedExtractor:
             except OSError:
                 self._stop()
                 raise ExtractionFailed("the document reader stopped") from None
-            r = self._receive(time.monotonic() + self.timeout_s,
-                              f"reading took longer than {max(1, round(self.timeout_s / 60))} minutes")
+            deadline = time.monotonic() + self.timeout_s
+            too_slow = f"reading took longer than {max(1, round(self.timeout_s / 60))} minutes"
+            r = self._receive(deadline, too_slow, watch)
+            while "progress" in r:  # how far it has got, then the answer
+                if watch is not None and (progress := _progress_from_json(r["progress"])) is not None:
+                    watch.report(progress)
+                r = self._receive(deadline, too_slow, watch)
             if not r.get("ok"):
-                raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300])
+                detail = r.get("detail") if isinstance(r.get("detail"), dict) else {}
+                raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300], str(r.get("code") or "unreadable"),
+                                       **{k: v for k, v in detail.items() if k in ("pages", "max", "minutes") and isinstance(v, int)})
             try:
                 return Extraction(document=_document_from_json(r["document"]), pages=int(r["pages"]),
                                   ocr_pages=int(r["ocr_pages"]), mixed_pages=int(r["mixed_pages"]),
@@ -230,6 +250,14 @@ class IsolatedExtractor:
             self._stop()
 
 
+def _progress_from_json(data) -> Progress | None:
+    """A progress line from the reader, every field checked (it is not trusted); None if malformed."""
+    if not isinstance(data, dict) or data.get("step") not in ("read", "ocr", "layout", "store"):
+        return None
+    n = lambda v: v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100_000 else None
+    return Progress(data["step"], n(data.get("done")), n(data.get("total")))
+
+
 def make_extractor(settings: RagSettings):
     """The extractor to use: isolated in its own process, unless ``SUVERYN_EXTRACT_ISOLATION=off``."""
     if settings.isolate_extraction:
@@ -240,17 +268,23 @@ def make_extractor(settings: RagSettings):
 
 
 # ---------------------------------------------------------------------- the reader's side
-def serve(extract: Callable[[Path], Extraction], requests: IO[bytes], answers: IO[bytes]) -> None:
-    """Answer ``{"file": path}`` lines with one JSON line each, until the gateway closes ``requests``."""
+def serve(extract: Callable[..., Extraction], requests: IO[bytes], answers: IO[bytes]) -> None:
+    """Answer ``{"file": path}`` lines with one JSON line each, until the gateway closes ``requests``;
+    before it, ``{"progress": ...}`` lines as reading goes (``reading.Progress``). A failure carries its
+    ``code`` and ``detail`` (``reading.Unreadable``), so the interface can say why in its own language."""
+    lock = threading.Lock()  # OCRmyPDF reports progress from its own thread
 
     def send(message: dict) -> None:
-        answers.write(json.dumps(message, ensure_ascii=False).encode() + b"\n")
-        answers.flush()
+        with lock:
+            answers.write(json.dumps(message, ensure_ascii=False).encode() + b"\n")
+            answers.flush()
+
+    watch = Watch(report=lambda p: send({"progress": {"step": p.step, "done": p.done, "total": p.total}}))
 
     send({"ready": True})
     for line in requests:
         try:
-            ex = extract(Path(json.loads(line)["file"]))
+            ex = extract(Path(json.loads(line)["file"]), watch=watch)
             doc = ex.document.export_to_dict() if hasattr(ex.document, "export_to_dict") else ex.document
             passages = None if ex.passages is None else [
                 {"text": p.text, "headings": p.headings, "place": p.place} for p in ex.passages]
@@ -258,7 +292,8 @@ def serve(extract: Callable[[Path], Extraction], requests: IO[bytes], answers: I
                   "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
                   "layout_failed_pages": ex.layout_failed_pages, "passages": passages, "furniture": ex.furniture})
         except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
-            send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"})
+            send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}", "code": getattr(e, "code", "unreadable"),
+                  "detail": getattr(e, "detail", {})})
 
 
 def protocol_streams() -> tuple[IO[bytes], IO[bytes]]:

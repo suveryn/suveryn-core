@@ -27,6 +27,7 @@ from .integrity import (
 )
 from .isolation import make_extractor
 from .marks import find_mark
+from .reading import Progress, Unreadable, Watch
 from .store import Scope, Store
 
 
@@ -125,7 +126,7 @@ class Rag:
             self._extractor.close()
 
     def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None,
-               case_id: uuid.UUID | None = None) -> IngestResult:
+               case_id: uuid.UUID | None = None, watch: Watch | None = None) -> IngestResult:
         """Extract, chunk, embed and store one file (a PDF, or a Word, Excel, Markdown or CSV file, by its
         extension: ``formats``); return its id, status and warnings.
 
@@ -135,8 +136,10 @@ class Rag:
         A ``needs_review`` status means text may be missing (see ``integrity``); the document is
         still stored and searchable. ``filename`` is the name to show for the document; it defaults
         to the file's own name (uploads are stored under a random name). ``owner`` is who uploads it;
-        it goes into their personal space, or into the case ``case_id`` (docs/design/cases.md).
+        it goes into their personal space, or into the case ``case_id`` (docs/design/cases.md). ``watch``
+        hears how far reading has got and may cancel it (``reading``): up to storing, never during it.
         """
+        watch = watch or Watch()
         pdf = Path(pdf)
         name = filename or pdf.name
         digest = sha256_of(pdf)
@@ -149,7 +152,9 @@ class Rag:
                                      misread(self.store.document_text(existing)) or noisy):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
-        ex = self._extractor.extract(pdf, owner=owner)
+        ex = self._extractor.extract(pdf, owner=owner, watch=watch)
+        watch.check()
+        watch.report(Progress("store", None, ex.pages or None))
         if ex.passages is not None:
             return self._store_passages(ex, existing, name, digest, owner, case_id)
         t = time.perf_counter()
@@ -200,7 +205,7 @@ class Rag:
         chunks = [Chunk(i, p.text, "\n".join([*p.headings, p.text]), None, None, list(p.headings), place=p.place)
                   for i, p in enumerate(ex.passages)]
         if not chunks:
-            raise ValueError("the file has no text")
+            raise Unreadable("the file has no text", "no_text")
         kinds = sorted({k for c in chunks for k in instruction_like(c.text)})
         warnings = [IntegrityWarning(None, "instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))] if kinds else []
         vectors = self.embedder.embed([c.embed_text for c in chunks])
