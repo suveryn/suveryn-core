@@ -1,5 +1,5 @@
 import pytest
-from suveryn_chat.calc import (
+from suveryn_harness.calc import (
     CalcError,
     CalcRewriter,
     evaluate,
@@ -109,7 +109,7 @@ def test_system_calculations_and_the_users_own_figures_are_not_flagged():
 
 
 def test_deep_nesting_is_a_calculation_error_not_a_crash():
-    from suveryn_chat.calc import CalcError, evaluate
+    from suveryn_harness.calc import CalcError, evaluate
 
     for expression in ("(" * 400 + "1" + ")" * 400, "1 " + "- " * 3000 + "1"):
         with pytest.raises(CalcError):

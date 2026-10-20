@@ -17,8 +17,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 | Package | Status |
 |---|---|
-| [`packages/engine`](packages/engine/README.md) | Model backend client (llama-server); request, answer, citation and calculation schema |
-| [`packages/chat`](packages/chat/README.md) | Grounded answers with numbered citations (`[n]` → `citations[n-1]`), server-side calculations, and each citation checked against its passage |
+| [`packages/harness`](packages/harness/README.md) | Everything around the model ([docs/harness.md](docs/harness.md)): the grounded prompt with numbered citations (`[n]` → `citations[n-1]`), document text kept from acting as instructions, the llama-server client, server-side calculations, each citation checked against its passage, and a playbook's facts read from its table |
 | [`packages/api-gateway`](packages/api-gateway/README.md) | FastAPI app: `POST /v1/chat`, `/v1/documents`, `/v1/conversations`, `/v1/usage`, `/v1/admin/usage`, `GET /health`; sign-in with Keycloak (`/auth/...`) and rate limits |
 | [`packages/rag`](packages/rag/README.md) | Document ingestion (`ocr_fast` extraction in an isolated reader process, integrity checks, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations |
 | [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) in English, Dutch and French; answers to Word, tables to Excel. Also the appliance's first-boot web setup |
@@ -79,7 +78,7 @@ With `"stream": true` it returns Server-Sent Events: first one or more `status` 
 
 **Citations.** With `document_ids`, `citations` holds the passages the model was given, in order, and the marker `[n]` in `answer` refers to `citations[n-1]`; clients show only the cited ones. Without `document_ids`, `citations` is `[]`: the answer is unsourced and must be shown as unverified. A citation with `source: null` is unsourced too.
 
-**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). `unverified_figures` lists figures in the answer text that are in no passage and no calculation's result; clients must flag them. See [packages/chat](packages/chat/README.md#calculations).
+**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). `unverified_figures` lists figures in the answer text that are in no passage and no calculation's result; clients must flag them. See [packages/harness](packages/harness/README.md#calculations).
 
 Documents: `POST /v1/documents` (multipart PDF upload, returns a job; 429 when too many of the caller's documents are waiting), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `GET /v1/documents/{id}/conversations`, `DELETE /v1/documents/{id}?conversations=clean|delete`. Saved conversations: `GET`/`DELETE /v1/conversations`, `GET`/`PUT`/`DELETE /v1/conversations/{id}`. See [packages/api-gateway](packages/api-gateway/README.md).
 

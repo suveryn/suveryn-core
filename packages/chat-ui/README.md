@@ -51,7 +51,7 @@ If the model is starting or unreachable, the composer says so and sending is dis
 
 ## Tables, Word and Excel
 
-- **Tables:** a Markdown table in an answer is shown as a real table (`lib/answer.ts`), so copy and paste into Excel or Word keeps the columns. The model is told to answer with one when asked for a table, an overview or an Excel or Word file (suveryn-chat's `GROUNDED_INSTRUCTIONS`).
+- **Tables:** a Markdown table in an answer is shown as a real table (`lib/answer.ts`), so copy and paste into Excel or Word keeps the columns. The model is told to answer with one when asked for a table, an overview or an Excel or Word file (`GROUNDED_INSTRUCTIONS` in packages/harness).
 - **Word:** every complete answer has a *Word (.docx)* button. The document holds:
   - the question and the date;
   - the answer, with its tables and lists;

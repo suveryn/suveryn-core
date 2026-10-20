@@ -90,7 +90,7 @@ channel, and is treated as all three:
    no other; the office sees the declaration and agrees to it, per connector, before the rule
    is written (the web setup or the dashboard).
 3. **Data, never instructions.** What comes back through a door enters a prompt the way
-   retrieved passages do (`suveryn_chat.grounding`: excerpts framed as data, the reminder near
+   retrieved passages do (`suveryn_harness.grounding`: excerpts framed as data, the reminder near
    the question, control tokens neutralised, instruction-like content audited). The audit
    extends to connector output.
 4. **Off by default**, per pack, per office; every use logged in the case's access log.

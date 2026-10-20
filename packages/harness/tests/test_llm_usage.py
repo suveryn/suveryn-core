@@ -4,7 +4,7 @@ import asyncio
 import json
 
 import httpx
-from suveryn_engine import (
+from suveryn_harness import (
     ChatMessage,
     ChatRequest,
     LlamaServerClient,

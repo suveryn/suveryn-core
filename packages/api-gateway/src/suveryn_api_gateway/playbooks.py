@@ -5,9 +5,9 @@ A run is the playbook's state, keyed by its case (cases.md, decision 9: the case
 closed; the playbook's progress is in its run). It reads the case's uploaded documents with one
 grounded model call, like a chat question with the playbook's own instructions and no history;
 the answer is a Markdown table, one row per fact, each cell citing the excerpts it comes from as
-[n]. The gateway parses it (``read_facts``), keeps the cited passages with the fact (so a run can
-be shown after a document is deleted), and checks every cited figure, date and name against its
-passage with the chat's rule-based check (``suveryn_chat.support``). Then the checkpoint: a person
+[n]. Reading that table, with its cited passages and the check of every cited figure, date and
+name, is the harness's (``suveryn_harness.facts``, docs/harness.md); this module stores runs.
+Then the checkpoint: a person
 confirms or corrects every fact (``confirm``), and the summary is stored in the case as a document
 with origin ``playbook`` (never a source for answers: cases.md, decision 7).
 
@@ -25,16 +25,12 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import unicodedata
 import uuid
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from suveryn_chat.grounding import cited_numbers
-from suveryn_chat.support import citation_issues
-from suveryn_engine import ChatResponse, Citation
+from suveryn_harness.facts import MAX_VALUE, RunFact
 from suveryn_playbooks import Playbook
 
 from .db import PgStore
@@ -71,28 +67,7 @@ CREATE TABLE IF NOT EXISTS playbook_settings (
 """
 
 Status = Literal["reading", "checkpoint", "confirmed", "failed"]
-MAX_VALUE = 2000        # characters of one fact's value, as read or as confirmed
 MAX_RUNS_LISTED = 100
-
-
-class FactCitation(BaseModel):
-    """A passage a fact was read from: enough to show it later, also after the document is deleted."""
-
-    n: int
-    document_id: str
-    filename: str
-    page: int | None = None
-    location: str | None = None
-    text: str
-
-
-class RunFact(BaseModel):
-    id: str
-    value: str = ""                      # as the model read it, copied from the documents
-    citations: list[FactCitation] = Field(default_factory=list)
-    issues: list[str] = Field(default_factory=list)   # figures, dates or names not in the cited passages
-    found: bool = True                   # False: the model said the documents don't contain it
-    confirmed: str | None = None         # what the person confirmed (a correction, the value, or "")
 
 
 class RunSummary(BaseModel):
@@ -166,89 +141,6 @@ class ActiveIn(BaseModel):
     """Body of ``PUT /v1/admin/playbooks/{slug}``."""
 
     active: bool
-
-
-# ------------------------------------------------------------------------- reading the model's table
-
-_ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
-_MARKER = re.compile(r"\[(\d{1,2})\]")
-_NOT_FOUND = re.compile(r"^\s*(-|—|n/?a|none|niet (gevonden|vermeld)|non (trouvé|mentionné)|not (found|mentioned|stated))\s*\.?\s*$", re.IGNORECASE)
-
-
-def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, str]) -> list[RunFact] | None:
-    """The facts in the model's table, in the playbook's order, with their cited passages and the
-    check's findings; None if the answer isn't the table (``error: unreadable_answer``).
-
-    The check reuses the chat's, both halves: ``citation_issues`` (a figure, date or name that is in
-    a passage but not the cited one) works on the whole answer and reports by marker occurrence, so
-    markers are counted here in the same order to map them to facts; ``unverified_figures`` (a figure
-    in no passage at all: made up or worked out) is matched to the fact whose value writes it, a
-    substring match that can attach a figure to two facts that both write it (tolerable: both get
-    the warning, and a person looks at both).
-
-    The first column names the fact: its id as given, or, since a small model sometimes translates
-    or paraphrases, its label in any of the playbook's languages (review 2026-10-17). Rows are never
-    taken by position: a skipped row would shift every fact after it onto the wrong label, silently,
-    which is worse than a run that fails and is started again."""
-    citations = response.citations
-    rows: dict[str, tuple[str, list[int]]] = {}
-    marker_facts: list[str] = []  # which fact the i-th valid marker (in text order) belongs to
-    names = _fact_names(playbook)
-    for line in response.answer.splitlines():
-        m = _ROW.match(line)
-        if not m or m.group(1) in ("id",) or set(m.group(2).strip()) <= {"-", ":"}:
-            continue
-        fact_id, value, source = names.get(_fold(m.group(1))), m.group(2).strip(), m.group(3)
-        if fact_id is None or fact_id in rows:
-            continue
-        # markers in the value cell count first (text order), then the source cell
-        numbers = cited_numbers(value, len(citations)) + cited_numbers(source, len(citations))
-        marker_facts += [fact_id] * (len(_valid(value, len(citations))) + len(_valid(source, len(citations))))
-        rows[fact_id] = (_MARKER.sub("", value).strip(" *_"), list(dict.fromkeys(numbers)))
-    if len(rows) < max(1, len(playbook.facts) // 2):
-        return None
-    issues_by_fact: dict[str, list[str]] = {}
-    for issue in citation_issues(response.answer, citations, response.calculations):
-        if issue.marker < len(marker_facts):
-            issues_by_fact.setdefault(marker_facts[issue.marker], []).append(issue.item)
-    for fact_id, (value, _) in rows.items():
-        issues_by_fact.setdefault(fact_id, []).extend(u for u in response.unverified_figures if u in value)
-    facts = []
-    for f in playbook.facts:
-        value, numbers = rows.get(f.id, ("", []))
-        found = bool(value) and not _NOT_FOUND.match(value)
-        cited = [_cite(n, citations[n - 1], filenames) for n in numbers if 0 < n <= len(citations)]
-        # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
-        facts.append(RunFact(id=f.id, value=value[:MAX_VALUE] if found else "", citations=cited if found else [],
-                             issues=list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else [], found=found))
-    return facts
-
-
-def _fold(text: str) -> str:
-    """A fact's name as the model may write it: case, accents, surrounding marks and spacing ignored."""
-    text = "".join(c for c in unicodedata.normalize("NFKD", text.casefold()) if not unicodedata.combining(c))
-    return re.sub(r"[\s_*`'\"()-]+", " ", text).strip()
-
-
-def _fact_names(playbook: Playbook) -> dict[str, str]:
-    """Every way the first column may name a fact (id, label in each language, id with spaces) -> id."""
-    names = {}
-    for f in playbook.facts:
-        names[_fold(f.id)] = f.id
-        for words in playbook.text.values():
-            if f.id in words.labels:
-                names[_fold(words.labels[f.id])] = f.id
-    return names
-
-
-def _valid(text: str, available: int) -> list[int]:
-    return [int(n) for n in _MARKER.findall(text) if 0 < int(n) <= available]
-
-
-def _cite(n: int, c: Citation, filenames: dict[str, str]) -> FactCitation:
-    s = c.source
-    return FactCitation(n=n, document_id=s.document_id if s else "", filename=filenames.get(s.document_id, "") if s else "",
-                        page=s.page if s else None, location=s.location if s else None, text=c.text)
 
 
 def summary_text(playbook: Playbook, reference: str, run: Run, language: str) -> str:

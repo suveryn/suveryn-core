@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from suveryn_engine import BackendError, LlamaServerClient, ModelInfo
+from suveryn_harness import BackendError, LlamaServerClient, ModelInfo
 
 from .common import StoreStatus
 

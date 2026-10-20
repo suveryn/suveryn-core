@@ -253,9 +253,9 @@ from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blockin
   slower).
   - The choice applies to the conversation. The default lives under *Settings*.
   - With a model that cannot think, *Thorough* is disabled and gives the reason. Whether a model can
-    think is decided by model family in the engine (`ModelInfo.thinks`).
+    think is decided by model family in the harness (`ModelInfo.thinks`).
 - The chip shows the model and, when thinking is on, the ink `brain` icon and "· Thorough".
-- The engine needs a per-request thinking flag; today the presets disable thinking.
+- The harness needs a per-request thinking flag; today the presets disable thinking.
 
 **Working** (artboard 10).
 

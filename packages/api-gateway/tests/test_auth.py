@@ -31,7 +31,7 @@ from suveryn_api_gateway.auth import (
 )
 from suveryn_api_gateway.main import check_auth_settings, check_one_process
 from suveryn_api_gateway.ratelimit import RateLimits
-from suveryn_engine import LlamaServerClient, LLMSettings
+from suveryn_harness import LlamaServerClient, LLMSettings
 
 ISSUER = "http://keycloak.test/realms/suveryn"
 PUBLIC = "http://testserver"

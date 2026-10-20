@@ -1,4 +1,4 @@
-from suveryn_engine import ChatResponse, Citation, SourceRef
+from suveryn_harness import ChatResponse, Citation, SourceRef
 
 
 def test_citations_default_empty():

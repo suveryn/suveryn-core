@@ -5,8 +5,7 @@ description = "Sūveryn API gateway: HTTP surface over the engine"
 requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
 dependencies = [
-    "suveryn-engine",
-    "suveryn-chat",
+    "suveryn-harness",
     "suveryn-playbooks",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -25,8 +24,7 @@ Documentation = "https://github.com/suveryn/suveryn-docs"
 suveryn-gateway = "suveryn_api_gateway.main:run"
 
 [tool.uv.sources]
-suveryn-engine = { workspace = true }
-suveryn-chat = { workspace = true }
+suveryn-harness = { workspace = true }
 suveryn-playbooks = { workspace = true }
 
 [build-system]

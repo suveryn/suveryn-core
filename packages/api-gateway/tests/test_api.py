@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
-from suveryn_engine import LlamaServerClient, LLMSettings
+from suveryn_harness import LlamaServerClient, LLMSettings
 
 MODEL = "Qwen3.8-27B-UD-Q4_K_M.gguf"
 
