@@ -1,10 +1,11 @@
 /**
  * Small actions and indicators (suveryn-tracker#37, #44): a link that looks like a button, a copy
- * button that says when it copied, and a progress bar.
+ * button that says when it copied, a progress bar, and a toolbar (one Tab stop; the arrow keys move
+ * between its buttons).
  */
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link as AriaLink, ProgressBar } from "react-aria-components";
+import { Link as AriaLink, ProgressBar, Toolbar as AriaToolbar } from "react-aria-components";
 import { Button, cx } from "./Button";
 
 /** A link (it goes somewhere) styled as a button, or as a quiet text link with variant "text". */
@@ -58,4 +59,9 @@ export function Progress({ value, label, valueText }: { value: number; label: st
       )}
     </ProgressBar>
   );
+}
+
+/** A row of related buttons (an answer's actions): one Tab stop, the arrow keys move between them. */
+export function Toolbar({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+  return <AriaToolbar aria-label={label} className={cx("ui-toolbar", className)}>{children}</AriaToolbar>;
 }

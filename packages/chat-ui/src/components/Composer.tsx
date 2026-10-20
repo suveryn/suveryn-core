@@ -34,7 +34,7 @@ type Props = {
   onSend: (text: string) => void;
   /** Stop the answer being written (docs/design/sidebar.md §5): in the send button's place, and Esc. */
   onStop?: () => void;
-  /** The open case's reference, shown as a chip; nothing in the personal space. */
+  /** The open case's reference: the question box and the line under it name the case (§5); null in the personal space. */
   caseReference?: string | null;
   /** The open case's type as shown ("Verkoop"), for the playbook menu's title. */
   caseType?: string | null;
@@ -43,7 +43,7 @@ type Props = {
   onPlaybook?: (slug: string) => void;
   /** One pill with a "+" menu (narrow screens). */
   compact?: boolean;
-  /** The line under the box instead of the default (first use: "Personal conversation · only you see this"). */
+  /** The line under the box instead of the default (which says where answers come from). */
   hint?: string | null;
   placeholder?: string;
   /** The start screen's "Work in a case": the open cases to choose from, and a new one. */
@@ -63,6 +63,7 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
   const reason = disabledReason ?? (waiting ? m.waitingForDocuments : null);
   const note = loadingNote(models, chosenModel);
   const canSend = !reason && !busy && text.trim().length > 0;
+  const attachLabel = caseReference ? m.attachToCase(caseReference) : m.attachDocument;
 
   const send = () => {
     if (!canSend) return;
@@ -94,7 +95,7 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
   // The narrow composer's "+": the document, the case's playbooks and the model, in one menu.
   const current = models.find((x) => x.id === chosenModel) ?? defaultModel(models);
   const moreEntries: MenuEntry[] = [
-    { id: "attach", label: m.attachDocument, icon: <Paperclip size={16} /> },
+    { id: "attach", label: attachLabel, icon: <Paperclip size={16} /> },
     ...(playbooks.length > 0 && onPlaybook ? [{ heading: m.playbook, items: playbookEntries.map((e) => (e === "-" || "heading" in e ? e : { ...e, id: `playbook:${e.id}` })) }] : []),
     ...(models.length > 1 ? [{ id: "model", label: m.model, meta: modelName(current?.id)?.family, submenu: models.map((x) => ({
       id: `model:${x.id}`, label: modelName(x.id)?.full ?? x.id,
@@ -128,8 +129,8 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
       {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). On a
           narrow screen one pill: the question, "+" and send. */}
       <div className="composer" data-compact={compact || undefined}>
-        <TextArea label={m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
-                  placeholder={busy ? m.keepTyping : placeholder ?? m.askPlaceholder} className="composer-field" />
+        <TextArea label={caseReference ? m.questionInCase(caseReference) : m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
+                  placeholder={busy ? m.keepTyping : placeholder ?? (caseReference ? m.askInCase(caseReference) : m.askPlaceholder)} className="composer-field" />
         <div className="composer-tools">
           {compact ? <>
             {picker.input}
@@ -139,9 +140,8 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
             </ActionMenu>
           </> : <>
           <FileButton accept={ACCEPTED_FILES} multiple onSelect={onAttach}>
-            <IconButton size="small" label={m.attachDocument}><Paperclip size={16} aria-hidden /></IconButton>
+            <IconButton size="small" label={attachLabel}><Paperclip size={16} aria-hidden /></IconButton>
           </FileButton>
-          {caseReference && <span className="chip-case"><Folder size={13} aria-hidden /> {m.caseLabel(caseReference)}</span>}
           {workInCase && (
             <ActionMenu className="chip-work-in-case" aria-label={m.workInCaseMenu} menuLabel={m.workInCaseMenu} placement="bottom start"
                         entries={caseEntries} onAction={onCaseChoice}>
@@ -171,7 +171,9 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
         </div>
       </div>
       <p className="composer-hint caption" role="status">
-        {reason ?? note ?? (hint ? <><Lock size={12} aria-hidden /> {hint}</> : m.staysOnServer)}
+        {/* Where answers come from (§5): only this case's documents, or a personal chat only you see. */}
+        {reason ?? note ?? (hint ? <><Lock size={12} aria-hidden /> {hint}</>
+          : caseReference ? m.caseOnlyDocuments(caseReference) : <><Lock size={12} aria-hidden /> {m.personalHint}</>)}
       </p>
     </div>
   );
