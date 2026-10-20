@@ -2,6 +2,7 @@
  * The gateway API, as used by the UI. All calls are relative (same origin); in development Vite
  * proxies them to the gateway. No other host is ever contacted.
  */
+import { clearDraft } from "./lib/draft";
 import { createSSEParser } from "./lib/sse";
 import { lang, t } from "./i18n";
 import type { Turn } from "./types";
@@ -131,6 +132,7 @@ export function signIn(): void {
 
 /** Ends the session in the gateway, then in Keycloak (its logout page sends the browser back). */
 export async function signOut(): Promise<void> {
+  clearDraft();  // a question typed but not sent doesn't outlive the session on this computer
   let url: string | null = null;
   try {
     const r = await fetch("/auth/logout", { method: "POST" });

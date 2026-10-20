@@ -7,6 +7,7 @@
  * playbook and the model, and send. On the start screen, "Work in a case" chooses a case (§2, artboard 01).
  */
 import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Folder, FolderPlus, Lock, Paperclip, Plus, Square } from "lucide-react";
+import { keepDraft, readDraft } from "../lib/draft";
 import { useRef, useState, type KeyboardEvent } from "react";
 import type { Case, ModelInfo, PlaybookInfo } from "../api";
 import type { Attachment } from "../types";
@@ -56,7 +57,9 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
                           playbooks = [], onPlaybook, compact = false, hint = null, placeholder, workInCase = null }: Props) {
   const m = useT();
-  const [text, setText] = useState("");
+  // The draft outlives a sign-in in this tab (lib/draft.ts).
+  const [text, setTextState] = useState(readDraft);
+  const setText = (t: string) => { setTextState(t); keepDraft(t); };
   const wrap = useRef<HTMLDivElement>(null);
   const picker = useFilePicker(ACCEPTED_FILES, true, onAttach);
   const waiting = attachments.some(isPending);
