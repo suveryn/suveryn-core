@@ -35,19 +35,21 @@ export function Dialog({ isOpen, onClose, title, busy, children, actions }: {
 
 /**
  * A panel that slides over the page from the left, over a scrim (docs/design/sidebar.md §2, narrow
- * screens): the column as a 320px drawer. A modal like Dialog: the focus moves in and stays, Escape
+ * screens): the column as a 320px drawer; from the right, a source (§5). A modal like Dialog: the focus moves in and stays, Escape
  * or a tap on the scrim closes it, and the focus returns to the menu button.
  */
-export function Drawer({ isOpen, onClose, label, children }: {
+export function Drawer({ isOpen, onClose, label, children, side = "left" }: {
   isOpen: boolean;
   onClose: () => void;
   /** The drawer's accessible name ("Navigation"). */
   label: string;
   children: ReactNode;
+  /** right: a panel beside the content on a wide screen, over it on a narrow one (a source, §5). */
+  side?: "left" | "right";
 }) {
   return (
     <ModalOverlay isOpen={isOpen} onOpenChange={(open) => { if (!open) onClose(); }} isDismissable className="ui-drawer-overlay">
-      <Modal className="ui-drawer">
+      <Modal className="ui-drawer" data-side={side}>
         <AriaDialog className="ui-drawer-dialog" aria-label={label}>{children}</AriaDialog>
       </Modal>
     </ModalOverlay>
