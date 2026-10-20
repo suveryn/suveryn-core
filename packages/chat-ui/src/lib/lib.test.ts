@@ -95,6 +95,8 @@ describe("downloading sources", () => {
     expect(sourceFileName(1, "Akte Zwaluw/straat 13.pdf", 3)).toBe("source-1_Akte_Zwaluw_straat_13_p3.txt");
     expect(safeFileName("Wat is de koopprijs?")).toBe("Wat_is_de_koopprijs");
     expect(safeFileName("???")).toBe("source");
+    expect(safeFileName("A table of the parties, with their role.")).toBe("A_table_of_the_parties_with_their_role");  // no "..md"
+    expect(safeFileName("...hidden")).toBe("hidden");
   });
 
   it("puts the question and date above the sources", () => {
