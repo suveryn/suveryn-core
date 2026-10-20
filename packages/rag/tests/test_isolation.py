@@ -176,6 +176,27 @@ def test_a_reader_without_a_sandbox_is_refused_unless_asked_for(tmp_path, monkey
     IsolatedExtractor(RagSettings(work_dir=tmp_path, extract_unsandboxed=True))  # development
 
 
+def test_the_inbox_copy_is_group_readable_whatever_the_umask(tmp_path):
+    import io
+    import os
+    import stat
+
+    from suveryn_rag.service import DocumentService
+
+    inbox = tmp_path / "inbox"
+    inbox.mkdir(mode=0o750)
+    docs = DocumentService(RagSettings(work_dir=tmp_path / "work", extract_inbox=inbox))
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 test"), "deed.pdf", "user-a")
+    [mine] = (tmp_path / "work" / "uploads").glob(f"{job.id}.pdf")
+    old = os.umask(0o077)  # a gateway started from a strict shell (the Pod's test runner)
+    try:
+        staged = docs._stage(job, mine)
+    finally:
+        os.umask(old)
+    assert stat.S_IMODE(staged.stat().st_mode) == 0o640
+    docs.stop()
+
+
 def test_without_an_inbox_uploads_stay_private(tmp_path):
     import io
     import stat
