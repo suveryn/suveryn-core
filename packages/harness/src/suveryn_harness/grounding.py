@@ -11,8 +11,8 @@ so llama-server's prompt cache can reuse everything before the question.
 
 import re
 
-from suveryn_engine import ChatMessage, Citation
-from suveryn_engine.guard import ZWSP, neutralise
+from .guard import ZWSP, neutralise
+from .schemas import ChatMessage, Citation
 
 GROUNDED_INSTRUCTIONS = (
     "You are the assistant of a notarial office. Answer only from the numbered excerpts of the "

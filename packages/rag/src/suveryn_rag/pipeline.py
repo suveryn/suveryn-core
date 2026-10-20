@@ -1,6 +1,6 @@
 """Ingestion and retrieval, wired together.
 
-Retrieved chunks come back as the engine's ``Citation`` objects, so they can go straight
+Retrieved chunks come back as the harness's ``Citation`` objects, so they can go straight
 into ``ChatResponse.citations`` with ``source`` filled in (document, page, location).
 """
 
@@ -10,9 +10,9 @@ import uuid
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from suveryn_engine import Citation, SourceRef
-from suveryn_engine.audit import audit
-from suveryn_engine.guard import instruction_like
+from suveryn_harness import Citation, SourceRef
+from suveryn_harness.audit import audit
+from suveryn_harness.guard import instruction_like
 
 from .chunking import Chunk, Chunker, location_label
 from .config import RagSettings

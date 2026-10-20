@@ -6,7 +6,7 @@ import json
 
 import httpx
 import pytest
-from suveryn_engine import (
+from suveryn_harness import (
     ChatMessage,
     ChatRequest,
     LlamaServerClient,

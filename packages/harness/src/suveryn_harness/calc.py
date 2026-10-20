@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 
-from suveryn_engine import Calculation
+from .schemas import Calculation
 
 CALC = re.compile(r"\[\[\s*calc\s*:\s*(.*?)\s*\]\]", re.DOTALL | re.IGNORECASE)
 NUMBER = re.compile(r"\d+(?:[.,   ]\d+)*")

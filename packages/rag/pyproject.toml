@@ -5,7 +5,7 @@ description = "Sūveryn RAG: document extraction (ocr_fast), chunking, embedding
 requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
 dependencies = [
-    "suveryn-engine",
+    "suveryn-harness",
     "docling>=2.40",
     "ocrmypdf>=16.0",
     "pikepdf>=10.0",  # flattening forms and signatures in a private copy before OCR (extract.without_form)
@@ -29,7 +29,7 @@ suveryn-forget = "suveryn_rag.cli:forget_main"
 suveryn-fetch-models = "suveryn_rag.cli:fetch_models_main"
 
 [tool.uv.sources]
-suveryn-engine = { workspace = true }
+suveryn-harness = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
