@@ -50,7 +50,8 @@ export async function copyText(text: string): Promise<boolean> {
 
 /** A file name made of safe characters only: letters, digits, dot, dash, underscore. */
 export function safeFileName(name: string): string {
-  return name.normalize("NFKD").replace(/[^\w.-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").slice(0, 80) || "source";
+  // No dot or underscore at either end: a question ending in "." gave "…rol..md" (Pod check of 13469bf).
+  return name.normalize("NFKD").replace(/[^\w.-]+/g, "_").replace(/_+/g, "_").slice(0, 80).replace(/^[._-]+|[._-]+$/g, "") || "source";
 }
 
 export type Format = "txt" | "md";
