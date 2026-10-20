@@ -39,7 +39,7 @@ from pathlib import Path
 from queue import Queue
 from typing import BinaryIO
 
-from suveryn_engine import Citation
+from suveryn_harness import Citation
 
 from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like

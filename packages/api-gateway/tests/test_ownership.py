@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import LOCAL_OWNER, create_app, owner_of
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
-from suveryn_engine import LlamaServerClient, LLMSettings
+from suveryn_harness import LlamaServerClient, LLMSettings
 from test_auth import SETTINGS, FakeKeycloak
 from test_documents import DOC, FakeDocuments, FakeJob, llm_transport
 

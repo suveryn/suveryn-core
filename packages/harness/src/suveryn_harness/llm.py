@@ -29,7 +29,7 @@ from .guard import neutralise
 from .schemas import ChatRequest, ChatResponse, ModelInfo, Usage
 from .usage import Kind, UsageRecord, UsageRecorder
 
-log = logging.getLogger("suveryn.engine")
+log = logging.getLogger("suveryn.harness")
 
 
 class BackendError(RuntimeError):

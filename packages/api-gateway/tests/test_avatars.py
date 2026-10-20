@@ -19,7 +19,7 @@ from suveryn_api_gateway.avatars import (
     normalise,
 )
 from suveryn_api_gateway.cases import CaseSettings
-from suveryn_engine import LlamaServerClient, LLMSettings
+from suveryn_harness import LlamaServerClient, LLMSettings
 from test_auth import SETTINGS, FakeKeycloak
 from test_cases import ADMIN, ALICE, BOB, NEW, FakeCases, FakeDirectory, admin_headers
 from test_conversations import FakeConversations, as_user

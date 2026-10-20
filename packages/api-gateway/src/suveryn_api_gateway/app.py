@@ -55,8 +55,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
-from suveryn_chat import ChatService, DocumentsUnavailable
-from suveryn_engine import LlamaServerClient, LLMSettings, UsageRecord
+from suveryn_harness import (
+    ChatService,
+    DocumentsUnavailable,
+    LlamaServerClient,
+    LLMSettings,
+    UsageRecord,
+)
 
 from . import routes
 from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
@@ -217,7 +222,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             log.warning("%d playbook run(s) interrupted by the restart", n)
 
         async def record_usage(r: UsageRecord) -> None:
-            """The engine's usage hook: store the call's counts (lost, not retried, without a database)."""
+            """The harness's usage hook: store the call's counts (lost, not retried, without a database)."""
             store = app.state.usage.get()
             if store is not None:
                 await run_in_threadpool(store.record, r)

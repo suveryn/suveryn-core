@@ -27,7 +27,7 @@ from suveryn_api_gateway.usage import (
     parse_range,
     step_for,
 )
-from suveryn_engine import LlamaServerClient, LLMSettings, UsageRecord
+from suveryn_harness import LlamaServerClient, LLMSettings, UsageRecord
 from test_auth import SETTINGS, FakeKeycloak, sign_in
 from test_documents import llm_transport
 
