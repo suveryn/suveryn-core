@@ -1,6 +1,6 @@
 """Token usage: storage and reports (suveryn-tracker#7, development context §5.3).
 
-The engine reports every model call's counts (``suveryn_engine.usage``); this module stores them,
+The harness reports every model call's counts (``suveryn_harness.usage``); this module stores them,
 one raw row per call, in PostgreSQL (``token_usage``), and answers two questions:
 
 - a user's own usage over a time range (``report(owner=...)``): nobody sees a colleague's;
@@ -24,7 +24,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
-from suveryn_engine import UsageRecord
+from suveryn_harness import UsageRecord
 
 from .db import PgStore
 

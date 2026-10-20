@@ -19,10 +19,9 @@ Related repositories:
 
 | Package | State | Responsibility |
 |---|---|---|
-| [`packages/engine`](../packages/engine/README.md) | Built | Model server client; request, answer, citation and calculation schema |
+| [`packages/harness`](../packages/harness/README.md) | Built | Everything around the model, in one place to read ([harness.md](harness.md)): the grounded prompt (passages → numbered excerpts → answer citing `[n]`), document text kept from acting as instructions, the model server client (streaming, stopping, token counts), server-side calculations, each citation checked against its own passage, a playbook's facts read from its table; the request, answer, citation and calculation schema |
 | [`packages/api-gateway`](../packages/api-gateway/README.md) | Built | HTTP API: `POST /v1/chat`, `/v1/documents` (upload, list, delete, job status), `/v1/conversations` (saved chat history), `/v1/cases` (cases, suveryn-tracker#10), `/v1/usage` and `/v1/admin/usage` (token usage), `GET /health`; sign-in with Keycloak (`/auth/...`) gating every `/v1` request |
 | [`packages/rag`](../packages/rag/README.md) | Built | Ingestion (extraction in an isolated reader process, integrity checks and text repair, chunking, embeddings, storage) and retrieval |
-| [`packages/chat`](../packages/chat/README.md) | Built | Grounded answers: passages → numbered excerpts → answer citing `[n]`; server-side calculations; each citation checked against its own passage |
 | [`packages/chat-ui`](../packages/chat-ui/README.md) | Built | React/TypeScript chat interface (light theme), and the appliance's first-boot web setup as a second entry (`setup.html`, no sign-in); both on a small component library over React Aria Components (`src/ui`, suveryn-tracker#44). Builds to static files in `dist/`; in development Vite proxies `/v1` and `/health` to the gateway. How the static files are served in production (on the same origin as the API) is decided by suveryn-appliance |
 | `packages/mcp-host`, `connectors`, `playbooks` | Placeholders | Later phases; what they will be, and in what order, is in [docs/design/platform.md](design/platform.md) |
 
@@ -47,10 +46,10 @@ PDF ──► extract.py ──► chunking.py + integrity.py ──► embed.py
 
 browser (chat-ui) ──► api-gateway ──► POST /v1/documents ──► DocumentService queue ──► one worker: rag.ingest
                                     └─► POST /v1/chat {messages, document_ids}
-                                          └─► chat.ChatService ──► Rag.passages ──► numbered excerpts ("complete text" or "best matches")
-                                                              ──► engine.LlamaServerClient ──► llama-server (Qwen3.8-27B)
-                                                              ──► chat.calc: [[calc: …]] markers replaced by exact results as the answer streams
-                                                              ──► chat.support: each claim checked against the passages it cites
+                                          └─► harness.ChatService ──► Rag.passages ──► numbered excerpts ("complete text" or "best matches")
+                                                                 ──► harness.LlamaServerClient ──► llama-server (Qwen3.8-27B)
+                                                                 ──► harness.calc: [[calc: …]] markers replaced by exact results as the answer streams
+                                                                 ──► harness.support: each claim checked against the passages it cites
                                           ◄── SSE: status… (searching, loading_model, reading, writing), delta… then done {answer with [n], citations[n-1], calculations,
                                                    unverified_figures, citation_issues, instruction_like_sources} | error
 ```
@@ -124,13 +123,13 @@ Reviewers: check changes against these.
 8. **No outbound network calls at runtime.** Air-gapped installs must work: no CDN assets (`/docs` is off by default), no telemetry, no model downloads (`suveryn_rag.offline`). The gateway talks only to the local Keycloak. The chat UI bundles its fonts and icons and only calls its own origin.
 9. **SQL takes input only as bound parameters.** f-strings in `store.py` interpolate constants and fixed fragments only.
 10. **Ingestion is single-threaded per process** (process-wide `TMPDIR` redirection), and heavy work is queued. Two concurrent whole-document summaries failed in the benchmark.
-11. **The model's own arithmetic is never shown as a result.** Calculations are written as `[[calc: …]]` and computed by [`chat/calc.py`](../packages/chat/src/suveryn_chat/calc.py) with `Decimal` and a hand-written parser (never `eval`). A calculation that can't be done unambiguously is refused and shown as such, never guessed. Figures the model writes in its text anyway, in no passage and no calculation's result, are listed in `unverified_figures` and flagged in the UI (`calc.unverified_figures`).
+11. **The model's own arithmetic is never shown as a result.** Calculations are written as `[[calc: …]]` and computed by [`harness/calc.py`](../packages/harness/src/suveryn_harness/calc.py) with `Decimal` and a hand-written parser (never `eval`). A calculation that can't be done unambiguously is refused and shown as such, never guessed. Figures the model writes in its text anyway, in no passage and no calculation's result, are listed in `unverified_figures` and flagged in the UI (`calc.unverified_figures`).
 12. **Positional citation contract.** `[n]` in `answer` is `citations[n-1]`. Markers have one or two digits (`grounding._MARKER`, `answer.ts` `MARKER`), so whole-document grounding is capped at 99 chunks (`WHOLE_DOCUMENT_CHUNKS`).
 13. **Document text is data, never instructions** (suveryn-tracker#21).
-    - **Control tokens:** every message the engine sends is `guard.neutralise`d, including a client's own system message, so text from a document, a question or an earlier answer can't become a chat-template turn boundary (`<|im_start|>`, `[INST]`, `[SYSTEM_PROMPT]`).
+    - **Control tokens:** every message the harness sends is `guard.neutralise`d, including a client's own system message, so text from a document, a question or an earlier answer can't become a chat-template turn boundary (`<|im_start|>`, `[INST]`, `[SYSTEM_PROMPT]`).
     - **The prompt:** the grounded prompt says excerpts are data, repeats it right before the question, and quotes excerpts so a document can't pose as another excerpt (`grounding.quoted`).
     - **Flagging:** text addressed to an AI is flagged where it can't be removed. At ingestion it becomes an `instruction_like_text` warning; in every answer it fills `instruction_like_sources`, shown to the reader and in Word exports.
-    - **Audit:** both cases write an audit event (`suveryn_engine.audit`, logger `suveryn.audit`) with ids, pages and kinds only.
+    - **Audit:** both cases write an audit event (`suveryn_harness.audit`, logger `suveryn.audit`) with ids, pages and kinds only.
     - **Test:** a deed with an injection attempt is part of the regression harness.
 14. **Untrusted uploads are parsed only in the reader process** (suveryn-tracker#15, security review 2026-10-11). The gateway never opens an upload with a PDF, Word or Excel library (except with `SUVERYN_EXTRACT_ISOLATION=off`, for debugging); it only checks the extension and the first bytes (`formats.looks_like`).
     - The reader gets no secrets (`child_env`) and sends back JSON only.
@@ -184,7 +183,7 @@ Reviewers: check changes against these.
 |---|---|---|
 | Text inside small images (under 10% of the page) on born-digital pages is not read, e.g. a stamp image bearing the notary's name | Small amounts of text can be missing; the page coverage check can't see it (the text was never in the text layer) | Lower the threshold per document type once real deeds show what's needed (real born-digital deed: one 2.6% image, page 8) |
 | Identifiers are not validated (amounts in words vs figures, check digits, cadastral pattern) | A garbled number would be stored and cited as is | An entities table with validated identifiers |
-| Model answers are checked against their sources by rule, not by meaning | A figure in no passage and no calculation's result is flagged. Each citation is checked against its own passage (`suveryn_chat.support`, suveryn-tracker#11): figures, dates, years and names in the cited claim must be in that passage, and a name another passage spells differently is flagged. On the pod: 1 of 41 markers in 12 real answers was flagged, a false alarm in a bold label, which is now skipped. A claim whose words are all in its passage but whose meaning isn't ("mag niet" for "mag"), an irrelevant figure, or a sum that leaves out a term is not detected | A second model pass that judges meaning, if the extra seconds per answer are acceptable |
+| Model answers are checked against their sources by rule, not by meaning | A figure in no passage and no calculation's result is flagged. Each citation is checked against its own passage (`suveryn_harness.support`, suveryn-tracker#11): figures, dates, years and names in the cited claim must be in that passage, and a name another passage spells differently is flagged. On the pod: 1 of 41 markers in 12 real answers was flagged, a false alarm in a bold label, which is now skipped. A claim whose words are all in its passage but whose meaning isn't ("mag niet" for "mag"), an irrelevant figure, or a sum that leaves out a term is not detected | A second model pass that judges meaning, if the extra seconds per answer are acceptable |
 | Products in calculations keep at most 6 decimals; divisions are rounded half up to at least 2 | A rounded result is not marked as rounded | Mark rounded results if notaries need it |
 | Documents over the budget are seen in part (the best-matching ~48,000 characters) | A question whose answer is spread over the unread third can miss it; the excerpts are announced to the model as a selection, so it says so rather than guessing | Summaries over the whole document (map-reduce) for very large documents |
 | Whole-document grounding is limited in characters, not tokens; a long conversation history adds to it | A very long conversation about a near-limit document could exceed a slot's context share, and llama-server would refuse or truncate | Count tokens with the model's tokenizer |
@@ -211,7 +210,7 @@ Reviewers: check changes against these.
 
 ## 7. How to verify
 
-- **Fast tests, any machine:** `uv sync --locked && uv run pytest`. These are the engine, chat (including calculations) and gateway tests; rag tests are skipped.
+- **Fast tests, any machine:** `uv sync --locked && uv run pytest`. These are the harness (including calculations) and gateway tests; rag tests are skipped.
 - **Chat UI:** `cd packages/chat-ui && npm ci && npm test && npm run typecheck`. Covers SSE parsing, answer rendering, source marking, conversation history and its cap, copy and download, translated server errors, the i18n rules (formal Dutch, the brand name's case), the brand-file hash check, the web setup's text and password rules, and that React Aria stays within the CSP (`vite.config.ts`).
 - **Full tests on the GPU machine:** `uv sync --locked --all-packages`, then `SUVERYN_TEST_DATABASE_URL=… uv run pytest`. This adds the rag units (including the offline guard), pgvector storage, and the end-to-end trap deed ([`test_e2e.py`](../packages/rag/tests/test_e2e.py)) as a born-digital PDF, a scan, and a scan with a thin digital text layer.
 - **Before using a new model or model version** (suveryn-tracker#21): the regression harness [`test_answers_e2e.py`](../packages/rag/tests/test_answers_e2e.py) on the GPU machine, for every model to compare:

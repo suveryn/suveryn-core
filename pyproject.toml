@@ -1,13 +1,12 @@
 [project]
 name = "suveryn-core"
 version = "0.1.0"
-description = "Sūveryn core: engine, chat, RAG, MCP host and API gateway (uv workspace root)"
+description = "Sūveryn core: the harness, RAG, playbooks, MCP host and API gateway (uv workspace root)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
 dependencies = [
-    "suveryn-engine",
-    "suveryn-chat",
+    "suveryn-harness",
     "suveryn-api-gateway",
 ]
 
@@ -17,11 +16,10 @@ Repository = "https://github.com/suveryn/suveryn-core"
 Documentation = "https://github.com/suveryn/suveryn-docs"
 
 [tool.uv.workspace]
-members = ["packages/engine", "packages/chat", "packages/api-gateway", "packages/rag", "packages/playbooks"]
+members = ["packages/harness", "packages/api-gateway", "packages/rag", "packages/playbooks"]
 
 [tool.uv.sources]
-suveryn-engine = { workspace = true }
-suveryn-chat = { workspace = true }
+suveryn-harness = { workspace = true }
 suveryn-api-gateway = { workspace = true }
 suveryn-rag = { workspace = true }
 suveryn-playbooks = { workspace = true }
@@ -34,5 +32,5 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/engine/tests", "packages/chat/tests", "packages/api-gateway/tests", "packages/rag/tests", "packages/playbooks/tests"]
+testpaths = ["packages/harness/tests", "packages/api-gateway/tests", "packages/rag/tests", "packages/playbooks/tests"]
 addopts = "-q"
