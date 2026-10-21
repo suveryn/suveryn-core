@@ -337,6 +337,7 @@ const nl: Messages = {
   ratesChanged: (who, when) => `Laatst gewijzigd door ${who} op ${when}.`,
   ratesDefault: "Standaard: de gepubliceerde prijs van een vergelijkbaar cloudmodel.",
   ratesInvalid: "Vul bedragen van 0 tot 10.000 in, met hoogstens 4 decimalen.",
+  basedOn: (count, names) => (count === 1 ? `Op basis van ${names}` : `Op basis van ${count} documenten: ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Dit antwoord downloaden als Word-document, met de bronnen",
   saveToCase: "Opslaan in dossier",

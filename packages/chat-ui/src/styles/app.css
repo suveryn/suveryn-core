@@ -366,6 +366,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
+/* The documents an answer rests on, above it: quiet, but read before the answer. */
+.answer-basis { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--space-2); font-size: var(--text-caption); color: var(--text-dim); }
+.answer-basis svg { flex: none; }
 /* An answer's actions (§6): a quiet toolbar, its buttons borderless until hovered. */
 .answer-actions { margin: var(--space-2) 0 0 -8px; }
 .answer-actions .copy-button { border-color: transparent; color: var(--text-dim); }

@@ -359,6 +359,7 @@ const en = {
   ratesDefault: "Default: the published price of a comparable cloud model.",
   ratesInvalid: "Enter amounts from 0 to 10,000, with at most 4 decimals.",
   // Word and Excel downloads (made in the browser)
+  basedOn: (count: number, names: string) => (count === 1 ? `Based on ${names}` : `Based on ${count} documents: ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Download this answer as a Word document, with its sources",
   // Save to case (docs/design/sidebar.md §5)

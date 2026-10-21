@@ -337,6 +337,7 @@ const fr: Messages = {
   ratesChanged: (who, when) => `Dernière modification par ${who} le ${when}.`,
   ratesDefault: "Par défaut : le prix publié d'un modèle cloud comparable.",
   ratesInvalid: "Saisissez des montants de 0 à 10 000, avec au plus 4 décimales.",
+  basedOn: (count, names) => (count === 1 ? `D'après ${names}` : `D'après ${count} documents : ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Télécharger cette réponse comme document Word, avec ses sources",
   saveToCase: "Enregistrer dans le dossier",
