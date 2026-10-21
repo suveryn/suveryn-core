@@ -4,11 +4,11 @@
  * place: the conversation (in its case), the case, or the case the document is in with the document
  * ready to ask about. Nothing here decides a right: the server already filtered the lists.
  */
-import { AlertTriangle, FileOutput, FileText, Folder, Lock, MessageSquare, Search } from "lucide-react";
+import { AlertTriangle, FileOutput, FileText, Folder, Lock, MessageSquare, MessageSquareLock, Search } from "lucide-react";
 import { useState } from "react";
 import type { Case, ConversationSummary } from "../api";
 import { useT } from "../i18n";
-import { dayLabel } from "../lib/conversations";
+import { dayLabel, listedTitle } from "../lib/conversations";
 import { formatName } from "../lib/formats";
 import type { OriginKind } from "../lib/origin";
 import type { AllDocument } from "./Sidebar";
@@ -36,7 +36,7 @@ export function SearchView({ conversations, documents, cases, current, onOpenCon
   const q = query.trim().toLowerCase();
   const byId = new Map(cases.map((c) => [c.id, c]));
   const found = {
-    conversations: q ? conversations.filter((c) => matches(q, c.title)) : [],
+    conversations: q ? conversations.filter((c) => !c.shielded && matches(q, c.title ?? "")) : [],  // a shielded title can't be searched
     cases: q ? cases.filter((c) => matches(q, c.reference, c.name)) : [],
     documents: q ? documents.filter((d) => matches(q, d.filename)) : [],
   };
@@ -60,8 +60,8 @@ export function SearchView({ conversations, documents, cases, current, onOpenCon
         {found.conversations.map((c) => (
           <li key={c.id} className="item">
             <Button variant="plain" className="item-open" onPress={() => onOpenConversation(c)}>
-              <MessageSquare size={16} aria-hidden />
-              <span className="item-name">{c.title}</span>
+              {c.shielded ? <MessageSquareLock size={16} aria-hidden /> : <MessageSquare size={16} aria-hidden />}
+              <span className="item-name" data-shielded={c.shielded || undefined}>{listedTitle(c)}</span>
               <span className="item-meta">{c.case_id && byId.get(c.case_id) ? `${byId.get(c.case_id)!.reference} · ` : ""}{dayLabel(c.updated_at)}</span>
             </Button>
           </li>

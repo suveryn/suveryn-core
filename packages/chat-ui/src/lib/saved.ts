@@ -6,6 +6,7 @@
  * built again from that on download: the same file, mark included. The server takes a deleted
  * document's passages out of a saved answer as it does from conversations (``without`` in the store).
  */
+import type { Watermark } from "./watermark";
 import type { Citation } from "../api";
 import { locale, type Messages } from "../i18n";
 import type { AssistantTurn } from "../types";
@@ -41,7 +42,7 @@ export function officeText(m: Messages) {
 
 /** A finished answer as its Word and Excel files show it: the same warnings and sources as the chat. */
 export function answerExport(turn: AssistantTurn, question: string, nameOf: (c: Citation) => string, m: Messages,
-                             caseRef: string | null, answeredOn: Date = new Date()): AnswerExport {
+                             caseRef: string | null, answeredOn: Date = new Date(), watermark?: Watermark): AnswerExport {
   const available = turn.citations.length;
   const flagged = turn.unverifiedFigures ?? [];
   return {
@@ -50,7 +51,9 @@ export function answerExport(turn: AssistantTurn, question: string, nameOf: (c: 
              ...(turn.instructionLikeSources?.length ? [m.instructionLike(turn.instructionLikeSources)] : [])],
     sources: citedNumbers(turn.text, available).map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
     // sūveryn's mark (lib/marks.ts): so that this file, uploaded again, is recognised and asks first.
-    mark: m.exportMark("answer", caseRef, answeredOn.toLocaleDateString(locale()), exportRef("A", turn.id)),
+    mark: m.exportMark("answer", caseRef, answeredOn.toLocaleDateString(locale()), exportRef("A", turn.id))
+      + (watermark ? ` · ${m.strictlyConfidential}` : ""),
+    watermark,
   };
 }
 
@@ -91,8 +94,8 @@ export function savedTurn(s: SavedAnswer): AssistantTurn {
 }
 
 /** A saved answer's Word file, built again: the same as when it was downloaded from the chat. */
-export async function savedWord(s: SavedAnswer, m: Messages, language: string): Promise<Blob> {
+export async function savedWord(s: SavedAnswer, m: Messages, language: string, watermark?: Watermark): Promise<Blob> {
   const { answerToWord } = await import("./office");
   const nameOf = (c: Citation) => (c.removed ? m.sourceRemoved : (c.source && s.filenames?.[c.source.document_id]) || m.unnamedDocument);
-  return answerToWord(answerExport(savedTurn(s), s.question, nameOf, m, s.caseRef, new Date(s.answeredOn)), officeText(m), language);
+  return answerToWord(answerExport(savedTurn(s), s.question, nameOf, m, s.caseRef, new Date(s.answeredOn), watermark), officeText(m), language);
 }
