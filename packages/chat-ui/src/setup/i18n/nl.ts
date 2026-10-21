@@ -36,6 +36,8 @@ const nl: Text = {
   allowAll: "Alle uitgaand verkeer toestaan",
   allowAllDesc: "Alleen als uw eigen firewall bepaalt wat deze appliance mag bereiken.",
   changeLater: "U kunt dit en de lijst later wijzigen in het beheerdashboard.",
+  allowAllWarning: "Elk programma op de appliance kan dan het internet bereiken, en de appliance controleert haar uitgaand verkeer niet meer.",
+  airGappedNote: "De appliance blokkeert zelf al het uitgaand verkeer en controleert dat na de installatie. Blokkeer het ook in de firewall van uw kantoor. Het standaardmodel is al geïnstalleerd; updates en extra modellen komen op een USB-stick of van een spiegelserver in uw netwerk.",
 
   adminTitle: "Beheerdersaccount",
   adminLead: "Het eerste account op deze appliance. Hiermee meldt u zich aan zodra de installatie klaar is, en beheert u daarna gebruikers en instellingen.",
