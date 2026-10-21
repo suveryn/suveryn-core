@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS case_pins (
     PRIMARY KEY (case_id, "user")
 );
 CREATE INDEX IF NOT EXISTS case_events_at ON case_events (at);
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS confidential boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS case_settings (
     key        text PRIMARY KEY,
     value      text NOT NULL,
@@ -132,6 +133,10 @@ CREATE TABLE IF NOT EXISTS case_settings (
 """
 
 SETTING_KEYS = ("default_access", "keep", "conversations_keep")  # what an administrator may change at runtime
+
+
+class StrictlyConfidential(ValueError):
+    """The change isn't allowed while the case is strictly confidential (docs/design/sidebar.md §11)."""
 
 
 class DuplicateReference(ValueError):
@@ -200,6 +205,9 @@ class CaseUpdate(BaseModel):
     type: str | None = Field(default=None, min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
     subject: dict[str, str | int | float | bool | None] | None = None
     access: Access | None = None
+    # Strictly confidential (docs/design/sidebar.md §11): members only, no shared conversations,
+    # watermarked exports, shielded titles in the lists. Turning it on restricts the access too.
+    confidential: bool | None = None
 
 
 class Case(BaseModel):
@@ -221,6 +229,7 @@ class Case(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
+    confidential: bool = False  # strictly confidential (docs/design/sidebar.md §11)
     my_role: Role | None = None
     pinned: bool = False  # by the caller, for the sidebar's "pinned" section (docs/design/sidebar.md)
 
@@ -359,7 +368,7 @@ class CaseStore(PgStore):
         self._overrides_meta: tuple[datetime, str] | None = None
 
     COLUMNS = ("id", "reference", "name", "type", "subject", "access", "state", "opened_at", "closed_at",
-               "keep_until", "keep", "manager", "created_by", "created_at", "updated_at")
+               "keep_until", "keep", "manager", "created_by", "created_at", "updated_at", "confidential")
     _COLS = ", ".join(COLUMNS)
     _SELECT = "SELECT " + ", ".join(f"c.{c}" for c in COLUMNS)
 
@@ -422,6 +431,13 @@ class CaseStore(PgStore):
             cases.append(self._case(row[:-2], role, pinned))
         return cases
 
+    def confidential_ids(self, case_ids: list[uuid.UUID]) -> set[str]:
+        """Which of these cases are strictly confidential (their conversations' titles are shielded)."""
+        if not case_ids:
+            return set()
+        rows = self._execute("SELECT id FROM cases WHERE confidential AND id = ANY(%s)", (case_ids,)).fetchall()
+        return {str(r[0]) for r in rows}
+
     def set_pinned(self, case_id: uuid.UUID, user: str, pinned: bool) -> None:
         """Pin or unpin a case for one user (the sidebar's "pinned" section, docs/design/sidebar.md)."""
         if pinned:
@@ -433,8 +449,16 @@ class CaseStore(PgStore):
         return self._execute('SELECT 1 FROM case_pins WHERE case_id = %s AND "user" = %s', (case_id, user)).fetchone() is not None
 
     def update(self, case_id: uuid.UUID, body: CaseUpdate) -> Case | None:
-        """Change what ``body`` sets; None if the case doesn't exist."""
+        """Change what ``body`` sets; None if the case doesn't exist. Strictly confidential means
+        members only: turning it on restricts the access, and the access can't be opened while it is
+        on (``StrictlyConfidential``)."""
         fields = body.model_dump(exclude_none=True)
+        if fields.get("confidential"):
+            fields["access"] = "restricted"
+        elif fields.get("access") == "default" and fields.get("confidential") is not False:
+            row = self._execute("SELECT confidential FROM cases WHERE id = %s", (case_id,)).fetchone()
+            if row and row[0]:
+                raise StrictlyConfidential("a strictly confidential case is for its members only")
         if not fields:
             row = self._execute(f"{self._SELECT} FROM cases c WHERE c.id = %s", (case_id,)).fetchone()
             return self._case(row) if row else None

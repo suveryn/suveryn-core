@@ -324,7 +324,8 @@ export function reviewPages(warnings: Warning[] | undefined): number[] {
 /** A saved conversation in the list (GET /v1/conversations): no content, newest first. */
 // owner: who started it (a Keycloak id); shared: shared with the case's members (stage 4), read-only for them
 export type ConversationSummary = {
-  id: string; title: string; created_at: string; updated_at: string; case_id?: string | null; owner?: string; shared?: boolean;
+  id: string; title: string | null; created_at: string; updated_at: string; case_id?: string | null; owner?: string; shared?: boolean;
+  shielded?: boolean;  // in a strictly confidential case: no title in the lists that span cases (§11)
   messages?: number;    // how many turns it has (the Conversations overview)
   owner_name?: string;  // a colleague's shared conversation: their name as the case knows it
 };
@@ -401,6 +402,7 @@ export type Case = {
   updated_at: string;
   my_role: CaseRole | null;
   pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/sidebar.md)
+  confidential?: boolean;     // strictly confidential (docs/design/sidebar.md §11)
 };
 export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string> };
 
@@ -445,7 +447,7 @@ export async function getCase(id: string): Promise<Case> {
 }
 
 /** Changes a case's reference, name, type, subject or access (its manager only). */
-export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"] }): Promise<Case> {
+export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"]; confidential?: boolean }): Promise<Case> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
   });

@@ -110,7 +110,9 @@ class ConversationSummary(BaseModel):
     """One entry of ``GET /v1/conversations``."""
 
     id: str
-    title: str
+    # None when ``shielded``: a conversation in a strictly confidential case, in the lists that span
+    # cases (docs/design/sidebar.md §11); the UI shows "Shielded conversation" with the case.
+    title: str | None
     created_at: datetime
     updated_at: datetime
     case_id: str | None = None
@@ -118,6 +120,7 @@ class ConversationSummary(BaseModel):
     shared: bool = False   # shared with the case's members (stage 4)
     messages: int = 0      # how many turns (questions and answers): the Conversations overview (docs/design/sidebar.md §4)
     owner_name: str = ""   # a colleague's name, for one shared with a case (the overview's "From"); empty for the caller's own
+    shielded: bool = False
 
 
 class ShareIn(BaseModel):
@@ -244,6 +247,11 @@ class ConversationStore(PgStore):
         r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                           f" WHERE id = %s AND shared AND case_id IS NOT NULL AND {fresh}", (conversation_id, *params)).fetchone()
         return Conversation(**self._summary(r).model_dump(), turns=r[8]) if r else None
+
+    def unshare_case(self, case_id: uuid.UUID) -> int:
+        """Stop sharing every conversation of a case (it became strictly confidential); their owners
+        keep them. How many were shared."""
+        return self._execute("UPDATE conversations SET shared = false WHERE case_id = %s AND shared", (case_id,)).rowcount
 
     def set_shared(self, conversation_id: uuid.UUID, owner: str, shared: bool) -> ConversationSummary | None:
         """Share the owner's conversation with its case, or stop sharing it. None if it isn't the

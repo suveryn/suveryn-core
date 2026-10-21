@@ -36,7 +36,7 @@ async def list_conversations(request: Request, case: str | None = None, all: boo
     if all:
         owner, case_ids = owner_of(request), await readable_case_ids(request)
         found = await run_in_threadpool(store.summaries_all, owner, case_ids)
-        return await with_owner_names(request, found, owner)
+        return shielded(request, await with_owner_names(request, found, owner), await confidential_cases(request, found))
     scope = await scope_of(request, case, "read")
     return await run_in_threadpool(store.summaries, owner_of(request), scope.case_id)
 
@@ -62,7 +62,8 @@ async def get_conversation(conversation_id: str, request: Request):
 
 @router.post("/v1/conversations/{conversation_id}/share", response_model=ConversationSummary, responses={
     403: {"description": "The case is closed, or the caller may not contribute to it"},
-    404: {"description": "Not the caller's conversation, or not in a case"}})
+    404: {"description": "Not the caller's conversation, or not in a case"},
+    409: {"description": "The case is strictly confidential"}})
 async def share_conversation(conversation_id: str, body: ShareIn, request: Request):
     """Share one of the caller's conversations with its case (decision 12), or stop sharing it.
     Its owner only; a shared conversation is read-only for the case's other members. Noted in the
@@ -71,7 +72,9 @@ async def share_conversation(conversation_id: str, body: ShareIn, request: Reque
     own = await run_in_threadpool(store.get, cid, owner)
     if own is None or own.case_id is None:
         raise HTTPException(404, "Unknown conversation, or not in a case.")
-    await case_for(request, own.case_id, "contribute")  # sharing is a change in the case: not in a closed one
+    case = await case_for(request, own.case_id, "contribute")  # sharing is a change in the case: not in a closed one
+    if body.shared and case.confidential:
+        raise HTTPException(409, "Conversations aren't shared in a strictly confidential case.")
     changed = await run_in_threadpool(store.set_shared, cid, owner, body.shared)
     if changed is None:
         raise HTTPException(404, "Unknown conversation.")
@@ -126,6 +129,24 @@ async def delete_all_conversations(request: Request):
     """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
     store = history_or_503(request)
     return {"deleted": await run_in_threadpool(store.delete_all, owner_of(request))}
+
+
+async def confidential_cases(request: Request, conversations: list[ConversationSummary]) -> set[str]:
+    """The strictly confidential cases among these conversations' cases (docs/design/sidebar.md §11)."""
+    ids = {uuid.UUID(c.case_id) for c in conversations if c.case_id}
+    db = request.app.state.cases
+    store = db.get() if db.configured else None
+    if not ids or store is None:
+        return set()
+    return await run_in_threadpool(store.confidential_ids, list(ids))
+
+
+def shielded(request: Request, conversations: list[ConversationSummary], confidential: set[str]) -> list[ConversationSummary]:
+    """The lists that span cases show a strictly confidential case's conversations without their
+    title: someone looking over a shoulder at Recent sees only that one exists, in which case. The
+    case's own list keeps the titles (it is open, and only its members see it)."""
+    return [c.model_copy(update={"title": None, "shielded": True}) if c.case_id in confidential else c
+            for c in conversations]
 
 
 async def with_owner_names(request: Request, conversations: list[ConversationSummary], me: str) -> list[ConversationSummary]:

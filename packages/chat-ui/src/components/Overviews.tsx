@@ -8,13 +8,13 @@
  * conversation in its case, or the case a document is in with the document ready to ask about.
  */
 import {
-  AlertTriangle, ArrowUpDown, Check, Clock, Download, FileOutput, Filter, Folder, Loader2, Lock, MessageSquare, MoreHorizontal,
+  AlertTriangle, ArrowUpDown, Check, Clock, Download, FileOutput, Filter, Folder, FolderKey, Loader2, Lock, MessageSquare, MessageSquareLock, MoreHorizontal,
   Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { reviewPages, type CaseOverview, type ConversationSummary, type Job, type Me, type Member } from "../api";
 import { locale, useT } from "../i18n";
-import { dayLabel } from "../lib/conversations";
+import { dayLabel, listedTitle } from "../lib/conversations";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { originKind, originText } from "../lib/origin";
 import { documentStatus, mayDeleteDocument, type DocStatus } from "../lib/overviews";
@@ -101,6 +101,7 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
   const [type, setType] = useState("all");
   const [member, setMember] = useState("all");
   const [closed, setClosed] = useState(false);
+  const [confidential, setConfidential] = useState(false);
   const [sort, setSort] = useState("activity");
   const q = query.trim().toLowerCase();
 
@@ -120,6 +121,7 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
   const activity = (c: CaseOverview) => c.last_activity_at ?? c.updated_at;
   const rows = cases
     .filter((c) => closed || c.state === "open")
+    .filter((c) => !confidential || c.confidential)
     .filter((c) => type === "all" || c.type === type)
     .filter((c) => member === "all" || c.members.some((x) => x.user === member))
     .filter((c) => matches(q, c.reference, c.name, caseTypeLabel(c.type, m)))
@@ -162,10 +164,12 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
     { id: "pin", label: m.colPin, hideLabel: true, width: "44px",
       render: (c) => <PinToggle label={c.pinned ? m.unpinCase(c.reference) : m.pinCase(c.reference)} isSelected={!!c.pinned} onChange={(on) => onPin(c, on)} /> },
     { id: "case", label: m.colCase, rowHeader: true,
-      render: (c) => <span className="overview-name">{c.state === "closed" ? <Lock size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
+      render: (c) => <span className="overview-name">{c.state === "closed" ? <Lock size={15} aria-hidden /> : c.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
         <span><b>{c.reference}</b> <span className="overview-dim">{c.name}</span></span></span> },
     { id: "type", label: m.colType, render: (c) => <span className="overview-dim">{caseTypeLabel(c.type, m)}</span> },
-    { id: "status", label: m.colStatus, render: status },
+    { id: "status", label: m.colStatus, render: (c) => <span className="overview-status-cell">{status(c)}
+        {/* §11: an ink outline label in words beside the status */}
+        {c.confidential && <span className="overview-label"><FolderKey size={12} aria-hidden /> {m.strictlyConfidential}</span>}</span> },
     { id: "members", label: m.colMembers, render: members },
     { id: "documents", label: m.colDocuments, align: "end",
       render: (c) => { const n = docs.get(c.id)?.length ?? 0; return (
@@ -190,9 +194,12 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
         <FilterSelect label={m.filterType} options={typeOptions} value={type} onChange={setType} clearLabel={m.clearFilter(m.filterType)} />
         <FilterSelect label={m.filterMember} options={memberOptions} value={member} onChange={setMember} clearLabel={m.clearFilter(m.filterMember)} />
         <FilterToggle isSelected={closed} onChange={setClosed} icon={<Lock size={14} />}>{m.showClosed}</FilterToggle>
+        {cases.some((c) => c.confidential) && (
+          <FilterToggle isSelected={confidential} onChange={setConfidential} icon={<FolderKey size={14} />}>{m.confidentialFilter}</FilterToggle>
+        )}
         <Select label={m.sortBy} options={sortOptions} value={sort} onChange={setSort} icon={<ArrowUpDown size={14} />} className="overview-sort" />
       </div>
-      <DataTable label={m.cases} columns={columns} rows={shown} onRowAction={onOpen} empty={q || type !== "all" || member !== "all" ? m.noCaseFound : m.casesEmpty} />
+      <DataTable label={m.cases} columns={columns} rows={shown} onRowAction={onOpen} empty={q || type !== "all" || member !== "all" || confidential ? m.noCaseFound : m.casesEmpty} />
       <Footer count={m.caseCount(rows.length)} note={<span>{m.casesFootnote}</span>} page={page} total={rows.length} onPage={setPage} />
     </section>
   );
@@ -227,8 +234,8 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
     .filter((c) => where === "all" || (where === "personal" ? !c.case_id : c.case_id === where))
     .filter((c) => from === "all" || (from === "me") === mine(c))
     .filter((c) => visibility === "all" || (visibility === "shared") === !!c.shared)
-    .filter((c) => matches(q, c.title, byId.get(c.case_id ?? "")?.reference, byId.get(c.case_id ?? "")?.name))
-    .sort((a, b) => sort === "title" ? byText(a.title, b.title) : b.updated_at.localeCompare(a.updated_at));
+    .filter((c) => matches(q, c.shielded ? "" : c.title ?? "", byId.get(c.case_id ?? "")?.reference, byId.get(c.case_id ?? "")?.name))
+    .sort((a, b) => sort === "title" ? byText(listedTitle(a), listedTitle(b)) : b.updated_at.localeCompare(a.updated_at));
   const { page, setPage, shown } = usePage(rows);
   const personal = conversations.filter((c) => !c.case_id).length;
 
@@ -238,8 +245,8 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
   };
   const columns: TableColumn<ConversationSummary>[] = [
     { id: "title", label: m.colConversation, rowHeader: true,
-      render: (c) => <span className="overview-name">{c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
-        <span className="overview-strong">{c.title}</span></span> },
+      render: (c) => <span className="overview-name">{c.shielded ? <MessageSquareLock size={15} aria-hidden /> : c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
+        <span className="overview-strong" data-shielded={c.shielded || undefined}>{listedTitle(c)}</span></span> },
     { id: "case", label: m.colCase,
       render: (c) => { const k = byId.get(c.case_id ?? ""); return k
         ? <span className="overview-truncate"><b>{k.reference}</b> <span className="overview-dim">{k.name}</span></span>
@@ -264,7 +271,7 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
     { id: "messages", label: m.colMessages, align: "end", render: (c) => c.messages ?? 0 },
     { id: "activity", label: m.colActivity, render: (c) => <span className="overview-dim">{dayLabel(c.updated_at)}</span> },
     { id: "actions", label: m.colActions, hideLabel: true, width: "48px",
-      render: (c) => <RowMenu name={c.title} onAction={(id) => (id === "open" ? onOpen(c) : onDelete(c))} entries={[
+      render: (c) => <RowMenu name={listedTitle(c)} onAction={(id) => (id === "open" ? onOpen(c) : onDelete(c))} entries={[
         { id: "open", label: m.open, icon: <MessageSquare size={16} /> },
         "-",
         { id: "delete", label: m.delete, icon: <Trash2 size={16} />, isDisabled: !mine(c) },

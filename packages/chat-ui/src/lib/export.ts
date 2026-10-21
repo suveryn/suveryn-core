@@ -6,6 +6,7 @@
  * the date, every warning (figures to check, calculations, citations to check) and every cited
  * source with its passage. A deleted document's source says so.
  */
+import type { Watermark } from "./watermark";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import type { Block, Segment, Table } from "./answer";
 
@@ -104,4 +105,6 @@ export type AnswerExport = {
   sources: SourceItem[];
   /** sūveryn's export mark (lib/marks.ts): in the Word footer and under the Excel sources. */
   mark?: string;
+  /** A strictly confidential case's watermark (lib/watermark.ts): on every page and every sheet. */
+  watermark?: Watermark;
 };
