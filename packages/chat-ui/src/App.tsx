@@ -61,6 +61,7 @@ import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Cho
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
 import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "./lib/conversationActions";
 import { watermark, WatermarkContext } from "./lib/watermark";
+import { restoreThinking, thinkingDefault } from "./lib/thinking";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -138,6 +139,7 @@ function Chat({ me }: { me: Me }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [chosenModel, setChosenModel] = useState<string | null>(null); // null: the appliance default
+  const [thinking, setThinking] = useState(thinkingDefault);  // *Thorough* for this conversation (§5)
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -458,7 +460,8 @@ function Chat({ me }: { me: Me }) {
     setAboutGone(false);
     // In a case with nothing attached, the case's sources (lib/questionDocuments.ts).
     const docIds = new Set(questionDocuments(chosen, caseId ? documents : null));
-    const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0 };
+    const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0,
+                                   ...(thinking ? { thinking: true } : {}) };
     const history: WireMessage[] = conversationHistory(turns);
 
     if (!again) setPending((p) => p.filter(staysInComposer));
@@ -472,24 +475,37 @@ function Chat({ me }: { me: Me }) {
     let streamed = "";
     let sources: Citation[] = [];
     let whole: boolean | null = null;  // the last status: were the documents read in full?
+    // *Thorough*: the reasoning as it comes, and how long it took until the answer's first word.
+    let thought = "";
+    let thinkFrom: number | null = null;
+    let thinkSeconds: number | undefined;
+    const thoughtSoFar = () => (thought ? { reasoning: thought, ...(thinkSeconds !== undefined ? { thoughtSeconds: thinkSeconds } : {}) } : {});
     try {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
-        update({ text: streamed });
-      }, abort.current.signal, chosenModel, (step) => { if (step.complete !== null) whole = step.complete; update({ step }); }, caseId, (c) => { sources = c; });
+        if (thinkFrom !== null && thinkSeconds === undefined) thinkSeconds = (Date.now() - thinkFrom) / 1000;
+        update({ text: streamed, ...thoughtSoFar() });
+      }, abort.current.signal, chosenModel, (step) => { if (step.complete !== null) whole = step.complete; update({ step }); }, caseId, (c) => { sources = c; },
+      { on: thinking, onText: (piece) => {
+        if (thinkFrom === null) thinkFrom = Date.now();
+        thought += piece;
+        update({ reasoning: thought });
+      } });
+      const reasoning = done.reasoning || thought;
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
                instructionLikeSources: done.instruction_like_sources ?? [],
+               ...(reasoning ? { reasoning, thoughtSeconds: done.thought_seconds ?? thinkSeconds } : {}),
                status: "done", model: done.model, ...(asked.length && whole === false ? { partial: true } : {}) });
     } catch (e) {
       if (stopped.current) {
         // Stopped (docs/design/sidebar.md §5): what was written stays, with the passages its markers
         // point to, marked unchecked; the server has stopped the model.
-        update({ text: streamed, citations: sources, status: "stopped", step: undefined });
+        update({ text: streamed, citations: sources, status: "stopped", step: undefined, ...thoughtSoFar() });
       } else if (streamed && (e instanceof TypeError || (e as Error).message === m.streamCutOff)) {
         // The connection dropped mid-answer (§5, artboard 09): what arrived stays, unchecked, with
         // *Regenerate*; the server is checked at once, so the bar says whether it can be reached.
-        update({ text: streamed, citations: sources, status: "error", cutOff: true, error: m.answerCutOff, step: undefined });
+        update({ text: streamed, citations: sources, status: "error", cutOff: true, error: m.answerCutOff, step: undefined, ...thoughtSoFar() });
         checkNow();
       } else {
         // Gateway contract: after an error, discard any partial answer.
@@ -660,6 +676,7 @@ function Chat({ me }: { me: Me }) {
     setConversationId(newConversationId());
     setAbout([]);
     setAboutGone(false);
+    setThinking(thinkingDefault());  // a new conversation starts with the person's default (§5)
     lastSaved.current = "";
     setSavedHere(new Set());
   };
@@ -746,6 +763,7 @@ function Chat({ me }: { me: Me }) {
       setSavedHere(new Set());
       setTurns(opened);
       setAbout(restoreAbout(opened));  // the choice belongs to the conversation (§10)
+      setThinking(restoreThinking(opened, thinkingDefault()));  // and so does Fast or Thorough (§5)
       setAboutGone(false);
       setPending([]);
       setProblem(null);
@@ -838,7 +856,7 @@ function Chat({ me }: { me: Me }) {
 {narrow
         ? <Drawer isOpen={drawer} onClose={() => setDrawer(false)} label={m.navigation}>{sidebar(true)}</Drawer>
         : sidebar(false)}
-      <SettingsDialog open={showSettings} me={self} onClose={() => setShowSettings(false)}
+      <SettingsDialog open={showSettings} me={self} thinks={models.some((x) => x.thinks)} onClose={() => setShowSettings(false)}
                       onPicture={() => { setShowSettings(false); setShowAvatar(true); }} />
       <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
@@ -983,6 +1001,7 @@ function Chat({ me }: { me: Me }) {
           <div ref={endRef} />
         </div>
         <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
+                  thinking={thinking} onThinking={setThinking}
                   disabledReason={disabledReason}
                   locked={locked}
                   askAbout={currentCase && !locked ? {

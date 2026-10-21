@@ -42,6 +42,9 @@ type Props = {
   models: ModelInfo[];            // installed models (GET /v1/models)
   chosenModel: string | null;     // null: the default model
   onChooseModel: (id: string) => void;
+  /** *Thorough* for this conversation (docs/design/sidebar.md §5). */
+  thinking: boolean;
+  onThinking: (on: boolean) => void;
   disabledReason: string | null; // why sending is impossible right now, shown under the input
   busy: boolean;                 // an answer is being written
   onAttach: (files: File[]) => void;
@@ -70,7 +73,7 @@ type Props = {
 
 const CASES_IN_CHIP = 8;
 
-export function Composer({ askAbout = null, caseNote = null, locked = false, attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
+export function Composer({ askAbout = null, caseNote = null, locked = false, attachments, models, chosenModel, onChooseModel, thinking, onThinking, disabledReason, busy, onAttach,
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
                           playbooks = [], onPlaybook, compact = false, hint = null, placeholder, workInCase = null }: Props) {
   const m = useT();
@@ -122,11 +125,17 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
       id: `model:${x.id}`, label: modelName(x.id)?.full ?? x.id,
       description: (x.loaded ? m.modelReady : m.modelLoadsWhenChosen) + (x.thinks ? ` · ${m.modelThinks}` : ""),
     })), selected: current ? `model:${current.id}` : undefined }] : []),
+    // Fast or Thorough, with a model that can think (the dialog says why not for one that can't)
+    ...(current?.thinks ? [{ id: "thinking", label: m.thinkingLabel, meta: thinking ? m.thorough : m.fast, submenu: [
+      { id: "think:fast", label: m.fast, description: m.fastHint },
+      { id: "think:thorough", label: m.thorough, description: m.thoroughHint },
+    ], selected: thinking ? "think:thorough" : "think:fast" }] : []),
   ];
   const onMore = (id: string) => {
     if (id === "attach") picker.open();
     else if (id.startsWith("playbook:")) onPlaybook?.(id.slice(9));
     else if (id.startsWith("model:")) onChooseModel(id.slice(6));
+    else if (id.startsWith("think:")) onThinking(id === "think:thorough");
   };
   // The start screen's "Work in a case": the most recent open cases, then a new one.
   const caseEntries: MenuEntry[] = workInCase ? [
@@ -202,7 +211,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
             </ActionMenu>
           )}
           <span className="composer-space" />
-          <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} />
+          <ModelPicker models={models} chosen={chosenModel} onChoose={onChooseModel} thinking={thinking} onThinking={onThinking} />
           </>}
           {busy && onStop
             ? <Button variant="plain" className="send-button" onPress={stop} aria-label={m.stop} title={m.stopTitle}>

@@ -444,7 +444,21 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .chip-model-button[data-hovered] { background: var(--line); }
 /* the menu itself: .ui-popover and .ui-menu in src/ui/ui.css */
 .model-menu { min-width: 240px; }
-.model-thinks { color: var(--teal-ink); }
+.model-mode { color: var(--text-dim); }
+/* Thorough (§5): "Thought for 14 s" above the answer, and the reasoning it opens */
+.answer-thought { margin: 0 0 var(--space-2); }
+.answer-thought-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px; margin-left: -6px; border: 0; border-radius: var(--radius-sm);
+                         background: transparent; color: var(--text-dim); font: inherit; font-size: var(--text-ui-sm); cursor: pointer; }
+.answer-thought-toggle[data-hovered] { background: var(--surface-alt); color: var(--text); }
+.answer-thought-toggle[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 0; }
+.answer-thought-chevron { transition: transform 150ms ease-out; }
+.answer-thought-toggle[aria-expanded="true"] .answer-thought-chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .answer-thought-chevron { transition: none; } }
+.answer-thought-body { margin: 6px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); color: var(--text-dim);
+                       font-size: var(--text-ui-sm); white-space: pre-wrap; }
+.answer-thought-body p { margin: 0 0 6px; }
+.model-section { display: flex; flex-direction: column; gap: 6px; }
+.model-section-label { margin: 0; color: var(--text-dim); }
 /* the composer's chips: the case and its playbooks (docs/design/sidebar.md) */
 .chip-case, .chip-playbook { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 0;
                              border-radius: var(--radius-pill); font-size: var(--text-ui-sm); white-space: nowrap; }

@@ -46,6 +46,11 @@ export type AssistantTurn = {
   /** The connection dropped mid-answer: the text so far stays, unchecked, with *Regenerate* (§5). */
   cutOff?: boolean;
   model?: string;
+  /** Asked *Thorough* (docs/design/sidebar.md §5): the conversation's mode, restored when it is reopened. */
+  thinking?: boolean;
+  /** What the model thought before answering, and for how long: "Thought for 14 s" above the answer. */
+  reasoning?: string;
+  thoughtSeconds?: number;
 };
 
 export type Turn = UserTurn | AssistantTurn;

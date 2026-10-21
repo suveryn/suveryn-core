@@ -31,6 +31,8 @@ export type ChatResponse = {
   citation_issues?: CitationIssue[];  // facts the cited passage doesn't contain: flag the marker
   instruction_like_sources?: number[]; // passages whose text addresses an AI: tell the reader (suveryn-tracker#21)
   finish_reason: string | null;
+  reasoning?: string;              // *Thorough*: what the model thought before answering, never in ``answer``
+  thought_seconds?: number | null; // and for how long
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -85,13 +87,13 @@ export type Me = { username: string; name: string; sub?: string; admin?: boolean
                    account_url?: string | null };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
-  step: "searching" | "loading_model" | "reading" | "writing";
+  step: "searching" | "loading_model" | "reading" | "writing" | "thinking";
   passages: number | null;
   complete: boolean | null;
   model: string | null;
 };
 /** An installed model (GET /v1/models); only one is in GPU memory at a time. */
-// thinks: the model can reason before it answers (shown as a brain in the composer; docs/design/sidebar.md)
+// thinks: the model can think before it answers, so *Thorough* is possible (docs/design/sidebar.md §5)
 export type ModelInfo = { id: string; loaded: boolean; default: boolean; thinks?: boolean };
 
 /** The models installed on this appliance, with which one is loaded and which is the default. */
@@ -285,12 +287,13 @@ export async function streamChat(
   onStatus?: (status: StreamStatus) => void,
   caseId?: string | null,         // the case the documents are in; null or undefined: the personal space
   onSources?: (citations: Citation[]) => void,  // a grounded answer's passages, before its first word
+  thinking?: { on: boolean; onText: (text: string) => void },  // *Thorough*: think first; the reasoning as it comes
 ): Promise<ChatResponse> {
   const r = await fetch("/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500, ...(model ? { model } : {}),
-                           ...(caseId ? { case_id: caseId } : {}) }),
+                           ...(caseId ? { case_id: caseId } : {}), ...(thinking?.on ? { thinking: true } : {}) }),
     signal,
   });
   if (!r.ok || !r.body) throw await responseError(r);
@@ -300,6 +303,7 @@ export async function streamChat(
     const payload = JSON.parse(data);
     if (event === "status") onStatus?.(payload as StreamStatus);
     else if (event === "sources") onSources?.(payload.citations as Citation[]);
+    else if (event === "thinking") thinking?.onText(payload.text);
     else if (event === "delta") onDelta(payload.text);
     else if (event === "done") done = payload as ChatResponse;
     else if (event === "error") failure = payload.message ?? "unknown error";

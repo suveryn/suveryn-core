@@ -12,6 +12,7 @@ import "./ui.css";
 export { CopyButton, LinkButton, Progress, Toolbar } from "./actions";
 export { Avatar, avatarUrl, IconBadge, initialsOf, type AvatarSize } from "./avatar";
 export { Button, cx, IconButton, TextButton, type ButtonProps } from "./Button";
+export { ChipDialog } from "./chipDialog";
 export { Checkbox, RadioCards, RadioList, Segmented, Switch, type Choice } from "./choices";
 export { Expander } from "./disclosure";
 export { DateField, NumberField, PasswordField, TextArea, TextField, type FieldSize } from "./fields";
