@@ -152,7 +152,7 @@ function Chat({ me }: { me: Me }) {
   const [collapsed, setCollapsedState] = useState(readCollapsed);
   const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
   const [showSettings, setShowSettings] = useState(false);
-  const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere
+  const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
   const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
@@ -179,7 +179,9 @@ function Chat({ me }: { me: Me }) {
   const role = currentCase?.my_role ?? null;
   const closed = currentCase?.state === "closed";
   // The open conversation as the sidebar lists it: someone else's shared one is read-only (stage 4).
-  const current = conversations.find((c) => c.id === conversationId);
+  // Also from the list of everything: a colleague's conversation shared since the case's list was read
+  // is opened from the overview before that list has it (Pod check of 705b91d: it opened editable).
+  const current = conversations.find((c) => c.id === conversationId) ?? allConversations.find((c) => c.id === conversationId);
   const readOnly = !!current && !!current.owner && current.owner !== (me.sub ?? "");
   const canShare = !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
   const manages = role === "manager";
@@ -635,6 +637,7 @@ function Chat({ me }: { me: Me }) {
   const openListed = (c: ConversationSummary) => {
     const target = c.case_id ?? null;
     if (target !== caseId) goTo(caseById(target));
+    else refreshConversations();  // the case's list may predate a colleague's sharing
     setView("chat");
     openConversation(c.id);
   };
