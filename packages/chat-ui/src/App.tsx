@@ -19,7 +19,7 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, FileText, Folder, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -43,6 +43,7 @@ import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved"
 import { LanguagePicker } from "./components/LanguagePicker";
 import { SearchView } from "./components/ListViews";
 import { CasesOverview, ConversationsOverview, DocumentsOverview } from "./components/Overviews";
+import { ConfidentialBand } from "./components/ConfidentialBand";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar, type AllDocument, type CaseAction, type SideView } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -539,7 +540,9 @@ function Chat({ me }: { me: Me }) {
                           { id: "members", label: m.members, icon: <Users size={16} /> },
                           ...(canShare ? [current?.shared
                             ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
-                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} /> }] : []),
+                            // §11: not in a strictly confidential case, disabled with the reason
+                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} />, isDisabled: !!currentCase!.confidential,
+                                ...(currentCase!.confidential ? { description: m.notInConfidential } : {}) }] : []),
                           ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
                           ...(manages && !closed ? ["-" as const,
                             { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
@@ -802,7 +805,8 @@ function Chat({ me }: { me: Me }) {
       {currentCase && (
         <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers}
                        officeWide={me.office_wide ?? false} onClose={() => { setShowMembers(false); loadMembers(currentCase.id); }}
-                       onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); }} />
+                       sharedCount={conversations.filter((x) => x.shared).length}
+                       onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); refreshConversations(); }} />
       )}
       {currentCase && <AccessLogDialog open={showLog} kase={currentCase} onClose={() => setShowLog(false)} />}
       <DeleteDocumentDialog open={deleting !== null} filename={deleting?.doc.filename ?? ""}
@@ -857,11 +861,12 @@ function Chat({ me }: { me: Me }) {
           </div>
         )}
         {view === "chat" && <>
+        {currentCase?.confidential && <ConfidentialBand narrow={narrow} />}
         {currentCase && (
           // The case header (docs/design/sidebar.md §5, artboard 02): the case and its type, the
           // conversation, the members (the manager set apart), its documents and one menu for the case's actions.
           <header className="case-head">
-            {closed ? <Lock size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
+            {closed ? <Lock size={15} aria-hidden /> : currentCase.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
             <span className="case-ref">{currentCase.reference}</span>
             <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
             <span className="case-type">{caseTypeLabel(currentCase.type, m)}</span>

@@ -447,7 +447,7 @@ export async function getCase(id: string): Promise<Case> {
 }
 
 /** Changes a case's reference, name, type, subject or access (its manager only). */
-export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"] }): Promise<Case> {
+export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"]; confidential?: boolean }): Promise<Case> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
   });

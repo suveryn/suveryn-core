@@ -679,6 +679,13 @@ const nl: Messages = {
   // origin: source or made by sūveryn (docs/design/sidebar.md §6)
   // Strikt vertrouwelijk (docs/design/sidebar.md §11)
   strictlyConfidential: "Strikt vertrouwelijk",
+  confidentialRules: "Alleen leden · Gesprekken worden niet gedeeld · Exports krijgen een watermerk",
+  confidentialWhat: "Wat betekent dit?",
+  confidentialHint: "Alleen leden zien dit dossier. Gesprekken worden niet gedeeld. Elke export krijgt een watermerk met naam en tijdstip. In de lijsten staan geen titels van gesprekken.",
+  confidentialUnshares: (n) => (n === 1 ? "Eén gesprek in dit dossier is gedeeld. Het wordt niet meer gedeeld; de eigenaar houdt het." : `${n} gesprekken in dit dossier zijn gedeeld. Ze worden niet meer gedeeld; hun eigenaars houden ze.`),
+  confidentialLogged: "Het aan- en uitzetten komt in het toegangslogboek.",
+  notInConfidential: "Niet in een strikt vertrouwelijk dossier",
+  confidentialFilter: "Strikt vertrouwelijk",
   shieldedConversation: "Afgeschermd gesprek",
   shieldedIn: (ref) => `Afgeschermd gesprek in dossier ${ref}`,
   watermarkLabel: "STRIKT VERTROUWELIJK",

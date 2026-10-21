@@ -175,7 +175,7 @@ class FakeCases:
 
     def get(self, case_id, user):
         c = self.cases.get(case_id)
-        return c.model_copy(update={"my_role": self.role_of(case_id, user)}) if c else None
+        return c.model_copy(update={"my_role": self.role_of(case_id, user), "pinned": (case_id, user) in self.pins}) if c else None
 
     def members(self, case_id):
         return sorted(self.rows[case_id].values(), key=lambda m: (m.role != "manager", m.name.lower()))
@@ -1202,8 +1202,10 @@ def test_a_strictly_confidential_case_is_for_its_members_with_no_sharing_and_shi
     c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)
 
     assert c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=bob).status_code == 403  # the manager only
+    c.put(f"/v1/cases/{cid}/pin", json={"pinned": True}, headers=alice)
     r = c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
     assert r.status_code == 200 and r.json()["confidential"] is True and r.json()["access"] == "restricted"
+    assert r.json()["pinned"] is True  # the answer keeps the caller's pin: the sidebar doesn't drop the case
     assert c.patch(f"/v1/cases/{cid}", json={"access": "default"}, headers=alice).status_code == 409
     # unshared, still Bob's; and he can't share it again
     assert c.get(f"/v1/conversations?case={cid}", headers=alice).json() == []

@@ -17,7 +17,7 @@
  * Nothing here decides a right: the lists come from the server, which already filtered them.
  */
 import { listedTitle } from "../lib/conversations";
-import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderKey, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
@@ -235,7 +235,7 @@ export function Sidebar(p: Props) {
               <Expander key={c.id} className="side-case" toggleFirst expanded={expanded} onToggle={(v) => toggle(c.id, v)}
                         onOpen={() => p.onOpenCase(c)} current={c.id === p.currentCase?.id}
                         toggleLabel={m.caseConversationsToggle(c.reference)} title={m.openCase(c.reference, c.name)}
-                        icon={c.state === "closed" ? <Lock size={16} /> : expanded ? <FolderOpen size={16} /> : <Folder size={16} />}
+                        icon={c.state === "closed" ? <Lock size={16} /> : c.confidential ? <FolderKey size={16} /> : expanded ? <FolderOpen size={16} /> : <Folder size={16} />}
                         label={<><b>{c.reference}</b> <span className="side-dim">{c.state === "closed" ? `${m.caseClosed} · ` : ""}{c.name}</span></>}
                         actions={
                           <ActionMenu className="side-actions" aria-label={m.caseActions(c.reference)} menuLabel={m.caseActions(c.reference)}
