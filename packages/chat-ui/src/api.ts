@@ -328,8 +328,37 @@ export type ConversationSummary = {
   shielded?: boolean;  // in a strictly confidential case: no title in the lists that span cases (§11)
   messages?: number;    // how many turns it has (the Conversations overview)
   owner_name?: string;  // a colleague's shared conversation: their name as the case knows it
+  pinned?: boolean;     // a personal conversation its owner pinned in the sidebar (§3); one in a case follows its case
 };
 export type SavedConversation = ConversationSummary & { turns: Turn[] };
+
+/** Renames one of the signed-in user's conversations; the title is kept over later saves (§4). */
+export async function renameConversation(id: string, title: string): Promise<ConversationSummary> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Pins one of the signed-in user's personal conversations in their sidebar, or unpins it (§3). */
+export async function pinConversation(id: string, pinned: boolean): Promise<ConversationSummary> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}/pin`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Moves one of the signed-in user's personal conversations into a case they contribute to (§4). It
+ *  isn't shared and loses its own pin; its documents stay in the personal space. */
+export async function moveConversation(id: string, caseId: string): Promise<ConversationSummary> {
+  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}/move`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ case_id: caseId }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
 
 /** Shares one of the signed-in user's conversations with its case, or stops sharing it (its owner only, open case). */
 export async function shareConversation(id: string, shared: boolean): Promise<ConversationSummary> {

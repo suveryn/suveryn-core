@@ -615,6 +615,73 @@ def test_a_colleagues_shared_conversation_is_in_everyones_list_with_their_name(o
     assert own[conv]["owner_name"] == ""  # his own: no name needed
 
 
+def test_a_renamed_conversation_keeps_its_title_over_later_saves(office):
+    """§4: the owner's title stays; saving the conversation again doesn't rename it after its first question."""
+    c, kc, _, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    conv = str(uuid.uuid4())
+    turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
+    c.put(f"/v1/conversations/{conv}", json={"title": "Question", "turns": turns}, headers=alice)
+    r = c.patch(f"/v1/conversations/{conv}", json={"title": "Sale, the price"}, headers=alice)
+    assert r.status_code == 200 and r.json()["title"] == "Sale, the price"
+    c.put(f"/v1/conversations/{conv}", json={"title": "Question", "turns": turns * 2}, headers=alice)
+    assert c.get(f"/v1/conversations/{conv}", headers=alice).json()["title"] == "Sale, the price"
+    assert c.patch(f"/v1/conversations/{conv}", json={"title": "Bob's"}, headers=bob).status_code == 404
+    assert c.patch(f"/v1/conversations/{conv}", json={"title": " "}, headers=alice).status_code == 422
+
+
+def test_a_personal_conversation_is_pinned_and_one_in_a_case_follows_its_case(office):
+    """§3: a personal conversation can be pinned by its owner; one in a case can't (pin the case instead)."""
+    c, kc, _, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    personal, in_case = str(uuid.uuid4()), str(uuid.uuid4())
+    turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
+    c.put(f"/v1/conversations/{personal}", json={"title": "Own", "turns": turns}, headers=alice)
+    c.put(f"/v1/conversations/{in_case}", json={"title": "Case", "turns": turns, "case_id": cid}, headers=alice)
+    r = c.put(f"/v1/conversations/{personal}/pin", json={"pinned": True}, headers=alice)
+    assert r.status_code == 200 and r.json()["pinned"]
+    assert c.get("/v1/conversations", headers=alice).json()[0]["pinned"]
+    assert c.put(f"/v1/conversations/{in_case}/pin", json={"pinned": True}, headers=alice).status_code == 409
+    assert c.put(f"/v1/conversations/{personal}/pin", json={"pinned": True}, headers=bob).status_code == 404
+    assert not c.put(f"/v1/conversations/{personal}/pin", json={"pinned": False}, headers=alice).json()["pinned"]
+
+
+def test_a_personal_conversation_moves_into_a_case_the_owner_contributes_to(office):
+    """§4: moved, it isn't shared, loses its pin, follows the case and is in the case's access log; a reader,
+    a closed case and a conversation already in a case are refused."""
+    c, kc, cases, _, _ = office
+    alice, bob, carla = as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
+    turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
+    conv, carlas = str(uuid.uuid4()), str(uuid.uuid4())
+    c.put(f"/v1/conversations/{conv}", json={"title": "Bob's", "turns": turns}, headers=bob)
+    c.put(f"/v1/conversations/{conv}/pin", json={"pinned": True}, headers=bob)
+    r = c.post(f"/v1/conversations/{conv}/move", json={"case_id": cid}, headers=bob)
+    assert r.status_code == 200
+    moved = r.json()
+    assert moved["case_id"] == cid and not moved["shared"] and not moved["pinned"]
+    assert c.get("/v1/conversations", headers=bob).json() == []  # no longer in his own space
+    assert [x["id"] for x in c.get(f"/v1/conversations?case={cid}", headers=bob).json()] == [conv]
+    assert c.get(f"/v1/conversations/{conv}", headers=bob).json()["turns"] == turns  # its questions came along
+    events = c.get(f"/v1/cases/{cid}/events", headers=alice).json()
+    assert (events[0]["user"], events[0]["action"], events[0]["detail"]) == (BOB, "conversation_moved_in", {"conversation": conv})
+    assert c.post(f"/v1/conversations/{conv}/move", json={"case_id": cid}, headers=bob).status_code == 409
+    # a reader can't move one in
+    c.put(f"/v1/conversations/{carlas}", json={"title": "Carla's", "turns": turns}, headers=carla)
+    assert c.post(f"/v1/conversations/{carlas}/move", json={"case_id": cid}, headers=carla).status_code == 403
+    # nor anyone into a closed case, or into a case they can't see, or someone else's conversation
+    other = str(uuid.uuid4())
+    c.put(f"/v1/conversations/{other}", json={"title": "Alice's", "turns": turns}, headers=alice)
+    assert c.post(f"/v1/conversations/{other}/move", json={"case_id": cid}, headers=bob).status_code == 404
+    assert c.post(f"/v1/conversations/{other}/move", json={"case_id": str(uuid.uuid4())}, headers=alice).status_code == 404
+    cases.close_case(uuid.UUID(cid))
+    assert c.post(f"/v1/conversations/{other}/move", json={"case_id": cid}, headers=alice).status_code == 403
+    assert c.get("/v1/conversations", headers=alice).json()[0]["case_id"] is None
+
+
 def test_deleting_a_case_deletes_its_documents_and_conversations(office):
     c, kc, _, history, docs = office
     alice = as_user(kc, ALICE)

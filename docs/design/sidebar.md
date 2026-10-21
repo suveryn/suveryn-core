@@ -414,7 +414,8 @@ playbook is never covered.
 5. **Strictly confidential** (section 11).
 6. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
    is built.
-7. ~~**Markdown and CSV**~~ (built, #79), and **pinned personal conversations**.
+7. ~~**Markdown and CSV**~~ (built, #79), and ~~**pinned personal conversations**~~ (built, with the
+   conversation menu).
 8. **"Thought for …"** and the per-request thinking flag.
 
 ## 10. Choosing which documents a question is about (artboards 17 to 19)
@@ -571,7 +572,10 @@ conversations, and the client shows the placeholder.
   - The navigation rows are plain buttons.
   - *Pinned* uses the `Expander` from the UI kit for pinned cases: a row button that opens the case,
     and a chevron that expands it.
-  - Then *Recent*, and the account `MenuTrigger`.
+  - Then the pinned personal conversations, *Recent*, and the account `MenuTrigger`.
+  - A conversation's menu is `conversationMenu` (`ConversationDialogs.tsx`, from
+    `lib/conversationActions.ts`), the same in the column and the Conversations overview; its
+    *Rename* and *Move to a case* dialogs are there too.
 - **`ui/`**:
   - `Avatar`, with a `badge` prop: `admin`, `manager` or `owner`;
   - `IconButton`, `Button`;
@@ -921,6 +925,26 @@ here.
   - The switch is in *Members and access* for the manager, with what it changes and, before it is
     turned on, how many conversations it will unshare; the office-wide access choice is disabled
     while it is on.
+- **The conversation menu and pinned personal conversations (21 October, sections 2 to 4).**
+  - Server: `PATCH /v1/conversations/{id}` renames (the owner only); the title is kept over later
+    saves, which otherwise name a conversation after its first question. `PUT
+    /v1/conversations/{id}/pin` pins a personal conversation (409 for one in a case: it follows its
+    case). `POST /v1/conversations/{id}/move` moves a personal conversation into an open case the
+    owner contributes to or manages (403 for a reader or a closed case, 409 if already in a case); it
+    arrives unshared and without its pin, and the case's access log says `conversation_moved_in`.
+    Only the conversation moves: its documents stay in the personal space, so its next questions
+    read the case's documents, as the dialog says.
+  - One menu in the column (Recent and pinned rows) and the overview: *Pin* or *Unpin*, *Rename*,
+    *Move to a case*, then *Delete*. For a conversation in a case, *Pin* is disabled with "Pin the case
+    instead" under it and *Move to a case* is disabled; for a colleague's shared one, everything is.
+    The overview adds *Open* first. Rows under a pinned case have no menu: the case's menu is there.
+  - Pinned personal conversations come after the pinned cases, their icons aligned with the cases'
+    icons (after the 44 px chevron in the drawer). They are left out of *Recent*.
+  - The five-pinned hint shows once in this browser, under *Pinned*, when a pin takes the count past
+    five; the pin still works.
+  - Moving the open conversation takes the person to the case, the conversation still open.
+  - The Conversations overview's pin column has a toggle only for one's own personal conversations;
+    the cell is empty otherwise.
 
 ## Open
 
