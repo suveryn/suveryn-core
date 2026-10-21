@@ -166,11 +166,13 @@ A person shows one badge at a time: the one that matters where the avatar appear
 
 **Shared build**:
 
-- A title with the count, and the primary action (*Upload*, *New case*, *New chat*).
+- A title, a line under it with the counts ("12 open, 3 closed"), and the primary action (*Upload*,
+  *New case*, *New chat*).
 - A `SearchField`.
 - Filter chips as `Select`s. An active filter is `surface-alt` with a darker border and a clear ×.
 - A sort or group control.
-- A React Aria `Table` with virtualised rows, 25 per page.
+- A React Aria `Table`, 25 rows per page. Not virtualised: at 25 rows there is nothing to gain
+  (`ui/table.tsx`).
 - A three-dot `MenuTrigger` per row. An action the person has no right to is shown disabled, never
   hidden.
 
@@ -891,6 +893,14 @@ here.
     said the passages were a selection (the stream's `complete`).
   - The case's empty state adds "Your question is about all n documents…" when it holds two sources
     or more and nothing is chosen (artboard 17).
+- **Audit of sections 2 to 4 (21 October).** The column, pinning and the three overviews were
+  compared with this spec. Fixed: the row actions (three dots) are always shown on a touch screen
+  (`hover: none`), not only below 768 px, so a tablet held sideways has them too; the pin toggle is
+  at `text-dim` there; the rail lost its separate expand button (the mark expands it, with a title);
+  a pinned case's chevron turns in 150 ms. Section 4 now says what was built on purpose: the counts in
+  a line under the title, and tables that aren't virtualised. Still to build, together: pinned
+  personal conversations, the three-dot menus on conversation rows, and *Pin*, *Rename* and *Move to
+  a case* in the Conversations overview (sections 2 to 4, phase e).
 
 ## Open
 

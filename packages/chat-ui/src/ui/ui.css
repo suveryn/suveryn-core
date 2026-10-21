@@ -186,7 +186,7 @@
 .ui-expander-meta { flex: none; font-size: var(--text-caption); color: var(--text-dimmer); }
 .ui-expander-toggle { display: flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; margin-right: 4px; border: 0; border-radius: var(--radius-sm);
                       background: transparent; color: var(--text-dim); cursor: pointer; }
-.ui-expander-toggle svg { transition: transform 120ms ease-out; transform: rotate(-90deg); }
+.ui-expander-toggle svg { transition: transform 150ms ease-out; transform: rotate(-90deg); }
 .ui-expander[data-expanded] > .ui-expander-row > .ui-expander-toggle svg { transform: none; }
 @media (prefers-reduced-motion: reduce) { .ui-expander-toggle svg { transition: none; } }
 .ui-expander-toggle[data-hovered] { background: var(--line); color: var(--text); }
@@ -585,6 +585,7 @@
 .ui-pin { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm);
           background: transparent; color: var(--text-dimmer); cursor: pointer; }
 .ui-pin[data-hovered] { background: var(--surface-alt); color: var(--text-dim); }
+@media (hover: none) { .ui-pin { color: var(--text-dim); } }  /* §3: shown at text-dim on touch */
 .ui-pin[data-selected] { color: var(--text); }
 .ui-pin[data-selected] svg { fill: currentColor; }
 .ui-pin[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 1px; }
