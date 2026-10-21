@@ -333,6 +333,23 @@ def test_store_age_cap(store):
 
 
 @needs_db
+def test_store_hides_expired_conversations_and_leaves_deleting_them_to_the_sweep(store):
+    """External review, pass 6: a listing no longer runs a DELETE; the expired one is left out, and purge (the
+    hourly sweep's part) deletes it."""
+    capped = ConversationStore(ConversationSettings(database_url=URL, keep="6m"))
+    try:
+        old = uuid.uuid4()
+        store.save(old, ALICE, ConversationIn(**BODY))
+        store._execute("UPDATE conversations SET updated_at = now() - interval '200 days' WHERE id = %s", (old,))
+        assert str(old) not in [s.id for s in capped.summaries(ALICE)] + [s.id for s in capped.summaries_all(ALICE, [])]
+        assert store._execute("SELECT count(*) FROM conversations WHERE id = %s", (old,)).fetchone()[0] == 1  # still there
+        assert capped.purge() >= 1
+        assert store._execute("SELECT count(*) FROM conversations WHERE id = %s", (old,)).fetchone()[0] == 0
+    finally:
+        capped.close()
+
+
+@needs_db
 def test_store_lists_all_of_the_owners_conversations_across_cases(store):
     """The column's Recent and the Conversations overview (docs/design/sidebar.md §2, §4): own conversations in
     the personal space and in readable cases, and the ones colleagues shared with those cases."""
