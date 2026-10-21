@@ -581,6 +581,8 @@ const fr: Messages = {
   newChatHint: "Personnelle, hors dossier",
   newChatHintInCase: (ref) => `Personnelle, hors du dossier ${ref}`,
   newCaseHint: "Référence, nom et type",
+  newConversationInCase: (ref) => `Nouvelle conversation dans le dossier ${ref}`,
+  newConversationInCaseHint: "Réponses tirées des documents du dossier",
   administratorsOnly: "Réservé aux administrateurs",
   firstUseColumn: "Vos conversations récentes et ce que vous épinglez apparaissent ici.",
   caseConversationsToggle: (ref) => `Conversations du dossier ${ref}`,

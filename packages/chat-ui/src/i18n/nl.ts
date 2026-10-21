@@ -581,6 +581,8 @@ const nl: Messages = {
   newChatHint: "Persoonlijk, buiten een dossier",
   newChatHintInCase: (ref) => `Persoonlijk, buiten dossier ${ref}`,
   newCaseHint: "Referentie, naam en type",
+  newConversationInCase: (ref) => `Nieuw gesprek in dossier ${ref}`,
+  newConversationInCaseHint: "Antwoorden uit de documenten van het dossier",
   administratorsOnly: "Alleen voor administrators",
   firstUseColumn: "Uw recente gesprekken en wat u vastzet, verschijnen hier.",
   caseConversationsToggle: (ref) => `Gesprekken in dossier ${ref}`,

@@ -16,7 +16,7 @@
  * Collapsed, it is a 60px rail of icons in the same order; the state is remembered in this browser.
  * Nothing here decides a right: the lists come from the server, which already filtered them.
  */
-import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
@@ -118,14 +118,21 @@ export function Sidebar(p: Props) {
   );
 
   // ---------------------------------------------------------------- "New"
-  // Two items (§2, artboard 05): a personal chat, outside any case (it says so when a case is open), and a case.
+  // A personal chat, outside any case (it says so when a case is open), and a case (§2, artboard 05). In an
+  // open case its contributors also get a conversation in it, first: the only way to start one there
+  // without leaving the case and opening it again (Pod check of 705b91d).
+  const inCase = p.currentCase && p.currentCase.state !== "closed"
+    && (p.currentCase.my_role === "contributor" || p.currentCase.my_role === "manager") ? p.currentCase : null;
   const newEntries: MenuEntry[] = [
+    ...(inCase ? [{ id: "in-case", label: m.newConversationInCase(inCase.reference), icon: <MessagesSquare size={16} />,
+                    description: m.newConversationInCaseHint }] : []),
     { id: "conversation", label: m.newConversation, icon: <MessageSquare size={16} />,
       description: p.currentCase ? m.newChatHintInCase(p.currentCase.reference) : m.newChatHint },
     ...(p.casesNote ? [] : [{ id: "case", label: m.newCase, icon: <FolderPlus size={16} />, description: m.newCaseHint }]),
   ];
   const onNew = (id: string) => {
     if (id === "conversation") p.onNewConversation(true);
+    else if (id === "in-case") p.onNewConversation(false);
     else if (id === "case") p.onNewCase();
   };
 
