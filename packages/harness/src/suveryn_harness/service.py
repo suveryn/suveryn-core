@@ -4,6 +4,8 @@ Conversation state is kept by the client for now (it sends the earlier turns wit
 nothing about a conversation is stored server-side.
 """
 
+import logging
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing
@@ -11,7 +13,12 @@ from dataclasses import dataclass
 
 from .audit import audit
 from .calc import CalcRewriter, unverified_figures
-from .grounding import cited_numbers, grounded_messages, without_earlier_markers
+from .grounding import (
+    _MARKER,
+    cited_numbers,
+    grounded_messages,
+    without_earlier_markers,
+)
 from .guard import instruction_like
 from .llm import BackendError, LlamaServerClient
 from .schemas import (
@@ -23,6 +30,8 @@ from .schemas import (
     Usage,
 )
 from .support import citation_issues
+
+log = logging.getLogger("suveryn.harness")
 
 # Passages to answer a question from, within the given documents of one user or case:
 # (question, document_ids, k, owner, case_id) -> ([(citation, filename), ...], complete). The retriever
@@ -51,6 +60,13 @@ def search_text(messages) -> str:
 @dataclass
 class Delta:
     """A piece of answer text as it is generated."""
+
+    text: str
+
+
+@dataclass
+class Thinking:
+    """A piece of the model's reasoning before the answer (*Thorough* only), never answer text."""
 
     text: str
 
@@ -133,9 +149,9 @@ class ChatService:
                                            "unverified_figures": unverified, "citation_issues": issues,
                                            "instruction_like_sources": _suspicious(citations, owner, response.model)})
 
-    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Delta | Done]:
-        """Status steps, then for a grounded answer its passages, then answer text as it is generated,
-        then the complete answer with citations.
+    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
+        """Status steps, then for a grounded answer its passages, then in *Thorough* the reasoning, then
+        answer text as it is generated, then the complete answer with citations.
 
         Status steps are the pipeline's real stages, so a UI can say what is happening: searching
         the documents, loading a model, reading the passages or writing. Raises ``BackendError``
@@ -156,9 +172,19 @@ class ChatService:
         # Grounded answers: calculation markers are replaced as they stream (see ``calc``).
         calc = CalcRewriter(_source(citations)) if req.document_ids else None
         parts: list[str] = []
+        thought: list[str] = []
+        began = ended = None  # when the reasoning began, and when the answer's first word came
         finish_reason, usage = None, Usage()
         async with aclosing(self.llm.stream(prepared, user=owner, kind="chat")) as chunks:
             async for chunk in chunks:
+                if chunk.reasoning:
+                    if began is None:
+                        began = time.monotonic()
+                        yield Status("thinking")
+                    thought.append(chunk.reasoning)
+                    yield Thinking(chunk.reasoning)
+                if chunk.text and began is not None and ended is None:
+                    ended = time.monotonic()
                 text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
                 if text:
                     parts.append(text)
@@ -171,10 +197,15 @@ class ChatService:
         answer = "".join(parts)
         answer, calculations, unverified, issues = _finish(calc, answer, citations, req) if calc else (answer, [], [], [])
         model = await self.llm.model_name(req.model)
+        if calc and citations and not cited_numbers(answer, len(citations)):
+            _log_uncited(req, citations, complete, answer, bool(thought))
+        if began is not None and ended is None:
+            ended = time.monotonic()
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,
                                 citations=citations, calculations=calculations, unverified_figures=unverified,
                                 citation_issues=issues, instruction_like_sources=_suspicious(citations, owner, model),
-                                finish_reason=finish_reason, usage=usage))
+                                finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
+                                thought_seconds=round(ended - began, 1) if began is not None else None))
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
@@ -192,6 +223,15 @@ def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
     asked = "\n".join(m.content for m in req.messages if m.role == "user")
     return (answer, calculations, unverified_figures(answer, calculations, _source(citations), asked),
             citation_issues(answer, citations, calculations))
+
+
+def _log_uncited(req: ChatRequest, citations: list[Citation], complete: bool, answer: str, thinking: bool) -> None:
+    """A grounded answer with passages that cites none of them (suveryn-tracker#54): counts only, so the
+    cause can be found on real documents without any of their text, the question's or the answer's."""
+    earlier = [m for m in req.messages[:-1] if m.role == "assistant"]
+    log.info("grounded answer cites no passage: passages=%d complete=%s earlier_answers=%d earlier_markers=%d "
+             "answer_chars=%d thinking=%s", len(citations), complete, len(earlier),
+             sum(len(_MARKER.findall(m.content)) for m in earlier), len(answer), thinking)
 
 
 def _suspicious(citations: list[Citation], owner: str, model: str) -> list[int]:
