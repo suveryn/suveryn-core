@@ -55,7 +55,7 @@ const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDat
 /** True if a conversation cites or attaches this document. */
 export function usesDocument(turns: Turn[], documentId: string): boolean {
   return turns.some((t) => (t.role === "user"
-    ? t.attachments.some((a) => a.documentId === documentId)
+    ? t.attachments.some((a) => a.documentId === documentId) || (t.about ?? []).some((c) => c.documentId === documentId)
     : t.citations.some((c) => c.source?.document_id === documentId)));
 }
 
@@ -68,7 +68,8 @@ export function withoutDocument(turns: Turn[], documentId: string): Turn[] {
   return turns.map((t) => {
     if (t.role === "user") {
       return { ...t, attachments: t.attachments.map((a) => (a.documentId === documentId && !a.removed
-        ? { ...a, filename: "", removed: true } : a)) };
+        ? { ...a, filename: "", removed: true } : a)),
+        ...(t.about ? { about: t.about.map((c) => (c.documentId === documentId && !c.removed ? { ...c, filename: "", removed: true } : c)) } : {}) };
     }
     return { ...t, citations: t.citations.map((c) => (c.source?.document_id === documentId && !c.removed
       ? { text: "", source: { document_id: documentId, page: c.source.page, location: null }, removed: true } : c)) };

@@ -55,7 +55,8 @@ import { questionDocuments } from "./lib/questionDocuments";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
-import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Turn, type UserTurn } from "./types";
+import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
+import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -146,6 +147,10 @@ function Chat({ me }: { me: Me }) {
   const [overviewFilter, setOverviewFilter] = useState("all");
   const [overviewCases, setOverviewCases] = useState<CaseOverview[] | null>(null);
   const [savedHere, setSavedHere] = useState<Set<string>>(new Set());  // answers saved during this visit: Undo is offered
+  // Ask about (docs/design/sidebar.md §10): the documents this conversation's questions are about, in a
+  // case; none: the whole case. ``aboutGone``: the chosen ones all left the case.
+  const [about, setAbout] = useState<Chosen[]>([]);
+  const [aboutGone, setAboutGone] = useState(false);
   useEffect(() => { if (view !== "documents" && view !== "conversations") setOverviewFilter("all"); }, [view]);
   const showOverview = (v: "documents" | "conversations", filter = "all") => { setOverviewFilter(filter); setView(v); };
   const [adminTab, setAdminTab] = useState<AdminTab>("usage");
@@ -187,6 +192,8 @@ function Chat({ me }: { me: Me }) {
   const manages = role === "manager";
   const contributes = role === "contributor" || role === "manager";
   const administers = currentCase !== null && role === null && (me.admin ?? false);
+  // The person can't ask here at all: the question box is read-only, without Ask about.
+  const locked = readOnly || closed || (!!currentCase && role === "reader") || administers;
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const stopped = useRef(false);  // the person pressed Stop: the abort keeps what was written
@@ -369,6 +376,7 @@ function Chat({ me }: { me: Me }) {
     const a = pending.find((x) => x.key === key);
     setPending((p) => p.filter((x) => x.key !== key));
     if (!a) return;
+    if (a.documentId) setAbout((c) => c.filter((x) => x.documentId !== a.documentId));  // out of this question
     if (a.status === "uploading") uploads.current.get(key)?.abort();
     else if ((a.status === "queued" || a.status === "processing") && a.jobId) {
       cancelJob(a.jobId).then(refreshDocuments).catch((e: Error) => setProblem(e.message));
@@ -376,10 +384,30 @@ function Chat({ me }: { me: Me }) {
   };
 
   const addDocument = (d: StoredDocument) => {
+    // In a case a document is chosen under Ask about rather than attached (§10: choosing is one thing).
+    if (caseId) { choose(d); return; }
     if (pending.some((a) => a.documentId === d.id)) return;
     setPending((p) => [...p, { key: nextId(), filename: d.filename, status: d.status === "needs_review" ? "needs_review" : "ready",
                                documentId: d.id, reviewPages: reviewPages(d.warnings), pages: d.pages || undefined }]);
   };
+
+  const choose = (d: { id: string; filename: string }) => {
+    setAboutGone(false);
+    setAbout((c) => (c.some((x) => x.documentId === d.id) ? c : [...c, { documentId: d.id, filename: d.filename }]));
+  };
+  // In a case, an upload is chosen as soon as it is read (§10: "it is chosen right away").
+  useEffect(() => {
+    if (!caseId) return;
+    for (const a of pending) if (isReady(a) && a.documentId && !about.some((x) => x.documentId === a.documentId)) choose({ id: a.documentId, filename: a.filename });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, caseId]);
+  // A chosen document that left the case leaves the choice; with none left, the whole case again.
+  useEffect(() => {
+    if (!caseId || !documentsReady || about.length === 0) return;
+    const next = stillThere(about, documents);
+    if (next.about.length !== about.length) { setAbout(next.about); setAboutGone(next.gone); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents]);
 
   // An upload that looks like sūveryn's own output (docs/design/sidebar.md §6): the person decides.
   const useNoticedAsSource = async (key: string) => {
@@ -402,13 +430,18 @@ function Chat({ me }: { me: Me }) {
   };
 
   // ``again``: Regenerate asks the last question once more, with the documents it had.
-  const send = async (text: string, again?: Attachment[]) => {
+  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[]) => {
     // What is read goes with the question; a document still being read, or one that failed, stays in
     // the composer: the first counts for the next question once it is ready (§5).
     const attachments = again ?? pending.filter((a) => !staysInComposer(a));
-    const user: UserTurn = { id: nextId(), role: "user", text, attachments };
-    const chosen = new Set(conversationDocs);
+    // In a case: the Ask about choice, with this question's uploads (they are chosen once read).
+    const asked = caseId ? [...(againAbout ?? about)] : [];
+    if (caseId) for (const a of attachments) if (isReady(a) && a.documentId && !asked.some((x) => x.documentId === a.documentId))
+      asked.push({ documentId: a.documentId, filename: a.filename });
+    const user: UserTurn = { id: nextId(), role: "user", text, attachments, ...(asked.length ? { about: asked } : {}) };
+    const chosen = new Set(caseId ? asked.map((x) => x.documentId) : conversationDocs);
     for (const a of attachments) if (isReady(a) && a.documentId) chosen.add(a.documentId);
+    setAboutGone(false);
     // In a case with nothing attached, the case's sources (lib/questionDocuments.ts).
     const docIds = new Set(questionDocuments(chosen, caseId ? documents : null));
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0 };
@@ -424,15 +457,16 @@ function Chat({ me }: { me: Me }) {
       setTurns((ts) => ts.map((t) => (t.id === reply.id ? ({ ...t, ...patch } as AssistantTurn) : t)));
     let streamed = "";
     let sources: Citation[] = [];
+    let whole: boolean | null = null;  // the last status: were the documents read in full?
     try {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
         update({ text: streamed });
-      }, abort.current.signal, chosenModel, (step) => update({ step }), caseId, (c) => { sources = c; });
+      }, abort.current.signal, chosenModel, (step) => { if (step.complete !== null) whole = step.complete; update({ step }); }, caseId, (c) => { sources = c; });
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
                instructionLikeSources: done.instruction_like_sources ?? [],
-               status: "done", model: done.model });
+               status: "done", model: done.model, ...(asked.length && whole === false ? { partial: true } : {}) });
     } catch (e) {
       if (stopped.current) {
         // Stopped (docs/design/sidebar.md §5): what was written stays, with the passages its markers
@@ -462,7 +496,7 @@ function Chat({ me }: { me: Me }) {
   const regenerate = () => {
     const question = turns[turns.length - 2] as UserTurn;
     setTurns((ts) => ts.slice(0, -2));
-    send(question.text, question.attachments);
+    send(question.text, question.attachments, question.about ?? []);
   };
 
   // The start screen: no case, nothing asked yet. First use: no conversations and no cases yet.
@@ -607,6 +641,8 @@ function Chat({ me }: { me: Me }) {
     setPending([]);
     setProblem(null);
     setConversationId(newConversationId());
+    setAbout([]);
+    setAboutGone(false);
     lastSaved.current = "";
     setSavedHere(new Set());
   };
@@ -692,6 +728,8 @@ function Chat({ me }: { me: Me }) {
       setConversationId(id);
       setSavedHere(new Set());
       setTurns(opened);
+      setAbout(restoreAbout(opened));  // the choice belongs to the conversation (§10)
+      setAboutGone(false);
       setPending([]);
       setProblem(null);
     } catch (e) {
@@ -874,6 +912,10 @@ function Chat({ me }: { me: Me }) {
             <div className="empty">
               <h1>{currentCase ? currentCase.name : TAGLINE}</h1>
               {!closed && <p>{currentCase ? m.caseEmptyIntro : m.emptyIntro}</p>}
+              {/* §10, artboard 17: a case of several documents, nothing chosen yet */}
+              {!locked && currentCase && about.length === 0 && choosable(documents).length > 1 && (
+                <p>{m.caseChooseHint(choosable(documents).length)}</p>
+              )}
             </div>
           ) : (
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
@@ -887,7 +929,17 @@ function Chat({ me }: { me: Me }) {
         </div>
         <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
                   disabledReason={disabledReason}
-                  locked={readOnly || closed || (!!currentCase && role === "reader") || administers}
+                  locked={locked}
+                  askAbout={currentCase && !locked ? {
+                    items: choosable(documents).map((d) => ({ id: d.id, label: d.filename,
+                                                              meta: pickMeta(d, names.get(d.uploaded_by ?? "") ?? "", locale()) })),
+                    selected: about.map((x) => x.documentId), names: about.map((x) => x.filename),
+                    onChange: (ids) => { setAboutGone(false); setAbout(ids.map((id) => {
+                      const d = documents.find((x) => x.id === id)!;
+                      return { documentId: id, filename: d.filename };
+                    })); },
+                  } : null}
+                  caseNote={aboutGone ? m.chosenGone : about.length ? m.answersUseOnly(about.length, about[0].filename) : null}
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={removeAttachment}

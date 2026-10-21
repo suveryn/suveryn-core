@@ -366,6 +366,17 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
+/* Ask about (§10): the chip in the composer, and under each question what it was asked about. */
+.chip-about { height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: var(--surface-alt);
+              font-size: var(--text-caption); color: var(--text); white-space: nowrap; }
+.chip-about[data-hovered] { background: oklch(from var(--surface-alt) calc(l - 0.03) c h); }
+.chip-about[aria-expanded="true"] { box-shadow: 0 0 0 1.5px var(--text-dim); }
+.chip-about-dim { color: var(--text-dim); }
+.chip-about-value { font-weight: 500; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.composer-wrap > .chip-about { width: 100%; justify-content: flex-start; margin-bottom: var(--space-2); }
+.composer-wrap > .chip-about .chip-about-value { max-width: none; flex: 1; text-align: left; }
+.asked-about { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: var(--text-caption); color: var(--text-dim); justify-content: flex-end; }
+.asked-about b { font-weight: 500; color: var(--text); }
 /* The documents an answer rests on, above it: quiet, but read before the answer. */
 .answer-basis { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--space-2); font-size: var(--text-caption); color: var(--text-dim); }
 .answer-basis svg { flex: none; }

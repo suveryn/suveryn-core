@@ -6,7 +6,7 @@
  * On a narrow screen (`compact`, §2) it is one pill: the question, one "+" menu for the document, the
  * playbook and the model, and send. On the start screen, "Work in a case" chooses a case (§2, artboard 01).
  */
-import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Folder, FolderPlus, Lock, Paperclip, Plus, Square } from "lucide-react";
+import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Square } from "lucide-react";
 import { keepDraft, readDraft } from "../lib/draft";
 import { useRef, useState, type KeyboardEvent } from "react";
 import type { Case, ModelInfo, PlaybookInfo } from "../api";
@@ -16,11 +16,24 @@ import { lang, useT } from "../i18n";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { playbookWords } from "../lib/playbooks";
 import { modelName } from "../lib/model";
-import { ActionMenu, Button, FileButton, IconButton, TextArea, useFilePicker, type MenuEntry } from "../ui";
+import { ActionMenu, Button, DocumentPicker, IconButton, TextArea, useFilePicker, type MenuEntry, type PickItem } from "../ui";
 import { AttachmentCard } from "./Chips";
 import { defaultModel, loadingNote, ModelPicker } from "./ModelPicker";
 
+/** Ask about (docs/design/sidebar.md §10): the case's documents to choose from, and the choice. */
+export type AskAbout = {
+  items: PickItem[];
+  selected: string[];
+  /** The chosen documents' names, in order, for the button. */
+  names: string[];
+  onChange: (ids: string[]) => void;
+};
+
 type Props = {
+  /** In a case where the person may ask: Ask about. */
+  askAbout?: AskAbout | null;
+  /** In a case: the line under the box, when the choice changes it ("Answers use only …"). */
+  caseNote?: string | null;
   /** The person can't ask here at all (someone else's shared conversation, a closed case, a reader):
    *  the box takes no typing. Not for a passing reason such as the server being unreachable, when
    *  the typed text waits to be sent. */
@@ -57,7 +70,7 @@ type Props = {
 
 const CASES_IN_CHIP = 8;
 
-export function Composer({ locked = false, attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
+export function Composer({ askAbout = null, caseNote = null, locked = false, attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
                           playbooks = [], onPlaybook, compact = false, hint = null, placeholder, workInCase = null }: Props) {
   const m = useT();
@@ -125,6 +138,22 @@ export function Composer({ locked = false, attachments, models, chosenModel, onC
     else workInCase?.onChoose(workInCase.cases.find((c) => `case:${c.id}` === id)!);
   };
 
+  // Ask about: beside the paperclip; on a narrow screen above the pill, full width, opening a sheet.
+  const picker2 = askAbout && caseReference && (
+    <DocumentPicker className="chip-about" narrow={compact} items={askAbout.items} selected={askAbout.selected}
+                    onChange={askAbout.onChange} label={m.askAboutTitle} triggerLabel={m.askAboutLabel(askAbout.selected.length)}
+                    allLabel={m.askAboutAllIn(caseReference)} allMeta={m.askAboutSources(askAbout.items.length)}
+                    chosenHeading={m.askAboutChosen} othersHeading={(q, n) => (q ? m.askAboutMatching(q, n) : null)}
+                    searchLabel={m.askAboutSearch} doneLabel={m.askAboutDone} footnote={m.askAboutFine}
+                    action={{ label: m.askAboutUpload, description: m.askAboutUploadHint, onPress: () => picker.open() }}
+                    trigger={<>
+                      <Files size={14} aria-hidden />
+                      <span className="chip-about-dim">{m.askAbout}</span>
+                      <span className="chip-about-value">{askAbout.names.length === 0 ? m.askAboutAll
+                        : askAbout.names.length === 1 ? askAbout.names[0] : m.askAboutCount(askAbout.names.length)}</span>
+                      <ChevronDown size={12} aria-hidden />
+                    </>} />
+  );
   // The cards sit inside the question box; on a narrow screen, where the box is one pill, above it.
   const cards = attachments.length > 0 && (
       <ul className="attachment-cards" aria-label={m.attachedDocuments}>
@@ -136,6 +165,7 @@ export function Composer({ locked = false, attachments, models, chosenModel, onC
   );
   return (
     <div className="composer-wrap" ref={wrap}>
+      {compact && picker2}
       {compact && cards}
       {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). On a
           narrow screen one pill: the question, "+" and send. */}
@@ -152,9 +182,9 @@ export function Composer({ locked = false, attachments, models, chosenModel, onC
               <Plus size={18} aria-hidden />
             </ActionMenu>
           </> : <>
-          <FileButton accept={ACCEPTED_FILES} multiple onSelect={onAttach}>
-            <IconButton size="small" label={attachLabel}><Paperclip size={16} aria-hidden /></IconButton>
-          </FileButton>
+          {picker.input}
+          <IconButton size="small" label={attachLabel} onPress={() => picker.open()}><Paperclip size={16} aria-hidden /></IconButton>
+          {picker2}
           {workInCase && (
             <ActionMenu className="chip-work-in-case" aria-label={m.workInCaseMenu} menuLabel={m.workInCaseMenu} placement="bottom start"
                         entries={caseEntries} onAction={onCaseChoice}>
@@ -186,7 +216,7 @@ export function Composer({ locked = false, attachments, models, chosenModel, onC
       <p className="composer-hint caption" role="status">
         {/* Where answers come from (§5): only this case's documents, or a personal chat only you see. */}
         {reason ?? note ?? (waiting ? m.readingCountsLater : null) ?? (hint ? <><Lock size={12} aria-hidden /> {hint}</>
-          : caseReference ? m.caseOnlyDocuments(caseReference) : <><Lock size={12} aria-hidden /> {m.personalHint}</>)}
+          : caseReference ? caseNote ?? m.caseOnlyDocuments(caseReference) : <><Lock size={12} aria-hidden /> {m.personalHint}</>)}
       </p>
     </div>
   );
