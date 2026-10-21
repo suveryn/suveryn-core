@@ -697,6 +697,7 @@ const fr: Messages = {
   moveTitle: (title: string) => `Placer dans un dossier : ${title}`,
   moveLabel: "Dossier",
   moveHint: "Les questions et les réponses suivent. Les documents restent dans votre espace personnel : les questions suivantes lisent les documents du dossier. Dans le dossier, vous seul voyez la conversation, jusqu'à ce que vous la partagiez.",
+  moveHintConfidential: "Les questions et les réponses suivent. Les documents restent dans votre espace personnel : les questions suivantes lisent les documents du dossier. Dans un dossier strictement confidentiel, vous seul voyez la conversation ; elle ne peut pas y être partagée.",
   moveButton: "Déplacer",
   moveNoCase: "Vous n'avez aucun dossier ouvert auquel vous contribuez.",
   renameFailed: (why: string) => `Le nom n'a pas pu être modifié : ${why}`,

@@ -148,3 +148,18 @@ def test_a_grounded_answer_that_cites_nothing_is_logged_by_counts_only(caplog):
     assert lines == [("grounded answer cites no passage: passages=1 complete=True earlier_answers=1 earlier_markers=1 "
                       "answer_chars=19 thinking=False")]
     assert not any("Secret" in r.getMessage() or "EUR" in r.getMessage() for r in caplog.records)
+
+
+def test_every_answer_is_told_to_address_the_person_formally():
+    """Pod check of 7c48279: a plain answer in Dutch said "je" and "jouw"."""
+    from suveryn_harness.grounding import GROUNDED_INSTRUCTIONS, REGISTER
+
+    state: dict = {}
+    asyncio.run(_collect(ChatService(client([{"content": "U kunt…"}], state)).answer_stream(ask(), "alice")))
+    first = state["payload"]["messages"][0]
+    assert first["role"] == "system" and '"u"' in first["content"] and "vous" in first["content"]
+    assert REGISTER in GROUNDED_INSTRUCTIONS and "{register}" not in GROUNDED_INSTRUCTIONS
+
+
+async def _collect(events):
+    return [e async for e in events]
