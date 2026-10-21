@@ -204,6 +204,21 @@ def test_save_list_open_and_delete(setup):
     assert c.get(f"/v1/conversations/{cid}", headers=alice).status_code == 404
 
 
+def test_a_database_that_cant_be_reached_is_a_503_with_a_sentence(setup):
+    """Pod check of 7c48279: a stopped PostgreSQL gave a bare HTTP 500."""
+    import psycopg
+
+    c, kc, store = setup
+
+    def down(*a, **k):
+        raise psycopg.OperationalError("connection to server on socket /run/postgresql failed")
+
+    store.summaries = down
+    r = c.get("/v1/conversations", headers=as_user(kc, ALICE))
+    assert r.status_code == 503 and r.json()["detail"] == "The database can't be reached right now. Try again shortly."
+    assert "socket" not in r.text  # the server's own error text isn't sent
+
+
 def test_another_users_conversation_is_unknown(setup):
     c, kc, store = setup
     alice, bob, cid = as_user(kc, ALICE), as_user(kc, BOB), str(uuid.uuid4())
