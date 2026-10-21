@@ -100,7 +100,7 @@ export function MoveConversationDialog({ conversation, cases, onDone, onCancel }
         ? <SelectField name="case" label={m.moveLabel} value={chosen} onChange={setTarget}
                        options={targets.map((c) => ({ id: c.id, label: `${c.reference} ${c.name}` }))} />
         : <p>{m.moveNoCase}</p>}
-      <p className="caption">{m.moveHint}</p>
+      <p className="caption">{targets.find((c) => c.id === chosen)?.confidential ? m.moveHintConfidential : m.moveHint}</p>
       {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
