@@ -560,7 +560,7 @@ the word carry the meaning.
   the file carries the watermark ("Download this answer as a Word document, with its sources and the
   Strictly confidential watermark"). The band already says that exports carry one.
 
-**Data**: `cases.confidential` (boolean), set with `PUT /v1/cases/{id}` by the manager, logged as
+**Data**: `cases.confidential` (boolean), set with `PATCH /v1/cases/{id}` by the manager, logged as
 `confidential_on` / `confidential_off`. The gateway enforces members only and no sharing; the export
 code adds the watermark; the conversation lists return `title: null` and `shielded: true` for these
 conversations, and the client shows the placeholder.
@@ -901,6 +901,26 @@ here.
   a line under the title, and tables that aren't virtualised. Still to build, together: pinned
   personal conversations, the three-dot menus on conversation rows, and *Pin*, *Rename* and *Move to
   a case* in the Conversations overview (sections 2 to 4, phase e).
+- **Strictly confidential (21 October, section 11).**
+  - Server: turning the label on also restricts the access, and the access can't be opened while it
+    is on (409); turning it off and opening the access in one change is allowed. Unsharing happens
+    in the same request, and the access log's `confidential_on` says how many were unshared. The
+    PATCH answer now keeps the caller's pin (before, any change made the sidebar drop a pinned case
+    until a reload).
+  - Only `GET /v1/conversations?all=true` (Recent, search, the Conversations overview, and a pinned
+    case's rows while it isn't open) shields titles; the case's own list keeps them. A shielded
+    title isn't searched.
+  - Word: the label across every page is Word's own watermark (`docx/watermarks`, so Word's Design >
+    Watermark can see it), light grey; the line is in the header; "Strictly confidential" is added to
+    the export mark. Excel: write-excel-file can't write a sheet's page header and footer, so the line
+    is the first and last row of every sheet, above the frozen header. Markdown, CSV and the sources'
+    text files: the line first. The playbook result's Word file and a saved answer downloaded from
+    Documents carry it too. *Copy* stays as it is (decided 21 October).
+  - The watermark is made at the moment of each download, with the person's name and the time, in
+    the interface language (`lib/watermark.ts`).
+  - The switch is in *Members and access* for the manager, with what it changes and, before it is
+    turned on, how many conversations it will unshare; the office-wide access choice is disabled
+    while it is on.
 
 ## Open
 
@@ -908,8 +928,6 @@ here.
   (platform.md).
 - **A dark-theme check of artboard 02**: `case-surface` has a dark value, but no dark screen has
   been drawn.
-- **Copy in a strictly confidential case**: it can't carry a watermark. Keep it (as now), or
-  disable it with the reason?
 - **The reading budget** (section 10): measure on the Pod before raising the 48,000 characters.
 - **The model's name in the chip** ("Qwen3.8-27B") is jargon for a notary. Should the chip show
   *Fast* / *Thorough*, and the model only in the dialog?

@@ -18,7 +18,7 @@ import {
 } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, TextButton } from "../ui";
+import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, Switch, TextButton } from "../ui";
 
 type Props = {
   open: boolean;
@@ -28,13 +28,15 @@ type Props = {
   officeWide: boolean;     // the appliance's default access is office-wide (shows the restriction control)
   onChanged: (c: Case) => void;  // the case after a handover or an access change
   onClose: () => void;
+  /** How many of the case's conversations are shared: turning Strictly confidential on unshares them. */
+  sharedCount?: number;
 };
 
 export function roleLabel(role: string | null, m: ReturnType<typeof useT>): string {
   return role === "manager" ? m.roleManager : role === "contributor" ? m.roleContributor : role === "reader" ? m.roleReader : "";
 }
 
-export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, onChanged, onClose }: Props) {
+export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, onChanged, onClose, sharedCount = 0 }: Props) {
   const m = useT();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
   };
   const confirmHandOver = () => handingOver && act(async () => { onChanged(await handOver(kase.id, handingOver)); setHandingOver(null); });
   const setAccess = (access: string) => act(async () => onChanged(await updateCase(kase.id, { access: access as Case["access"] })));
+  const setConfidential = (on: boolean) => act(async () => onChanged(await updateCase(kase.id, { confidential: on })));
 
   const roleOptions = [
     { id: "reader", label: m.roleReader }, { id: "contributor", label: m.roleContributor }, { id: "manager", label: m.roleManager },
@@ -89,10 +92,18 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
     <Dialog isOpen={open} onClose={onClose} busy={busy} title={m.membersTitle(kase.reference)} actions={<>
       <TextButton onPress={onClose} isDisabled={busy}>{m.close}</TextButton>
     </>}>
+      {canManage && (
+        // Strictly confidential (docs/design/sidebar.md §11): the manager's switch, with what it changes.
+        <div className="case-confidential">
+          <Switch label={m.strictlyConfidential} checked={!!kase.confidential} onChange={setConfidential} isDisabled={busy} />
+          <p className="ui-hint">{m.confidentialHint}{" "}
+            {!kase.confidential && sharedCount > 0 && <>{m.confidentialUnshares(sharedCount)}{" "}</>}{m.confidentialLogged}</p>
+        </div>
+      )}
       {canManage && officeWide && (
         <div className="case-access">
           <span className="ui-label">{m.caseAccess}</span>
-          <Segmented label={m.caseAccess} value={kase.access} onChange={setAccess}
+          <Segmented label={m.caseAccess} value={kase.access} onChange={setAccess} isDisabled={!!kase.confidential}
                      options={[{ value: "default", label: m.accessOffice }, { value: "restricted", label: m.accessMembers }]} />
           <p className="ui-hint">{kase.access === "restricted" ? m.accessMembersHint : m.accessOfficeHint}</p>
         </div>

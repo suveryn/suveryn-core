@@ -115,11 +115,11 @@ export function Switch({ label, checked, onChange, isDisabled, className }: {
 
 /** Short options side by side, one of them chosen (the usage period). One Tab stop; the arrow keys
  *  choose. */
-export function Segmented({ label, options, value, onChange }: {
-  label: string; options: { value: string; label: string }[]; value: string; onChange: (value: string) => void;
+export function Segmented({ label, options, value, onChange, isDisabled }: {
+  label: string; options: { value: string; label: string }[]; value: string; onChange: (value: string) => void; isDisabled?: boolean;
 }) {
   return (
-    <RadioGroup aria-label={label} value={value} onChange={onChange} orientation="horizontal" className="ui-segmented">
+    <RadioGroup aria-label={label} value={value} onChange={onChange} orientation="horizontal" className="ui-segmented" isDisabled={isDisabled}>
       {options.map((o) => <Radio key={o.value} value={o.value} className="ui-segment">{o.label}</Radio>)}
     </RadioGroup>
   );

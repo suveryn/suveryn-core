@@ -131,7 +131,8 @@ async def update_case(case_id: str, body: CaseUpdate, request: Request):
         await log_access(request, uuid.UUID(case.id), "access_changed", {"access": access})
     if set(fields) - {"access", "confidential"}:
         await log_access(request, uuid.UUID(case.id), "changed", {"fields": sorted(set(fields) - {"access", "confidential"})})
-    return changed.model_copy(update={"my_role": case.my_role}) if changed else changed
+    # the caller's own view of it: their role and their pin (the sidebar keeps a pinned case pinned)
+    return changed.model_copy(update={"my_role": case.my_role, "pinned": case.pinned}) if changed else changed
 
 
 @router.delete("/v1/cases/{case_id}", status_code=204, responses={
