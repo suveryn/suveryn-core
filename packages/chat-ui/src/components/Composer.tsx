@@ -21,6 +21,10 @@ import { AttachmentCard } from "./Chips";
 import { defaultModel, loadingNote, ModelPicker } from "./ModelPicker";
 
 type Props = {
+  /** The person can't ask here at all (someone else's shared conversation, a closed case, a reader):
+   *  the box takes no typing. Not for a passing reason such as the server being unreachable, when
+   *  the typed text waits to be sent. */
+  locked?: boolean;
   attachments: Attachment[];
   models: ModelInfo[];            // installed models (GET /v1/models)
   chosenModel: string | null;     // null: the default model
@@ -53,7 +57,7 @@ type Props = {
 
 const CASES_IN_CHIP = 8;
 
-export function Composer({ attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
+export function Composer({ locked = false, attachments, models, chosenModel, onChooseModel, disabledReason, busy, onAttach,
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
                           playbooks = [], onPlaybook, compact = false, hint = null, placeholder, workInCase = null }: Props) {
   const m = useT();
@@ -138,7 +142,8 @@ export function Composer({ attachments, models, chosenModel, onChooseModel, disa
       <div className="composer" data-compact={compact || undefined}>
         {!compact && cards}
         <TextArea label={caseReference ? m.questionInCase(caseReference) : m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
-                  placeholder={busy ? m.keepTyping : placeholder ?? (caseReference ? m.askInCase(caseReference) : m.askPlaceholder)} className="composer-field" />
+                  isReadOnly={locked}
+                  placeholder={locked ? "" : busy ? m.keepTyping : placeholder ?? (caseReference ? m.askInCase(caseReference) : m.askPlaceholder)} className="composer-field" />
         <div className="composer-tools">
           {compact ? <>
             {picker.input}

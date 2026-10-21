@@ -689,6 +689,21 @@ here.
     before, a new conversation in the open case meant leaving it and opening it again (the earlier
     decision that a conversation in a case "starts from the case itself" left no way to do it from
     inside it).
+  - Above every sourced answer, a quiet line names the documents it rests on: "Op basis van
+    akte-verkoop.pdf", or "Op basis van 2 documenten: …". On the Pod it always named exactly the
+    cited documents, and it was the only cue that showed an answer mixing documents.
+  - Where the person can't ask at all (a colleague's shared conversation, a closed case, a reader,
+    an administrator outside the case), the question box is read-only and has no placeholder. While
+    the server is unreachable it stays editable: the typed text waits to be sent.
+  - **Tried and dropped: guessing the document.** A question in a case with nothing attached was
+    narrowed on the server to the documents it seemed to be about (by file name, else by the
+    ranking). With ten real documents it made answers worse than reading the whole case: right facts
+    37/40 to 32/40, answers citing another document 7/44 to 10/44, answer times up to 33 s, and the
+    wrong document kept on 9 of 44 questions (one long deed dominated the ranking; questions needing
+    two documents lost one). With the one document attached: 15/15, nothing mixed. So the next step
+    is making it easy to choose the document (design brief: choosing which documents a question is
+    about), not guessing it. A question in a case with nothing attached reads all its sources, as
+    at 705b91d.
 
 ## Open
 

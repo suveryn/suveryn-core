@@ -115,12 +115,14 @@ export function DateField({ label, value, onChange, minValue, size, className }:
 
 /** Text over several lines. `hideLabel` keeps the label for screen readers only (the chat's question
  *  box, whose placeholder already says what to type). */
-export function TextArea({ label, hideLabel, value, onChange, onKeyDown, placeholder, rows = 1, className }: {
+export function TextArea({ label, hideLabel, value, onChange, onKeyDown, placeholder, rows = 1, className, isReadOnly }: {
   label: string; hideLabel?: boolean; value: string; onChange: (value: string) => void;
   onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void; placeholder?: string; rows?: number; className?: string;
+  /** Focusable and read out, but not editable (the composer where the person can't ask). */
+  isReadOnly?: boolean;
 }) {
   return (
-    <AriaTextField value={value} onChange={onChange} className={className}>
+    <AriaTextField value={value} onChange={onChange} className={className} isReadOnly={isReadOnly}>
       <Label className={hideLabel ? "ui-visually-hidden" : "ui-label"}>{label}</Label>
       <AriaTextArea rows={rows} placeholder={placeholder} onKeyDown={onKeyDown} />
     </AriaTextField>

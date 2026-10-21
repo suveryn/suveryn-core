@@ -887,6 +887,7 @@ function Chat({ me }: { me: Me }) {
         </div>
         <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
                   disabledReason={disabledReason}
+                  locked={readOnly || closed || (!!currentCase && role === "reader") || administers}
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={removeAttachment}
