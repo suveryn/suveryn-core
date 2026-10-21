@@ -725,6 +725,7 @@ const en = {
   moveTitle: (title: string) => `Move to a case: ${title}`,
   moveLabel: "Case",
   moveHint: "Its questions and answers go along. Its documents stay in your own space: the next questions read the case's documents. In the case only you see the conversation, until you share it.",
+  moveHintConfidential: "Its questions and answers go along. Its documents stay in your own space: the next questions read the case's documents. In a strictly confidential case only you see the conversation; it can't be shared there.",
   moveButton: "Move",
   moveNoCase: "You have no open case you contribute to.",
   renameFailed: (why: string) => `The name couldn't be changed: ${why}`,

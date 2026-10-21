@@ -52,6 +52,7 @@ import re
 import uuid
 from contextlib import asynccontextmanager
 
+import psycopg
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
@@ -345,6 +346,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     @app.exception_handler(SearchUnavailable)
     async def search_unavailable(request: Request, exc: SearchUnavailable):
         return JSONResponse({"detail": str(exc)}, status_code=503)
+
+    @app.exception_handler(psycopg.OperationalError)
+    async def database_unavailable(request: Request, exc: psycopg.OperationalError):
+        """The database can't be reached (stopped, restarting): 503 and a sentence, not a 500. The
+        next request reconnects (db.PgStore). The error's own text may name the server: not sent."""
+        log.error("database unavailable: %s", type(exc).__name__)
+        return JSONResponse({"detail": "The database can't be reached right now. Try again shortly."}, status_code=503)
 
     @app.middleware("http")
     async def limit_upload_size(request: Request, call_next):

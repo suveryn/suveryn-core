@@ -1,6 +1,7 @@
 """``GET /health`` (public: states only, never addresses or error texts) and ``GET /v1/models``."""
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from suveryn_harness import BackendError, LlamaServerClient, ModelInfo
@@ -65,9 +66,10 @@ async def health(request: Request):
         backend=BackendStatus(reachable=h.reachable, status=h.status, model=h.model),
         documents=DocumentsStatus(status="unavailable" if docs is None else docs.state),
         auth=AuthStatus(status=(await state.auth.status())[0]),
-        history=state.history.status(),
-        usage=state.usage.status(),
-        cases=state.cases.status(),
+        # each asks the database (a SELECT 1), so not on the event loop
+        history=await run_in_threadpool(state.history.status),
+        usage=await run_in_threadpool(state.usage.status),
+        cases=await run_in_threadpool(state.cases.status),
         directory=StoreStatus(status="ready" if state.directory.configured else "unavailable"),
     )
     return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)

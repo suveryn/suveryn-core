@@ -828,7 +828,12 @@ function Chat({ me }: { me: Me }) {
   const remove = async (d: StoredDocument, where: string | null = caseId) => {
     let using: string[] = [];
     if (historyReady) {
-      try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch { /* deleting still cleans them */ }
+      // Not known which conversations cite it: nothing is deleted, rather than skip the question
+      // whether they go too (Pod check of 7c48279, the database stopped).
+      try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch (e) {
+        setProblem(m.deleteDocumentFailed(d.filename, (e as Error).message));
+        return;
+      }
     }
     if (using.length > 0) setDeleting({ doc: d, conversations: using, where });
     else await deleteNow(d, "clean", [], where).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));

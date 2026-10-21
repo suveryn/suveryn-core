@@ -91,9 +91,17 @@ class Database:
         return self.store
 
     def status(self) -> StoreStatus:
+        """Ready only if the database answers now: a store whose connection PostgreSQL dropped isn't
+        (Pod check of 7c48279: /health said ready while every request failed)."""
         if not self.configured:
             return StoreStatus(status="unavailable")
-        return StoreStatus(status="ready") if self.store is not None else StoreStatus(status="failed", detail=self.error)
+        store = self.get()
+        if store is None:
+            return StoreStatus(status="failed", detail=self.error)
+        alive = getattr(store, "alive", None)  # an injected test store may have no database
+        if alive is not None and not alive():
+            return StoreStatus(status="failed", detail="the database can't be reached")
+        return StoreStatus(status="ready")
 
 
 # ------------------------------------------------------------------ the caller

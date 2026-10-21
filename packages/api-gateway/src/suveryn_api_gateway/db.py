@@ -39,23 +39,47 @@ class PgStore:
             pass
         self._conn = psycopg.connect(self._url, autocommit=True)
 
+    # Inside a transaction a lost connection isn't replaced: the statement fails and the transaction
+    # with it. Any other state (IDLE, or UNKNOWN for a connection PostgreSQL closed) gets a new one.
+    _IN_TRANSACTION = (psycopg.pq.TransactionStatus.INTRANS, psycopg.pq.TransactionStatus.INERROR,
+                       psycopg.pq.TransactionStatus.ACTIVE)
+
+    def _lost(self) -> bool:
+        return self._conn.closed or self._conn.broken
+
     def _execute(self, sql: str, params=()) -> psycopg.Cursor:
         """Run one statement, reconnecting once if the connection was lost. Inside ``transaction()``
         there is no reconnecting: the statement fails and the transaction with it, nothing is
-        half-written, and the caller's next call reconnects."""
+        half-written, and the caller's next call reconnects.
+
+        A connection PostgreSQL closed (a restart) reports ``closed`` and its transaction status as
+        UNKNOWN, not IDLE: it is replaced too. Before, it never was, and every request failed until
+        the gateway restarted (Pod check of 7c48279). While PostgreSQL is still down, the new
+        connection fails, and so does the statement (``OperationalError``, answered 503); the next
+        call tries again."""
+        if self._lost():
+            self._reconnect()
         try:
             return self._conn.execute(sql, params)
         except psycopg.OperationalError:
-            if self._conn.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+            if not self._lost() and self._conn.info.transaction_status in self._IN_TRANSACTION:
                 raise
             self._reconnect()
             return self._conn.execute(sql, params)
+
+    def alive(self) -> bool:
+        """Whether the database answers now (reconnecting if it can): for /health."""
+        try:
+            self._execute("SELECT 1")
+            return True
+        except psycopg.Error:
+            return False
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
         """Several statements as one: all written, or none. Reconnects first if the connection was
         lost since the last statement, so a transaction never starts on a dead connection."""
-        if self._conn.closed:
+        if self._lost():
             self._reconnect()
         with self._conn.transaction():
             yield

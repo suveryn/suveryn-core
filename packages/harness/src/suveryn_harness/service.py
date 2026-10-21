@@ -15,6 +15,7 @@ from .audit import audit
 from .calc import CalcRewriter, unverified_figures
 from .grounding import (
     _MARKER,
+    PLAIN_INSTRUCTIONS,
     cited_numbers,
     grounded_messages,
     without_earlier_markers,
@@ -23,6 +24,7 @@ from .guard import instruction_like
 from .llm import BackendError, LlamaServerClient
 from .schemas import (
     Calculation,
+    ChatMessage,
     ChatRequest,
     ChatResponse,
     Citation,
@@ -112,7 +114,7 @@ class ChatService:
     async def _retrieve(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], bool]:
         """The grounded request, its passages, and whether they are the documents' complete text."""
         if not req.document_ids:
-            return req, [], False
+            return _with_register(req), [], False
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
@@ -223,6 +225,14 @@ def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
     asked = "\n".join(m.content for m in req.messages if m.role == "user")
     return (answer, calculations, unverified_figures(answer, calculations, _source(citations), asked),
             citation_issues(answer, citations, calculations))
+
+
+def _with_register(req: ChatRequest) -> ChatRequest:
+    """A plain answer, told how to address the person (``grounding.REGISTER``), unless the request brings
+    its own system message."""
+    if any(m.role == "system" for m in req.messages):
+        return req
+    return req.model_copy(update={"messages": [ChatMessage(role="system", content=PLAIN_INSTRUCTIONS), *req.messages]})
 
 
 def _log_uncited(req: ChatRequest, citations: list[Citation], complete: bool, answer: str, thinking: bool) -> None:

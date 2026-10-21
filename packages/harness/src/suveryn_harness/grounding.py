@@ -35,8 +35,17 @@ GROUNDED_INSTRUCTIONS = (
     "table, an overview, a list of several items, or an Excel or Word file, answer with a Markdown table "
     "(one header row, then one row per item) and cite the excerpt in the cells it comes from; the "
     "interface shows it as a table and offers it as an Excel or Word download, so never say you can't "
-    "make files and don't tell the user to copy it. Answer in the language of the question, concisely."
+    "make files and don't tell the user to copy it. " + "{register}"
 )
+
+# How to address the person: a notary's office writes formally (Pod check of 7c48279: a plain answer
+# in Dutch said "je" and "jouw"). The same sentence for grounded and plain answers.
+REGISTER = ("Answer in the language of the question, concisely. Address the person formally: in Dutch "
+            "with \"u\" and \"uw\", never \"je\" or \"jouw\"; in French with \"vous\".")
+GROUNDED_INSTRUCTIONS = GROUNDED_INSTRUCTIONS.replace("{register}", REGISTER)
+
+# A plain answer (no documents): only how to answer, nothing about sources.
+PLAIN_INSTRUCTIONS = REGISTER
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
 
