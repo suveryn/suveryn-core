@@ -45,6 +45,22 @@ class FakeConversations:
     def purge(self):
         return 0
 
+    # unfinished cleanings after a document's deletion (routes/documents.py): (owner, document) -> (delete, case)
+    cleanups: dict
+
+    def note_cleanup(self, owner, document_id, delete_conversations, case_id):
+        self.__dict__.setdefault("cleanups", {})[(owner, document_id)] = (delete_conversations, case_id)
+
+    def cleanup_done(self, owner, document_id):
+        self.__dict__.setdefault("cleanups", {}).pop((owner, document_id), None)
+
+    def finish_cleanups(self):
+        pending = list(self.__dict__.setdefault("cleanups", {}).items())
+        for (owner, did), (delete, case_id) in pending:
+            self.remove_document(owner, did, delete, case_id)
+            self.cleanup_done(owner, did)
+        return len(pending)
+
     def summaries_all(self, owner, case_ids):
         rows = sorted((r for r in self.rows.values() if (r["owner"] == owner and (r["case_id"] is None or r["case_id"] in case_ids))
                        or (r["shared"] and r["case_id"] in case_ids)),
@@ -446,6 +462,62 @@ def test_a_tab_still_open_cant_save_the_passages_back(with_docs):
     assert saved[1]["citations"][1]["text"] == "Verkoper: Jan Peeters."
 
 
+def test_a_document_isnt_deleted_while_saved_conversations_cant_be_reached(with_docs):
+    """Audit of 21 October 2026, finding 3: before, the document went and its passages stayed in the conversations."""
+    from suveryn_api_gateway.routes.common import Database
+
+    c, alice, store, docs = with_docs
+    cid = str(uuid.uuid4())
+    c.put(f"/v1/conversations/{cid}", json={"title": "Price", "turns": cited_turns()}, headers=alice)
+
+    def unreachable():
+        raise OSError("no database")
+
+    c.app.state.history = Database("conversations", connect=unreachable)
+    r = c.delete(f"/v1/documents/{DOC}", headers=alice)
+    assert r.status_code == 503 and DOC in docs.ids  # nothing deleted
+    c.app.state.history = Database("conversations", store=store)
+    assert c.delete(f"/v1/documents/{DOC}", headers=alice).status_code == 204
+    assert store.rows[uuid.UUID(cid)]["turns"][1]["citations"][0]["removed"] is True
+
+
+def test_a_cleaning_that_fails_after_the_deletion_is_finished_by_the_sweep(with_docs):
+    c, alice, store, docs = with_docs
+    cid = str(uuid.uuid4())
+    c.put(f"/v1/conversations/{cid}", json={"title": "Price", "turns": cited_turns()}, headers=alice)
+    real = store.remove_document
+
+    def broken(*a, **k):
+        raise OSError("connection lost")
+
+    store.remove_document = broken
+    assert c.delete(f"/v1/documents/{DOC}", headers=alice).status_code == 202  # deleted; the cleaning is still to do
+    assert DOC not in docs.ids and store.cleanups == {(ALICE, uuid.UUID(DOC)): (False, None)}
+    store.remove_document = real
+    assert store.finish_cleanups() == 1 and store.cleanups == {}  # what the hourly sweep does
+    assert store.rows[uuid.UUID(cid)]["turns"][1]["citations"][0]["removed"] is True
+
+
+def test_a_save_that_crosses_a_deletion_doesnt_keep_the_passages(with_docs):
+    """The document still existed when the save was checked, and was deleted (and its conversations cleaned)
+    before the save was written: the save takes them out itself."""
+    c, alice, store, docs = with_docs
+    checks = []
+    real = docs.existing
+
+    def deleted_meanwhile(ids, scope):
+        checks.append(1)
+        if len(checks) == 2:
+            docs.ids.discard(DOC)  # deleted between the check and the save
+        return real(ids, scope)
+
+    docs.existing = deleted_meanwhile
+    cid = str(uuid.uuid4())
+    assert c.put(f"/v1/conversations/{cid}", json={"title": "Price", "turns": cited_turns()}, headers=alice).status_code == 204
+    saved = store.rows[uuid.UUID(cid)]["turns"]
+    assert saved[1]["citations"][0]["removed"] is True and saved[1]["citations"][1]["text"] == "Verkoper: Jan Peeters."
+
+
 @needs_db
 def test_store_cleans_or_deletes_conversations_of_a_deleted_document(store):
     used, unused, bobs = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -533,3 +605,18 @@ def test_store_shares_a_conversation_with_its_case_and_cleans_every_members(stor
     assert store.get(bobs, BOB).turns[1]["citations"][0]["text"] == ""
     assert store.remove_document(ALICE, uuid.UUID(doc), delete_conversations=True, case_id=case) == 2  # both, whoever's
     assert store.delete_case(case) == 0
+
+
+@needs_db
+def test_store_finishes_a_cleaning_a_deletion_left_unfinished(store):
+    """Audit of 21 October 2026, finding 3: the cleaning is noted before the document goes, and done after."""
+    cid, did = uuid.uuid4(), uuid.UUID(DOC)
+    store.save(cid, ALICE, ConversationIn(title="Price", turns=cited_turns()))
+    store._execute("DELETE FROM conversation_cleanups WHERE owner IN (%s, %s)", (ALICE, BOB))
+    store.note_cleanup(ALICE, did, False, None)
+    store.note_cleanup(ALICE, did, True, None)  # asked again, to delete the conversations: the stronger wins
+    assert store._execute("SELECT delete_conversations FROM conversation_cleanups WHERE owner = %s", (ALICE,)).fetchall() == [(True,)]
+    store._execute("UPDATE conversation_cleanups SET delete_conversations = false WHERE owner = %s", (ALICE,))
+    assert store.finish_cleanups() >= 1
+    assert store.get(cid, ALICE).turns[1]["citations"][0]["removed"] is True
+    assert store._execute("SELECT count(*) FROM conversation_cleanups WHERE owner = %s", (ALICE,)).fetchone()[0] == 0

@@ -4,7 +4,7 @@
  * made in this browser (recoveryKey.ts), downloaded by the administrator, its public half sent to the
  * appliance with the answer, so the appliance can write backups but never read them.
  */
-import { CircleCheck, Download, FolderSync, HardDrive, KeyRound, Clock, TriangleAlert } from "lucide-react";
+import { CircleCheck, Download, FolderSync, HardDrive, Info, KeyRound, Clock, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button, Checkbox, Form, Notice, PasswordField, RadioCards, SelectField, TextField, useFieldError,
          type FieldErrors } from "../../ui";
@@ -107,6 +107,8 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
     <Form check={check} onValid={() => onDone(answer())} aria-labelledby={headingId}>
       <h1 id={headingId} className="setup-title">{t.backupsTitle}</h1>
       <p className="setup-lead">{t.backupsLead}</p>
+      {/* Backups aren't built yet (suveryn-tracker#33): this step must not read as if they run (audit of 21 October 2026, finding 2) */}
+      <Notice icon={<Info size={16} />} title={t.backupsNotYetTitle}>{t.backupsNotYet}</Notice>
       <RadioCards
         label={t.backupTarget}
         name="target"

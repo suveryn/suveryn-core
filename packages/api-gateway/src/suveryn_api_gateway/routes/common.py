@@ -302,20 +302,34 @@ async def touch_case(request: Request, scope: Scope) -> None:
         await run_in_threadpool(store.touch, scope.case_id)
 
 
+class CleanupUnavailable(RuntimeError):
+    """A store that holds part of what is being deleted can't be reached now: nothing was deleted, so
+    no part of it is left behind (audit of 21 October 2026, finding 3). Try again later."""
+
+
 async def delete_case_everywhere(app: FastAPI, case_id: uuid.UUID) -> bool:
-    """Delete a case with its documents (and their index), conversations, members and log. False if
-    the case doesn't exist. See ``Store.delete_document`` for what deletion does and doesn't guarantee."""
+    """Delete a case with its documents (and their index), conversations, playbook runs, members and
+    log. False if the case doesn't exist. See ``Store.delete_document`` for what deletion does and
+    doesn't guarantee.
+
+    Every store that holds part of the case is reached first: if one can't be, ``CleanupUnavailable``
+    and nothing is deleted (before, its conversations or runs stayed behind while the case went). The
+    case row goes last, so a deletion that fails halfway is tried again, by the person or the sweep."""
     docs = app.state.documents
-    if docs is not None and docs.state == "ready":
-        await run_in_threadpool(docs.delete_all, Scope.case(case_id))
-    elif docs is not None:
-        return False  # the documents can't be deleted now: the case stays, the next sweep tries again
+    if docs is not None and docs.state != "ready":
+        raise CleanupUnavailable(f"document handling is {docs.state}")
     history: Database = app.state.history
-    if history.configured and (store := history.get()) is not None:
-        await run_in_threadpool(store.delete_case, case_id)
     runs: Database = app.state.runs
-    if runs.configured and (store := runs.get()) is not None:
-        await run_in_threadpool(store.delete_case, case_id)
     cases: Database = app.state.cases
-    store = cases.get()
-    return store is not None and await run_in_threadpool(store.delete, case_id)
+    conversations = history.get() if history.configured else None
+    run_store = runs.get() if runs.configured else None
+    case_store = cases.get()
+    if (history.configured and conversations is None) or (runs.configured and run_store is None) or case_store is None:
+        raise CleanupUnavailable("a store the case is in can't be reached")
+    if docs is not None:
+        await run_in_threadpool(docs.delete_all, Scope.case(case_id))
+    if conversations is not None:
+        await run_in_threadpool(conversations.delete_case, case_id)
+    if run_store is not None:
+        await run_in_threadpool(run_store.delete_case, case_id)
+    return await run_in_threadpool(case_store.delete, case_id)
