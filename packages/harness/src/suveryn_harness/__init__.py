@@ -21,6 +21,7 @@ from .schemas import (
     StreamError,
     StreamSources,
     StreamStatus,
+    StreamThinking,
     Usage,
 )
 from .service import (
@@ -32,6 +33,7 @@ from .service import (
     Retriever,
     Sources,
     Status,
+    Thinking,
 )
 from .usage import Kind, UsageRecord, UsageRecorder
 
@@ -63,6 +65,8 @@ __all__ = [
     "StreamError",
     "StreamSources",
     "StreamStatus",
+    "StreamThinking",
+    "Thinking",
     "Usage",
     "UsageRecord",
     "UsageRecorder",

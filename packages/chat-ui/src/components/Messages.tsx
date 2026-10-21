@@ -5,8 +5,8 @@
  * "not sourced" notices that tell a reader what to check. A citation opens its passage in the source
  * panel beside the conversation (``SourcePanel``, docs/design/sidebar.md §5, artboard 11).
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, Files, FolderInput, Square, X } from "lucide-react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { AlertCircle, AlertTriangle, Brain, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, Files, FolderInput, Square, X } from "lucide-react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, MenuButton, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
@@ -17,6 +17,7 @@ import { answerExport, officeText } from "../lib/saved";
 import { useWatermark, withWatermark } from "../lib/watermark";
 import { verdictOf } from "../lib/sources";
 import { statusText } from "../lib/status";
+import { thoughtTime } from "../lib/thinking";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
   sourcesDocument, sourcesMarkdown, type Format,
@@ -243,6 +244,29 @@ export type SaveToCase = {
  *  panel shows what that claim rests on; null from the source list: every claim citing it. */
 export type OpenSource = { n: number; occ: number | null };
 
+/** "Thought for 14 s" above a *Thorough* answer (§5): a button that opens the reasoning, which is
+ *  never checked the way the answer is, and says so. Not in Copy or the downloads. */
+function ThoughtFor({ reasoning, seconds }: { reasoning: string; seconds?: number }) {
+  const m = useT();
+  const [open, setOpen] = useState(false);
+  const panel = useId();
+  return (
+    <div className="answer-thought">
+      <Button variant="plain" className="answer-thought-toggle" aria-expanded={open} aria-controls={panel} onPress={() => setOpen(!open)}>
+        <Brain size={13} aria-hidden />
+        <span>{seconds !== undefined ? m.thoughtFor(thoughtTime(seconds)) : m.reasoningLabel}</span>
+        <ChevronRight size={13} aria-hidden className="answer-thought-chevron" />
+      </Button>
+      {open && (
+        <div id={panel} className="answer-thought-body">
+          <p className="caption">{m.reasoningNote}</p>
+          {reasoning.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource, onRegenerate = null }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
   /** The case the conversation is in (null: personal), named in the export mark. */
@@ -313,6 +337,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
       <AssistantMark />
       {/* still live when stopped, so the notice that it stopped is read out */}
       <div className="answer" aria-live={turn.status === "streaming" || turn.status === "stopped" ? "polite" : undefined}>
+        {/* Thorough (§5): what the model thought, collapsed, once the answer has begun */}
+        {turn.reasoning && (turn.text || settled) && <ThoughtFor reasoning={turn.reasoning} seconds={turn.thoughtSeconds} />}
         {/* Which documents the answer rests on, before it (docs/design/sidebar.md §5): in a case, a fact
             from the wrong deed shows at a glance (Pod check of 705b91d). */}
         {settled && basis.length > 0 && (
