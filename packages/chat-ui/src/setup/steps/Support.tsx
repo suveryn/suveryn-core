@@ -17,6 +17,10 @@ export const registrationUrl = (id: string, fingerprint: string) => `${PORTAL_RE
 
 /** "SHA256:" and the hex fingerprint in groups of four, as the console shows it. */
 export const groupedFingerprint = (fp: string) => `SHA256:${fp.match(/.{1,4}/g)!.join(" ")}`;
+/** Its first 24 characters, on one line (the design's short form); Copy both still copies the whole. */
+export const shortFingerprint = (fp: string) => groupedFingerprint(fp.slice(0, 24));
+/** "7f3c9a2e-…-2e5d18b07f41", in one piece: non-breaking hyphens, so a line never breaks inside it. */
+export const shortApplianceId = (id: string) => `${id.slice(0, 8)}-…-${id.slice(-12)}`.replaceAll("-", "\u2011");
 
 type Props = { state: SetupState; onBack: () => void; onDone: (m: Manifest | null) => void; headingId: string };
 
@@ -48,15 +52,15 @@ export function Support({ state, onBack, onDone, headingId }: Props) {
             <div className="setup-register">
               <div className="setup-register-ids">
                 <p className="ui-eyebrow">{t.applianceId}</p>
-                <p className="setup-mono">{id.id}</p>
+                <p className="setup-mono setup-mono-id">{id.id}</p>
                 <p className="ui-eyebrow">{t.keyFingerprint}</p>
-                <p className="setup-mono">{groupedFingerprint(id.fingerprint)}</p>
+                <p className="setup-mono setup-mono-id" title={groupedFingerprint(id.fingerprint)}>{shortFingerprint(id.fingerprint)}</p>
                 <CopyButton text={`${id.id}\n${groupedFingerprint(id.fingerprint)}`} label={t.copyBoth} copiedLabel={t.copied}
                             onFail={() => setCopyFailed(true)} />
                 {copyFailed && <p className="setup-detail-note" role="status">{t.copyFailed}</p>}
               </div>
               <figure className="setup-qr">
-                <QrCode text={registrationUrl(id.id, id.fingerprint)} label={t.qrLabel} />
+                <QrCode text={registrationUrl(id.id, id.fingerprint)} label={t.qrLabel} size={148} />
                 <figcaption>{t.qrCaption}</figcaption>
               </figure>
             </div>
@@ -96,7 +100,7 @@ function ManifestRows({ manifest: m, t, locale, onReplace, error }: {
   manifest: Manifest; t: Text; locale: string; onReplace: (f: File) => void; error?: string;
 }) {
   const date = (iso: string) => new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
-  const shortId = `${m.appliance_id.slice(0, 8)}…${m.appliance_id.slice(-12)}`;
+  const shortId = shortApplianceId(m.appliance_id);
   return (
     <div className="setup-stack">
       <Rows rows={[

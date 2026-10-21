@@ -3,9 +3,9 @@
  * installer and are only shown here; the choice is the internet access: Connected (approved
  * destinations only, or everything) or Air-gapped.
  */
-import { Globe, Network as NetworkIcon, Server, SquareTerminal, WifiOff } from "lucide-react";
+import { CircleAlert, Globe, Info, Network as NetworkIcon, Server, SquareTerminal, WifiOff } from "lucide-react";
 import { useState } from "react";
-import { Chips, Facts, Form, RadioCards, RadioList } from "../../ui";
+import { Chips, Facts, Form, Notice, RadioCards, RadioList } from "../../ui";
 import { saveNetwork, type NetworkAnswer, type NetworkMode, type Outgoing, type SetupState } from "../api";
 import { useText } from "../i18n";
 import { checkThenSave, StepFooter } from "./common";
@@ -69,6 +69,9 @@ export function Network({ state, onBack, onDone, headingId }: Props) {
           <p className="setup-detail-note">{t.changeLater}</p>
         </div>
       )}
+      {/* the one risky choice on this screen, and what air-gapped still asks of the office (setup check, W1 and W2) */}
+      {mode === "connected" && outgoing === "all" && <Notice icon={<CircleAlert size={16} />} tone="warning">{t.allowAllWarning}</Notice>}
+      {mode === "air-gapped" && <Notice icon={<Info size={16} />}>{t.airGappedNote}</Notice>}
 
       <StepFooter onBack={onBack} back={t.back} next={t.continue} />
     </Form>

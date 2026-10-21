@@ -35,6 +35,7 @@ button { font: inherit; color: inherit; }
 /* Screens without the step rail (welcome, provisioning, complete): room for the language menu. */
 .setup-no-steps { min-height: 44px; }
 .setup-centred { text-align: center; }
+.setup-lead.setup-centred { max-width: 440px; margin-left: auto; margin-right: auto; }  /* the welcome's intro (design W0) */
 .setup-wide { width: 100%; }
 .setup-stack { display: flex; flex-direction: column; gap: var(--space-3); }
 .setup-block-tight { display: flex; flex-direction: column; gap: var(--space-2); margin: 10px 0; }
@@ -52,14 +53,16 @@ button { font: inherit; color: inherit; }
 
 /* support */
 .setup-numbered { margin-top: var(--space-6); margin-bottom: var(--space-3); }
-.setup-register { display: flex; gap: var(--space-6); align-items: center; justify-content: space-between; padding: var(--space-5);
+.setup-register { display: grid; grid-template-columns: minmax(0, 1fr) 148px; gap: var(--space-5); align-items: center; padding: var(--space-5);
                   background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .setup-register-ids { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .setup-register-ids .ui-eyebrow { margin-top: var(--space-2); }
 .setup-register-ids .ui-button { align-self: flex-start; margin-top: var(--space-3); }
 .setup-mono { margin: 0; font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: var(--text-ui-sm); overflow-wrap: anywhere; }
+/* the ID and the short fingerprint: on one line where there is room, else broken only at a hyphen or a space */
+.setup-mono-id { overflow-wrap: normal; }
 .setup-qr { margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); flex: none; }
-.setup-qr figcaption { font-size: var(--text-caption); color: var(--text-dim); text-align: center; max-width: 12rem; }
+.setup-qr figcaption { font-size: var(--text-caption); color: var(--text-dim); text-align: center; max-width: 148px; }
 .setup-how { margin: var(--space-4) 0 0; padding-left: 1.25rem; font-size: var(--text-ui); line-height: 1.6; color: var(--text-dim); }
 .setup-how b { color: var(--text); font-weight: 500; }
 .setup-replace { align-self: flex-start; }
@@ -103,7 +106,7 @@ button { font: inherit; color: inherit; }
   .setup-footer > span:empty { display: none; }
   .setup-no-steps { min-height: 0; }
   .setup-step-list { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: var(--space-3); justify-content: stretch; }
-  .setup-register { flex-direction: column-reverse; align-items: stretch; }
+  .setup-register { display: flex; flex-direction: column-reverse; align-items: stretch; }
   .setup-row2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .setup-key { grid-template-columns: auto minmax(0, 1fr); }
   .setup-key-action { grid-column: 1 / -1; align-items: stretch; }
