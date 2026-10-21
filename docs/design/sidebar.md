@@ -529,6 +529,10 @@ under professional secrecy, so the ordinary level has no label.
   name, because the person chose to pin it; the conversation titles under it show only while the
   case is open.
 - **Not**: a reason for an administrator who opens the access log, or a shorter retention.
+- **Administrators who aren't members** see that the case exists, with its reference and name (never
+  a client's name, by design), in the Cases overview and in *Administration*, so they can hand it
+  over, close or delete it, and they can open its access log. They never see its documents, its
+  conversations or their titles.
 
 **Who sets it**: the case's manager, in *Members and access*, as a switch with one paragraph on what
 changes. Turning it on or off goes to the case's access log.
@@ -964,6 +968,15 @@ here.
   - suveryn-tracker#54: a grounded answer that cites none of its passages is now logged by counts only
     (passages, whole or selected, earlier answers and their markers, answer length, thinking), for the
     next Pod run to find the cause without any document text.
+- **External review, pass 6 (22 October).**
+  - Turning *Strictly confidential* on and opening the access to the office could cross: the access was
+    checked with a read before the `UPDATE`, so two managers changing the case at once could leave it
+    labelled and open. The `UPDATE` itself now refuses (`AND NOT confidential`): it waits for the other
+    change and sees the label (tested with two connections).
+  - Listing conversations no longer deletes the expired ones on every request: the listing leaves them
+    out, and the hourly sweep deletes them.
+  - What an administrator who isn't a member sees of a strictly confidential case is written down in
+    section 11.
 
 ## Open
 
