@@ -5,6 +5,7 @@ into ``ChatResponse.citations`` with ``source`` filled in (document, page, locat
 """
 
 import hashlib
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field, replace
@@ -14,6 +15,7 @@ from suveryn_harness import Citation, SourceRef
 from suveryn_harness.audit import audit
 from suveryn_harness.guard import instruction_like
 
+from . import focus
 from .chunking import Chunk, Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
@@ -29,6 +31,8 @@ from .isolation import make_extractor
 from .marks import find_mark
 from .reading import Progress, Unreadable, Watch
 from .store import Scope, Store
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -257,7 +261,8 @@ class Rag:
         query = self.embedder.embed([question])[0]
         return [_hit(r) for r in self.store.search(query, k, document_id, question=question, document_ids=document_ids)]
 
-    def passages(self, question: str, document_ids: list[uuid.UUID], k: int) -> tuple[list[RetrievedChunk], bool]:
+    def passages(self, question: str, document_ids: list[uuid.UUID], k: int,
+                 focus: bool = False) -> tuple[list[RetrievedChunk], bool]:
         """Passages to ground an answer on, and whether they are the documents' complete text.
 
         Documents that together fit ``WHOLE_DOCUMENT_CHARS`` are given whole, in reading order:
@@ -266,13 +271,33 @@ class Rag:
         their best-matching passages (at least ``k``), in reading order (``Store.best_chunks``).
         Before, they got only the ``k`` best hits: a 58-page deed showed the model 6 passages,
         about 4% of its text, and broad questions found nothing.
+
+        ``focus``: the documents are a whole case's sources, not the person's choice. They are first
+        narrowed to the ones the question is about (``focus``), so the answer doesn't mix in similar
+        documents of the case.
         """
+        query = None
+        if focus and len(document_ids) > 1:
+            query = self.embedder.embed([question])[0]
+            document_ids = self.focus(query, question, document_ids)
         whole = self.store.document_chunks(document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS)
         if whole:
             return [_hit(r) for r in whole], True
-        query = self.embedder.embed([question])[0]
+        if query is None:
+            query = self.embedder.embed([question])[0]
         best = self.store.best_chunks(query, question, document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS, k)
         return [_hit(r) for r in best], False
+
+    def focus(self, query, question: str, document_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+        """The documents the question is about (``focus``): named by their file name, else the best
+        ranked; all of them if neither says."""
+        chosen = focus.named(question, self.store.filenames(document_ids))
+        how = "named"
+        if not chosen:
+            chosen = focus.choose(self.store.document_weights(query, question, document_ids, focus.TOP))
+            how = "ranked"
+        log.info("focus: %d of %d documents kept (%s)", len(chosen), len(document_ids), how)  # counts only, never text
+        return chosen or document_ids
 
     def forget(self, document_id: uuid.UUID) -> bool:
         """Delete a document and all its chunks. Returns False if it didn't exist.

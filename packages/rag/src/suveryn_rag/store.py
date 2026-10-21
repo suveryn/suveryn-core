@@ -412,6 +412,42 @@ class Store:
         return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]), r[10])
                 for r in rows]
 
+    def _ranked(self, query: np.ndarray, question: str, document_ids: list[uuid.UUID], limit: int | None = None) -> list:
+        """Every chunk of the documents, best first: vector similarity and keyword match fused as in
+        ``search``, exactly (see ``best_chunks``)."""
+        tsq = self._keyword_query(question, document_ids)
+        keyword = (f"COALESCE(1.0 / ({RRF_K} + (SELECT r FROM kw WHERE kw.id = c.id)), 0)"
+                   if tsq else "0")
+        kw_cte = ("""kw AS (SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
+                              FROM chunks c, to_tsquery('simple', %(tsq)s) q
+                             WHERE c.document_id = ANY(%(docs)s) AND c.tsv @@ q),""" if tsq else "")
+        return self._conn.execute(f"""
+            WITH {kw_cte}
+            vec AS (SELECT c.id, row_number() OVER (ORDER BY (c.embedding <=> %(q)s) + 0) AS r
+                      FROM chunks c WHERE c.document_id = ANY(%(docs)s) AND c.text ~ %(min_words)s)
+            SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
+                   COALESCE(1.0 / ({RRF_K} + (SELECT r FROM vec WHERE vec.id = c.id)), 0) + {keyword} AS score,
+                   1 - (c.embedding <=> %(q)s) AS similarity, c.place
+              FROM chunks c JOIN documents d ON d.id = c.document_id
+             WHERE c.document_id = ANY(%(docs)s)
+             ORDER BY score DESC, similarity DESC {"LIMIT %(limit)s" if limit else ""}""",
+            {"q": query, "docs": document_ids, "tsq": tsq, "min_words": MIN_WORDS_FOR_VECTOR, "limit": limit}).fetchall()
+
+    def document_weights(self, query: np.ndarray, question: str, document_ids: list[uuid.UUID],
+                         top: int) -> dict[uuid.UUID, float]:
+        """How strongly each document answers the question: of the ``top`` best chunks across the
+        documents, the sum of 1/rank over those in it (the best chunk counts 1, the second 1/2, ...).
+        Documents without a chunk among them are left out (``focus``)."""
+        weights: dict[uuid.UUID, float] = {}
+        for rank, r in enumerate(self._ranked(query, question, document_ids, top), start=1):
+            weights[r[0]] = weights.get(r[0], 0.0) + 1.0 / rank
+        return weights
+
+    def filenames(self, document_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+        """The documents' file names, by id."""
+        rows = self._conn.execute("SELECT id, filename FROM documents WHERE id = ANY(%s)", (document_ids,)).fetchall()
+        return {r[0]: r[1] for r in rows}
+
     def best_chunks(self, query: np.ndarray, question: str, document_ids: list[uuid.UUID], max_chars: int,
                     max_chunks: int, min_chunks: int) -> list[StoredChunk]:
         """The documents' best-matching chunks that fit the limits, in reading order.
@@ -429,23 +465,7 @@ class Store:
         bound parameters. ``+ 0`` in the vector ordering keeps PostgreSQL from using the HNSW
         index, whose approximate search would return only ``hnsw.ef_search`` rows.
         """
-        tsq = self._keyword_query(question, document_ids)
-        keyword = (f"COALESCE(1.0 / ({RRF_K} + (SELECT r FROM kw WHERE kw.id = c.id)), 0)"
-                   if tsq else "0")
-        kw_cte = ("""kw AS (SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
-                              FROM chunks c, to_tsquery('simple', %(tsq)s) q
-                             WHERE c.document_id = ANY(%(docs)s) AND c.tsv @@ q),""" if tsq else "")
-        rows = self._conn.execute(f"""
-            WITH {kw_cte}
-            vec AS (SELECT c.id, row_number() OVER (ORDER BY (c.embedding <=> %(q)s) + 0) AS r
-                      FROM chunks c WHERE c.document_id = ANY(%(docs)s) AND c.text ~ %(min_words)s)
-            SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
-                   COALESCE(1.0 / ({RRF_K} + (SELECT r FROM vec WHERE vec.id = c.id)), 0) + {keyword} AS score,
-                   1 - (c.embedding <=> %(q)s) AS similarity, c.place
-              FROM chunks c JOIN documents d ON d.id = c.document_id
-             WHERE c.document_id = ANY(%(docs)s)
-             ORDER BY score DESC, similarity DESC""",
-            {"q": query, "docs": document_ids, "tsq": tsq, "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
+        rows = self._ranked(query, question, document_ids)
         chosen, size = [], 0
         for r in rows:
             if len(chosen) >= max_chunks:

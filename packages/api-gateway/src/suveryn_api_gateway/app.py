@@ -184,13 +184,14 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
             private_tmp()
 
-        async def retriever(question: str, document_ids: list[str], k: int, owner: str, case_id: str | None):
+        async def retriever(question: str, document_ids: list[str], k: int, owner: str, case_id: str | None,
+                            focus: bool = False):
             # The chat route has checked the caller may read the case; here the scope only says where to look.
             if docs is None or docs.state != "ready":
                 raise DocumentsUnavailable("document search is not available right now")
             scope = Scope.case(uuid.UUID(case_id)) if case_id else Scope.personal(owner)
             try:
-                return await run_in_threadpool(docs.retrieve, question, document_ids, k, scope)
+                return await run_in_threadpool(docs.retrieve, question, document_ids, k, scope, focus)
             except SearchUnavailable as e:
                 raise DocumentsUnavailable(str(e)) from e
 

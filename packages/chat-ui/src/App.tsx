@@ -410,7 +410,8 @@ function Chat({ me }: { me: Me }) {
     const chosen = new Set(conversationDocs);
     for (const a of attachments) if (isReady(a) && a.documentId) chosen.add(a.documentId);
     // In a case with nothing attached, the case's sources (lib/questionDocuments.ts).
-    const docIds = new Set(questionDocuments(chosen, caseId ? documents : null));
+    const asked = questionDocuments(chosen, caseId ? documents : null);
+    const docIds = new Set(asked.ids);
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0 };
     const history: WireMessage[] = conversationHistory(turns);
 
@@ -428,7 +429,7 @@ function Chat({ me }: { me: Me }) {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
         update({ text: streamed });
-      }, abort.current.signal, chosenModel, (step) => update({ step }), caseId, (c) => { sources = c; });
+      }, abort.current.signal, chosenModel, (step) => update({ step }), caseId, (c) => { sources = c; }, asked.focus);
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
                instructionLikeSources: done.instruction_like_sources ?? [],

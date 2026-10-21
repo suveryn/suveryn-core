@@ -447,20 +447,21 @@ class DocumentService:
         return self._with_search(lambda rag: rag.store.in_scope(ids, scope, sources_only)) == set(ids)
 
     def retrieve(self, question: str, document_ids: list[str], k: int,
-                 scope: Scope) -> tuple[list[tuple[Citation, str]], bool]:
+                 scope: Scope, focus: bool = False) -> tuple[list[tuple[Citation, str]], bool]:
         """Passages to answer from, as (citation, file name), and whether they are the complete documents.
 
         Only uploaded documents in ``scope``: if any id is elsewhere (or doesn't exist, or is
         sūveryn's own output), ``DocumentNotFound`` is raised before anything is read, so another
         scope's text never reaches the prompt. Small documents are given whole; larger ones give
-        the ``k`` best search hits (``Rag.passages``).
+        the ``k`` best search hits (``Rag.passages``). ``focus``: the documents are the case's sources,
+        narrowed first to the ones the question is about (``suveryn_rag.focus``).
         """
         ids = [uuid.UUID(d) for d in document_ids]
 
         def scoped_passages(rag):
             if rag.store.in_scope(ids, scope, sources_only=True) != set(ids):
                 raise DocumentNotFound("unknown document")
-            return rag.passages(question, ids, k)
+            return rag.passages(question, ids, k, focus)
 
         hits, complete = self._with_search(scoped_passages)
         return [(h.citation, h.filename) for h in hits], complete

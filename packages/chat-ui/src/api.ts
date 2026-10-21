@@ -285,12 +285,13 @@ export async function streamChat(
   onStatus?: (status: StreamStatus) => void,
   caseId?: string | null,         // the case the documents are in; null or undefined: the personal space
   onSources?: (citations: Citation[]) => void,  // a grounded answer's passages, before its first word
+  focus = false,                  // the documents are the case's sources (nothing attached): the server narrows them
 ): Promise<ChatResponse> {
   const r = await fetch("/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500, ...(model ? { model } : {}),
-                           ...(caseId ? { case_id: caseId } : {}) }),
+                           ...(caseId ? { case_id: caseId } : {}), ...(focus && caseId ? { focus: true } : {}) }),
     signal,
   });
   if (!r.ok || !r.body) throw await responseError(r);

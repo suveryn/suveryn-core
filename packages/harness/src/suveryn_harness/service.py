@@ -29,8 +29,10 @@ from .support import citation_issues
 # must refuse documents outside the scope: ``owner``'s personal space when ``case_id`` is None, else
 # the case ``case_id`` (which the caller has checked ``owner`` may read). ``complete`` is True when
 # the passages are the documents' whole text in reading order (small documents), False when they
-# are a selection: the best-matching passages that fit the whole-document budget, at least ``k``.
-Retriever = Callable[[str, list[str], int, str, str | None], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
+# are a selection: the best-matching passages that fit the whole-document budget, at least ``k``. With
+# ``focus=True`` (a keyword, only for a case's sources sent because nothing was attached) the retriever
+# first narrows the documents to the ones the question is about.
+Retriever = Callable[..., Awaitable[tuple[list[tuple[Citation, str]], bool]]]
 
 # The fewest passages a larger document gives (the budget usually allows far more): the right passage
 # was in the top 3 for all 19 real-deed questions.
@@ -100,7 +102,9 @@ class ChatService:
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner, req.case_id)
+        # ``focus`` only when set, so a retriever without it (tests, older callers) still works.
+        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner, req.case_id,
+                                              **({"focus": True} if req.focus and req.case_id else {}))
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations, complete

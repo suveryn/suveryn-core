@@ -44,6 +44,10 @@ class ChatRequest(BaseModel):
     # The case the documents are in (suveryn-tracker#10). None: the user's personal space. The
     # gateway checks the user may read the case; the documents must all be in it.
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
+    # The documents are the case's sources, sent because nothing was attached (the chat UI's
+    # lib/questionDocuments.ts), not the person's choice: the server first narrows them to the ones the
+    # question is about (suveryn_rag.focus), so the answer doesn't mix in similar documents of the case.
+    focus: bool = False
     # Which installed model answers (an id from GET /v1/models). None: the appliance's default model.
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
 

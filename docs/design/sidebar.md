@@ -689,6 +689,12 @@ here.
     before, a new conversation in the open case meant leaving it and opening it again (the earlier
     decision that a conversation in a case "starts from the case itself" left no way to do it from
     inside it).
+  - Asking across a whole case mixed documents (7 of 44 answers with ten real documents cited
+    another document, 4 wrongly; 11 to 17 s per answer). Such a question now carries `focus`, and the
+    server narrows the case's sources to the documents it is about before reading (docs/harness.md,
+    "Focus"). Attached documents are never narrowed.
+  - Above every sourced answer, a quiet line names the documents it rests on: "Op basis van
+    akte-verkoop.pdf", or "Op basis van 2 documenten: …". A fact from the wrong deed shows at a glance.
 
 ## Open
 

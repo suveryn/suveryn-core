@@ -151,6 +151,28 @@ def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
         store.close()
 
 
+def test_document_weights_count_each_documents_share_of_the_best_chunks():
+    """suveryn_rag.focus: of the top chunks across documents, 1/rank each for its document."""
+    store = Store(URL, DIM)
+    suffix = f"{os.getpid()}-{np.random.randint(1 << 30)}"
+    near = store.add_document("near.pdf", f"sha-near-{suffix}", 3, 0,
+                              [Chunk(i, f"passage {i} of the near deed text", "", i + 1, i + 1, []) for i in range(3)],
+                              np.stack([unit(0) * (3 - i) + unit(5 + i) for i in range(3)]) / 3)
+    far = store.add_document("far.pdf", f"sha-far-{suffix}", 3, 0,
+                             [Chunk(i, f"passage {i} of the far deed text", "", i + 1, i + 1, []) for i in range(3)],
+                             np.stack([unit(10 + i) for i in range(3)]))
+    try:
+        q = unit(0)
+        weights = store.document_weights(q, "", [near, far], top=4)
+        assert weights[near] == 1 + 1 / 2 + 1 / 3 and weights[far] == 1 / 4
+        assert store.document_weights(q, "", [near, far], top=2) == {near: 1.5}
+        assert store.filenames([near, far]) == {near: "near.pdf", far: "far.pdf"}
+    finally:
+        store.delete_document(near)
+        store.delete_document(far)
+        store.close()
+
+
 def test_reading_again_replaces_a_document_in_place():
     store = Store(URL, DIM)
     recovered = [Chunk(i, f"garbled {i}", f"garbled {i}", i + 1, i + 1, [], "text_layer_recovered") for i in range(3)]

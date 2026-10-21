@@ -45,6 +45,15 @@ text through one interface, `Retriever`; finding the text is the job of `package
 - larger ones give their **best-matching passages** up to the same budget, at least six, also in
   reading order.
 
+**Focus.** A question in a case with nothing attached is sent the case's sources with `focus`
+set (`ChatRequest.focus`). The server first narrows them to the documents the question is about
+([`suveryn_rag/focus.py`](../packages/rag/src/suveryn_rag/focus.py)): a document named by a word
+of its file name, else by the search itself (of the ten best passages across the documents, each
+counts 1/rank for its document; the best document is kept with any other at half its weight or
+more, three at most). Only those are read, whole when they fit. Searching ten real documents at once
+mixed them in 7 of 44 answers; attaching the one document mixed none (Pod check of 705b91d).
+Documents the person attached are never narrowed: attaching is choosing.
+
 The search text is the last question together with the one before it, so a follow-up such as
 "calculate it" still finds the right passages. Only the case's or the person's own documents can be
 returned, and never sūveryn's own output (a saved answer, a playbook result): those are not sources.

@@ -93,7 +93,7 @@ class FakeDocuments:
             del self.docs[d]
         return len(gone)
 
-    def retrieve(self, question, document_ids, k, scope):
+    def retrieve(self, question, document_ids, k, scope, focus=False):
         assert self.in_scope(document_ids, scope, True), "the gateway must never retrieve documents outside the scope"
         self.seen = {"question": question, "document_ids": document_ids, "k": k, "owner": scope.owner,
                      "case_id": scope.case_id}
@@ -316,7 +316,7 @@ def test_last_message_must_be_the_question():
 
 
 class BrokenDocuments(FakeDocuments):
-    def retrieve(self, question, document_ids, k, scope):
+    def retrieve(self, question, document_ids, k, scope, focus=False):
         raise RuntimeError("De koopprijs bedraagt EUR 412.500,00")  # an error message holding document text
 
 
