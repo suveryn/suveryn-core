@@ -408,10 +408,141 @@ playbook is never covered.
 1. ~~**Source or Made**, with the upload mark (section 6).~~ Built (phase a, d9e0df2).
 2. ~~***Stop***.~~ Built (phase b).
 3. ~~***Save to case***, with its API change.~~ Built (phase c).
-4. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
+4. ***Ask about*** (section 10), and drop the server's guess. Then measure the reading budget.
+5. **Strictly confidential** (section 11).
+6. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
    is built.
-5. **Markdown and CSV**, and **pinned personal conversations**.
-6. **"Thought for …"** and the per-request thinking flag.
+7. **Markdown and CSV**, and **pinned personal conversations**.
+8. **"Thought for …"** and the per-request thinking flag.
+
+## 10. Choosing which documents a question is about (artboards 17 to 19)
+
+Decided with Filip on 21 October, after the Pod runs on 10 real documents and 44 questions: asking
+across the whole case gave 37/40 right facts and 7/44 answers citing another document; the server
+guessing the document gave 32/40 and 10/44, at up to 33 s; the one document attached gave 15/15 and
+44/44, in 2 to 11 s. Choosing works, guessing doesn't. Artboards 20 to 22 (correcting after the
+answer, and both together) were drawn and **not chosen**: when the documents were wrong, the person
+asks again with the right ones.
+
+**Ask about.** In a case, the composer has one control beside the + button: *Ask about: all
+documents* ▾.
+
+- It opens a `DocumentPicker`, a new kit component: a `DialogTrigger` with a `Popover`, an
+  "All documents in case 123" option, a `SearchField` (from about nine sources), and a `ListBox`
+  with `selectionMode="multiple"`. `MenuButton` can't do multiple choice with search.
+- Each row shows the name, the kind of file, the pages, and who added it and when. Chosen documents
+  stay at the top, under "Chosen", even when the search no longer matches them.
+- Only sources are listed. sūveryn's own output and uploads waiting for a choice are left out, with
+  a line saying so.
+- *Upload a new document* at the bottom uploads to the case and chooses the document at once.
+  Uploading from the + menu does the same. This replaces "attaching from the case": choosing is one
+  thing, in one place.
+- Chosen, the control reads *Ask about: akte-verkoop.pdf* or *Ask about: 2 documents* (the name is
+  cut at 240 px). It announces "Ask about, 2 documents chosen".
+- Keyboard: Enter or arrow down opens, typing searches, Space chooses, Esc closes and keeps the
+  choice.
+- Narrow screens: the control stays visible above the input, full width, and opens a bottom sheet
+  with *Done* and 44 px rows.
+- A reader has no composer, so no control; she sees what each question read (below).
+
+**The choice belongs to the conversation.**
+
+- It stays for every following question until changed, and is never carried to another conversation
+  or remembered per case.
+- Every question with a choice shows it under the question: "Ask about: akte-verkoop.pdf". A
+  question about the whole case shows nothing. Readers of a shared conversation see the same.
+- The line under the question box follows it: "Answers use only akte-verkoop.pdf." or "Answers use
+  only the 2 chosen documents."
+- The basis line above each answer stays ("Op basis van …"): the question says what it might read,
+  the answer says what it used.
+- When the documents were wrong, the person chooses the right ones and asks again. There is no
+  correcting action on the answer.
+
+**Edge cases.**
+
+- A chosen document that is deleted, or replaced by a new version, leaves the choice; the question
+  reads the documents that remain. When none remain, it reads the whole case again, and the line
+  under the question box says so: "The chosen documents are no longer in the case. Answers use all
+  its documents again."
+- When the chosen documents are too large to be read whole, the answer says so above its text: "Too
+  large to read in full: the passages that best match your question were read."
+- Playbooks always read the whole case; *Ask about* doesn't limit them.
+- Asking again counts as a new message, in token usage and in the case's access log.
+
+**Server.**
+
+- Drop the server's guess (`focus`, eb35c55, docs/harness.md "Focus"): with nothing chosen, a
+  question reads the case's sources as before 21 October.
+- A question carries the chosen document ids, as an attachment does today; the server reads exactly
+  those.
+
+**The reading budget (48,000 characters).** It can be raised, at a cost; the dev chat measures
+before choosing a number.
+
+- The limit comes from the context: `-c 65536 -np 4 -kvu` gives four parallel slots one shared
+  KV cache, and 48,000 characters (~14k tokens of Dutch) leaves each slot room for history and the
+  answer while four people ask at once.
+- Ways to raise it, cheapest first:
+  1. Count in tokens, not characters (the open item in docs/architecture.md): Dutch and French fit
+     more than the character estimate allows for.
+  2. A larger budget only for a question with chosen documents: it is what the person asked for, and
+     the unified cache lends the slot room when the others are idle. The budget then depends on the
+     load, and the answer says when it had to fall back to passages.
+  3. A larger context (`-c 131072`): about twice the KV memory, so it depends on the appliance's GPU
+     and on the model's own context limit.
+  4. Fewer parallel slots (`-np 2`): more room each, more waiting when several people ask.
+- Whole documents over 99 passages also hit the two-digit citation markers
+  (`WHOLE_DOCUMENT_CHUNKS`); a larger budget needs three-digit markers or a coarser unit.
+- To measure on the Pod: the 58-page deed and two deeds chosen together, at 48k, 80k and 120k
+  characters, with one and with four questions at once, for right facts, answer time and memory.
+
+## 11. A strictly confidential case (artboards 23 and 24)
+
+Decided with Filip on 21 October. One extra level on a case: **Strictly confidential**. Not "Secret"
+or "Top secret": in Belgium those are legal classification levels (the 1998 law, with clearances and
+approved systems), and sūveryn would claim an accreditation it doesn't have. Every case already falls
+under professional secrecy, so the ordinary level has no label.
+
+**What it does**:
+
+- Access is always *Members only*; it can't be opened to the whole office while the label is on.
+- Conversations can't be shared with the case. Turning the label on unshares the ones that were
+  shared; their owners keep them, and the dialog says how many.
+- Every export carries a watermark: Word, Excel, Markdown, CSV and *Save to case*.
+  - Word: a diagonal "STRIKT VERTROUWELIJK" on every page, a header with the case, the person's
+    name and the time, and the existing export mark with "Strictly confidential" added.
+  - Excel: the same in the header and footer of every sheet.
+  - Markdown and CSV: a first line.
+  - *Copy* can't carry a watermark and stays as it is.
+- In *Recent* and in search results, its conversations appear without their title: "Shielded
+  conversation" with the case reference, so the person can still go straight back. Only people with
+  access see the row at all. *Pinned* shows the reference and name, because the person chose to pin
+  it; the conversation titles under it show only while the case is open.
+- **Not**: a reason for an administrator who opens the access log, or a shorter retention.
+
+**Who sets it**: the case's manager, in *Members and access*, as a switch with one paragraph on what
+changes. Turning it on or off goes to the case's access log.
+
+**How it looks**: one sign, the same everywhere, in ink. No new colour: teal and `case-surface`
+already mean something, and meaning carried by colour alone doesn't count.
+
+- **A band above the case header**, in inverted ink (`text` as the background, `bg` as the text), so
+  it turns light-on-dark in the dark theme by itself: "Strikt vertrouwelijk · Alleen leden ·
+  Gesprekken worden niet gedeeld · Exports krijgen een watermerk". It says what the label does, not
+  how secret the case is.
+- On narrow screens, the band shortens to the icon, the label and *What does this mean?*, which
+  opens the three rules in a sheet.
+- **The icon is Lucide `eye-off`**. The lock is a closed case, and the shield is the administrator.
+  It replaces the folder in the column, the case header and the Cases overview.
+- **In the Cases overview**, the status column also carries an ink outline label in words, and a
+  filter chip offers *Strictly confidential*.
+- In the conversation menu, *Share with the case* is disabled with the reason. Next to *Word* the
+  answer toolbar says "With watermark".
+
+**Data**: `cases.confidential` (boolean), set with `PUT /v1/cases/{id}` by the manager, logged as
+`confidential_on` / `confidential_off`. The gateway enforces members only and no sharing; the export
+code adds the watermark; the conversation lists return `title: null` and `shielded: true` for these
+conversations, and the client shows the placeholder.
 
 ## Where it lives in `packages/chat-ui`
 
@@ -426,7 +557,8 @@ playbook is never covered.
   - `menus.tsx`, for New, the actions and the account menu;
   - a small `Badge` overlay for the avatar;
   - a `Table` wrapper for the overviews.
-- **`Composer.tsx`**: the playbook chip and the model dialog (`ModelPicker.tsx`).
+- **`Composer.tsx`**: the playbook chip, *Ask about* (`DocumentPicker`, new in `ui/`) and the model dialog
+  (`ModelPicker.tsx`).
 - **`Messages.tsx`**: the answer toolbar, the split buttons, `WaitingDots`, and later "Thought for".
 - **`App.tsx`**: the three overviews in the main area. Administration gains a Playbooks tab.
 - **`i18n/*.ts`**: every new string, in the three languages.
@@ -466,6 +598,25 @@ here.
 | Retrying in 8 seconds. · Try now | Nieuwe poging over 8 seconden. · Nu opnieuw proberen |
 | Regenerate | Opnieuw genereren |
 | Open document at p. 3 · Copy passage | Document openen op p. 3 · Passage kopiëren |
+| Ask about: all documents · Ask about: 2 documents | Vraag over: alle documenten · Vraag over: 2 documenten |
+| Ask about, 2 documents chosen (announced) | Vraag over, 2 documenten gekozen |
+| All documents in case 123 · Chosen · Matching 'akte' | Alle documenten van dossier 123 · Gekozen · Met 'akte' |
+| Search this case's documents | Zoek in de documenten |
+| Upload a new document · It is chosen right away | Nieuw document uploaden · Het wordt meteen gekozen |
+| What sūveryn made itself, and documents waiting for your choice, aren't listed: they aren't sources. | Wat sūveryn zelf maakte en documenten die op uw keuze wachten, staan hier niet: ze zijn geen bron. |
+| Answers use only akte-verkoop.pdf. · Answers use only the 2 chosen documents. | Antwoorden gebruiken alleen akte-verkoop.pdf. · Antwoorden gebruiken alleen de 2 gekozen documenten. |
+| The chosen documents are no longer in the case. Answers use all its documents again. | De gekozen documenten staan niet meer in het dossier. Antwoorden gebruiken weer alle documenten. |
+| Too large to read in full: the passages that best match your question were read. | Te groot om volledig te lezen: de passages die het best bij uw vraag passen, werden gelezen. |
+| Done | Klaar |
+| Strictly confidential | Strikt vertrouwelijk |
+| Members only · Conversations aren't shared · Exports carry a watermark | Alleen leden · Gesprekken worden niet gedeeld · Exports krijgen een watermerk |
+| What does this mean? | Wat betekent dit? |
+| Shielded conversation · Shielded conversation in case 126 (announced) | Afgeschermd gesprek · Afgeschermd gesprek in dossier 126 |
+| Share with the case · Not in a strictly confidential case | Delen met het dossier · Niet in een strikt vertrouwelijk dossier |
+| With watermark | Met watermerk |
+| Only members see this case. Conversations aren't shared. Every export carries a watermark with name and time. Recent shows no title. | Alleen leden zien dit dossier. Gesprekken worden niet gedeeld. Elke export krijgt een watermerk met naam en tijdstip. In Recent staat geen titel. |
+| Two conversations in this case were shared. They are no longer shared; their owners keep them. Turning this on or off goes to the access log. | Twee gesprekken in dit dossier waren gedeeld. Ze worden niet meer gedeeld; hun eigenaars houden ze. Het aan- en uitzetten komt in het toegangslogboek. |
+| STRICTLY CONFIDENTIAL · case 125 · Test Beheerder · 21/10/2026 14:32 | STRIKT VERTROUWELIJK · dossier 125 · Test Beheerder · 21-10-2026 14:32 |
 
 ## Resolved while building
 
