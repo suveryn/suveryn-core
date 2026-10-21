@@ -381,6 +381,7 @@ const en = {
   basedOn: (count: number, names: string) => (count === 1 ? `Based on ${names}` : `Based on ${count} documents: ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Download this answer as a Word document, with its sources",
+  downloadWordWhatConfidential: "Download this answer as a Word document, with its sources and the Strictly confidential watermark",
   // Save to case (docs/design/sidebar.md §5)
   saveToCase: "Save to case",
   saveToCaseWhat: (ref: string) => `Save this answer to case ${ref} as a Word document. It is never used as a source.`,
@@ -704,6 +705,19 @@ const en = {
   caseMenu: (reference: string) => `Case ${reference}: actions`,
 
   // origin: source or made by sūveryn (docs/design/sidebar.md §6)
+  // Strictly confidential (docs/design/sidebar.md §11)
+  strictlyConfidential: "Strictly confidential",
+  confidentialRules: "Members only · Conversations aren't shared · Exports carry a watermark",
+  confidentialWhat: "What does this mean?",
+  confidentialHint: "Only members see this case. Conversations aren't shared. Every export carries a watermark with name and time. Lists show no conversation titles.",
+  confidentialUnshares: (n: number) => (n === 1 ? "One conversation in this case is shared. It will no longer be shared; its owner keeps it." : `${n} conversations in this case are shared. They will no longer be shared; their owners keep them.`),
+  confidentialLogged: "Turning this on or off goes to the access log.",
+  notInConfidential: "Not in a strictly confidential case",
+  confidentialFilter: "Strictly confidential",
+  shieldedConversation: "Shielded conversation",
+  shieldedIn: (ref: string) => `Shielded conversation in case ${ref}`,
+  watermarkLabel: "STRICTLY CONFIDENTIAL",
+  watermarkLine: (ref: string, who: string, when: string) => `STRICTLY CONFIDENTIAL · case ${ref} · ${who} · ${when}`,
   exportMark: (kind: "answer" | "playbook", caseRef: string | null, date: string, ref: string) =>
     `Made by sūveryn: ${kind === "answer" ? "answer" : "playbook result"}${caseRef ? ` from case ${caseRef}` : ""}, ${date} · sūveryn-ref ${ref}`,
   origin: "Origin",

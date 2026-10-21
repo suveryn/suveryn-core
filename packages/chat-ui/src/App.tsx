@@ -19,7 +19,7 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, FileText, Folder, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -43,6 +43,7 @@ import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved"
 import { LanguagePicker } from "./components/LanguagePicker";
 import { SearchView } from "./components/ListViews";
 import { CasesOverview, ConversationsOverview, DocumentsOverview } from "./components/Overviews";
+import { ConfidentialBand } from "./components/ConfidentialBand";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar, type AllDocument, type CaseAction, type SideView } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -57,6 +58,7 @@ import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
+import { watermark, WatermarkContext } from "./lib/watermark";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -192,6 +194,8 @@ function Chat({ me }: { me: Me }) {
   const manages = role === "manager";
   const contributes = role === "contributor" || role === "manager";
   const administers = currentCase !== null && role === null && (me.admin ?? false);
+  // A strictly confidential case's watermark, made at the moment of each export (lib/watermark.ts, §11).
+  const markNow = () => watermark(currentCase, me.name || me.username, m, locale());
   // The person can't ask here at all: the question box is read-only, without Ask about.
   const locked = readOnly || closed || (!!currentCase && role === "reader") || administers;
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
@@ -536,7 +540,9 @@ function Chat({ me }: { me: Me }) {
                           { id: "members", label: m.members, icon: <Users size={16} /> },
                           ...(canShare ? [current?.shared
                             ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
-                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} /> }] : []),
+                            // §11: not in a strictly confidential case, disabled with the reason
+                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} />, isDisabled: !!currentCase!.confidential,
+                                ...(currentCase!.confidential ? { description: m.notInConfidential } : {}) }] : []),
                           ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
                           ...(manages && !closed ? ["-" as const,
                             { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
@@ -590,7 +596,7 @@ function Chat({ me }: { me: Me }) {
     try {
       const { content } = await documentContent(d.id, d.case_id);
       const { saveBlob } = await import("./lib/office");
-      saveBlob(d.filename, await savedWord(content, m, lang()));
+      saveBlob(d.filename, await savedWord(content, m, lang(), watermark(caseById(d.case_id), me.name || me.username, m, locale())));
     } catch (e) { setProblem(m.downloadFailedWhy((e as Error).message)); }
   };
 
@@ -799,7 +805,8 @@ function Chat({ me }: { me: Me }) {
       {currentCase && (
         <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers}
                        officeWide={me.office_wide ?? false} onClose={() => { setShowMembers(false); loadMembers(currentCase.id); }}
-                       onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); }} />
+                       sharedCount={conversations.filter((x) => x.shared).length}
+                       onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); refreshConversations(); }} />
       )}
       {currentCase && <AccessLogDialog open={showLog} kase={currentCase} onClose={() => setShowLog(false)} />}
       <DeleteDocumentDialog open={deleting !== null} filename={deleting?.doc.filename ?? ""}
@@ -809,6 +816,7 @@ function Chat({ me }: { me: Me }) {
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
 
+      <WatermarkContext.Provider value={markNow}>
       <main className="main" data-start={start || undefined} data-case={view === "chat" && currentCase ? true : undefined}>
         {narrow && (
           // Narrow screens (§2, artboard 15): a 56px bar with the menu button and where you are.
@@ -853,11 +861,12 @@ function Chat({ me }: { me: Me }) {
           </div>
         )}
         {view === "chat" && <>
+        {currentCase?.confidential && <ConfidentialBand narrow={narrow} />}
         {currentCase && (
           // The case header (docs/design/sidebar.md §5, artboard 02): the case and its type, the
           // conversation, the members (the manager set apart), its documents and one menu for the case's actions.
           <header className="case-head">
-            {closed ? <Lock size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
+            {closed ? <Lock size={15} aria-hidden /> : currentCase.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
             <span className="case-ref">{currentCase.reference}</span>
             <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
             <span className="case-type">{caseTypeLabel(currentCase.type, m)}</span>
@@ -953,6 +962,7 @@ function Chat({ me }: { me: Me }) {
         </>}
         </>}
       </main>
+      </WatermarkContext.Provider>
       {sourcePanel && (narrow
         ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source(source!.n)}>{sourcePanel}</Drawer>
         : sourcePanel)}

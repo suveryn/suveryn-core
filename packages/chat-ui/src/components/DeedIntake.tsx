@@ -13,6 +13,7 @@ import {
   casePlaybooks, confirmRun, getRun, listRuns, startRun,
   type Case, type Citation, type PlaybookInfo, type Run, type RunFact, type RunSummary,
 } from "../api";
+import { useWatermark } from "../lib/watermark";
 import { lang, locale, useLang, useT } from "../i18n";
 import { playbookWords, type PlaybookWords } from "../lib/playbooks";
 import { dayLabel } from "../lib/conversations";
@@ -145,6 +146,7 @@ function RunPanel({ run, kase, canRun, words, onConfirmed }: {
       onConfirmed(await confirmRun(kase.id, run.id, run.facts.map((f) => ({ id: f.id, confirmed: values[f.id] ?? "" })), lang()));
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
+  const mark = useWatermark();
   const word = async () => {
     const blob = await intakeToWord({
       title: `${words.title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
@@ -153,7 +155,9 @@ function RunPanel({ run, kase, canRun, words, onConfirmed }: {
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
       // sūveryn's mark (lib/marks.ts): uploaded again, this file asks before it becomes a source
-      mark: m.exportMark("playbook", kase.reference, new Date().toLocaleDateString(locale()), exportRef("P", run.id)),
+      mark: m.exportMark("playbook", kase.reference, new Date().toLocaleDateString(locale()), exportRef("P", run.id))
+        + (mark() ? ` · ${m.strictlyConfidential}` : ""),
+      watermark: mark(),  // a strictly confidential case (§11)
     });
     saveBlob(`${words.title} ${kase.reference}.docx`.replace(/[/\\]/g, "-"), blob);
   };
