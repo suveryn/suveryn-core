@@ -74,7 +74,7 @@ export function Rows({ rows }: { rows: Row[] }) {
         <div key={r.label} className="ui-row">
           <dt className="ui-eyebrow ui-row-label">{r.label}</dt>
           <dd className="ui-row-value">
-            <span className="ui-row-main" data-tone={r.tone}>{r.value}</span>
+            <span className="ui-row-main" data-tone={r.tone}>{r.tone === "ok" && <Check size={16} aria-hidden />}{r.value}</span>
             {r.detail && <span className="ui-row-detail">{r.detail}</span>}
           </dd>
           {r.action && <dd className="ui-row-action">{r.action}</dd>}

@@ -36,6 +36,8 @@ const en = {
   allowAll: "Allow all outgoing traffic",
   allowAllDesc: "Only if your own firewall decides what this appliance may reach.",
   changeLater: "You can change this and the list later in the admin dashboard.",
+  allowAllWarning: "Any program on the appliance can then reach the internet, and the appliance no longer checks its outgoing traffic.",
+  airGappedNote: "The appliance blocks all outgoing traffic itself and checks this after setup. Block it at your office firewall too. The default model is already installed; updates and extra models arrive on a USB stick or from a mirror on your network.",
 
   adminTitle: "Administrator account",
   adminLead: "The first account on this appliance. Use it to sign in once setup finishes, and to manage users and settings afterwards.",
