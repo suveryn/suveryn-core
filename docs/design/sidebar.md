@@ -874,6 +874,23 @@ here.
     is making it easy to choose the document (design brief: choosing which documents a question is
     about), not guessing it. A question in a case with nothing attached reads all its sources, as
     at 705b91d.
+- ***Ask about* (21 October, section 10).**
+  - `DocumentPicker` in `ui/picker.tsx`: a `DialogTrigger` with a `Popover`, or on a narrow screen a
+    sheet from the bottom (`Modal`) with *Done*. "All documents" is a button marked pressed when
+    nothing is chosen; the list is a `ListBox` with `selectionMode="multiple"` and its Escape set
+    to close the picker, not to clear the choice (React Aria's default). The search field shows from
+    nine sources and doesn't take the focus by itself.
+  - The paperclip is a plain upload button now, in a case and outside one; *Upload a new document*
+    in the picker opens the same file chooser. In a case an upload is chosen once it is read, and
+    removing its card takes it out of the choice. A document opened from the Documents overview is
+    chosen rather than attached.
+  - The choice is saved on each question as `about` (document id and name). The server's clean-up
+    of a deleted document empties its name there as in an attachment (`_references`), and a
+    conversation from before *Ask about* is reopened with its attached documents as its choice.
+  - "Too large to read in full" shows above an answer when a choice was asked about and the server
+    said the passages were a selection (the stream's `complete`).
+  - The case's empty state adds "Your question is about all n documents…" when it holds two sources
+    or more and nothing is chosen (artboard 17).
 
 ## Open
 

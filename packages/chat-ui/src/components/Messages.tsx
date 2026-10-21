@@ -5,7 +5,7 @@
  * "not sourced" notices that tell a reader what to check. A citation opens its passage in the source
  * panel beside the conversation (``SourcePanel``, docs/design/sidebar.md §5, artboard 11).
  */
-import { AlertCircle, AlertTriangle, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, FolderInput, Square, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, Files, FolderInput, Square, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, MenuButton, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
@@ -26,12 +26,18 @@ import { AttachmentChip, CitationChip } from "./Chips";
 
 /** The user's turn: attachment chips above a bubble (the only bubble in the conversation). */
 export function UserMessage({ turn }: { turn: UserTurn }) {
+  const m = useT();
+  // What the question was asked about (§10), so whoever reads the conversation knows what each answer read.
+  const about = (turn.about ?? []).map((c) => (c.removed ? m.sourceRemoved : c.filename));
   return (
     <div className="turn-user">
       {turn.attachments.length > 0 && (
         <div className="attachments">{turn.attachments.map((a) => <AttachmentChip key={a.key} a={a} />)}</div>
       )}
       {turn.text && <div className="bubble">{turn.text}</div>}
+      {about.length > 0 && (
+        <p className="asked-about"><Files size={12} aria-hidden /><span>{m.askAbout} <b>{about.join(", ")}</b></span></p>
+      )}
     </div>
   );
 }
@@ -309,6 +315,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {settled && basis.length > 0 && (
           <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
         )}
+        {settled && turn.partial && <InlineNotice icon={<AlertCircle size={14} />}>{m.partialRead}</InlineNotice>}
         {blocks.map((b, i) => (b.kind === "table"
           ? <AnswerTable key={i} table={b} render={render} done={turn.status === "done"} exported={exported} />
           : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
