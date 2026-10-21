@@ -258,8 +258,10 @@ from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blockin
   - The choice applies to the conversation. The default lives under *Settings*.
   - With a model that cannot think, *Thorough* is disabled and gives the reason. Whether a model can
     think is decided by model family in the harness (`ModelInfo.thinks`).
-- The chip shows the model and, when thinking is on, the ink `brain` icon and "· Thorough".
-- The harness needs a per-request thinking flag; today the presets disable thinking.
+- The chip shows the model and, when thinking is on, the ink `brain` icon and "· Thorough" (decided
+  21 October: the model's name stays on the chip).
+- Built: the per-request flag `ChatRequest.thinking`; the presets still switch thinking off by
+  default, and a request turns it on for itself (`suveryn_harness/thinking.py`).
 
 **Working** (artboard 10).
 
@@ -275,10 +277,8 @@ bounce in turn; they stand still under `prefers-reduced-motion`.
 Built in phase b: *Stop* (Esc) in the send button's place, with the input still usable for the
 next question.
 
-Not yet built:
-
-- A collapsed "Thought for 14 s" button above the answer, in *Thorough* only, that opens the
-  reasoning.
+Built: a collapsed "Thought for 14 s" button above the answer, in *Thorough* only, that opens the
+reasoning, with the line that it isn't checked.
 
 **Citations and the source panel** (artboard 11).
 
@@ -416,7 +416,7 @@ playbook is never covered.
    is built.
 7. ~~**Markdown and CSV**~~ (built, #79), and ~~**pinned personal conversations**~~ (built, with the
    conversation menu).
-8. **"Thought for …"** and the per-request thinking flag.
+8. ~~**"Thought for …"** and the per-request thinking flag.~~ Built (21 October).
 
 ## 10. Choosing which documents a question is about (artboards 17 to 19)
 
@@ -945,6 +945,25 @@ here.
   - Moving the open conversation takes the person to the case, the conversation still open.
   - The Conversations overview's pin column has a toggle only for one's own personal conversations;
     the cell is empty otherwise.
+- **Fast and Thorough, and "Thought for …" (21 October, section 5).**
+  - Server: `ChatRequest.thinking`. For a model that can think (`ModelInfo.thinks`, by family) the
+    request sends llama-server `chat_template_kwargs: {"enable_thinking": …}` over the preset's own
+    setting, and *Thorough* gets 4,096 tokens on top of the answer's own. The reasoning comes back
+    apart from the answer (`reasoning_content`), or between `<think>` tags in the text, which are taken
+    out even when split over chunks. The stream sends a `thinking` status, then `thinking` events,
+    then the answer; `done` carries `reasoning` and `thought_seconds`. The reasoning is never in the
+    answer, its checks, Copy or the downloads, and never goes back to the model with a later question.
+  - The chip opens one small dialog (`ChipDialog`, new in `ui/`): the models when there are several,
+    and *Fast* / *Thorough* (`Segmented`, which can now disable one option and carry a line under it).
+    With a model that can't think, *Thorough* is disabled with the reason. On a narrow screen the "+"
+    menu has a *Thinking* submenu; submenus there now open under their item, not off the screen.
+  - The choice belongs to the conversation: each answer records it, and a reopened conversation goes
+    on with it. A new conversation starts with the default under *Settings*, kept in this browser.
+  - "Thought for 14 s" opens the reasoning in a quiet block, with "How the model got to its answer.
+    This isn't checked: the answer and its sources are."
+  - suveryn-tracker#54: a grounded answer that cites none of its passages is now logged by counts only
+    (passages, whole or selected, earlier answers and their markers, answer length, thinking), for the
+    next Pod run to find the cause without any document text.
 
 ## Open
 
@@ -953,8 +972,6 @@ here.
 - **A dark-theme check of artboard 02**: `case-surface` has a dark value, but no dark screen has
   been drawn.
 - **The reading budget** (section 10): measure on the Pod before raising the 48,000 characters.
-- **The model's name in the chip** ("Qwen3.8-27B") is jargon for a notary. Should the chip show
-  *Fast* / *Thorough*, and the model only in the dialog?
 
 ## History
 

@@ -41,6 +41,7 @@ import {
   type Placement,
 } from "react-aria-components";
 import { cx } from "./Button";
+import { NARROW, useMedia } from "./media";
 
 export type Option = { id: string; label: string; lang?: string; description?: string };
 
@@ -261,14 +262,15 @@ type ActionMenuProps = {
   isDisabled?: boolean;
 };
 
-function entries(items: MenuEntry[], onAction: (id: string) => void) {
+// A submenu opens beside its item, or on a narrow screen under it: beside, it would leave the screen.
+function entries(items: MenuEntry[], onAction: (id: string) => void, narrow = false) {
   return items.map((e, i) => {
     if (e === "-") return <Separator key={`sep-${i}`} className="ui-menu-separator" />;
     if ("heading" in e) {  // a group under a small label ("Administrators only")
       return (
         <MenuSection key={`section-${i}`} className="ui-menu-section">
           <Header className="ui-menu-section-title">{e.heading}</Header>
-          {entries(e.items, onAction)}
+          {entries(e.items, onAction, narrow)}
         </MenuSection>
       );
     }
@@ -291,12 +293,12 @@ function entries(items: MenuEntry[], onAction: (id: string) => void) {
                     data-described={e.description ? true : undefined}>
             {content()}
           </MenuItem>
-          <Popover className="ui-popover ui-popover-sub" placement="end top" offset={-6}>
+          <Popover className="ui-popover ui-popover-sub" placement={narrow ? "bottom end" : "end top"} offset={narrow ? 2 : -6}>
             <Menu aria-label={e.label} className="ui-menu"
                   selectionMode={e.selected === undefined ? undefined : "single"}
                   selectedKeys={e.selected === undefined ? undefined : [e.selected]}
                   onAction={(k: Key) => onAction(String(k))}>
-              {entries(e.submenu, onAction)}
+              {entries(e.submenu, onAction, narrow)}
             </Menu>
           </Popover>
         </SubmenuTrigger>
@@ -313,6 +315,7 @@ function entries(items: MenuEntry[], onAction: (id: string) => void) {
 
 export function ActionMenu({ children, menuLabel, entries: items, onAction, header, footer, placement = "bottom start",
                              className, popoverClassName, isDisabled, ...rest }: ActionMenuProps) {
+  const narrow = useMedia(NARROW);
   return (
     <MenuTrigger>
       <AriaButton className={cx("ui-menu-trigger", className)} aria-label={rest["aria-label"]} isDisabled={isDisabled}>
@@ -321,7 +324,7 @@ export function ActionMenu({ children, menuLabel, entries: items, onAction, head
       <Popover className={cx("ui-popover", "ui-popover-rich", popoverClassName)} placement={placement} offset={6}>
         {header && <div className="ui-menu-header">{header}</div>}
         <Menu aria-label={menuLabel} className="ui-menu" onAction={(k: Key) => onAction(String(k))}>
-          {entries(items, onAction)}
+          {entries(items, onAction, narrow)}
         </Menu>
         {footer && <div className="ui-menu-footer">{footer}</div>}
       </Popover>

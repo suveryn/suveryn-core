@@ -368,3 +368,21 @@ def test_a_read_upload_or_someone_elses_cant_be_cancelled():
         assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 409
         docs.jobs[job["id"]].status, docs.jobs[job["id"]].owner = "queued", "someone-else"
         assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 404
+
+
+def test_a_thorough_answer_streams_its_reasoning_apart_from_the_answer():
+    """docs/design/sidebar.md §5: with thinking, the model is told to think, and its reasoning comes as `thinking`
+    events, never in a `delta` or the answer."""
+    docs, captured = FakeDocuments(), []
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"),
+                            transport=llm_transport(captured, text="<think>Article 2 gives the price.</think>The price is EUR 412.500,00 [1]."))
+    with TestClient(create_app(llm, documents=docs, load_documents=False, auth=Authenticator.disabled())) as c:
+        r = c.post("/v1/chat", json={**ASK, "stream": True, "thinking": True})
+    events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in r.text.strip().split("\n\n")]
+    kinds = [k for k, _ in events]
+    assert "thinking" in kinds and kinds.index("thinking") < kinds.index("delta")
+    assert [d["text"] for k, d in events if k == "thinking"] == ["Article 2 gives the price."]
+    assert "think" not in "".join(d["text"] for k, d in events if k == "delta")
+    done = events[-1][1]
+    assert done["reasoning"] == "Article 2 gives the price." and "think" not in done["answer"]
+    assert captured[-1]["chat_template_kwargs"] == {"enable_thinking": True}
