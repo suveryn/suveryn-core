@@ -166,11 +166,13 @@ A person shows one badge at a time: the one that matters where the avatar appear
 
 **Shared build**:
 
-- A title with the count, and the primary action (*Upload*, *New case*, *New chat*).
+- A title, a line under it with the counts ("12 open, 3 closed"), and the primary action (*Upload*,
+  *New case*, *New chat*).
 - A `SearchField`.
 - Filter chips as `Select`s. An active filter is `surface-alt` with a darker border and a clear ×.
 - A sort or group control.
-- A React Aria `Table` with virtualised rows, 25 per page.
+- A React Aria `Table`, 25 rows per page. Not virtualised: at 25 rows there is nothing to gain
+  (`ui/table.tsx`).
 - A three-dot `MenuTrigger` per row. An action the person has no right to is shown disabled, never
   hidden.
 
@@ -412,7 +414,7 @@ playbook is never covered.
 5. **Strictly confidential** (section 11).
 6. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
    is built.
-7. **Markdown and CSV**, and **pinned personal conversations**.
+7. ~~**Markdown and CSV**~~ (built, #79), and **pinned personal conversations**.
 8. **"Thought for …"** and the per-request thinking flag.
 
 ## 10. Choosing which documents a question is about (artboards 17 to 19)
@@ -424,8 +426,8 @@ guessing the document gave 32/40 and 10/44, at up to 33 s; the one document atta
 answer, and both together) were drawn and **not chosen**: when the documents were wrong, the person
 asks again with the right ones.
 
-**Ask about.** In a case, the composer has one control beside the + button: *Ask about: all
-documents* ▾.
+**Ask about.** In a case, the composer has one control beside the paperclip (the + button in the
+narrow screen's pill): *Ask about: all documents* ▾.
 
 - It opens a `DocumentPicker`, a new kit component: a `DialogTrigger` with a `Popover`, an
   "All documents in case 123" option, a `SearchField` (from about nine sources), and a `ListBox`
@@ -443,7 +445,10 @@ documents* ▾.
   choice.
 - Narrow screens: the control stays visible above the input, full width, and opens a bottom sheet
   with *Done* and 44 px rows.
-- A reader has no composer, so no control; she sees what each question read (below).
+- A reader's question box is read-only and has no *Ask about*; she sees what each question read
+  (below).
+- *Ask about* exists only in a case. In a personal conversation the paperclip attaches documents as
+  it does now.
 
 **The choice belongs to the conversation.**
 
@@ -453,7 +458,7 @@ documents* ▾.
   question about the whole case shows nothing. Readers of a shared conversation see the same.
 - The line under the question box follows it: "Answers use only akte-verkoop.pdf." or "Answers use
   only the 2 chosen documents."
-- The basis line above each answer stays ("Op basis van …"): the question says what it might read,
+- The basis line above each answer stays ("Based on …"): the question says what it might read,
   the answer says what it used.
 - When the documents were wrong, the person chooses the right ones and asks again. There is no
   correcting action on the answer.
@@ -471,10 +476,12 @@ documents* ▾.
 
 **Server.**
 
-- Drop the server's guess (`focus`, eb35c55, docs/harness.md "Focus"): with nothing chosen, a
-  question reads the case's sources as before 21 October.
+- The server's guess was measured and dropped (see "Resolved while building", after the Pod check
+  of 705b91d): with nothing chosen, a question reads the case's sources.
 - A question carries the chosen document ids, as an attachment does today; the server reads exactly
   those.
+- The choice is saved with each question in the conversation's history, as its attachments are now,
+  so a reopened or shared conversation shows what each question read.
 
 **The reading budget (48,000 characters).** It can be raised, at a cost; the dev chat measures
 before choosing a number.
@@ -509,35 +516,49 @@ under professional secrecy, so the ordinary level has no label.
 - Conversations can't be shared with the case. Turning the label on unshares the ones that were
   shared; their owners keep them, and the dialog says how many.
 - Every export carries a watermark: Word, Excel, Markdown, CSV and *Save to case*.
-  - Word: a diagonal "STRIKT VERTROUWELIJK" on every page, a header with the case, the person's
-    name and the time, and the existing export mark with "Strictly confidential" added.
+  - Word: a diagonal "STRICTLY CONFIDENTIAL" (in the interface language) on every page, a
+    header with the case, the person's name and the time (whoever leaks it is named on it), and
+    the existing export mark with "Strictly confidential" added.
   - Excel: the same in the header and footer of every sheet.
   - Markdown and CSV: a first line.
   - *Copy* can't carry a watermark and stays as it is.
-- In *Recent* and in search results, its conversations appear without their title: "Shielded
-  conversation" with the case reference, so the person can still go straight back. Only people with
-  access see the row at all. *Pinned* shows the reference and name, because the person chose to pin
-  it; the conversation titles under it show only while the case is open.
+- In *Recent*, in search results and in the Conversations overview, its conversations appear
+  without their title: "Shielded conversation" with the case reference, so the person can still go
+  straight back. Only people with access see the row at all. *Pinned* shows the reference and
+  name, because the person chose to pin it; the conversation titles under it show only while the
+  case is open.
 - **Not**: a reason for an administrator who opens the access log, or a shorter retention.
 
 **Who sets it**: the case's manager, in *Members and access*, as a switch with one paragraph on what
 changes. Turning it on or off goes to the case's access log.
 
-**How it looks**: one sign, the same everywhere, in ink. No new colour: teal and `case-surface`
-already mean something, and meaning carried by colour alone doesn't count.
+**How it looks**: one sign, the same everywhere, in ink. No new colour (Filip, 21 October, after
+six options were drawn on artboard 25: violet, night blue, aubergine, raspberry, ochre, ink): teal
+and `case-surface` already mean something, the inverted band stands out enough, and the icon and
+the word carry the meaning.
 
-- **A band above the case header**, in inverted ink (`text` as the background, `bg` as the text), so
-  it turns light-on-dark in the dark theme by itself: "Strikt vertrouwelijk · Alleen leden ·
-  Gesprekken worden niet gedeeld · Exports krijgen een watermerk". It says what the label does, not
+- **A band above the case header**, with `folder-key`, in inverted ink (`text` as the background,
+  `bg` as the text), so it turns light-on-dark in the dark theme by itself: "Strictly confidential · Members only ·
+  Conversations aren't shared · Exports carry a watermark". It says what the label does, not
   how secret the case is.
 - On narrow screens, the band shortens to the icon, the label and *What does this mean?*, which
   opens the three rules in a sheet.
-- **The icon is Lucide `eye-off`**. The lock is a closed case, and the shield is the administrator.
-  It replaces the folder in the column, the case header and the Cases overview.
+- **One sign: the key**, in the shape of the thing it marks. The shape says what it is; the key or
+  lock on it says "only those who belong".
+  - The case: Lucide `folder-key`, in the column, the case header, the Cases overview, its filter,
+    the setting and the band. In the column the chevron alone shows open or closed.
+  - A conversation in such a case: `message-square-lock`, in *Recent* and in search results, in
+    `text-dim` like the other row icons there; the title "Shielded conversation" is `text-dim`
+    too.
+  - A document in such a case, if one is ever marked: `file-key`.
+  - The lock on a folder still means a closed case, so a closed strictly confidential case shows
+    the lock. No eye icon anywhere.
 - **In the Cases overview**, the status column also carries an ink outline label in words, and a
   filter chip offers *Strictly confidential*.
-- In the conversation menu, *Share with the case* is disabled with the reason. Next to *Word* the
-  answer toolbar says "With watermark".
+- In the conversation menu, *Share with the case* is disabled with the reason.
+- The answer toolbar looks as in any case; no extra label. The *Word* button's description says
+  the file carries the watermark ("Download this answer as a Word document, with its sources and the
+  Strictly confidential watermark"). The band already says that exports carry one.
 
 **Data**: `cases.confidential` (boolean), set with `PUT /v1/cases/{id}` by the manager, logged as
 `confidential_on` / `confidential_off`. The gateway enforces members only and no sharing; the export
@@ -613,10 +634,10 @@ here.
 | What does this mean? | Wat betekent dit? |
 | Shielded conversation · Shielded conversation in case 126 (announced) | Afgeschermd gesprek · Afgeschermd gesprek in dossier 126 |
 | Share with the case · Not in a strictly confidential case | Delen met het dossier · Niet in een strikt vertrouwelijk dossier |
-| With watermark | Met watermerk |
-| Only members see this case. Conversations aren't shared. Every export carries a watermark with name and time. Recent shows no title. | Alleen leden zien dit dossier. Gesprekken worden niet gedeeld. Elke export krijgt een watermerk met naam en tijdstip. In Recent staat geen titel. |
+| Download this answer as a Word document, with its sources and the Strictly confidential watermark | Dit antwoord downloaden als Word-document, met de bronnen en het watermerk Strikt vertrouwelijk |
+| Only members see this case. Conversations aren't shared. Every export carries a watermark with name and time. Lists show no conversation titles. | Alleen leden zien dit dossier. Gesprekken worden niet gedeeld. Elke export krijgt een watermerk met naam en tijdstip. In de lijsten staan geen titels van gesprekken. |
 | Two conversations in this case were shared. They are no longer shared; their owners keep them. Turning this on or off goes to the access log. | Twee gesprekken in dit dossier waren gedeeld. Ze worden niet meer gedeeld; hun eigenaars houden ze. Het aan- en uitzetten komt in het toegangslogboek. |
-| STRICTLY CONFIDENTIAL · case 125 · Test Beheerder · 21/10/2026 14:32 | STRIKT VERTROUWELIJK · dossier 125 · Test Beheerder · 21-10-2026 14:32 |
+| STRICTLY CONFIDENTIAL · case 125 · Test Beheerder · 21/10/2026 14:32 | STRIKT VERTROUWELIJK · dossier 125 · Test Beheerder · 21/10/2026 14:32 |
 
 ## Resolved while building
 
@@ -840,8 +861,8 @@ here.
     before, a new conversation in the open case meant leaving it and opening it again (the earlier
     decision that a conversation in a case "starts from the case itself" left no way to do it from
     inside it).
-  - Above every sourced answer, a quiet line names the documents it rests on: "Op basis van
-    akte-verkoop.pdf", or "Op basis van 2 documenten: …". On the Pod it always named exactly the
+  - Above every sourced answer, a quiet line names the documents it rests on: "Based on
+    akte-verkoop.pdf", or "Based on 2 documents: …". On the Pod it always named exactly the
     cited documents, and it was the only cue that showed an answer mixing documents.
   - Where the person can't ask at all (a colleague's shared conversation, a closed case, a reader,
     an administrator outside the case), the question box is read-only and has no placeholder. While
@@ -855,6 +876,31 @@ here.
     is making it easy to choose the document (design brief: choosing which documents a question is
     about), not guessing it. A question in a case with nothing attached reads all its sources, as
     at 705b91d.
+- ***Ask about* (21 October, section 10).**
+  - `DocumentPicker` in `ui/picker.tsx`: a `DialogTrigger` with a `Popover`, or on a narrow screen a
+    sheet from the bottom (`Modal`) with *Done*. "All documents" is a button marked pressed when
+    nothing is chosen; the list is a `ListBox` with `selectionMode="multiple"` and its Escape set
+    to close the picker, not to clear the choice (React Aria's default). The search field shows from
+    nine sources and doesn't take the focus by itself.
+  - The paperclip is a plain upload button now, in a case and outside one; *Upload a new document*
+    in the picker opens the same file chooser. In a case an upload is chosen once it is read, and
+    removing its card takes it out of the choice. A document opened from the Documents overview is
+    chosen rather than attached.
+  - The choice is saved on each question as `about` (document id and name). The server's clean-up
+    of a deleted document empties its name there as in an attachment (`_references`), and a
+    conversation from before *Ask about* is reopened with its attached documents as its choice.
+  - "Too large to read in full" shows above an answer when a choice was asked about and the server
+    said the passages were a selection (the stream's `complete`).
+  - The case's empty state adds "Your question is about all n documents…" when it holds two sources
+    or more and nothing is chosen (artboard 17).
+- **Audit of sections 2 to 4 (21 October).** The column, pinning and the three overviews were
+  compared with this spec. Fixed: the row actions (three dots) are always shown on a touch screen
+  (`hover: none`), not only below 768 px, so a tablet held sideways has them too; the pin toggle is
+  at `text-dim` there; the rail lost its separate expand button (the mark expands it, with a title);
+  a pinned case's chevron turns in 150 ms. Section 4 now says what was built on purpose: the counts in
+  a line under the title, and tables that aren't virtualised. Still to build, together: pinned
+  personal conversations, the three-dot menus on conversation rows, and *Pin*, *Rename* and *Move to
+  a case* in the Conversations overview (sections 2 to 4, phase e).
 
 ## Open
 
@@ -862,6 +908,9 @@ here.
   (platform.md).
 - **A dark-theme check of artboard 02**: `case-surface` has a dark value, but no dark screen has
   been drawn.
+- **Copy in a strictly confidential case**: it can't carry a watermark. Keep it (as now), or
+  disable it with the reason?
+- **The reading budget** (section 10): measure on the Pod before raising the 48,000 characters.
 - **The model's name in the chip** ("Qwen3.8-27B") is jargon for a notary. Should the chip show
   *Fast* / *Thorough*, and the model only in the dialog?
 
@@ -887,3 +936,13 @@ here.
   - the copy pass;
   - the working indicator aligned with the code;
   - this rewrite into one spec, in English with the Dutch strings in one table.
+- **21 October**:
+  - choosing which documents a question is about: *Ask about* before asking (section 10, artboards
+    17 to 19), after Pod runs that showed choosing works and the server's guess doesn't; correcting
+    after the answer (20 to 22) was drawn and not chosen; the server's guess is to be dropped;
+  - a strictly confidential case (section 11, artboards 23 and 24): members only, no sharing,
+    watermarked exports, shielded titles in *Recent*; in ink after six colour options were drawn
+    (25); the key as its one sign (`folder-key`, `message-square-lock`), replacing a first draft
+    with `eye-off`;
+  - the new artboards use the token values as CSS variables, so their dark versions are the same
+    markup.

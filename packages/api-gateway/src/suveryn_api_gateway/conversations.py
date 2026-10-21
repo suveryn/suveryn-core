@@ -22,7 +22,8 @@ longer listed or returned, and are deleted on start, on each listing and by the 
 Deleted documents (suveryn-tracker#12): saved answers quote the passages they cite. When a
 document is deleted, every passage of it is taken out of the owner's conversations
 (``remove_document``): its text and its location (headings are document text too) are emptied and
-the citation is marked ``removed``; attachments of the document lose their file name the same way.
+the citation is marked ``removed``; attachments of the document, and its place in a question's *Ask
+about* choice, lose their file name the same way.
 The answers themselves stay, and still state facts from the document, so the UI offers to delete
 those conversations together with the document (``using_document``). A save from a tab that still
 holds the passages is cleaned the same way before it is stored (``redact``), so they can't come back.
@@ -142,7 +143,8 @@ def _references(turns: list[dict]) -> Iterator[tuple[str, dict]]:
         for c in turn.get("citations") or []:
             if isinstance(c, dict) and isinstance(c.get("source"), dict) and isinstance(c["source"].get("document_id"), str):
                 yield c["source"]["document_id"], c
-        for a in turn.get("attachments") or []:
+        # attachments, and the documents a question was asked about (Ask about, docs/design/sidebar.md §10)
+        for a in [*(turn.get("attachments") or []), *(turn.get("about") or [])]:
             if isinstance(a, dict) and isinstance(a.get("documentId"), str):
                 yield a["documentId"], a
 

@@ -19,7 +19,12 @@ export type Attachment = {
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)
 };
 
-export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[] };
+/** A document chosen under *Ask about* (docs/design/sidebar.md §10). ``removed``: deleted since, its
+ *  name taken out as an attachment's is (the server's ``redact``). */
+export type Chosen = { documentId: string; filename: string; removed?: boolean };
+
+/** ``about``: in a case, the documents the question was asked about; absent: the whole case. */
+export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[] };
 
 export type AssistantTurn = {
   id: string;
@@ -30,6 +35,8 @@ export type AssistantTurn = {
   unverifiedFigures?: string[]; // figures to check: in no source and not calculated by the server
   citationIssues?: CitationIssue[]; // facts a cited source doesn't contain (suveryn-tracker#11)
   instructionLikeSources?: number[]; // passages given to the model whose text addresses an AI (suveryn-tracker#21)
+  /** The chosen documents were too large to read whole: their best-matching passages were read (§10). */
+  partial?: boolean;
   /** Saved to its case as a document (docs/design/sidebar.md §5): which one. */
   saved?: { documentId: string; filename: string };
   status: "streaming" | "done" | "stopped" | "error"; // stopped: the person stopped it; the text so far stays, unchecked
