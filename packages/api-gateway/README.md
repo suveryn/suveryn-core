@@ -97,6 +97,7 @@ Every `/v1/...` endpoint needs a signed-in user: 401 without one, 503 if sign-in
 | `SUVERYN_OIDC_ISSUER` | Keycloak realm URL, e.g. `http://localhost:8180/realms/suveryn` |
 | `SUVERYN_OIDC_CLIENT_ID` | Default `suveryn-chat` |
 | `SUVERYN_OIDC_CLIENT_SECRET` | The client's secret (keep it in a `0600` file) |
+| `SUVERYN_LOG_LEVEL` | Default `INFO`: how much of sūveryn's own log (the `suveryn.*` loggers) goes to stderr, and so to the journal (`DEBUG`, `INFO`, `WARNING`, `ERROR`). The lines hold ids, counts and kinds, never document text |
 | `SUVERYN_DIRECTORY_CLIENT_ID` | Default `suveryn-directory`: the client that reads the office's accounts for cases (suveryn-tracker#10) |
 | `SUVERYN_DIRECTORY_CLIENT_SECRET` | Its secret (`0600` file); without it the directory is unavailable and members can't be added |
 | `SUVERYN_PUBLIC_URL` | The URL people open the UI at; the callback is `<this>/auth/callback`, and it is the only accepted `Origin` |
