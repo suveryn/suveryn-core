@@ -315,13 +315,13 @@
 
 /* rows (review, support agreement) */
 .ui-rows { margin: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); }
-.ui-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: baseline;
+.ui-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: baseline;
           padding: 14px var(--space-4); border-bottom: 1px solid var(--line); }
 .ui-row:last-child { border-bottom: none; }
 .ui-row dd { margin: 0; }
 .ui-row-value { display: flex; flex-direction: column; min-width: 0; }
 .ui-row-main { font-size: var(--text-control); font-weight: 600; overflow-wrap: anywhere; }
-.ui-row-main[data-tone="ok"] { color: var(--teal-ink); }
+.ui-row-main[data-tone="ok"] { color: var(--teal-ink); display: inline-flex; align-items: center; gap: 6px; }
 .ui-row-detail { font-size: var(--text-ui-sm); line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
 .ui-row-action { font-size: var(--text-ui-sm); }
 @media (max-width: 480px) {

@@ -36,6 +36,8 @@ const fr: Text = {
   allowAll: "Autoriser tout le trafic sortant",
   allowAllDesc: "Uniquement si votre propre pare-feu décide de ce que cette appliance peut atteindre.",
   changeLater: "Vous pourrez modifier ce choix et la liste plus tard dans le tableau de bord d'administration.",
+  allowAllWarning: "Tout programme de l'appliance peut alors atteindre Internet, et l'appliance ne contrôle plus son trafic sortant.",
+  airGappedNote: "L'appliance bloque elle-même tout le trafic sortant et le vérifie après la configuration. Bloquez-le aussi dans le pare-feu de votre bureau. Le modèle par défaut est déjà installé ; les mises à jour et les modèles supplémentaires arrivent sur une clé USB ou depuis un miroir de votre réseau.",
 
   adminTitle: "Compte administrateur",
   adminLead: "Le premier compte de cette appliance. Il vous sert à vous connecter une fois la configuration terminée, puis à gérer les utilisateurs et les paramètres.",
@@ -118,7 +120,7 @@ const fr: Text = {
   skipNote: "Vous pouvez passer cette étape et l'appliance fonctionne normalement. Pendant 14 jours, seuls les administrateurs voient un rappel. Ensuite, toute personne qui se connecte voit un bandeau indiquant que cette appliance fonctionne sans contrat de support : pas de mises à jour, de bundles de modèles ni de support.",
   identityMissing: "L'identifiant de cette appliance n'est pas encore prêt. Redémarrez l'appliance depuis sa console, puis rechargez cette page.",
   agreement: "Contrat",
-  validFor: (id) => `Valable pour cette appliance : ${id}`,
+  validFor: (id) => `Valable pour cette appliance\u00a0: ${id}`,
   users: "Utilisateurs",
   usersDetail: "Comptes nominatifs activés. Les comptes désactivés ne comptent pas.",
   validUntil: "Valable jusqu'au",
