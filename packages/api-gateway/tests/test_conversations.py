@@ -74,6 +74,12 @@ class FakeConversations:
             return None
         return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
 
+    def unshare_case(self, case_id):
+        rows = [r for r in self.rows.values() if str(r["case_id"]) == str(case_id) and r["shared"]]
+        for r in rows:
+            r["shared"] = False
+        return len(rows)
+
     def set_shared(self, cid, owner, shared):
         r = self.rows.get(cid)
         if not r or r["owner"] != owner or r["case_id"] is None:
@@ -440,6 +446,19 @@ def test_store_cleans_or_deletes_conversations_of_a_deleted_document(store):
 
 
 @needs_db
+def test_store_unshares_every_conversation_of_a_case(store):
+    """§11: a case made strictly confidential unshares its conversations; their owners keep them."""
+    case, other, a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    store.save(a, ALICE, ConversationIn(**{**BODY, "case_id": str(case)}))
+    store.save(b, BOB, ConversationIn(**{**BODY, "case_id": str(case)}))
+    store.save(c, ALICE, ConversationIn(**{**BODY, "case_id": str(other)}))
+    for cid, owner in ((a, ALICE), (b, BOB), (c, ALICE)):
+        store.set_shared(cid, owner, True)
+    assert store.unshare_case(case) == 2 and store.unshare_case(case) == 0
+    assert store.get_shared(a) is None and store.get(a, ALICE) is not None
+    assert store.get_shared(c) is not None  # another case's stays shared
+
+
 def test_store_shares_a_conversation_with_its_case_and_cleans_every_members(store):
     """Stage 4 of docs/design/cases.md: shared conversations, and a case's document taken out of
     everyone's conversations when it is deleted."""
