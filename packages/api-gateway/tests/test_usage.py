@@ -47,6 +47,9 @@ class FakeUsage:
     def record(self, r):
         self.records.append(r)
 
+    def purge(self):
+        return 0
+
     def remember_user(self, sub, username, name):
         self.users[sub] = (username, name)
 
@@ -219,3 +222,34 @@ def test_store_admin_report_per_user_with_cost(store):
     assert mine[b].username is None  # never asked through the gateway: no name known
     assert [u.user_id for u in rep.per_user].index(a) < [u.user_id for u in rep.per_user].index(b)  # most tokens first
     assert rep.step == "5 minutes" and rep.cost >= Decimal("4.50")
+
+
+@needs_db
+def test_store_keeps_raw_usage_for_its_period_then_only_the_offices_monthly_totals(store):
+    """Audit of 21 October 2026, finding 10 (the owner's decision): raw rows for 24 months, then totals."""
+    a, b = TEST_USERS
+    store._execute("DELETE FROM usage_monthly WHERE model = 'test-model'")
+    now = datetime.now(UTC)
+    old = (now - timedelta(days=31 * 30)).replace(day=15, hour=12)  # about 30 months ago, mid-month
+    put(store, a, old, 1000, 100)
+    put(store, a, old + timedelta(hours=1), 3000, 300)
+    put(store, a, now - timedelta(days=3), 500, 50)
+    store.remember_user(a, "notaris.a", "Notaris A")
+    store.remember_user(b, "notaris.b", "Notaris B")  # nothing recent: the name goes too
+    store._execute("UPDATE usage_users SET seen_at = %s WHERE sub = %s", (old, b))
+    assert store.purge() >= 2
+    left = store._execute("SELECT at FROM token_usage WHERE owner = %s", (a,)).fetchall()
+    assert len(left) == 1 and left[0][0] > store.cutoff()
+    month = store._execute("SELECT kind, requests, prompt_tokens, completion_tokens FROM usage_monthly WHERE model = 'test-model'").fetchall()
+    assert month == [("chat", 2, 4000, 400)]  # no person in it
+    names = {r[0] for r in store._execute("SELECT sub FROM usage_users WHERE sub = ANY(%s)", (list(TEST_USERS),)).fetchall()}
+    assert names == {a}
+    assert store.purge() == 0 or store._execute(
+        "SELECT requests FROM usage_monthly WHERE model = 'test-model'").fetchone()[0] == 2  # nothing counted twice
+    office = store.report(now - timedelta(days=4 * 365), now, owner=None)
+    assert office.totals_only_before == store.cutoff()
+    assert office.by_kind["chat"].prompt_tokens >= 4500  # the old months' totals, and the recent row
+    assert sum(x.prompt_tokens for x in office.series) == office.totals.prompt_tokens
+    own = store.report(now - timedelta(days=4 * 365), now, owner=a)
+    assert own.totals.prompt_tokens == 500  # nobody's own usage before the cutoff
+    store._execute("DELETE FROM usage_monthly WHERE model = 'test-model'")
