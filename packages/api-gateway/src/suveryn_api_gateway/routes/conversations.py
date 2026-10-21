@@ -11,6 +11,9 @@ from ..conversations import (
     Conversation,
     ConversationIn,
     ConversationSummary,
+    MoveIn,
+    PinIn,
+    RenameIn,
     ShareIn,
     cited_documents,
 )
@@ -81,6 +84,55 @@ async def share_conversation(conversation_id: str, body: ShareIn, request: Reque
     await log_access(request, uuid.UUID(own.case_id), "conversation_shared" if body.shared else "conversation_unshared",
                      {"conversation": str(cid)})
     return changed
+
+
+@router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses={
+    404: {"description": "Not the caller's conversation"}})
+async def rename_conversation(conversation_id: str, body: RenameIn, request: Request):
+    """Rename one of the caller's conversations (docs/design/sidebar.md §4). The title is kept over
+    later saves, which otherwise name a conversation after its first question."""
+    store = history_or_503(request)
+    changed = await run_in_threadpool(store.rename, _conversation_id(conversation_id), owner_of(request), body.title)
+    if changed is None:
+        raise HTTPException(404, "Unknown conversation.")
+    return changed
+
+
+@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses={
+    404: {"description": "Not the caller's conversation"}, 409: {"description": "In a case: the case is pinned instead"}})
+async def pin_conversation(conversation_id: str, body: PinIn, request: Request):
+    """Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
+    pin of its own: it follows its case. Personal, so not in any access log."""
+    store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
+    own = await run_in_threadpool(store.get, cid, owner)
+    if own is None:
+        raise HTTPException(404, "Unknown conversation.")
+    if own.case_id is not None:
+        raise HTTPException(409, "A conversation in a case follows its case: pin the case instead.")
+    return await run_in_threadpool(store.set_pinned, cid, owner, body.pinned)
+
+
+@router.post("/v1/conversations/{conversation_id}/move", response_model=ConversationSummary, responses={
+    403: {"description": "The caller may not contribute to the case, or it is closed"},
+    404: {"description": "Not the caller's conversation, or an unknown case"},
+    409: {"description": "Already in a case"}})
+async def move_conversation(conversation_id: str, body: MoveIn, request: Request):
+    """Move one of the caller's personal conversations into a case they contribute to (§4). It isn't
+    shared, loses its own pin and follows the case; its questions and answers come along. Its
+    documents stay in the personal space, so its next questions read the case's documents. Noted in
+    the case's access log."""
+    store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
+    own = await run_in_threadpool(store.get, cid, owner)
+    if own is None:
+        raise HTTPException(404, "Unknown conversation.")
+    if own.case_id is not None:
+        raise HTTPException(409, "This conversation is already in a case.")
+    case = await case_for(request, body.case_id, "contribute")
+    moved = await run_in_threadpool(store.move, cid, owner, uuid.UUID(case.id))
+    if moved is None:
+        raise HTTPException(409, "This conversation is already in a case.")
+    await log_access(request, uuid.UUID(case.id), "conversation_moved_in", {"conversation": str(cid)})
+    return moved
 
 
 @router.put("/v1/conversations/{conversation_id}", status_code=204, responses={

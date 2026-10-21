@@ -5,10 +5,12 @@
  * - "New": a personal chat, outside any case, or a new case.
  * - Three navigation rows, Conversations, Cases (with the count of open cases) and Documents: each
  *   opens its overview in the main area; they don't expand.
- * - "Pinned": the cases the person pinned. The chevron on the left opens one in place, its
- *   conversations on a hairline (an orange dot for the open one); a three-dot menu per row.
+ * - "Pinned": the cases the person pinned, then their pinned personal conversations. The chevron on
+ *   the left opens a case in place, its conversations on a hairline (an orange dot for the open one);
+ *   a pinned conversation has its icon and no chevron. A three-dot menu per row.
  * - "Recent": the person's conversations, newest first, across cases and their own space; the icon
- *   says who sees it, the case's reference is the meta. Never one already shown under Pinned.
+ *   says who sees it, the case's reference is the meta; a three-dot menu per row (Pin, Rename, Move to
+ *   a case, Delete). Never one already shown under Pinned.
  * - First use: one line instead of Pinned and Recent.
  * - The account row at the bottom: usage, settings, language, the administrators' items under their
  *   own label, sign-out.
@@ -17,6 +19,8 @@
  * Nothing here decides a right: the lists come from the server, which already filtered them.
  */
 import { listedTitle } from "../lib/conversations";
+import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "../lib/conversationActions";
+import { conversationMenu } from "./ConversationDialogs";
 import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderKey, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
@@ -56,6 +60,9 @@ type Props = {
   onOpenDocument: (d: AllDocument) => void;
   onOpenCase: (c: Case) => void;
   onCaseAction: (c: Case, action: CaseAction) => void;
+  onConversationAction: (c: ConversationSummary, action: ConversationAction) => void;
+  /** Show once, under Pinned, that a case keeps conversations together (more than five pinned, §3). */
+  pinHint: boolean;
   tokensToday: number | null;
   /** Administrators: how many playbooks are switched on (null: not known). */
   activePlaybooks: number | null;
@@ -74,6 +81,7 @@ export function Sidebar(p: Props) {
   const ref = (caseId: string | null | undefined) => (caseId ? byId.get(caseId)?.reference ?? null : null);
   const openCases = p.cases.filter((c) => c.state === "open");
   const pinned = p.cases.filter((c) => c.pinned);
+  const pinnedOwn = pinnedConversations(p.conversations);
   const langEntries: MenuEntry[] = LANGS.map((l) => ({ id: `lang:${l}`, label: LANGUAGE_NAMES[l] }));
 
   // ---------------------------------------------------------------- the account menu
@@ -161,12 +169,12 @@ export function Sidebar(p: Props) {
   // ---------------------------------------------------------------- a conversation row
   // In Recent: the icon says who sees it, the case's reference is the meta. Under a pinned case: on
   // the hairline, an orange dot for the open one.
-  const conversationRow = (c: ConversationSummary, underCase = false) => {
+  const conversationRow = (c: ConversationSummary, underCase = false, pinnedRow = false) => {
     const r = ref(c.case_id);
     const shared = !!c.shared || (!!c.owner && c.owner !== p.user.sub);
     const hint = r ? (shared ? m.inCaseShared(r) : m.inCaseOnlyYou(r)) : m.onlyYou;
     const current = c.id === p.currentConversation;
-    return (
+    const row = (
       <Button key={c.id} variant="plain" className={underCase ? "side-sub" : "side-recent"} data-guide={underCase || undefined}
               onPress={() => p.onOpenConversation(c)} aria-current={current ? "page" : undefined} title={hint}>
         {underCase
@@ -178,6 +186,19 @@ export function Sidebar(p: Props) {
         {underCase ? (shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
                    : r && <span className="side-meta">{r}</span>}
       </Button>
+    );
+    if (underCase) return row;
+    // Recent and a pinned conversation: the row and its three-dot menu (§2)
+    const title = listedTitle(c);
+    return (
+      <div key={c.id} className="side-item" data-pinned={pinnedRow || undefined}>
+        {row}
+        <ActionMenu className="side-actions" aria-label={m.conversationMenu(title)} menuLabel={m.conversationMenu(title)}
+                    entries={conversationMenu(c, p.user.sub, m)} onAction={(a) => p.onConversationAction(c, a as ConversationAction)}
+                    placement="bottom end">
+          <MoreHorizontal size={16} aria-hidden />
+        </ActionMenu>
+      </div>
     );
   };
   const caseActions = (c: Case): MenuEntry[] => [
@@ -199,8 +220,9 @@ export function Sidebar(p: Props) {
   // Recent never repeats what Pinned shows: the conversations of a pinned case that is open in the column.
   const shownUnderPinned = new Set(pinned.filter((c) => open[c.id]).flatMap((c) =>
     (c.id === p.currentCase?.id ? p.caseConversations : p.conversations.filter((x) => x.case_id === c.id)).map((x) => x.id)));
+  for (const c of pinnedOwn) shownUnderPinned.add(c.id);
   const recent = p.conversations.filter((c) => !shownUnderPinned.has(c.id)).slice(0, RECENT);
-  const firstUse = pinned.length === 0 && p.conversations.length === 0 && !p.historyNote;
+  const firstUse = pinned.length === 0 && pinnedOwn.length === 0 && p.conversations.length === 0 && !p.historyNote;
   const notes = [p.casesNote, p.documentsNote].filter(Boolean) as string[];
 
   return (
@@ -225,7 +247,7 @@ export function Sidebar(p: Props) {
 
       {firstUse && <p className="caption side-note side-first">{m.firstUseColumn}</p>}
 
-      {pinned.length > 0 && (
+      {(pinned.length > 0 || pinnedOwn.length > 0) && (
         <section className="side-section" aria-labelledby="pinned-title">
           <h2 id="pinned-title" className="label side-label"><Pin size={12} aria-hidden /> {m.pinned}</h2>
           {pinned.map((c) => {
@@ -250,6 +272,8 @@ export function Sidebar(p: Props) {
               </Expander>
             );
           })}
+          {pinnedOwn.map((c) => conversationRow(c, false, true))}
+          {p.pinHint && pinnedOwn.length > PIN_HINT_AFTER && <p className="caption side-note side-pin-hint" role="status">{m.fivePinned}</p>}
         </section>
       )}
 
