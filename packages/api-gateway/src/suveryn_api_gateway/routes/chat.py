@@ -29,6 +29,8 @@ from suveryn_harness import (
     StreamError,
     StreamSources,
     StreamStatus,
+    StreamThinking,
+    Thinking,
 )
 
 from .common import (
@@ -48,6 +50,7 @@ router = APIRouter()
 @router.post("/v1/chat", response_model=ChatResponse, responses={
     200: {"content": {"text/event-stream": {}},
           "description": "With stream=true: SSE events `status` ({step, ...}), for a grounded answer `sources` ({citations}), "
+                         "with `thinking` true and a model that can think `thinking` ({text}, its reasoning), "
                          "`delta` ({text}), then `done` (a full ChatResponse) or `error` ({message}). Closing the connection "
                          "stops the answer: the model stops writing."},
     404: {"description": "A document id doesn't exist or belongs to another user"},
@@ -134,8 +137,9 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
     """Translate the chat service's events into the gateway's SSE contract.
 
     Event order: zero or more ``status`` events (pipeline steps before the first word: searching,
-    loading_model, reading, writing), for a grounded answer one ``sources`` event (its passages, so a
-    stopped answer keeps what its markers point to), zero or more ``delta`` events, then exactly one of ``done`` (a complete
+    loading_model, reading, writing, thinking), for a grounded answer one ``sources`` event (its passages, so a
+    stopped answer keeps what its markers point to), in *Thorough* zero or more ``thinking`` events (the
+    reasoning, never part of the answer), zero or more ``delta`` events, then exactly one of ``done`` (a complete
     ``ChatResponse``, the same shape as the JSON answer, with citations) or ``error``. A client
     that saw ``delta`` events followed by ``error`` must discard the partial answer.
     """
@@ -147,6 +151,8 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
                                                       complete=event.complete, model=event.model))
                 elif isinstance(event, Sources):
                     yield _sse("sources", StreamSources(citations=event.citations))
+                elif isinstance(event, Thinking):
+                    yield _sse("thinking", StreamThinking(text=event.text))
                 elif isinstance(event, Delta):
                     yield _sse("delta", StreamDelta(text=event.text))
                 elif isinstance(event, Done):

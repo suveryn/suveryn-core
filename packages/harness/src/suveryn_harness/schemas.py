@@ -46,6 +46,9 @@ class ChatRequest(BaseModel):
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     # Which installed model answers (an id from GET /v1/models). None: the appliance's default model.
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
+    # Think before answering (*Thorough*, docs/design/sidebar.md §5): slower, for a model that can
+    # (``ModelInfo.thinks``); ignored for one that can't. False: *Fast*, the appliance's default.
+    thinking: bool = False
 
     @model_validator(mode="after")
     def _ends_with_question(self) -> "ChatRequest":
@@ -82,7 +85,7 @@ class ModelInfo(BaseModel):
     id: str                 # what to send as ``ChatRequest.model``
     loaded: bool            # in GPU memory now; otherwise the first answer waits for it to load
     default: bool = False   # the appliance's default model
-    thinks: bool = False    # the model family can reason before answering (the UI's brain icon, docs/design/sidebar.md)
+    thinks: bool = False    # the model family can think before answering: *Thorough* is possible (docs/design/sidebar.md §5)
 
 
 class Calculation(BaseModel):
@@ -142,10 +145,21 @@ class ChatResponse(BaseModel):
     instruction_like_sources: list[int] = Field(default_factory=list)
     finish_reason: str | None = None  # "stop"; "length" means the answer was cut off at max_tokens
     usage: Usage = Field(default_factory=Usage)
+    # *Thorough*: what the model thought before answering, apart from ``answer`` (never in it), and
+    # how long it took. Empty and None for a *Fast* answer.
+    reasoning: str = ""
+    thought_seconds: float | None = None
 
 
 class StreamDelta(BaseModel):
     """One streamed chunk of answer text (SSE event ``delta``)."""
+
+    text: str
+
+
+class StreamThinking(BaseModel):
+    """One streamed chunk of the model's reasoning before the answer (SSE event ``thinking``), in
+    *Thorough* only. Not part of the answer: it is never in a ``delta``."""
 
     text: str
 
@@ -156,10 +170,11 @@ class StreamStatus(BaseModel):
     Each step is a real stage of the pipeline, so the UI can say so truthfully:
     ``searching`` the documents, ``loading_model`` (a switched-to model is being loaded into the
     GPU), ``reading`` the passages (the model processes them; ``passages``, and ``complete`` when
-    they are the documents' whole text), ``writing`` (a plain answer is being prepared).
+    they are the documents' whole text), ``writing`` (a plain answer is being prepared), ``thinking``
+    (*Thorough*: the model reasons before it answers; its reasoning follows as ``thinking`` events).
     """
 
-    step: Literal["searching", "loading_model", "reading", "writing"]
+    step: Literal["searching", "loading_model", "reading", "writing", "thinking"]
     passages: int | None = None
     complete: bool | None = None
     model: str | None = None

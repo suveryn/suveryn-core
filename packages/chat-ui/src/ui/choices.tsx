@@ -115,12 +115,19 @@ export function Switch({ label, checked, onChange, isDisabled, className }: {
 
 /** Short options side by side, one of them chosen (the usage period). One Tab stop; the arrow keys
  *  choose. */
-export function Segmented({ label, options, value, onChange, isDisabled }: {
-  label: string; options: { value: string; label: string }[]; value: string; onChange: (value: string) => void; isDisabled?: boolean;
+export function Segmented({ label, options, value, onChange, isDisabled, description }: {
+  label: string; options: { value: string; label: string; disabled?: boolean }[]; value: string; onChange: (value: string) => void;
+  isDisabled?: boolean;
+  /** A line under the options, read with the group (what the chosen one does, or why one is disabled). */
+  description?: string;
 }) {
-  return (
-    <RadioGroup aria-label={label} value={value} onChange={onChange} orientation="horizontal" className="ui-segmented" isDisabled={isDisabled}>
-      {options.map((o) => <Radio key={o.value} value={o.value} className="ui-segment">{o.label}</Radio>)}
+  const id = useId();
+  const group = (
+    <RadioGroup aria-label={label} value={value} onChange={onChange} orientation="horizontal" className="ui-segmented" isDisabled={isDisabled}
+                aria-describedby={description ? id : undefined}>
+      {options.map((o) => <Radio key={o.value} value={o.value} className="ui-segment" isDisabled={o.disabled}>{o.label}</Radio>)}
     </RadioGroup>
   );
+  if (!description) return group;
+  return <div className="ui-segmented-field">{group}<span id={id} className="ui-segmented-hint">{description}</span></div>;
 }

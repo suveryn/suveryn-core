@@ -27,6 +27,7 @@ import httpx
 from .config import LLMSettings
 from .guard import neutralise
 from .schemas import ChatRequest, ChatResponse, ModelInfo, Usage
+from .thinking import THINKING_TOKENS, ThinkSplitter
 from .usage import Kind, UsageRecord, UsageRecorder
 
 log = logging.getLogger("suveryn.harness")
@@ -51,17 +52,18 @@ class StreamChunk:
     """One parsed server-sent event from llama-server: a piece of text, the finish reason, or usage."""
 
     text: str = ""
+    reasoning: str = ""   # *Thorough*: the model's thinking before the answer, never in ``text``
     finish_reason: str | None = None
     usage: Usage | None = None
 
 
-THINKING_FAMILIES = ("qwen3",)  # model families that can reason before answering (shown with a brain icon)
+THINKING_FAMILIES = ("qwen3",)  # model families that can think before answering (*Thorough*)
 
 
 def can_think(model_id: str) -> bool:
     """Whether the model family can think before answering, by its name: the only thing the model
     server tells us about a preset. The appliance's presets switch thinking off for speed
-    (models/manifest.json: enable_thinking false), so this is a capability, not a mode."""
+    (models/manifest.json: enable_thinking false); a request turns it on for itself (``thinking.py``)."""
     return any(f in model_id.lower() for f in THINKING_FAMILIES)
 
 
@@ -154,10 +156,16 @@ class LlamaServerClient:
                 return self.settings.default_model
         return self._model
 
+    def thinks(self, req: ChatRequest) -> bool:
+        """Whether this request's answer is thought first: asked for, and the model can."""
+        return req.thinking and can_think(req.model or self.settings.default_model)
+
     def _payload(self, req: ChatRequest, stream: bool) -> dict:
+        thinking = self.thinks(req)
         payload = {
             "messages": [{**m.model_dump(), "content": neutralise(m.content)} for m in req.messages],
-            "max_tokens": req.max_tokens,
+            # the reasoning comes on top of the answer's own length (thinking.THINKING_TOKENS)
+            "max_tokens": req.max_tokens + (THINKING_TOKENS if thinking else 0),
             "temperature": req.temperature,
             "stream": stream,
             # Router mode needs a model per request; a single-model server ignores the field.
@@ -168,6 +176,9 @@ class LlamaServerClient:
             # its retention/encryption is an open item (docs/architecture.md §6).
             "cache_prompt": True,
         }
+        if can_think(req.model or self.settings.default_model):
+            # Per request, over the preset's own setting: *Thorough* thinks, *Fast* doesn't.
+            payload["chat_template_kwargs"] = {"enable_thinking": thinking}
         if stream:
             payload["stream_options"] = {"include_usage": True}
             # llama-server: token counts on every chunk, so an answer stopped halfway still counts
@@ -200,16 +211,21 @@ class LlamaServerClient:
         try:
             d = r.json()
             choice = d["choices"][0]
-            answer, finish_reason = choice["message"].get("content") or "", choice.get("finish_reason")
+            message = choice["message"]
+            answer, finish_reason = message.get("content") or "", choice.get("finish_reason")
+            reasoning = message.get("reasoning_content") or ""
             u = d.get("usage") or {}
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
             raise BackendError(f"model backend returned an unexpected answer: {type(e).__name__}") from e
         usage = Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0))
         await self._record(user, kind, req.model, usage if u else None)  # no counts reported: nothing to record
+        split = ThinkSplitter()  # a server that leaves the reasoning in the text
+        (r1, a1), (r2, a2) = split.feed(answer), split.flush()
         return ChatResponse(
             id=d.get("id") or f"chat-{uuid.uuid4().hex}",
             model=await self.model_name(req.model),
-            answer=answer,
+            answer=a1 + a2,
+            reasoning=(reasoning + r1 + r2).strip(),
             finish_reason=finish_reason,
             usage=usage,
         )
@@ -230,6 +246,7 @@ class LlamaServerClient:
         """
         recorded = False
         prompt_n = predicted_n = chunks = 0
+        split = ThinkSplitter()
         try:
             async with self._http.stream("POST", "/v1/chat/completions", json=self._payload(req, stream=True)) as r:
                 if r.status_code != 200:
@@ -248,17 +265,25 @@ class LlamaServerClient:
                     chunk = StreamChunk()
                     if d.get("choices"):
                         c = d["choices"][0]
-                        chunk.text = (c.get("delta") or {}).get("content") or ""
+                        delta = c.get("delta") or {}
+                        reasoning, chunk.text = split.feed(delta.get("content") or "")
+                        chunk.reasoning = (delta.get("reasoning_content") or "") + reasoning
                         chunk.finish_reason = c.get("finish_reason")
-                        chunks += bool(chunk.text)
+                        chunks += bool(chunk.text or chunk.reasoning)
+                    if chunk.finish_reason:
+                        reasoning, rest = split.flush()
+                        chunk.reasoning, chunk.text = chunk.reasoning + reasoning, chunk.text + rest
                     if d.get("usage"):
                         u = d["usage"]
                         chunk.usage = Usage(prompt_tokens=u.get("prompt_tokens", 0),
                                             completion_tokens=u.get("completion_tokens", 0))
                         recorded = True
                         await self._record(user, kind, req.model, chunk.usage)
-                    if chunk.text or chunk.finish_reason or chunk.usage:
+                    if chunk.text or chunk.reasoning or chunk.finish_reason or chunk.usage:
                         yield chunk
+                reasoning, rest = split.flush()  # a stream that ended without a finish reason
+                if reasoning or rest:
+                    yield StreamChunk(text=rest, reasoning=reasoning)
         except httpx.HTTPError as e:
             raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
         finally:
