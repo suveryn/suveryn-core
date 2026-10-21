@@ -97,6 +97,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                 background: transparent; color: var(--text-dim); opacity: 0; }
 .ui-expander-row:hover .side-actions, .side-actions[data-focus-visible], .side-actions[data-pressed], .side-actions[aria-expanded="true"] { opacity: 1; }
 .side-actions[data-hovered] { background: var(--line); color: var(--text); }
+/* Touch screens can't hover: the row actions are always there, whatever the width (§2; a tablet held
+   sideways is wider than 767 px). */
+@media (hover: none) { .side-actions { opacity: 1; } }
 .side-space, .rail-space { flex: 1; }
 /* the account row and its menu */
 .account-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-md);
