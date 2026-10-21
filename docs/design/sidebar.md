@@ -67,8 +67,10 @@ These apply to every screen below.
 
 Every icon-only button has an `aria-label` and a title.
 
-***New*** is one orange button with a downward chevron. It opens a `Menu` with two items:
+***New*** is one orange button with a downward chevron. It opens a `Menu` with two items (three in an open case):
 
+- In an open case, for its contributors, first: *New conversation in case 123*, "Answers from its
+  documents".
 - *New chat*: personal, outside a case. When a case is open, the item says so.
 - *New case*.
 
@@ -678,6 +680,15 @@ here.
   - Download names lose a trailing dot ("…rol..md" became "…rol.md").
   - The tagline "AI for work that can't leave the premises" stays English in every language, on the
     sign-in screens too (Filip, 20 October): a brand line, as on the website. Not a translation gap.
+- **After the Pod check of 705b91d (21 October).**
+  - A colleague's conversation, shared since the case's list was read and opened from the
+    Conversations overview, opened editable: the read-only check looked only in the case's list. It
+    now also looks in the list of everything, and opening a conversation in the open case reads the
+    case's list again.
+  - The *New* menu offers *New conversation in case 123* in an open case, to its contributors:
+    before, a new conversation in the open case meant leaving it and opening it again (the earlier
+    decision that a conversation in a case "starts from the case itself" left no way to do it from
+    inside it).
 
 ## Open
 

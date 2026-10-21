@@ -609,6 +609,8 @@ const en = {
   newChatHint: "Personal, outside a case",
   newChatHintInCase: (ref: string) => `Personal, outside case ${ref}`,
   newCaseHint: "Reference, name and type",
+  newConversationInCase: (ref: string) => `New conversation in case ${ref}`,
+  newConversationInCaseHint: "Answers from its documents",
   administratorsOnly: "Administrators only",
   firstUseColumn: "Your recent chats and what you pin appear here.",
   caseConversationsToggle: (ref: string) => `Conversations in case ${ref}`,
