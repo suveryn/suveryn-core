@@ -60,7 +60,8 @@ class FakeConversations:
     @staticmethod
     def _summary(r):
         return ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at", "owner", "shared")},
-                                   case_id=str(r["case_id"]) if r["case_id"] else None, messages=len(r["turns"]))
+                                   case_id=str(r["case_id"]) if r["case_id"] else None, messages=len(r["turns"]),
+                                   pinned=bool(r.get("pinned")))
 
     def get(self, cid, owner):
         r = self.rows.get(cid)
@@ -73,6 +74,27 @@ class FakeConversations:
         if not r or not r["shared"] or r["case_id"] is None:
             return None
         return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
+
+    def rename(self, cid, owner, title):
+        r = self.rows.get(cid)
+        if not r or r["owner"] != owner:
+            return None
+        r["title"], r["renamed"] = title, True
+        return self._summary(r)
+
+    def set_pinned(self, cid, owner, pinned):
+        r = self.rows.get(cid)
+        if not r or r["owner"] != owner or r["case_id"] is not None:
+            return None
+        r["pinned"] = pinned
+        return self._summary(r)
+
+    def move(self, cid, owner, case_id):
+        r = self.rows.get(cid)
+        if not r or r["owner"] != owner or r["case_id"] is not None:
+            return None
+        r.update(case_id=case_id, shared=False, pinned=False)
+        return self._summary(r)
 
     def unshare_case(self, case_id):
         rows = [r for r in self.rows.values() if str(r["case_id"]) == str(case_id) and r["shared"]]
@@ -95,7 +117,8 @@ class FakeConversations:
         turns = [t.model_dump() for t in body.turns]
         if gone is not None:
             redact(turns, gone)
-        self.rows[cid] = {"id": str(cid), "owner": owner, "title": body.title, "turns": turns,
+        self.rows[cid] = {"id": str(cid), "owner": owner, "title": old["title"] if old and old.get("renamed") else body.title,
+                          "renamed": bool(old and old.get("renamed")), "pinned": bool(old and old.get("pinned")), "turns": turns,
                           "created_at": old["created_at"] if old else now, "updated_at": now,
                           "case_id": old["case_id"] if old else (uuid.UUID(body.case_id) if body.case_id else None),
                           "shared": old["shared"] if old else False}
@@ -457,6 +480,27 @@ def test_store_unshares_every_conversation_of_a_case(store):
     assert store.unshare_case(case) == 2 and store.unshare_case(case) == 0
     assert store.get_shared(a) is None and store.get(a, ALICE) is not None
     assert store.get_shared(c) is not None  # another case's stays shared
+
+
+@needs_db
+def test_store_renames_pins_and_moves_a_personal_conversation(store):
+    """§3 and §4: the owner's title stays over later saves; a pin only for a personal conversation; moved into a
+    case, it isn't shared and has no pin of its own."""
+    case, cid, in_case = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    store.save(cid, ALICE, ConversationIn(**BODY))
+    store.save(in_case, ALICE, ConversationIn(**{**BODY, "case_id": str(case)}))
+    assert store.rename(cid, BOB, "Bob's") is None
+    assert store.rename(cid, ALICE, "Sale, the price").title == "Sale, the price"
+    store.save(cid, ALICE, ConversationIn(**BODY))
+    assert store.get(cid, ALICE).title == "Sale, the price"
+    assert store.set_pinned(cid, BOB, True) is None and store.set_pinned(in_case, ALICE, True) is None
+    assert store.set_pinned(cid, ALICE, True).pinned and store.summaries(ALICE)[0].pinned
+    assert store.get(cid, ALICE).pinned
+    assert store.move(cid, BOB, case) is None and store.move(in_case, ALICE, uuid.uuid4()) is None
+    moved = store.move(cid, ALICE, case)
+    assert moved.case_id == str(case) and not moved.pinned and not moved.shared
+    assert store.summaries(ALICE) == [] and {s.id for s in store.summaries(ALICE, case)} == {str(cid), str(in_case)}
+    assert store.get(cid, ALICE).turns == TURNS
 
 
 def test_store_shares_a_conversation_with_its_case_and_cleans_every_members(store):
