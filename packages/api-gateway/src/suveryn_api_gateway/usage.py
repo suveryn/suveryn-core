@@ -7,11 +7,16 @@ one raw row per call, in PostgreSQL (``token_usage``), and answers two questions
 - the office's usage for administrators (``report(owner=None, per_user=True)``): totals, the same
   per user, and a notional cloud cost.
 
-Design, as decided in §5.3: one table, raw rows, kept indefinitely; no rollups. A notary office
-makes a few hundred calls a day, so ``date_bin`` + ``GROUP BY`` over raw rows stays fast for years.
-Only counts are stored: who (Keycloak user id), when, kind, model and token counts; never text.
-Usernames for the administrator's table are kept separately (``usage_users``), updated when a
-user asks a question. Nothing here limits anyone: usage is informational.
+Design (§5.3): one raw row per call, so ``date_bin`` + ``GROUP BY`` answers any range. Only counts
+are stored: who (Keycloak user id), when, kind, model and token counts; never text. Usernames for the
+administrator's table are kept separately (``usage_users``), updated when a user asks a question.
+Nothing here limits anyone: usage is informational.
+
+Retention (audit of 21 October 2026, finding 10, decided by the owner): raw rows are kept for
+``keep_months`` (24 by default, ``SUVERYN_USAGE_KEEP_MONTHS``), whole months in the office's time.
+Older ones become the office's monthly totals per kind and model (``usage_monthly``), with no person
+in them, and a person's name goes once none of their raw rows is left. So a report reaching further
+back has the office's totals, by month, and nobody's own usage.
 
 The notional cost uses an administrator-editable rate per million input and output tokens
 (``usage_rates``), defaulting to a comparable cloud model's published price: no hardware or power
@@ -52,6 +57,15 @@ CREATE TABLE IF NOT EXISTS usage_users (
     name      text NOT NULL,
     seen_at   timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS usage_monthly (
+    month              date NOT NULL,
+    kind               text NOT NULL,
+    model              text NOT NULL,
+    requests           bigint NOT NULL,
+    prompt_tokens      bigint NOT NULL,
+    completion_tokens  bigint NOT NULL,
+    PRIMARY KEY (month, kind, model)
+);
 CREATE TABLE IF NOT EXISTS usage_rates (
     id                  smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     input_per_million   numeric(12, 4) NOT NULL,
@@ -67,11 +81,15 @@ CREATE TABLE IF NOT EXISTS usage_rates (
 class UsageSettings:
     database_url: str = ""
     timezone: str = "Europe/Brussels"  # days and weeks in reports follow the office's local time
+    keep_months: int = 24  # raw rows, per person; older ones become the office's monthly totals
 
     @classmethod
     def from_env(cls) -> "UsageSettings":
+        keep = int(os.environ.get("SUVERYN_USAGE_KEEP_MONTHS", cls.keep_months))
+        if keep < 1:
+            raise ValueError("SUVERYN_USAGE_KEEP_MONTHS must be at least 1")
         return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""),
-                   timezone=os.environ.get("SUVERYN_TIMEZONE", cls.timezone))
+                   timezone=os.environ.get("SUVERYN_TIMEZONE", cls.timezone), keep_months=keep)
 
 
 class UsageTotals(BaseModel):
@@ -112,6 +130,9 @@ class UsageReport(BaseModel):
     totals: UsageTotals
     series: list[UsageBucket]
     by_kind: dict[str, UsageTotals]
+    # The range reaches before the raw rows kept: before this moment there are only the office's
+    # monthly totals (counted in the office's report, per month), and nobody's own usage.
+    totals_only_before: datetime | None = None
 
 
 class AdminUsageReport(UsageReport):
@@ -141,6 +162,11 @@ def _totals(row) -> UsageTotals:
     return UsageTotals(requests=n, prompt_tokens=p, completion_tokens=c, total_tokens=p + c)
 
 
+def _plus(a: UsageTotals, b: UsageTotals) -> UsageTotals:
+    return UsageTotals(requests=a.requests + b.requests, prompt_tokens=a.prompt_tokens + b.prompt_tokens,
+                       completion_tokens=a.completion_tokens + b.completion_tokens, total_tokens=a.total_tokens + b.total_tokens)
+
+
 class UsageStore(PgStore):
     """``token_usage`` and friends in PostgreSQL. Creates its tables on connect."""
 
@@ -149,6 +175,7 @@ class UsageStore(PgStore):
     def __init__(self, settings: UsageSettings):
         super().__init__(settings.database_url)
         self.tz = settings.timezone
+        self.keep_months = settings.keep_months
         self._execute("INSERT INTO usage_rates (id, input_per_million, output_per_million, currency)"
                       " VALUES (1, %s, %s, %s) ON CONFLICT (id) DO NOTHING", DEFAULT_RATES)
 
@@ -174,6 +201,33 @@ class UsageStore(PgStore):
                       (rates.input_per_million, rates.output_per_million, rates.currency, by))
         return self.rates()
 
+    CUTOFF = ("date_trunc('month', (now() AT TIME ZONE %(tz)s) - make_interval(months => %(keep)s))"
+              " AT TIME ZONE %(tz)s")
+
+    def cutoff(self) -> datetime:
+        """The oldest moment raw rows are kept for: the start of a month, ``keep_months`` ago."""
+        return self._execute(f"SELECT {self.CUTOFF}", {"tz": self.tz, "keep": self.keep_months}).fetchone()[0]
+
+    def purge(self) -> int:
+        """Turn the raw rows older than the retention into the office's monthly totals, in one
+        statement (nothing counted twice or lost), and forget the names of people none of whose raw
+        rows is left. Returns how many raw rows went: the sweep's part."""
+        p = {"tz": self.tz, "keep": self.keep_months}
+        n = self._execute(f"""
+            WITH old AS (DELETE FROM token_usage WHERE at < {self.CUTOFF}
+                         RETURNING at, kind, model, prompt_tokens, completion_tokens),
+                 rolled AS (INSERT INTO usage_monthly (month, kind, model, requests, prompt_tokens, completion_tokens)
+                            SELECT date_trunc('month', at AT TIME ZONE %(tz)s)::date, kind, model, count(*),
+                                   sum(prompt_tokens), sum(completion_tokens) FROM old GROUP BY 1, 2, 3
+                            ON CONFLICT (month, kind, model) DO UPDATE SET
+                              requests = usage_monthly.requests + EXCLUDED.requests,
+                              prompt_tokens = usage_monthly.prompt_tokens + EXCLUDED.prompt_tokens,
+                              completion_tokens = usage_monthly.completion_tokens + EXCLUDED.completion_tokens)
+            SELECT count(*) FROM old""", p).fetchone()[0]
+        self._execute(f"DELETE FROM usage_users u WHERE seen_at < {self.CUTOFF}"
+                      " AND NOT EXISTS (SELECT 1 FROM token_usage t WHERE t.owner = u.sub)", p)
+        return n
+
     def report(self, start: datetime, end: datetime, owner: str | None) -> UsageReport:
         """Usage between ``start`` and ``end``: ``owner``'s own, or everyone's with ``owner=None``."""
         step, label = step_for(end - start)
@@ -193,7 +247,23 @@ class UsageStore(PgStore):
         by_kind = {r[0]: _totals(r[1:]) for r in self._execute(
             f"SELECT kind, count(*), sum(prompt_tokens), sum(completion_tokens) FROM token_usage"
             f" WHERE at >= %(start)s AND at < %(end)s {mine} GROUP BY kind ORDER BY kind", p).fetchall()}
-        return UsageReport(start=start, end=end, step=label, totals=totals, series=series, by_kind=by_kind)
+        cutoff = self.cutoff()
+        before = cutoff if start < cutoff else None
+        if before is not None and owner is None:
+            # The office's monthly totals for the months the range starts in or covers, each in the
+            # bar its first day falls in.
+            for month_start, kind, n, prompt, completion in self._execute(
+                    "SELECT month::timestamp AT TIME ZONE %(tz)s, kind, requests, prompt_tokens, completion_tokens"
+                    " FROM usage_monthly WHERE month::timestamp AT TIME ZONE %(tz)s >= date_trunc('month', %(start)s AT TIME ZONE %(tz)s) AT TIME ZONE %(tz)s"
+                    " AND month::timestamp AT TIME ZONE %(tz)s < %(end)s ORDER BY 1", p).fetchall():
+                add = _totals((n, prompt, completion))
+                totals = _plus(totals, add)
+                by_kind[kind] = _plus(by_kind.get(kind, UsageTotals()), add)
+                if series:
+                    i = max((j for j, b in enumerate(series) if b.start <= month_start), default=0)
+                    series[i] = UsageBucket(start=series[i].start, **_plus(series[i], add).model_dump())
+        return UsageReport(start=start, end=end, step=label, totals=totals, series=series, by_kind=dict(sorted(by_kind.items())),
+                           totals_only_before=before)
 
     def admin_report(self, start: datetime, end: datetime) -> AdminUsageReport:
         """The office's usage: totals, per user (most tokens first) and the notional cost."""

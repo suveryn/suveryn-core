@@ -26,6 +26,7 @@ from ..cases import (
 )
 from ..directory import DirectoryUnavailable, Person
 from .common import (
+    CleanupUnavailable,
     admin_or_403,
     case_for,
     case_settings,
@@ -136,16 +137,18 @@ async def update_case(case_id: str, body: CaseUpdate, request: Request):
 
 
 @router.delete("/v1/cases/{case_id}", status_code=204, responses={
-    403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}})
+    403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"},
+    503: {"description": "A store the case is in can't be reached: nothing was deleted"}})
 async def delete_case(case_id: str, request: Request):
     """Delete a case with its documents and conversations (its manager only). Closing and the
     keep period (docs/design/cases.md, stage 3) are the office's way; this is for a case opened
     by mistake. See ``Store.delete_document`` for what deletion does and doesn't guarantee."""
     case = await case_for(request, case_id, "manage")
-    docs = request.app.state.documents
-    if docs is not None and docs.state != "ready":
-        raise HTTPException(503, f"Document handling is {docs.state}; the case's documents can't be deleted now.")
-    if not await delete_case_everywhere(request.app, uuid.UUID(case.id)):
+    try:
+        deleted = await delete_case_everywhere(request.app, uuid.UUID(case.id))
+    except CleanupUnavailable as e:
+        raise HTTPException(503, f"The case can't be deleted now ({e}); nothing was deleted. Try again shortly.") from e
+    if not deleted:
         raise HTTPException(404, "Unknown case.")
     return Response(status_code=204)
 

@@ -142,6 +142,9 @@ export function ViewHeader({ icon, title, onBack }: { icon: React.ReactNode; tit
 }
 
 /** The signed-in user's own usage. */
+/** "1 October 2024": where the raw usage kept begins (the retention, 24 months). */
+const keptFrom = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+
 export function UsageView({ onBack }: { onBack: () => void }) {
   const m = useT();
   const r = useReport(getMyUsage);
@@ -154,6 +157,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
       {r.report && (r.report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
         <>
           <Totals totals={r.report.totals} />
+          {r.report.totals_only_before && <p className="caption">{m.ownUsageKeptFrom(keptFrom(r.report.totals_only_before))}</p>}
           <Chart report={r.report} />
           <ByKind report={r.report} />
         </>
@@ -205,6 +209,7 @@ function AdminUsage() {
               <Chart report={report} />
               <ByKind report={report} />
               <h2 className="label">{m.perUser}</h2>
+              {report.totals_only_before && <p className="caption">{m.perUserKeptFrom(keptFrom(report.totals_only_before))}</p>}
               {report.per_user.length > 1 && <PerUserChart report={report} />}
               <div className="table-wrap">
                 <table className="usage-table">

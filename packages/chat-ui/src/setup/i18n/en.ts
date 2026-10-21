@@ -134,6 +134,8 @@ const en = {
 
   backupsTitle: "Backups",
   backupsLead: "Where the appliance writes its backups: documents, conversations, accounts and settings. Models are not included: they come from the installation medium.",
+  backupsNotYetTitle: "Backups aren't made yet",
+  backupsNotYet: "This step saves where backups will go and for how long, and checks that a share answers. The appliance makes no backups until its backup service is installed with an update.",
   backupTarget: "Backup target",
   usbDisk: "USB disk",
   usbDiskDesc: "A disk plugged into the appliance. Works in every network mode.",

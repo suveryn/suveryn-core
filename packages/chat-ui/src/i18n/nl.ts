@@ -337,6 +337,8 @@ const nl: Messages = {
   officeUsage: "Verbruik van het kantoor",
   adminIntro: "Het tokenverbruik van iedereen op het kantoor, in totaal en per gebruiker. Louter informatief: niemand wordt er ooit door beperkt.",
   perUser: "Per gebruiker",
+  perUserKeptFrom: (date: string) => `Per gebruiker vanaf ${date}. Ouder gebruik wordt alleen bewaard als maandtotalen van het kantoor.`,
+  ownUsageKeptFrom: (date: string) => `Uw eigen gebruik wordt bewaard vanaf ${date}. Ouder gebruik wordt alleen bewaard als maandtotalen van het kantoor.`,
   user: "Gebruiker",
   unknownUser: "Onbekende gebruiker",
   notionalCost: "Indicatieve cloudkost",
