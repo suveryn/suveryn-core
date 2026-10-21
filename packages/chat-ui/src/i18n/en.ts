@@ -358,6 +358,8 @@ const en = {
   officeUsage: "Office usage",
   adminIntro: "Token usage of everyone in the office, in total and per user. For information only: nothing is ever limited because of it.",
   perUser: "Per user",
+  perUserKeptFrom: (date: string) => `Per user from ${date}. Older usage is kept as the office's monthly totals only.`,
+  ownUsageKeptFrom: (date: string) => `Your own usage is kept from ${date}. Older usage is kept as the office's monthly totals only.`,
   user: "User",
   unknownUser: "Unknown user",
   notionalCost: "Notional cloud cost",

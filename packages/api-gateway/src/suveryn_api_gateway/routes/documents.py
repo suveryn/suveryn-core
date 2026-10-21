@@ -3,6 +3,7 @@ answers saved to a case.
 Available when ``suveryn-rag`` is installed and a database is configured; otherwise 503."""
 
 import json
+import logging
 import uuid
 from typing import Literal
 
@@ -23,6 +24,7 @@ from .common import (
     who,
 )
 
+log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
 
 
@@ -104,7 +106,9 @@ async def list_documents(request: Request, case: str | None = None):
             "jobs": [j.public() for j in docs.pending_jobs(owner, scope)]}
 
 
-@router.delete("/v1/documents/{document_id}", status_code=204)
+@router.delete("/v1/documents/{document_id}", status_code=204, responses={
+    202: {"description": "Deleted; the conversations that cite it are cleaned by the next sweep"},
+    503: {"description": "Saved conversations can't be reached: nothing was deleted"}})
 async def delete_document(document_id: str, request: Request, conversations: Literal["clean", "delete"] = "clean",
                           case: str | None = None):
     """Delete a document and its passages: one of the caller's own, or one in the case ``case``
@@ -129,14 +133,31 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
         saved = mine and mine[0].get("origin") == "answer"
         if not (mine and mine[0].get("uploaded_by") == owner and (noticed or saved)):
             raise
+    # The conversations that cite it are cleaned after it is gone. If their store can't be reached,
+    # nothing is deleted (audit of 21 October 2026, finding 3: before, the document went and its
+    # passages stayed in them); the cleaning is noted first, so the sweep finishes one that fails.
+    store = history_or_none(request)
+    if request.app.state.history.configured and store is None:
+        raise HTTPException(503, "Saved conversations can't be reached, so the document was not deleted: "
+                                 "its passages would stay in them. Try again shortly.")
+    delete = conversations == "delete"
+    if store is not None:
+        await run_in_threadpool(store.note_cleanup, owner, did, delete, scope.case_id)
     if not await run_in_threadpool(docs.delete, document_id, scope):
+        if store is not None:
+            await run_in_threadpool(store.cleanup_done, owner, did)
         raise HTTPException(404, "Unknown document.")
     await log_access(request, scope.case_id, "document_deleted", {"document": document_id})
     if scope.case_id is not None and (runs := request.app.state.runs.get()) is not None:
         await run_in_threadpool(runs.mark_out_of_date, scope.case_id, document_id)  # a run that read it (docs/design/playbooks.md)
-    if (store := history_or_none(request)) is not None:
+    if store is not None:
         # In a case every member's conversations may cite the document: all of them are cleaned (or deleted).
-        await run_in_threadpool(store.remove_document, owner, did, conversations == "delete", scope.case_id)
+        try:
+            await run_in_threadpool(store.remove_document, owner, did, delete, scope.case_id)
+            await run_in_threadpool(store.cleanup_done, owner, did)
+        except Exception as e:  # noqa: BLE001 - the document is gone; the sweep finishes the cleaning
+            log.error("conversations not cleaned yet after deleting a document: %s", type(e).__name__)
+            return Response(status_code=202)  # accepted: the cleaning is still to be done
     return Response(status_code=204)
 
 
