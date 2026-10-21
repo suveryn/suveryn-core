@@ -1077,6 +1077,39 @@ def test_store_keeps_the_strictly_confidential_label(store):
     assert not off.confidential and off.access == "default"
 
 
+def test_two_managers_at_once_cant_open_a_case_that_became_strictly_confidential(store):
+    """External review, pass 6: the access was checked with a read before the UPDATE, so a label set in
+    between was missed. Now the UPDATE itself refuses: it waits for the other change, then sees the label."""
+    import threading
+
+    import psycopg
+    from suveryn_api_gateway.cases import StrictlyConfidential
+
+    s, alice = store, f"alice-{uuid.uuid4()}"
+    cid = uuid.UUID(s.create(CaseIn(**NEW), alice).id)
+    other = psycopg.connect(URL)  # the other manager's request, with its own connection
+    other.execute("UPDATE cases SET confidential = true, access = 'restricted' WHERE id = %s", (cid,))  # not committed yet
+    outcome = {}
+
+    def opening():
+        try:
+            outcome["case"] = s.update(cid, CaseUpdate(access="default"))
+        except StrictlyConfidential as e:
+            outcome["refused"] = e
+
+    t = threading.Thread(target=opening)
+    t.start()
+    t.join(0.5)
+    assert t.is_alive()  # waiting for the other change to the row
+    other.commit()
+    t.join(5)
+    other.close()
+    assert "refused" in outcome
+    after = s.get(cid, alice)
+    assert after.confidential and after.access == "restricted"
+    assert s.update(uuid.uuid4(), CaseUpdate(access="default")) is None  # an unknown case is still None
+
+
 def test_store_members_handover_and_the_log(store):
     s = store
     alice, bob, carla = f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}", f"carla-{uuid.uuid4()}"

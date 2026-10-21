@@ -453,24 +453,28 @@ class CaseStore(PgStore):
         members only: turning it on restricts the access, and the access can't be opened while it is
         on (``StrictlyConfidential``)."""
         fields = body.model_dump(exclude_none=True)
+        # Opening the access is refused by the UPDATE itself while the label is on, not by a read before
+        # it: two managers changing the case at once can't leave it confidential and open to the office
+        # (external review, pass 6). Under READ COMMITTED a concurrent change to the row is waited for,
+        # and the condition is checked again on what it wrote.
+        opens = fields.get("access") == "default" and fields.get("confidential") is not False
         if fields.get("confidential"):
             fields["access"] = "restricted"
-        elif fields.get("access") == "default" and fields.get("confidential") is not False:
-            row = self._execute("SELECT confidential FROM cases WHERE id = %s", (case_id,)).fetchone()
-            if row and row[0]:
-                raise StrictlyConfidential("a strictly confidential case is for its members only")
         if not fields:
             row = self._execute(f"{self._SELECT} FROM cases c WHERE c.id = %s", (case_id,)).fetchone()
             return self._case(row) if row else None
         if "subject" in fields:
             fields["subject"] = json.dumps(fields["subject"])
         sets = ", ".join(f"{k} = %s" for k in fields)
+        guard = " AND NOT confidential" if opens else ""
         try:
             row = self._execute(
-                f"UPDATE cases SET {sets}, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
+                f"UPDATE cases SET {sets}, updated_at = now() WHERE id = %s{guard} RETURNING {self._COLS}",
                 (*fields.values(), case_id)).fetchone()
         except psycopg.errors.UniqueViolation as e:
             raise DuplicateReference(body.reference or "") from e
+        if row is None and opens and self._execute("SELECT 1 FROM cases WHERE id = %s", (case_id,)).fetchone():
+            raise StrictlyConfidential("a strictly confidential case is for its members only")
         return self._case(row) if row else None
 
     # ------------------------------------------------------------------ closing (stage 3)
