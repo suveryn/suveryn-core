@@ -1,6 +1,7 @@
 """Entry point: `uv run suveryn-gateway` (host/port via SUVERYN_HOST / SUVERYN_PORT)."""
 
 import atexit
+import logging
 import os
 import shutil
 import sys
@@ -99,6 +100,32 @@ def not_dumpable() -> bool:
     return libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) == 0
 
 
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+
+
+def configure_logging() -> logging.Handler | None:
+    """Send sūveryn's own log lines (the ``suveryn.*`` loggers) to stderr, which the journal keeps.
+
+    Without this nothing configured them: Python's last-resort handler printed warnings and errors
+    only, so every informational line (a database reachable again, conversations deleted after
+    their keep period, a playbook answer read again) was dropped (Pod check of eb35c55). uvicorn
+    sets up its own loggers only. The level is ``SUVERYN_LOG_LEVEL`` (default ``INFO``; an unknown
+    value is ``INFO`` too). The lines hold ids, counts and kinds, never document text: that is the
+    rule for every log call in the code. Idempotent: a second call adds no second handler.
+    """
+    logger = logging.getLogger("suveryn")
+    if any(getattr(h, "_suveryn", False) for h in logger.handlers):
+        return None
+    level = os.environ.get("SUVERYN_LOG_LEVEL", "INFO").strip().upper()
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    handler._suveryn = True  # type: ignore[attr-defined]
+    logger.addHandler(handler)
+    logger.setLevel(level if level in LOG_LEVELS else "INFO")
+    logger.propagate = False  # not printed twice (by the root's last-resort handler)
+    return handler
+
+
 def run() -> None:
     """Start the gateway. Binds to 127.0.0.1 unless SUVERYN_HOST says otherwise.
 
@@ -111,6 +138,7 @@ def run() -> None:
     if not not_dumpable() and sys.platform.startswith("linux"):
         print("warning: couldn't make the gateway unreadable through /proc (prctl PR_SET_DUMPABLE)")
     private_tmp()
+    configure_logging()
     uvicorn.run(
         "suveryn_api_gateway.app:app",
         host=host,
