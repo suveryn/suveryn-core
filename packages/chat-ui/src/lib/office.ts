@@ -5,6 +5,7 @@
  */
 import type { Segment, Table } from "./answer";
 import { cellValue, segmentText, tableRows, type AnswerExport, type SourceItem } from "./export";
+import type { Watermark } from "./watermark";
 
 export type OfficeText = {
   answeredOn: (date: string) => string;      // "Answered by sūveryn on 11 October 2026"
@@ -68,7 +69,20 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
   }
   body.push(new d.Paragraph({ children: [new d.TextRun({ text: text.disclaimer, italics: true, size: 16 })] }));
   return d.Packer.toBlob(new d.Document({ creator: "sūveryn", title: a.question,
-                                          sections: [{ children: body, footers: markFooter(d, a.mark) }] }));
+                                          sections: [{ children: body, headers: await watermarkHeader(d, a.watermark),
+                                                       footers: markFooter(d, a.mark) }] }));
+}
+
+/** A strictly confidential case's watermark on every page (docs/design/sidebar.md §11): the label
+ *  across the page, as Word's own Design > Watermark draws it (so Word recognises it), and the line
+ *  with the case, the person and the time at the top. */
+async function watermarkHeader(d: typeof import("docx"), w: Watermark | undefined) {
+  if (!w) return undefined;
+  const { TextWatermark } = await import("docx/watermarks");
+  return { default: new d.Header({ children: [
+    new d.Paragraph({ children: [new TextWatermark({ text: w.label, color: "C0C0C0", opacity: 0.5, layout: "diagonal" }) as never] }),
+    new d.Paragraph({ children: [new d.TextRun({ text: w.line, bold: true, size: 16 })] }),
+  ] }) };
 }
 
 /** sūveryn's export mark (lib/marks.ts) as a small, light footer line: real text, so it survives
@@ -106,6 +120,15 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText):
   if (a.checks.length) {
     sheets.push({ sheet: text.sheetChecks, stickyRowsCount: 0, data: a.checks.map((c) => [{ value: c, wrap: true }]) as never, columns: [{ width: 100 }] });
   }
+  // A strictly confidential case (§11): the watermark line first and last on every sheet. The library
+  // can't write a sheet's page header and footer, so it is in the cells, above the frozen header.
+  if (a.watermark) {
+    const line = [{ value: a.watermark.line, fontWeight: "bold" as const }];
+    for (const sh of sheets) {
+      sh.data = [line, [], ...sh.data, [], line] as never;
+      if (sh.stickyRowsCount) sh.stickyRowsCount += 2;
+    }
+  }
   return writeExcelFile(sheets as never).toBlob();
 }
 
@@ -114,6 +137,7 @@ export type IntakeExport = {
   facts: { label: string; value: string; sources: string[] }[];
   sourcesHeading: string; emptyValue: string; disclaimer: string;
   mark?: string;  // sūveryn's export mark (lib/marks.ts), in the footer
+  watermark?: Watermark;  // a strictly confidential case's (lib/watermark.ts)
 };
 
 /** A playbook run's confirmed facts as a Word document (suveryn-tracker#51): a heading, a table of
@@ -129,7 +153,7 @@ export async function intakeToWord(x: IntakeExport): Promise<Blob> {
       ...x.facts.map((f) => new d.TableRow({ children: [cell(f.label, true), cell(f.value || x.emptyValue), cell(f.sources.join(", "))] })),
     ],
   });
-  const doc = new d.Document({ sections: [{ footers: markFooter(d, x.mark), children: [
+  const doc = new d.Document({ sections: [{ headers: await watermarkHeader(d, x.watermark), footers: markFooter(d, x.mark), children: [
     new d.Paragraph({ text: x.title, heading: d.HeadingLevel.HEADING_1 }),
     new d.Paragraph({ children: [new d.TextRun({ text: x.caseName })] }),
     new d.Paragraph({ children: [new d.TextRun({ text: `${x.confirmedOn} · ${x.version}`, italics: true, size: 18 })] }),

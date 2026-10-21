@@ -57,6 +57,7 @@ import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
+import { watermark, WatermarkContext } from "./lib/watermark";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -192,6 +193,8 @@ function Chat({ me }: { me: Me }) {
   const manages = role === "manager";
   const contributes = role === "contributor" || role === "manager";
   const administers = currentCase !== null && role === null && (me.admin ?? false);
+  // A strictly confidential case's watermark, made at the moment of each export (lib/watermark.ts, §11).
+  const markNow = () => watermark(currentCase, me.name || me.username, m, locale());
   // The person can't ask here at all: the question box is read-only, without Ask about.
   const locked = readOnly || closed || (!!currentCase && role === "reader") || administers;
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
@@ -590,7 +593,7 @@ function Chat({ me }: { me: Me }) {
     try {
       const { content } = await documentContent(d.id, d.case_id);
       const { saveBlob } = await import("./lib/office");
-      saveBlob(d.filename, await savedWord(content, m, lang()));
+      saveBlob(d.filename, await savedWord(content, m, lang(), watermark(caseById(d.case_id), me.name || me.username, m, locale())));
     } catch (e) { setProblem(m.downloadFailedWhy((e as Error).message)); }
   };
 
@@ -809,6 +812,7 @@ function Chat({ me }: { me: Me }) {
       <SignOutDialog open={askingSignOut} onKeep={signOut} onDelete={deleteHistoryAndSignOut}
                      onCancel={() => setAskingSignOut(false)} />
 
+      <WatermarkContext.Provider value={markNow}>
       <main className="main" data-start={start || undefined} data-case={view === "chat" && currentCase ? true : undefined}>
         {narrow && (
           // Narrow screens (§2, artboard 15): a 56px bar with the menu button and where you are.
@@ -953,6 +957,7 @@ function Chat({ me }: { me: Me }) {
         </>}
         </>}
       </main>
+      </WatermarkContext.Provider>
       {sourcePanel && (narrow
         ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source(source!.n)}>{sourcePanel}</Drawer>
         : sourcePanel)}

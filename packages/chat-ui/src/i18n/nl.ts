@@ -359,6 +359,7 @@ const nl: Messages = {
   basedOn: (count, names) => (count === 1 ? `Op basis van ${names}` : `Op basis van ${count} documenten: ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Dit antwoord downloaden als Word-document, met de bronnen",
+  downloadWordWhatConfidential: "Dit antwoord downloaden als Word-document, met de bronnen en het watermerk Strikt vertrouwelijk",
   saveToCase: "Opslaan in dossier",
   saveToCaseWhat: (ref) => `Dit antwoord als Word-document opslaan in dossier ${ref}. Het wordt nooit als bron gebruikt.`,
   savingToCase: "Bezig met opslaan…",
@@ -676,6 +677,12 @@ const nl: Messages = {
   caseMenu: (reference: string) => `Dossier ${reference}: acties`,
 
   // origin: source or made by sūveryn (docs/design/sidebar.md §6)
+  // Strikt vertrouwelijk (docs/design/sidebar.md §11)
+  strictlyConfidential: "Strikt vertrouwelijk",
+  shieldedConversation: "Afgeschermd gesprek",
+  shieldedIn: (ref) => `Afgeschermd gesprek in dossier ${ref}`,
+  watermarkLabel: "STRIKT VERTROUWELIJK",
+  watermarkLine: (ref, who, when) => `STRIKT VERTROUWELIJK · dossier ${ref} · ${who} · ${when}`,
   exportMark: (kind: "answer" | "playbook", caseRef: string | null, date: string, ref: string) =>
     `Gemaakt door sūveryn: ${kind === "answer" ? "antwoord" : "playbookresultaat"}${caseRef ? ` uit dossier ${caseRef}` : ""}, ${date} · sūveryn-ref ${ref}`,
   origin: "Herkomst",
