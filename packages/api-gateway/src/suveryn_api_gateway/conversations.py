@@ -245,8 +245,8 @@ class ConversationStore(PgStore):
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
         """The conversations in one place, most recently changed first: the owner's own in their
-        personal space (``case_id`` None), or in one case their own and the ones others shared."""
-        self.purge()
+        personal space (``case_id`` None), or in one case their own and the ones others shared.
+        Expired ones are left out here and deleted by the hourly sweep (``purge``), not on every listing."""
         fresh, params = self._fresh()
         rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
                              f" WHERE case_id IS NOT DISTINCT FROM %s AND (owner = %s OR (shared AND case_id IS NOT NULL))"
@@ -256,8 +256,8 @@ class ConversationStore(PgStore):
     def summaries_all(self, owner: str, case_ids: list[uuid.UUID]) -> list[ConversationSummary]:
         """Every conversation of the owner's own, in their personal space and in the cases they may
         still read (``case_ids``), and the ones colleagues shared with those cases, most recently
-        changed first (the column's Recent and the Conversations overview, docs/design/sidebar.md §2, §4)."""
-        self.purge()
+        changed first (the column's Recent and the Conversations overview, docs/design/sidebar.md §2, §4).
+        Expired ones are left out here and deleted by the hourly sweep."""
         fresh, params = self._fresh()
         rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
                              f" WHERE ((owner = %s AND (case_id IS NULL OR case_id = ANY(%s))) OR (shared AND case_id = ANY(%s)))"
