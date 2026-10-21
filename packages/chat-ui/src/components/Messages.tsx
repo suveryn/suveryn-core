@@ -257,6 +257,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
   const citedItems = cited.filter((n) => !turn.citations[n - 1].removed)
     .map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) }));
   const allSources = formatSources(citedItems);
+  // The documents cited, each once, in the order the answer first cites them.
+  const basis = [...new Map(citedItems.map((i) => [i.citation.source?.document_id ?? i.filename, i.filename])).values()];
   const flagged = turn.unverifiedFigures ?? [];
   // A stopped answer keeps its markers and the passages they point to, but was never checked.
   const settled = turn.status === "done" || turn.status === "stopped";
@@ -302,6 +304,11 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
       <AssistantMark />
       {/* still live when stopped, so the notice that it stopped is read out */}
       <div className="answer" aria-live={turn.status === "streaming" || turn.status === "stopped" ? "polite" : undefined}>
+        {/* Which documents the answer rests on, before it (docs/design/sidebar.md §5): in a case, a fact
+            from the wrong deed shows at a glance (Pod check of 705b91d). */}
+        {settled && basis.length > 0 && (
+          <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
+        )}
         {blocks.map((b, i) => (b.kind === "table"
           ? <AnswerTable key={i} table={b} render={render} done={turn.status === "done"} exported={exported} />
           : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
