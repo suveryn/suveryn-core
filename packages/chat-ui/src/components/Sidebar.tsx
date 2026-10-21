@@ -16,7 +16,8 @@
  * Collapsed, it is a 60px rail of icons in the same order; the state is remembered in this browser.
  * Nothing here decides a right: the lists come from the server, which already filtered them.
  */
-import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
+import { listedTitle } from "../lib/conversations";
+import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
@@ -170,8 +171,10 @@ export function Sidebar(p: Props) {
               onPress={() => p.onOpenConversation(c)} aria-current={current ? "page" : undefined} title={hint}>
         {underCase
           ? <span className="side-dot" data-current={current || undefined} aria-hidden />
-          : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
-        <span className="side-text">{c.title}</span>
+          : c.shielded ? <MessageSquareLock size={14} aria-hidden /> : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
+        {/* §11: a strictly confidential case's conversation, without its title */}
+        <span className="side-text" data-shielded={c.shielded || undefined}
+              aria-label={c.shielded && r ? m.shieldedIn(r) : undefined}>{listedTitle(c)}</span>
         {underCase ? (shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
                    : r && <span className="side-meta">{r}</span>}
       </Button>

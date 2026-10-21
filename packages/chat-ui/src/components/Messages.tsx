@@ -14,6 +14,7 @@ import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, stripM
 import type { AnswerExport } from "../lib/export";
 import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
+import { useWatermark, withWatermark } from "../lib/watermark";
 import { verdictOf } from "../lib/sources";
 import { statusText } from "../lib/status";
 import {
@@ -65,10 +66,11 @@ function DownloadButton({ filename, text, what }: {
   filename: (format: Format) => string; text: (format: Format) => string; what: string;
 }) {
   const m = useT();
+  const mark = useWatermark();  // a strictly confidential case: the watermark is the first line (§11)
   return (
     <MenuButton className="copy-button" aria-label={m.downloadWhat(what)} menuLabel={m.download}
                 items={[{ id: "txt", label: m.textFile }, { id: "md", label: m.markdownFile }]} placement="bottom end"
-                onAction={(f) => downloadText(filename(f as Format), text(f as Format))}>
+                onAction={(f) => downloadText(filename(f as Format), withWatermark(text(f as Format), mark()))}>
       <Download size={13} aria-hidden />
       <span>{m.download}</span>
     </MenuButton>
@@ -272,7 +274,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
   const flaggedMarkers = new Set(issues.map((i) => i.marker));
   const blocks = toBlocks(turn.text, settled ? available : 0, turn.status === "done" ? flagged : []);
   // Word and Excel downloads carry the same warnings and sources as the chat (lib/saved.ts).
-  const exported = (): AnswerExport => answerExport(turn, question, nameOf, m, caseRef);
+  const mark = useWatermark();
+  const exported = (): AnswerExport => answerExport(turn, question, nameOf, m, caseRef, new Date(), mark());
   const render = (segments: Segment[]) => segments.map((s, j) =>
     s.kind === "text" ? <Fragment key={j}>{s.text}</Fragment> :
     s.kind === "bold" ? <strong key={j}>{s.text}</strong> :
@@ -354,7 +357,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             <CopyButton label={m.copy} what={m.answerWithSources}
                         text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />
             <DownloadFormats kind="answer"
-                             formats={[{ id: "docx", label: m.downloadWord, what: m.downloadWordWhat },
+                             formats={[{ id: "docx", label: m.downloadWord, what: mark() ? m.downloadWordWhatConfidential : m.downloadWordWhat },
                                        { id: "md", label: m.markdownFile, what: m.downloadMarkdownWhat }]}
                              make={async (format) => {
                                const name = `${safeFileName(question)}.${format}`;
@@ -413,7 +416,7 @@ function AnswerTable({ table, render, done, exported }: {
                            const a = exported(), name = `${safeFileName(a.question)}.${format}`;
                            if (format === "csv") {
                              const { tableToCsv } = await import("../lib/textfiles");
-                             return [name, new Blob([tableToCsv(table, officeText(m))], { type: "text/csv;charset=utf-8" })];
+                             return [name, new Blob([tableToCsv(table, officeText(m), a.watermark)], { type: "text/csv;charset=utf-8" })];
                            }
                            const { tableToExcel } = await import("../lib/office");
                            return [name, await tableToExcel(table, a, officeText(m))];

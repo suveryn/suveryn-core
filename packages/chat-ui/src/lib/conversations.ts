@@ -75,3 +75,10 @@ export function withoutDocument(turns: Turn[], documentId: string): Turn[] {
       ? { text: "", source: { document_id: documentId, page: c.source.page, location: null }, removed: true } : c)) };
   });
 }
+
+
+/** A conversation's name in a list: its title, or "Shielded conversation" for one in a strictly
+ *  confidential case, whose title the lists that span cases don't carry (docs/design/sidebar.md §11). */
+export function listedTitle(c: { title: string | null; shielded?: boolean }): string {
+  return c.shielded || c.title === null ? t().shieldedConversation : c.title;
+}
