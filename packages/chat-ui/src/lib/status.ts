@@ -20,6 +20,8 @@ export function statusText(status: StreamStatus | undefined): string | null {
       return m.statusLoading(modelName(status.model)?.full ?? null);
     case "writing":
       return m.statusWriting;
+    case "thinking":
+      return m.statusThinking;
     default:
       return null;
   }

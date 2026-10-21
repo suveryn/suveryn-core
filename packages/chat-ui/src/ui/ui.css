@@ -493,6 +493,9 @@
 .ui-segment[data-hovered] { background: var(--surface); }
 .ui-segment[data-selected] { background: var(--surface-alt); font-weight: 600; }
 .ui-segment[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-segment[data-disabled] { color: var(--text-dimmer); cursor: default; }
+.ui-segmented-field { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ui-segmented-hint { font-size: var(--text-caption); line-height: 1.45; color: var(--text-dim); }
 
 /* a line of text with an icon (under an answer, the sign-in screen); errors: the icon in accent ink */
 .ui-inline-notice { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0 0;
@@ -621,6 +624,11 @@
 .ui-pick-search { margin: 2px 4px; }
 .ui-pick-fine { margin: 0; padding: 2px 10px 6px; font-size: var(--text-caption); line-height: 1.45; color: var(--text-dim); }
 .ui-pick-done { margin: 8px 4px 4px; }
+/* ChipDialog: the model and its thinking mode (§5) */
+.ui-chip-popover { width: 340px; max-width: calc(100vw - 32px); }
+.ui-chip-dialog { display: flex; flex-direction: column; gap: 10px; padding: 8px 10px 10px; outline: none; width: 100%; min-width: 0; }
+.ui-chip-dialog-title { margin: 0; font-size: var(--text-label); line-height: var(--leading-label); font-weight: var(--weight-label);
+                        letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-dim); }
 .ui-sheet-overlay { position: fixed; inset: 0; z-index: 100; background: oklch(from var(--ink) l c h / 0.32); }
 .ui-sheet { position: fixed; inset: auto 0 0 0; max-height: min(600px, 85vh); display: flex; background: var(--bg);
             border-top: 1px solid var(--line); border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 8px 8px max(8px, env(safe-area-inset-bottom)); }
