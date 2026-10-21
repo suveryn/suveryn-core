@@ -27,10 +27,11 @@ import {
   getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
+  listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
+import { MoveConversationDialog, RenameConversationDialog } from "./components/ConversationDialogs";
 import { AccessLogDialog, CaseFaces, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { AvatarDialog } from "./components/AvatarDialog";
 import { OfflineBar } from "./components/OfflineBar";
@@ -58,11 +59,17 @@ import { lang, locale, useT } from "./i18n";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
+import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "./lib/conversationActions";
 import { watermark, WatermarkContext } from "./lib/watermark";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
 const readCollapsed = () => { try { return localStorage.getItem(SIDEBAR_KEY) === "collapsed"; } catch { return false; } };
+// The five-pinned hint shows once in this browser (docs/design/sidebar.md §3); without storage, once per page.
+const PIN_HINT_KEY = "suveryn.pinHint";
+let pinHintSeen = false;
+const pinHintShown = () => { try { return pinHintSeen || localStorage.getItem(PIN_HINT_KEY) === "shown"; } catch { return pinHintSeen; } };
+const rememberPinHint = () => { pinHintSeen = true; try { localStorage.setItem(PIN_HINT_KEY, "shown"); } catch { /* this page only */ } };
 let counter = 0;
 // Unique across page loads too: turns of a reopened conversation keep the ids they were saved with.
 /** An attachment as its upload job says it is now. An upload that carries sūveryn's own export mark is
@@ -168,6 +175,9 @@ function Chat({ me }: { me: Me }) {
   const [currentCase, setCurrentCase] = useState<Case | null>(null); // null: the personal space
   const [newCase, setNewCase] = useState(false);
   const [deletingCase, setDeletingCase] = useState(false);
+  const [renaming, setRenaming] = useState<ConversationSummary | null>(null);  // the conversation menu's dialogs (§4)
+  const [moving, setMoving] = useState<ConversationSummary | null>(null);
+  const [pinHint, setPinHint] = useState(false);
   const [closingCase, setClosingCase] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showAvatar, setShowAvatar] = useState(false);
@@ -524,7 +534,8 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "failed" ? m.documentsFailed : null}
                onNewConversation={closing((outside) => { if (outside && caseId) goTo(null); newChat(); })} onNewCase={closing(() => setNewCase(true))}
                onOpenView={closing((v: SideView) => { setOverviewFilter("all"); setView(v); })} onOpenConversation={closing(openListed)} onOpenDocument={closing(openDocument)} onOpenCase={closing(openCase)}
-               onCaseAction={closing(caseAction)} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
+               onCaseAction={closing(caseAction)} onConversationAction={(c, a) => (a === "open" ? closing(conversationAction)(c, a) : conversationAction(c, a))}
+               pinHint={pinHint} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
                onOpenAdmin={closing((tab) => { setAdminTab(tab); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
                onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} />
   );
@@ -744,6 +755,38 @@ function Chat({ me }: { me: Me }) {
     }
   };
 
+  // The conversation menu (docs/design/sidebar.md §3 and §4), in the column and the Conversations overview.
+  const pinOwnConversation = async (c: ConversationSummary, pinned: boolean) => {
+    try {
+      await pinConversation(c.id, pinned);
+      // A sixth pinned conversation works, and says once that a case keeps them together (§3).
+      if (pinned && pinnedConversations(allConversations).filter((x) => x.id !== c.id).length + 1 > PIN_HINT_AFTER && !pinHintShown()) {
+        setPinHint(true);
+        rememberPinHint();
+      }
+      refreshConversations();
+    } catch (e) {
+      setProblem(m.pinConversationFailed((e as Error).message));
+    }
+  };
+  const conversationAction = (c: ConversationSummary, action: ConversationAction) => {
+    if (action === "open") openListed(c);
+    else if (action === "pin" || action === "unpin") pinOwnConversation(c, action === "pin");
+    else if (action === "rename") setRenaming(c);
+    else if (action === "move") setMoving(c);
+    else if (action === "delete") removeConversation(c.id);
+  };
+  // Moved: the open conversation follows it into the case, which reads the case's documents from now on.
+  const conversationMoved = (c: ConversationSummary) => {
+    setMoving(null);
+    if (c.id === conversationId) {
+      setPending([]);
+      goTo(caseById(c.case_id));
+      setView("chat");
+    }
+    refreshConversations();
+  };
+
   const removeConversation = async (id: string) => {
     try {
       await deleteConversation(id);
@@ -799,6 +842,9 @@ function Chat({ me }: { me: Me }) {
                       onPicture={() => { setShowSettings(false); setShowAvatar(true); }} />
       <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
+      <RenameConversationDialog conversation={renaming} onCancel={() => setRenaming(null)}
+                                onDone={() => { setRenaming(null); refreshConversations(); }} />
+      <MoveConversationDialog conversation={moving} cases={cases} onCancel={() => setMoving(null)} onDone={conversationMoved} />
       <DeleteCaseDialog open={deletingCase} kase={currentCase} onDelete={removeCase} onCancel={() => setDeletingCase(false)} />
       <CloseCaseDialog open={closingCase} kase={currentCase} period={me.cases_keep} onCloseCase={shutCase} onCancel={() => setClosingCase(false)} />
       <AvatarDialog open={showAvatar} me={self} onClose={() => setShowAvatar(false)} onChanged={setAvatar} />
@@ -835,7 +881,7 @@ function Chat({ me }: { me: Me }) {
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}
         {view === "conversations" && <div className="conversation conversation-wide">
           <ConversationsOverview key={overviewFilter} initialCase={overviewFilter} conversations={allConversations} cases={casesWithMembers} me={me}
-                                 onOpen={openListed} onDelete={(c) => removeConversation(c.id)} onNew={newChat} />
+                                 onOpen={openListed} onAction={conversationAction} onNew={newChat} />
         </div>}
         {view === "documents" && <div className="conversation conversation-wide">
           <DocumentsOverview key={overviewFilter} initialCase={overviewFilter} onDownload={downloadSaved} me={me}

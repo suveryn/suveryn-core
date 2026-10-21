@@ -21,6 +21,8 @@ import { documentStatus, mayDeleteDocument, type DocStatus } from "../lib/overvi
 import { caseTypeLabel } from "./CaseDialogs";
 import { OriginIcon } from "./ListViews";
 import type { AllDocument, CaseAction } from "./Sidebar";
+import { conversationMenu } from "./ConversationDialogs";
+import type { ConversationAction } from "../lib/conversationActions";
 import {
   ActionMenu, Avatar, Button, DataTable, FileButton, FilterSelect, FilterToggle, IconBadge, Pager, PinToggle, SearchField, Select,
   TextButton, type MenuEntry, type Option, type TableColumn,
@@ -207,11 +209,13 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
 
 // ================================================================== Conversations (artboard 07)
 
-export function ConversationsOverview({ conversations, cases, me, initialCase = "all", onOpen, onDelete, onNew }: {
+export function ConversationsOverview({ conversations, cases, me, initialCase = "all", onOpen, onAction, onNew }: {
   conversations: ConversationSummary[]; cases: CaseOverview[]; me: Me;
   /** "all", "personal" or a case's id: filtered on a case when reached from its count or from the case. */
   initialCase?: string;
-  onOpen: (c: ConversationSummary) => void; onDelete: (c: ConversationSummary) => void; onNew: () => void;
+  onOpen: (c: ConversationSummary) => void; onNew: () => void;
+  /** The pin toggle and the row menu: Pin or Unpin, Rename, Move to a case, Delete (§4). */
+  onAction: (c: ConversationSummary, action: ConversationAction) => void;
 }) {
   const m = useT();
   const [query, setQuery] = useState("");
@@ -244,6 +248,11 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
     return byId.get(c.case_id ?? "")?.members.find((x) => x.user === c.owner) ?? null;
   };
   const columns: TableColumn<ConversationSummary>[] = [
+    // §3: a personal conversation of one's own has a pin; one in a case follows its case, its cell empty
+    { id: "pin", label: m.colPin, hideLabel: true, width: "44px",
+      render: (c) => (c.case_id || !mine(c) ? null
+        : <PinToggle label={c.pinned ? m.unpinConversation(listedTitle(c)) : m.pinConversation(listedTitle(c))} isSelected={!!c.pinned}
+                     onChange={(on) => onAction(c, on ? "pin" : "unpin")} />) },
     { id: "title", label: m.colConversation, rowHeader: true,
       render: (c) => <span className="overview-name">{c.shielded ? <MessageSquareLock size={15} aria-hidden /> : c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
         <span className="overview-strong" data-shielded={c.shielded || undefined}>{listedTitle(c)}</span></span> },
@@ -271,11 +280,8 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
     { id: "messages", label: m.colMessages, align: "end", render: (c) => c.messages ?? 0 },
     { id: "activity", label: m.colActivity, render: (c) => <span className="overview-dim">{dayLabel(c.updated_at)}</span> },
     { id: "actions", label: m.colActions, hideLabel: true, width: "48px",
-      render: (c) => <RowMenu name={listedTitle(c)} onAction={(id) => (id === "open" ? onOpen(c) : onDelete(c))} entries={[
-        { id: "open", label: m.open, icon: <MessageSquare size={16} /> },
-        "-",
-        { id: "delete", label: m.delete, icon: <Trash2 size={16} />, isDisabled: !mine(c) },
-      ]} /> },
+      render: (c) => <RowMenu name={listedTitle(c)} entries={conversationMenu(c, me.sub, m, true)}
+                              onAction={(id) => (id === "open" ? onOpen(c) : onAction(c, id as ConversationAction))} /> },
   ];
 
   return (
