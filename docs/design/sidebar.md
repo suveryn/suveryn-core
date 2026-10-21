@@ -977,6 +977,16 @@ here.
     out, and the hourly sweep deletes them.
   - What an administrator who isn't a member sees of a strictly confidential case is written down in
     section 11.
+- **Pod check of 7c48279 (22 October).**
+  - After PostgreSQL restarted, the gateway's stores never reconnected (a closed connection reports
+    its transaction state as unknown, not idle), so everything failed until the gateway restarted,
+    while `/health` said ready. They reconnect now; `/health` asks the database; a database that
+    can't be reached is a 503 with a sentence, not a 500.
+  - Deleting a document while it can't be known which conversations cite it no longer skips the
+    question whether they go too: nothing is deleted, and the person is told.
+  - Every answer, also one without documents, is told to address the person formally (u, uw; vous).
+  - The move dialog says a strictly confidential case's conversations can't be shared; the Dutch
+    "voordat het antwoordt".
 
 ## Open
 
