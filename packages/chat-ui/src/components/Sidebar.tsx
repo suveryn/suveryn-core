@@ -140,10 +140,9 @@ export function Sidebar(p: Props) {
   if (p.collapsed) {
     return (
       <aside className="sidebar" data-collapsed aria-label={m.navigation}>
-        <Button variant="plain" className="rail-mark" onPress={() => p.onCollapse(false)} aria-label={m.expandSidebar}>
+        <Button variant="plain" className="rail-mark" onPress={() => p.onCollapse(false)} aria-label={m.expandSidebar} title={m.expandSidebar}>
           <img src={icon} width={30} height={30} alt="" />
         </Button>
-        <IconButton label={m.expandSidebar} onPress={() => p.onCollapse(false)}><PanelLeft size={18} aria-hidden /></IconButton>
         <IconButton label={m.search} onPress={() => p.onOpenView("search")}><Search size={18} aria-hidden /></IconButton>
         <ActionMenu className="rail-new" aria-label={m.newMenu} menuLabel={m.newMenu} entries={newEntries} onAction={onNew} placement="right top">
           <Plus size={18} aria-hidden />

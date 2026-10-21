@@ -347,6 +347,16 @@ def test_redact_takes_out_passages_and_names_of_deleted_documents_only():
     assert redact(turns, lambda d: d == DOC) is False  # idempotent
 
 
+def test_a_document_a_question_was_asked_about_is_redacted_too():
+    """Ask about (docs/design/sidebar.md §10): the choice saved with a question names documents too."""
+    turns = [{"id": "u1", "role": "user", "text": "What is the price?", "attachments": [],
+              "about": [{"documentId": DOC, "filename": "deed-north.pdf"}, {"documentId": OTHER, "filename": "lease.pdf"}]}]
+    assert cited_documents(turns) == {DOC, OTHER}
+    assert redact(turns, lambda d: d == DOC) is True
+    assert turns[0]["about"] == [{"documentId": DOC, "filename": "", "removed": True},
+                                 {"documentId": OTHER, "filename": "lease.pdf"}]
+
+
 class FakeDocs:
     state, error = "ready", None
 
