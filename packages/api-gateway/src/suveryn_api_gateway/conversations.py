@@ -66,6 +66,8 @@ CREATE INDEX IF NOT EXISTS conversations_owner_updated ON conversations (owner, 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS case_id uuid;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS shared boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS conversations_case ON conversations (case_id);
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS renamed boolean NOT NULL DEFAULT false;
 """
 
 
@@ -121,6 +123,25 @@ class ConversationSummary(BaseModel):
     messages: int = 0      # how many turns (questions and answers): the Conversations overview (docs/design/sidebar.md §4)
     owner_name: str = ""   # a colleague's name, for one shared with a case (the overview's "From"); empty for the caller's own
     shielded: bool = False
+    pinned: bool = False   # a personal conversation pinned by its owner (docs/design/sidebar.md §3)
+
+
+class PinIn(BaseModel):
+    """Body of ``PUT /v1/conversations/{id}/pin``."""
+
+    pinned: bool
+
+
+class RenameIn(BaseModel):
+    """Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, kept over later saves."""
+
+    title: str = Field(min_length=1, max_length=MAX_TITLE, pattern=r"^\S(.*\S)?$")
+
+
+class MoveIn(BaseModel):
+    """Body of ``POST /v1/conversations/{id}/move``: the case a personal conversation moves into."""
+
+    case_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
 
 
 class ShareIn(BaseModel):
@@ -205,12 +226,14 @@ class ConversationStore(PgStore):
             log.info("deleted %d conversations older than %d days", n, self.max_age_days)
         return n
 
-    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, jsonb_array_length(turns)"
+    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, jsonb_array_length(turns), pinned_at IS NOT NULL"
+    TURNS = 9  # the column after SUMMARY's, where a query adds ``turns``
 
     @staticmethod
     def _summary(r) -> ConversationSummary:
         return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
-                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7] or 0)
+                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7] or 0,
+                                   pinned=bool(r[8]))
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
         """The conversations in one place, most recently changed first: the owner's own in their
@@ -238,7 +261,7 @@ class ConversationStore(PgStore):
         fresh, params = self._fresh()
         r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                           f" WHERE id = %s AND owner = %s AND {fresh}", (conversation_id, owner, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[8]) if r else None
+        return Conversation(**self._summary(r).model_dump(), turns=r[self.TURNS]) if r else None
 
     def get_shared(self, conversation_id: uuid.UUID) -> Conversation | None:
         """A conversation its owner shared with its case, whoever asks: the gateway checks the
@@ -246,7 +269,29 @@ class ConversationStore(PgStore):
         fresh, params = self._fresh()
         r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                           f" WHERE id = %s AND shared AND case_id IS NOT NULL AND {fresh}", (conversation_id, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[8]) if r else None
+        return Conversation(**self._summary(r).model_dump(), turns=r[self.TURNS]) if r else None
+
+    def rename(self, conversation_id: uuid.UUID, owner: str, title: str) -> ConversationSummary | None:
+        """The owner's new title, kept over later saves. None if it isn't the owner's."""
+        r = self._execute(f"UPDATE conversations SET title = %s, renamed = true WHERE id = %s AND owner = %s"
+                          f" RETURNING {self.SUMMARY}", (title, conversation_id, owner)).fetchone()
+        return self._summary(r) if r else None
+
+    def set_pinned(self, conversation_id: uuid.UUID, owner: str, pinned: bool) -> ConversationSummary | None:
+        """Pin or unpin the owner's personal conversation (a conversation in a case follows its case,
+        docs/design/sidebar.md §3). None if it isn't the owner's or is in a case."""
+        r = self._execute(f"UPDATE conversations SET pinned_at = CASE WHEN %s THEN coalesce(pinned_at, now()) END"
+                          f" WHERE id = %s AND owner = %s AND case_id IS NULL RETURNING {self.SUMMARY}",
+                          (pinned, conversation_id, owner)).fetchone()
+        return self._summary(r) if r else None
+
+    def move(self, conversation_id: uuid.UUID, owner: str, case_id: uuid.UUID) -> ConversationSummary | None:
+        """Move the owner's personal conversation into a case: not shared, no pin of its own. None if it
+        isn't the owner's or is already in a case."""
+        r = self._execute(f"UPDATE conversations SET case_id = %s, shared = false, pinned_at = NULL, updated_at = now()"
+                          f" WHERE id = %s AND owner = %s AND case_id IS NULL RETURNING {self.SUMMARY}",
+                          (case_id, conversation_id, owner)).fetchone()
+        return self._summary(r) if r else None
 
     def unshare_case(self, case_id: uuid.UUID) -> int:
         """Stop sharing every conversation of a case (it became strictly confidential); their owners
@@ -274,7 +319,9 @@ class ConversationStore(PgStore):
         # The case is set when the conversation is first saved and never moves with a later save.
         row = self._execute(
             "INSERT INTO conversations (id, owner, title, turns, case_id) VALUES (%s, %s, %s, %s, %s)"
-            " ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, turns = EXCLUDED.turns, updated_at = now()"
+            # a title the owner chose (``rename``) is kept over the one the UI derives from the first question
+            " ON CONFLICT (id) DO UPDATE SET title = CASE WHEN conversations.renamed THEN conversations.title"
+            " ELSE EXCLUDED.title END, turns = EXCLUDED.turns, updated_at = now()"
             " WHERE conversations.owner = EXCLUDED.owner RETURNING id",
             (conversation_id, owner, body.title, turns, case_id)).fetchone()
         return row is not None
@@ -293,7 +340,7 @@ class ConversationStore(PgStore):
         rows = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
                              f" WHERE {whose} AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
                              (who, f'%"{document_id}"%', *params)).fetchall()
-        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[8])]
+        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[self.TURNS])]
 
     def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False,
                         case_id: uuid.UUID | None = None) -> int:

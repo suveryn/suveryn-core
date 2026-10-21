@@ -87,6 +87,16 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .side-recent[data-hovered] { background: var(--surface-alt); }
 .side-recent[aria-current] { background: var(--surface-alt); font-weight: 600; }
 .side-recent[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+/* a Recent or pinned conversation with its three-dot menu: the menu shows on hover and focus, always on touch */
+.side-item { display: flex; align-items: center; border-radius: var(--radius-sm); }
+.side-item:hover, .side-item:has(> [aria-current]) { background: var(--surface-alt); }
+.side-item > .side-recent { flex: 1; min-width: 0; }
+.side-item > .side-recent[data-hovered], .side-item > .side-recent[aria-current] { background: transparent; }
+.side-item:hover .side-actions { opacity: 1; }
+/* a pinned personal conversation: its icon aligned with the pinned cases' icons, after their chevron */
+.side-item[data-pinned] > .side-recent { padding-left: 28px; height: 36px; }
+.ui-drawer .side-item[data-pinned] > .side-recent { padding-left: 54px; }  /* after the drawer's 44px chevron */
+.side-pin-hint { margin: 2px 0 4px; padding: 0 10px; }
 /* a pinned case's conversations on a hairline aligned with the case icon */
 .side-guide { display: flex; flex-direction: column; gap: 1px; margin-left: 37px; border-left: 1px solid var(--line); }
 .side-guide .side-sub { width: 100%; margin-left: 0; }
