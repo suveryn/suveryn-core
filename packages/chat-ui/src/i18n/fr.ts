@@ -679,6 +679,13 @@ const fr: Messages = {
   // origin: source or made by sūveryn (docs/design/sidebar.md §6)
   // Strictement confidentiel (docs/design/sidebar.md §11)
   strictlyConfidential: "Strictement confidentiel",
+  confidentialRules: "Membres uniquement · Les conversations ne sont pas partagées · Les exports portent un filigrane",
+  confidentialWhat: "Qu'est-ce que cela signifie ?",
+  confidentialHint: "Seuls les membres voient ce dossier. Les conversations ne sont pas partagées. Chaque export porte un filigrane avec le nom et l'heure. Les listes n'affichent pas les titres des conversations.",
+  confidentialUnshares: (n) => (n === 1 ? "Une conversation de ce dossier est partagée. Elle ne le sera plus ; son propriétaire la garde." : `${n} conversations de ce dossier sont partagées. Elles ne le seront plus ; leurs propriétaires les gardent.`),
+  confidentialLogged: "L'activation et la désactivation figurent dans le journal d'accès.",
+  notInConfidential: "Pas dans un dossier strictement confidentiel",
+  confidentialFilter: "Strictement confidentiel",
   shieldedConversation: "Conversation protégée",
   shieldedIn: (ref) => `Conversation protégée dans le dossier ${ref}`,
   watermarkLabel: "STRICTEMENT CONFIDENTIEL",

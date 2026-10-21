@@ -369,6 +369,20 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
+/* Strictly confidential (§11): the band above the case header, in inverted ink (the dark theme
+   inverts it by itself); the switch in Members and access. */
+.confidential-band { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 32px; padding: 4px var(--space-4);
+                     background: var(--text); color: var(--bg); font-size: var(--text-caption); }
+.confidential-band b { font-weight: 600; }
+.confidential-rules-line { opacity: 0.85; }
+.confidential-band .confidential-what { color: var(--bg); text-decoration: underline; font-size: var(--text-caption); }
+.confidential-rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+.case-confidential { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-3); }
+.case-confidential .ui-hint { margin: 0; }
+[data-shielded] { color: var(--text-dim); }
+.overview-status-cell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.overview-label { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border: 1px solid var(--text);
+                  border-radius: var(--radius-sm); font-size: var(--text-caption); color: var(--text); white-space: nowrap; }
 /* Ask about (§10): the chip in the composer, and under each question what it was asked about. */
 .chip-about { height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: var(--surface-alt);
               font-size: var(--text-caption); color: var(--text); white-space: nowrap; }
