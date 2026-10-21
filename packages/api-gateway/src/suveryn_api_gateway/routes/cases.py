@@ -21,6 +21,7 @@ from ..cases import (
     PinIn,
     SettingsIn,
     SettingsOut,
+    StrictlyConfidential,
     may,
 )
 from ..directory import DirectoryUnavailable, Person
@@ -30,6 +31,7 @@ from .common import (
     case_settings,
     cases_or_503,
     delete_case_everywhere,
+    history_or_none,
     log_access,
     owner_of,
     person_or_404,
@@ -105,19 +107,30 @@ async def get_case(case_id: str, request: Request):
 
 @router.patch("/v1/cases/{case_id}", response_model=Case, responses={
     403: {"description": "Not the case's manager, or the case is closed"}, 404: {"description": "Unknown case"},
-    409: {"description": "A case with this reference exists"}})
+    409: {"description": "A case with this reference exists, or the access can't be opened while strictly confidential"}})
 async def update_case(case_id: str, body: CaseUpdate, request: Request):
-    """Change a case's reference, name, type, subject or access (its manager only)."""
+    """Change a case's reference, name, type, subject, access or strictly confidential label (its
+    manager only). Turning the label on restricts the access and unshares the case's conversations."""
     case = await case_for(request, case_id, "manage")
     try:
         changed = await run_in_threadpool(cases_or_503(request).update, uuid.UUID(case.id), body)
     except DuplicateReference:
         raise HTTPException(409, "A case with this reference already exists.") from None
+    except StrictlyConfidential:
+        raise HTTPException(409, "A strictly confidential case is for its members only.") from None
     fields = body.model_dump(exclude_none=True)
-    if "access" in fields and fields["access"] != case.access:
-        await log_access(request, uuid.UUID(case.id), "access_changed", {"access": fields["access"]})
-    if set(fields) - {"access"}:
-        await log_access(request, uuid.UUID(case.id), "changed", {"fields": sorted(set(fields) - {"access"})})
+    if "confidential" in fields and fields["confidential"] != case.confidential:
+        # Turning it on unshares the case's shared conversations; their owners keep them (§11).
+        unshared = 0
+        if fields["confidential"] and (history := history_or_none(request)) is not None:
+            unshared = await run_in_threadpool(history.unshare_case, uuid.UUID(case.id))
+        await log_access(request, uuid.UUID(case.id), "confidential_on" if fields["confidential"] else "confidential_off",
+                         {"unshared": unshared} if fields["confidential"] else {})
+    access = changed.access if changed else fields.get("access")
+    if access is not None and access != case.access:
+        await log_access(request, uuid.UUID(case.id), "access_changed", {"access": access})
+    if set(fields) - {"access", "confidential"}:
+        await log_access(request, uuid.UUID(case.id), "changed", {"fields": sorted(set(fields) - {"access", "confidential"})})
     return changed.model_copy(update={"my_role": case.my_role}) if changed else changed
 
 

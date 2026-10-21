@@ -260,11 +260,21 @@ class FakeCases:
         return dict(self.settings_rows)
 
     def update(self, case_id, body: CaseUpdate):
+        from suveryn_api_gateway.cases import StrictlyConfidential
+
         c = self.cases.get(case_id)
         if c is None:
             return None
-        self.cases[case_id] = c = c.model_copy(update={**body.model_dump(exclude_none=True), "updated_at": datetime.now(UTC)})
+        fields = body.model_dump(exclude_none=True)
+        if fields.get("confidential"):
+            fields["access"] = "restricted"
+        elif fields.get("access") == "default" and fields.get("confidential") is not False and c.confidential:
+            raise StrictlyConfidential("members only")
+        self.cases[case_id] = c = c.model_copy(update={**fields, "updated_at": datetime.now(UTC)})
         return c
+
+    def confidential_ids(self, case_ids):
+        return {str(i) for i in case_ids if (c := self.cases.get(i)) and c.confidential}
 
     def touch(self, case_id):
         self.cases[case_id] = self.cases[case_id].model_copy(update={"updated_at": datetime.now(UTC)})
@@ -942,6 +952,24 @@ def test_store_creates_lists_updates_and_deletes(store):
     assert s.role_of(uuid.UUID(c.id), alice) is None  # the membership went with it
 
 
+def test_store_keeps_the_strictly_confidential_label(store):
+    """§11 against PostgreSQL: the label restricts the access, the access can't be opened while it is on."""
+    from suveryn_api_gateway.cases import StrictlyConfidential
+
+    s, alice, bob = store, f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}"
+    c = s.create(CaseIn(**NEW), alice)
+    cid = uuid.UUID(c.id)
+    assert c.confidential is False and s.confidential_ids([cid]) == set()
+    on = s.update(cid, CaseUpdate(confidential=True))
+    assert on.confidential and on.access == "restricted" and s.get(cid, alice).confidential
+    assert s.confidential_ids([cid, uuid.uuid4()]) == {c.id} and s.confidential_ids([]) == set()
+    assert [x.id for x in s.list(bob, office_wide=True) if x.id == c.id] == []  # members only
+    with pytest.raises(StrictlyConfidential):
+        s.update(cid, CaseUpdate(access="default"))
+    off = s.update(cid, CaseUpdate(confidential=False, access="default"))
+    assert not off.confidential and off.access == "default"
+
+
 def test_store_members_handover_and_the_log(store):
     s = store
     alice, bob, carla = f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}", f"carla-{uuid.uuid4()}"
@@ -1158,3 +1186,43 @@ def test_store_lists_every_case_for_the_administrator_and_keeps_the_offices_sett
     finally:
         fresh.close()
         s._execute("DELETE FROM case_settings")
+
+
+def test_a_strictly_confidential_case_is_for_its_members_with_no_sharing_and_shielded_titles(office):
+    """docs/design/sidebar.md §11: the manager turns the label on; access becomes members only and
+    can't be opened, shared conversations are unshared (their owners keep them), sharing is refused,
+    the lists that span cases show no title, and the access log says so."""
+    c, kc, _, _, _ = office
+    alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    conv = str(uuid.uuid4())
+    turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
+    c.put(f"/v1/conversations/{conv}", json={"title": "Bob's question", "turns": turns, "case_id": cid}, headers=bob)
+    c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)
+
+    assert c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=bob).status_code == 403  # the manager only
+    r = c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
+    assert r.status_code == 200 and r.json()["confidential"] is True and r.json()["access"] == "restricted"
+    assert c.patch(f"/v1/cases/{cid}", json={"access": "default"}, headers=alice).status_code == 409
+    # unshared, still Bob's; and he can't share it again
+    assert c.get(f"/v1/conversations?case={cid}", headers=alice).json() == []
+    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob).status_code == 409
+    # the lists that span cases: no title; the case's own list keeps it
+    [listed] = [x for x in c.get("/v1/conversations?all=true", headers=bob).json() if x["id"] == conv]
+    assert listed["title"] is None and listed["shielded"] is True and listed["case_id"] == cid
+    assert c.get(f"/v1/conversations?case={cid}", headers=bob).json()[0]["title"] == "Bob's question"
+    events = c.get(f"/v1/cases/{cid}/events", headers=alice).json()
+    on = next(e for e in events if e["action"] == "confidential_on")
+    assert on["detail"] == {"unshared": 1}
+    assert any(e["action"] == "access_changed" and e["detail"] == {"access": "restricted"} for e in events)
+    # off again: titles return, sharing works, the access stays as it was until changed
+    r = c.patch(f"/v1/cases/{cid}", json={"confidential": False}, headers=alice)
+    assert r.json()["confidential"] is False and r.json()["access"] == "restricted"
+    assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "confidential_off"
+    [listed] = [x for x in c.get("/v1/conversations?all=true", headers=bob).json() if x["id"] == conv]
+    assert listed["title"] == "Bob's question" and listed["shielded"] is False
+    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob).status_code == 200
+    # turning it off and opening the access in one change is allowed
+    c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
+    assert c.patch(f"/v1/cases/{cid}", json={"confidential": False, "access": "default"}, headers=alice).json()["access"] == "default"
