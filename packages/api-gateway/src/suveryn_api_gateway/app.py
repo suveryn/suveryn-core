@@ -77,6 +77,7 @@ from .routes.common import (
     ADMIN_ROLE,
     LOCAL_OWNER,
     MAX_UPLOAD_BYTES,
+    CleanupUnavailable,
     Database,
     DocumentNotFound,
     Scope,
@@ -231,16 +232,23 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             app.state.llm.on_usage = record_usage
 
         async def sweep_due_cases() -> None:
-            """Delete the closed cases whose keep period has passed (docs/design/cases.md, decision 11),
-            with their documents, conversations and log, and the conversations whose own keep period
-            has passed (the data lifecycle, suveryn-tracker#31): once an hour, for as long as the app runs."""
+            """Once an hour, for as long as the app runs: delete the closed cases whose keep period has
+            passed (docs/design/cases.md, decision 11), with their documents, conversations and log; the
+            conversations whose own keep period has passed (the data lifecycle, suveryn-tracker#31); the
+            access-log lines older than their retention, and the raw token usage older than its own
+            (audit of 21 October 2026, findings 4 and 10); and finish the cleaning of conversations a
+            document's deletion left unfinished (finding 3)."""
             while True:
                 try:
-                    store = app.state.cases.get()
+                    store = app.state.cases.get() if app.state.cases.configured else None
                     if store is not None:
+                        await run_in_threadpool(store.purge_events)
                         for cid in await run_in_threadpool(store.due_for_deletion):
-                            if await delete_case_everywhere(app, cid):
-                                log.info("case %s deleted: its keep period passed", cid)
+                            try:
+                                if await delete_case_everywhere(app, cid):
+                                    log.info("case %s deleted: its keep period passed", cid)
+                            except CleanupUnavailable:
+                                log.warning("case %s not deleted yet: a store it is in can't be reached", cid)
                     runs_store = app.state.runs.get() if app.state.runs.configured else None
                     if runs_store is not None:
                         await run_in_threadpool(runs_store.interrupt, STALE_RUN_S)  # reading longer than any model call takes
@@ -251,11 +259,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                             settings = settings.with_overrides(await run_in_threadpool(store.overrides))
                         history.keep = settings.conversations_keep
                         await run_in_threadpool(history.purge)
+                        if n := await run_in_threadpool(history.finish_cleanups):
+                            log.info("%d unfinished conversation cleaning(s) finished", n)
+                    usage_store = app.state.usage.get() if app.state.usage.configured else None
+                    if usage_store is not None:
+                        await run_in_threadpool(usage_store.purge)
                 except Exception as e:  # noqa: BLE001 - the sweep must outlive any one failure
                     log.error("sweep: %s", type(e).__name__)
                 await asyncio.sleep(SWEEP_INTERVAL_S)
 
-        app.state.sweep = asyncio.create_task(sweep_due_cases()) if app.state.cases.configured or app.state.history.configured else None
+        app.state.sweep = (asyncio.create_task(sweep_due_cases())
+                           if app.state.cases.configured or app.state.history.configured or app.state.usage.configured else None)
         yield
         if app.state.sweep is not None:
             app.state.sweep.cancel()

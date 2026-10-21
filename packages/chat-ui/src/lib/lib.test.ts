@@ -5,7 +5,7 @@ import { cellValue, checkLines, segmentText, tableRows } from "./export";
 import {
   formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName, sourcesDocument, sourcesMarkdown,
 } from "./copy";
-import { conversationHistory } from "./history";
+import { conversationHistory, HISTORY_CHARS } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
@@ -475,6 +475,17 @@ describe("server errors and long conversations", () => {
     expect(sent).toHaveLength(40);
     expect(sent[0]).toEqual({ role: "user", content: "vraag 130" });
     expect(sent.at(-1)).toEqual({ role: "assistant", content: "antwoord 149" });
+  });
+
+  it("drops the oldest pairs when the earlier turns are too long to send (audit of 21 October, finding 6)", () => {
+    const long = "x".repeat(25_000);
+    const turns = Array.from({ length: 4 }, (_, i) => [
+      { id: `q${i}`, role: "user", text: `question ${i}`, attachments: [] },
+      { id: `a${i}`, role: "assistant", text: `${i}${long}`, citations: [], status: "done" },
+    ]).flat() as never[];
+    const sent = conversationHistory(turns);
+    expect(sent.map((x) => x.content.slice(0, 10))).toEqual(["question 2", `2${"x".repeat(9)}`, "question 3", `3${"x".repeat(9)}`]);
+    expect(sent.reduce((n, x) => n + x.content.length, 0)).toBeLessThanOrEqual(HISTORY_CHARS);
   });
 });
 

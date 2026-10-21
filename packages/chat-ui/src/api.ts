@@ -610,6 +610,8 @@ export type UsageReport = {
   totals: UsageTotals;
   series: (UsageTotals & { start: string })[];
   by_kind: Record<string, UsageTotals>;
+  /** The range reaches before the raw usage kept (24 months): before this, only the office's monthly totals. */
+  totals_only_before?: string | null;
 };
 export type Rates = { input_per_million: string; output_per_million: string; currency: string; updated_at?: string | null; updated_by?: string | null };
 type UserUsage = { user_id: string; username: string | null; name: string | null; totals: UsageTotals; cost: string | null };

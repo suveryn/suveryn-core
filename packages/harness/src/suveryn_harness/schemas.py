@@ -17,6 +17,12 @@ from pydantic import BaseModel, Field, model_validator
 
 Role = Literal["system", "user", "assistant"]
 
+# All the messages of one request together, in characters (about 37,000 tokens): what a conversation
+# may bring along, before the documents' passages are added (up to ``WHOLE_DOCUMENT_CHARS``, 48,000).
+# Checked before any search or model call, so an oversized request costs nothing (audit of
+# 21 October 2026, finding 6). The UI sends at most ``HISTORY_CHARS`` of earlier turns (lib/history.ts).
+MAX_TOTAL_CHARS = 150_000
+
 
 class ChatMessage(BaseModel):
     """One turn of the conversation, in OpenAI chat format."""
@@ -31,7 +37,8 @@ class ChatRequest(BaseModel):
     Limits are deliberately bounded: ``max_tokens`` up to 8192 keeps one request from occupying
     the GPU for minutes, and ``temperature`` defaults to 0 because notarial answers should be
     reproducible rather than creative. The last message must be the user's question; the
-    conversation is limited to 200 messages and each message to 100,000 characters.
+    conversation is limited to 200 messages, each message to 100,000 characters, and all of them
+    together to ``MAX_TOTAL_CHARS``.
     """
 
     messages: list[ChatMessage] = Field(min_length=1, max_length=200)
@@ -54,6 +61,8 @@ class ChatRequest(BaseModel):
     def _ends_with_question(self) -> "ChatRequest":
         if self.messages[-1].role != "user":
             raise ValueError("the last message must be the user's question")
+        if sum(len(m.content) for m in self.messages) > MAX_TOTAL_CHARS:
+            raise ValueError(f"the conversation is too long to send at once: at most {MAX_TOTAL_CHARS:,} characters")
         return self
 
 
