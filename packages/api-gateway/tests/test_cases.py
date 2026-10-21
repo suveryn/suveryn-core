@@ -150,6 +150,11 @@ class FakeCases:
         self.log_lines: list[tuple[uuid.UUID, str, str, dict]] = []
         self.pins: set[tuple[uuid.UUID, str]] = set()
         self.settings_rows = {}
+        self.purged = 0  # how often the sweep purged old access-log lines
+
+    def purge_events(self):
+        self.purged += 1
+        return 0
 
     def set_pinned(self, case_id, user, pinned):
         (self.pins.add if pinned else self.pins.discard)((case_id, user))
@@ -695,6 +700,41 @@ def test_deleting_a_case_deletes_its_documents_and_conversations(office):
     assert set(docs.docs) == {DOC}  # the personal document stays
     assert [x["title"] for x in c.get("/v1/conversations", headers=alice).json()] == ["Los"]
     assert not any(r["case_id"] for r in history.rows.values())
+
+
+def test_a_case_isnt_deleted_while_a_store_it_is_in_cant_be_reached(office):
+    """Audit of 21 October 2026, finding 3: before, the case went and its conversations stayed."""
+    from suveryn_api_gateway.routes.common import Database
+
+    c, kc, cases, history, docs = office
+    alice = as_user(kc, ALICE)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    in_case = str(uuid.uuid4())
+    docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
+    c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "Case", "turns": turns, "case_id": cid}, headers=alice)
+
+    def unreachable():
+        raise OSError("no database")
+
+    c.app.state.history = Database("conversations", connect=unreachable)
+    assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 503
+    assert in_case in docs.docs and uuid.UUID(cid) in cases.cases  # nothing deleted
+    c.app.state.history = Database("conversations", store=history)
+    assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 204
+    assert in_case not in docs.docs and not any(r["case_id"] for r in history.rows.values())
+
+
+def test_the_sweep_purges_old_access_log_lines_without_anyone_opening_the_log(office):
+    """Audit of 21 October 2026, finding 4: the 180 days held only when someone opened an access log."""
+    import time
+
+    _, _, cases, _, _ = office
+    for _ in range(50):  # the sweep's first round runs when the app starts
+        if cases.purged:
+            break
+        time.sleep(0.05)
+    assert cases.purged >= 1
 
 
 def test_a_closed_case_refuses_uploads_and_questions(office):

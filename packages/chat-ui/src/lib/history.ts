@@ -12,6 +12,10 @@ import type { Turn } from "../types";
  * older turns don't fit the model's context anyway.
  */
 export const MAX_HISTORY = 40;
+/** At most this many characters of earlier turns: the server takes 150,000 for the whole request
+ *  (``MAX_TOTAL_CHARS``), and the question and the documents' passages need room too. The oldest
+ *  question-and-answer pairs go first. */
+export const HISTORY_CHARS = 60_000;
 
 export function conversationHistory(turns: Turn[]): WireMessage[] {
   const out: WireMessage[] = [];
@@ -21,5 +25,11 @@ export function conversationHistory(turns: Turn[]): WireMessage[] {
       out.push({ role: "user", content: t.text }, { role: "assistant", content: next.text });
     }
   });
-  return out.slice(-MAX_HISTORY);  // an even number: still starts with a question
+  const kept = out.slice(-MAX_HISTORY);  // an even number: still starts with a question
+  let chars = kept.reduce((n, x) => n + x.content.length, 0);
+  while (kept.length > 0 && chars > HISTORY_CHARS) {
+    const [q, a] = kept.splice(0, 2);  // a pair at a time: roles keep alternating
+    chars -= q.content.length + (a?.content.length ?? 0);
+  }
+  return kept;
 }

@@ -147,6 +147,16 @@ async def save_conversation(conversation_id: str, body: ConversationIn, request:
     gone = await run_in_threadpool(_deleted_documents, request, body, scope)
     if not await run_in_threadpool(store.save, cid, owner, body, gone):
         raise HTTPException(404, "Unknown conversation.")
+    # A document deleted while this save was on its way (after the check above, before its cleaning
+    # could see this save) is taken out now: its passages never stay (audit of 21 October 2026, finding 3).
+    if (later := await run_in_threadpool(_deleted_documents, request, body, scope)) is not None:
+        for d in cited_documents([t.model_dump() for t in body.turns]):
+            try:
+                did = uuid.UUID(d)
+            except ValueError:
+                continue
+            if later(str(did)) and (gone is None or not gone(str(did))):
+                await run_in_threadpool(store.remove_document, owner, did, False, None)
     return Response(status_code=204)
 
 

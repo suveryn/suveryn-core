@@ -68,6 +68,14 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS shared boolean NOT NULL DEFAU
 CREATE INDEX IF NOT EXISTS conversations_case ON conversations (case_id);
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS renamed boolean NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS conversation_cleanups (
+    document_id           uuid NOT NULL,
+    owner                 text NOT NULL,
+    case_id               uuid,
+    delete_conversations  boolean NOT NULL,
+    created_at            timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (document_id, owner)
+);
 """
 
 
@@ -341,6 +349,26 @@ class ConversationStore(PgStore):
                              f" WHERE {whose} AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
                              (who, f'%"{document_id}"%', *params)).fetchall()
         return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[self.TURNS])]
+
+    # A document's deletion, noted before it is deleted and done after (audit of 21 October 2026,
+    # finding 3): if cleaning the conversations fails halfway, the sweep finishes it.
+    def note_cleanup(self, owner: str, document_id: uuid.UUID, delete_conversations: bool, case_id: uuid.UUID | None) -> None:
+        self._execute("INSERT INTO conversation_cleanups (document_id, owner, case_id, delete_conversations)"
+                      " VALUES (%s, %s, %s, %s) ON CONFLICT (document_id, owner) DO UPDATE"
+                      " SET delete_conversations = EXCLUDED.delete_conversations OR conversation_cleanups.delete_conversations",
+                      (document_id, owner, case_id, delete_conversations))
+
+    def cleanup_done(self, owner: str, document_id: uuid.UUID) -> None:
+        self._execute("DELETE FROM conversation_cleanups WHERE document_id = %s AND owner = %s", (document_id, owner))
+
+    def finish_cleanups(self) -> int:
+        """Finish the cleanings a deletion left unfinished: the sweep's part. Returns how many."""
+        rows = self._execute("SELECT owner, document_id, delete_conversations, case_id FROM conversation_cleanups"
+                             " ORDER BY created_at").fetchall()
+        for owner, did, delete, case_id in rows:
+            self.remove_document(owner, did, delete, case_id)
+            self.cleanup_done(owner, did)
+        return len(rows)
 
     def remove_document(self, owner: str, document_id: uuid.UUID, delete_conversations: bool = False,
                         case_id: uuid.UUID | None = None) -> int:

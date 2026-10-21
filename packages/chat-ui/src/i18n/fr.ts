@@ -337,6 +337,8 @@ const fr: Messages = {
   officeUsage: "Consommation de l'étude",
   adminIntro: "La consommation de jetons de toute l'étude, au total et par utilisateur. Purement informatif : personne n'est jamais limité à cause de cela.",
   perUser: "Par utilisateur",
+  perUserKeptFrom: (date: string) => `Par utilisateur à partir du ${date}. L'utilisation plus ancienne n'est conservée qu'en totaux mensuels du cabinet.`,
+  ownUsageKeptFrom: (date: string) => `Votre utilisation est conservée à partir du ${date}. L'utilisation plus ancienne n'est conservée qu'en totaux mensuels du cabinet.`,
   user: "Utilisateur",
   unknownUser: "Utilisateur inconnu",
   notionalCost: "Coût cloud indicatif",
