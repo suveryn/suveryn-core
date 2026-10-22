@@ -155,6 +155,11 @@ def _connector(factory, settings):
     return (lambda: factory(settings)) if settings.database_url else None
 
 
+
+def sign_in_unavailable(e: Exception) -> JSONResponse:
+    """Keycloak can't be reached or has a problem (its database stopped): 503, with ``reason`` for the page."""
+    return JSONResponse({"detail": f"Sign-in is not available: {e}.", "reason": "signin"}, status_code=503)
+
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
                auth: Authenticator | None = None, conversations=None, usage=None, cases=None,
                case_settings: CaseSettings | None = None, directory=None,
@@ -331,7 +336,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                     if origin != settings.public_origin:
                         return JSONResponse({"detail": "Request from another site refused."}, status_code=403)
         except AuthUnavailable as e:
-            return JSONResponse({"detail": f"Sign-in is not available: {e}."}, status_code=503)
+            return sign_in_unavailable(e)
         except AuthError:
             user = None
         if user is None:
@@ -352,7 +357,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         """The database can't be reached (stopped, restarting): 503 and a sentence, not a 500. The
         next request reconnects (db.PgStore). The error's own text may name the server: not sent."""
         log.error("database unavailable: %s", type(exc).__name__)
-        return JSONResponse({"detail": "The database can't be reached right now. Try again shortly."}, status_code=503)
+        # ``reason``: the page says which part is down in the person's language (api.ts httpErrorText).
+        return JSONResponse({"detail": "The database can't be reached right now. Try again shortly.", "reason": "database"},
+                            status_code=503)
+
+    @app.exception_handler(AuthUnavailable)
+    async def auth_unavailable(request: Request, exc: AuthUnavailable):
+        return sign_in_unavailable(exc)
 
     @app.middleware("http")
     async def limit_upload_size(request: Request, call_next):

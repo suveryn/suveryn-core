@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from suveryn_playbooks import LANGUAGES
 
-from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError, AuthUnavailable
+from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError
 from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
 
 UI_LANGUAGES = set(LANGUAGES)  # the interface languages (docs/translations.md), passed on to Keycloak's login page
@@ -42,10 +42,7 @@ def _cookie(request: Request, response: Response, name: str, value: str, max_age
 @router.get("/auth/login", include_in_schema=False)
 async def login(request: Request, return_to: str = "/", lang: str | None = None):
     """Start signing in: redirect to the Keycloak login page, in the UI's language (``lang``, one of LANGUAGES)."""
-    try:
-        url, login_cookie = await _auth(request).start_login(return_to)
-    except AuthUnavailable as e:
-        raise HTTPException(503, f"Sign-in is not available: {e}.") from e
+    url, login_cookie = await _auth(request).start_login(return_to)  # AuthUnavailable: 503 (app.py)
     if lang in UI_LANGUAGES:
         url += f"&ui_locales={lang}"  # OIDC: Keycloak shows its login page in this language
     response = RedirectResponse(url, status_code=303)
@@ -62,8 +59,6 @@ async def callback(request: Request, code: str | None = None, state: str | None 
         session, return_to = await _auth(request).finish_login(code, state, request.cookies.get(LOGIN_COOKIE))
     except AuthError as e:
         raise HTTPException(400, f"Sign-in failed: {e}.") from e
-    except AuthUnavailable as e:
-        raise HTTPException(503, f"Sign-in is not available: {e}.") from e
     response = RedirectResponse(return_to, status_code=303)
     response.delete_cookie(LOGIN_COOKIE, path="/")
     _cookie(request, response, _auth(request).settings.session_cookie, session.id, None)  # a browser-session cookie
@@ -77,10 +72,7 @@ async def me(request: Request):
     if not authenticator.enabled:
         return Me(username="dev", name="Development (sign-in off)", sub=LOCAL_OWNER, admin=True, office_wide=cases.office_wide,
                   cases_keep=cases.keep, avatar=await _avatar_etag(request, LOCAL_OWNER))
-    try:
-        user = await authenticator.session_user(request.cookies.get(authenticator.settings.session_cookie))
-    except AuthUnavailable as e:
-        raise HTTPException(503, f"Sign-in is not available: {e}.") from e
+    user = await authenticator.session_user(request.cookies.get(authenticator.settings.session_cookie))
     if user is None:
         raise HTTPException(401, "Sign in to continue.")
     return Me(username=user.username, name=user.name, sub=user.sub, admin=ADMIN_ROLE in user.roles, office_wide=cases.office_wide,

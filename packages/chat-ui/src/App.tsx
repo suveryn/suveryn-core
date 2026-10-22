@@ -19,7 +19,7 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, RotateCw, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -55,7 +55,8 @@ import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion, questionDocuments } from "./lib/questionDocuments";
 import { claimRedirect, clearRedirect } from "./lib/signin";
-import { lang, locale, useT } from "./i18n";
+import { lang, locale, t, useT } from "./i18n";
+import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
@@ -100,8 +101,11 @@ export default function App() {
 
   useEffect(() => {
     onSignedOut(() => { setEnded(true); setMe(null); });
-    getMe().then((user) => {
+    getMe().then(async (user) => {
       if (user) { clearRedirect(); setMe(user); return; }
+      // The sign-in service keeps its accounts in the same PostgreSQL: with that down, its login page
+      // only shows an error of its own. Said here instead, in the person's language (Pod check of 547f48e).
+      if (databaseDown(await getHealth())) { setUnavailable(t().databaseUnavailable); setMe(null); return; }
       const step = claimRedirect();
       if (step === "go") signIn();
       else if (step === "stuck") { setStuck(true); setMe(null); } // "started": already leaving, render nothing
@@ -126,7 +130,11 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
       {ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.sessionEnded}</InlineNotice>}
       {stuck && !ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.signInIncomplete}</InlineNotice>}
       {unavailable
-        ? <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+        ? <>
+            <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+            <p className="caption">{m.signInWhenDown}</p>
+            <Button variant="primary" onPress={() => window.location.reload()}><RotateCw size={16} aria-hidden /> {m.signInTryAgain}</Button>
+          </>
         : <Button variant="primary" onPress={signIn}><LogIn size={16} aria-hidden /> {m.signIn}</Button>}
       <p className="caption">{m.signInCaption}</p>
       <LanguagePicker />

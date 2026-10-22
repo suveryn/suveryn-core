@@ -1007,6 +1007,12 @@ here.
   - Deleting a document in the seconds before the health check noticed the database was down gave the
     general "this part of the server isn't available"; it now gives the same reason as after. The
     Dutch "voordat het kon antwoorden" and "voordat u elk gegeven hebt nagekeken".
+  - Sign-in while PostgreSQL is down: the sign-in service keeps its accounts there, so it can't sign
+    anyone in. The sign-in page now says the database can't be reached, what to do if it stays so, and
+    offers *Try again*, instead of the general sentence or the sign-in service's own error page. A
+    sign-in service that answers with a server error no longer signs people out: their session waits
+    for it. The gateway's 503s carry a `reason` (`database`, `signin`) so every message can say which
+    part is down.
 
 ## Open
 

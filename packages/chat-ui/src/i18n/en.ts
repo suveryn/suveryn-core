@@ -15,6 +15,8 @@ const en = {
   sessionEnded: "Your session has ended. Sign in to continue.",
   signInIncomplete: "You're not signed in yet. If you keep coming back here after signing in, open this page at the address your office uses for sūveryn and allow cookies.",
   signInUnavailable: (why: string) => `Can't sign in: ${why}`,
+  signInWhenDown: "If it stays like this for more than a few minutes, ask whoever looks after the appliance to restart it.",
+  signInTryAgain: "Try again",
 
   // health and availability
   serverUnreachable: "Can't reach the sūveryn server.",
@@ -45,6 +47,8 @@ const en = {
   notFound: "it no longer exists (it may have been deleted)",
   forbidden: "you don't have permission for this",
   serverUnavailable: "this part of the server isn't available right now; try again later",
+  databaseUnavailable: "the database on this server can't be reached right now; try again in a minute",
+  signInServiceUnavailable: "the sign-in service on this server isn't answering right now; try again in a minute",
 
   // empty state
   emptyIntro: "Attach a deed or another document (PDF, Word, Excel, Markdown or CSV) and ask about it. Answers cite the page, section or cells they come from, so you can check every figure.",

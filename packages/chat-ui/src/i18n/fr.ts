@@ -9,6 +9,8 @@ const fr: Messages = {
   sessionEnded: "Votre session a expiré. Reconnectez-vous pour continuer.",
   signInIncomplete: "Vous n'êtes pas encore connecté. Si vous revenez ici après chaque connexion, ouvrez cette page à l'adresse que votre étude utilise pour sūveryn et autorisez les cookies.",
   signInUnavailable: (why) => `Connexion impossible : ${why}`,
+  signInWhenDown: "Si cela dure plus de quelques minutes, demandez à la personne qui gère l'appareil de le redémarrer.",
+  signInTryAgain: "Réessayer",
 
   serverUnreachable: "Le serveur sūveryn est injoignable.",
   modelStarting: "Le modèle démarre. Cela prend jusqu'à une minute.",
@@ -36,6 +38,8 @@ const fr: Messages = {
   notFound: "cela n'existe plus (peut-être supprimé)",
   forbidden: "vous n'avez pas l'autorisation pour cela",
   serverUnavailable: "cette partie du serveur n'est pas disponible pour le moment ; réessayez plus tard",
+  databaseUnavailable: "la base de données de ce serveur est inaccessible pour le moment ; réessayez dans une minute",
+  signInServiceUnavailable: "le service de connexion de ce serveur ne répond pas pour le moment ; réessayez dans une minute",
 
   emptyIntro: "Joignez un acte ou un autre document (PDF, Word, Excel, Markdown ou CSV) et posez votre question. Les réponses indiquent la page, la section ou les cellules dont elles proviennent, pour que vous puissiez vérifier chaque montant.",
 
