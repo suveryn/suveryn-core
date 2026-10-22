@@ -398,7 +398,13 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
           </Toolbar>
         )}
 
-        {turn.status === "done" && cited.length === 0 && (
+        {/* stopped at the length limit: say so, and what to do (Pod check of b5f6e9f) */}
+        {turn.status === "done" && turn.truncated && (
+          <InlineNotice icon={<AlertTriangle size={14} />} tone="error">
+            {turn.text.trim() ? m.answerTruncated : m.thoughtTooLong}
+          </InlineNotice>
+        )}
+        {turn.status === "done" && cited.length === 0 && turn.text.trim() !== "" && (
           <InlineNotice icon={<AlertCircle size={14} />}>{turn.grounded ? m.noSourceCited : m.notGrounded}</InlineNotice>
         )}
       </div>
