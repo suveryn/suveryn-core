@@ -987,6 +987,14 @@ here.
   - Every answer, also one without documents, is told to address the person formally (u, uw; vous).
   - The move dialog says a strictly confidential case's conversations can't be shared; the Dutch
     "voordat het antwoordt".
+- **Pod check of b5f6e9f (22 October).** The database restart is survived (the first request works
+  2.3 s after PostgreSQL starts). Two things followed:
+  - Deleting a document while the saved conversations can't be read is refused in the app too, with
+    a sentence, before anything is sent; the server's guard stays.
+  - An answer that stops at its length limit now says so. After *Thorough* had thought for nearly three
+    minutes, an answer came back empty with only "no source cited". It now reads "The model thought for
+    so long that it reached its limit before it could answer. Ask again in Fast, or ask a narrower
+    question." A cut-off answer says it is incomplete. The server logs such a stop by counts only.
 
 ## Open
 
