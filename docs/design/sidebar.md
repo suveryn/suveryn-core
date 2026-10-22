@@ -1013,6 +1013,10 @@ here.
     sign-in service that answers with a server error no longer signs people out: their session waits
     for it. The gateway's 503s carry a `reason` (`database`, `signin`) so every message can say which
     part is down.
+- **Pod check of f8f4be9 (22 October).** All three fixed; Alice stayed signed in through a 6-minute
+  database stop and worked again 2.5 s after it. One thing followed: the sentence for a chosen document
+  deleted meanwhile is shown inside "The answer couldn't be completed: … so ask again.", so it is now
+  written as the reason only (no capital, no full stop, no second "ask again").
 
 ## Open
 
