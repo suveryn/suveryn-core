@@ -496,6 +496,7 @@ function Chat({ me }: { me: Me }) {
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
                instructionLikeSources: done.instruction_like_sources ?? [],
                ...(reasoning ? { reasoning, thoughtSeconds: done.thought_seconds ?? thinkSeconds } : {}),
+               ...(done.finish_reason === "length" ? { truncated: true } : {}),
                status: "done", model: done.model, ...(asked.length && whole === false ? { partial: true } : {}) });
     } catch (e) {
       if (stopped.current) {
@@ -827,6 +828,12 @@ function Chat({ me }: { me: Me }) {
   const [deleting, setDeleting] = useState<{ doc: StoredDocument; conversations: string[]; where: string | null } | null>(null);
   const remove = async (d: StoredDocument, where: string | null = caseId) => {
     let using: string[] = [];
+    // Saved conversations exist on this server but can't be read now: it can't be asked whether those
+    // that cite the document go too, so nothing is deleted (Pod check of b5f6e9f: it was sent at once).
+    if (!historyReady && health?.history?.status && health.history.status !== "unavailable") {
+      setProblem(m.deleteDocumentFailed(d.filename, m.conversationsUnreachable));
+      return;
+    }
     if (historyReady) {
       // Not known which conversations cite it: nothing is deleted, rather than skip the question
       // whether they go too (Pod check of 7c48279, the database stopped).

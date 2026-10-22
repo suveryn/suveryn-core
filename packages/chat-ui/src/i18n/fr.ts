@@ -24,6 +24,7 @@ const fr: Messages = {
   openFailed: (why) => `Impossible d'ouvrir cette conversation : ${why}`,
   deleteConversationFailed: (why) => `Impossible de supprimer cette conversation : ${why}`,
   deleteDocumentFailed: (file, why) => `Impossible de supprimer ${file} : ${why}`,
+  conversationsUnreachable: "les conversations enregistrées sont inaccessibles pour l'instant : impossible de demander si celles qui le citent doivent aussi être supprimées. Réessayez dans un instant.",
   sessionEndedError: "votre session a expiré ; reconnectez-vous",
   uploadInterrupted: "l'envoi a été interrompu",
   streamCutOff: "la connexion a été coupée avant que la réponse soit complète",
@@ -276,6 +277,8 @@ const fr: Messages = {
 
   answerFailed: (why) => `La réponse n'a pas pu être terminée : ${why}. Rien de cette tentative n'est affiché ; posez donc à nouveau votre question.`,
   answerInterrupted: "Cette réponse a été interrompue.",
+  answerTruncated: "Cette réponse a été coupée à sa longueur maximale : elle est incomplète. Demandez la suite, ou posez une question plus précise.",
+  thoughtTooLong: "Le modèle a réfléchi si longtemps qu'il a atteint sa limite avant de pouvoir répondre. Reposez la question en Rapide, ou posez une question plus précise.",
   answerStopped: "Arrêté. Cette réponse est incomplète, et ses montants et ses sources n'ont pas été vérifiés.",
   sources: "Sources",
   copySources: "Copier les sources",
