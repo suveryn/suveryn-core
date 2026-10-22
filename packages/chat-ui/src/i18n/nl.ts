@@ -9,6 +9,8 @@ const nl: Messages = {
   sessionEnded: "Uw sessie is afgelopen. Log opnieuw in om verder te gaan.",
   signInIncomplete: "U bent nog niet ingelogd. Komt u na het inloggen steeds hier terug, open deze pagina dan via het adres dat uw kantoor voor sūveryn gebruikt en sta cookies toe.",
   signInUnavailable: (why) => `Inloggen lukt niet: ${why}`,
+  signInWhenDown: "Blijft het langer dan enkele minuten zo, vraag dan wie het toestel beheert om het te herstarten.",
+  signInTryAgain: "Opnieuw proberen",
 
   serverUnreachable: "De sūveryn-server is niet bereikbaar.",
   modelStarting: "Het model start op. Dat duurt tot een minuut.",
@@ -36,6 +38,8 @@ const nl: Messages = {
   notFound: "het bestaat niet meer (het werd mogelijk verwijderd)",
   forbidden: "u hebt hiervoor geen toestemming",
   serverUnavailable: "dit deel van de server is nu niet beschikbaar; probeer het later opnieuw",
+  databaseUnavailable: "de database op deze server is nu niet bereikbaar; probeer het over een minuut opnieuw",
+  signInServiceUnavailable: "de inlogdienst op deze server antwoordt nu niet; probeer het over een minuut opnieuw",
 
   emptyIntro: "Voeg een akte of een ander document toe (pdf, Word, Excel, Markdown of CSV) en stel er een vraag over. Antwoorden vermelden de pagina, het onderdeel of de cellen waarop ze steunen, zodat u elk bedrag kunt nakijken.",
 
