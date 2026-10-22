@@ -222,3 +222,19 @@ def test_a_failure_carries_its_code_for_the_interface(tmp_path):
     docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("boom")))
     other = docs2.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
     assert wait(lambda: other.status == "failed") and other.error_code == "unreadable"
+
+
+def test_a_document_read_again_after_a_lost_connection_is_staged_again(tmp_path, monkeypatch):
+    """Pod check of 547f48e: the first upload after a PostgreSQL restart always failed with FileExistsError,
+    because the retry staged the file in the inbox again (O_EXCL) without removing the first copy."""
+    monkeypatch.setattr(service, "RECONNECT_DELAYS_S", (0.01,))
+    inbox = tmp_path / "inbox"
+    inbox.mkdir(mode=0o750)
+    docs = DocumentService(RagSettings(work_dir=tmp_path / "work", extract_inbox=inbox))
+    docs._ingest, docs.state = FakeIngest(down=1, failing_reconnects=0), "ready"
+    docs._worker = threading.Thread(target=docs._work, daemon=True)
+    docs._worker.start()
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "a.pdf", "user-a")
+    assert wait(lambda: docs.job(job.id, "user-a").status in ("ready", "failed"))
+    assert job.status == "ready" and job.db_retries == 1 and not job.error
+    assert not list(inbox.glob("*.pdf"))  # and nothing left behind

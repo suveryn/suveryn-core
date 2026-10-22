@@ -89,6 +89,8 @@ class FakeKeycloak:
                     return httpx.Response(400, json={"error": "invalid_grant"})
                 return httpx.Response(200, json=self.tokens(issued["nonce"], issued.get("over"), issued.get("access_over")))
             if form["grant_type"] == "refresh_token":
+                if getattr(self, "down", False):  # Keycloak's database stopped
+                    return httpx.Response(500, text="Internal Server Error")
                 if not self.refresh_allowed:
                     return httpx.Response(400, json={"error": "invalid_grant"})
                 return httpx.Response(200, json=self.tokens())
@@ -259,6 +261,19 @@ def test_tokens_are_refreshed_and_revocation_signs_out(client, kc):
     assert client.get("/v1/documents").status_code == 401
     kc.refresh_allowed = True
     assert client.get("/v1/documents").status_code == 401  # the session is gone for good
+
+
+def test_a_sign_in_service_in_trouble_keeps_the_session_and_says_why(client, kc):
+    """Pod check of 547f48e: with PostgreSQL stopped, Keycloak answers 500, which signed people out."""
+    kc.expires_in = 10
+    sign_in(client, kc)
+    kc.down = True
+    r = client.get("/v1/documents")
+    assert r.status_code == 503 and r.json()["reason"] == "signin"
+    me = client.get("/auth/me")
+    assert me.status_code == 503 and me.json()["reason"] == "signin"
+    kc.down = False
+    assert client.get("/v1/documents").status_code == 200  # still signed in once it is back
 
 
 def test_logout_ends_the_session_and_returns_keycloaks_logout_url(client, kc):

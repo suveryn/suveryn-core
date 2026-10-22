@@ -114,9 +114,14 @@ class SignedOut extends Error {
 let signedOutHandler: () => void = () => {};
 export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
 
+/** A refused request: its sentence for the person, and the status, for a page that acts on it. */
+export class HttpError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
 async function responseError(r: Response): Promise<Error> {
   if (r.status === 401) { signedOutHandler(); return new SignedOut(); }
-  return new Error(await errorText(r));
+  return new HttpError(await errorText(r), r.status);
 }
 
 /** The signed-in user, or null if signed out. Throws if sign-in itself is unavailable. */
@@ -148,7 +153,7 @@ export async function signOut(): Promise<void> {
  * own text is English, and a validation error's detail is a list, which showed as "HTTP 422"). Other
  * statuses keep the server's text.
  */
-export function httpErrorText(status: number, detail: unknown, retryAfter: string | null = null): string {
+export function httpErrorText(status: number, detail: unknown, retryAfter: string | null = null, reason: unknown = null): string {
   const m = t();
   switch (status) {
     case 429: return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
@@ -157,15 +162,17 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
     case 422: return m.requestRejected;
     case 404: return m.notFound;
     case 403: return m.forbidden;
-    case 502: case 503: return m.serverUnavailable;
+    // ``reason`` (the gateway's 503s): which part is down, so the person reads what it is.
+    case 502: case 503: return reason === "database" ? m.databaseUnavailable : reason === "signin" ? m.signInServiceUnavailable : m.serverUnavailable;
     default: return typeof detail === "string" ? detail : `HTTP ${status}`;
   }
 }
 
 async function errorText(r: Response): Promise<string> {
   let detail: unknown = null;
-  try { detail = (await r.json()).detail; } catch { /* no JSON body */ }
-  return httpErrorText(r.status, detail, r.headers.get("Retry-After"));
+  let reason: unknown = null;
+  try { ({ detail, reason } = await r.json()); } catch { /* no JSON body */ }
+  return httpErrorText(r.status, detail, r.headers.get("Retry-After"), reason);
 }
 
 export async function getHealth(): Promise<Health | null> {
@@ -237,7 +244,7 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job);
       else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
-      else reject(new Error(httpErrorText(xhr.status, xhr.response?.detail, xhr.getResponseHeader("Retry-After"))));
+      else reject(new Error(httpErrorText(xhr.status, xhr.response?.detail, xhr.getResponseHeader("Retry-After"), xhr.response?.reason)));
     };
     xhr.onerror = () => reject(new Error(t().uploadInterrupted));
     xhr.onabort = () => reject(new DOMException("cancelled", "AbortError"));

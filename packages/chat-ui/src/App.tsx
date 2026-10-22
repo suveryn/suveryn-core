@@ -19,12 +19,12 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, RotateCw, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelJob, deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
-  getMe, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
+  getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
@@ -53,9 +53,10 @@ import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
-import { questionDocuments } from "./lib/questionDocuments";
+import { afterDeletion, questionDocuments } from "./lib/questionDocuments";
 import { claimRedirect, clearRedirect } from "./lib/signin";
-import { lang, locale, useT } from "./i18n";
+import { lang, locale, t, useT } from "./i18n";
+import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
@@ -100,8 +101,11 @@ export default function App() {
 
   useEffect(() => {
     onSignedOut(() => { setEnded(true); setMe(null); });
-    getMe().then((user) => {
+    getMe().then(async (user) => {
       if (user) { clearRedirect(); setMe(user); return; }
+      // The sign-in service keeps its accounts in the same PostgreSQL: with that down, its login page
+      // only shows an error of its own. Said here instead, in the person's language (Pod check of 547f48e).
+      if (databaseDown(await getHealth())) { setUnavailable(t().databaseUnavailable); setMe(null); return; }
       const step = claimRedirect();
       if (step === "go") signIn();
       else if (step === "stuck") { setStuck(true); setMe(null); } // "started": already leaving, render nothing
@@ -126,7 +130,11 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
       {ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.sessionEnded}</InlineNotice>}
       {stuck && !ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.signInIncomplete}</InlineNotice>}
       {unavailable
-        ? <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+        ? <>
+            <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+            <p className="caption">{m.signInWhenDown}</p>
+            <Button variant="primary" onPress={() => window.location.reload()}><RotateCw size={16} aria-hidden /> {m.signInTryAgain}</Button>
+          </>
         : <Button variant="primary" onPress={signIn}><LogIn size={16} aria-hidden /> {m.signIn}</Button>}
       <p className="caption">{m.signInCaption}</p>
       <LanguagePicker />
@@ -446,7 +454,17 @@ function Chat({ me }: { me: Me }) {
   };
 
   // ``again``: Regenerate asks the last question once more, with the documents it had.
-  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[]) => {
+  // The case's documents read again (and shown), or null if they can't be read.
+  const documentsNow = async (): Promise<StoredDocument[] | null> => {
+    try {
+      const now = (await listDocuments(caseId)).documents;
+      setDocuments(now);
+      return now;
+    } catch { return null; }
+  };
+
+  // ``fresh``: the case's documents just read again, for the one retry after a colleague deleted one.
+  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[]) => {
     // What is read goes with the question; a document still being read, or one that failed, stays in
     // the composer: the first counts for the next question once it is ready (§5).
     const attachments = again ?? pending.filter((a) => !staysInComposer(a));
@@ -459,7 +477,7 @@ function Chat({ me }: { me: Me }) {
     for (const a of attachments) if (isReady(a) && a.documentId) chosen.add(a.documentId);
     setAboutGone(false);
     // In a case with nothing attached, the case's sources (lib/questionDocuments.ts).
-    const docIds = new Set(questionDocuments(chosen, caseId ? documents : null));
+    const docIds = new Set(questionDocuments(chosen, caseId ? fresh ?? documents : null));
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0,
                                    ...(thinking ? { thinking: true } : {}) };
     const history: WireMessage[] = conversationHistory(turns);
@@ -480,6 +498,9 @@ function Chat({ me }: { me: Me }) {
     let thinkFrom: number | null = null;
     let thinkSeconds: number | undefined;
     const thoughtSoFar = () => (thought ? { reasoning: thought, ...(thinkSeconds !== undefined ? { thoughtSeconds: thinkSeconds } : {}) } : {});
+    let retryWith: StoredDocument[] | null = null;
+    let now: StoredDocument[] | null = null;
+    let next: ReturnType<typeof afterDeletion> = null;
     try {
       const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
         streamed += delta;
@@ -508,6 +529,11 @@ function Chat({ me }: { me: Me }) {
         // *Regenerate*; the server is checked at once, so the bar says whether it can be reached.
         update({ text: streamed, citations: sources, status: "error", cutOff: true, error: m.answerCutOff, step: undefined, ...thoughtSoFar() });
         checkNow();
+      } else if (e instanceof HttpError && e.status === 404 && caseId && !fresh && !streamed
+                 && (now = await documentsNow()) && (next = afterDeletion(docIds, chosen.size, now))) {
+        // A colleague deleted one of the case's documents since this page read the list (lib/questionDocuments.ts).
+        if (next === "retry") retryWith = now;
+        else update({ text: "", status: "error", error: m.chosenDeletedMeanwhile });
       } else {
         // Gateway contract: after an error, discard any partial answer.
         update({ text: "", status: "error", error: (e as Error).message });
@@ -517,6 +543,10 @@ function Chat({ me }: { me: Me }) {
       setBusy(false);
       abort.current = null;
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
+    }
+    if (retryWith) {
+      setTurns((ts) => ts.filter((t) => t.id !== user.id && t.id !== reply.id));
+      await send(text, attachments, asked, retryWith);
     }
   };
 
@@ -838,7 +868,10 @@ function Chat({ me }: { me: Me }) {
       // Not known which conversations cite it: nothing is deleted, rather than skip the question
       // whether they go too (Pod check of 7c48279, the database stopped).
       try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch (e) {
-        setProblem(m.deleteDocumentFailed(d.filename, (e as Error).message));
+        // A 503 is the database gone before the health check noticed (Pod check of 547f48e): the same reason.
+        const unreachable = e instanceof HttpError && e.status === 503;
+        setProblem(m.deleteDocumentFailed(d.filename, unreachable ? m.conversationsUnreachable : (e as Error).message));
+        if (unreachable) checkNow();
         return;
       }
     }
