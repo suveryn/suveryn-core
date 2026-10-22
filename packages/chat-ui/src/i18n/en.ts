@@ -32,6 +32,7 @@ const en = {
   openFailed: (why: string) => `Couldn't open that conversation: ${why}`,
   deleteConversationFailed: (why: string) => `Couldn't delete that conversation: ${why}`,
   deleteDocumentFailed: (file: string, why: string) => `Couldn't delete ${file}: ${why}`,
+  conversationsUnreachable: "the saved conversations can't be reached right now, so it can't be asked whether those that cite it go too. Try again shortly.",
   sessionEndedError: "your session has ended; sign in again",
   uploadInterrupted: "the upload was interrupted",
   streamCutOff: "the connection closed before the answer was complete",
@@ -296,6 +297,8 @@ const en = {
   // answers
   answerFailed: (why: string) => `The answer couldn't be completed: ${why}. Nothing from this attempt is shown, so ask again.`,
   answerInterrupted: "This answer was interrupted.",
+  answerTruncated: "This answer was cut off at its maximum length: it is incomplete. Ask for the rest, or ask a narrower question.",
+  thoughtTooLong: "The model thought for so long that it reached its limit before it could answer. Ask again in Fast, or ask a narrower question.",
   answerStopped: "Stopped. This answer is incomplete, and its figures and sources were not checked.",
   sources: "Sources",
   copySources: "Copy sources",

@@ -51,6 +51,9 @@ export type AssistantTurn = {
   /** What the model thought before answering, and for how long: "Thought for 14 s" above the answer. */
   reasoning?: string;
   thoughtSeconds?: number;
+  /** The model stopped at its length limit (``finish_reason`` "length"): the answer is cut off, or, after
+   *  thinking, never began (Pod check of b5f6e9f: an empty *Thorough* answer with no word why). */
+  truncated?: boolean;
 };
 
 export type Turn = UserTurn | AssistantTurn;

@@ -24,6 +24,7 @@ const nl: Messages = {
   openFailed: (why) => `Dat gesprek kon niet worden geopend: ${why}`,
   deleteConversationFailed: (why) => `Dat gesprek kon niet worden verwijderd: ${why}`,
   deleteDocumentFailed: (file, why) => `${file} kon niet worden verwijderd: ${why}`,
+  conversationsUnreachable: "de bewaarde gesprekken zijn nu niet bereikbaar, dus kan niet gevraagd worden of de gesprekken die het aanhalen mee verwijderd worden. Probeer het straks opnieuw.",
   sessionEndedError: "uw sessie is afgelopen; log opnieuw in",
   uploadInterrupted: "het uploaden werd onderbroken",
   streamCutOff: "de verbinding werd verbroken voordat het antwoord volledig was",
@@ -276,6 +277,8 @@ const nl: Messages = {
 
   answerFailed: (why) => `Het antwoord kon niet worden voltooid: ${why}. Er wordt niets van deze poging getoond; stel uw vraag dus opnieuw.`,
   answerInterrupted: "Dit antwoord werd onderbroken.",
+  answerTruncated: "Dit antwoord werd afgebroken op zijn maximale lengte: het is onvolledig. Vraag naar de rest, of stel een kleinere vraag.",
+  thoughtTooLong: "Het model dacht zo lang na dat het zijn limiet bereikte voor het kon antwoorden. Vraag het opnieuw in Snel, of stel een kleinere vraag.",
   answerStopped: "Gestopt. Dit antwoord is onvolledig, en de bedragen en bronnen werden niet nagekeken.",
   sources: "Bronnen",
   copySources: "Bronnen kopiëren",
