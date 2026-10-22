@@ -373,6 +373,7 @@ const fr: Messages = {
   askAboutDone: "Terminé",
   answersUseOnly: (n, name) => (n === 1 ? `Les réponses n'utilisent que ${name}.` : `Les réponses n'utilisent que les ${n} documents choisis.`),
   chosenGone: "Les documents choisis ne sont plus dans le dossier. Les réponses utilisent à nouveau tous ses documents.",
+  chosenDeletedMeanwhile: "Un document choisi a entre-temps été supprimé du dossier. Vérifiez le choix sous Question sur et posez la question à nouveau.",
   partialRead: "Trop volumineux pour être lu en entier : les passages qui correspondent le mieux à votre question ont été lus.",
   caseChooseHint: (n) => `Votre question porte sur les ${n} documents. Si elle concerne un seul acte, choisissez-le sous Question sur : la réponse n'en tirera rien d'un autre.`,
   basedOn: (count, names) => (count === 1 ? `D'après ${names}` : `D'après ${count} documents : ${names}`),

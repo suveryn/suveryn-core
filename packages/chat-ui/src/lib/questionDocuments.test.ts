@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StoredDocument } from "../api";
-import { MAX_DOCUMENTS, questionDocuments } from "./questionDocuments";
+import { afterDeletion, MAX_DOCUMENTS, questionDocuments } from "./questionDocuments";
 
 const doc = (id: string, day: number, over: Partial<StoredDocument> = {}): StoredDocument => ({
   id, filename: `${id}.pdf`, pages: 1, ocr_pages: 0, status: "ok", warnings: [], chunks: 1,
@@ -28,5 +28,19 @@ describe("the documents a question reads", () => {
   it("at most the server's limit", () => {
     const docs = Array.from({ length: 60 }, (_, i) => doc(`d${i}`, (i % 28) + 1));
     expect(questionDocuments([], docs)).toHaveLength(MAX_DOCUMENTS);
+  });
+});
+
+describe("a question refused because a document was deleted meanwhile (Pod check of 547f48e)", () => {
+  const now = [doc("kept", 1), doc("answer", 2, { origin: "generated", source: false })];
+  it("about the whole case: asked again with the sources there are now", () => {
+    expect(afterDeletion(["kept", "deleted"], 0, now)).toBe("retry");
+  });
+  it("about chosen documents: the person is told one is gone", () => {
+    expect(afterDeletion(["kept", "deleted"], 2, now)).toBe("chosenGone");
+  });
+  it("nothing was deleted, or nothing is left: the refusal stands", () => {
+    expect(afterDeletion(["kept"], 0, now)).toBeNull();
+    expect(afterDeletion(["deleted"], 0, [doc("answer", 2, { origin: "generated", source: false })])).toBeNull();
   });
 });
