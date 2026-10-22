@@ -377,7 +377,7 @@ const nl: Messages = {
   askAboutDone: "Klaar",
   answersUseOnly: (n, name) => (n === 1 ? `Antwoorden gebruiken alleen ${name}.` : `Antwoorden gebruiken alleen de ${n} gekozen documenten.`),
   chosenGone: "De gekozen documenten staan niet meer in het dossier. Antwoorden gebruiken weer alle documenten.",
-  chosenDeletedMeanwhile: "Een gekozen document werd intussen uit het dossier verwijderd. Kijk de keuze bij Vraag over na en stel de vraag opnieuw.",
+  chosenDeletedMeanwhile: "een gekozen document werd intussen uit het dossier verwijderd; kijk de keuze bij Vraag over na",
   partialRead: "Te groot om volledig te lezen: de passages die het best bij uw vraag passen, werden gelezen.",
   caseChooseHint: (n) => `Uw vraag gaat over alle ${n} documenten. Gaat ze over één akte, kies die dan bij Vraag over: het antwoord haalt dan niets uit een andere.`,
   basedOn: (count, names) => (count === 1 ? `Op basis van ${names}` : `Op basis van ${count} documenten: ${names}`),
