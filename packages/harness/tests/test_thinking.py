@@ -163,3 +163,22 @@ def test_every_answer_is_told_to_address_the_person_formally():
 
 async def _collect(events):
     return [e async for e in events]
+
+
+def test_an_answer_stopped_at_the_length_limit_is_logged_by_counts_and_says_so(caplog):
+    """Pod check of b5f6e9f: Thorough thought for three minutes and the answer came back empty, with no word why."""
+    def stopped(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(404 if request.url.path == "/models" else 200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
+        body = (f"data: {json.dumps({'choices': [{'delta': {'reasoning_content': 'Secret reasoning'}, 'finish_reason': None}]})}\n\n"
+                f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'length'}]})}\n\ndata: [DONE]\n\n")
+        return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
+
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm", default_model="qwen3.8-27b"), transport=httpx.MockTransport(stopped))
+    with caplog.at_level("INFO", logger="suveryn.harness"):
+        seen = asyncio.run(_collect(ChatService(llm).answer_stream(ask(thinking=True), "alice")))
+    done = seen[-1].response
+    assert done.finish_reason == "length" and done.answer == "" and done.reasoning == "Secret reasoning"
+    lines = [r.getMessage() for r in caplog.records if "length limit" in r.getMessage()]
+    assert lines == ["answer stopped at the length limit: thinking=True reasoning_chars=16 answer_chars=0"]
+    assert not any("Secret" in r.getMessage() for r in caplog.records)
