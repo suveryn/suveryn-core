@@ -399,7 +399,7 @@ const en = {
   askAboutDone: "Done",
   answersUseOnly: (n: number, name: string) => (n === 1 ? `Answers use only ${name}.` : `Answers use only the ${n} chosen documents.`),
   chosenGone: "The chosen documents are no longer in the case. Answers use all its documents again.",
-  chosenDeletedMeanwhile: "A chosen document was deleted from the case in the meantime. Check the choice under Ask about and ask again.",
+  chosenDeletedMeanwhile: "a chosen document was deleted from the case in the meantime; check the choice under Ask about",
   partialRead: "Too large to read in full: the passages that best match your question were read.",
   caseChooseHint: (n: number) => `Your question is about all ${n} documents. If it is about one deed, choose it under Ask about: the answer then takes nothing from another.`,
   basedOn: (count: number, names: string) => (count === 1 ? `Based on ${names}` : `Based on ${count} documents: ${names}`),

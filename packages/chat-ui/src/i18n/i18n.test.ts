@@ -25,6 +25,13 @@ describe("interface languages (suveryn-tracker#8)", () => {
     for (const l of LANGS) expect(copyProblems(l, texts(l)), l).toEqual([]);
   });
 
+  it("a reason shown inside answerFailed reads as one sentence (Pod check of f8f4be9: \"opnieuw.. \")", () => {
+    for (const l of LANGS) {
+      const whole = TABLES[l].answerFailed(TABLES[l].chosenDeletedMeanwhile);
+      expect(whole, l).not.toMatch(/\.\.|: [A-Z]/);
+    }
+  });
+
   it("the copy rules catch what they are for", () => {
     expect(copyProblems("nl", [["a", "Heeft u dit?"], ["b", "Heb je dit?"], ["c", ""]]).map(([k, w]) => `${k}: ${w}`))
       .toEqual(["b: informal Dutch", "c: empty"]);
