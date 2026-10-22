@@ -20,3 +20,17 @@ export function questionDocuments(chosen: Iterable<string>, caseDocuments: Store
   }
   return ids.slice(0, MAX_DOCUMENTS);
 }
+
+/**
+ * A question refused as "unknown document" (404), with the case's documents read again (Pod check of
+ * 547f48e: a colleague had deleted one since this page last read the list). ``retry``: it was about the
+ * whole case, so it is asked again at once with the sources there are now. ``chosenGone``: it was about
+ * chosen documents and one of them is gone, which the person is told rather than answered from fewer.
+ * ``null``: nothing was deleted, so the refusal stands as it is.
+ */
+export function afterDeletion(sent: Iterable<string>, chosen: number, now: StoredDocument[]): "retry" | "chosenGone" | null {
+  const here = new Set(now.filter((d) => originKind(d) === "source").map((d) => d.id));
+  if (![...sent].some((id) => !here.has(id))) return null;
+  if (chosen > 0) return "chosenGone";
+  return here.size > 0 ? "retry" : null;
+}

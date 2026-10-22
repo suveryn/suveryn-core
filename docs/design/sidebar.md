@@ -995,6 +995,18 @@ here.
     minutes, an answer came back empty with only "no source cited". It now reads "The model thought for
     so long that it reached its limit before it could answer. Ask again in Fast, or ask a narrower
     question." A cut-off answer says it is incomplete. The server logs such a stop by counts only.
+- **Pod check of 547f48e (22 October).** Both fixes confirmed; the 44 questions on the owner's
+  documents give the same results as on 21 October. Three things followed:
+  - The first upload after a PostgreSQL restart failed (`FileExistsError`): the retry staged the file
+    in the reader's inbox a second time without removing the first copy. The copy is now removed
+    before the retry, and a document that fails for a reason of sūveryn's own is logged by type.
+  - A question asked right after a colleague deleted one of the case's documents was refused as
+    "it no longer exists". The page now reads the case's documents again: a question about the whole
+    case is asked again at once with the documents there are now; a question about chosen documents
+    says one of them was deleted meanwhile, rather than answer from fewer than were chosen.
+  - Deleting a document in the seconds before the health check noticed the database was down gave the
+    general "this part of the server isn't available"; it now gives the same reason as after. The
+    Dutch "voordat het kon antwoorden" and "voordat u elk gegeven hebt nagekeken".
 
 ## Open
 

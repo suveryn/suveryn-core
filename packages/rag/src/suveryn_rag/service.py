@@ -211,11 +211,14 @@ class DocumentService:
             if _is_connection_error(e) and job.db_retries < MAX_DB_RETRIES:
                 # Not the document's fault: wait for the database, then read it again.
                 job.db_retries += 1
+                self._unstage(path)  # the next try stages it again (O_EXCL): Pod check of 547f48e
                 self._wait_for_database()
                 job.status = "queued"
                 self._queue.put((job, path))
                 return
             # A reason sūveryn knows is its own sentence; anything else names the exception (for the log).
+            if not isinstance(e, Unreadable):  # the type only: the message may name the file
+                log.warning("document failed: %s", type(e).__name__)
             job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else f"{type(e).__name__}: {str(e)[:200]}"
             job.error_code = e.code if isinstance(e, Unreadable) else "unreadable"
             job.error_detail = e.detail if isinstance(e, Unreadable) else {}
@@ -225,6 +228,10 @@ class DocumentService:
 
     def _discard(self, path: Path) -> None:
         path.unlink(missing_ok=True)
+        self._unstage(path)
+
+    def _unstage(self, path: Path) -> None:
+        """Remove the reader's copy in the inbox, if any; the private upload stays."""
         if self._inbox is not None:
             (self._inbox / path.name).unlink(missing_ok=True)
 
