@@ -1,5 +1,7 @@
 # sūveryn-core (AGPL-3.0-or-later)
 
+Website: [suveryn.com](https://www.suveryn.com)
+
 Engine, chat, RAG, MCP host, API gateway — plus bundled official connectors
 and playbooks, and the [models manifest](models/manifest.json) (metadata only; weights are never
 committed here).
