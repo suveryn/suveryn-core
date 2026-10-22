@@ -114,9 +114,14 @@ class SignedOut extends Error {
 let signedOutHandler: () => void = () => {};
 export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
 
+/** A refused request: its sentence for the person, and the status, for a page that acts on it. */
+export class HttpError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
 async function responseError(r: Response): Promise<Error> {
   if (r.status === 401) { signedOutHandler(); return new SignedOut(); }
-  return new Error(await errorText(r));
+  return new HttpError(await errorText(r), r.status);
 }
 
 /** The signed-in user, or null if signed out. Throws if sign-in itself is unavailable. */

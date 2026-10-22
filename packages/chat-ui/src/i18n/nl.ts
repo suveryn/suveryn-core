@@ -278,7 +278,7 @@ const nl: Messages = {
   answerFailed: (why) => `Het antwoord kon niet worden voltooid: ${why}. Er wordt niets van deze poging getoond; stel uw vraag dus opnieuw.`,
   answerInterrupted: "Dit antwoord werd onderbroken.",
   answerTruncated: "Dit antwoord werd afgebroken op zijn maximale lengte: het is onvolledig. Vraag naar de rest, of stel een kleinere vraag.",
-  thoughtTooLong: "Het model dacht zo lang na dat het zijn limiet bereikte voor het kon antwoorden. Vraag het opnieuw in Snel, of stel een kleinere vraag.",
+  thoughtTooLong: "Het model dacht zo lang na dat het zijn limiet bereikte voordat het kon antwoorden. Vraag het opnieuw in Snel, of stel een kleinere vraag.",
   answerStopped: "Gestopt. Dit antwoord is onvolledig, en de bedragen en bronnen werden niet nagekeken.",
   sources: "Bronnen",
   copySources: "Bronnen kopiëren",
@@ -373,6 +373,7 @@ const nl: Messages = {
   askAboutDone: "Klaar",
   answersUseOnly: (n, name) => (n === 1 ? `Antwoorden gebruiken alleen ${name}.` : `Antwoorden gebruiken alleen de ${n} gekozen documenten.`),
   chosenGone: "De gekozen documenten staan niet meer in het dossier. Antwoorden gebruiken weer alle documenten.",
+  chosenDeletedMeanwhile: "Een gekozen document werd intussen uit het dossier verwijderd. Kijk de keuze bij Vraag over na en stel de vraag opnieuw.",
   partialRead: "Te groot om volledig te lezen: de passages die het best bij uw vraag passen, werden gelezen.",
   caseChooseHint: (n) => `Uw vraag gaat over alle ${n} documenten. Gaat ze over één akte, kies die dan bij Vraag over: het antwoord haalt dan niets uit een andere.`,
   basedOn: (count, names) => (count === 1 ? `Op basis van ${names}` : `Op basis van ${count} documenten: ${names}`),
@@ -424,7 +425,7 @@ const nl: Messages = {
   instructionLike: (sources) =>
     `${sources.length > 1 ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst die zich tot een AI richt (zoals „negeer de instructies”). Sūveryn heeft die als documentinhoud behandeld, niet als opdracht, maar controleer dit antwoord extra zorgvuldig in de documenten.`,
   // playbooks (suveryn-tracker#51): intake akte
-  playbookIntro: "sūveryn leest de documenten van het dossier op de gegevens die dit playbook nodig heeft en toont elk gegeven naast de passage waar het vandaan komt. Niets is definitief voor u elk gegeven hebt nagekeken.",
+  playbookIntro: "sūveryn leest de documenten van het dossier op de gegevens die dit playbook nodig heeft en toont elk gegeven naast de passage waar het vandaan komt. Niets is definitief voordat u elk gegeven hebt nagekeken.",
   noPlaybookForType: "Voor dit type dossier is er nog geen playbook.",
   playbookNotCovered: "Dit playbook valt niet onder de ondersteuningsovereenkomst van deze appliance: het werkt, maar zonder certificering, updates of ondersteuning. Een beheerder ziet de details in het dashboard.",
   startIntake: "Documenten lezen",
