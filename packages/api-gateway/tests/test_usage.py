@@ -253,3 +253,27 @@ def test_store_keeps_raw_usage_for_its_period_then_only_the_offices_monthly_tota
     own = store.report(now - timedelta(days=4 * 365), now, owner=a)
     assert own.totals.prompt_tokens == 500  # nobody's own usage before the cutoff
     store._execute("DELETE FROM usage_monthly WHERE model = 'test-model'")
+
+
+def test_the_backups_status_is_for_administrators_and_read_as_written(setup, tmp_path, monkeypatch):
+    """suveryn-tracker#33: what the appliance's backup service recorded, checked, never more."""
+    import json
+
+    from suveryn_api_gateway.routes import backups
+
+    c, kc, _ = setup
+    monkeypatch.setattr(backups, "STATUS", tmp_path / "status.json")
+    user, admin = as_user(kc, BOB), as_user(kc, ALICE, admin=True)
+    assert c.get("/v1/admin/backups", headers=user).status_code == 403
+    assert c.get("/v1/admin/backups", headers=admin).json()["available"] is False  # never run, or not an appliance
+    (tmp_path / "status.json").write_text(json.dumps({
+        "configured": True, "target": "usb", "retention_days": 30, "last_attempt": "2026-10-23T02:41:07Z",
+        "last_success": {"at": "2026-10-22T02:39:00Z", "file": "suveryn-backup_x_20261022T023900Z.tar.zst.age",
+                         "size": 123456, "on_target": 12, "oldest": "2026-09-23T02:31:00Z", "seconds": 40},
+        "last_error": {"at": "2026-10-23T02:41:07Z", "step": "target", "message": "the backup disk isn't connected"}}))
+    body = c.get("/v1/admin/backups", headers=admin).json()
+    assert body["available"] and body["configured"] and body["target"] == "usb" and body["retention_days"] == 30
+    assert body["last_success"] == {"at": "2026-10-22T02:39:00Z", "size": 123456, "on_target": 12, "oldest": "2026-09-23T02:31:00Z"}
+    assert body["last_error"]["step"] == "target" and "file" not in body["last_success"]
+    (tmp_path / "status.json").write_text("not json")
+    assert c.get("/v1/admin/backups", headers=admin).json() == {**dict.fromkeys(body, None), "available": False, "configured": False}
