@@ -643,6 +643,23 @@ export async function getOfficeUsage(start: Date, end?: Date): Promise<OfficeUsa
   return r.json();
 }
 
+/** The appliance's backups (suveryn-tracker#33), as its backup service recorded them. */
+export interface BackupStatus {
+  available: boolean;
+  configured: boolean;
+  target?: "usb" | "share" | null;
+  retention_days?: number | null;
+  last_attempt?: string | null;
+  last_success: { at: string; size: number; on_target?: number | null; oldest?: string | null } | null;
+  last_error: { at: string; step: string; message: string } | null;
+}
+
+export async function getBackups(): Promise<BackupStatus> {
+  const r = await fetch("/v1/admin/backups");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
 /** Administrators: change the rates the notional cost uses. */
 export async function setRates(rates: Pick<Rates, "input_per_million" | "output_per_million" | "currency">): Promise<Rates> {
   const r = await fetch("/v1/admin/usage/rates", {
