@@ -24,5 +24,6 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     expect(sizeLabel(1_234_567_890, "en")).toBe("1.2 GB");
     expect(sizeLabel(340_000_000, "nl")).toBe("340 MB");
     expect(sizeLabel(999, "en")).toBe("999 B");
+    expect(sizeLabel(188_432, "fr")).toBe("188 ko");  // VM check of #33: "kB" in French
   });
 });

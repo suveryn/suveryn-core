@@ -22,9 +22,9 @@ export function backupState(s: BackupStatus | null, now: Date = new Date()): Bac
   return { kind: failedSince ? "failing" : "ok", status: s };
 }
 
-/** "1.2 GB", "340 MB": a backup's size, decimal units as disks are sold. */
+/** "1.2 GB", "340 MB": a backup's size, decimal units as disks are sold; in French in octets ("188 ko"). */
 export function sizeLabel(bytes: number, locale: string): string {
-  const units = ["B", "kB", "MB", "GB", "TB"];
+  const units = locale.startsWith("fr") ? ["o", "ko", "Mo", "Go", "To"] : ["B", "kB", "MB", "GB", "TB"];
   let n = bytes, i = 0;
   while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
   return `${n.toLocaleString(locale, { maximumFractionDigits: n < 10 && i > 0 ? 1 : 0 })} ${units[i]}`;
