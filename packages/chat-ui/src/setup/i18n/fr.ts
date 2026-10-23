@@ -136,8 +136,6 @@ const fr: Text = {
 
   backupsTitle: "Sauvegardes",
   backupsLead: "Où l'appliance écrit ses sauvegardes : documents, conversations, comptes et paramètres. Les modèles n'en font pas partie : ils viennent du support d'installation.",
-  backupsNotYetTitle: "Aucune sauvegarde n'est encore faite",
-  backupsNotYet: "Cette étape enregistre où iront les sauvegardes et combien de temps elles seront gardées, et vérifie qu'un partage répond. L'appliance ne fait aucune sauvegarde tant que son service de sauvegarde n'est pas installé par une mise à jour.",
   backupTarget: "Destination des sauvegardes",
   usbDisk: "Disque USB",
   usbDiskDesc: "Un disque branché sur l'appliance. Fonctionne dans tous les modes réseau.",
