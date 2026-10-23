@@ -136,8 +136,6 @@ const nl: Text = {
 
   backupsTitle: "Back-ups",
   backupsLead: "Waar de appliance haar back-ups schrijft: documenten, gesprekken, accounts en instellingen. Modellen zitten er niet in: die komen van het installatiemedium.",
-  backupsNotYetTitle: "Er worden nog geen back-ups gemaakt",
-  backupsNotYet: "Deze stap bewaart waar back-ups komen en hoe lang, en controleert of een gedeelde map antwoordt. De appliance maakt pas back-ups zodra haar back-updienst met een update is geïnstalleerd.",
   backupTarget: "Bestemming van de back-ups",
   usbDisk: "USB-schijf",
   usbDiskDesc: "Een schijf die op de appliance is aangesloten. Werkt in elke netwerkmodus.",

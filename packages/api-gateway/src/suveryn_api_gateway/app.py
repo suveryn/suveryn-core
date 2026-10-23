@@ -387,7 +387,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     # The order matters where paths overlap: /v1/cases/due before /v1/cases/{case_id} (both in cases).
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
-                   routes.conversations, routes.usage):
+                   routes.conversations, routes.usage, routes.backups):
         app.include_router(module.router)
     return app
 
