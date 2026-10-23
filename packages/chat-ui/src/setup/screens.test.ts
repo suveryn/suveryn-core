@@ -78,7 +78,7 @@ describe("the rest", () => {
   it("gives disk sizes in decimal units, in the interface's language", () => {
     expect(diskSize(1_000_204_886_016, "en-GB")).toBe("1 TB");
     expect(diskSize(500_107_862_016, "nl-BE")).toBe("500 GB");
-    expect(diskSize(2_500_000_000_000, "fr-BE")).toBe("2,5 TB");
+    expect(diskSize(2_500_000_000_000, "fr-BE")).toBe("2,5 To");  // octets in French
   });
   it("turns the appliance's refusal codes into messages, and anything else into one message", () => {
     const t = TEXT.nl;
