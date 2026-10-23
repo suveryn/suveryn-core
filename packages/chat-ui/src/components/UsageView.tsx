@@ -8,6 +8,7 @@
  * never stores or returns text. Informational: nothing limits anyone.
  */
 import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
+import { AdminBackups } from "./AdminBackups";
 import { AdminCases } from "./AdminCases";
 import { AdminPlaybooks } from "./AdminPlaybooks";
 import { useCallback, useEffect, useState } from "react";
@@ -167,7 +168,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
 }
 
 /** Administrators: the office's usage, per user, with the notional cloud cost and its rates. */
-export type AdminTab = "usage" | "cases" | "playbooks";
+export type AdminTab = "usage" | "cases" | "playbooks" | "backups";
 
 export function AdminView({ onBack, initialTab = "usage" }: { onBack: () => void; initialTab?: AdminTab }) {
   const m = useT();
@@ -183,8 +184,10 @@ export function AdminView({ onBack, initialTab = "usage" }: { onBack: () => void
                 onPress={() => setTab("cases")}>{m.adminCases}</Button>
         <Button variant="plain" className={`tab${tab === "playbooks" ? " on" : ""}`} aria-current={tab === "playbooks" ? "page" : undefined}
                 onPress={() => setTab("playbooks")}>{m.adminPlaybooks}</Button>
+        <Button variant="plain" className={`tab${tab === "backups" ? " on" : ""}`} aria-current={tab === "backups" ? "page" : undefined}
+                onPress={() => setTab("backups")}>{m.adminBackups}</Button>
       </nav>
-      {tab === "cases" ? <AdminCases /> : tab === "playbooks" ? <AdminPlaybooks /> : <AdminUsage />}
+      {tab === "cases" ? <AdminCases /> : tab === "playbooks" ? <AdminPlaybooks /> : tab === "backups" ? <AdminBackups /> : <AdminUsage />}
     </section>
   );
 }

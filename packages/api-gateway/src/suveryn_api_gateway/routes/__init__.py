@@ -8,6 +8,7 @@ that isn't there) are in ``common.py``.
 
 from . import (  # noqa: F401 - the modules app.py includes
     avatars,
+    backups,
     cases,
     chat,
     conversations,
