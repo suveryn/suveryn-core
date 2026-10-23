@@ -12,6 +12,7 @@ import { getState, saveBackups, testShare, type BackupsAnswer, type Retention, t
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../recoveryKey";
 import { LOCALES, useLang, useText } from "../i18n";
 import { checkThenSave, StepFooter } from "./common";
+import { sizeLabel } from "../../lib/backups";
 
 type Target = "usb" | "share" | "later";
 type Props = { state: SetupState; onBack: () => void; onDone: (b: BackupsAnswer) => void; headingId: string };
@@ -22,13 +23,9 @@ const RETENTIONS: Retention[] = [14, 30, 90, 365];
  *  so the file already downloaded stays the right one. A reload makes a new key. */
 let session: { key: RecoveryKey; downloaded: boolean; stored: boolean } | null = null;
 
-/** "1 TB", "500 GB": decimal units, as disks are sold. */
+/** "1 TB", "500 GB", in French "2,5 To": decimal units, as disks are sold (lib/backups.ts). */
 export function diskSize(bytes: number, locale: string): string {
-  const units = ["B", "kB", "MB", "GB", "TB"];
-  let v = bytes;
-  let i = 0;
-  while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: v < 10 ? 1 : 0 }).format(v)} ${units[i]}`;
+  return sizeLabel(bytes, locale);
 }
 
 export function Backups({ state, onBack, onDone, headingId }: Props) {
