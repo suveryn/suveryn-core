@@ -15,7 +15,7 @@ before it the case is listed as due (``due``) and its manager or an administrato
 it by one period, reopen it, or mark it ``keep`` (never deleted by the period). Then the
 gateway's sweep (hourly) deletes the case with its documents, index, conversations and log. What
 deletion guarantees is the same as for a document (``Store.delete_document``: unreachable, not
-unrecoverable, until suveryn-tracker#31 decides secure erasure). Stage 4: a conversation in a
+unrecoverable; see the data lifecycle, suveryn-tracker#31). Stage 4: a conversation in a
 case can be shared with the case (``conversations.py``), and the office's two settings, the
 default access and the keep period, are changed by an administrator in the dashboard
 (``case_settings`` table): the environment gives the values the appliance was provisioned with,
