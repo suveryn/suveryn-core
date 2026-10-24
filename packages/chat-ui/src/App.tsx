@@ -388,7 +388,7 @@ function Chat({ me }: { me: Me }) {
           // The archive's card becomes a card per document in it, and one per file left out, saying why.
           const cards: Attachment[] = [
             ...job.jobs.map((j) => attachmentFromJob({ key: nextId(), filename: j.filename, status: "queued", jobId: j.id }, j)),
-            ...job.skipped.map((s): Attachment => ({ key: nextId(), filename: s.name, status: "failed",
+            ...job.skipped.map((s): Attachment => ({ key: nextId(), filename: s.name, status: "failed", notAdded: true,
                                                      error: m.archiveSkipped(job.archive, s.reason) })),
           ];
           setPending((p) => p.flatMap((a) => (a.key === key ? cards : [a])));
@@ -398,7 +398,8 @@ function Chat({ me }: { me: Me }) {
         refreshDocuments();
       } catch (e) {
         if ((e as Error).name === "AbortError") continue;  // cancelled while it was sent: its card is gone
-        setPending((p) => p.map((a) => (a.key === key ? { ...a, status: "failed", error: (e as Error).message } : a)));
+        // Refused on arrival (a full queue, a file sūveryn doesn't read): not added, rather than unreadable.
+        setPending((p) => p.map((a) => (a.key === key ? { ...a, status: "failed", notAdded: true, error: (e as Error).message } : a)));
       } finally {
         uploads.current.delete(key);
       }
