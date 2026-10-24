@@ -151,6 +151,36 @@ def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
         store.close()
 
 
+def test_best_chunks_time_grows_with_the_chunks_not_their_square():
+    """A whole case of 6,500 passages waited 6 minutes for its passages (VM check of 471d868): each chunk
+    was looked up in the rankings by a subquery, about 13 s for these 1,200 chunks; a join instead was as
+    slow while the statistics were stale. One scan with window functions takes well under a second.
+    The bound here is loose, for slow test machines."""
+    import time
+
+    store = Store(URL, DIM)
+    rng = np.random.default_rng(7)
+    docs = []
+    try:
+        for d in range(3):
+            n = 400
+            vecs = rng.standard_normal((n, DIM)).astype(np.float32)
+            vecs /= np.linalg.norm(vecs, axis=1, keepdims=True)
+            chunks = [Chunk(i, f"kapitaal verhoging artikel {i} van akte {d} " + "tekst " * 20, "", i // 3 + 1, i // 3 + 1, [])
+                      for i in range(n)]
+            docs.append(store.add_document(f"akte-{d}.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", n // 3 + 1, 0,
+                                           chunks, vecs))
+        started = time.monotonic()
+        best = store.best_chunks(unit(0), "kapitaal verhoging", docs, max_chars=48_000, max_chunks=99, min_chunks=6)
+        assert time.monotonic() - started < 5
+        assert 6 <= len(best) <= 99 and sum(len(c.text) for c in best) <= 48_000
+        assert [docs.index(c.document_id) for c in best] == sorted(docs.index(c.document_id) for c in best)  # reading order
+    finally:
+        for d in docs:
+            store.delete_document(d)
+        store.close()
+
+
 def test_reading_again_replaces_a_document_in_place():
     store = Store(URL, DIM)
     recovered = [Chunk(i, f"garbled {i}", f"garbled {i}", i + 1, i + 1, [], "text_layer_recovered") for i in range(3)]
@@ -238,4 +268,22 @@ def test_a_saved_answer_keeps_its_content_and_loses_a_deleted_sources_passages()
         assert cleaned["answer"] == content["answer"]  # the answer stays
     finally:
         store.delete_scope(case)
+        store.close()
+
+
+def test_no_vector_index_is_kept_and_the_list_doesnt_count_chunks():
+    """Database review of 29b339f: an HNSW index nothing used made storing a document a hundred times
+    slower, and the list counted every document's chunks on every load for a number nobody saw."""
+    store = Store(URL, DIM)
+    try:
+        indexes = {r[0] for r in store._conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'chunks'").fetchall()}
+        assert "chunks_embedding_hnsw" not in indexes and "chunks_tsv" in indexes
+        doc = store.add_document("akte.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 1, 0,
+                                 [Chunk(0, "de koopprijs", "", 1, 1, [])], np.stack([unit(0)]))
+        try:
+            listed = [d for d in store.list_documents(Scope.personal(None)) if d["id"] == doc]
+            assert listed and "chunks" not in listed[0]
+        finally:
+            store.delete_document(doc)
+    finally:
         store.close()

@@ -69,7 +69,6 @@ export type StoredDocument = {
   status: "ok" | "needs_review";
   warnings: Warning[];
   created_at: string;
-  chunks: number;
   origin?: "uploaded" | "generated" | "playbook" | "answer"; // only uploaded documents are sources for answers (suveryn-tracker#10)
   uploaded_by?: string | null;
   source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)

@@ -4,7 +4,7 @@ import type { Turn } from "../types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./askAbout";
 
 const doc = (id: string, day: number, over: Partial<StoredDocument> = {}): StoredDocument => ({
-  id, filename: `${id}.pdf`, pages: 3, ocr_pages: 0, status: "ok", warnings: [], chunks: 1,
+  id, filename: `${id}.pdf`, pages: 3, ocr_pages: 0, status: "ok", warnings: [],
   created_at: `2026-10-${String(day).padStart(2, "0")}T10:00:00Z`, origin: "uploaded", source: true, ...over,
 });
 const asked = (text: string, extra: object = {}): Turn => ({ id: text, role: "user", text, attachments: [], ...extra });
