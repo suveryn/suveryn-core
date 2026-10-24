@@ -47,7 +47,8 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
     A .zip archive adds each of those files inside it as a document of its own: the answer is then
     ``{"archive": name, "jobs": [job, …], "skipped": [{"name", "reason"}, …]}``, a job per document and
     the entries left out (another kind of file, an archive inside it, encrypted, too large, empty, not
-    what its extension says, or damaged)."""
+    what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty. An archive is
+    one upload against the queue limits, however many documents it holds."""
     docs = docs_or_503(request)
     scope = await scope_of(request, case, "contribute")
     filename = file.filename or "document.pdf"

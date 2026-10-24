@@ -63,7 +63,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         </span>
       )}
       {a.status === "failed" && <>
-        <span className="card-attachment-state" data-tone="warn">{[m.cardFailed, why].filter(Boolean).join(" ")}</span>
+        <span className="card-attachment-state" data-tone="warn">{[a.notAdded ? m.cardNotAdded : m.cardFailed, why].filter(Boolean).join(" ")}</span>
         {onReplace && (
           <span className="card-attachment-actions">
             <FileButton accept={ACCEPTED_FILES} onSelect={onReplace}>

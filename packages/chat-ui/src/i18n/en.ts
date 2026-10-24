@@ -43,11 +43,10 @@ const en = {
   tooManyWaiting: "too many of your documents are waiting to be read; add more once some are ready",
   fileTooLarge: "the file is larger than the server accepts",
   fileNotSupported: "this file can't be added: sūveryn reads PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files, and .zip archives of them",
-  archiveTooMany: (n: number, max: number) => `this archive holds ${n} documents and at most ${max} can wait to be read at once: split it into smaller archives`,
   archiveTooBig: "this archive unpacks to more than the server accepts",
-  archiveNothing: "this archive holds no PDF, Word, Excel, Markdown or CSV file",
+  archiveEmpty: "this archive is empty",
   archiveInvalid: "this isn't a .zip archive sūveryn can open",
-  archiveSkipped: (archive: string, reason: string) => `Not added from ${archive}: ${({
+  archiveSkipped: (archive: string, reason: string) => `From ${archive}: ${({
     unsupported: "sūveryn doesn't read this kind of file",
     archive: "an archive inside the archive isn't opened; add it on its own",
     encrypted: "it is protected by a password",
@@ -637,6 +636,7 @@ const en = {
   cardCheck: (pages: string) => `Usable · check ${pages}`,
   cardCheckNeeded: "Usable · check it",
   cardFailed: "Couldn't be read.",
+  cardNotAdded: "Not added.",
   cardNoticed: "It doesn't count as a source until you choose so.",
   anotherFile: "Another file",
   chooseAnotherFile: (file: string) => `Choose another file instead of ${file}`,

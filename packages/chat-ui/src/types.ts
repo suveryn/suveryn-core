@@ -17,6 +17,7 @@ export type Attachment = {
   reviewPages?: number[]; // with status needs_review: pages where text may be missing
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)
+  notAdded?: boolean; // failed on arrival: refused, or left out of its archive. Nothing went wrong reading it
 };
 
 /** A document chosen under *Ask about* (docs/design/sidebar.md §10). ``removed``: deleted since, its

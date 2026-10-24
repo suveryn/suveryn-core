@@ -4,10 +4,15 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
 
 ## Pipeline
 
-A **.zip** upload is unpacked by the service (`DocumentService.accept_archive`): each PDF, Word, Excel,
-Markdown or CSV file inside becomes an upload of its own, read as below; the rest is listed with a reason.
-Only entries' bytes are copied out, never to a path the archive names, with the entries (1,000) and the bytes
-actually unpacked (300 MB) bounded, so a zip bomb stops at the limit.
+A **.zip** upload (`DocumentService.accept_archive`) becomes a document per PDF, Word, Excel, Markdown or
+CSV file inside it, read as below; the rest is listed with a reason. Every entry is checked on upload (read
+through, nothing written, the entries (1,000) and the bytes actually unpacked (300 MB) bounded, so a zip
+bomb stops at the limit). The archive is then kept, and each entry is unpacked only when its turn comes:
+only its bytes, never to a path the archive names. An archive counts as one upload in the queue limits,
+however many documents it holds.
+
+**The queue takes uploaders in turns** (`FairQueue`): one document from each uploader in turn, each
+uploader's own in the order they came. A colleague's one deed is read next, even behind a data room.
 
 PDFs go through the steps below. **Word (.docx), Excel (.xlsx), Markdown (.md) and CSV** files are read
 directly ([`formats.py`](src/suveryn_rag/formats.py)), in the same sandboxed reader: their text and structure
