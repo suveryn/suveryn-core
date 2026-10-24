@@ -36,6 +36,9 @@ describe("interface languages (suveryn-tracker#8)", () => {
     expect(copyProblems("nl", [["a", "Heeft u dit?"], ["b", "Heb je dit?"], ["c", ""]]).map(([k, w]) => `${k}: ${w}`))
       .toEqual(["b: informal Dutch", "c: empty"]);
     expect(copyProblems("fr", [["a", "Vous avez"], ["b", "Tu as"], ["c", "l'acte"]]).map(([k]) => k)).toEqual(["b"]);
+    // the fixed terms (docs/translations.md): Dutch says "gedeelde map" and "ondersteuning"
+    expect(copyProblems("nl", [["a", "Het adres van de share"], ["b", "Bij support"], ["c", "zoals \\\\server\\share (SMB)"],
+                               ["d", "De gedeelde map"], ["e", "Supportovereenkomst"]]).map(([k]) => k)).toEqual(["a", "b", "e"]);
     expect(copyProblems("en", [["a", "Made by sūveryn."], ["b", "Ask Sūveryn"], ["c", "Done. sūveryn knows"], ["d", "Sūveryn Labs"],
                                ["e", "a — b"], ["f", "suveryn"]]).map(([k]) => k)).toEqual(["b", "c", "e", "f"]);
   });

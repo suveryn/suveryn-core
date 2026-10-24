@@ -14,7 +14,7 @@
  */
 import { ArchiveRestore, Check, CircleAlert, FileKey, FolderSync, HardDrive, Info, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Button, Facts, FilePick, Form, LinkButton, Notice, PasswordField, Progress, RadioCards, readText, SelectField,
+import { Button, Facts, FilePick, Form, InlineNotice, LinkButton, Notice, PasswordField, Progress, RadioCards, readText, SelectField,
          StatusList, TextField, type FieldErrors, type StatusItem } from "../../ui";
 import { getRestore, getState, saveRestore, startRestore, type RestoreProgress, type SetupState, type UsbDisk } from "../api";
 import { LOCALES, useLang, useText, type Text } from "../i18n";
@@ -187,7 +187,7 @@ export function RestoreConfirm({ state, initial, onBack, onStart, headingId }: C
       ]} />
       <div className="setup-stack setup-section">
         <Notice icon={<TriangleAlert size={16} />} tone="warning" title={t.restoreReplacesTitle}>{t.restoreReplacesText}</Notice>
-        {error && <p className="ui-field-error" role="alert">{error}</p>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       </div>
       <div className="setup-footer">
         <Button onPress={() => onBack(null)} isDisabled={starting}>{t.back}</Button>

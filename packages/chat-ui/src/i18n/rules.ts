@@ -2,7 +2,7 @@
  * The copy rules every string table follows, in every language (docs/translations.md), checked by the
  * chat's and the web setup's tests alike, so a new language or a new table gets the same checks:
  * nothing empty, Dutch formal (u, uw), French formal (vous), "sūveryn" in lower case except where it
- * opens a sentence, no em dashes.
+ * opens a sentence, no em dashes, and the fixed terms (docs/translations.md) where a test can see them.
  */
 import type { Lang } from "./languages";
 
@@ -28,6 +28,9 @@ export function copyProblems(lang: Lang, texts: [string, string][]): [string, st
     if (text.includes("—")) out.push([path, "em dash"]);
     if (lang === "nl" && /(^|[^\p{L}])(je|jij|jouw|jullie)(?![\p{L}])/iu.test(text)) out.push([path, "informal Dutch"]);
     if (lang === "fr" && /(^|[^\p{L}])(tu|toi|ton|ta|tes)(?![\p{L}'’])/iu.test(text)) out.push([path, "informal French"]);
+    // Dutch says "gedeelde map" and "ondersteuning" (docs/translations.md); a written address may hold "\\share"
+    if (lang === "nl" && /(?<![\\\p{L}])share(?!\p{L})/iu.test(text)) out.push([path, "\"share\" in Dutch: gedeelde map"]);
+    if (lang === "nl" && /(?<!\p{L})support/iu.test(text)) out.push([path, "\"support\" in Dutch: ondersteuning"]);
     // sūveryn in lower case, capitalised only where it opens a sentence (a label, a line, after . ! ? :);
     // "Sūveryn Labs" is the company's name
     const misspelt = /suveryn/i.test(text.replaceAll("sūveryn", "").replaceAll("Sūveryn", ""));
