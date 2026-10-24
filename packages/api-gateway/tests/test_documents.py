@@ -425,9 +425,12 @@ def test_a_zip_adds_each_document_inside_and_says_what_was_left_out():
         assert body["skipped"] == [{"name": "photo.jpg", "reason": "unsupported"}]
         assert c.get(f"/v1/documents/jobs/{body['jobs'][0]['id']}").json()["status"] == "queued"
         stored = sorted(p.suffix for p in (svc.settings.work_dir / "uploads").iterdir())
-        assert stored == [".docx", ".pdf"]  # the archive itself is gone
+        assert stored == [".zip"]  # kept until its documents are read, each unpacked in its turn
         r = c.post("/v1/documents", files={"file": ("photos.zip", io.BytesIO(zip_of({"a.jpg": b"\xff\xd8"})), "application/zip")})
-        assert r.status_code == 415 and "holds no PDF" in r.json()["detail"]
+        assert r.status_code == 202 and r.json()["jobs"] == []  # nothing to read: each file says why
+        assert r.json()["skipped"] == [{"name": "a.jpg", "reason": "unsupported"}]
+        r = c.post("/v1/documents", files={"file": ("empty.zip", io.BytesIO(zip_of({})), "application/zip")})
+        assert r.status_code == 415 and "empty" in r.json()["detail"]
 
 
 def zip_of(entries: dict) -> bytes:
