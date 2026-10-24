@@ -203,7 +203,7 @@ class ChatService:
             _log_uncited(req, citations, complete, answer, bool(thought))
         if began is not None and ended is None:
             ended = time.monotonic()
-        if finish_reason == "length":  # counts only: how often Thorough thinks past its budget (Pod check of b5f6e9f)
+        if finish_reason == "length":  # counts only: how often Thorough thinks past its budget (Pod check of a318b65)
             log.info("answer stopped at the length limit: thinking=%s reasoning_chars=%d answer_chars=%d",
                      bool(thought), sum(len(x) for x in thought), len(answer))
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,

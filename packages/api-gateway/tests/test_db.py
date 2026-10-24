@@ -1,4 +1,4 @@
-"""The gateway's stores after PostgreSQL drops their connection (Pod check of 7c48279): a restart left every
+"""The gateway's stores after PostgreSQL drops their connection (Pod check of f0ff96c): a restart left every
 store answering "the connection is closed" until the gateway restarted, and /health said ready. Against a real
 PostgreSQL, skipped unless SUVERYN_TEST_DATABASE_URL is set."""
 

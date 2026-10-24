@@ -152,7 +152,7 @@ def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
 
 
 def test_best_chunks_time_grows_with_the_chunks_not_their_square():
-    """A whole case of 6,500 passages waited 6 minutes for its passages (VM check of 471d868): each chunk
+    """A whole case of 6,500 passages waited 6 minutes for its passages (VM check of adccf00): each chunk
     was looked up in the rankings by a subquery, about 13 s for these 1,200 chunks; a join instead was as
     slow while the statistics were stale. One scan with window functions takes well under a second.
     The bound here is loose, for slow test machines."""
@@ -272,7 +272,7 @@ def test_a_saved_answer_keeps_its_content_and_loses_a_deleted_sources_passages()
 
 
 def test_no_vector_index_is_kept_and_the_list_doesnt_count_chunks():
-    """Database review of 29b339f: an HNSW index nothing used made storing a document a hundred times
+    """Database review of 510c87b: an HNSW index nothing used made storing a document a hundred times
     slower, and the list counted every document's chunks on every load for a number nobody saw."""
     store = Store(URL, DIM)
     try:

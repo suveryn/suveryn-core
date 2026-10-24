@@ -311,7 +311,7 @@ export async function streamChat(
   thinking?: { on: boolean; onText: (text: string) => void },  // *Thorough*: think first; the reasoning as it comes
 ): Promise<ChatResponse> {
   // An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence
-  // at about 5,000 (VM check of 471d868: the shareholders' agreement's transfer rules, the FSMA comments).
+  // at about 5,000 (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments).
   const r = await fetch("/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

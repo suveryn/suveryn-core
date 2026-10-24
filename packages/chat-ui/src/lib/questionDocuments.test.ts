@@ -31,7 +31,7 @@ describe("the documents a question reads", () => {
   });
 });
 
-describe("a question refused because a document was deleted meanwhile (Pod check of 547f48e)", () => {
+describe("a question refused because a document was deleted meanwhile (Pod check of cbccd38)", () => {
   const now = [doc("kept", 1), doc("answer", 2, { origin: "generated", source: false })];
   it("about the whole case: asked again with the sources there are now", () => {
     expect(afterDeletion(["kept", "deleted"], 0, now)).toBe("retry");

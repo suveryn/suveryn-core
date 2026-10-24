@@ -53,7 +53,7 @@ export type AssistantTurn = {
   reasoning?: string;
   thoughtSeconds?: number;
   /** The model stopped at its length limit (``finish_reason`` "length"): the answer is cut off, or, after
-   *  thinking, never began (Pod check of b5f6e9f: an empty *Thorough* answer with no word why). */
+   *  thinking, never began (Pod check of a318b65: an empty *Thorough* answer with no word why). */
   truncated?: boolean;
 };
 

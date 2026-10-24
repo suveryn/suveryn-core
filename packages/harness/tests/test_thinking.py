@@ -151,7 +151,7 @@ def test_a_grounded_answer_that_cites_nothing_is_logged_by_counts_only(caplog):
 
 
 def test_every_answer_is_told_to_address_the_person_formally():
-    """Pod check of 7c48279: a plain answer in Dutch said "je" and "jouw"."""
+    """Pod check of f0ff96c: a plain answer in Dutch said "je" and "jouw"."""
     from suveryn_harness.grounding import GROUNDED_INSTRUCTIONS, REGISTER
 
     state: dict = {}
@@ -166,7 +166,7 @@ async def _collect(events):
 
 
 def test_an_answer_stopped_at_the_length_limit_is_logged_by_counts_and_says_so(caplog):
-    """Pod check of b5f6e9f: Thorough thought for three minutes and the answer came back empty, with no word why."""
+    """Pod check of a318b65: Thorough thought for three minutes and the answer came back empty, with no word why."""
     def stopped(request: httpx.Request) -> httpx.Response:
         if request.url.path in ("/models", "/v1/models"):
             return httpx.Response(404 if request.url.path == "/models" else 200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})

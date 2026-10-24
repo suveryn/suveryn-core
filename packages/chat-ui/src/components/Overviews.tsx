@@ -264,7 +264,7 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
       render: (c) => {
         const o = owner(c);
         // A colleague the case's member list doesn't name (not loaded, or no longer a member): their own
-        // initials from the name the conversation carries, never the viewer's (Pod check of d1f1918).
+        // initials from the name the conversation carries, never the viewer's (Pod check of 5e9a539).
         const face = o ? <Avatar name={o.name || o.username} sub={o.user} etag={o.avatar} admin={o.admin} adminLabel={m.administrator} size="small" />
           : mine(c) ? <Avatar name={me.name || me.username} sub={me.sub ?? ""} etag={me.avatar} admin={me.admin} adminLabel={m.administrator} size="small" />
           : <Avatar name={c.owner_name || "?"} sub={c.owner ?? ""} size="small" />;

@@ -205,7 +205,7 @@ def test_save_list_open_and_delete(setup):
 
 
 def test_a_database_that_cant_be_reached_is_a_503_with_a_sentence(setup):
-    """Pod check of 7c48279: a stopped PostgreSQL gave a bare HTTP 500."""
+    """Pod check of f0ff96c: a stopped PostgreSQL gave a bare HTTP 500."""
     import psycopg
 
     c, kc, store = setup
@@ -657,7 +657,7 @@ def test_store_finishes_a_cleaning_a_deletion_left_unfinished(store):
 @needs_db
 def test_the_turn_count_and_cited_documents_are_kept_on_save_and_found_without_the_turns(store):
     """Lists and "which conversations cite this document" no longer open the turns (database review of
-    29b339f): the count and the documents are kept beside them on every save."""
+    510c87b): the count and the documents are kept beside them on every save."""
     cid = uuid.uuid4()
     assert store.save(cid, ALICE, ConversationIn(title="Koopprijs", turns=cited_turns()))
     messages, documents = store._execute("SELECT messages, documents FROM conversations WHERE id = %s", (cid,)).fetchone()

@@ -264,7 +264,7 @@ def test_tokens_are_refreshed_and_revocation_signs_out(client, kc):
 
 
 def test_a_sign_in_service_in_trouble_keeps_the_session_and_says_why(client, kc):
-    """Pod check of 547f48e: with PostgreSQL stopped, Keycloak answers 500, which signed people out."""
+    """Pod check of cbccd38: with PostgreSQL stopped, Keycloak answers 500, which signed people out."""
     kc.expires_in = 10
     sign_in(client, kc)
     kc.down = True
@@ -336,7 +336,7 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     assert service_account["clientRoles"] == {"realm-management": ["view-users", "view-realm"]}  # both read-only (avatars.md)
     # The client has fullScopeAllowed false, so its token carries only roles mapped to its scope: without
     # this mapping the token has no roles and Keycloak's admin API refuses the user list (403; the Pod
-    # check of d1f1918 found it on a fresh install).
+    # check of 5e9a539 found it on a fresh install).
     assert directory["fullScopeAllowed"] is False
     assert realm["clientScopeMappings"] == {"realm-management": [{"client": "suveryn-directory", "roles": ["view-users", "view-realm"]}]}
     # suveryn-tracker#7: the administrator role exists, nobody has it by default, and it reaches the

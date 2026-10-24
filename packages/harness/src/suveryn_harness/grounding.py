@@ -38,7 +38,7 @@ GROUNDED_INSTRUCTIONS = (
     "make files and don't tell the user to copy it. " + "{register}"
 )
 
-# How to address the person: a notary's office writes formally (Pod check of 7c48279: a plain answer
+# How to address the person: a notary's office writes formally (Pod check of f0ff96c: a plain answer
 # in Dutch said "je" and "jouw"). The same sentence for grounded and plain answers.
 REGISTER = ("Answer in the language of the question, concisely. Address the person formally: in Dutch "
             "with \"u\" and \"uw\", never \"je\" or \"jouw\"; in French with \"vous\".")

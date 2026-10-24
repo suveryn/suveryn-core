@@ -5,7 +5,7 @@
 import type { Health } from "../api";
 
 /** True when the stores in PostgreSQL can't reach it: the sign-in service, whose accounts are kept in
- *  the same PostgreSQL, can't sign anyone in then either (Pod check of 547f48e). */
+ *  the same PostgreSQL, can't sign anyone in then either (Pod check of cbccd38). */
 export function databaseDown(h: Health | null): boolean {
   return !!h && [h.history, h.cases].some((s) => s?.status === "failed");
 }
