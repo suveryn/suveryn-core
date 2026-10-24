@@ -23,7 +23,7 @@ import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  cancelJob, deleteDocument, documentConversations, getHealth, getJob, listDocuments, reviewPages, streamChat, uploadDocument,
+  cancelJob, deleteDocument, documentConversations, getHealth, getJob, isArchiveUpload, listDocuments, reviewPages, streamChat, uploadDocument,
   getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
@@ -384,7 +384,17 @@ function Chat({ me }: { me: Me }) {
       try {
         const job = await uploadDocument(file, (fraction) =>
           setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId, abort.signal);
-        setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob({ ...a, jobId: job.id }, job) : a)));
+        if (isArchiveUpload(job)) {
+          // The archive's card becomes a card per document in it, and one per file left out, saying why.
+          const cards: Attachment[] = [
+            ...job.jobs.map((j) => attachmentFromJob({ key: nextId(), filename: j.filename, status: "queued", jobId: j.id }, j)),
+            ...job.skipped.map((s): Attachment => ({ key: nextId(), filename: s.name, status: "failed",
+                                                     error: m.archiveSkipped(job.archive, s.reason) })),
+          ];
+          setPending((p) => p.flatMap((a) => (a.key === key ? cards : [a])));
+        } else {
+          setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob({ ...a, jobId: job.id }, job) : a)));
+        }
         refreshDocuments();
       } catch (e) {
         if ((e as Error).name === "AbortError") continue;  // cancelled while it was sent: its card is gone
