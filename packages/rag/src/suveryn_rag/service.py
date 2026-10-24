@@ -24,6 +24,14 @@ documents; a document elsewhere is answered exactly like a missing one. Job stat
 uploader's. De-duplication by content hash is per scope too, so uploading a file someone else
 stored in their own space creates your own copy instead of handing you theirs.
 
+Archives: a .zip upload (``accept_archive``) becomes one job per PDF, Word, Excel, Markdown or CSV file
+inside it, each read like an upload of its own; what can't be read (another kind of file, an archive
+inside the archive, an encrypted or damaged entry) is listed with a reason. The archive is unpacked
+here, not in the reader: only entries are copied out, by their bytes, never to a path the archive
+names, with the entry count and the bytes actually unpacked bounded (a zip bomb stops at the limit),
+and each entry then goes to the sandboxed reader like any upload. The archive itself is deleted as
+soon as it is unpacked.
+
 Database connections are reopened once after a connection error (e.g. PostgreSQL restarted); if
 that fails too, ``SearchUnavailable`` is raised, which the gateway reports as 503.
 """
@@ -34,10 +42,12 @@ import shutil
 import threading
 import time
 import uuid
+import zipfile
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from queue import Queue
 from typing import BinaryIO
+from zlib import error as zlib_error
 
 from suveryn_harness import Citation
 
@@ -62,7 +72,13 @@ JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten aft
 
 
 # What an upload may be (formats.py); said when anything else is uploaded.
-ACCEPTED = "PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files"
+ACCEPTED = "PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files, or a .zip of them"
+# An archive: at most this many entries listed, and this much unpacked in all (each entry is also held
+# to MAX_UPLOAD_BYTES). Its documents count against the queue limits like separate uploads.
+MAX_ARCHIVE_ENTRIES = 1000
+MAX_ARCHIVE_UNPACKED = 300 * 1024 * 1024
+# Why an entry of an archive wasn't added, for the interface to say in its language.
+SKIP_REASONS = ("unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged")
 LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv": "CSV"}
 
 
@@ -72,6 +88,28 @@ class UploadRejected(ValueError):
     def __init__(self, message: str, status: int):
         super().__init__(message)
         self.status = status
+
+
+@dataclass
+class Archive:
+    """What an uploaded .zip became: a job per document in it, and the entries left out, with a reason
+    (``SKIP_REASONS``). Holds names only, never content."""
+
+    filename: str
+    jobs: list["Job"]
+    skipped: list[dict]
+
+    def public(self) -> dict:
+        return {"archive": self.filename, "jobs": [j.public() for j in self.jobs], "skipped": self.skipped}
+
+
+def is_archive(filename: str | None) -> bool:
+    return Path(filename or "").suffix.lower() == ".zip"
+
+
+def junk(name: PurePosixPath) -> bool:
+    """Entries an archiver adds that nobody chose: macOS's __MACOSX folder and dot files, Windows's Thumbs.db."""
+    return any(part == "__MACOSX" or part.startswith(".") for part in name.parts) or name.name.lower() in ("thumbs.db", "desktop.ini")
 
 
 class DocumentNotFound(LookupError):
@@ -340,6 +378,135 @@ class DocumentService:
             job.status = "queued"
         self._queue.put((job, path))
         return job
+
+    def accept_archive(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Archive:
+        """A .zip upload: each PDF, Word, Excel, Markdown or CSV file inside becomes a job of its own, named
+        after the file (its folders in the archive left out), queued as ``accept_upload`` would; the rest is
+        listed in ``skipped`` with a reason. Raises ``UploadRejected`` when the archive itself can't be used,
+        holds nothing that can be read, or holds more documents than may wait at once; then nothing is added."""
+        name = Path(filename or "archive.zip").name[:200]
+        self._prepare_uploads()
+        archive = self._uploads / f"{uuid.uuid4().hex}.zip"
+        jobs: list[tuple[Job, Path]] = []
+        try:
+            with open(os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+                head = src.read(4)
+                if not head:
+                    raise UploadRejected("the file is empty", 415)
+                if head not in (b"PK\x03\x04", b"PK\x05\x06"):
+                    raise UploadRejected("the file is not a valid ZIP archive", 415)
+                out.write(head)
+                size = len(head)
+                while block := src.read(1 << 20):
+                    size += len(block)
+                    if size > MAX_UPLOAD_BYTES:
+                        raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", 413)
+                    out.write(block)
+            try:
+                with zipfile.ZipFile(archive) as z:
+                    entries = z.infolist()
+                    if len(entries) > MAX_ARCHIVE_ENTRIES:
+                        raise UploadRejected(f"the archive holds more than {MAX_ARCHIVE_ENTRIES} files", 415)
+                    wanted, skipped = self._sort_entries(entries)
+                    if not wanted:
+                        raise UploadRejected(f"the archive holds no {ACCEPTED.split(', or')[0]}", 415)
+                    if len(wanted) > MAX_QUEUED_PER_OWNER:
+                        raise UploadRejected(f"the archive holds {len(wanted)} documents and at most {MAX_QUEUED_PER_OWNER} "
+                                             "can wait to be read at once; split it into smaller archives", 413)
+                    jobs = self._reserve([PurePosixPath(e.filename).name[:200] for e, _ in wanted], owner, case_id)
+                    unpacked = 0
+                    for (entry, kind), job in zip(wanted, [j for j, _ in jobs], strict=True):
+                        path = self._uploads / f"{job.id}{SUFFIX[kind]}"
+                        reason, size = self._unpack(z, entry, kind, path, MAX_ARCHIVE_UNPACKED - unpacked)
+                        unpacked += size
+                        if reason == "limit":
+                            raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413)
+                        if reason:
+                            skipped.append({"name": job.filename, "reason": reason})
+                            self._release(job, path)
+                            continue
+            except zipfile.BadZipFile:
+                raise UploadRejected("the file is not a valid ZIP archive", 415) from None
+        except BaseException:
+            for job, path in jobs:
+                self._release(job, path)
+            raise
+        finally:
+            archive.unlink(missing_ok=True)
+        queued: list[Job] = []
+        for job, path in jobs:
+            if not path.exists():  # skipped while unpacking
+                continue
+            with self._jobs_lock:
+                if job.status == "cancelled":
+                    path.unlink(missing_ok=True)
+                    continue
+                job.status = "queued"
+            self._queue.put((job, path))
+            queued.append(job)
+        skipped.sort(key=lambda s: s["name"].lower())
+        return Archive(filename=name, jobs=queued, skipped=skipped)
+
+    @staticmethod
+    def _sort_entries(entries: list[zipfile.ZipInfo]) -> tuple[list[tuple[zipfile.ZipInfo, str]], list[dict]]:
+        """The entries to read, with their kind, and those left out with a reason; folders and junk are ignored."""
+        wanted, skipped = [], []
+        for e in entries:
+            name = PurePosixPath(e.filename.replace("\\", "/"))
+            if e.is_dir() or not name.name or junk(name):
+                continue
+            kind = kind_of(name.name)
+            reason = ("archive" if is_archive(name.name) else "unsupported" if kind is None
+                      else "encrypted" if e.flag_bits & 0x1 else "too_large" if e.file_size > MAX_UPLOAD_BYTES
+                      else "empty" if e.file_size == 0 else None)
+            if reason:
+                skipped.append({"name": name.name[:200], "reason": reason})
+            else:
+                wanted.append((e, kind))
+        return wanted, skipped
+
+    @staticmethod
+    def _unpack(z: zipfile.ZipFile, entry: zipfile.ZipInfo, kind: str, path: Path, room: int) -> tuple[str | None, int]:
+        """Copy one entry's bytes to ``path``, counting what is actually unpacked (not what the archive says).
+        Returns (reason it can't be used, or None; bytes written). "limit": the archive's total was reached."""
+        size = 0
+        try:
+            with z.open(entry) as src, open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+                head = src.read(8)
+                if not head:
+                    return "empty", 0
+                if not looks_like(kind, head):
+                    return "invalid", 0
+                out.write(head)
+                size = len(head)
+                while block := src.read(1 << 20):
+                    size += len(block)
+                    if size > room:
+                        return "limit", size
+                    if size > MAX_UPLOAD_BYTES:
+                        return "too_large", size
+                    out.write(block)
+        except (zipfile.BadZipFile, EOFError, NotImplementedError, RuntimeError, zlib_error):
+            return "damaged", size  # a bad CRC, a truncated entry, a compression method zipfile doesn't know
+        return None, size
+
+    def _reserve(self, filenames: list[str], owner: str, case_id: uuid.UUID | None) -> list[tuple[Job, Path]]:
+        """Reserve a place in the queue for each file, all or none (see ``accept_upload``)."""
+        jobs = [Job(id=uuid.uuid4().hex, filename=f, owner=owner, case_id=case_id, status="receiving") for f in filenames]
+        with self._jobs_lock:
+            self._prune()
+            waiting = [j for j in self._jobs.values() if j.status in WAITING]
+            mine = sum(j.owner == owner for j in waiting)
+            if len(waiting) + len(jobs) > MAX_QUEUED or mine + len(jobs) > MAX_QUEUED_PER_OWNER:
+                raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
+            for j in jobs:
+                self._jobs[j.id] = j
+        return [(j, self._uploads / f"{j.id}{SUFFIX[kind_of(j.filename)]}") for j in jobs]
+
+    def _release(self, job: Job, path: Path) -> None:
+        path.unlink(missing_ok=True)
+        with self._jobs_lock:
+            self._jobs.pop(job.id, None)
 
     def _prune(self) -> None:
         """Forget jobs that finished more than ``JOB_RETENTION_S`` ago. Call with ``_jobs_lock`` held."""

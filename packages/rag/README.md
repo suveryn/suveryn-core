@@ -4,6 +4,11 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
 
 ## Pipeline
 
+A **.zip** upload is unpacked by the service (`DocumentService.accept_archive`): each PDF, Word, Excel,
+Markdown or CSV file inside becomes an upload of its own, read as below; the rest is listed with a reason.
+Only entries' bytes are copied out, never to a path the archive names, with the entries (1,000) and the bytes
+actually unpacked (300 MB) bounded, so a zip bomb stops at the limit.
+
 PDFs go through the steps below. **Word (.docx), Excel (.xlsx), Markdown (.md) and CSV** files are read
 directly ([`formats.py`](src/suveryn_rag/formats.py)), in the same sandboxed reader: their text and structure
 are in the file, so there is no OCR, layout model or page check. Each passage keeps its place: the section
