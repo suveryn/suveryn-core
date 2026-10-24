@@ -269,3 +269,21 @@ def test_a_saved_answer_keeps_its_content_and_loses_a_deleted_sources_passages()
     finally:
         store.delete_scope(case)
         store.close()
+
+
+def test_no_vector_index_is_kept_and_the_list_doesnt_count_chunks():
+    """Database review of 29b339f: an HNSW index nothing used made storing a document a hundred times
+    slower, and the list counted every document's chunks on every load for a number nobody saw."""
+    store = Store(URL, DIM)
+    try:
+        indexes = {r[0] for r in store._conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'chunks'").fetchall()}
+        assert "chunks_embedding_hnsw" not in indexes and "chunks_tsv" in indexes
+        doc = store.add_document("akte.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 1, 0,
+                                 [Chunk(0, "de koopprijs", "", 1, 1, [])], np.stack([unit(0)]))
+        try:
+            listed = [d for d in store.list_documents(Scope.personal(None)) if d["id"] == doc]
+            assert listed and "chunks" not in listed[0]
+        finally:
+            store.delete_document(doc)
+    finally:
+        store.close()

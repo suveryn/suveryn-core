@@ -69,7 +69,7 @@ class FakeDocuments:
     def documents(self, scope):
         from datetime import datetime
         return [{"id": uuid.UUID(d), "filename": "akte.pdf", "pages": 5, "ocr_pages": 5, "status": "ok",
-                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "chunks": 12, "origin": origin,
+                 "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "origin": origin,
                  "uploaded_by": self.uploaders.get(d, "local-dev"),
                  "source": origin == "uploaded" and (d not in self.noticed or d in self.confirmed),
                  "provenance": ({"noticed": self.noticed[d], **({"confirmed": {"by": self.confirmed[d]}} if d in self.confirmed else {})}
@@ -269,7 +269,7 @@ def test_documents_list_and_delete():
     docs = FakeDocuments()
     with client(docs) as c:
         listing = c.get("/v1/documents").json()
-        assert listing["documents"][0]["id"] == DOC and listing["documents"][0]["chunks"] == 12
+        assert listing["documents"][0]["id"] == DOC and "chunks" not in listing["documents"][0]
         assert c.delete(f"/v1/documents/{DOC}").status_code == 204
         assert c.delete(f"/v1/documents/{uuid.uuid4()}").status_code == 404
         assert c.delete("/v1/documents/not-an-id").status_code == 422

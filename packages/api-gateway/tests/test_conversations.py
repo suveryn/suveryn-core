@@ -652,3 +652,32 @@ def test_store_finishes_a_cleaning_a_deletion_left_unfinished(store):
     assert store.finish_cleanups() >= 1
     assert store.get(cid, ALICE).turns[1]["citations"][0]["removed"] is True
     assert store._execute("SELECT count(*) FROM conversation_cleanups WHERE owner = %s", (ALICE,)).fetchone()[0] == 0
+
+
+@needs_db
+def test_the_turn_count_and_cited_documents_are_kept_on_save_and_found_without_the_turns(store):
+    """Lists and "which conversations cite this document" no longer open the turns (database review of
+    29b339f): the count and the documents are kept beside them on every save."""
+    cid = uuid.uuid4()
+    assert store.save(cid, ALICE, ConversationIn(title="Koopprijs", turns=cited_turns()))
+    messages, documents = store._execute("SELECT messages, documents FROM conversations WHERE id = %s", (cid,)).fetchone()
+    assert messages == 2 and documents == sorted([DOC, OTHER])
+    assert store.summaries(ALICE)[0].messages == 2
+    assert [s.id for s in store.using_document(ALICE, uuid.UUID(DOC))] == [str(cid)]
+    assert store.using_document(BOB, uuid.UUID(DOC)) == []  # someone else's conversation isn't searched
+    assert store.save(cid, ALICE, ConversationIn(title="Koopprijs", turns=cited_turns()[:1]))  # a later save
+    assert store._execute("SELECT messages, documents FROM conversations WHERE id = %s", (cid,)).fetchone() == (1, [DOC])
+    assert store.using_document(ALICE, uuid.UUID(OTHER)) == []
+
+
+@needs_db
+def test_conversations_saved_before_the_count_was_kept_get_it_on_start(store):
+    cid = uuid.uuid4()
+    assert store.save(cid, ALICE, ConversationIn(title="Koopprijs", turns=cited_turns()))
+    store._execute("UPDATE conversations SET messages = NULL, documents = NULL WHERE id = %s", (cid,))  # as an older version left it
+    again = ConversationStore(ConversationSettings(database_url=URL))  # the gateway starting
+    try:
+        assert again._execute("SELECT messages, documents FROM conversations WHERE id = %s", (cid,)).fetchone() == (2, sorted([DOC, OTHER]))
+        assert again.fill_in() == 0  # nothing left to do on the next start
+    finally:
+        again.close()
