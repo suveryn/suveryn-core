@@ -302,6 +302,7 @@ top right to remove:
 | Ready | A check, the page count |
 | Usable with a warning | An ink triangle, the pages to check |
 | Failed | An ink cross, the reason in words, and one button *Another file* (aria-label "Choose another file") |
+| Not added | Refused on arrival (a full queue, a kind of file sūveryn doesn't read) or left out of a .zip: "Not added." and the reason, never "Couldn't be read", since nothing went wrong reading it. A .zip's card becomes a card per document in it, and one per file left out ("From Prospectus.zip: it is empty."), and the same *Another file* button |
 | sūveryn's own output | Section 6 |
 
 Asking is allowed while a document is still being read. The line beside send says it counts once it

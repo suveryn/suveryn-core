@@ -33,9 +33,9 @@ describe("the files sūveryn reads", () => {
   it("says why a .zip couldn't be added, and why a file in it was left out", async () => {
     const { TABLES_FOR_TESTS: TEXT } = await import("../i18n");
     setLang("nl", false);
-    expect(httpErrorText(413, "the archive holds 25 documents and at most 20 can wait to be read at once; split it")).toMatch(/25 documenten.*hoogstens 20/);
     expect(httpErrorText(413, "the file is larger than 100 MB")).toBe(TEXT.nl.fileTooLarge);
-    expect(httpErrorText(415, "the archive holds no PDF, Word ...")).toBe(TEXT.nl.archiveNothing);
+    expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.archiveEmpty);
+    expect(httpErrorText(413, "the archive unpacks to more than 300 MB")).toBe(TEXT.nl.archiveTooBig);
     expect(httpErrorText(415, "the file is not a valid ZIP archive")).toBe(TEXT.nl.archiveInvalid);
     expect(httpErrorText(429, "too many documents are waiting to be read; try again when some are done")).toBe(TEXT.nl.tooManyWaiting);
     expect(httpErrorText(429, "slow down", "30")).toMatch(/30 seconden/);

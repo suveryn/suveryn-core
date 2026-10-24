@@ -34,11 +34,10 @@ const nl: Messages = {
   tooManyWaiting: "er wachten te veel van uw documenten om gelezen te worden; voeg er meer toe zodra er enkele klaar zijn",
   fileTooLarge: "het bestand is groter dan de server aanvaardt",
   fileNotSupported: "dit bestand kan niet worden toegevoegd: sūveryn leest pdf, Word (.docx), Excel (.xlsx), Markdown (.md) en CSV, en .zip-archieven daarvan",
-  archiveTooMany: (n, max) => `dit archief bevat ${n} documenten en er kunnen er hoogstens ${max} tegelijk wachten om gelezen te worden: verdeel het over kleinere archieven`,
   archiveTooBig: "dit archief wordt uitgepakt groter dan de server aanvaardt",
-  archiveNothing: "dit archief bevat geen pdf-, Word-, Excel-, Markdown- of CSV-bestand",
+  archiveEmpty: "dit archief is leeg",
   archiveInvalid: "dit is geen .zip-archief dat sūveryn kan openen",
-  archiveSkipped: (archive, reason) => `Niet toegevoegd uit ${archive}: ${({
+  archiveSkipped: (archive, reason) => `Uit ${archive}: ${({
     unsupported: "sūveryn leest dit soort bestand niet",
     archive: "een archief in het archief wordt niet geopend; voeg het apart toe",
     encrypted: "het is beveiligd met een wachtwoord",
@@ -610,6 +609,7 @@ const nl: Messages = {
   cardCheck: (pages) => `Bruikbaar · controleer ${pages}`,
   cardCheckNeeded: "Bruikbaar · controleer het",
   cardFailed: "Kon niet worden gelezen.",
+  cardNotAdded: "Niet toegevoegd.",
   cardNoticed: "Het telt pas als bron als u daarvoor kiest.",
   anotherFile: "Ander bestand",
   chooseAnotherFile: (file) => `Een ander bestand kiezen in plaats van ${file}`,

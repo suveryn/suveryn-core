@@ -3,7 +3,8 @@
 Why a queue with a single worker: ingestion uses the GPU heavily and redirects the process-wide
 TMPDIR (see ``workspace``), and the benchmark showed heavy jobs must be queued, not run side by
 side. Uploads are accepted immediately and processed one at a time in a background thread; the
-client polls the job.
+client polls the job. The queue takes uploaders in turns (``FairQueue``): someone who adds a data
+room of sixty files doesn't make a colleague's one deed wait behind all sixty; it is read next.
 
 Two ``Rag`` instances share one embedding model: one owned by the worker (with a PDF reader
 process that runs Docling and the OCR, see ``isolation``), one for search and listing (no reader),
@@ -26,11 +27,19 @@ stored in their own space creates your own copy instead of handing you theirs.
 
 Archives: a .zip upload (``accept_archive``) becomes one job per PDF, Word, Excel, Markdown or CSV file
 inside it, each read like an upload of its own; what can't be read (another kind of file, an archive
-inside the archive, an encrypted or damaged entry) is listed with a reason. The archive is unpacked
-here, not in the reader: only entries are copied out, by their bytes, never to a path the archive
-names, with the entry count and the bytes actually unpacked bounded (a zip bomb stops at the limit),
-and each entry then goes to the sandboxed reader like any upload. The archive itself is deleted as
-soon as it is unpacked.
+inside the archive, an encrypted, too large, empty or damaged entry) is listed with a reason.
+
+- **Checked at once, unpacked one by one.** On upload every entry is read through once, writing
+  nothing, to check it and count the bytes it really unpacks to (a zip bomb stops at the limit). The
+  archive is then kept, private, and each entry is unpacked only when its turn comes, just before
+  the reader reads it; the archive is deleted once its last document is read or cancelled. So a
+  data room waiting to be read takes the archive's space on disk, never all its files unpacked.
+- **One upload in the limits.** An archive counts as one upload against the queue limits (20 waiting
+  per user, 200 in all), however many documents it holds (at most ``MAX_ARCHIVE_ENTRIES`` entries).
+  The limits are about disk and fairness; unpacking late and taking turns already cover both.
+- **Unpacked here, not in the reader:** only entries' bytes are copied out, never to a path the
+  archive names, and each entry then goes to the sandboxed reader like any upload. Unpacking needs
+  nothing beyond zlib.
 
 Database connections are reopened once after a connection error (e.g. PostgreSQL restarted); if
 that fails too, ``SearchUnavailable`` is raised, which the gateway reports as 503.
@@ -41,11 +50,12 @@ import os
 import shutil
 import threading
 import time
+import unicodedata
 import uuid
 import zipfile
+from collections import OrderedDict, deque
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
-from queue import Queue
 from typing import BinaryIO
 from zlib import error as zlib_error
 
@@ -59,15 +69,17 @@ from .store import Scope
 log = logging.getLogger("suveryn.rag")
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # a 300 dpi 60-page scan is ~60 MB
-# Documents waiting or being read, per user and in all: one user can't hold up everyone's documents or
-# fill the disk with uploads (security review 2026-10-11). An upload over either is refused with 429.
+# Uploads waiting or being read, per user and in all, so no one fills the disk with uploads (security
+# review 2026-10-11). An upload over either is refused with 429. An archive is one upload, however many
+# documents it holds: it waits as one file, unpacked one entry at a time. Nobody's documents wait behind
+# someone else's many: the queue takes uploaders in turns (FairQueue).
 MAX_QUEUED_PER_OWNER = 20
 MAX_QUEUED = 200
 # While the database is unreachable the worker waits and tries again, longest wait last; the
 # document waits too, and is read once the database is back (at most MAX_DB_RETRIES times).
 RECONNECT_DELAYS_S = (1, 2, 5, 10, 30)
 MAX_DB_RETRIES = 3
-WAITING = ("receiving", "queued", "processing")  # counted against the queue limits
+WAITING = ("receiving", "queued", "processing")  # counted against the queue limits, an archive as one upload
 JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten after an hour
 
 
@@ -101,6 +113,79 @@ class Archive:
 
     def public(self) -> dict:
         return {"archive": self.filename, "jobs": [j.public() for j in self.jobs], "skipped": self.skipped}
+
+
+@dataclass
+class _ArchiveFile:
+    """An uploaded archive, kept private until the last of its documents has been unpacked or cancelled."""
+
+    path: Path
+    remaining: int
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def done_with_one(self) -> None:
+        with self.lock:
+            self.remaining -= 1
+            if self.remaining <= 0:
+                self.path.unlink(missing_ok=True)
+
+
+@dataclass
+class _Entry:
+    """A document still inside its archive: unpacked when its turn comes (``DocumentService._unpack_entry``)."""
+
+    archive: _ArchiveFile
+    name: str        # the entry's name in the archive, as the archive spells it
+    kind: str
+    released: bool = False
+
+    def release(self) -> None:
+        """This document no longer needs the archive (unpacked, or cancelled). Once per entry."""
+        if not self.released:
+            self.released = True
+            self.archive.done_with_one()
+
+
+Source = Path | _Entry  # what a queued job reads: an upload on disk, or an entry still in its archive
+
+
+class FairQueue:
+    """The documents waiting to be read, taken in turns per uploader: the next document comes from the
+    uploader who has waited longest for a turn, and each uploader's own documents in the order they
+    came. A colleague's one deed is read next, not after someone else's data room."""
+
+    def __init__(self):
+        self._by_owner: OrderedDict[str, deque] = OrderedDict()
+        self._ready = threading.Condition()
+
+    def put(self, item: tuple["Job", Source], first: bool = False) -> None:
+        """Queue ``(job, source)``; ``first``: at the front of its uploader's documents (a retry)."""
+        with self._ready:
+            q = self._by_owner.setdefault(item[0].owner, deque())
+            q.appendleft(item) if first else q.append(item)
+            self._ready.notify()
+
+    def get(self) -> tuple["Job", Source]:
+        """The next document, waiting until there is one."""
+        with self._ready:
+            while not self._by_owner:
+                self._ready.wait()
+            owner, q = next(iter(self._by_owner.items()))
+            item = q.popleft()
+            del self._by_owner[owner]
+            if q:
+                self._by_owner[owner] = q  # to the back of the turn
+            return item
+
+    def __len__(self) -> int:
+        with self._ready:
+            return sum(len(q) for q in self._by_owner.values())
+
+
+def clean_name(name: str) -> str:
+    """A file name as stored and shown: its last part, in one Unicode form (NFC). A Mac writes "è" as
+    "e" plus an accent (NFD); stored as it came, it wouldn't match the same name typed elsewhere."""
+    return unicodedata.normalize("NFC", PurePosixPath(name.replace("\\", "/")).name)[:200]
 
 
 def is_archive(filename: str | None) -> bool:
@@ -145,6 +230,8 @@ class Job:
     error_code: str | None = None     # why it failed, for the interface to say in its language (reading.CODES)
     error_detail: dict = field(default_factory=dict)  # the numbers that message needs (pages, max, minutes)
     cancel_requested: bool = False    # the person cancelled it while it was read; the worker stops it
+    archive: str | None = None        # the .zip it came from, by name, for the interface
+    upload: str | None = None         # the upload it belongs to, for the queue limits (an archive's id)
 
     finished_at: float | None = None
 
@@ -154,6 +241,7 @@ class Job:
         out.pop("owner")
         out.pop("db_retries")
         out.pop("cancel_requested")
+        out.pop("upload")
         out["case_id"] = str(self.case_id) if self.case_id else None
         return out
 
@@ -171,7 +259,7 @@ class DocumentService:
         self._state = "starting"  # starting | ready | failed
         self.error: str | None = None
         self._worker: threading.Thread | None = None
-        self._queue: Queue[tuple[Job, Path]] = Queue()
+        self._queue = FairQueue()
         self._jobs: dict[str, Job] = {}
         self._jobs_lock = threading.Lock()
         self._search_lock = threading.Lock()
@@ -221,21 +309,31 @@ class DocumentService:
         loop: a document that fails is marked failed, and an unreachable database is waited for
         (suveryn-core review 2026-10-13: a failed reconnect used to end the worker silently)."""
         while True:
-            job, path = self._queue.get()
+            job, source = self._queue.get()
             if job.status == "cancelled":  # cancelled while it waited: never read
-                self._discard(path)
+                self._discard(self._path_for(job, source), source)
                 continue
             try:
-                self._process(job, path)
+                self._process(job, source)
             except Exception as e:  # noqa: BLE001 - last resort: the worker must outlive any one document
                 log.error("document worker: unexpected %s", type(e).__name__)
                 job.status, job.error, job.finished_at = "failed", type(e).__name__, time.time()
-                self._discard(path)
+                self._discard(self._path_for(job, source), source)
 
-    def _process(self, job: Job, path: Path) -> None:
+    def _path_for(self, job: Job, source: Source) -> Path:
+        """Where the job's file is (or will be, for an entry still in its archive)."""
+        return source if isinstance(source, Path) else self._uploads / f"{job.id}{SUFFIX[source.kind]}"
+
+    def _process(self, job: Job, source: Source) -> None:
         job.status = "processing"
         watch = Watch(report=lambda p: setattr(job, "progress", p), cancelled=lambda: job.cancel_requested)
+        path = self._path_for(job, source)
         try:
+            if isinstance(source, _Entry):
+                try:
+                    self._unpack_entry(source, path)
+                finally:
+                    source.release()
             staged = self._stage(job, path)
             r = self._ingest.ingest(staged, filename=job.filename, owner=job.owner, case_id=job.case_id,  # the file on disk has a random name
                                     watch=watch)
@@ -252,7 +350,7 @@ class DocumentService:
                 self._unstage(path)  # the next try stages it again (O_EXCL): Pod check of 547f48e
                 self._wait_for_database()
                 job.status = "queued"
-                self._queue.put((job, path))
+                self._queue.put((job, path), first=True)  # unpacked now: read from the file
                 return
             # A reason sūveryn knows is its own sentence; anything else names the exception (for the log).
             if not isinstance(e, Unreadable):  # the type only: the message may name the file
@@ -262,11 +360,29 @@ class DocumentService:
             job.error_detail = e.detail if isinstance(e, Unreadable) else {}
         job.progress = None
         job.finished_at = time.time()
-        self._discard(path)
+        self._discard(path, source)
 
-    def _discard(self, path: Path) -> None:
+    def _discard(self, path: Path, source: Source | None = None) -> None:
         path.unlink(missing_ok=True)
         self._unstage(path)
+        if isinstance(source, _Entry):
+            source.release()
+
+    def _unpack_entry(self, entry: _Entry, path: Path) -> None:
+        """Copy one checked entry out of its archive to ``path``, its bytes counted again as they come.
+        Raises ``Unreadable`` if it has changed since it was checked (it can't have, but nothing is assumed)."""
+        try:
+            with zipfile.ZipFile(entry.archive.path) as z, z.open(entry.name) as src, \
+                    open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+                size = 0
+                while block := src.read(1 << 20):
+                    size += len(block)
+                    if size > MAX_UPLOAD_BYTES:
+                        raise Unreadable("the file in the archive is too large", "too_large")
+                    out.write(block)
+        except (OSError, KeyError, zipfile.BadZipFile, EOFError, NotImplementedError, RuntimeError, zlib_error):
+            path.unlink(missing_ok=True)
+            raise Unreadable("the file couldn't be unpacked from its archive", "damaged") from None
 
     def _unstage(self, path: Path) -> None:
         """Remove the reader's copy in the inbox, if any; the private upload stays."""
@@ -340,15 +456,12 @@ class DocumentService:
         if kind is None:
             raise UploadRejected(f"only {ACCEPTED} can be added", 415)
         self._prepare_uploads()
-        job = Job(id=uuid.uuid4().hex, filename=Path(filename or "document.pdf").name[:200], owner=owner,
+        job = Job(id=uuid.uuid4().hex, filename=clean_name(filename or "document.pdf"), owner=owner,
                   case_id=case_id, status="receiving")
         # Check and reserve in one step, before the file is copied: simultaneous uploads can't all pass
         # the same check (suveryn-core review 2026-10-13). The reservation counts as waiting.
         with self._jobs_lock:
-            self._prune()
-            waiting = [j for j in self._jobs.values() if j.status in WAITING]
-            if len(waiting) >= MAX_QUEUED or sum(j.owner == owner for j in waiting) >= MAX_QUEUED_PER_OWNER:
-                raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
+            self._check_room(owner)
             self._jobs[job.id] = job
         path = self._uploads / f"{job.id}{SUFFIX[kind]}"  # the reader goes by the extension
         size = 0
@@ -379,17 +492,27 @@ class DocumentService:
         self._queue.put((job, path))
         return job
 
+    def _check_room(self, owner: str) -> None:
+        """Refuse a new upload when 20 of the owner's (or 200 in all) wait; an archive counts as one.
+        Call with ``_jobs_lock`` held, and reserve before letting go of it."""
+        self._prune()
+        waiting = {(j.owner, j.upload or j.id) for j in self._jobs.values() if j.status in WAITING}
+        if len(waiting) >= MAX_QUEUED or sum(o == owner for o, _ in waiting) >= MAX_QUEUED_PER_OWNER:
+            raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
+
     def accept_archive(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Archive:
         """A .zip upload: each PDF, Word, Excel, Markdown or CSV file inside becomes a job of its own, named
-        after the file (its folders in the archive left out), queued as ``accept_upload`` would; the rest is
-        listed in ``skipped`` with a reason. Raises ``UploadRejected`` when the archive itself can't be used,
-        holds nothing that can be read, or holds more documents than may wait at once; then nothing is added."""
-        name = Path(filename or "archive.zip").name[:200]
+        after the file (its folders in the archive left out), queued in turn; the rest is listed in
+        ``skipped`` with a reason. Every entry is checked now; each is unpacked only when it is read (see
+        the module's notes). Raises ``UploadRejected`` when the archive itself can't be used, is empty, or
+        no upload may wait now; then nothing is added."""
+        name = clean_name(filename or "archive.zip")
         self._prepare_uploads()
-        archive = self._uploads / f"{uuid.uuid4().hex}.zip"
-        jobs: list[tuple[Job, Path]] = []
+        upload = uuid.uuid4().hex
+        path = self._uploads / f"{upload}.zip"
+        keep = False
         try:
-            with open(os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+            with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
                 head = src.read(4)
                 if not head:
                     raise UploadRejected("the file is empty", 415)
@@ -403,53 +526,47 @@ class DocumentService:
                         raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", 413)
                     out.write(block)
             try:
-                with zipfile.ZipFile(archive) as z:
+                with zipfile.ZipFile(path) as z:
                     entries = z.infolist()
                     if len(entries) > MAX_ARCHIVE_ENTRIES:
                         raise UploadRejected(f"the archive holds more than {MAX_ARCHIVE_ENTRIES} files", 415)
                     wanted, skipped = self._sort_entries(entries)
-                    if not wanted:
-                        raise UploadRejected(f"the archive holds no {ACCEPTED.split(', or')[0]}", 415)
-                    if len(wanted) > MAX_QUEUED_PER_OWNER:
-                        raise UploadRejected(f"the archive holds {len(wanted)} documents and at most {MAX_QUEUED_PER_OWNER} "
-                                             "can wait to be read at once; split it into smaller archives", 413)
-                    jobs = self._reserve([PurePosixPath(e.filename).name[:200] for e, _ in wanted], owner, case_id)
-                    unpacked = 0
-                    for (entry, kind), job in zip(wanted, [j for j, _ in jobs], strict=True):
-                        path = self._uploads / f"{job.id}{SUFFIX[kind]}"
-                        reason, size = self._unpack(z, entry, kind, path, MAX_ARCHIVE_UNPACKED - unpacked)
+                    if not wanted and not skipped:
+                        raise UploadRejected("the archive is empty", 415)
+                    good, unpacked = [], 0
+                    for entry, kind in wanted:
+                        reason, size = self._check_entry(z, entry, kind, MAX_ARCHIVE_UNPACKED - unpacked)
                         unpacked += size
                         if reason == "limit":
                             raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413)
                         if reason:
-                            skipped.append({"name": job.filename, "reason": reason})
-                            self._release(job, path)
-                            continue
+                            skipped.append({"name": clean_name(entry.filename), "reason": reason})
+                        else:
+                            good.append((entry, kind))
             except zipfile.BadZipFile:
                 raise UploadRejected("the file is not a valid ZIP archive", 415) from None
-        except BaseException:
-            for job, path in jobs:
-                self._release(job, path)
-            raise
-        finally:
-            archive.unlink(missing_ok=True)
-        queued: list[Job] = []
-        for job, path in jobs:
-            if not path.exists():  # skipped while unpacking
-                continue
+            skipped.sort(key=lambda e: e["name"].lower())
+            if not good:  # nothing to read: say why for each file, and keep nothing
+                return Archive(filename=name, jobs=[], skipped=skipped)
+            kept = _ArchiveFile(path=path, remaining=len(good))
+            jobs = [(Job(id=uuid.uuid4().hex, filename=clean_name(e.filename), owner=owner, case_id=case_id,
+                         status="queued", archive=name, upload=upload), _Entry(kept, e.filename, kind)) for e, kind in good]
             with self._jobs_lock:
-                if job.status == "cancelled":
-                    path.unlink(missing_ok=True)
-                    continue
-                job.status = "queued"
-            self._queue.put((job, path))
-            queued.append(job)
-        skipped.sort(key=lambda s: s["name"].lower())
-        return Archive(filename=name, jobs=queued, skipped=skipped)
+                self._check_room(owner)
+                for job, _ in jobs:
+                    self._jobs[job.id] = job
+            keep = True
+        finally:
+            if not keep:
+                path.unlink(missing_ok=True)
+        for item in jobs:
+            self._queue.put(item)
+        return Archive(filename=name, jobs=[j for j, _ in jobs], skipped=skipped)
 
     @staticmethod
     def _sort_entries(entries: list[zipfile.ZipInfo]) -> tuple[list[tuple[zipfile.ZipInfo, str]], list[dict]]:
-        """The entries to read, with their kind, and those left out with a reason; folders and junk are ignored."""
+        """The entries to read, with their kind, and those left out with a reason; folders and junk are ignored.
+        An entry larger than an upload by what the archive says is left out unread ("too_large")."""
         wanted, skipped = [], []
         for e in entries:
             name = PurePosixPath(e.filename.replace("\\", "/"))
@@ -460,24 +577,24 @@ class DocumentService:
                       else "encrypted" if e.flag_bits & 0x1 else "too_large" if e.file_size > MAX_UPLOAD_BYTES
                       else "empty" if e.file_size == 0 else None)
             if reason:
-                skipped.append({"name": name.name[:200], "reason": reason})
+                skipped.append({"name": clean_name(e.filename), "reason": reason})
             else:
                 wanted.append((e, kind))
         return wanted, skipped
 
     @staticmethod
-    def _unpack(z: zipfile.ZipFile, entry: zipfile.ZipInfo, kind: str, path: Path, room: int) -> tuple[str | None, int]:
-        """Copy one entry's bytes to ``path``, counting what is actually unpacked (not what the archive says).
-        Returns (reason it can't be used, or None; bytes written). "limit": the archive's total was reached."""
+    def _check_entry(z: zipfile.ZipFile, entry: zipfile.ZipInfo, kind: str, room: int) -> tuple[str | None, int]:
+        """Read one entry through, writing nothing: whether its first bytes fit its kind, its checksum holds,
+        and how many bytes it really unpacks to (not what the archive says). Returns (the reason it can't be
+        used, or None; bytes read). "limit": the archive's total would pass ``room``."""
         size = 0
         try:
-            with z.open(entry) as src, open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+            with z.open(entry) as src:
                 head = src.read(8)
                 if not head:
                     return "empty", 0
                 if not looks_like(kind, head):
                     return "invalid", 0
-                out.write(head)
                 size = len(head)
                 while block := src.read(1 << 20):
                     size += len(block)
@@ -485,28 +602,9 @@ class DocumentService:
                         return "limit", size
                     if size > MAX_UPLOAD_BYTES:
                         return "too_large", size
-                    out.write(block)
         except (zipfile.BadZipFile, EOFError, NotImplementedError, RuntimeError, zlib_error):
             return "damaged", size  # a bad CRC, a truncated entry, a compression method zipfile doesn't know
         return None, size
-
-    def _reserve(self, filenames: list[str], owner: str, case_id: uuid.UUID | None) -> list[tuple[Job, Path]]:
-        """Reserve a place in the queue for each file, all or none (see ``accept_upload``)."""
-        jobs = [Job(id=uuid.uuid4().hex, filename=f, owner=owner, case_id=case_id, status="receiving") for f in filenames]
-        with self._jobs_lock:
-            self._prune()
-            waiting = [j for j in self._jobs.values() if j.status in WAITING]
-            mine = sum(j.owner == owner for j in waiting)
-            if len(waiting) + len(jobs) > MAX_QUEUED or mine + len(jobs) > MAX_QUEUED_PER_OWNER:
-                raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
-            for j in jobs:
-                self._jobs[j.id] = j
-        return [(j, self._uploads / f"{j.id}{SUFFIX[kind_of(j.filename)]}") for j in jobs]
-
-    def _release(self, job: Job, path: Path) -> None:
-        path.unlink(missing_ok=True)
-        with self._jobs_lock:
-            self._jobs.pop(job.id, None)
 
     def _prune(self) -> None:
         """Forget jobs that finished more than ``JOB_RETENTION_S`` ago. Call with ``_jobs_lock`` held."""

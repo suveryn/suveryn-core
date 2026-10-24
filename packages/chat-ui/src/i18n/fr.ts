@@ -34,11 +34,10 @@ const fr: Messages = {
   tooManyWaiting: "trop de vos documents attendent d'être lus ; ajoutez-en d'autres dès que certains sont prêts",
   fileTooLarge: "le fichier dépasse la taille acceptée par le serveur",
   fileNotSupported: "ce fichier ne peut pas être ajouté : sūveryn lit les fichiers PDF, Word (.docx), Excel (.xlsx), Markdown (.md) et CSV, et les archives .zip de ces fichiers",
-  archiveTooMany: (n, max) => `cette archive contient ${n} documents et ${max} au plus peuvent attendre d'être lus en même temps : répartissez-la en archives plus petites`,
   archiveTooBig: "une fois décompressée, cette archive dépasse la taille acceptée par le serveur",
-  archiveNothing: "cette archive ne contient aucun fichier PDF, Word, Excel, Markdown ou CSV",
+  archiveEmpty: "cette archive est vide",
   archiveInvalid: "ce n'est pas une archive .zip que sūveryn peut ouvrir",
-  archiveSkipped: (archive, reason) => `Non ajouté depuis ${archive} : ${({
+  archiveSkipped: (archive, reason) => `Depuis ${archive} : ${({
     unsupported: "sūveryn ne lit pas ce type de fichier",
     archive: "une archive dans l'archive n'est pas ouverte ; ajoutez-la séparément",
     encrypted: "il est protégé par un mot de passe",
@@ -610,6 +609,7 @@ const fr: Messages = {
   cardCheck: (pages) => `Utilisable · vérifiez ${pages}`,
   cardCheckNeeded: "Utilisable · à vérifier",
   cardFailed: "N'a pas pu être lu.",
+  cardNotAdded: "Non ajouté.",
   cardNoticed: "Il ne compte comme source que si vous le choisissez.",
   anotherFile: "Autre fichier",
   chooseAnotherFile: (file) => `Choisir un autre fichier à la place de ${file}`,
