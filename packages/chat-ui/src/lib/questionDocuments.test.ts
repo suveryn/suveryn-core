@@ -3,7 +3,7 @@ import type { StoredDocument } from "../api";
 import { afterDeletion, MAX_DOCUMENTS, questionDocuments } from "./questionDocuments";
 
 const doc = (id: string, day: number, over: Partial<StoredDocument> = {}): StoredDocument => ({
-  id, filename: `${id}.pdf`, pages: 1, ocr_pages: 0, status: "ok", warnings: [], chunks: 1,
+  id, filename: `${id}.pdf`, pages: 1, ocr_pages: 0, status: "ok", warnings: [],
   created_at: `2026-10-${String(day).padStart(2, "0")}T10:00:00Z`, origin: "uploaded", source: true, ...over,
 });
 

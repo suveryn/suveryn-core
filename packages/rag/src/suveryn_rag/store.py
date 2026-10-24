@@ -4,7 +4,7 @@ PostgreSQL itself is provisioned outside suveryn-core (suveryn-appliance); this 
 connects to it and creates or upgrades its own tables.
 
 Retrieval combines two rankings with Reciprocal Rank Fusion:
-- vector similarity (bge-m3 embeddings, HNSW index), good at meaning and paraphrase;
+- vector similarity (bge-m3 embeddings, compared exactly: no vector index), good at meaning and paraphrase;
 - keyword match (PostgreSQL full-text, 'simple' configuration so Dutch, French and English
   words and numbers are matched as written), good at exact terms such as "huurachterstand",
   "vierde rang" or "1563" that the vector ranking can bury under boilerplate.
@@ -87,7 +87,10 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
 -- A spreadsheet passage's cells, e.g. 'Prices!A2:D31' (formats.py); NULL for everything else.
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS place text;
 CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
-CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops);
+-- No vector index: answers rank every chunk of the documents exactly (``best_chunks``), and keeping an
+-- HNSW index up to date made storing a document some hundred times slower (2,500 chunks: 51 s against
+-- 0.4 s). Dropped where an earlier version made it.
+DROP INDEX IF EXISTS chunks_embedding_hnsw;
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 """
 
@@ -254,14 +257,15 @@ class Store:
 
     def list_documents(self, scope: Scope) -> list[dict]:
         """The scope's documents, newest first: id, file name, pages, OCR'd pages, status, warnings,
-        chunks, created, origin, who uploaded it."""
+        created, origin, who uploaded it. Not the number of chunks: nothing showed it, and counting them
+        on every listing (polled while uploads are read) cost 0.4 s for 1,000 documents."""
         where, params = scope.where("d")
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
-            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner, d.provenance,"
+            "       d.origin, d.owner, d.provenance,"
             f"       ({SOURCE})"
             f"  FROM documents d WHERE {where} ORDER BY d.created_at DESC", params).fetchall()
-        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by",
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "origin", "uploaded_by",
                 "provenance", "source")
         return [dict(zip(keys, r)) for r in rows]
 
@@ -270,11 +274,11 @@ class Store:
         "Documents", docs/design/sidebar.md), newest first, with ``case_id``."""
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
-            "       (SELECT count(*) FROM chunks c WHERE c.document_id = d.id), d.origin, d.owner, d.case_id, d.provenance,"
+            "       d.origin, d.owner, d.case_id, d.provenance,"
             f"       ({SOURCE})"
             "  FROM documents d WHERE (d.case_id IS NULL AND d.owner IS NOT DISTINCT FROM %s) OR d.case_id = ANY(%s)"
             " ORDER BY d.created_at DESC LIMIT 1000", (owner, case_ids)).fetchall()
-        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "chunks", "origin", "uploaded_by", "case_id",
+        keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "origin", "uploaded_by", "case_id",
                 "provenance", "source")
         return [dict(zip(keys, r)) for r in rows]
 
@@ -378,10 +382,8 @@ class Store:
         - The SQL is assembled with f-strings, but only from constants and fixed fragments;
           the question vector, document id, keyword query and k are always bound parameters.
           Keyword terms are ``\\w+`` tokens (``query_terms``), also passed as parameters.
-        - With ``document_id`` set, pgvector's HNSW index filters *after* its approximate
-          search; in a large multi-document database a small document can then return fewer
-          than ``CANDIDATES`` vector hits. The keyword ranking is exact. Revisit (e.g. raise
-          ``hnsw.ef_search`` or use iterative scans) when databases grow.
+        - Both rankings are exact: there is no vector index, so the vector ranking computes every
+          chunk's distance (used by the command line, ``suveryn-retrieve``; answers use ``best_chunks``).
         """
         docs = [document_id] if document_id else (list(document_ids) if document_ids else None)
         scope = "AND c.document_id = ANY(%(docs)s)" if docs else ""
@@ -419,15 +421,14 @@ class Store:
         For documents too large to give whole: instead of a handful of search hits, the model gets
         as much of the documents as the whole-document budget allows, chosen by relevance.
 
-        Every chunk of the documents is ranked exactly (no ``CANDIDATES`` cut-off and no HNSW
-        index, so no post-filtering loss): by vector similarity and by keyword match, fused as in
+        Every chunk of the documents is ranked exactly (no ``CANDIDATES`` cut-off and no vector
+        index, so nothing approximate): by vector similarity and by keyword match, fused as in
         ``search``. Chunks are then taken best first while they fit ``max_chars`` and
         ``max_chunks``; the best ``min_chunks`` are always taken. The result is returned in reading
         order (as ``document_chunks``), with the fused score kept on each chunk.
 
         Review note: the f-string interpolates constants only; query, documents and terms are
-        bound parameters. The ranking never uses the HNSW index (its approximate search would
-        return only ``hnsw.ef_search`` rows): every chunk's distance is computed. Both rankings come
+        bound parameters. Every chunk's distance is computed (there is no vector index). Both rankings come
         from one scan of the documents' chunks (window functions), so the time grows with the number
         of chunks, not with its square, whatever plan PostgreSQL picks.
         """
