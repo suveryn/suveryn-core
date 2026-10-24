@@ -48,6 +48,8 @@ export type Job = {
   error_detail?: Record<string, number>;   // the numbers that needs: pages, max, minutes
   noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
 };
+export const ANSWER_TOKENS = 3000;
+
 /** What a .zip upload became: a job per document inside it, and the files left out with a reason
  *  (suveryn_rag.service.SKIP_REASONS). */
 export type ArchiveUpload = { archive: string; jobs: Job[]; skipped: { name: string; reason: string }[] };
@@ -164,13 +166,11 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
       if (typeof detail === "string" && /documents are waiting/.test(detail)) return m.tooManyWaiting;
       return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
     case 413: {
-      const many = typeof detail === "string" ? /archive holds (\d+) documents and at most (\d+)/.exec(detail) : null;
-      if (many) return m.archiveTooMany(Number(many[1]), Number(many[2]));
       if (typeof detail === "string" && /archive unpacks/.test(detail)) return m.archiveTooBig;
       return typeof detail === "string" && /conversation/i.test(detail) ? m.conversationTooLong : m.fileTooLarge;
     }
     case 415:
-      if (typeof detail === "string" && /archive holds no/.test(detail)) return m.archiveNothing;
+      if (typeof detail === "string" && /archive is empty/.test(detail)) return m.archiveEmpty;
       if (typeof detail === "string" && /not a valid ZIP/.test(detail)) return m.archiveInvalid;
       return m.fileNotSupported;
     case 422: return m.requestRejected;
@@ -311,10 +311,12 @@ export async function streamChat(
   onSources?: (citations: Citation[]) => void,  // a grounded answer's passages, before its first word
   thinking?: { on: boolean; onText: (text: string) => void },  // *Thorough*: think first; the reasoning as it comes
 ): Promise<ChatResponse> {
+  // An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence
+  // at about 5,000 (VM check of 471d868: the shareholders' agreement's transfer rules, the FSMA comments).
   const r = await fetch("/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: 1500, ...(model ? { model } : {}),
+    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: ANSWER_TOKENS, ...(model ? { model } : {}),
                            ...(caseId ? { case_id: caseId } : {}), ...(thinking?.on ? { thinking: true } : {}) }),
     signal,
   });
