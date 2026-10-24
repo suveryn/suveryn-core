@@ -37,22 +37,32 @@ def _document_id(document_id: str) -> uuid.UUID:
 
 @router.post("/v1/documents", status_code=202, responses={
     411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
-    415: {"description": "Not a PDF, Word, Excel, Markdown or CSV file"}, 503: {"description": "Unavailable"}})
+    415: {"description": "Not a PDF, Word, Excel, Markdown, CSV or ZIP file"}, 503: {"description": "Unavailable"}})
 async def upload_document(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
     """Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
     Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
     Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is ``ready`` (or
-    ``needs_review``), then use its ``document_id`` in chat requests."""
+    ``needs_review``), then use its ``document_id`` in chat requests.
+
+    A .zip archive adds each of those files inside it as a document of its own: the answer is then
+    ``{"archive": name, "jobs": [job, …], "skipped": [{"name", "reason"}, …]}``, a job per document and
+    the entries left out (another kind of file, an archive inside it, encrypted, too large, empty, not
+    what its extension says, or damaged)."""
     docs = docs_or_503(request)
     scope = await scope_of(request, case, "contribute")
+    filename = file.filename or "document.pdf"
+    archive = filename.lower().endswith(".zip")
     try:
-        job = await run_in_threadpool(docs.accept_upload, file.file, file.filename or "document.pdf", owner_of(request),
-                                      scope.case_id)
+        if archive:
+            result = await run_in_threadpool(docs.accept_archive, file.file, filename, owner_of(request), scope.case_id)
+        else:
+            result = await run_in_threadpool(docs.accept_upload, file.file, filename, owner_of(request), scope.case_id)
     except UploadRejected as e:
         raise HTTPException(e.status, str(e)) from e
     await touch_case(request, scope)
-    await log_access(request, scope.case_id, "uploaded", {"job": job.id})
-    return job.public()
+    for job in (result.jobs if archive else [result]):
+        await log_access(request, scope.case_id, "uploaded", {"job": job.id})
+    return result.public()
 
 
 @router.get("/v1/documents/jobs/{job_id}")
