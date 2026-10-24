@@ -426,38 +426,46 @@ class Store:
         order (as ``document_chunks``), with the fused score kept on each chunk.
 
         Review note: the f-string interpolates constants only; query, documents and terms are
-        bound parameters. ``+ 0`` in the vector ordering keeps PostgreSQL from using the HNSW
-        index, whose approximate search would return only ``hnsw.ef_search`` rows.
+        bound parameters. The ranking never uses the HNSW index (its approximate search would
+        return only ``hnsw.ef_search`` rows): every chunk's distance is computed. Both rankings come
+        from one scan of the documents' chunks (window functions), so the time grows with the number
+        of chunks, not with its square, whatever plan PostgreSQL picks.
         """
         tsq = self._keyword_query(question, document_ids)
-        keyword = (f"COALESCE(1.0 / ({RRF_K} + (SELECT r FROM kw WHERE kw.id = c.id)), 0)"
-                   if tsq else "0")
-        kw_cte = ("""kw AS (SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
-                              FROM chunks c, to_tsquery('simple', %(tsq)s) q
-                             WHERE c.document_id = ANY(%(docs)s) AND c.tsv @@ q),""" if tsq else "")
-        rows = self._conn.execute(f"""
-            WITH {kw_cte}
-            vec AS (SELECT c.id, row_number() OVER (ORDER BY (c.embedding <=> %(q)s) + 0) AS r
-                      FROM chunks c WHERE c.document_id = ANY(%(docs)s) AND c.text ~ %(min_words)s)
-            SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
-                   COALESCE(1.0 / ({RRF_K} + (SELECT r FROM vec WHERE vec.id = c.id)), 0) + {keyword} AS score,
-                   1 - (c.embedding <=> %(q)s) AS similarity, c.place
-              FROM chunks c JOIN documents d ON d.id = c.document_id
-             WHERE c.document_id = ANY(%(docs)s)
-             ORDER BY score DESC, similarity DESC""",
+        # Both rankings in one pass over the documents' chunks, by window functions: no join for the
+        # planner to get wrong. Looking each chunk up in the rankings by a subquery made this grow with
+        # the square of the chunks, 6 minutes for a case of 6,500 (VM check of 471d868); a join can do
+        # the same when the statistics are stale, as right after an upload. Only the ranking comes back
+        # here, and the text only for the chunks chosen.
+        keyword = "c.tsv @@ to_tsquery('simple', %(tsq)s)" if tsq else "false"
+        rank = "ts_rank_cd(c.tsv, to_tsquery('simple', %(tsq)s))" if tsq else "0"
+        ranked = self._conn.execute(f"""
+            SELECT id, length, distance,
+                   CASE WHEN vector THEN row_number() OVER (PARTITION BY vector ORDER BY distance, id) END,
+                   CASE WHEN keyword THEN row_number() OVER (PARTITION BY keyword ORDER BY rank DESC, id) END
+              FROM (SELECT c.id, length(c.text) AS length, c.embedding <=> %(q)s AS distance,
+                           c.text ~ %(min_words)s AS vector, {keyword} AS keyword, {rank} AS rank
+                      FROM chunks c WHERE c.document_id = ANY(%(docs)s)) AS c""",
             {"q": query, "docs": document_ids, "tsq": tsq, "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
-        chosen, size = [], 0
-        for r in rows:
+        scored = sorted(((cid, length, (1.0 / (RRF_K + vr) if vr else 0.0) + (1.0 / (RRF_K + kr) if kr else 0.0),
+                          1.0 - float(distance)) for cid, length, distance, vr, kr in ranked),
+                        key=lambda r: (-r[2], -r[3]))
+        chosen, size = {}, 0
+        for chunk_id, length, score, similarity in scored:
             if len(chosen) >= max_chunks:
                 break
-            if len(chosen) >= min_chunks and size + len(r[3]) > max_chars:
+            if len(chosen) >= min_chunks and size + length > max_chars:
                 continue  # a smaller, lower-ranked chunk may still fit
-            chosen.append(r)
-            size += len(r[3])
+            chosen[chunk_id] = (float(score), float(similarity))
+            size += length
+        rows = self._conn.execute(
+            "SELECT c.id, c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings,"
+            "       c.origin, c.place"
+            "  FROM chunks c JOIN documents d ON d.id = c.document_id WHERE c.id = ANY(%s)",
+            (list(chosen),)).fetchall()
         order = {d: i for i, d in enumerate(document_ids)}
-        chosen.sort(key=lambda r: (order[r[0]], r[4] if r[4] is not None else 1 << 30, r[2]))
-        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]), r[10])
-                for r in chosen]
+        rows.sort(key=lambda r: (order[r[1]], r[5] if r[5] is not None else 1 << 30, r[3]))
+        return [StoredChunk(r[1], r[2], r[3], r[4], r[5], r[6], list(r[7] or []), r[8], *chosen[r[0]], r[9]) for r in rows]
 
     def document_chunks(self, document_ids: list[uuid.UUID], max_chars: int, max_chunks: int) -> list[StoredChunk] | None:
         """Every chunk of the documents in reading order, or None if they are larger than the limits.
