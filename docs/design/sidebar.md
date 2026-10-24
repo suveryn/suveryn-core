@@ -407,7 +407,7 @@ playbook is never covered.
 
 ## 9. What to build first
 
-1. ~~**Source or Made**, with the upload mark (section 6).~~ Built (phase a, d9e0df2).
+1. ~~**Source or Made**, with the upload mark (section 6).~~ Built (phase a, a71b5ae).
 2. ~~***Stop***.~~ Built (phase b).
 3. ~~***Save to case***, with its API change.~~ Built (phase c).
 4. ***Ask about*** (section 10), and drop the server's guess. Then measure the reading budget.
@@ -478,7 +478,7 @@ narrow screen's pill): *Ask about: all documents* ▾.
 **Server.**
 
 - The server's guess was measured and dropped (see "Resolved while building", after the Pod check
-  of 705b91d): with nothing chosen, a question reads the case's sources.
+  of 470b9da): with nothing chosen, a question reads the case's sources.
 - A question carries the chosen document ids, as an attachment does today; the server reads exactly
   those.
 - The choice is saved with each question in the conversation's history, as its attachments are now,
@@ -649,7 +649,7 @@ here.
 
 ## Resolved while building
 
-- **Phase a, Source or Made (19 October, d9e0df2).**
+- **Phase a, Source or Made (19 October, a71b5ae).**
   - Stored origins stay in English: `uploaded`, `generated`, `playbook`, and later `answer`. The
     translated words appear only on screen.
   - A document's `provenance` (jsonb) says more: for a playbook result, the playbook, version and
@@ -837,7 +837,7 @@ here.
     Excel sheet's last column of sources. A cell that starts with `=`, `+`, `-` or `@` and isn't a
     number gets a leading `'`, so it can't run as a formula when the file is opened. No mark: a CSV
     has nowhere to keep one that survives editing.
-- **After the Pod check of d1f1918 (20 October).**
+- **After the Pod check of 5e9a539 (20 October).**
   - The Documents and Conversations overviews read their lists again whenever one is opened, as the
     Cases overview already did: a colleague's upload, shared conversation or saved answer appears
     without reloading the page.
@@ -846,7 +846,7 @@ here.
   - The question being typed is kept for the browser tab (`lib/draft.ts`, sessionStorage) until it
     is sent, emptied or the person signs out, so it survives signing in again after the server
     restarted. Sessions themselves stay in the gateway's memory (docs/architecture.md).
-- **After the Pod check of 13469bf (20 October).**
+- **After the Pod check of 7ce3f27 (20 October).**
   - A question in a case reads what its conversation attached; with nothing attached, the case's
     sources, newest first, up to the server's 50 (`lib/questionDocuments.ts`), as its empty state and
     the line under the question box say. Before, such a question read nothing and answered "not
@@ -860,7 +860,7 @@ here.
   - Download names lose a trailing dot ("…rol..md" became "…rol.md").
   - The tagline "AI for work that can't leave the premises" stays English in every language, on the
     sign-in screens too (Filip, 20 October): a brand line, as on the website. Not a translation gap.
-- **After the Pod check of 705b91d (21 October).**
+- **After the Pod check of 470b9da (21 October).**
   - A colleague's conversation, shared since the case's list was read and opened from the
     Conversations overview, opened editable: the read-only check looked only in the case's list. It
     now also looks in the list of everything, and opening a conversation in the open case reads the
@@ -883,7 +883,7 @@ here.
     two documents lost one). With the one document attached: 15/15, nothing mixed. So the next step
     is making it easy to choose the document (design brief: choosing which documents a question is
     about), not guessing it. A question in a case with nothing attached reads all its sources, as
-    at 705b91d.
+    at 470b9da.
 - ***Ask about* (21 October, section 10).**
   - `DocumentPicker` in `ui/picker.tsx`: a `DialogTrigger` with a `Popover`, or on a narrow screen a
     sheet from the bottom (`Modal`) with *Done*. "All documents" is a button marked pressed when
@@ -977,7 +977,7 @@ here.
     out, and the hourly sweep deletes them.
   - What an administrator who isn't a member sees of a strictly confidential case is written down in
     section 11.
-- **Pod check of 7c48279 (22 October).**
+- **Pod check of f0ff96c (22 October).**
   - After PostgreSQL restarted, the gateway's stores never reconnected (a closed connection reports
     its transaction state as unknown, not idle), so everything failed until the gateway restarted,
     while `/health` said ready. They reconnect now; `/health` asks the database; a database that
@@ -987,7 +987,7 @@ here.
   - Every answer, also one without documents, is told to address the person formally (u, uw; vous).
   - The move dialog says a strictly confidential case's conversations can't be shared; the Dutch
     "voordat het antwoordt".
-- **Pod check of b5f6e9f (22 October).** The database restart is survived (the first request works
+- **Pod check of a318b65 (22 October).** The database restart is survived (the first request works
   2.3 s after PostgreSQL starts). Two things followed:
   - Deleting a document while the saved conversations can't be read is refused in the app too, with
     a sentence, before anything is sent; the server's guard stays.
@@ -995,7 +995,7 @@ here.
     minutes, an answer came back empty with only "no source cited". It now reads "The model thought for
     so long that it reached its limit before it could answer. Ask again in Fast, or ask a narrower
     question." A cut-off answer says it is incomplete. The server logs such a stop by counts only.
-- **Pod check of 547f48e (22 October).** Both fixes confirmed; the 44 questions on the owner's
+- **Pod check of cbccd38 (22 October).** Both fixes confirmed; the 44 questions on the owner's
   documents give the same results as on 21 October. Three things followed:
   - The first upload after a PostgreSQL restart failed (`FileExistsError`): the retry staged the file
     in the reader's inbox a second time without removing the first copy. The copy is now removed
@@ -1013,7 +1013,7 @@ here.
     sign-in service that answers with a server error no longer signs people out: their session waits
     for it. The gateway's 503s carry a `reason` (`database`, `signin`) so every message can say which
     part is down.
-- **Pod check of f8f4be9 (22 October).** All three fixed; Alice stayed signed in through a 6-minute
+- **Pod check of dbe0431 (22 October).** All three fixed; Alice stayed signed in through a 6-minute
   database stop and worked again 2.5 s after it. One thing followed: the sentence for a chosen document
   deleted meanwhile is shown inside "The answer couldn't be completed: … so ask again.", so it is now
   written as the reason only (no capital, no full stop, no second "ask again").

@@ -435,7 +435,7 @@ class Store:
         tsq = self._keyword_query(question, document_ids)
         # Both rankings in one pass over the documents' chunks, by window functions: no join for the
         # planner to get wrong. Looking each chunk up in the rankings by a subquery made this grow with
-        # the square of the chunks, 6 minutes for a case of 6,500 (VM check of 471d868); a join can do
+        # the square of the chunks, 6 minutes for a case of 6,500 (VM check of adccf00); a join can do
         # the same when the statistics are stale, as right after an upload. Only the ranking comes back
         # here, and the text only for the chunks chosen.
         keyword = "c.tsv @@ to_tsquery('simple', %(tsq)s)" if tsq else "false"

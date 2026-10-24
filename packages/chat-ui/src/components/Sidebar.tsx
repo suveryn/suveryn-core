@@ -129,7 +129,7 @@ export function Sidebar(p: Props) {
   // ---------------------------------------------------------------- "New"
   // A personal chat, outside any case (it says so when a case is open), and a case (§2, artboard 05). In an
   // open case its contributors also get a conversation in it, first: the only way to start one there
-  // without leaving the case and opening it again (Pod check of 705b91d).
+  // without leaving the case and opening it again (Pod check of 470b9da).
   const inCase = p.currentCase && p.currentCase.state !== "closed"
     && (p.currentCase.my_role === "contributor" || p.currentCase.my_role === "manager") ? p.currentCase : null;
   const newEntries: MenuEntry[] = [

@@ -54,7 +54,7 @@ class PgStore:
 
         A connection PostgreSQL closed (a restart) reports ``closed`` and its transaction status as
         UNKNOWN, not IDLE: it is replaced too. Before, it never was, and every request failed until
-        the gateway restarted (Pod check of 7c48279). While PostgreSQL is still down, the new
+        the gateway restarted (Pod check of f0ff96c). While PostgreSQL is still down, the new
         connection fails, and so does the statement (``OperationalError``, answered 503); the next
         call tries again."""
         if self._lost():

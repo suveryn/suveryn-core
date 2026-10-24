@@ -25,7 +25,7 @@ describe("interface languages (suveryn-tracker#8)", () => {
     for (const l of LANGS) expect(copyProblems(l, texts(l)), l).toEqual([]);
   });
 
-  it("a reason shown inside answerFailed reads as one sentence (Pod check of f8f4be9: \"opnieuw.. \")", () => {
+  it("a reason shown inside answerFailed reads as one sentence (Pod check of dbe0431: \"opnieuw.. \")", () => {
     for (const l of LANGS) {
       const whole = TABLES[l].answerFailed(TABLES[l].chosenDeletedMeanwhile);
       expect(whole, l).not.toMatch(/\.\.|: [A-Z]/);

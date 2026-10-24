@@ -225,7 +225,7 @@ def test_a_failure_carries_its_code_for_the_interface(tmp_path):
 
 
 def test_a_document_read_again_after_a_lost_connection_is_staged_again(tmp_path, monkeypatch):
-    """Pod check of 547f48e: the first upload after a PostgreSQL restart always failed with FileExistsError,
+    """Pod check of cbccd38: the first upload after a PostgreSQL restart always failed with FileExistsError,
     because the retry staged the file in the inbox again (O_EXCL) without removing the first copy."""
     monkeypatch.setattr(service, "RECONNECT_DELAYS_S", (0.01,))
     inbox = tmp_path / "inbox"
@@ -295,7 +295,7 @@ def test_an_archive_that_cant_be_used_adds_nothing_and_leaves_nothing(tmp_path, 
 
 
 def test_an_archive_with_nothing_to_read_says_why_for_each_file(tmp_path, monkeypatch):
-    # The VM check of 471d868: one 400 MB entry was refused as "holds no PDF, Word…", which said nothing.
+    # The VM check of adccf00: one 400 MB entry was refused as "holds no PDF, Word…", which said nothing.
     monkeypatch.setattr(service, "MAX_UPLOAD_BYTES", 1024 * 1024)
     docs = DocumentService(RagSettings(work_dir=tmp_path))
     a = docs.accept_archive(zipped({"scan.pdf": b"%PDF-1.7" + b"\0" * (2 * 1024 * 1024), "photo.jpg": b"\xff\xd8"}),

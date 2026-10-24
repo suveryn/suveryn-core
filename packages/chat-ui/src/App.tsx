@@ -104,7 +104,7 @@ export default function App() {
     getMe().then(async (user) => {
       if (user) { clearRedirect(); setMe(user); return; }
       // The sign-in service keeps its accounts in the same PostgreSQL: with that down, its login page
-      // only shows an error of its own. Said here instead, in the person's language (Pod check of 547f48e).
+      // only shows an error of its own. Said here instead, in the person's language (Pod check of cbccd38).
       if (databaseDown(await getHealth())) { setUnavailable(t().databaseUnavailable); setMe(null); return; }
       const step = claimRedirect();
       if (step === "go") signIn();
@@ -207,7 +207,7 @@ function Chat({ me }: { me: Me }) {
   const closed = currentCase?.state === "closed";
   // The open conversation as the sidebar lists it: someone else's shared one is read-only (stage 4).
   // Also from the list of everything: a colleague's conversation shared since the case's list was read
-  // is opened from the overview before that list has it (Pod check of 705b91d: it opened editable).
+  // is opened from the overview before that list has it (Pod check of 470b9da: it opened editable).
   const current = conversations.find((c) => c.id === conversationId) ?? allConversations.find((c) => c.id === conversationId);
   const readOnly = !!current && !!current.owner && current.owner !== (me.sub ?? "");
   const canShare = !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
@@ -259,7 +259,7 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => { if (documentsReady && !administers) refreshDocuments(); }, [documentsReady, refreshDocuments, administers]);
   // In a case, the case's documents are read again every 30 seconds while the page is visible, and when it
   // is shown again: a colleague's upload or deletion reaches the header's count and the next question
-  // (Pod check of 13469bf: the count stayed at 0 until a reload).
+  // (Pod check of 7ce3f27: the count stayed at 0 until a reload).
   useEffect(() => {
     if (!caseId || !documentsReady || administers) return;
     const again = () => { if (document.visibilityState === "visible") refreshDocuments(); };
@@ -289,7 +289,7 @@ function Chat({ me }: { me: Me }) {
     listCasesOverview().then(setOverviewCases).catch(() => setOverviewCases(null));
   }, [casesReady, inOverview, cases]);
   // The documents and conversations, read again whenever an overview is opened: a colleague's upload,
-  // shared conversation or saved answer appears without reloading the page (Pod check of d1f1918).
+  // shared conversation or saved answer appears without reloading the page (Pod check of 5e9a539).
   useEffect(() => {
     if (!inOverview) return;
     if (documentsReady) listAllDocuments().then(setAllDocuments).catch(() => {});
@@ -870,16 +870,16 @@ function Chat({ me }: { me: Me }) {
   const remove = async (d: StoredDocument, where: string | null = caseId) => {
     let using: string[] = [];
     // Saved conversations exist on this server but can't be read now: it can't be asked whether those
-    // that cite the document go too, so nothing is deleted (Pod check of b5f6e9f: it was sent at once).
+    // that cite the document go too, so nothing is deleted (Pod check of a318b65: it was sent at once).
     if (!historyReady && health?.history?.status && health.history.status !== "unavailable") {
       setProblem(m.deleteDocumentFailed(d.filename, m.conversationsUnreachable));
       return;
     }
     if (historyReady) {
       // Not known which conversations cite it: nothing is deleted, rather than skip the question
-      // whether they go too (Pod check of 7c48279, the database stopped).
+      // whether they go too (Pod check of f0ff96c, the database stopped).
       try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch (e) {
-        // A 503 is the database gone before the health check noticed (Pod check of 547f48e): the same reason.
+        // A 503 is the database gone before the health check noticed (Pod check of cbccd38): the same reason.
         const unreachable = e instanceof HttpError && e.status === 503;
         setProblem(m.deleteDocumentFailed(d.filename, unreachable ? m.conversationsUnreachable : (e as Error).message));
         if (unreachable) checkNow();

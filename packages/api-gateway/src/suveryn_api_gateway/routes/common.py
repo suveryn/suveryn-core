@@ -92,7 +92,7 @@ class Database:
 
     def status(self) -> StoreStatus:
         """Ready only if the database answers now: a store whose connection PostgreSQL dropped isn't
-        (Pod check of 7c48279: /health said ready while every request failed)."""
+        (Pod check of f0ff96c: /health said ready while every request failed)."""
         if not self.configured:
             return StoreStatus(status="unavailable")
         store = self.get()

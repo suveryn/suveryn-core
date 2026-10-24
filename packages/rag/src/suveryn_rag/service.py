@@ -347,7 +347,7 @@ class DocumentService:
             if _is_connection_error(e) and job.db_retries < MAX_DB_RETRIES:
                 # Not the document's fault: wait for the database, then read it again.
                 job.db_retries += 1
-                self._unstage(path)  # the next try stages it again (O_EXCL): Pod check of 547f48e
+                self._unstage(path)  # the next try stages it again (O_EXCL): Pod check of cbccd38
                 self._wait_for_database()
                 job.status = "queued"
                 self._queue.put((job, path), first=True)  # unpacked now: read from the file
@@ -416,7 +416,7 @@ class DocumentService:
         staged = self._inbox / path.name
         with open(os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640), "wb") as out, open(path, "rb") as src:
             # Set, not left to the umask: under umask 077 the reader's group couldn't read it, and every
-            # upload failed as "damaged" (Pod check of d1f1918, the test runner started from a shell).
+            # upload failed as "damaged" (Pod check of 5e9a539, the test runner started from a shell).
             os.fchmod(out.fileno(), 0o640)
             shutil.copyfileobj(src, out)
         return staged

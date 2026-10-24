@@ -315,7 +315,7 @@ class OIDCProvider:
             raise AuthUnavailable(f"sign-in service unreachable: {type(e).__name__}") from e
         if r.status_code >= 500:
             # Keycloak itself in trouble (its database stopped or restarting): not a refusal. The session
-            # stays, and the next request tries again (Pod check of 547f48e: a restart signed people out).
+            # stays, and the next request tries again (Pod check of cbccd38: a restart signed people out).
             raise AuthUnavailable(f"the sign-in service has a problem (HTTP {r.status_code})")
         if r.status_code != 200:
             raise AuthError(f"the sign-in service refused the request (HTTP {r.status_code})")

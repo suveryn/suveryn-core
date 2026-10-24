@@ -463,7 +463,7 @@ describe("server errors and long conversations", () => {
     expect(httpErrorText(413, "This conversation is too long to save.")).toMatch(/^dit gesprek is te lang/);
     expect(httpErrorText(413, "The file is larger than 100 MB.")).toMatch(/^het bestand is groter/);
     expect(httpErrorText(418, "I'm a teapot")).toBe("I'm a teapot");  // others keep the server's text
-    // Which part is down, when the gateway says (Pod check of 547f48e)
+    // Which part is down, when the gateway says (Pod check of cbccd38)
     expect(httpErrorText(503, "The database can't be reached right now.", null, "database")).toMatch(/^de database op deze server is nu niet bereikbaar/);
     expect(httpErrorText(503, "Sign-in is not available: …", null, "signin")).toMatch(/^de inlogdienst op deze server antwoordt nu niet/);
     expect(httpErrorText(503, "Document search is unavailable.")).toBe("dit deel van de server is nu niet beschikbaar; probeer het later opnieuw");

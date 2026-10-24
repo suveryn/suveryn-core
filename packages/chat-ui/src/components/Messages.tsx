@@ -340,7 +340,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {/* Thorough (§5): what the model thought, collapsed, once the answer has begun */}
         {turn.reasoning && (turn.text || settled) && <ThoughtFor reasoning={turn.reasoning} seconds={turn.thoughtSeconds} />}
         {/* Which documents the answer rests on, before it (docs/design/sidebar.md §5): in a case, a fact
-            from the wrong deed shows at a glance (Pod check of 705b91d). */}
+            from the wrong deed shows at a glance (Pod check of 470b9da). */}
         {settled && basis.length > 0 && (
           <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
         )}
@@ -398,7 +398,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
           </Toolbar>
         )}
 
-        {/* stopped at the length limit: say so, and what to do (Pod check of b5f6e9f) */}
+        {/* stopped at the length limit: say so, and what to do (Pod check of a318b65) */}
         {turn.status === "done" && turn.truncated && (
           <InlineNotice icon={<AlertTriangle size={14} />} tone="error">
             {turn.text.trim() ? m.answerTruncated : m.thoughtTooLong}
