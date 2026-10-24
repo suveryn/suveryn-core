@@ -8,24 +8,29 @@
  * then Provisioning and Complete. Each step's answers are saved on the appliance on Continue (api.ts),
  * so a reload starts again at Welcome with the answers kept, or at Provisioning if it already runs.
  * Edit on the Review goes back to that step, whose Continue then returns to the Review.
+ *
+ * Or, from Welcome, a restore of the office's backup on a replacement appliance (#56, steps/Restore.tsx):
+ * where the backups are and the key, the backup found, its progress, and where the appliance now answers.
+ * A reload continues the restore where it is.
  */
 import { Languages } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import { Card, I18nProvider, Select, Steps } from "../ui";
-import { getState, type Progress, type SetupState } from "./api";
+import { getState, type Progress, type RestoreProgress, type SetupState } from "./api";
 import { Administrator } from "./steps/Administrator";
 import { Backups } from "./steps/Backups";
 import { Certificate } from "./steps/Certificate";
 import { Network } from "./steps/Network";
 import { Complete, Provisioning } from "./steps/Provisioning";
+import { RestoreConfirm, RestoreDone, RestoreRunning, RestoreSource } from "./steps/Restore";
 import { Review, type Editable } from "./steps/Review";
 import { Support } from "./steps/Support";
 import { Welcome } from "./steps/Welcome";
 import { initialLang, LANGS, LANGUAGE_NAMES, LOCALES, setLang, useLang, useText, type Lang } from "./i18n";
 
 const TOTAL = 6;
-type Screen = 0 | 1 | 2 | 3 | 4 | 5 | 6 | "provisioning" | "complete";
+type Screen = 0 | 1 | 2 | 3 | 4 | 5 | 6 | "provisioning" | "complete" | "restore" | "restore-confirm" | "restore-progress" | "restore-done";
 
 export function SetupApp() {
   const t = useText();
@@ -36,14 +41,21 @@ export function SetupApp() {
   const [screen, setScreen] = useState<Screen>(0);
   const [returnToReview, setReturnToReview] = useState(false);
   const [finished, setFinished] = useState<Progress | null>(null);
+  const [restore, setRestore] = useState<RestoreProgress | null>(null);
   const first = useRef(true);
 
   useEffect(() => {
     getState().then((s) => {
       setLang(initialLang(s.language), false);
       setState(s);
+      const r = s.restore;
+      if (r) setRestore(r);
       if (s.provisioning?.state === "done") { setFinished(s.provisioning); setScreen("complete"); }
       else if (s.provisioning) setScreen("provisioning");
+      else if (r?.state === "done") setScreen("restore-done");
+      else if (r?.state === "restoring") setScreen("restore-progress");
+      else if (r?.state === "checking" || r?.state === "checked") setScreen("restore-confirm");
+      else if (r?.state === "failed") setScreen(r.steps ? "restore-progress" : "restore");
     }, () => setFailed(true));
   }, []);
 
@@ -51,6 +63,8 @@ export function SetupApp() {
   const titles: Record<Screen, string> = {
     0: t.welcomeTitle, 1: t.networkTitle, 2: t.adminTitle, 3: t.certTitle, 4: t.supportTitle, 5: t.backupsTitle,
     6: t.reviewTitle, provisioning: t.provTitle, complete: t.completeTitle,
+    restore: t.restoreTitle, "restore-confirm": t.restoreConfirmTitle, "restore-progress": t.restoringTitle,
+    "restore-done": t.restoreDoneTitle,
   };
   useEffect(() => { document.title = t.pageTitle(titles[screen]); });
   useEffect(() => {
@@ -61,7 +75,7 @@ export function SetupApp() {
   }, [screen, headingId]);
 
   /** A step's answers were saved: keep them in the page's copy of the state, and go on. */
-  const done = (step: Exclude<Screen, 0 | 6 | "provisioning" | "complete">, answers: Partial<SetupState["answers"]>) => {
+  const done = (step: 1 | 2 | 3 | 4 | 5, answers: Partial<SetupState["answers"]>) => {
     setState((s) => s && { ...s, answers: { ...s.answers, ...answers } });
     if (returnToReview) { setReturnToReview(false); setScreen(6); } else setScreen((step + 1) as Screen);
   };
@@ -96,7 +110,7 @@ export function SetupApp() {
             <>
               {typeof screen === "number" && screen > 0 && <Steps text={t.step(screen, TOTAL)} step={screen} total={TOTAL} />}
               {typeof screen !== "number" || screen === 0 ? <div className="setup-no-steps" /> : null}
-              {screen === 0 && <Welcome onStart={() => setScreen(1)} {...stepProps} />}
+              {screen === 0 && <Welcome onStart={() => setScreen(1)} onRestore={() => setScreen("restore")} {...stepProps} />}
               {screen === 1 && <Network state={state} onBack={back(0)} onDone={(network) => done(1, { network })} {...stepProps} />}
               {screen === 2 && <Administrator state={state} onBack={back(1)} onDone={(administrator) => done(2, { administrator })} {...stepProps} />}
               {screen === 3 && <Certificate state={state} onBack={back(2)} onDone={(certificate) => done(3, { certificate })} {...stepProps} />}
@@ -107,6 +121,19 @@ export function SetupApp() {
                 <Provisioning state={state} onDone={(p) => { setFinished(p); setScreen("complete"); }} {...stepProps} />
               )}
               {screen === "complete" && finished && <Complete state={state} progress={finished} {...stepProps} />}
+              {screen === "restore" && (
+                <RestoreSource state={{ ...state, restore }} onBack={back(0)}
+                               onChecking={(r) => { setRestore(r); setScreen("restore-confirm"); }} {...stepProps} />
+              )}
+              {screen === "restore-confirm" && restore && (
+                <RestoreConfirm state={state} initial={restore} onBack={(failed) => { setRestore(failed); setScreen("restore"); }}
+                                onStart={(r) => { setRestore(r); setScreen("restore-progress"); }} {...stepProps} />
+              )}
+              {screen === "restore-progress" && restore && (
+                <RestoreRunning initial={restore} onDone={(r) => { setRestore(r); setScreen("restore-done"); }}
+                                onAgain={() => { setRestore(null); setScreen("restore"); }} {...stepProps} />
+              )}
+              {screen === "restore-done" && restore && <RestoreDone restore={restore} {...stepProps} />}
             </>
           )}
         </Card>

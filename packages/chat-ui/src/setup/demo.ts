@@ -5,9 +5,10 @@
  * Nothing it says is checked: any .yaml file "is" a valid manifest here.
  *
  * Variants for trying things: add #check-fails to the address for a failed outgoing-traffic check,
- * #provisioning-fails for provisioning that stops at the sign-in step, #no-disk for no USB disk.
+ * #provisioning-fails for provisioning that stops at the sign-in step, #no-disk for no USB disk,
+ * #restore-wrong-key for a recovery key that doesn't open the backup, #no-backup for a target without one.
  */
-import type { BackupsAnswer, Manifest, Progress, SavedAnswers, SetupState, StepId } from "./api";
+import type { BackupsAnswer, Manifest, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
 import { Refused } from "./api";
 
 const variant = (v: string) => typeof location !== "undefined" && location.hash.includes(v);
@@ -19,6 +20,27 @@ let started = 0;
 let failOnce = variant("provisioning-fails");
 
 const STEPS: StepId[] = ["database", "signin", "models", "web", "outgoing"];
+const RESTORE_STEPS: RestoreStepId[] = ["database", "restore", "models", "network", "services"];
+
+let restore: RestoreProgress | null = null;
+let restoreAt = 0;
+const BACKUP = { file: "suveryn-backup_notary-brussels-01_20261023T023000Z.tar.zst.age", created: "2026-10-23T02:30:00Z",
+                 appliance: "notary-brussels-01" };
+
+/** The check takes two seconds; the restore advances one step every 1.5 seconds. */
+function currentRestore(): RestoreProgress | null {
+  const r = restore;
+  if (!r) return null;
+  if (r.state === "checking" && Date.now() - restoreAt > 2000) {
+    restore = variant("restore-wrong-key") ? { state: "failed", error: "wrong_key" }
+      : variant("no-backup") ? { state: "failed", error: "no_backup" } : { state: "checked", backup: BACKUP };
+  } else if (r.state === "restoring") {
+    const done = Math.floor((Date.now() - restoreAt) / 1500);
+    r.steps = RESTORE_STEPS.map((id, i) => ({ id, state: i < done ? "done" : i === done ? "running" : "waiting" }));
+    if (done >= RESTORE_STEPS.length) r.state = "done";
+  }
+  return structuredClone(restore);
+}
 
 function state(): SetupState {
   return {
@@ -30,6 +52,7 @@ function state(): SetupState {
     usb_disks: variant("no-disk") ? [] : [{ id: "usb-SanDisk_Extreme_4C53000", name: "SanDisk Extreme", size_bytes: 1_000_204_886_016, bus: "USB 3" }],
     answers: structuredClone(answers),
     provisioning: progress && structuredClone(current()),
+    restore: currentRestore(),
   };
 }
 
@@ -94,6 +117,21 @@ export async function answer(method: string, path: string, body?: unknown): Prom
       started = Date.now();
       progress = { state: "running", steps: [], outgoing: null };
       return structuredClone(current());
+    case "PUT answers/restore": {
+      if (!/AGE-SECRET-KEY-1[0-9A-Z]{58}/.test(String(b.key))) throw new Refused({ key: "key_invalid" });
+      if (b.target === "share" && !/^(\\\\|\/\/)[\w.-]+[\\/]\S+$|^[\w.-]+:\/\S+$/.test(String(b.address))) {
+        throw new Refused({ address: "address" });
+      }
+      restoreAt = Date.now();
+      restore = { state: "checking" };
+      return currentRestore();
+    }
+    case "POST restore/start":
+      if (restore?.state !== "checked") throw new Refused({ _: "not_checked" });
+      restoreAt = Date.now();
+      restore = { ...restore, state: "restoring", address: `https://${BACKUP.appliance}.local`, steps: [] };
+      return currentRestore();
+    case "GET restore": return currentRestore();
     // A copy each time, like JSON from the appliance (React keeps an unchanged object as it was).
     case "GET provision": return progress && structuredClone(current());
   }

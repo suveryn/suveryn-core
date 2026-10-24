@@ -19,6 +19,10 @@
  *   PUT  setup/v1/answers/backups          BackupsAnswer, plus password for a share
  *   POST setup/v1/provision                → Progress (starts it; again after a failure retries)
  *   GET  setup/v1/provision                → Progress
+ *   PUT  setup/v1/answers/restore          RestoreAnswer → RestoreProgress (checking: the appliance looks for the
+ *                                          newest backup there and checks it with the key, #56)
+ *   POST setup/v1/restore/start            → RestoreProgress (restores the backup the check found)
+ *   GET  setup/v1/restore                  → RestoreProgress | null
  *
  * Errors: 422 with { errors: { field: code } } or { error: code }. The appliance answers these with
  * suveryn-appliance's setup/suveryn-setup (#37 part 5); `npm run dev` and the preview build
@@ -49,6 +53,23 @@ export type BackupsAnswer =
   | { target: "later" };
 export type UsbDisk = { id: string; name: string; size_bytes: number; bus: string };
 
+/** Where a replacement appliance finds the office's backups, and the recovery key (the text of the file
+ *  setup made, or just its AGE-SECRET-KEY-1… line). The key and a share's password are kept on the
+ *  appliance only until the restore, then deleted. */
+export type RestoreAnswer =
+  | { target: "usb"; disk: string; key: string }
+  | { target: "share"; protocol: "smb" | "nfs"; address: string; user?: string; password?: string; key: string };
+export type RestoreStepId = "database" | "restore" | "models" | "network" | "services";
+export type RestoreProgress = {
+  state: "checking" | "checked" | "restoring" | "done" | "failed";
+  /** The backup the check found: its file, when it was made, and the name of the appliance that made it. */
+  backup?: { file: string; created: string; appliance: string };
+  /** Where the restored appliance answers: it takes the old appliance's name. */
+  address?: string;
+  steps?: { id: RestoreStepId; state: "waiting" | "running" | "done" | "failed" }[];
+  error?: string;
+};
+
 export type SavedAnswers = {
   network?: NetworkAnswer;
   administrator?: AdministratorAnswer;    // the password stays on the appliance
@@ -69,6 +90,7 @@ export type SetupState = {
   usb_disks: UsbDisk[];       // disks plugged into the appliance that could hold backups
   answers: SavedAnswers;
   provisioning: Progress | null;
+  restore: RestoreProgress | null;
 };
 
 export type StepId = "database" | "signin" | "models" | "web" | "outgoing";
@@ -113,3 +135,6 @@ export const testShare = (s: { protocol: "smb" | "nfs"; address: string; user?: 
 export const saveBackups = (a: BackupsAnswer & { password?: string }) => call<void>("PUT", "answers/backups", a);
 export const startProvisioning = () => call<Progress>("POST", "provision");
 export const getProgress = () => call<Progress>("GET", "provision");
+export const saveRestore = (a: RestoreAnswer) => call<RestoreProgress>("PUT", "answers/restore", a);
+export const startRestore = () => call<RestoreProgress>("POST", "restore/start");
+export const getRestore = () => call<RestoreProgress | null>("GET", "restore");
