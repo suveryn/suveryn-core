@@ -1,10 +1,9 @@
 # The chat UI: left column, overviews and conversation
 
 The spec for the chat UI's left column, the overview pages and the conversation pane, as decided with
-Filip on 18 and 19 October 2026 in a Design canvas
-(https://claude.ai/code/artifact/51b64e95-dd2f-48e5-b248-d92945e99b96, artboards 01 to 16).
-The column follows the model of Claude's own sidebar (a collapsible rail, a flat menu, pinned items
-with their children underneath, an account row at the bottom) and keeps sūveryn's brand and the UI
+Filip on 18 and 19 October 2026 in a design canvas (artboards 01 to 16).
+The column is a collapsible rail with a flat menu, pinned items with their children underneath and
+an account row at the bottom, and keeps sūveryn's brand and the UI
 kit in `packages/chat-ui/src/ui/` (React Aria, Lucide, the light product theme).
 
 This file says how things are to be **now**. It replaces the earlier decision table, revision rules
