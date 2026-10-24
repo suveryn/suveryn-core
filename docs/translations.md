@@ -36,7 +36,19 @@ web setup by `packages/chat-ui/src/i18n/rules.ts` (`copyProblems`):
 - the tagline stays in English: "AI for work that can't leave the premises".
 
 A string that exists already is reused as it is; a new screen doesn't coin a second wording for the
-same thing.
+same thing. The fixed terms, in every place:
+
+| English | Dutch | French |
+|---|---|---|
+| network share | gedeelde map (gedeelde netwerkmap as a choice's title), never "share" | partage |
+| support agreement, support | ondersteuningsovereenkomst, ondersteuning, never "support" | contrat de support, support |
+| backup | back-up | sauvegarde |
+| recovery key | herstelsleutel | clé de récupération |
+| restore (a backup) | terugzetten | restaurer |
+| admin dashboard | beheerdashboard | tableau de bord d'administration |
+| case | dossier | dossier |
+
+`copyProblems` refuses "share" and "support" in Dutch (an address written as `\\server\share` is fine).
 
 ## Adding a language
 
