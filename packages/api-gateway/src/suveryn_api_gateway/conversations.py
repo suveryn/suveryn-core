@@ -76,7 +76,14 @@ CREATE TABLE IF NOT EXISTS conversation_cleanups (
     created_at            timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (document_id, owner)
 );
+-- Kept beside the turns on every save, so lists and look-ups don't open the turns (up to 2 MB each):
+-- how many turns, and which documents the turns cite or attach (``cited_documents``). NULL in rows
+-- saved before they existed, until ``ConversationStore`` fills them in on start.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS messages integer;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS documents text[];
+CREATE INDEX IF NOT EXISTS conversations_documents ON conversations USING gin (documents);
 """
+BACKFILL_BATCH = 200
 
 
 @dataclass(frozen=True)
@@ -211,6 +218,19 @@ class ConversationStore(PgStore):
         self.settings = settings
         self.keep = settings.keep  # as provisioned; the gateway sets what an administrator chose since
         self.purge()
+        self.fill_in()
+
+    def fill_in(self) -> int:
+        """Give conversations saved before ``messages`` and ``documents`` existed their values; how many.
+        Once, on the first start of a version that has them; afterwards there is nothing to do."""
+        n = 0
+        while rows := self._execute("SELECT id, turns FROM conversations WHERE documents IS NULL OR messages IS NULL"
+                                    " LIMIT %s", (BACKFILL_BATCH,)).fetchall():
+            for cid, turns in rows:
+                self._execute("UPDATE conversations SET messages = %s, documents = %s WHERE id = %s",
+                              (len(turns), sorted(cited_documents(turns)), cid))
+            n += len(rows)
+        return n
 
     @property
     def max_age_days(self) -> int | None:
@@ -234,7 +254,8 @@ class ConversationStore(PgStore):
             log.info("deleted %d conversations older than %d days", n, self.max_age_days)
         return n
 
-    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, jsonb_array_length(turns), pinned_at IS NOT NULL"
+    # ``messages``, not ``jsonb_array_length(turns)``: counting opened every conversation's turns for a list.
+    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, messages, pinned_at IS NOT NULL"
     TURNS = 9  # the column after SUMMARY's, where a query adds ``turns``
 
     @staticmethod
@@ -322,16 +343,17 @@ class ConversationStore(PgStore):
         turns = [t.model_dump() for t in body.turns]
         if gone is not None:
             redact(turns, gone)
-        turns = json.dumps(turns)
+        documents = sorted(cited_documents(turns))
         case_id = uuid.UUID(body.case_id) if body.case_id else None
         # The case is set when the conversation is first saved and never moves with a later save.
         row = self._execute(
-            "INSERT INTO conversations (id, owner, title, turns, case_id) VALUES (%s, %s, %s, %s, %s)"
+            "INSERT INTO conversations (id, owner, title, turns, case_id, messages, documents) VALUES (%s, %s, %s, %s, %s, %s, %s)"
             # a title the owner chose (``rename``) is kept over the one the UI derives from the first question
             " ON CONFLICT (id) DO UPDATE SET title = CASE WHEN conversations.renamed THEN conversations.title"
-            " ELSE EXCLUDED.title END, turns = EXCLUDED.turns, updated_at = now()"
+            " ELSE EXCLUDED.title END, turns = EXCLUDED.turns, messages = EXCLUDED.messages,"
+            " documents = EXCLUDED.documents, updated_at = now()"
             " WHERE conversations.owner = EXCLUDED.owner RETURNING id",
-            (conversation_id, owner, body.title, turns, case_id)).fetchone()
+            (conversation_id, owner, body.title, json.dumps(turns), case_id, len(turns), documents)).fetchone()
         return row is not None
 
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:
@@ -342,13 +364,14 @@ class ConversationStore(PgStore):
                        case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
         """The conversations that cite or attach this document, most recently changed first: the
         owner's, or with ``case_id`` everyone's in that case (a case's document is cited by every
-        member who asked about it)."""
+        member who asked about it). By ``documents``, kept on save: searching every conversation's turns
+        as text took 0.3 s for 500 conversations, and grew with them."""
         fresh, params = self._fresh()
         whose, who = ("case_id = %s", case_id) if case_id is not None else ("owner = %s", owner)
-        rows = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
-                             f" WHERE {whose} AND turns::text LIKE %s AND {fresh} ORDER BY updated_at DESC",
-                             (who, f'%"{document_id}"%', *params)).fetchall()
-        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r[self.TURNS])]
+        rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
+                             f" WHERE {whose} AND documents @> ARRAY[%s]::text[] AND {fresh} ORDER BY updated_at DESC",
+                             (who, str(document_id), *params)).fetchall()
+        return [self._summary(r) for r in rows]
 
     # A document's deletion, noted before it is deleted and done after (audit of 21 October 2026,
     # finding 3): if cleaning the conversations fails halfway, the sweep finishes it.

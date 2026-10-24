@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS case_events (
     action   text NOT NULL,
     detail   jsonb NOT NULL DEFAULT '{}'::jsonb
 );
-CREATE INDEX IF NOT EXISTS case_events_case_at ON case_events (case_id, at DESC);
+-- A case's log newest first, and its latest line (``last_activity``), straight from the index.
+DROP INDEX IF EXISTS case_events_case_at;
+CREATE INDEX IF NOT EXISTS case_events_case_latest ON case_events (case_id, at DESC, id DESC);
 CREATE TABLE IF NOT EXISTS case_pins (
     case_id   uuid NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
     "user"    text NOT NULL,
@@ -642,9 +644,12 @@ class CaseStore(PgStore):
         return out
 
     def last_activity(self, case_ids: list[uuid.UUID]) -> dict[uuid.UUID, tuple[datetime, str]]:
-        """Per case, the latest line of its access log: when, and who (their Keycloak id)."""
-        rows = self._execute('SELECT DISTINCT ON (case_id) case_id, at, "user" FROM case_events WHERE case_id = ANY(%s)'
-                             " ORDER BY case_id, at DESC, id DESC", (list(case_ids),)).fetchall()
+        """Per case, the latest line of its access log: when, and who (their Keycloak id). One look in the
+        index per case: ``DISTINCT ON`` over the log read every line of every case (1 s for 300 cases with
+        3,000 lines each), and the log keeps 180 days."""
+        rows = self._execute('SELECT c.id, e.at, e."user" FROM unnest(%s::uuid[]) AS c (id)'
+                             ' CROSS JOIN LATERAL (SELECT at, "user" FROM case_events WHERE case_id = c.id'
+                             "                     ORDER BY at DESC, id DESC LIMIT 1) AS e", (list(case_ids),)).fetchall()
         return {r[0]: (r[1], r[2]) for r in rows}
 
     # ------------------------------------------------------------------ the access log (stage 2)
