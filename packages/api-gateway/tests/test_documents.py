@@ -41,6 +41,14 @@ class FakeDocuments:
         self.jobs[job.id] = job
         return job
 
+    def accept_archive(self, src, filename, owner, case_id=None):
+        """Two documents and a picture, as the real service would answer for such a zip."""
+        self.uploads.append((filename, owner, case_id))
+        jobs = [FakeJob(n, owner, case_id) for n in ("akte.pdf", "notes.docx")]
+        self.jobs.update({j.id: j for j in jobs})
+        return type("A", (), {"jobs": jobs, "public": lambda _: {
+            "archive": filename, "jobs": [j.public() for j in jobs], "skipped": [{"name": "photo.jpg", "reason": "unsupported"}]}})()
+
     def cancel(self, job_id, owner):
         job = self.jobs.get(job_id)
         if job is None or job.owner != owner:
@@ -386,3 +394,53 @@ def test_a_thorough_answer_streams_its_reasoning_apart_from_the_answer():
     done = events[-1][1]
     assert done["reasoning"] == "Article 2 gives the price." and "think" not in done["answer"]
     assert captured[-1]["chat_template_kwargs"] == {"enable_thinking": True}
+
+
+def test_a_zip_adds_each_document_inside_and_says_what_was_left_out():
+    import zipfile
+
+    import pytest
+    pytest.importorskip("suveryn_rag")
+    import tempfile
+    from pathlib import Path
+
+    from suveryn_rag.config import RagSettings
+    from suveryn_rag.service import DocumentService
+
+    svc = DocumentService(RagSettings(work_dir=Path(tempfile.mkdtemp())))
+    svc.state = "ready"  # no worker: the documents stay queued
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("Dossier/akte.pdf", b"%PDF-1.7 a deed")
+        z.writestr("Dossier/Prospectus FR.docx", b"PK\x03\x04 a Word file")
+        z.writestr("Dossier/photo.jpg", b"\xff\xd8\xff")
+        z.writestr("__MACOSX/Dossier/._akte.pdf", b"junk")
+    with client(svc) as c:
+        r = c.post("/v1/documents", files={"file": ("Dossier.zip", io.BytesIO(buf.getvalue()), "application/zip")})
+        assert r.status_code == 202
+        body = r.json()
+        assert body["archive"] == "Dossier.zip"
+        assert sorted(j["filename"] for j in body["jobs"]) == ["Prospectus FR.docx", "akte.pdf"]
+        assert all(j["status"] == "queued" for j in body["jobs"])
+        assert body["skipped"] == [{"name": "photo.jpg", "reason": "unsupported"}]
+        assert c.get(f"/v1/documents/jobs/{body['jobs'][0]['id']}").json()["status"] == "queued"
+        stored = sorted(p.suffix for p in (svc.settings.work_dir / "uploads").iterdir())
+        assert stored == [".docx", ".pdf"]  # the archive itself is gone
+        r = c.post("/v1/documents", files={"file": ("photos.zip", io.BytesIO(zip_of({"a.jpg": b"\xff\xd8"})), "application/zip")})
+        assert r.status_code == 415 and "holds no PDF" in r.json()["detail"]
+
+
+def zip_of(entries: dict) -> bytes:
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buf.getvalue()
+
+
+def test_a_zip_goes_to_the_service_as_an_archive_and_each_document_is_logged():
+    docs = FakeDocuments()
+    with client(docs) as c:
+        r = c.post("/v1/documents", files={"file": ("Dossier.ZIP", io.BytesIO(b"PK\x03\x04"), "application/zip")})
+        assert r.status_code == 202 and len(r.json()["jobs"]) == 2 and r.json()["skipped"][0]["reason"] == "unsupported"
