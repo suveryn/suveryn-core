@@ -1,9 +1,10 @@
-/** Setup screen 0: Welcome (design web-00-welcome.html). What setup does, and two things to know first. */
+/** Setup screen 0: Welcome (design web-00-welcome.html). What setup does, and two things to know first;
+ *  or, on a replacement appliance, restoring the office's backup instead (#56). */
 import { Fingerprint, Lock } from "lucide-react";
 import { Button, Notice } from "../../ui";
 import { useText } from "../i18n";
 
-export function Welcome({ onStart, headingId }: { onStart: () => void; headingId: string }) {
+export function Welcome({ onStart, onRestore, headingId }: { onStart: () => void; onRestore: () => void; headingId: string }) {
   const t = useText();
   return (
     <div className="setup-welcome">
@@ -17,6 +18,8 @@ export function Welcome({ onStart, headingId }: { onStart: () => void; headingId
         {t.stepNames.map((n) => <li key={n}><span>{n}</span></li>)}
       </ol>
       <Button variant="primary" className="setup-wide" onPress={onStart}>{t.getStarted}</Button>
+      <p className="setup-detail-note setup-centred setup-restore-hint">{t.welcomeRestoreHint}</p>
+      <Button className="setup-wide" onPress={onRestore}>{t.welcomeRestore}</Button>
     </div>
   );
 }
