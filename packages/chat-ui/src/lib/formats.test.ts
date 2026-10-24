@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { httpErrorText } from "../api";
 import { setLang } from "../i18n";
 import { sourceFileName } from "./copy";
-import { ACCEPTED_FILES, DOCUMENT_EXTENSION, formatName } from "./formats";
+import { ACCEPTED_FILES, DOCUMENT_EXTENSION, DOCUMENT_FILES, formatName } from "./formats";
 
 describe("the files sūveryn reads", () => {
   it("offers every format the server reads, and only those", () => {
-    const extensions = ACCEPTED_FILES.filter((a) => a.startsWith("."));
+    const extensions = DOCUMENT_FILES.filter((a) => a.startsWith("."));
     expect(extensions).toEqual([".pdf", ".docx", ".xlsx", ".md", ".markdown", ".csv"]);
+    expect(ACCEPTED_FILES.filter((a) => a.startsWith("."))).toEqual([...extensions, ".zip"]);  // and archives of them
     for (const ext of extensions) expect(`deed${ext}`).toMatch(DOCUMENT_EXTENSION);
     expect("deed.doc").not.toMatch(DOCUMENT_EXTENSION);
   });
@@ -27,5 +28,23 @@ describe("the files sūveryn reads", () => {
     setLang("fr", false);
     expect(httpErrorText(415, "the file is not a valid Word file")).toMatch(/^ce fichier ne peut pas être ajouté/);
     setLang("en", false);
+  });
+
+  it("says why a .zip couldn't be added, and why a file in it was left out", async () => {
+    const { TABLES_FOR_TESTS: TEXT } = await import("../i18n");
+    setLang("nl", false);
+    expect(httpErrorText(413, "the archive holds 25 documents and at most 20 can wait to be read at once; split it")).toMatch(/25 documenten.*hoogstens 20/);
+    expect(httpErrorText(413, "the file is larger than 100 MB")).toBe(TEXT.nl.fileTooLarge);
+    expect(httpErrorText(415, "the archive holds no PDF, Word ...")).toBe(TEXT.nl.archiveNothing);
+    expect(httpErrorText(415, "the file is not a valid ZIP archive")).toBe(TEXT.nl.archiveInvalid);
+    expect(httpErrorText(429, "too many documents are waiting to be read; try again when some are done")).toBe(TEXT.nl.tooManyWaiting);
+    expect(httpErrorText(429, "slow down", "30")).toMatch(/30 seconden/);
+    setLang("en", false);
+    for (const t of Object.values(TEXT)) {
+      for (const reason of ["unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged"]) {
+        expect(t.archiveSkipped("Prospectus.zip", reason)).toContain("Prospectus.zip");
+        expect(t.archiveSkipped("a.zip", reason)).not.toBe(t.archiveSkipped("a.zip", "something else"));
+      }
+    }
   });
 });

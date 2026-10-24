@@ -48,6 +48,10 @@ export type Job = {
   error_detail?: Record<string, number>;   // the numbers that needs: pages, max, minutes
   noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
 };
+/** What a .zip upload became: a job per document inside it, and the files left out with a reason
+ *  (suveryn_rag.service.SKIP_REASONS). */
+export type ArchiveUpload = { archive: string; jobs: Job[]; skipped: { name: string; reason: string }[] };
+export const isArchiveUpload = (r: Job | ArchiveUpload): r is ArchiveUpload => "jobs" in r;
 /** sūveryn's export mark found in an upload (docs/design/sidebar.md §6): the line as it stands in the file. */
 export type Noticed = { ref: string; kind: "answer" | "playbook"; line: string };
 /** More about where a document came from (docs/design/sidebar.md §6). */
@@ -156,9 +160,19 @@ export async function signOut(): Promise<void> {
 export function httpErrorText(status: number, detail: unknown, retryAfter: string | null = null, reason: unknown = null): string {
   const m = t();
   switch (status) {
-    case 429: return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
-    case 413: return typeof detail === "string" && /conversation/i.test(detail) ? m.conversationTooLong : m.fileTooLarge;
-    case 415: return m.fileNotSupported;
+    case 429:
+      if (typeof detail === "string" && /documents are waiting/.test(detail)) return m.tooManyWaiting;
+      return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
+    case 413: {
+      const many = typeof detail === "string" ? /archive holds (\d+) documents and at most (\d+)/.exec(detail) : null;
+      if (many) return m.archiveTooMany(Number(many[1]), Number(many[2]));
+      if (typeof detail === "string" && /archive unpacks/.test(detail)) return m.archiveTooBig;
+      return typeof detail === "string" && /conversation/i.test(detail) ? m.conversationTooLong : m.fileTooLarge;
+    }
+    case 415:
+      if (typeof detail === "string" && /archive holds no/.test(detail)) return m.archiveNothing;
+      if (typeof detail === "string" && /not a valid ZIP/.test(detail)) return m.archiveInvalid;
+      return m.fileNotSupported;
     case 422: return m.requestRejected;
     case 404: return m.notFound;
     case 403: return m.forbidden;
@@ -229,11 +243,12 @@ export async function listDocuments(caseId?: string | null): Promise<{ documents
 }
 
 /**
- * Uploads a document (PDF, Word, Excel, Markdown or CSV: lib/formats.ts) and resolves with its job. Uses XMLHttpRequest rather than fetch because only
- * XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
+ * Uploads a document (PDF, Word, Excel, Markdown or CSV: lib/formats.ts) and resolves with its job, or a
+ * .zip of them and resolves with a job per document inside (ArchiveUpload). Uses XMLHttpRequest rather
+ * than fetch because only XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
  */
 export function uploadDocument(file: File, onProgress?: (fraction: number) => void, caseId?: string | null,
-                               signal?: AbortSignal): Promise<Job> {
+                               signal?: AbortSignal): Promise<Job | ArchiveUpload> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("file", file, file.name);
@@ -242,7 +257,7 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
     xhr.responseType = "json";
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job);
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job | ArchiveUpload);
       else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
       else reject(new Error(httpErrorText(xhr.status, xhr.response?.detail, xhr.getResponseHeader("Retry-After"), xhr.response?.reason)));
     };

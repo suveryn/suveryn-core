@@ -238,3 +238,91 @@ def test_a_document_read_again_after_a_lost_connection_is_staged_again(tmp_path,
     assert wait(lambda: docs.job(job.id, "user-a").status in ("ready", "failed"))
     assert job.status == "ready" and job.db_retries == 1 and not job.error
     assert not list(inbox.glob("*.pdf"))  # and nothing left behind
+
+
+# ------------------------------------------------------------------ archives (.zip)
+import zipfile
+
+
+def zipped(entries: dict, method=zipfile.ZIP_DEFLATED) -> io.BytesIO:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", method) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    buf.seek(0)
+    return buf
+
+
+def test_each_document_in_a_zip_becomes_a_job_named_after_its_file(tmp_path):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))  # no worker: everything stays queued
+    a = docs.accept_archive(zipped({
+        "Prospectus/Project Sky FR.docx": b"PK\x03\x04 word", "Prospectus/Book17.xlsx": b"PK\x03\x04 excel",
+        "deed.pdf": b"%PDF-1.7", "notes.md": b"# Notes\n", "Prospectus/": b"",
+        "__MACOSX/Prospectus/._Book17.xlsx": b"junk", ".DS_Store": b"junk", "Thumbs.db": b"junk",
+        "old.doc": b"\xd0\xcf\x11\xe0", "inner.zip": b"PK\x05\x06", "empty.csv": b"", "renamed.pdf": b"PK\x03\x04",
+    }), "Prospectus.zip", "user-a")
+    assert a.filename == "Prospectus.zip"
+    assert sorted(j.filename for j in a.jobs) == ["Book17.xlsx", "Project Sky FR.docx", "deed.pdf", "notes.md"]
+    assert all(j.status == "queued" and j.owner == "user-a" for j in a.jobs)
+    assert a.skipped == [{"name": "empty.csv", "reason": "empty"}, {"name": "inner.zip", "reason": "archive"},
+                         {"name": "old.doc", "reason": "unsupported"}, {"name": "renamed.pdf", "reason": "invalid"}]
+    assert sorted(p.suffix for p in (tmp_path / "uploads").iterdir()) == [".docx", ".md", ".pdf", ".xlsx"]
+    assert len(docs.pending_jobs("user-a")) == 4
+    assert a.public()["jobs"][0]["filename"] and "owner" not in a.public()["jobs"][0]
+
+
+@pytest.mark.parametrize("data, says, status", [
+    (b"", "empty", 415),
+    (b"%PDF-1.7", "not a valid ZIP archive", 415),
+    (b"PK\x03\x04 truncated", "not a valid ZIP archive", 415),
+    (zipped({"photo.jpg": b"\xff\xd8"}).getvalue(), "holds no PDF, Word", 415),
+])
+def test_an_archive_that_cant_be_used_adds_nothing_and_leaves_nothing(tmp_path, data, says, status):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    with pytest.raises(UploadRejected, match=says) as e:
+        docs.accept_archive(io.BytesIO(data), "a.zip", "user-a")
+    assert e.value.status == status
+    assert not list((tmp_path / "uploads").iterdir())
+    assert not docs.pending_jobs("user-a")
+
+
+def test_an_archive_with_more_documents_than_may_wait_is_refused_whole(tmp_path, monkeypatch):
+    monkeypatch.setattr(service, "MAX_QUEUED_PER_OWNER", 3)
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    with pytest.raises(UploadRejected, match="holds 4 documents and at most 3") as e:
+        docs.accept_archive(zipped({f"{n}.pdf": b"%PDF-1.7" for n in "abcd"}), "a.zip", "user-a")
+    assert e.value.status == 413
+    docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "x.pdf", "user-a")
+    docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "y.pdf", "user-a")
+    with pytest.raises(UploadRejected) as e:  # fits on its own, not with what already waits: all or none
+        docs.accept_archive(zipped({"a.pdf": b"%PDF-1.7", "b.pdf": b"%PDF-1.7"}), "a.zip", "user-a")
+    assert e.value.status == 429
+    assert len(docs.pending_jobs("user-a")) == 2 and len(list((tmp_path / "uploads").iterdir())) == 2
+
+
+def test_a_zip_bomb_stops_at_the_limit_and_adds_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(service, "MAX_ARCHIVE_UNPACKED", 4 * 1024 * 1024)
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    bomb = zipped({"a.pdf": b"%PDF-1.7" + b"\0" * (3 * 1024 * 1024), "b.pdf": b"%PDF-1.7" + b"\0" * (3 * 1024 * 1024)})
+    assert len(bomb.getvalue()) < 100_000  # small packed, large unpacked
+    with pytest.raises(UploadRejected, match="unpacks to more than 4 MB") as e:
+        docs.accept_archive(bomb, "bomb.zip", "user-a")
+    assert e.value.status == 413
+    assert not list((tmp_path / "uploads").iterdir()) and not docs.pending_jobs("user-a")
+
+
+def test_an_entry_larger_than_an_upload_or_damaged_is_left_out(tmp_path, monkeypatch):
+    monkeypatch.setattr(service, "MAX_UPLOAD_BYTES", 1024 * 1024)
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("big.pdf", b"%PDF-1.7" + b"\0" * (2 * 1024 * 1024), zipfile.ZIP_DEFLATED)
+        z.writestr("ok.pdf", b"%PDF-1.7 fine")
+        z.writestr("bad.pdf", b"%PDF-1.7" + b"x" * 5000)  # stored as it is, so one byte can be changed
+    data = buf.getvalue()
+    i = data.index(b"x" * 5000)
+    data = data[:i] + b"y" + data[i + 1:]  # one byte changed: the entry's checksum no longer fits
+    a = docs.accept_archive(io.BytesIO(data), "a.zip", "user-a")
+    assert [j.filename for j in a.jobs] == ["ok.pdf"]
+    assert a.skipped == [{"name": "bad.pdf", "reason": "damaged"}, {"name": "big.pdf", "reason": "too_large"}]
+    assert sorted(p.name.split(".")[-1] for p in (tmp_path / "uploads").iterdir()) == ["pdf"]
