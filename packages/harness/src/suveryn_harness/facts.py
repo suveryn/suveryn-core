@@ -57,6 +57,9 @@ class RunFact(BaseModel):
 
 _ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
 _MARKER = re.compile(r"\[(\d{1,2})\]")
+# The table's separator line: every cell dashes, with colons for alignment. Not a row whose value is
+# empty or "-": that is a fact the documents don't contain (VM check of 1a5cfea).
+_SEPARATOR = re.compile(r"^\s*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?$")
 _NOT_FOUND = re.compile(r"^\s*(-|—|n/?a|none|niet (gevonden|vermeld)|non (trouvé|mentionné)|not (found|mentioned|stated))\s*\.?\s*$", re.IGNORECASE)
 
 
@@ -81,7 +84,7 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
     names = _fact_names(playbook)
     for line in response.answer.splitlines():
         m = _ROW.match(line)
-        if not m or m.group(1) in ("id",) or set(m.group(2).strip()) <= {"-", ":"}:
+        if not m or m.group(1) in ("id",) or _SEPARATOR.match(line):
             continue
         fact_id, value, source = names.get(_fold(m.group(1))), m.group(2).strip(), m.group(3)
         if fact_id is None or fact_id in rows:
