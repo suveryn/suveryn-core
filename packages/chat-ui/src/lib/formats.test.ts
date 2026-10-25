@@ -39,6 +39,7 @@ describe("the files sūveryn reads", () => {
     expect(httpErrorText(415, "the file is not a valid ZIP archive")).toBe(TEXT.nl.archiveInvalid);
     expect(httpErrorText(429, "too many documents are waiting to be read; try again when some are done")).toBe(TEXT.nl.tooManyWaiting);
     expect(httpErrorText(429, "slow down", "30")).toMatch(/30 seconden/);
+    expect(httpErrorText(429, "too many playbook runs are reading; start this one when one has finished")).toBe(TEXT.nl.playbooksBusy);
     setLang("en", false);
     for (const t of Object.values(TEXT)) {
       for (const reason of ["unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged"]) {

@@ -32,6 +32,7 @@ const fr: Messages = {
   streamCutOff: "la connexion a été coupée avant que la réponse soit complète",
   tooManyRequests: (seconds) => `trop de demandes ; réessayez${seconds ? ` dans ${seconds} secondes` : " dans un instant"}`,
   tooManyWaiting: "trop de vos documents attendent d'être lus ; ajoutez-en d'autres dès que certains sont prêts",
+  playbooksBusy: "trop de playbooks sont en cours ; lancez celui-ci dès que l'un d'eux est terminé",
   fileTooLarge: "le fichier dépasse la taille acceptée par le serveur",
   fileNotSupported: "ce fichier ne peut pas être ajouté : sūveryn lit les fichiers PDF, Word (.docx), Excel (.xlsx), Markdown (.md) et CSV, et les archives .zip de ces fichiers",
   archiveTooBig: "une fois décompressée, cette archive dépasse la taille acceptée par le serveur",

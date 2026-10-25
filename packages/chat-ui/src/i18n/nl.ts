@@ -32,6 +32,7 @@ const nl: Messages = {
   streamCutOff: "de verbinding werd verbroken voordat het antwoord volledig was",
   tooManyRequests: (seconds) => `te veel verzoeken; probeer het${seconds ? ` over ${seconds} seconden` : " zo meteen"} opnieuw`,
   tooManyWaiting: "er wachten te veel van uw documenten om gelezen te worden; voeg er meer toe zodra er enkele klaar zijn",
+  playbooksBusy: "er lopen nu te veel playbooks; start dit zodra er een klaar is",
   fileTooLarge: "het bestand is groter dan de server aanvaardt",
   fileNotSupported: "dit bestand kan niet worden toegevoegd: sūveryn leest pdf, Word (.docx), Excel (.xlsx), Markdown (.md) en CSV, en .zip-archieven daarvan",
   archiveTooBig: "dit archief wordt uitgepakt groter dan de server aanvaardt",
