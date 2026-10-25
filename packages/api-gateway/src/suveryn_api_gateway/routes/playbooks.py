@@ -4,11 +4,18 @@ start one, follow it, confirm its checkpoint.
 Rights (cases.md): starting a run and confirming are a contributor's; seeing runs is a reader's;
 a closed case starts nothing. Every step is in the case's access log. Only the case's uploaded
 documents are read.
+
+How many runs read at once is bounded (the audit of 25 October 2026, finding 3): each is a long model
+call, and nothing limited how many anyone could start. At most ``MAX_RUNS_PER_USER`` of one person's
+and ``MAX_RUNS`` in all read at the same time; one more is refused with 429 and a sentence, and can be
+started again once one has finished. Counted in this process (one gateway per appliance).
 """
 
 import asyncio
 import logging
+import os
 import uuid
+from collections import Counter
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -40,6 +47,35 @@ from .common import (
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
+
+# Runs reading at once: per person, and in all (llama-server answers four requests side by side).
+MAX_RUNS_PER_USER = int(os.environ.get("SUVERYN_PLAYBOOK_RUNS_PER_USER", "2"))
+MAX_RUNS = int(os.environ.get("SUVERYN_PLAYBOOK_RUNS", "4"))
+
+
+class RunSlots:
+    """Places for runs that read, per owner. Taken before the run is created, in one step with the check
+    (no await in between), and given back when its reading ends, however it ends."""
+
+    def __init__(self):
+        self.taken: Counter[str] = Counter()
+
+    def take(self, owner: str) -> bool:
+        if self.taken[owner] >= MAX_RUNS_PER_USER or sum(self.taken.values()) >= MAX_RUNS:
+            return False
+        self.taken[owner] += 1
+        return True
+
+    def give_back(self, owner: str) -> None:
+        self.taken[owner] -= 1
+        if self.taken[owner] <= 0:
+            del self.taken[owner]
+
+
+def slots_of(app) -> RunSlots:
+    if not hasattr(app.state, "playbook_slots"):
+        app.state.playbook_slots = RunSlots()
+    return app.state.playbook_slots
 
 
 def runs_or_503(request: Request) -> RunStore:
@@ -143,13 +179,22 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     wanted = body.document_ids or list(uploaded)
     if not wanted or any(d not in uploaded for d in wanted):
         raise HTTPException(404, "Unknown document." if wanted else "This case has no documents to read.")
-    run = await run_in_threadpool(store.create, cid, pb, wanted, who(request)[0], None)  # the username: shown, as confirmed_by
+    owner, slots = owner_of(request), slots_of(request.app)
+    if not slots.take(owner):
+        raise HTTPException(429, "too many playbook runs are reading; start this one when one has finished")
+    try:
+        run = await run_in_threadpool(store.create, cid, pb, wanted, who(request)[0], None)  # the username: shown, as confirmed_by
+    except BaseException:
+        slots.give_back(owner)
+        raise
+    # The reading starts at once, so the place taken above is given back however the run ends.
+    task = asyncio.create_task(_read(request.app, store, run, pb, {d: uploaded[d] for d in wanted}, owner))
+    request.app.state.running.add(task)
+    task.add_done_callback(request.app.state.running.discard)
+    task.add_done_callback(lambda _t: slots.give_back(owner))
     await log_access(request, cid, "playbook_started", {"playbook": pb.id, "version": pb.version, "run": run.id,
                                                         "documents": wanted})
     await touch_case(request, scope)
-    task = asyncio.create_task(_read(request.app, store, run, pb, {d: uploaded[d] for d in wanted}, owner_of(request)))
-    request.app.state.running.add(task)
-    task.add_done_callback(request.app.state.running.discard)
     return run
 
 
