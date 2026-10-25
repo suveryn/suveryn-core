@@ -117,3 +117,16 @@ def test_an_unreadable_answers_shape_is_counts_only():
     assert shape["table_rows"] == 4 and shape["named_rows"] == 0 and shape["pipes_per_row"] == "5"
     assert not any("Peeters" in str(v) or "EUR" in str(v) for v in shape.values())
     assert answer_shape(DEED_INTAKE, response(TABLE))["named_rows"] == len(DEED_INTAKE.facts)
+
+
+@pytest.mark.parametrize("missing", ["", "-", "\u2014", "niet gevonden"])
+def test_a_deed_that_lacks_most_facts_is_read_with_them_not_found(missing):
+    """VM check of 1a5cfea: on a thin deed the model left nine cells empty, and the parser took each
+    empty row for the table's separator line, so too few rows were left and the run was unreadable."""
+    found = {"sellers": "Jan Peeters [1]", "buyers": "Tom Janssens [1]", "property": "Kerkstraat 1, Gent [1]",
+             "price": "EUR 412.500,00 [1]"}
+    rows = "".join(f"| {f.id} | {found.get(f.id, missing)} | {'[1]' if f.id in found else ''} |\n" for f in DEED_INTAKE.facts)
+    facts = read_facts(DEED_INTAKE, response("| id | value | source |\n|---|:---:|---|\n" + rows), {})
+    assert facts is not None
+    assert sorted(f.id for f in facts if f.found) == sorted(found)
+    assert all(not f.value and not f.citations for f in facts if not f.found)
