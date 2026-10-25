@@ -136,13 +136,30 @@ def _cite(n: int, c: Citation, filenames: dict[str, str]) -> FactCitation:
                         page=s.page if s else None, location=s.location if s else None, text=c.text)
 
 
+def answer_shape(playbook: Playbook, response: ChatResponse) -> dict[str, int | str | None]:
+    """What an answer that couldn't be read looked like, in counts only (it is document text): its
+    length and lines, how many lines were table rows and how many of those named a fact, how many cells
+    the rows had, and why the model stopped. Enough to tell a missing table from a renamed or
+    reshaped one (VM check 2: every deed intake run was unreadable)."""
+    names = _fact_names(playbook)
+    lines = response.answer.splitlines()
+    rows = [m for line in lines if (m := _ROW.match(line))]
+    cells = sorted({line.count("|") for line in lines if line.lstrip().startswith("|")})
+    return {"chars": len(response.answer), "lines": len(lines), "table_rows": len(rows),
+            "named_rows": sum(1 for m in rows if _fold(m.group(1)) in names),
+            "pipes_per_row": ",".join(map(str, cells[:5])) or "0",
+            "finish": response.finish_reason, "reasoning_chars": len(response.reasoning or "")}
+
+
 async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]], playbook: Playbook, filenames: dict[str, str],
-                        case_id: str | None, on_retry: Callable[[int], None] | None = None) -> tuple[list[RunFact], ChatResponse]:
+                        case_id: str | None,
+                        on_retry: Callable[[int, dict], None] | None = None) -> tuple[list[RunFact], ChatResponse]:
     """Ask the model for the playbook's table over the documents ``filenames`` (id -> file name) and
     read it. An answer that isn't the table is asked for once more, with a stricter reminder (review
     2026-10-17: a small model's most likely failure, and a retry is cheaper than a person's); then
     ``Unreadable``. ``answer`` is the grounded call (the caller binds its user); its errors pass
-    through. ``on_retry(attempt)`` is told when an answer couldn't be read."""
+    through. ``on_retry(attempt, shape)`` is told when an answer couldn't be read, with its shape
+    (``answer_shape``: counts only)."""
     for attempt, instructions in enumerate((playbook.instructions, playbook.instructions + STRICTER)):
         req = ChatRequest(messages=[ChatMessage(role="user", content=instructions)], document_ids=list(filenames),
                           case_id=case_id, max_tokens=READ_TOKENS)
@@ -151,5 +168,5 @@ async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]]
         if facts is not None:
             return facts, response
         if on_retry is not None:
-            on_retry(attempt + 1)
+            on_retry(attempt + 1, answer_shape(playbook, response))
     raise Unreadable

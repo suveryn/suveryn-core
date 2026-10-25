@@ -204,7 +204,8 @@ async def _read(app, store: RunStore, run: Run, pb: Playbook, filenames: dict[st
     run_id = uuid.UUID(run.id)
     try:
         facts, response = await read_playbook(lambda req: app.state.chat.answer(req, owner), pb, filenames, run.case_id,
-                                              on_retry=lambda n: log.info("playbook run %s: answer %d not readable as the table", run.id, n))
+                                              on_retry=lambda n, shape: log.info("playbook run %s: answer %d not readable as the table: %s",
+                                                                                 run.id, n, " ".join(f"{k}={v}" for k, v in shape.items())))
     except (BackendError, DocumentsUnavailable, DocumentNotFound, Unreadable) as e:
         await run_in_threadpool(store.fail, run_id, {BackendError: "model_unavailable", DocumentsUnavailable: "documents_unavailable",
                                                      DocumentNotFound: "document_missing", Unreadable: "unreadable_answer"}[type(e)])
