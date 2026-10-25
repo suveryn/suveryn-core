@@ -88,7 +88,7 @@ def test_a_fact_may_be_named_by_its_label_in_any_language_but_never_by_position(
 
 def test_read_playbook_asks_once_more_with_a_stricter_reminder_then_gives_up():
     asked: list[str] = []
-    retries: list[int] = []
+    retries: list[tuple[int, dict]] = []
 
     def answering(*answers):
         async def answer(req):
@@ -97,11 +97,23 @@ def test_read_playbook_asks_once_more_with_a_stricter_reminder_then_gives_up():
             return response(answers[len(asked) - 1])
         return answer
 
-    facts, got = asyncio.run(read_playbook(answering("Not a table.", TABLE), DEED_INTAKE, {DOC: "compromis.pdf"}, CASE, retries.append))
-    assert [a.endswith(STRICTER) for a in asked] == [False, True] and retries == [1]
+    facts, got = asyncio.run(read_playbook(answering("Not a table.", TABLE), DEED_INTAKE, {DOC: "compromis.pdf"}, CASE, lambda n, shape: retries.append((n, shape))))
+    assert [a.endswith(STRICTER) for a in asked] == [False, True] and [n for n, _ in retries] == [1]
+    assert retries[0][1] == {"chars": 12, "lines": 1, "table_rows": 0, "named_rows": 0, "pipes_per_row": "0",
+                             "finish": None, "reasoning_chars": 0}
     assert {f.id: f for f in facts}["price"].value == "EUR 412.500,00" and got.answer == TABLE
 
     asked.clear()
     with pytest.raises(Unreadable):
         asyncio.run(read_playbook(answering("Not a table.", "Still not."), DEED_INTAKE, {DOC: "compromis.pdf"}, CASE))
     assert len(asked) == 2  # never a third time
+
+
+def test_an_unreadable_answers_shape_is_counts_only():
+    """What the gateway logs when an answer isn't the table: never a word of it (VM check 2)."""
+    from suveryn_harness.facts import answer_shape
+    reshaped = "| # | fact | value | source |\n|---|---|---|---|\n| 1 | Verkopers | Jan Peeters [1] | [1] |\n| 2 | prijs | EUR 1 [2] | [2] |"
+    shape = answer_shape(DEED_INTAKE, response(reshaped))
+    assert shape["table_rows"] == 4 and shape["named_rows"] == 0 and shape["pipes_per_row"] == "5"
+    assert not any("Peeters" in str(v) or "EUR" in str(v) for v in shape.values())
+    assert answer_shape(DEED_INTAKE, response(TABLE))["named_rows"] == len(DEED_INTAKE.facts)

@@ -151,17 +151,34 @@ Source = Path | _Entry  # what a queued job reads: an upload on disk, or an entr
 
 class FairQueue:
     """The documents waiting to be read, taken in turns per uploader: the next document comes from the
-    uploader who has waited longest for a turn, and each uploader's own documents in the order they
-    came. A colleague's one deed is read next, not after someone else's data room."""
+    uploader who has had the fewest turns, and among those the one waiting longest; each uploader's own
+    documents in the order they came. A colleague's one deed is read next, not after someone else's
+    data room.
+
+    Turns are counted, not just queued (VM check 2: one person's data room got two turns before a
+    colleague's deed). Uploads arrive one by one, so an uploader's queue is often empty for a moment
+    while their document is read; without the count, their next upload would rejoin as if new, ahead
+    of a colleague who came a moment later. Someone who starts uploading is counted from the turn
+    being given now (``_round``), so they are next, but never get a run of turns for the time they
+    weren't there."""
 
     def __init__(self):
-        self._by_owner: OrderedDict[str, deque] = OrderedDict()
+        self._by_owner: dict[str, deque] = {}
+        self._turns: dict[str, int] = {}    # turns each uploader has had (kept while their queue is empty)
+        self._since: dict[str, int] = {}    # when each waiting uploader joined the line, or last had a turn
+        self._clock = 0
+        self._round = 0                     # the turn count of the document last given out
         self._ready = threading.Condition()
 
     def put(self, item: tuple["Job", Source], first: bool = False) -> None:
         """Queue ``(job, source)``; ``first``: at the front of its uploader's documents (a retry)."""
+        owner = item[0].owner
         with self._ready:
-            q = self._by_owner.setdefault(item[0].owner, deque())
+            if owner not in self._by_owner:
+                self._by_owner[owner] = deque()
+                self._turns[owner] = max(self._turns.get(owner, 0), self._round)
+                self._since[owner] = self._tick()
+            q = self._by_owner[owner]
             q.appendleft(item) if first else q.append(item)
             self._ready.notify()
 
@@ -170,12 +187,20 @@ class FairQueue:
         with self._ready:
             while not self._by_owner:
                 self._ready.wait()
-            owner, q = next(iter(self._by_owner.items()))
+            owner = min(self._by_owner, key=lambda o: (self._turns[o], self._since[o]))
+            q = self._by_owner[owner]
             item = q.popleft()
-            del self._by_owner[owner]
+            self._round = self._turns[owner]
+            self._turns[owner] += 1
             if q:
-                self._by_owner[owner] = q  # to the back of the turn
+                self._since[owner] = self._tick()  # to the back of those with as many turns
+            else:
+                del self._by_owner[owner], self._since[owner]
             return item
+
+    def _tick(self) -> int:
+        self._clock += 1
+        return self._clock
 
     def __len__(self) -> int:
         with self._ready:
