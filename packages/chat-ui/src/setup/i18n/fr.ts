@@ -250,6 +250,7 @@ const fr: Text = {
     no_backup: "Il n'y a pas de sauvegarde sūveryn à cet endroit. Vérifiez le disque ou l'adresse du partage.",
     unreachable: "L'appliance n'a pas pu atteindre les sauvegardes. Vérifiez le disque, ou l'adresse, le nom d'utilisateur et le mot de passe du partage.",
     damaged: "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée.",
+    newer: "La sauvegarde la plus récente à cet endroit a été faite par une version de sūveryn plus récente que celle de cette appliance. Contactez votre partenaire pour mettre d'abord cette appliance à jour.",
     invalid: "Les réponses étaient incomplètes. Saisissez-les à nouveau.",
     restore: "La restauration s'est arrêtée en cours de route. Choisissez à nouveau la clé de récupération et réessayez ; si elle s'arrête encore, contactez votre partenaire.",
   } as Record<string, string>,
