@@ -250,6 +250,7 @@ const nl: Text = {
     no_backup: "Daar staat geen sūveryn-back-up. Controleer de schijf of het adres van de gedeelde map.",
     unreachable: "De appliance kon de back-ups niet bereiken. Controleer de schijf, of het adres, de gebruikersnaam en het wachtwoord van de gedeelde map.",
     damaged: "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet.",
+    newer: "De nieuwste back-up daar is gemaakt door een nieuwere versie van sūveryn dan deze appliance heeft. Neem contact op met uw partner om deze appliance eerst bij te werken.",
     invalid: "De antwoorden waren onvolledig. Vul ze opnieuw in.",
     restore: "Het terugzetten stopte halverwege. Kies de herstelsleutel opnieuw en probeer het nog eens; stopt het weer, neem dan contact op met uw partner.",
   } as Record<string, string>,
