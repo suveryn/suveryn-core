@@ -335,6 +335,30 @@ def test_the_queue_takes_uploaders_in_turns():
     assert [q.get()[0].id, q.get()[0].id] == ["retry", "a"]
 
 
+def test_an_uploader_whose_queue_was_empty_for_a_moment_doesnt_jump_a_colleague():
+    """VM check 2: Alice's scans arrive one by one, so her queue is empty while her first is read. Her
+    second, arriving before Bob's deed, must not put her ahead of him again: Bob is next."""
+    q = FairQueue()
+    job = lambda owner, name: (Job(id=name, filename=name, owner=owner), Path(name))
+    q.put(job("alice", "scan-00"))
+    assert q.get()[0].id == "scan-00"       # being read; Alice's queue is empty now
+    q.put(job("alice", "scan-01"))
+    q.put(job("bob", "deed"))
+    q.put(job("alice", "scan-02"))
+    assert [q.get()[0].id for _ in range(3)] == ["deed", "scan-01", "scan-02"]
+
+
+def test_someone_who_comes_later_is_next_but_gets_no_run_of_turns():
+    q = FairQueue()
+    job = lambda owner, name: (Job(id=name, filename=name, owner=owner), Path(name))
+    for n in range(5):
+        q.put(job("anne", f"room-{n}"))
+    assert [q.get()[0].id for _ in range(3)] == ["room-0", "room-1", "room-2"]
+    q.put(job("bert", "deed"))
+    q.put(job("bert", "deed-2"))
+    assert [q.get()[0].id for _ in range(len(q))] == ["deed", "room-3", "deed-2", "room-4"]
+
+
 def test_an_archive_is_unpacked_one_document_at_a_time_and_then_deleted(tmp_path):
     seen: list[list[str]] = []
 
