@@ -11,6 +11,9 @@ What                    Counted per                     Default (per minute)    
 ``POST /v1/documents``  signed-in user                  30                      SUVERYN_RATE_UPLOADS
 ======================  ==============================  ======================  ===============
 
+Starting a playbook run counts as a question. How many runs read at once is bounded separately
+(``routes/playbooks.py``: two per person, four in all), since one run is a long model call.
+
 ``0`` turns a limit off. Behind the appliance's reverse proxy on the same machine, uvicorn takes the
 client address from ``X-Forwarded-For`` (it trusts proxy headers from 127.0.0.1 only); behind a
 proxy elsewhere every request seems to come from the proxy, so the sign-in limit then counts for

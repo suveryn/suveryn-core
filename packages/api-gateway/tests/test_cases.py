@@ -1159,7 +1159,8 @@ def test_store_closes_keeps_extends_reopens_and_finds_what_is_due(store):
     assert s.reopen_case(cid) is None
     closed = s.close_case(cid, half_year)
     assert closed.state == "closed" and closed.closed_at and not closed.keep
-    assert half_year - timedelta(minutes=1) < closed.keep_until - closed.closed_at <= half_year
+    # In UTC: two aware times in the same zone subtract by the wall clock, an hour off across a clock change
+    assert half_year - timedelta(minutes=1) < closed.keep_until.astimezone(UTC) - closed.closed_at.astimezone(UTC) <= half_year
     assert s.close_case(cid, half_year) is None  # already closed
     assert s.due(alice, admin=False) == [] and s.due_for_deletion() == []  # not for months
     s._execute("UPDATE cases SET keep_until = now() + interval '10 days' WHERE id = %s", (cid,))

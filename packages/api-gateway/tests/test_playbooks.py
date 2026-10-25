@@ -235,3 +235,53 @@ def test_store_deletes_runs_with_the_case(runs):
     assert runs.get(uuid.UUID(run.id), cid).status == "reading" and runs.get(uuid.UUID(run.id), uuid.uuid4()) is None
     assert runs.confirm(uuid.UUID(run.id), cid, {}, "alice") is None  # not at the checkpoint
     assert runs.delete_case(cid) == 1 and runs.list(cid) == []
+
+
+@needs_db
+def test_only_so_many_runs_read_at_once(runs, monkeypatch):
+    """The audit of 25 October 2026, finding 3: nothing bounded how many runs read at the same time.
+    Two of one person's and four in all; one more is refused with a sentence until one finishes."""
+    import asyncio
+    import threading
+
+    from suveryn_api_gateway.routes import playbooks as route
+
+    monkeypatch.setattr(route, "MAX_RUNS_PER_USER", 2)
+    monkeypatch.setattr(route, "MAX_RUNS", 3)
+    release = threading.Event()
+    plain = llm_transport([], text=TABLE).handler
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/chat/completions"):
+            while not release.is_set():  # the model is busy until the test says
+                await asyncio.sleep(0.02)
+        return plain(request)
+
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(slow))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    try:
+        with TestClient(app) as c:
+            alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
+            cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+            c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+            docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+            start = lambda who: c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=who)  # noqa: E731
+            assert [start(alice).status_code for _ in range(3)] == [202, 202, 429]  # two of hers at once
+            r = start(bob)
+            assert r.status_code == 202  # someone else's first: three in all
+            r = start(bob)
+            assert r.status_code == 429 and "too many playbook runs" in r.json()["detail"]  # the appliance's three
+            release.set()
+            first = c.get(f"/v1/cases/{cid}/playbooks/runs", headers=alice).json()[0]
+            wait_for(c, f"/v1/cases/{cid}/playbooks/runs/{first['id']}", alice, "checkpoint")
+            for _ in range(50):  # every place given back once the readings end
+                if not route.slots_of(app).taken:
+                    break
+                time.sleep(0.05)
+            assert not route.slots_of(app).taken
+            assert start(alice).status_code == 202
+    finally:
+        release.set()
