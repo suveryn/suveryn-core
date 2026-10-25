@@ -163,6 +163,7 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
   switch (status) {
     case 429:
       if (typeof detail === "string" && /documents are waiting/.test(detail)) return m.tooManyWaiting;
+      if (typeof detail === "string" && /playbook runs are reading/.test(detail)) return m.playbooksBusy;
       return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
     case 413: {
       if (typeof detail === "string" && /archive unpacks/.test(detail)) return m.archiveTooBig;

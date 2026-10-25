@@ -41,6 +41,7 @@ const en = {
   // Server errors, by HTTP status (the server's own text is English).
   tooManyRequests: (seconds: number | null) => `too many requests; try again${seconds ? ` in ${seconds} seconds` : " shortly"}`,
   tooManyWaiting: "too many of your documents are waiting to be read; add more once some are ready",
+  playbooksBusy: "too many playbooks are reading right now; start this one when one has finished",
   fileTooLarge: "the file is larger than the server accepts",
   fileNotSupported: "this file can't be added: sūveryn reads PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files, and .zip archives of them",
   archiveTooBig: "this archive unpacks to more than the server accepts",
