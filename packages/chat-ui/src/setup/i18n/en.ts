@@ -250,6 +250,7 @@ const en = {
     no_backup: "There is no sūveryn backup there. Check the disk or the share's address.",
     unreachable: "The appliance couldn't reach the backups. Check the disk or the share's address, user name and password.",
     damaged: "The newest backup there is damaged and can't be restored.",
+    newer: "The newest backup there was made by a newer version of sūveryn than this appliance has. Contact your partner to update this appliance first.",
     invalid: "The answers were incomplete. Enter them again.",
     restore: "The restore stopped partway. Enter the recovery key again and try again; if it stops again, contact your partner.",
   } as Record<string, string>,

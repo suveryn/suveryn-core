@@ -56,7 +56,7 @@ describe("restoring a backup from the web setup", () => {
 
   it("has every code the appliance answers a restore with, in every language", () => {
     for (const t of Object.values(TEXT)) {
-      for (const code of ["wrong_key", "no_backup", "unreachable", "damaged", "invalid", "restore"]) expect(t.restoreErrors[code]).toBeTruthy();
+      for (const code of ["wrong_key", "no_backup", "unreachable", "damaged", "newer", "invalid", "restore"]) expect(t.restoreErrors[code]).toBeTruthy();
       for (const code of ["key_invalid", "restore_started", "not_checked", "disk_gone", "address"]) expect(t.errors[code]).toBeTruthy();
     }
   });
