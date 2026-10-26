@@ -19,9 +19,9 @@
  *   PUT  setup/v1/answers/backups          BackupsAnswer, plus password for a share
  *   POST setup/v1/provision                → Progress (starts it; again after a failure retries)
  *   GET  setup/v1/provision                → Progress
- *   PUT  setup/v1/answers/restore          RestoreAnswer → RestoreProgress (checking: the appliance looks for the
- *                                          newest backup there and checks it with the key, #56)
- *   POST setup/v1/restore/start            → RestoreProgress (restores the backup the check found)
+ *   PUT  setup/v1/answers/restore          RestoreAnswer → RestoreProgress (checking: the appliance finds the
+ *                                          backups there the key opens, its appliance's, and checks the newest, #56)
+ *   POST setup/v1/restore/start            { file } → RestoreProgress (restores the chosen one of those)
  *   GET  setup/v1/restore                  → RestoreProgress | null
  *
  * Errors: 422 with { errors: { field: code } } or { error: code }. The appliance answers these with
@@ -64,6 +64,9 @@ export type RestoreProgress = {
   state: "checking" | "checked" | "restoring" | "done" | "failed";
   /** The backup the check found: its file, when it was made, and the name of the appliance that made it. */
   backup?: { file: string; created: string; appliance: string };
+  /** Every backup the key opens, newest first: the office may choose an older one. Another appliance's
+   * backups are never among them, even when they are newer (each appliance has its own key). */
+  choices?: { file: string; created: string; appliance: string; size: number }[];
   /** Where the restored appliance answers: it takes the old appliance's name. */
   address?: string;
   steps?: { id: RestoreStepId; state: "waiting" | "running" | "done" | "failed" }[];
@@ -136,5 +139,5 @@ export const saveBackups = (a: BackupsAnswer & { password?: string }) => call<vo
 export const startProvisioning = () => call<Progress>("POST", "provision");
 export const getProgress = () => call<Progress>("GET", "provision");
 export const saveRestore = (a: RestoreAnswer) => call<RestoreProgress>("PUT", "answers/restore", a);
-export const startRestore = () => call<RestoreProgress>("POST", "restore/start");
+export const startRestore = (file?: string) => call<RestoreProgress>("POST", "restore/start", file ? { file } : undefined);
 export const getRestore = () => call<RestoreProgress | null>("GET", "restore");

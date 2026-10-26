@@ -42,6 +42,17 @@ describe("restoring a backup from the web setup", () => {
     expect(html).toContain("Turn the old appliance off");
   });
 
+  it("offers the dates of the backups the key opens, the newest chosen", () => {
+    const choices = [{ ...BACKUP, size: 2 }, { ...BACKUP, file: BACKUP.file.replace("20261023", "20261016"), created: "2026-10-16T02:30:00Z", size: 1 }];
+    const html = renderToStaticMarkup(<RestoreConfirm state={STATE} initial={{ state: "checked", backup: BACKUP, choices }}
+                                                      onBack={() => {}} onStart={() => {}} headingId="h" />);
+    expect(html).toContain("Backup to restore");
+    expect(html).toContain("23 October 2026");
+    const one = renderToStaticMarkup(<RestoreConfirm state={STATE} initial={{ state: "checked", backup: BACKUP, choices: [choices[0]] }}
+                                                     onBack={() => {}} onStart={() => {}} headingId="h" />);
+    expect(one).not.toContain("Backup to restore");  // nothing to choose
+  });
+
   it("ends at the old appliance's address", () => {
     const html = renderToStaticMarkup(<RestoreDone restore={{ state: "done", backup: BACKUP, address: "https://notary-brussels-01.local",
                                                               steps: [] }} headingId="h" />);
@@ -72,7 +83,10 @@ describe("the stand-in appliance's restore", () => {
     expect(await answer("PUT", "answers/restore", { target: "usb", disk: "x", key })).toEqual({ state: "checking" });
     vi.setSystemTime(Date.now() + 2500);
     expect(await answer("GET", "restore")).toMatchObject({ state: "checked", backup: { appliance: "notary-brussels-01" } });
-    expect(await answer("POST", "restore/start")).toMatchObject({ state: "restoring" });
+    const checked = await answer("GET", "restore") as { choices: { file: string; created: string }[] };
+    await expect(answer("POST", "restore/start", { file: "suveryn-backup_other_20261024T023000Z.tar.zst.age" })).rejects.toThrow();
+    expect(await answer("POST", "restore/start", { file: checked.choices[3].file }))
+      .toMatchObject({ state: "restoring", backup: { created: "2026-10-16T02:30:00Z" } });  // a week earlier
     vi.setSystemTime(Date.now() + 8000);
     expect(await answer("GET", "restore")).toMatchObject({ state: "done", address: "https://notary-brussels-01.local" });
     vi.useRealTimers();
