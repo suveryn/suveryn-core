@@ -24,6 +24,7 @@ from .schemas import (
     StreamThinking,
     Usage,
 )
+from .marking import Meaning
 from .service import (
     PASSAGES,
     ChatService,
@@ -47,6 +48,7 @@ __all__ = [
     "ChatRequest",
     "ChatResponse",
     "ChatService",
+    "Meaning",
     "Citation",
     "CitationIssue",
     "Delta",

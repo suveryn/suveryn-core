@@ -37,3 +37,10 @@ export function sourceParts(turn: AssistantTurn, n: number, occ: number | null):
   return one?.n === n ? markPassage(passage, [one.claim], termsOf(one.claim))
     : markPassage(passage, claimTexts(turn.text, available).get(n) ?? [], claimTerms(turn.text, available).get(n) ?? []);
 }
+
+/** Whether what ``sourceParts`` marks for this source was found by meaning rather than by the same words. */
+export function markedByMeaning(turn: AssistantTurn, n: number, occ: number | null): boolean {
+  if (!turn.supportSpans) return false;
+  const one = occ === null ? undefined : markerClaims(turn.text, turn.citations.length)[occ];
+  return turn.supportSpans.some((s) => s.n === n && (one?.n !== n || s.marker === occ) && s.how === "meaning");
+}

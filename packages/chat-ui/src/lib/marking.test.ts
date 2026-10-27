@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { answerSentences, claimTerms, spanParts, claimTexts, markerClaims, markPassage, markTerms, sentenceRanges, supportingRanges, termsOf, toBlocks, type PassagePart } from "./answer";
 import { facts, numberValue, wordValue } from "./facts";
-import { sourceParts } from "./sources";
+import { markedByMeaning, sourceParts } from "./sources";
 import cases from "../../../harness/tests/marking_cases.json";
 import type { AssistantTurn } from "../types";
 
@@ -187,9 +187,8 @@ describe("facts in another form (suveryn-tracker#25)", () => {
     expect(strong(parts)).toEqual(["Harbour Builders"]);
   });
 
-  // Step 3 of suveryn-tracker#25: by meaning, with the embedding model on the server.
-  it.todo("marks a paraphrase: the answer's \"employer\" where the source says \"undertaking\"");
-  it.todo("marks a French source for a Dutch answer");
+  // A paraphrase ("employer" for "undertaking") or a source in another language shares too few words for these rules:
+  // the server marks those by meaning (harness/marking.py, step 3), and the panel says so.
 });
 
 describe("the shared regression set (harness/tests/marking_cases.json)", () => {
@@ -219,6 +218,15 @@ describe("the server's marking (suveryn-tracker#25, step 2)", () => {
     expect(runs(sourceParts(turn([]), 1, 0))).toEqual([]);
     // out of bounds is clipped
     expect(runs(spanParts("short", [{ ranges: [[2, 99]], facts: [] }]))).toEqual(["ort"]);
+  });
+
+  it("says when a sentence was found by meaning (step 3)", () => {
+    const spans = [{ marker: 0, n: 1, ranges: [[27, 68]] as [number, number][], facts: [], how: "meaning" as const },
+                   { marker: 1, n: 1, ranges: [[0, 26]] as [number, number][], facts: [], how: "words" as const }];
+    expect(markedByMeaning(turn(spans), 1, 0)).toBe(true);
+    expect(markedByMeaning(turn(spans), 1, 1)).toBe(false);
+    expect(markedByMeaning(turn(spans), 1, null)).toBe(true);
+    expect(markedByMeaning(turn(), 1, 0)).toBe(false);
   });
 
   it("uses the rules here for an answer without the server's marking", () => {

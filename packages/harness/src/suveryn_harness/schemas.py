@@ -139,6 +139,9 @@ class SupportSpan(BaseModel):
     n: int = Field(ge=1)
     ranges: list[tuple[int, int]] = Field(default_factory=list)
     facts: list[tuple[int, int]] = Field(default_factory=list)
+    # "words": the sentences share the claim's words and facts; "meaning": the embedding model found the sentence
+    # closest in meaning (a paraphrase, another language), which the reader should check (suveryn-tracker#25, step 3).
+    how: Literal["words", "meaning"] = "words"
 
 
 class ChatResponse(BaseModel):

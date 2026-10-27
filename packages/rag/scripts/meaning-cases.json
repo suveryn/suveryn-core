@@ -1,0 +1,155 @@
+{
+ "_about": "Fictional claims and source sentences for marking by meaning (suveryn-tracker#25, step 3): the index of the sentence that says the claim, or null when none does (it must not be marked). Read by meaning-benchmark.",
+ "cases": [
+  {
+   "name": "paraphrase, English",
+   "claim": "The employer bears the costs of the medical examination",
+   "sentences": [
+    "The undertaking pays for the doctor's check-up.",
+    "Staff choose their own doctor.",
+    "Salaries are paid monthly."
+   ],
+   "says_it": 0
+  },
+  {
+   "name": "paraphrase, English, distractors",
+   "claim": "The tenant must insure the building against fire",
+   "sentences": [
+    "The lessee shall take out cover for the premises against fire damage.",
+    "The landlord insures his own furniture.",
+    "Fire exits must stay clear."
+   ],
+   "says_it": 0
+  },
+  {
+   "name": "paraphrase, English, a second sentence",
+   "claim": "The buyer may withdraw if the loan is refused",
+   "sentences": [
+    "The sale is concluded today.",
+    "Should the bank decline the mortgage, the purchaser can cancel the sale without costs.",
+    "The keys are handed over at signing."
+   ],
+   "says_it": 1
+  },
+  {
+   "name": "paraphrase, Dutch",
+   "claim": "De werkgever draagt de kosten van het medisch onderzoek",
+   "sentences": [
+    "De onderneming betaalt het doktersbezoek.",
+    "Het personeel kiest zelf een arts.",
+    "De lonen worden maandelijks betaald."
+   ],
+   "says_it": 0
+  },
+  {
+   "name": "paraphrase, Dutch, distractors",
+   "claim": "De huurder moet het gebouw verzekeren tegen brand",
+   "sentences": [
+    "De verhuurder verzekert zijn eigen meubilair.",
+    "De huurder sluit een brandpolis af voor het gehuurde pand.",
+    "Nooduitgangen blijven vrij."
+   ],
+   "says_it": 1
+  },
+  {
+   "name": "paraphrase, French",
+   "claim": "L'employeur supporte les frais de l'examen médical",
+   "sentences": [
+    "L'entreprise prend en charge la visite chez le médecin.",
+    "Le personnel choisit librement son médecin.",
+    "Les salaires sont payés chaque mois."
+   ],
+   "says_it": 0
+  },
+  {
+   "name": "a Dutch answer, a French source",
+   "claim": "De koper betaalt de registratierechten",
+   "sentences": [
+    "Les droits d'enregistrement sont à charge de l'acquéreur.",
+    "Le vendeur garantit l'absence de vices cachés.",
+    "La signature a lieu chez le notaire."
+   ],
+   "says_it": 0
+  },
+  {
+   "name": "a Dutch answer, a French source, distractors",
+   "claim": "De verkoper staat in voor verborgen gebreken",
+   "sentences": [
+    "Les droits d'enregistrement sont à charge de l'acquéreur.",
+    "Le vendeur garantit l'absence de vices cachés.",
+    "La signature a lieu chez le notaire."
+   ],
+   "says_it": 1
+  },
+  {
+   "name": "a French answer, a Dutch source",
+   "claim": "L'acheteur paie les droits d'enregistrement",
+   "sentences": [
+    "De registratierechten zijn ten laste van de koper.",
+    "De verkoper staat in voor verborgen gebreken.",
+    "De ondertekening gebeurt bij de notaris."
+   ],
+   "says_it": 0
+  },
+  {
+   "name": "an English answer, a Dutch source",
+   "claim": "The seller guarantees there are no hidden defects",
+   "sentences": [
+    "De registratierechten zijn ten laste van de koper.",
+    "De verkoper staat in voor verborgen gebreken.",
+    "De ondertekening gebeurt bij de notaris."
+   ],
+   "says_it": 1
+  },
+  {
+   "name": "an English answer, a French source",
+   "claim": "The deed is signed at the notary's office",
+   "sentences": [
+    "Les droits d'enregistrement sont à charge de l'acquéreur.",
+    "Le vendeur garantit l'absence de vices cachés.",
+    "La signature a lieu chez le notaire."
+   ],
+   "says_it": 2
+  },
+  {
+   "name": "nothing says it, English",
+   "claim": "The seller keeps the garden shed",
+   "sentences": [
+    "The undertaking pays for the doctor's check-up.",
+    "Staff choose their own doctor.",
+    "Salaries are paid monthly."
+   ],
+   "says_it": null
+  },
+  {
+   "name": "nothing says it, Dutch",
+   "claim": "De verkoper behoudt het tuinhuis",
+   "sentences": [
+    "De registratierechten zijn ten laste van de koper.",
+    "De ondertekening gebeurt bij de notaris.",
+    "De sleutels worden bij de ondertekening overhandigd."
+   ],
+   "says_it": null
+  },
+  {
+   "name": "nothing says it, close subject",
+   "claim": "The buyer pays the notary's fees",
+   "sentences": [
+    "Les droits d'enregistrement sont à charge de l'acquéreur.",
+    "Le vendeur garantit l'absence de vices cachés.",
+    "La signature a lieu chez le notaire."
+   ],
+   "says_it": null
+  },
+  {
+   "name": "the opposite is said",
+   "claim": "The tenant may sublet the premises",
+   "sentences": [
+    "The lessee may not sublet the premises without written consent.",
+    "Rent is due on the first of the month.",
+    "The lease runs nine years."
+   ],
+   "says_it": null
+  }
+ ]
+}

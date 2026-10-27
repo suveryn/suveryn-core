@@ -23,7 +23,10 @@ export type Calculation = {
 };
 /** What the source card marks for one marker, from the server (suveryn-tracker#25): the sentences of passage ``n``
  *  the claim rests on, and its facts; [start, end) offsets into the passage's text. */
-export type SupportSpan = { marker: number; n: number; ranges: [number, number][]; facts: [number, number][] };
+export type SupportSpan = {
+  marker: number; n: number; ranges: [number, number][]; facts: [number, number][];
+  how?: "words" | "meaning";  // "meaning": found by the embedding model, in other words or another language (step 3)
+};
 export type ChatResponse = {
   id: string;
   model: string;
