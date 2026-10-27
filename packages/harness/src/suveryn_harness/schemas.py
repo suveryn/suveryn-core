@@ -126,6 +126,21 @@ class CitationIssue(BaseModel):
     written_as: str | None = None
 
 
+class SupportSpan(BaseModel):
+    """What the source card marks for one citation marker (suveryn-tracker#25; ``marking.support_spans``).
+
+    ``marker`` is the marker's 0-based occurrence among the answer's valid markers, as ``CitationIssue``
+    counts them; ``n`` its number. ``ranges`` are the sentences of ``citations[n - 1].text`` the claim
+    rests on, and ``facts`` what to mark strongly: the claim's facts and names, however the passage writes
+    them. Both are [start, end) offsets in UTF-16 code units, as the browser counts a string.
+    """
+
+    marker: int = Field(ge=0)
+    n: int = Field(ge=1)
+    ranges: list[tuple[int, int]] = Field(default_factory=list)
+    facts: list[tuple[int, int]] = Field(default_factory=list)
+
+
 class ChatResponse(BaseModel):
     """A complete answer. Returned as JSON, or as the final ``done`` event of a stream.
 
@@ -149,6 +164,9 @@ class ChatResponse(BaseModel):
     # Grounded answers: facts (figures, dates, names) in a cited claim that the passage it cites
     # doesn't contain. Clients must flag the marker, so a reader checks that source.
     citation_issues: list[CitationIssue] = Field(default_factory=list)
+    # Grounded answers: per citation marker, what in its passage the claim rests on, for the source card
+    # to mark. Computed with the same sentences as ``citation_issues``.
+    support_spans: list[SupportSpan] = Field(default_factory=list)
     # Grounded answers: passages (1-based, as the markers) whose text addresses an AI ("ignore the
     # instructions…"). The model was told excerpts are data; clients must still tell the reader.
     instruction_like_sources: list[int] = Field(default_factory=list)

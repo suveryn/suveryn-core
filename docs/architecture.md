@@ -51,7 +51,7 @@ browser (chat-ui) ──► api-gateway ──► POST /v1/documents ──► D
                                                                  ──► harness.calc: [[calc: …]] markers replaced by exact results as the answer streams
                                                                  ──► harness.support: each claim checked against the passages it cites
                                           ◄── SSE: status… (searching, loading_model, reading, writing), delta… then done {answer with [n], citations[n-1], calculations,
-                                                   unverified_figures, citation_issues, instruction_like_sources} | error
+                                                   unverified_figures, citation_issues, support_spans, instruction_like_sources} | error
 ```
 
 `extract.py` runs in a separate **PDF reader process** ([`isolation.py`](../packages/rag/src/suveryn_rag/isolation.py)), never in the gateway:

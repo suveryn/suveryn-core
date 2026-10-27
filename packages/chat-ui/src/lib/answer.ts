@@ -361,6 +361,20 @@ export function markPassage(passage: string, claims: string[], terms: string[]):
     const inSentence = ranges.some(([a, z]) => f.start >= a && f.end <= z);
     if (f.values.some((v) => termFacts.has(v) || (inSentence && claimFacts.has(v)))) mark.fill("term", f.start, f.end);
   }
+  return partsOf(passage, mark);
+}
+
+/** A passage with the server's marking (``SupportSpan``): its sentences, and its facts marked strongly. Offsets out of
+ *  the passage's bounds are clipped. */
+export function spanParts(passage: string, spans: { ranges: [number, number][]; facts: [number, number][] }[]): PassagePart[] {
+  const mark: PassagePart["mark"][] = new Array(passage.length).fill(null);
+  const fill = (kind: "sentence" | "term", [a, z]: [number, number]) => mark.fill(kind, Math.max(0, a), Math.min(passage.length, z));
+  for (const s of spans) s.ranges.forEach((r) => fill("sentence", r));
+  for (const s of spans) s.facts.forEach((r) => fill("term", r));
+  return partsOf(passage, mark);
+}
+
+function partsOf(passage: string, mark: PassagePart["mark"][]): PassagePart[] {
   const out: PassagePart[] = [];
   for (let i = 0; i < passage.length; i++) {
     if (out.length && out[out.length - 1].mark === mark[i]) out[out.length - 1].text += passage[i];

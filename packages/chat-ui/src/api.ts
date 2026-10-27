@@ -21,6 +21,9 @@ export type Calculation = {
   figures_not_in_sources: string[];   // figures to check: they don't appear in the passages given
   error: string | null;
 };
+/** What the source card marks for one marker, from the server (suveryn-tracker#25): the sentences of passage ``n``
+ *  the claim rests on, and its facts; [start, end) offsets into the passage's text. */
+export type SupportSpan = { marker: number; n: number; ranges: [number, number][]; facts: [number, number][] };
 export type ChatResponse = {
   id: string;
   model: string;
@@ -29,6 +32,7 @@ export type ChatResponse = {
   calculations: Calculation[];
   unverified_figures?: string[];      // figures in no passage and no calculation's result: flag them for checking
   citation_issues?: CitationIssue[];  // facts the cited passage doesn't contain: flag the marker
+  support_spans?: SupportSpan[];      // what the source card marks per marker; absent from an older server
   instruction_like_sources?: number[]; // passages whose text addresses an AI: tell the reader (suveryn-tracker#21)
   finish_reason: string | null;
   reasoning?: string;              // *Thorough*: what the model thought before answering, never in ``answer``

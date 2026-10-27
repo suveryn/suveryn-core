@@ -3,8 +3,11 @@
  * source card must mark exactly the expected text. Fictional text only.
  */
 import { describe, expect, it } from "vitest";
-import { answerSentences, claimTerms, claimTexts, markerClaims, markPassage, markTerms, sentenceRanges, supportingRanges, termsOf, toBlocks, type PassagePart } from "./answer";
+import { answerSentences, claimTerms, spanParts, claimTexts, markerClaims, markPassage, markTerms, sentenceRanges, supportingRanges, termsOf, toBlocks, type PassagePart } from "./answer";
 import { facts, numberValue, wordValue } from "./facts";
+import { sourceParts } from "./sources";
+import cases from "../../../harness/tests/marking_cases.json";
+import type { AssistantTurn } from "../types";
 
 /** The marked runs of a passage: consecutive marked parts joined. */
 const runs = (parts: PassagePart[]) => parts.reduce<string[]>((acc, p, i) => {
@@ -187,4 +190,38 @@ describe("facts in another form (suveryn-tracker#25)", () => {
   // Step 3 of suveryn-tracker#25: by meaning, with the embedding model on the server.
   it.todo("marks a paraphrase: the answer's \"employer\" where the source says \"undertaking\"");
   it.todo("marks a French source for a Dutch answer");
+});
+
+describe("the shared regression set (harness/tests/marking_cases.json)", () => {
+  // The server marks these (test_marking.py); the rules here, kept for answers from before, mark them the same.
+  it.each(cases.cases.map((c) => [c.name, c] as const))("%s", (_, c) => {
+    const parts = card(c.answer, c.passage);
+    expect(runs(parts)).toEqual(c.marked);
+    expect(strong(parts)).toEqual(c.strong);
+  });
+});
+
+describe("the server's marking (suveryn-tracker#25, step 2)", () => {
+  const passage = "The lease runs nine years. Either party may give notice of 12 weeks.";
+  const turn = (spans?: AssistantTurn["supportSpans"]): AssistantTurn => ({
+    id: "a", role: "assistant", status: "done", grounded: true, text: "The notice period is twelve weeks [1]. It runs nine years [1].",
+    citations: [{ text: passage, source: { document_id: "d", page: null, location: null } }], ...(spans ? { supportSpans: spans } : {}),
+  });
+
+  it("shows the server's ranges for the marker opened, or every marker's from the source list", () => {
+    const spans = [{ marker: 0, n: 1, ranges: [[27, 68]] as [number, number][], facts: [[59, 61]] as [number, number][] },
+                   { marker: 1, n: 1, ranges: [[0, 26]] as [number, number][], facts: [] }];
+    expect(runs(sourceParts(turn(spans), 1, 0))).toEqual(["Either party may give notice of 12 weeks."]);
+    expect(strong(sourceParts(turn(spans), 1, 0))).toEqual(["12"]);
+    expect(runs(sourceParts(turn(spans), 1, 1))).toEqual(["The lease runs nine years."]);
+    expect(runs(sourceParts(turn(spans), 1, null))).toEqual(["The lease runs nine years.", "Either party may give notice of 12 weeks."]);
+    // the server marked nothing for a marker: nothing is marked, no guess
+    expect(runs(sourceParts(turn([]), 1, 0))).toEqual([]);
+    // out of bounds is clipped
+    expect(runs(spanParts("short", [{ ranges: [[2, 99]], facts: [] }]))).toEqual(["ort"]);
+  });
+
+  it("uses the rules here for an answer without the server's marking", () => {
+    expect(runs(sourceParts(turn(), 1, 0))).toEqual(["Either party may give notice of 12 weeks."]);
+  });
 });
