@@ -100,6 +100,9 @@ tested:
   suveryn-tracker#25). Per marker, the sentences of its passage the claim rests on, and the claim's facts in
   them however the passage writes them ("12" for "twelve", "12/03/2021" for "12 March 2021"). It reads the
   answer's claims with the same sentences as the citation check, so the two can't disagree on what a claim is.
+  A claim no sentence supports by its words (a paraphrase, a source in another language) is marked by meaning
+  when `SUVERYN_MARK_BY_MEANING` is set: the sentence the embedding model finds closest, if close enough and
+  holding the claim's figures; the source panel says it was found by meaning. Off until measured on a card.
 - **Passages that address an AI** (`instruction_like` in `guard.py`). Text such as "ignore all
   previous instructions" can't be removed reliably, so it is detected: the answer says which
   passages contain it, and an audit event records where (ids and pages, never the text).

@@ -338,6 +338,7 @@ const en = {
   sourceWithReference: (n: number) => `source ${n} with its reference`,
   sourceN: (n: number) => `source ${n}`,
   sourceCaption: "The passage as it was read from the document. Check the original page before relying on it.",
+  markedByMeaning: "Marked by meaning: the passage says this in other words. Check that it says the same.",
   calcFailed: (expression: string, why: string) => `Couldn't calculate ${expression}: ${why}.`,
   calculatedBy: "Calculated by sūveryn, not read from the documents:",
   calcMissing: (figures: string[]) => ` Check ${figures.join(", ")}: ${figures.length === 1 ? "it doesn't" : "they don't"} appear in the sources.`,

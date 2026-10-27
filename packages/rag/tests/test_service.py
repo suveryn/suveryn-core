@@ -475,3 +475,26 @@ def test_the_intake_benchmark_reads_the_cpu_and_sums_the_stages_without_names():
     assert s["stages_s"]["ocr"] == 24.0 and s["stages_s"]["read"] == 2.0 and s["failed"] == 1
     assert (s["cpu_mean_pct"], s["gpu_mean_pct"], s["gpu_peak_mib"]) == (60.0, 50.0, 23500.0)
     assert "Peeters" not in __import__("json").dumps(s)
+
+
+def test_similarity_by_the_search_embedder(tmp_path):
+    """Marking by meaning (suveryn-tracker#25): per claim, the cosine to each sentence, from the search's model."""
+    import numpy as np
+
+    from suveryn_rag.service import SearchUnavailable
+
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    with pytest.raises(SearchUnavailable):
+        docs.similarity(["a claim"], ["a sentence"])  # not loaded yet
+
+    class Unit:  # fixed unit vectors per text
+        def embed(self, texts):
+            table = {"claim": [1.0, 0.0], "same": [1.0, 0.0], "other": [0.0, 1.0], "half": [0.6, 0.8]}
+            return np.array([table[t] for t in texts], dtype=np.float32)
+
+    class Search:
+        embedder = Unit()
+
+    docs._search, docs.state = Search(), "ready"
+    scores = docs.similarity(["claim"], ["same", "other", "half"])
+    assert [[round(x, 2) for x in row] for row in scores] == [[1.0, 0.0, 0.6]]
