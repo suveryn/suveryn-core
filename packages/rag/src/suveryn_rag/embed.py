@@ -16,17 +16,18 @@ class Embedder:
     can share one model (one copy in GPU memory). Embedding a question takes milliseconds.
     """
 
-    def __init__(self, model: str, device: str = "cuda"):
+    def __init__(self, model: str, device: str = "cuda", batch_size: int = 16):
         from sentence_transformers import SentenceTransformer
 
         self._model = SentenceTransformer(model, device=device)
         if device == "cuda":
             self._model.half()  # about half the GPU memory; it shares the card with the LLM
         self.dim = self._model.get_sentence_embedding_dimension()
+        self.batch_size = batch_size  # passages per step on the GPU (SUVERYN_EMBED_BATCH_SIZE, #58)
         self._lock = threading.Lock()
 
     def embed(self, texts: list[str]) -> np.ndarray:
         """One unit-length float32 vector per text (so cosine similarity = dot product)."""
         with self._lock:
-            return self._model.encode(texts, normalize_embeddings=True, batch_size=16,
+            return self._model.encode(texts, normalize_embeddings=True, batch_size=self.batch_size,
                                       convert_to_numpy=True).astype(np.float32)

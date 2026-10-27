@@ -84,7 +84,7 @@ def fetch_models_main() -> None:
     from .extract import Extractor
 
     settings = RagSettings.from_env()
-    Embedder(settings.embedding_model, settings.device)
+    Embedder(settings.embedding_model, settings.device, settings.embed_batch_size)
     Chunker(settings.embedding_model, settings.chunk_max_tokens)
     Extractor(settings)
     print(json.dumps({"embedding_model": settings.embedding_model, "docling": "layout and table models",

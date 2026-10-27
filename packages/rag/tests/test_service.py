@@ -418,3 +418,60 @@ def test_an_entry_larger_than_an_upload_or_damaged_is_left_out(tmp_path, monkeyp
     assert [j.filename for j in a.jobs] == ["ok.pdf"]
     assert a.skipped == [{"name": "bad.pdf", "reason": "damaged"}, {"name": "big.pdf", "reason": "too_large"}]
     assert uploads(tmp_path) == [".zip"]
+
+
+def test_each_document_read_is_logged_with_its_stage_times_and_never_its_name():
+    """suveryn-tracker#58: the stage times were measured but never logged, so a check couldn't say where
+    the time went. One line per document: the job, the file type, pages and seconds per stage."""
+    import time
+
+    from suveryn_rag.service import reading_line
+    job = Job(id="job-1", filename="Verkoopakte Peeters.PDF", owner="u")
+    job.pages, job.ocr_pages, job.created_at = 38, 38, time.time() - 5
+    line = reading_line(job, {"classify": 0.1, "ocr": 24.1, "layout": 9.52, "layout_on_cpu": 1.0, "chunk": 0.4,
+                              "embed": 1.83, "store": 0.62}, time.time() - 1)
+    assert line.startswith("document read: job job-1 pdf pages=38 ocr_pages=38 ocr=24.10 layout=9.52 chunk=0.40 embed=1.83 store=0.62")
+    assert "layout_on_cpu" in line and "waited=4." in line and "total=1." in line
+    assert "Peeters" not in line and "Verkoopakte" not in line
+    odd = Job(id="j", filename="no extension", owner="u")
+    assert " ? pages=" in reading_line(odd, {}, time.time())
+
+
+def test_batch_sizes_come_from_the_environment_and_reach_the_reader(monkeypatch):
+    """#58: Docling's layout and table batches and the embedder's, set per appliance to measure them."""
+    from suveryn_rag.config import RagSettings
+    from suveryn_rag.isolation import _settings_for_child
+    for k, v in (("SUVERYN_LAYOUT_BATCH_SIZE", "16"), ("SUVERYN_TABLE_BATCH_SIZE", "8"), ("SUVERYN_EMBED_BATCH_SIZE", "64")):
+        monkeypatch.setenv(k, v)
+    s = RagSettings.from_env()
+    assert (s.layout_batch_size, s.table_batch_size, s.embed_batch_size) == (16, 8, 64)
+    child = _settings_for_child(s)
+    assert (child["layout_batch_size"], child["table_batch_size"]) == (16, 8)  # the reader builds Docling
+    assert RagSettings().layout_batch_size == 4 and RagSettings().embed_batch_size == 16  # unchanged until measured
+
+
+def test_the_intake_benchmark_reads_the_cpu_and_sums_the_stages_without_names():
+    """#58: the measuring tool for the VM: its parts that need no GPU or database."""
+    import argparse
+    import importlib.machinery
+    import importlib.util
+
+    import pytest
+    path = Path(__file__).parent.parent / "scripts" / "intake-benchmark"
+    loader = importlib.machinery.SourceFileLoader("intake_benchmark", str(path))
+    spec = importlib.util.spec_from_loader("intake_benchmark", loader)
+    b = importlib.util.module_from_spec(spec)
+    loader.exec_module(b)
+    assert b.parse_config("layout=16,table=8,embed=64") == {"layout": 16, "table": 8, "embed": 64}
+    for bad in ("layout=0", "colour=4", "embed=x", "layout=999"):
+        with pytest.raises(argparse.ArgumentTypeError):
+            b.parse_config(bad)
+    assert b.cpu_times("cpu  100 0 50 800 50 0 0 0 0 0\ncpu0 1 2 3 4\n") == (150, 1000)
+    sampler = b.Sampler()
+    sampler.cpu, sampler.gpu, sampler.mem = [50.0, 70.0], [10.0, 90.0], [22000.0, 23500.0]
+    s = b.summary([{"filename": "Verkoopakte Peeters.pdf", "pages": 38, "ocr_pages": 38, "status": "ok",
+                    "timings_s": {"ocr": 24.0, "layout": 9.5, "layout_on_cpu": 0.0}},
+                   {"filename": "x.docx", "pages": 0, "ocr_pages": 0, "status": "failed", "timings_s": {"read": 2.0}}], sampler, 40.0)
+    assert s["stages_s"]["ocr"] == 24.0 and s["stages_s"]["read"] == 2.0 and s["failed"] == 1
+    assert (s["cpu_mean_pct"], s["gpu_mean_pct"], s["gpu_peak_mib"]) == (60.0, 50.0, 23500.0)
+    assert "Peeters" not in __import__("json").dumps(s)
