@@ -273,7 +273,45 @@ def test_the_backups_status_is_for_administrators_and_read_as_written(setup, tmp
         "last_error": {"at": "2026-10-23T02:41:07Z", "step": "target", "message": "the backup disk isn't connected"}}))
     body = c.get("/v1/admin/backups", headers=admin).json()
     assert body["available"] and body["configured"] and body["target"] == "usb" and body["retention_days"] == 30
-    assert body["last_success"] == {"at": "2026-10-22T02:39:00Z", "size": 123456, "on_target": 12, "oldest": "2026-09-23T02:31:00Z"}
+    assert body["last_success"] == {"at": "2026-10-22T02:39:00Z", "size": 123456, "on_target": 12, "oldest": "2026-09-23T02:31:00Z",
+                                    "disk": None}
     assert body["last_error"]["step"] == "target" and "file" not in body["last_success"]
     (tmp_path / "status.json").write_text("not json")
-    assert c.get("/v1/admin/backups", headers=admin).json() == {**dict.fromkeys(body, None), "available": False, "configured": False}
+    assert c.get("/v1/admin/backups", headers=admin).json() == {**dict.fromkeys(body, None), "available": False, "configured": False,
+                                                               "key_testing": False}
+
+
+def test_the_recovery_key_is_passed_to_the_backup_service_for_a_test_and_its_result_shown(setup, tmp_path, monkeypatch):
+    """Review of the backup strategy: the appliance can't read its own backups, so the administrator tests
+    the key. The gateway checks it is a key file, leaves it with a request for the backup service (0600,
+    the request last), and shows the result; never the key."""
+    import json
+    import stat
+
+    from suveryn_api_gateway.routes import backups
+
+    c, kc, _ = setup
+    drop = tmp_path / "drop"
+    monkeypatch.setattr(backups, "STATUS", tmp_path / "status.json")
+    monkeypatch.setattr(backups, "KEY_TEST_RESULT", tmp_path / "key-test.json")
+    monkeypatch.setattr(backups, "KEY_TEST_DROP", drop)
+    user, admin = as_user(kc, BOB), as_user(kc, ALICE, admin=True)
+    key = "AGE-SECRET-KEY-1" + "Q" * 58
+    file = f"# Sūveryn backup recovery key\n# created: 2026-10-20\n{key}\n".encode()
+    post = lambda body, who=admin: c.post("/v1/admin/backups/key-test", content=body, headers={**who, "Content-Type": "application/octet-stream"})
+    assert post(file, user).status_code == 403
+    assert post(file).status_code == 503  # not an appliance: no backup service to ask
+    drop.mkdir()
+    for bad in (b"", b"not a key", file + file, b"AGE-SECRET-KEY-1" + b"Q" * 58 + b"X", b"x" * 5000):
+        assert post(bad).status_code == 415
+    assert post(file).status_code == 202
+    assert (drop / "key").read_text() == key + "\n" and stat.S_IMODE((drop / "key").stat().st_mode) == 0o600
+    assert (drop / "request").exists() and post(file).status_code == 409  # one at a time
+    (tmp_path / "status.json").write_text(json.dumps({"configured": True}))
+    assert c.get("/v1/admin/backups", headers=admin).json()["key_testing"] is True
+    (drop / "request").unlink()
+    (tmp_path / "key-test.json").write_text(json.dumps({"at": "2026-10-26T10:00:00Z", "ok": False, "step": "decrypt",
+                                                        "message": "this isn't this appliance's recovery key"}))
+    body = c.get("/v1/admin/backups", headers=admin).json()
+    assert body["key_testing"] is False and body["key_test"] == {"at": "2026-10-26T10:00:00Z", "ok": False, "created": None, "step": "decrypt"}
+    assert key not in json.dumps(body)

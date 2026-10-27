@@ -3,8 +3,9 @@
  * afresh. Four screens:
  *
  *  - Source: where the backups are (the USB disk or the share) and the recovery key file setup made.
- *  - Confirm: the appliance looks for the newest backup there and checks it with the key; the screen
- *    shows when it was made and by which appliance, and asks before anything is replaced.
+ *  - Confirm: the appliance finds the backups there that the key opens (its appliance's: each has its own
+ *    key, so another appliance's are never offered) and checks the newest; the screen shows when it was
+ *    made and by which appliance, lets the office choose an older one, and asks before anything is replaced.
  *  - Progress: the restore's steps, polled every second.
  *  - Done: where the restored appliance answers. It takes the old appliance's name, and its own
  *    accounts and settings: setup is closed and nobody signs in with anything made here.
@@ -151,15 +152,18 @@ export function RestoreConfirm({ state, initial, onBack, onStart, headingId }: C
   const { restore } = usePolledRestore(initial, (r) => r?.state === "checking");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<string | null>(null);  // an older backup the office chose; null: the newest
 
   // A check that failed goes back to the first screen, which says why.
   useEffect(() => { if (restore?.state === "failed") onBack(restore); });
 
+  const choices = restore?.choices ?? [];
+  const chosen = choices.find((c) => c.file === file) ?? restore?.backup;
   const start = async () => {
     setStarting(true);
     setError(null);
     try {
-      onStart(await startRestore());
+      onStart(await startRestore(chosen?.file));
     } catch {
       setError(t.errUnexpected);
       setStarting(false);
@@ -175,11 +179,17 @@ export function RestoreConfirm({ state, initial, onBack, onStart, headingId }: C
       </div>
     );
   }
-  const b = restore.backup;
+  const b = chosen ?? restore.backup;
   return (
     <div>
       <h1 id={headingId} className="setup-title">{t.restoreConfirmTitle}</h1>
       <p className="setup-lead">{t.restoreConfirmLead}</p>
+      {choices.length > 1 && (
+        <div className="setup-section">
+          <SelectField name="backup" label={t.restoreWhich} description={t.restoreWhichHint} value={b.file} onChange={setFile}
+                       options={choices.map((c) => ({ id: c.file, label: `${madeAt(c.created, locale)}${c.file === restore.backup!.file ? ` (${t.restoreNewest})` : ""}` }))} />
+        </div>
+      )}
       <Facts facts={[
         { icon: <ArchiveRestore size={18} />, label: t.restoreMade, value: madeAt(b.created, locale) },
         { icon: <HardDrive size={18} />, label: t.restoreFrom, value: `${b.appliance}.local`,

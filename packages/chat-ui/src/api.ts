@@ -667,14 +667,26 @@ export interface BackupStatus {
   target?: "usb" | "share" | null;
   retention_days?: number | null;
   last_attempt?: string | null;
-  last_success: { at: string; size: number; on_target?: number | null; oldest?: string | null } | null;
+  last_success: { at: string; size: number; on_target?: number | null; oldest?: string | null; disk?: string | null } | null;
   last_error: { at: string; step: string; message: string } | null;
+  /** The administrator's last test of the recovery key: it opened the newest backup, every part there. */
+  key_test?: { at: string; ok: boolean; created?: string | null; step?: string | null } | null;
+  key_testing?: boolean;
 }
 
 export async function getBackups(): Promise<BackupStatus> {
   const r = await fetch("/v1/admin/backups");
   if (!r.ok) throw await responseError(r);
   return r.json();
+}
+
+/** Test the recovery key: the key file as the web setup downloaded it. The appliance checks that it opens
+ * the newest backup, restores nothing and deletes the key; getBackups() then has the result. */
+export async function testRecoveryKey(keyFile: string): Promise<void> {
+  const r = await fetch("/v1/admin/backups/key-test", {
+    method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: keyFile,
+  });
+  if (!r.ok) throw await responseError(r);
 }
 
 /** Administrators: change the rates the notional cost uses. */
