@@ -4,6 +4,7 @@
  */
 import type { CitationIssue } from "../api";
 import type { AssistantTurn } from "../types";
+import { claimTerms, claimTexts, markerClaims, markPassage, spanParts, termsOf, type PassagePart } from "./answer";
 
 export type Verdict =
   | { kind: "sentence" }    // opened from a marker: everything in its sentence is in the passage
@@ -19,4 +20,20 @@ export function verdictOf(turn: AssistantTurn, n: number, occ: number | null): V
   const issues = (turn.citationIssues ?? []).filter((i) => (occ === null ? i.n === n : i.marker === occ));
   if (issues.length) return { kind: "issues", issues };
   return { kind: occ === null ? "source" : "sentence" };
+}
+
+/**
+ * The passage of source ``n`` with what the claim(s) citing it rest on marked: the claim of the marker opened (``occ``),
+ * or every claim citing ``n`` (from the source list, or a marker of another source). The server's marking when the
+ * answer has it (suveryn-tracker#25); the rules here for answers from before, or from an older server.
+ */
+export function sourceParts(turn: AssistantTurn, n: number, occ: number | null): PassagePart[] {
+  const passage = turn.citations[n - 1]?.text ?? "";
+  const available = turn.citations.length;
+  const one = occ === null ? undefined : markerClaims(turn.text, available)[occ];
+  if (turn.supportSpans) {
+    return spanParts(passage, turn.supportSpans.filter((s) => s.n === n && (one?.n !== n || s.marker === occ)));
+  }
+  return one?.n === n ? markPassage(passage, [one.claim], termsOf(one.claim))
+    : markPassage(passage, claimTexts(turn.text, available).get(n) ?? [], claimTerms(turn.text, available).get(n) ?? []);
 }
