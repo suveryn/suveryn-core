@@ -6,6 +6,9 @@
  * start of a sentence or as the company. The tagline stays in English in every language, as on
  * the website. Server messages (error details, calculation errors) arrive in English.
  */
+/** "page 4", "pages 2 and 7", "pages 2, 5 and 7" */
+const enPages = (p: number[]) => (p.length > 1 ? `pages ${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}` : `page ${p[0]}`);
+
 const en = {
   language: "Language",
 
@@ -596,6 +599,15 @@ const en = {
   statusReady: "Ready",
   statusReview: "To check",
   statusReviewPages: (pages: string) => `To check · p. ${pages}`,
+  // reading notes (suveryn-tracker#26): what reading a document noticed, for everyone who can see it
+  readingNotes: "Reading notes",
+  noteAiRow: (pages: number[]) => `Contains text addressed to an AI${pages.length ? `, on ${enPages(pages)}` : ""}.`,
+  noteRecoveredRow: (pages: number[]) => `Some text on ${enPages(pages)} was recovered without its layout.`,
+  noteAi: (pages: number[]) => `Text addressed to an AI${pages.length ? ` on ${enPages(pages)}` : ""}, such as "ignore the instructions". Sūveryn treats it as part of the document, never as an instruction. Check where it comes from: it may have been put there to steer an AI.`,
+  noteRecovered: (pages: number[]) => `Text on ${enPages(pages)} that the layout reading missed was taken from the PDF itself, without its layout: headings, tables or columns may run together there. Check answers that rely on it against the original.`,
+  noteHeaders: (pages: number[]) => `Headers or footers on ${enPages(pages)} were recovered without their layout. They're kept, and rarely matter.`,
+  cardNoteAi: "Read. Check this document: it contains text addressed to an AI.",
+  cardNoteRecovered: "Read. Some text was recovered without its layout.",
   statusProcessing: "Being read",
   statusFailed: "Failed",
   statusCaseClosed: (date: string | null) => (date ? `Case closed · deleted on ${date}` : "Case closed"),
