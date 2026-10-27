@@ -14,7 +14,8 @@ export type Attachment = {
   reading?: JobProgress | null;  // while the server reads it: how far it has got
   errorCode?: string;            // failed: why, as the reader's code (lib/review.ts failureText)
   errorDetail?: Record<string, number>;
-  reviewPages?: number[]; // with status needs_review: pages where text may be missing
+  reviewPages?: number[]; // with status needs_review: pages to check (text may be missing, or the reading noticed something)
+  note?: string;          // once read: what the reading noticed, in a sentence (suveryn-tracker#26)
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)
   notAdded?: boolean; // failed on arrival: refused, or left out of its archive. Nothing went wrong reading it

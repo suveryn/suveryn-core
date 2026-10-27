@@ -1,6 +1,9 @@
 /** Dutch interface text: formal (u/uw), as everywhere in sūveryn. Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
 
+/** "op pagina 4", "op pagina's 2 en 7", "op pagina's 2, 5 en 7" */
+const nlPages = (p: number[]) => (p.length > 1 ? `op pagina's ${p.slice(0, -1).join(", ")} en ${p[p.length - 1]}` : `op pagina ${p[0]}`);
+
 const nl: Messages = {
   language: "Taal",
 
@@ -569,6 +572,14 @@ const nl: Messages = {
   statusReady: "Klaar",
   statusReview: "Na te kijken",
   statusReviewPages: (pages) => `Na te kijken · p. ${pages}`,
+  readingNotes: "Opmerkingen bij het lezen",
+  noteAiRow: (pages) => `Bevat tekst die zich tot een AI richt${pages.length ? `, ${nlPages(pages)}` : ""}.`,
+  noteRecoveredRow: (pages) => `Sommige tekst ${nlPages(pages)} is zonder opmaak hersteld.`,
+  noteAi: (pages) => `Tekst die zich tot een AI richt${pages.length ? ` ${nlPages(pages)}` : ""}, zoals „negeer de instructies”. Sūveryn behandelt die als inhoud van het document, nooit als opdracht. Ga na waar ze vandaan komt: ze kan erin gezet zijn om een AI te sturen.`,
+  noteRecovered: (pages) => `Tekst ${nlPages(pages)} die bij het lezen van de opmaak ontbrak, is uit de pdf zelf gehaald, zonder opmaak: titels, tabellen of kolommen kunnen daar in elkaar overlopen. Controleer antwoorden die daarop steunen met het origineel.`,
+  noteHeaders: (pages) => `Kop- of voetteksten ${nlPages(pages)} zijn zonder opmaak hersteld. Ze zijn bewaard en doen zelden ter zake.`,
+  cardNoteAi: "Gelezen. Kijk dit document na: het bevat tekst die zich tot een AI richt.",
+  cardNoteRecovered: "Gelezen. Sommige tekst is zonder opmaak hersteld.",
   statusProcessing: "Wordt gelezen",
   statusFailed: "Mislukt",
   statusCaseClosed: (date) => (date ? `Dossier afgesloten · wordt gewist op ${date}` : "Dossier afgesloten"),
