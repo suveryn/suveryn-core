@@ -776,6 +776,14 @@ class DocumentService:
         hits, complete = self._with_search(scoped_passages)
         return [(h.citation, h.filename) for h in hits], complete
 
+    def similarity(self, claims: list[str], sentences: list[str]) -> list[list[float]]:
+        """Per claim, its cosine similarity to each sentence, by the embedding model the search uses
+        (marking by meaning, suveryn-tracker#25). Shares the model, and its lock, with document intake."""
+        if self.state != "ready" or self._search is None:
+            raise SearchUnavailable("the embedding model isn't loaded")
+        vectors = self._search.embedder.embed([*claims, *sentences])
+        return (vectors[:len(claims)] @ vectors[len(claims):].T).tolist()
+
     def stop(self) -> None:
         """Remove queued uploads that were never processed (on shutdown)."""
         self._remove_uploads()

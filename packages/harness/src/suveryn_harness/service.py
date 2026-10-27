@@ -4,6 +4,7 @@ Conversation state is kept by the client for now (it sends the earlier turns wit
 nothing about a conversation is stored server-side.
 """
 
+import asyncio
 import logging
 import time
 import uuid
@@ -29,9 +30,10 @@ from .schemas import (
     ChatResponse,
     Citation,
     CitationIssue,
+    SupportSpan,
     Usage,
 )
-from .marking import support_spans
+from .marking import Meaning, needs_meaning, support_spans
 from .support import citation_issues
 
 log = logging.getLogger("suveryn.harness")
@@ -43,6 +45,11 @@ log = logging.getLogger("suveryn.harness")
 # the passages are the documents' whole text in reading order (small documents), False when they
 # are a selection: the best-matching passages that fit the whole-document budget, at least ``k``.
 Retriever = Callable[[str, list[str], int, str, str | None], Awaitable[tuple[list[tuple[Citation, str]], bool]]]
+# Per claim, its cosine similarity to each sentence (the embedding model: marking by meaning, suveryn-tracker#25).
+Similarity = Callable[[list[str], list[str]], Awaitable[list[list[float]]]]
+# Marking by meaning waits at most this long for the embedding model (busy reading a document, say): the answer
+# isn't held up, and its sources are marked by their words only.
+MEANING_SECONDS = 3.0
 
 # The fewest passages a larger document gives (the budget usually allows far more): the right passage
 # was in the top 3 for all 19 real-deed questions.
@@ -108,9 +115,30 @@ class ChatService:
     holds the passages so that [n] is ``citations[n-1]``.
     """
 
-    def __init__(self, llm: LlamaServerClient, retriever: Retriever | None = None):
+    def __init__(self, llm: LlamaServerClient, retriever: Retriever | None = None,
+                 similarity: Similarity | None = None, meaning: Meaning | None = None):
         self.llm = llm
         self.retriever = retriever
+        self.similarity = similarity  # with ``meaning``: a source sentence saying a claim in other words is marked too
+        self.meaning = meaning
+
+    async def _support_spans(self, answer: str, citations: list[Citation]) -> list[SupportSpan]:
+        """What each marker's passage says for its claim (``marking``): by words and facts, and for the claims no
+        sentence supports that way, by meaning when that is on. Logs counts and seconds only."""
+        similarities: dict[int, list[float]] = {}
+        if self.similarity and self.meaning and (needed := needs_meaning(answer, citations)):
+            sentences = list(dict.fromkeys(s for _, _, ss in needed for s in ss))
+            began = time.monotonic()
+            try:
+                scores = await asyncio.wait_for(self.similarity([c for _, c, _ in needed], sentences), MEANING_SECONDS)
+            except Exception as e:  # noqa: BLE001 - marking by words still stands
+                log.warning("marking by meaning skipped: %s", type(e).__name__)
+            else:
+                at = {s: i for i, s in enumerate(sentences)}
+                similarities = {occ: [scores[k][at[s]] for s in ss] for k, (occ, _, ss) in enumerate(needed)}
+                log.info("marking by meaning: claims=%d sentences=%d seconds=%.2f", len(needed), len(sentences),
+                         time.monotonic() - began)
+        return support_spans(answer, citations, similarities, self.meaning)
 
     async def _retrieve(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], bool]:
         """The grounded request, its passages, and whether they are the documents' complete text."""
@@ -150,7 +178,7 @@ class ChatService:
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
                                            "unverified_figures": unverified, "citation_issues": issues,
-                                           "support_spans": support_spans(text, citations),
+                                           "support_spans": await self._support_spans(text, citations),
                                            "instruction_like_sources": _suspicious(citations, owner, response.model)})
 
     async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
@@ -210,7 +238,7 @@ class ChatService:
                      bool(thought), sum(len(x) for x in thought), len(answer))
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,
                                 citations=citations, calculations=calculations, unverified_figures=unverified,
-                                citation_issues=issues, support_spans=support_spans(answer, citations) if calc else [],
+                                citation_issues=issues, support_spans=await self._support_spans(answer, citations) if calc else [],
                                 instruction_like_sources=_suspicious(citations, owner, model),
                                 finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
                                 thought_seconds=round(ended - began, 1) if began is not None else None))

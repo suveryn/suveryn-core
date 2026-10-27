@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Marking by meaning (suveryn-tracker#25, step 3): how close bge-m3 finds a claim and the sentence that says it in
+other words or another language, against the sentences that don't; which least similarity to set; how long it takes.
+
+Uses the fictional cases beside this script (meaning-cases.json). For each: the similarity of the claim to every
+sentence, whether the rules by words already find it, and what ``Meaning.closest`` picks at each minimum. Then the
+time to embed one answer's worth (10 claims, 200 sentences), with the language model loaded as in use. Prints no
+document text: the cases are fictional.
+
+    meaning-benchmark [--margin 0.03] [--json out.json]
+
+Run where the gateway runs, with its environment (SUVERYN_EMBEDDING_MODEL, SUVERYN_RAG_DEVICE), as its user.
+Set the result as SUVERYN_MARK_BY_MEANING (0: off).
+"""
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+from suveryn_harness.marking import Meaning, supporting_ranges
+from suveryn_rag.config import RagSettings
+from suveryn_rag.embed import Embedder
+
+MINIMA = [round(0.40 + 0.05 * i, 2) for i in range(10)]  # 0.40 to 0.85
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(prog="meaning-benchmark", description=__doc__.split("\n\n")[0])
+    ap.add_argument("--margin", type=float, default=0.03, help="how much closer than the next sentence (default 0.03)")
+    ap.add_argument("--json", type=Path, help="write the results here too")
+    a = ap.parse_args()
+    cases = json.loads((Path(__file__).parent / "meaning-cases.json").read_text())["cases"]
+    settings = RagSettings.from_env()
+    began = time.monotonic()
+    embedder = Embedder(settings.embedding_model, settings.device, settings.embed_batch_size)
+    print(f"model {settings.embedding_model} on {settings.device}, loaded in {time.monotonic() - began:.1f} s")
+
+    rows = []
+    for c in cases:
+        vectors = embedder.embed([c["claim"], *c["sentences"]])
+        scores = [float(x) for x in vectors[1:] @ vectors[0]]
+        passage = " ".join(c["sentences"])
+        rows.append({"name": c["name"], "says_it": c["says_it"], "scores": [round(s, 3) for s in scores],
+                     "by_words": bool(supporting_ranges(passage, [c["claim"]]))})
+
+    print(f"\n{'case':48} {'says it':>8} {'best other':>11} {'by words':>9}")
+    for r in rows:
+        right = r["scores"][r["says_it"]] if r["says_it"] is not None else None
+        other = max((s for i, s in enumerate(r["scores"]) if i != r["says_it"]), default=None)
+        print(f"{r['name'][:48]:48} {'' if right is None else f'{right:.3f}':>8} {other:>11.3f} {'yes' if r['by_words'] else 'no':>9}")
+
+    print(f"\nthe cases the rules by words don't find, with margin {a.margin}: per minimum, those marked right, marked "
+          "wrong (a wrong sentence, or one where none says it), and missed")
+    grid = []
+    for minimum in MINIMA:
+        meaning = Meaning(minimum, a.margin)
+        right = wrong = missed = 0
+        for r, c in zip(rows, cases):
+            if r["by_words"]:
+                continue  # marked by its words: meaning isn't asked
+            passage = " ".join(c["sentences"])
+            # Meaning.closest reads the passage's own sentences: these cases' sentences are whole sentences.
+            pick = meaning.closest(c["claim"], passage, r["scores"])
+            if pick is None:
+                missed += r["says_it"] is not None
+            elif pick == r["says_it"]:
+                right += 1
+            else:
+                wrong += 1
+        grid.append({"minimum": minimum, "right": right, "wrong": wrong, "missed": missed})
+        print(f"  {minimum:.2f}: right {right:2d}  wrong {wrong:2d}  missed {missed:2d}")
+    safe = [g for g in grid if g["wrong"] == 0]
+    best = max(safe, key=lambda g: (g["right"], -g["minimum"])) if safe else None
+    print("\nsuggested SUVERYN_MARK_BY_MEANING:", f"{best['minimum']:.2f}" if best else "none (every minimum marks a wrong sentence)")
+
+    # One answer's worth: 10 claims against 200 sentences, as the gateway asks for it.
+    sentences = [s for c in cases for s in c["sentences"]]
+    sentences = (sentences * (200 // len(sentences) + 1))[:200]
+    claims = [c["claim"] for c in cases][:10]
+    timings = []
+    for _ in range(3):
+        began = time.monotonic()
+        embedder.embed([*claims, *[f"{s} ({i})" for i, s in enumerate(sentences)]])
+        timings.append(time.monotonic() - began)
+    print(f"one answer (10 claims, 200 sentences): {min(timings):.2f} s best of 3, {max(timings):.2f} s worst")
+
+    if a.json:
+        a.json.write_text(json.dumps({"cases": rows, "margin": a.margin, "grid": grid, "suggested": best and best["minimum"],
+                                      "seconds_per_answer": timings}, indent=1))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
