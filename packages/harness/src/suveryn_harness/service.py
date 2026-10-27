@@ -31,6 +31,7 @@ from .schemas import (
     CitationIssue,
     Usage,
 )
+from .marking import support_spans
 from .support import citation_issues
 
 log = logging.getLogger("suveryn.harness")
@@ -149,6 +150,7 @@ class ChatService:
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
                                            "unverified_figures": unverified, "citation_issues": issues,
+                                           "support_spans": support_spans(text, citations),
                                            "instruction_like_sources": _suspicious(citations, owner, response.model)})
 
     async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
@@ -208,7 +210,8 @@ class ChatService:
                      bool(thought), sum(len(x) for x in thought), len(answer))
         yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,
                                 citations=citations, calculations=calculations, unverified_figures=unverified,
-                                citation_issues=issues, instruction_like_sources=_suspicious(citations, owner, model),
+                                citation_issues=issues, support_spans=support_spans(answer, citations) if calc else [],
+                                instruction_like_sources=_suspicious(citations, owner, model),
                                 finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
                                 thought_seconds=round(ended - began, 1) if began is not None else None))
 

@@ -544,6 +544,7 @@ function Chat({ me }: { me: Me }) {
       const reasoning = done.reasoning || thought;
       update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
                unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
+               ...(done.support_spans ? { supportSpans: done.support_spans } : {}),
                instructionLikeSources: done.instruction_like_sources ?? [],
                ...(reasoning ? { reasoning, thoughtSeconds: done.thought_seconds ?? thinkSeconds } : {}),
                ...(done.finish_reason === "length" ? { truncated: true } : {}),

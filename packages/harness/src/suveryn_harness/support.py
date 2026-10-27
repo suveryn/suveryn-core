@@ -30,12 +30,12 @@ import unicodedata
 from decimal import Decimal
 
 from .calc import DATE, TEXT_FIGURE, _value, source_decimal_separator
+from .marking import answer_sentences
 from .schemas import Calculation, Citation, CitationIssue
 
 GROUP = re.compile(r"(?:\[\d{1,2}\])+")
 BOLD = re.compile(r"\*\*[^*]+\*\*")
 ONE = re.compile(r"\[(\d{1,2})\]")
-SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 WORD = re.compile(r"[^\W\d_][\w'’-]*")
 MONTHS = {m: i for i, names in enumerate([
     ("januari", "janvier", "january", "jan"), ("februari", "février", "fevrier", "february", "feb"),
@@ -118,7 +118,8 @@ def _distance(a: str, b: str, limit: int) -> int:
 def _claims(answer: str, available: int):
     """(claim text, is sentence start, marker numbers, index of the group's first valid marker)."""
     occurrence = 0
-    for sentence in SENTENCE_END.split(answer):
+    # The same sentences as the source card's marking (marking.py): "art. 3" doesn't end one.
+    for sentence in answer_sentences(answer):
         start = 0
         for g in GROUP.finditer(sentence):
             numbers = [int(n) for n in ONE.findall(g.group(0))]

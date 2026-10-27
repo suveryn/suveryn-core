@@ -24,6 +24,7 @@ export type SavedAnswer = {
   calculations: AssistantTurn["calculations"];
   unverifiedFigures: string[];
   citationIssues: AssistantTurn["citationIssues"];
+  supportSpans?: AssistantTurn["supportSpans"];  // absent in answers saved before suveryn-tracker#25
   instructionLikeSources: number[];
   filenames: Record<string, string>;  // the sources' file names, as they were
   turnId: string;                      // the answer's id: the mark's reference stays the same
@@ -75,6 +76,7 @@ export function savedAnswer(turn: AssistantTurn, question: string, filenames: Ma
     question, answer: turn.text, answeredOn: now.toISOString(), model: turn.model, citations: turn.citations,
     calculations: turn.calculations ?? [], unverifiedFigures: turn.unverifiedFigures ?? [],
     citationIssues: turn.citationIssues ?? [], instructionLikeSources: turn.instructionLikeSources ?? [],
+    ...(turn.supportSpans ? { supportSpans: turn.supportSpans } : {}),
     filenames: names, turnId: turn.id, caseRef,
   };
 }
@@ -89,6 +91,7 @@ export function savedTurn(s: SavedAnswer): AssistantTurn {
   return {
     id: s.turnId, role: "assistant", text: s.answer, citations: s.citations ?? [], calculations: s.calculations ?? [],
     unverifiedFigures: s.unverifiedFigures ?? [], citationIssues: s.citationIssues ?? [],
+    ...(s.supportSpans ? { supportSpans: s.supportSpans } : {}),
     instructionLikeSources: s.instructionLikeSources ?? [], status: "done", grounded: true, model: s.model,
   };
 }
