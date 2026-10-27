@@ -46,6 +46,12 @@ class RagSettings:
     # this is set (SUVERYN_EXTRACT_UNSANDBOXED=1, development only; security review 2026-10-11).
     extract_unsandboxed: bool = False
     max_pages: int = 2000  # a PDF with more pages is refused before OCR (a 2,000-page scan takes about an hour)
+    # Pages Docling's layout and table models take at once on the GPU, and passages the embedder takes at
+    # once: Docling's and our defaults until measured (suveryn-tracker#58). Larger batches use more GPU
+    # memory beside the language model; layout falls back to the CPU on out-of-memory.
+    layout_batch_size: int = 4
+    table_batch_size: int = 4
+    embed_batch_size: int = 16
 
     @classmethod
     def from_env(cls) -> "RagSettings":
@@ -66,4 +72,7 @@ class RagSettings:
             extract_work_dir=Path(v) if (v := os.environ.get("SUVERYN_EXTRACT_WORK_DIR")) else None,
             extract_unsandboxed=os.environ.get("SUVERYN_EXTRACT_UNSANDBOXED", "") == "1",
             max_pages=int(os.environ.get("SUVERYN_MAX_PAGES", d.max_pages)),
+            layout_batch_size=int(os.environ.get("SUVERYN_LAYOUT_BATCH_SIZE", d.layout_batch_size)),
+            table_batch_size=int(os.environ.get("SUVERYN_TABLE_BATCH_SIZE", d.table_batch_size)),
+            embed_batch_size=int(os.environ.get("SUVERYN_EMBED_BATCH_SIZE", d.embed_batch_size)),
         )

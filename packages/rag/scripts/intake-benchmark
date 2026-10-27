@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Where document intake spends its time, and whether larger batches help (suveryn-tracker#58).
+
+Reads every file in a folder of FICTIONAL documents once per configuration, with ``suveryn-ingest``,
+while sampling the CPU (/proc/stat) and the GPU (nvidia-smi) every second; deletes what it stored
+after each run; prints, per configuration, the time per stage, the CPU's and the GPU's average use
+and the GPU's peak memory. Prints no document text and no file names.
+
+    intake-benchmark FOLDER --config layout=4,table=4,embed=16 --config layout=16,table=16,embed=64 [--json out.json]
+
+Run where the gateway runs, with its environment (the database, the reader's sandbox), as its user.
+A configuration's keys: layout, table, embed (SUVERYN_LAYOUT_BATCH_SIZE, SUVERYN_TABLE_BATCH_SIZE,
+SUVERYN_EMBED_BATCH_SIZE). Watch the GPU's peak memory beside the language model's.
+"""
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from pathlib import Path
+
+KEYS = {"layout": "SUVERYN_LAYOUT_BATCH_SIZE", "table": "SUVERYN_TABLE_BATCH_SIZE", "embed": "SUVERYN_EMBED_BATCH_SIZE"}
+STAGES = ("read", "ocr", "layout", "chunk", "embed", "store")
+
+
+def parse_config(text: str) -> dict[str, int]:
+    out = {}
+    for part in filter(None, text.split(",")):
+        key, _, value = part.partition("=")
+        if key not in KEYS or not value.isdigit() or not 1 <= int(value) <= 512:
+            raise argparse.ArgumentTypeError(f"not a configuration: {part!r} (layout=, table=, embed= with 1 to 512)")
+        out[key] = int(value)
+    return out
+
+
+def cpu_times(stat: str) -> tuple[int, int]:
+    """(busy, total) jiffies from /proc/stat's first line."""
+    fields = [int(x) for x in stat.splitlines()[0].split()[1:]]
+    idle = fields[3] + (fields[4] if len(fields) > 4 else 0)  # idle + iowait
+    return sum(fields) - idle, sum(fields)
+
+
+def gpu_sample() -> tuple[float, float] | None:
+    """(utilisation %, memory MiB) of the first GPU, or None without nvidia-smi."""
+    if not shutil.which("nvidia-smi"):
+        return None
+    r = subprocess.run(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used", "--format=csv,noheader,nounits"],
+                       capture_output=True, text=True)
+    try:
+        util, mem = r.stdout.splitlines()[0].split(",")
+        return float(util), float(mem)
+    except (IndexError, ValueError):
+        return None
+
+
+class Sampler(threading.Thread):
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.cpu, self.gpu, self.mem, self.stop = [], [], [], threading.Event()
+
+    def run(self) -> None:
+        last = cpu_times(Path("/proc/stat").read_text())
+        while not self.stop.wait(1.0):
+            now = cpu_times(Path("/proc/stat").read_text())
+            if now[1] > last[1]:
+                self.cpu.append(100 * (now[0] - last[0]) / (now[1] - last[1]))
+            last = now
+            if (g := gpu_sample()) is not None:
+                self.gpu.append(g[0])
+                self.mem.append(g[1])
+
+
+def summary(results: list[dict], sampler: Sampler, seconds: float) -> dict:
+    stages = {s: round(sum(r.get("timings_s", {}).get(s, 0.0) for r in results), 2) for s in STAGES}
+    mean = lambda xs: round(sum(xs) / len(xs), 1) if xs else None  # noqa: E731
+    return {"documents": len(results), "pages": sum(r.get("pages", 0) for r in results),
+            "ocr_pages": sum(r.get("ocr_pages", 0) for r in results), "seconds": round(seconds, 1), "stages_s": stages,
+            "layout_on_cpu": sum(1 for r in results if r.get("timings_s", {}).get("layout_on_cpu")),
+            "failed": sum(1 for r in results if r.get("status") not in ("ok", "needs_review")),
+            "cpu_mean_pct": mean(sampler.cpu), "gpu_mean_pct": mean(sampler.gpu),
+            "gpu_peak_mib": max(sampler.mem) if sampler.mem else None}
+
+
+def run(files: list[Path], config: dict[str, int]) -> dict:
+    env = {**os.environ, **{KEYS[k]: str(v) for k, v in config.items()}}
+    owner = f"intake-benchmark-{uuid.uuid4()}"  # nobody's: the documents are visible to no user
+    sampler = Sampler()
+    sampler.start()
+    t0 = time.monotonic()
+    r = subprocess.run(["suveryn-ingest", "--owner", owner, *map(str, files)], env=env, capture_output=True, text=True)
+    seconds = time.monotonic() - t0
+    sampler.stop.set()
+    sampler.join()
+    results = [json.loads(line) for line in r.stdout.splitlines() if line.startswith("{")]
+    for d in results:  # what was stored goes again
+        subprocess.run(["suveryn-forget", d["document_id"]], env=env, capture_output=True)
+    if r.returncode != 0 and not results:
+        raise SystemExit(f"suveryn-ingest failed ({r.returncode}); its last line: {(r.stderr.strip().splitlines() or [''])[-1][:200]}")
+    return {"config": config, **summary(results, sampler, seconds)}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="intake-benchmark", description=__doc__.splitlines()[0])
+    ap.add_argument("folder", type=Path, help="a folder of fictional documents (PDF, Word, Excel)")
+    ap.add_argument("--config", type=parse_config, action="append", required=True)
+    ap.add_argument("--json", type=Path, help="also write the results here")
+    a = ap.parse_args()
+    files = sorted(f for f in a.folder.iterdir() if f.is_file() and not f.name.startswith("."))
+    if not files:
+        ap.error("the folder holds no files")
+    out = []
+    for config in a.config:
+        r = run(files, config)
+        out.append(r)
+        print(json.dumps(r), flush=True)
+    if a.json:
+        a.json.write_text(json.dumps(out, indent=1) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

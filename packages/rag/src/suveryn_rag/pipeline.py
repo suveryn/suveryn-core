@@ -113,7 +113,7 @@ class Rag:
                  embedder: Embedder | None = None):
         self.settings = settings or RagSettings.from_env()
         # Pass an existing embedder to share one model between instances (it is thread-safe).
-        self.embedder = embedder or Embedder(self.settings.embedding_model, self.settings.device)
+        self.embedder = embedder or Embedder(self.settings.embedding_model, self.settings.device, self.settings.embed_batch_size)
         self.store = Store(self.settings.database_url, self.embedder.dim)
         # Uploaded PDFs are read in a separate process, away from secrets and other users' data (``isolation``).
         self._extractor = make_extractor(self.settings) if load_extractor else None
