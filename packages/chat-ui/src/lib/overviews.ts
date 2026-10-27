@@ -5,16 +5,19 @@
  */
 import type { Case } from "../api";
 import { originKind } from "./origin";
+import { readingNotes, toCheck } from "./readingNotes";
 import type { AllDocument } from "../components/Sidebar";
 
 export type DocStatus = "ready" | "review" | "processing" | "failed" | "closed" | "notSource" | "confirmed";
 
 /** Case closed before anything else; then sūveryn's own output (never a source, unless a playbook's
- *  result someone confirmed); then whether pages need checking. Uploads still being read are jobs. */
+ *  result someone confirmed); then whether pages need checking or the reading noticed something (#26).
+ *  Uploads still being read are jobs. */
 export function documentStatus(d: AllDocument, kase: Pick<Case, "state"> | undefined | null): DocStatus {
   if (kase?.state === "closed") return "closed";
   if (originKind(d) !== "source") return d.origin === "playbook" && d.provenance?.confirmed ? "confirmed" : "notSource";
-  return d.status === "needs_review" ? "review" : "ready";
+  // To check: pages where text may be missing (the server's review), or what the reading noticed (#26)
+  return d.status === "needs_review" || toCheck(readingNotes(d.warnings)) ? "review" : "ready";
 }
 
 /** The server's rule: anything in one's own space; in an open case, its manager; a contributor only

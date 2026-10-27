@@ -23,7 +23,7 @@ import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  cancelJob, deleteDocument, documentConversations, getHealth, getJob, isArchiveUpload, listDocuments, reviewPages, streamChat, uploadDocument,
+  cancelJob, deleteDocument, documentConversations, getHealth, getJob, isArchiveUpload, listDocuments, streamChat, uploadDocument,
   getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
@@ -37,6 +37,7 @@ import { AvatarDialog } from "./components/AvatarDialog";
 import { OfflineBar } from "./components/OfflineBar";
 import { BackupBar } from "./components/BackupBar";
 import { backupAttention, type BackupAttention } from "./lib/backups";
+import { cardNote, checkPages, readingNotes, toCheck } from "./lib/readingNotes";
 import { CaseState } from "./components/CaseState";
 import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
@@ -81,8 +82,11 @@ let counter = 0;
  *  blocked, never used unasked. */
 function attachmentFromJob(a: Attachment, j: Job): Attachment {
   const noticed = j.noticed && (j.status === "ready" || j.status === "needs_review") ? j.noticed : undefined;
-  return { ...a, status: noticed ? "noticed" : j.status, noticed, documentId: j.document_id ?? undefined,
-           error: j.error ?? undefined, reviewPages: reviewPages(j.warnings), pages: j.pages ?? undefined,
+  // What the reading noticed puts it on "To check" too, and says so once on the card (suveryn-tracker#26)
+  const status = j.status === "ready" && toCheck(readingNotes(j.warnings)) ? "needs_review" : j.status;
+  return { ...a, status: noticed ? "noticed" : status, noticed, documentId: j.document_id ?? undefined,
+           error: j.error ?? undefined, reviewPages: checkPages(j.warnings), pages: j.pages ?? undefined,
+           note: cardNote(t(), j.warnings) ?? undefined,
            reading: j.status === "processing" ? j.progress ?? null : null, errorCode: j.error_code ?? undefined,
            errorDetail: j.error_detail ?? undefined };
 }
@@ -435,8 +439,9 @@ function Chat({ me }: { me: Me }) {
     // In a case a document is chosen under Ask about rather than attached (§10: choosing is one thing).
     if (caseId) { choose(d); return; }
     if (pending.some((a) => a.documentId === d.id)) return;
-    setPending((p) => [...p, { key: nextId(), filename: d.filename, status: d.status === "needs_review" ? "needs_review" : "ready",
-                               documentId: d.id, reviewPages: reviewPages(d.warnings), pages: d.pages || undefined }]);
+    setPending((p) => [...p, { key: nextId(), filename: d.filename,
+                               status: d.status === "needs_review" || toCheck(readingNotes(d.warnings)) ? "needs_review" : "ready",
+                               documentId: d.id, reviewPages: checkPages(d.warnings), pages: d.pages || undefined }]);
   };
 
   const choose = (d: { id: string; filename: string }) => {
@@ -463,7 +468,7 @@ function Chat({ me }: { me: Me }) {
     if (!a?.documentId) return;
     try {
       await confirmAsSource(a.documentId, caseId);
-      setPending((p) => p.map((x) => (x.key === key ? { ...x, status: x.reviewPages?.length ? "needs_review" : "ready", noticed: undefined } : x)));
+      setPending((p) => p.map((x) => (x.key === key ? { ...x, status: x.reviewPages?.length || x.note ? "needs_review" : "ready", noticed: undefined } : x)));
       refreshDocuments();
     } catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
   };

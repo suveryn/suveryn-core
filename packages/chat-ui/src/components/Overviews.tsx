@@ -9,22 +9,23 @@
  */
 import {
   AlertTriangle, ArrowUpDown, Check, Clock, Download, FileOutput, Filter, Folder, FolderKey, Loader2, Lock, MessageSquare, MessageSquareLock, MoreHorizontal,
-  Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle,
+  NotebookText, Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { reviewPages, type CaseOverview, type ConversationSummary, type Job, type Me, type Member } from "../api";
+import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel, listedTitle } from "../lib/conversations";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { originKind, originText } from "../lib/origin";
 import { documentStatus, mayDeleteDocument, type DocStatus } from "../lib/overviews";
+import { checkPages, hasNotes, noteDetails, rowNotes } from "../lib/readingNotes";
 import { caseTypeLabel } from "./CaseDialogs";
 import { OriginIcon } from "./ListViews";
 import type { AllDocument, CaseAction } from "./Sidebar";
 import { conversationMenu } from "./ConversationDialogs";
 import type { ConversationAction } from "../lib/conversationActions";
 import {
-  ActionMenu, Avatar, Button, DataTable, FileButton, FilterSelect, FilterToggle, IconBadge, Pager, PinToggle, SearchField, Select,
+  ActionMenu, Avatar, Button, DataTable, Dialog, FileButton, FilterSelect, FilterToggle, IconBadge, Pager, PinToggle, SearchField, Select,
   TextButton, type MenuEntry, type Option, type TableColumn,
 } from "../ui";
 
@@ -326,6 +327,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
   const [origin, setOrigin] = useState("all");
   const [statusFilter, setStatus] = useState("all");
   const [grouped, setGrouped] = useState(false);
+  const [notesOf, setNotesOf] = useState<AllDocument | null>(null);  // the document whose reading notes are open
   const q = query.trim().toLowerCase();
   const byId = new Map(cases.map((c) => [c.id, c]));
 
@@ -370,8 +372,11 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
       case "notSource": return <span className="overview-status overview-dim">{m.statusNotASource}</span>;
       case "confirmed": return <span className="overview-status"><Check size={14} aria-hidden />{m.statusConfirmed}</span>;
       case "review": {
-        const pages = reviewPages(r.doc?.warnings);
-        return <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}</span>;
+        // The pages, and for a screen reader what the reading noticed (#26: words, never only the icon)
+        const pages = checkPages(r.doc?.warnings);
+        const notes = rowNotes(m, r.doc?.warnings);
+        return <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}
+          {notes.length > 0 && <span className="visually-hidden">. {notes.join(" ")}</span>}</span>;
       }
       default: return <span className="overview-status"><Check size={14} aria-hidden />{m.statusReady}</span>;
     }
@@ -383,6 +388,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
     return [
       { id: "open", label: m.useInConversation, icon: <MessageSquare size={16} />, isDisabled: kind !== "source" || k?.state === "closed" },
       ...(d.origin === "answer" ? [{ id: "download", label: m.downloadAsWord, icon: <Download size={16} /> }] : []),
+      ...(hasNotes(d.warnings) ? [{ id: "notes", label: m.readingNotes, icon: <NotebookText size={16} /> }] : []),
       ...(kind === "pending" ? [{ id: "source", label: m.useAsSource, icon: <FileOutput size={16} />,
                                   isDisabled: k ? k.state === "closed" || !(k.my_role === "manager" || k.my_role === "contributor") : false }] : []),
       "-",
@@ -392,6 +398,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
   const act = (d: AllDocument, id: string) => {
     if (id === "open") onOpen(d);
     else if (id === "download") onDownload(d);
+    else if (id === "notes") setNotesOf(d);
     else if (id === "source") onUseAsSource(d);
     else if (id === "delete") onDelete(d);
   };
@@ -447,6 +454,10 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
                 <span><OriginIcon kind="source" size={14} /> <b>{m.originSource}</b> {m.legendSource}</span>
                 <span><OriginIcon kind="made" size={14} /> <b>{m.originMade}</b> {m.legendMade}</span>
               </span>} />
+      <Dialog isOpen={notesOf !== null} onClose={() => setNotesOf(null)} title={`${m.readingNotes}: ${notesOf?.filename ?? ""}`}
+              actions={<Button variant="primary" autoFocus onPress={() => setNotesOf(null)}>{m.close}</Button>}>
+        <ul className="reading-notes">{notesOf && noteDetails(m, notesOf.warnings).map((line) => <li key={line}>{line}</li>)}</ul>
+      </Dialog>
     </section>
   );
 }
