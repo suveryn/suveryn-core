@@ -27,7 +27,7 @@ import {
   getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks,
+  listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks, getBackups,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -35,6 +35,8 @@ import { MoveConversationDialog, RenameConversationDialog } from "./components/C
 import { AccessLogDialog, CaseFaces, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { AvatarDialog } from "./components/AvatarDialog";
 import { OfflineBar } from "./components/OfflineBar";
+import { BackupBar } from "./components/BackupBar";
+import { backupAttention, type BackupAttention } from "./lib/backups";
 import { CaseState } from "./components/CaseState";
 import { PlaybookView } from "./components/DeedIntake";
 import { Composer } from "./components/Composer";
@@ -295,6 +297,17 @@ function Chat({ me }: { me: Me }) {
     if (documentsReady) listAllDocuments().then(setAllDocuments).catch(() => {});
     if (historyReady && !administers) listAllConversations().then(setAllConversations).catch(() => {});
   }, [inOverview, view, documentsReady, historyReady, administers]);
+
+  // Administrators: backups that need attention, a bar outside the Backups page (read again on returning
+  // to the chat, at most every ten minutes).
+  const [backupReason, setBackupReason] = useState<BackupAttention | null>(null);
+  const [backupBarDismissed, setBackupBarDismissed] = useState(false);
+  const backupsReadAt = useRef(0);
+  useEffect(() => {
+    if (!me.admin || view !== "chat" || Date.now() - backupsReadAt.current < 600_000) return;
+    backupsReadAt.current = Date.now();
+    getBackups().then((s) => setBackupReason(backupAttention(s))).catch(() => setBackupReason(null));
+  }, [me.admin, view]);
 
   // Administrators: the account menu says how many playbooks are on (read again on returning to the chat).
   useEffect(() => {
@@ -950,6 +963,10 @@ function Chat({ me }: { me: Me }) {
           </header>
         )}
         {!reachable && <OfflineBar nextCheck={nextCheck} onTryNow={checkNow} />}
+        {reachable && view === "chat" && backupReason && !backupBarDismissed && (
+          <BackupBar reason={backupReason} onDismiss={() => setBackupBarDismissed(true)}
+                     onOpen={() => { backupsReadAt.current = 0; setAdminTab("backups"); setView("admin"); }} />
+        )}
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}

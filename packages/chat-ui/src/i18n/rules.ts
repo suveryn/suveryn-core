@@ -32,8 +32,8 @@ export function copyProblems(lang: Lang, texts: [string, string][]): [string, st
     if (lang === "nl" && /(?<![\\\p{L}])share(?!\p{L})/iu.test(text)) out.push([path, "\"share\" in Dutch: gedeelde map"]);
     if (lang === "nl" && /(?<!\p{L})support/iu.test(text)) out.push([path, "\"support\" in Dutch: ondersteuning"]);
     // sūveryn in lower case, capitalised only where it opens a sentence (a label, a line, after . ! ? :);
-    // "Sūveryn Labs" is the company's name
-    const misspelt = /suveryn/i.test(text.replaceAll("sūveryn", "").replaceAll("Sūveryn", ""));
+    // "Sūveryn Labs" is the company's name; "suveryn-backups" is a folder's name on a backup disk, as written there
+    const misspelt = /suveryn/i.test(text.replaceAll("sūveryn", "").replaceAll("Sūveryn", "").replaceAll("suveryn-backups", ""));
     const capitalMidSentence = /(?<![.!?:]\s|^)Sūveryn(?! Labs)/u.test(text);
     const lowerAfterStop = /[.!?]\s+sūveryn/u.test(text);
     if (misspelt || capitalMidSentence || lowerAfterStop) out.push([path, "sūveryn's spelling or case"]);

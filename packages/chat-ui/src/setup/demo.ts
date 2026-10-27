@@ -26,6 +26,9 @@ let restore: RestoreProgress | null = null;
 let restoreAt = 0;
 const BACKUP = { file: "suveryn-backup_notary-brussels-01_20261023T023000Z.tar.zst.age", created: "2026-10-23T02:30:00Z",
                  appliance: "notary-brussels-01" };
+const CHOICES = ["23", "22", "21", "16"].map((day, i) => ({
+  file: `suveryn-backup_notary-brussels-01_202610${day}T023000Z.tar.zst.age`, created: `2026-10-${day}T02:30:00Z`,
+  appliance: "notary-brussels-01", size: 1_240_000_000 - i * 3_000_000 }));
 
 /** The check takes two seconds; the restore advances one step every 1.5 seconds. */
 function currentRestore(): RestoreProgress | null {
@@ -33,7 +36,7 @@ function currentRestore(): RestoreProgress | null {
   if (!r) return null;
   if (r.state === "checking" && Date.now() - restoreAt > 2000) {
     restore = variant("restore-wrong-key") ? { state: "failed", error: "wrong_key" }
-      : variant("no-backup") ? { state: "failed", error: "no_backup" } : { state: "checked", backup: BACKUP };
+      : variant("no-backup") ? { state: "failed", error: "no_backup" } : { state: "checked", backup: BACKUP, choices: CHOICES };
   } else if (r.state === "restoring") {
     const done = Math.floor((Date.now() - restoreAt) / 1500);
     r.steps = RESTORE_STEPS.map((id, i) => ({ id, state: i < done ? "done" : i === done ? "running" : "waiting" }));
@@ -128,8 +131,10 @@ export async function answer(method: string, path: string, body?: unknown): Prom
     }
     case "POST restore/start":
       if (restore?.state !== "checked") throw new Refused({ _: "not_checked" });
+      if (b?.file !== undefined && !CHOICES.some((c) => c.file === b.file)) throw new Refused({ file: "invalid" });
       restoreAt = Date.now();
-      restore = { ...restore, state: "restoring", address: `https://${BACKUP.appliance}.local`, steps: [] };
+      restore = { ...restore, backup: CHOICES.find((c) => c.file === b?.file) ?? BACKUP, state: "restoring",
+                  address: `https://${BACKUP.appliance}.local`, steps: [] };
       return currentRestore();
     case "GET restore": return currentRestore();
     // A copy each time, like JSON from the appliance (React keeps an unchanged object as it was).

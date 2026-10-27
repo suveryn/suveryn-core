@@ -1,13 +1,15 @@
 /**
  * Administration › Backups (suveryn-tracker#33): the last backup, the last failure, and what is on the
- * target, as the appliance's backup service recorded them (GET /v1/admin/backups; lib/backups.ts).
+ * target, as the appliance's backup service recorded them (GET /v1/admin/backups; lib/backups.ts). And
+ * the recovery key test (review of the backup strategy, 26 October 2026): the appliance can't read its
+ * own backups, so the administrator gives the key, and the appliance checks it opens the newest backup.
  */
-import { AlertCircle, AlertTriangle, Check, Info } from "lucide-react";
-import { useEffect, useState } from "react";
-import { getBackups, type BackupStatus } from "../api";
+import { AlertCircle, AlertTriangle, Check, FileKey, Info } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { getBackups, HttpError, testRecoveryKey, type BackupStatus } from "../api";
 import { locale, useT } from "../i18n";
-import { backupState, sizeLabel } from "../lib/backups";
-import { InlineNotice, Rows } from "../ui";
+import { backupState, keyTestState, sizeLabel } from "../lib/backups";
+import { Button, FileButton, InlineNotice, readText, Rows } from "../ui";
 
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
 
@@ -15,7 +17,26 @@ export function AdminBackups() {
   const m = useT();
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { getBackups().then(setStatus).catch((e: Error) => setError(e.message)); }, []);
+  const [keyProblem, setKeyProblem] = useState<string | null>(null);
+  const load = useCallback(() => getBackups().then(setStatus).catch((e: Error) => setError(e.message)), []);
+  useEffect(() => { load(); }, [load]);
+  // While a key test runs, its result is read again every few seconds.
+  useEffect(() => {
+    if (!status?.key_testing) return;
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, [status?.key_testing, load]);
+  const test = async (files: File[]) => {
+    setKeyProblem(null);
+    const key = files[0] ? await readText(files[0], 4096) : null;
+    if (key === null) { setKeyProblem(m.keyTestNotKey); return; }
+    try {
+      await testRecoveryKey(key);
+      setStatus((s) => (s ? { ...s, key_testing: true } : s));
+    } catch (e) {
+      setKeyProblem(e instanceof HttpError && e.status === 415 ? m.keyTestNotKey : (e as Error).message);
+    }
+  };
   if (error) return <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.backupsUnreadable(error)}</InlineNotice>;
   if (!status) return null;
   const state = backupState(status);
@@ -43,11 +64,37 @@ export function AdminBackups() {
               ...(s.target ? [{ label: m.backupWhere, value: s.target === "usb" ? m.backupUsb : m.backupShare }] : []),
               ...(ok.on_target != null ? [{ label: m.backupOnTarget, value: m.backupCount(ok.on_target, ok.oldest ? when(ok.oldest) : null) }] : []),
               ...(s.retention_days != null ? [{ label: m.backupKept, value: m.backupDays(s.retention_days) }] : []),
+              ...(ok.disk ? [{ label: m.backupDisk, value: ok.disk }] : []),
             ]} />
+            {s.target === "usb" && <p className="caption">{m.backupRotate}</p>}
+            <h2 className="label">{m.keyTestTitle}</h2>
+            <p className="view-intro">{m.keyTestIntro}</p>
+            <KeyTest status={s} problem={keyProblem} onTest={test} />
           </>
         );
       })()}
       <p className="caption">{m.backupsCaption}</p>
+    </>
+  );
+}
+
+function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: string | null; onTest: (files: File[]) => void }) {
+  const m = useT();
+  const k = keyTestState(status);
+  const why = (step?: string | null) => m.keyTestStep[(step ?? "other") as keyof typeof m.keyTestStep] ?? m.keyTestStep.other;
+  return (
+    <>
+      {k.kind === "testing" && <InlineNotice icon={<Info size={14} />}>{m.keyTesting}</InlineNotice>}
+      {k.kind === "never" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
+      {k.kind === "ok" && <InlineNotice icon={<Check size={14} />}>{m.keyTestOk(when(k.test.at), when(k.test.created ?? k.test.at))}</InlineNotice>}
+      {k.kind === "due" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
+      {k.kind === "failed" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>{m.keyTestFailed(when(k.test.at), why(k.test.step))}</InlineNotice>}
+      {problem && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{problem}</InlineNotice>}
+      {k.kind !== "testing" && (
+        <FileButton accept={[".txt", ".key"]} onSelect={onTest}>
+          <Button size="small" variant="secondary"><FileKey size={14} aria-hidden /> {m.keyTestButton}</Button>
+        </FileButton>
+      )}
     </>
   );
 }
