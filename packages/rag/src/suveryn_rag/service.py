@@ -207,6 +207,19 @@ class FairQueue:
             return sum(len(q) for q in self._by_owner.values())
 
 
+STAGES = ("read", "ocr", "layout", "chunk", "embed", "store")
+
+
+def reading_line(job: "Job", timings: dict[str, float], started: float) -> str:
+    """Where a document's reading time went (suveryn-tracker#58), for the log: the job, its kind (the
+    file type only), its pages, and the seconds per stage, waiting included. Never a file name or text."""
+    kind = PurePosixPath(job.filename).suffix.lower().lstrip(".")[:8] or "?"
+    stages = " ".join(f"{s}={timings[s]:.2f}" for s in STAGES if s in timings)
+    cpu = " layout_on_cpu" if timings.get("layout_on_cpu") else ""
+    return (f"document read: job {job.id} {kind if kind.isalnum() else '?'} pages={job.pages} ocr_pages={job.ocr_pages} "
+            f"{stages}{cpu} waited={started - job.created_at:.2f} total={time.time() - started:.2f}")
+
+
 def clean_name(name: str) -> str:
     """A file name as stored and shown: its last part, in one Unicode form (NFC). A Mac writes "è" as
     "e" plus an accent (NFD); stored as it came, it wouldn't match the same name typed elsewhere."""
@@ -318,7 +331,7 @@ class DocumentService:
             from .embed import Embedder
             from .pipeline import Rag
 
-            embedder = Embedder(self.settings.embedding_model, self.settings.device)
+            embedder = Embedder(self.settings.embedding_model, self.settings.device, self.settings.embed_batch_size)
             self._ingest = Rag(self.settings, embedder=embedder)
             self._search = Rag(self.settings, load_extractor=False, embedder=embedder)
             self.state = "ready"
@@ -350,7 +363,7 @@ class DocumentService:
         return source if isinstance(source, Path) else self._uploads / f"{job.id}{SUFFIX[source.kind]}"
 
     def _process(self, job: Job, source: Source) -> None:
-        job.status = "processing"
+        job.status, started = "processing", time.time()
         watch = Watch(report=lambda p: setattr(job, "progress", p), cancelled=lambda: job.cancel_requested)
         path = self._path_for(job, source)
         try:
@@ -365,6 +378,7 @@ class DocumentService:
             # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
             job.document_id, job.status = str(r.document_id), job_status(r.status)
             job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
+            log.info("%s", reading_line(job, getattr(r, "timings", None) or {}, started))
             job.noticed = r.noticed
         except Cancelled:
             job.status = "cancelled"

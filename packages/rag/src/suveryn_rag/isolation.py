@@ -91,7 +91,8 @@ def _settings_for_child(settings: RagSettings) -> dict:
     """What the reader needs to know: OCR and device settings, never the database URL."""
     return {"device": settings.device, "ocr_languages": settings.ocr_languages, "ocr_jobs": settings.ocr_jobs,
             "work_dir": str(settings.extract_work_dir or settings.work_dir), "max_pages": settings.max_pages,
-            "chunk_max_tokens": settings.chunk_max_tokens}
+            "chunk_max_tokens": settings.chunk_max_tokens, "layout_batch_size": settings.layout_batch_size,
+            "table_batch_size": settings.table_batch_size}
 
 
 def _document_from_json(data: dict | None):
@@ -330,6 +331,8 @@ def main() -> None:
                                ocr_jobs=int(options["ocr_jobs"]), work_dir=Path(options["work_dir"]),
                                max_pages=int(options.get("max_pages", RagSettings.max_pages)),
                                chunk_max_tokens=int(options.get("chunk_max_tokens", RagSettings.chunk_max_tokens)),
+                               layout_batch_size=int(options.get("layout_batch_size", RagSettings.layout_batch_size)),
+                               table_batch_size=int(options.get("table_batch_size", RagSettings.table_batch_size)),
                                isolate_extraction=False)
         own_workspace(settings.work_dir)
         extractor = Extractor(settings)

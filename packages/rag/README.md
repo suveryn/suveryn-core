@@ -107,6 +107,8 @@ Settings come from environment variables:
 | `SUVERYN_EXTRACT_WRAPPER` | unset; a command prefix for the PDF reader process, e.g. a sandbox (suveryn-appliance's `reader-sandbox`). Required, unless `SUVERYN_EXTRACT_UNSANDBOXED=1` |
 | `SUVERYN_EXTRACT_UNSANDBOXED` | unset; `1` lets the reader run without a wrapper, as the gateway's user with network access (development only) |
 | `SUVERYN_MAX_PAGES` | `2000`: a PDF with more pages is refused before OCR |
+| `SUVERYN_LAYOUT_BATCH_SIZE`, `SUVERYN_TABLE_BATCH_SIZE` | `4`: pages Docling's layout and table models take at once on the GPU (suveryn-tracker#58) |
+| `SUVERYN_EMBED_BATCH_SIZE` | `16`: passages the embedding model takes at once |
 | `SUVERYN_EXTRACT_INBOX` | unset: uploads wait in `SUVERYN_WORK_DIR/uploads` (0700). Set when the reader runs as its own user: a provisioned folder, owner the gateway, group the reader, mode 2750; uploads in it are 0640 |
 | `SUVERYN_EXTRACT_WORK_DIR` | unset: `SUVERYN_WORK_DIR`. The reader's own folder for OCR intermediate files and temporary files (0700), when it runs as its own user |
 | `SUVERYN_EXTRACT_ISOLATION` | on; `off` reads PDFs inside the gateway process (debugging only) |
@@ -132,3 +134,17 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
   - an empty work directory and status `ok`
 
 The database and end-to-end tests are skipped without `SUVERYN_TEST_DATABASE_URL`. All rag tests are skipped where this package is not installed (plain `uv sync` installs only the gateway).
+
+## Where reading time goes
+
+The worker logs one line per document read (suveryn-tracker#58), with no file name and no text:
+
+```
+document read: job 3f9c… pdf pages=38 ocr_pages=38 ocr=24.10 layout=9.52 chunk=0.41 embed=1.83 store=0.62 waited=0.04 total=37.01
+```
+
+The stages in seconds: `read` (Word, Excel and the like), `ocr` (Tesseract, on the CPU), `layout` (Docling's
+layout and table models, on the GPU; `layout_on_cpu` when it fell back), `chunk`, `embed` (on the GPU)
+and `store`; `waited` is the time in the queue, `total` the time from the worker taking it.
+`scripts/intake-benchmark` reads a folder of fictional documents with each batch size given and
+samples the CPU and the GPU meanwhile, for the measurements #58 asks for.

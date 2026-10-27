@@ -205,6 +205,7 @@ class Extractor:
 
         def converter(device):
             opts = PdfPipelineOptions(do_ocr=False, do_table_structure=True,
+                                      layout_batch_size=settings.layout_batch_size, table_batch_size=settings.table_batch_size,
                                       accelerator_options=AcceleratorOptions(device=device, num_threads=settings.ocr_jobs))
             conv = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
             conv.initialize_pipeline(InputFormat.PDF)
