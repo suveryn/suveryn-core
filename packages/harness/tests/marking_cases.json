@@ -1,0 +1,169 @@
+{
+ "_about": "Source marking's regression set (suveryn-tracker#25): what the source card must mark for the answer's first marker. Run by the server's marking (test_marking.py) and the browser's fallback (marking.test.ts). Fictional text only.",
+ "cases": [
+  {
+   "name": "an abbreviation doesn't end a sentence",
+   "answer": "Under art. 3 the seller bears the costs of the survey [1].",
+   "passage": "Art. 2. The buyer pays the price. Under art. 3 the seller bears the costs of the survey, as set out in no. 4 of the annex. Art. 4. Other costs are shared.",
+   "marked": [
+    "Under art. 3 the seller bears the costs of the survey, as set out in no. 4 of the annex."
+   ],
+   "strong": [
+    "3"
+   ]
+  },
+  {
+   "name": "a word hyphenated over two lines",
+   "answer": "The resumption of work [1].",
+   "passage": "Return to work is planned. Full resump-\ntion of work followed in spring.",
+   "marked": [
+    "Full resump-\ntion of work followed in spring."
+   ],
+   "strong": []
+  },
+  {
+   "name": "a table row",
+   "answer": "The deposit is 25 000 euro [1].",
+   "passage": "Costs of the sale\n| Item | Amount |\n| --- | --- |\n| Deposit | 25,000 |\n| Price | 250,000 |",
+   "marked": [
+    "| Deposit | 25,000 |"
+   ],
+   "strong": [
+    "25,000"
+   ]
+  },
+  {
+   "name": "loose fields, tab-separated",
+   "answer": "The price is 250 000 euro [1].",
+   "passage": "Deposit\t25,000\nPrice\t250,000",
+   "marked": [
+    "Price\t250,000"
+   ],
+   "strong": [
+    "250,000"
+   ]
+  },
+  {
+   "name": "a claim from two sentences",
+   "answer": "The tenant may terminate with three months' notice by registered letter [1].",
+   "passage": "The tenant may terminate the lease at any time. Notice of three months applies, sent by registered letter. The landlord keeps the deposit for the tenant.",
+   "marked": [
+    "The tenant may terminate the lease at any time.",
+    "Notice of three months applies, sent by registered letter."
+   ],
+   "strong": [
+    "three"
+   ]
+  },
+  {
+   "name": "a number word",
+   "answer": "The notice period is twelve weeks [1].",
+   "passage": "The lease runs nine years. Either party may give notice of 12 weeks by registered letter.",
+   "marked": [
+    "Either party may give notice of 12 weeks by registered letter."
+   ],
+   "strong": [
+    "12"
+   ]
+  },
+  {
+   "name": "a date in another form",
+   "answer": "The deed was signed on 12 March 2021 [1].",
+   "passage": "The deed was executed on 12/03/2021 before the notary. The price was paid on 15/04/2022.",
+   "marked": [
+    "The deed was executed on 12/03/2021 before the notary."
+   ],
+   "strong": [
+    "12/03/2021"
+   ]
+  },
+  {
+   "name": "an amount with a scale word",
+   "answer": "The price is € 1.2 million [1].",
+   "passage": "The parties agree. The price amounts to EUR 1.200.000,00, paid at signing.",
+   "marked": [
+    "The price amounts to EUR 1.200.000,00, paid at signing."
+   ],
+   "strong": [
+    "1.200.000,00"
+   ]
+  },
+  {
+   "name": "a name in curly quotes",
+   "answer": "The seller is ‘Harbour Builders’ [1].",
+   "passage": "Between the company “Harbour Builders” of Ghent and the buyer.",
+   "marked": [
+    "Between the company “Harbour Builders” of Ghent and the buyer."
+   ],
+   "strong": [
+    "Harbour Builders"
+   ]
+  },
+  {
+   "name": "reported: a name with particles, split over two lines",
+   "answer": "De zaakvoerder is Eric Van de Plas [1].",
+   "passage": "de heer Eric Van de\nPlas, wonende te Gent",
+   "marked": [
+    "de heer Eric Van de\nPlas, wonende te Gent"
+   ],
+   "strong": [
+    "Eric Van de\nPlas"
+   ]
+  },
+  {
+   "name": "reported: a year without the word before it",
+   "answer": "De Europese richtlijn dateert van 2014 [1].",
+   "passage": "Richtlijn 2014/24/EU van het Europees Parlement.",
+   "marked": [
+    "Richtlijn 2014/24/EU van het Europees Parlement."
+   ],
+   "strong": [
+    "2014"
+   ]
+  },
+  {
+   "name": "reported: a form's legend, only part 12",
+   "answer": "| Nr | Vak | Bron |\n| --- | --- | --- |\n| 12 | Datum werkhervatting na ongeval | [1] |",
+   "passage": "9) wijze waarop ongeval gebeurde\n(8 + 9 omschrijft het gevaar) 12) datum werkhervatting na ongeval\n4) Beroepscategorie 10) aard van het letsel\nNr. | Naam | Datum | Plaats | Datum\n(1) (2) (12) (13)",
+   "marked": [
+    "12) datum werkhervatting na ongeval"
+   ],
+   "strong": [
+    "12"
+   ]
+  },
+  {
+   "name": "reported: (module 1) stays in its sentence",
+   "answer": "| 1 | Module 1 (audit update) | [1] |",
+   "passage": "Dit kan door indicatoren op te volgen (module 22).\nOok kan de audit (module 1) jaarlijks een update krijgen.",
+   "marked": [
+    "Ook kan de audit (module 1) jaarlijks een update krijgen."
+   ],
+   "strong": [
+    "1"
+   ]
+  },
+  {
+   "name": "reported: OCR noise is never marked",
+   "answer": "De opzegtermijn bedraagt 12 weken [1].",
+   "passage": "(uesozoeysjeerdsuom — sBuinebwo) enuabe oyosish12\nElke partij kan opzeggen met een termijn van 12 weken.",
+   "marked": [
+    "Elke partij kan opzeggen met een termijn van 12 weken."
+   ],
+   "strong": [
+    "12"
+   ]
+  },
+  {
+   "name": "reported: an amount grouped with hard spaces",
+   "answer": "De prijs is 1.275.000 [1].",
+   "passage": "De prijs bedraagt 1 275 000 euro.\nIn 2021 werden 12 kavels verkocht.",
+   "marked": [
+    "De prijs bedraagt 1 275 000 euro."
+   ],
+   "strong": [
+    "1 275 000"
+   ]
+  }
+ ]
+}

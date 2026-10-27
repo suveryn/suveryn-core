@@ -10,12 +10,12 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, MenuButton, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
-import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, stripMarkers, termsOf, toBlocks, type Segment, type Table } from "../lib/answer";
+import { citedNumbers, markPassage, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
 import type { AnswerExport } from "../lib/export";
 import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
 import { useWatermark, withWatermark } from "../lib/watermark";
-import { verdictOf } from "../lib/sources";
+import { sourceParts, verdictOf } from "../lib/sources";
 import { statusText } from "../lib/status";
 import { thoughtTime } from "../lib/thinking";
 import {
@@ -128,14 +128,6 @@ export function sourceName(c: Citation, filenames: Map<string, string>, m: Retur
   return c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument;
 }
 
-/** What the passage says for the claim(s) that cite it: the claim of the marker opened, or every claim citing ``n``. */
-function passageMarks(turn: AssistantTurn, n: number, occ: number | null) {
-  const available = turn.citations.length;
-  const one = occ === null ? undefined : markerClaims(turn.text, available)[occ];
-  return one?.n === n ? { terms: termsOf(one.claim), claims: [one.claim] }
-    : { terms: claimTerms(turn.text, available).get(n) ?? [], claims: claimTexts(turn.text, available).get(n) ?? [] };
-}
-
 /**
  * The source panel (docs/design/sidebar.md §5, artboard 11): one source of an answer beside the
  * conversation. The file, the page and the case; previous and next between the answer's sources; the
@@ -170,7 +162,6 @@ export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose 
   const citation = turn.citations[n - 1];
   const at = cited.indexOf(n);
   const filename = sourceName(citation, filenames, m);
-  const { terms, claims } = passageMarks(turn, n, occ);
   // Scroll the passage (not the page) to the first marked sentence: a long passage shows only its start.
   useEffect(() => {
     const box = quote.current, first = box?.querySelector("mark");
@@ -202,7 +193,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose 
       <div className="source-panel-body">
         {citation.removed ? <p className="caption">{m.sourceRemovedCaption}</p> : <>
           <blockquote className="source-panel-text" ref={quote}>
-            {markPassage(citation.text, claims, terms).map((part, i) => (part.mark
+            {sourceParts(turn, n, occ).map((part, i) => (part.mark
               ? <mark key={i} className={part.mark === "term" ? "source-match" : "source-span"}>{part.text}</mark>
               : <Fragment key={i}>{part.text}</Fragment>))}
           </blockquote>

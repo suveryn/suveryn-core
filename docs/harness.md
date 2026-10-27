@@ -28,6 +28,7 @@ question + earlier turns + chosen documents
 4. the checks ───────── calculations done by the server                                             calc.py
    │                    figures that are in no passage                                              calc.py
    │                    each citation against its own passage                                       support.py
+   │                    what each cited passage says for its claim, to mark                         marking.py
    │                    passages that address an AI                                                  guard.py
    ▼
 answer with [n] markers, its passages, and what the reader should check
@@ -95,12 +96,16 @@ tested:
 - **Each citation against its own passage** ([`support.py`](../packages/harness/src/suveryn_harness/support.py)).
   The figures, dates, years and names before a marker must be in the passage that marker cites, not
   just somewhere in the documents.
+- **What to mark in each cited passage** ([`marking.py`](../packages/harness/src/suveryn_harness/marking.py),
+  suveryn-tracker#25). Per marker, the sentences of its passage the claim rests on, and the claim's facts in
+  them however the passage writes them ("12" for "twelve", "12/03/2021" for "12 March 2021"). It reads the
+  answer's claims with the same sentences as the citation check, so the two can't disagree on what a claim is.
 - **Passages that address an AI** (`instruction_like` in `guard.py`). Text such as "ignore all
   previous instructions" can't be removed reliably, so it is detected: the answer says which
   passages contain it, and an audit event records where (ids and pages, never the text).
 
 What comes out: the answer with its `[n]` markers, `citations` (marker `[n]` is `citations[n-1]`),
-`calculations`, `unverified_figures`, `citation_issues` and `instruction_like_sources`. The
+`calculations`, `unverified_figures`, `citation_issues`, `support_spans` and `instruction_like_sources`. The
 interface shows each of these to the reader.
 
 ## Playbooks

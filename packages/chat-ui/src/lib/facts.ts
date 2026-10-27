@@ -90,8 +90,8 @@ const PATTERNS: { re: RegExp; read: (m: RegExpExecArray) => string[] | null }[] 
     read: (m) => { const mo = month(m[1]); return mo ? [`m:${m[2]}-${pad(mo)}`, `n:${m[2]}`] : null; } },
   // 1.275.000,00 and 1 250, with a scale word after them
   { re: NUMBER, read: (m) => [`n:${show(numberValue(m[0]))}`] },
-  // twelve, vingt-deux, eenentwintig, vingt et un
-  { re: /(?<![\p{L}\d])(?:\p{L}+(?:-\p{L}+)*|(?:vingt|trente|quarante|cinquante|soixante) et (?:un|une|onze))(?![\p{L}\d])/giu,
+  // vingt et un, twelve, vingt-deux, eenentwintig (the phrase first: "vingt" alone would match before it)
+  { re: /(?<![\p{L}\d])(?:(?:vingt|trente|quarante|cinquante|soixante) et (?:un|une|onze)|\p{L}+(?:-\p{L}+)*)(?![\p{L}\d])/giu,
     read: (m) => { const v = wordValue(m[0].replace(/ /g, "-")); return v === null ? null : [`n:${v}`]; } },
 ];
 
