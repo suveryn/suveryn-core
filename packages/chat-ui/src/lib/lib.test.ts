@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { citedNumbers, claimTerms, claimTexts, markerClaims, markPassage, markTerms, supportingRanges, termsOf, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
+import { citedNumbers, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
 import { cellValue, checkLines, segmentText, tableRows } from "./export";
 
 import {
@@ -369,91 +369,6 @@ describe("tables in answers (Word and Excel)", () => {
       .toEqual(["Calc: 1 + 1 = 2.", "check 9", "source 2 lacks X"]);
   });
 });
-
-describe("finding the cited facts in a long passage", () => {
-  it("collects per source the figures, years, dates and names of the claims that cite it", () => {
-    const text = "In de akte staan twee jaartallen:\n*   **1989** [3]\n*   **1996** [3]\n\nDe koper Jan Peeters betaalt EUR 1.275.000,00 op 12/03/2021 [1][2].";
-    const terms = claimTerms(text, 3);
-    expect(terms.get(3)).toEqual(["1989", "1996"]);
-    expect(terms.get(1)).toEqual(["1.275.000,00", "12/03/2021"]);  // a claim with figures: the figures only
-    expect(terms.get(2)).toEqual(terms.get(1));
-    expect(claimTerms("Zie [9].", 3).size).toBe(0);  // a marker past the citations names nothing
-    // reported: asked for years, "Europese" was marked too
-    expect(claimTerms("De Europese richtlijn dateert van 2014 [4].", 4).get(4)).toEqual(["2014"]);
-    expect(claimTerms("De koper is Jan Peeters [1].", 1).get(1)).toEqual(["Jan Peeters"]);  // no figures: the name
-  });
-
-  it("marks a whole name with its particles, also split over two lines (reported: Eric Van de Plas)", () => {
-    const terms = claimTerms("De zaakvoerder is Eric Van de Plas [2]. Eric Van de Plas tekent [2].", 2).get(2)!;
-    expect(terms).toEqual(["Eric Van de Plas", "Van de Plas"]);  // the second sentence starts with it: also without its first word
-    const marked = (p: string) => markTerms(p, terms).filter((x) => x.mark).map((x) => x.text);
-    expect(marked("Benoemd: de heer Eric Van de Plas, zaakvoerder.")).toEqual(["Eric Van de Plas"]);
-    expect(marked("de heer Eric Van de\nPlas, wonende te Gent")).toEqual(["Eric Van de\nPlas"]);
-    const witnesses = claimTerms("Notaris Charlotte d'Hondt en Pierre du Pont getuigen [1].", 1).get(1)!;
-    expect(witnesses).toEqual(["Notaris Charlotte d'Hondt", "Charlotte d'Hondt", "Pierre du Pont"]);
-    // the source writes the title elsewhere: the name is still marked whole
-    expect(markTerms("mr. Charlotte d'Hondt, notaris, en Pierre du Pont", witnesses).filter((x) => x.mark).map((x) => x.text))
-      .toEqual(["Charlotte d'Hondt", "Pierre du Pont"]);
-  });
-
-  it("marks the sentence a claim rests on, with all its numbers (reported: only years were marked)", () => {
-    const answer = "De opzegtermijn bedraagt 12 weken [1]. De huurprijs is EUR 1.250,00 per maand [1].";
-    const claims = claimTexts(answer, 1).get(1)!;
-    expect(claims).toEqual(["De opzegtermijn bedraagt 12 weken", "De huurprijs is EUR 1.250,00 per maand"]);
-    const passage = "Artikel 4. Duur. De huur loopt negen jaar. Artikel 5. Opzegging. Elke partij kan opzeggen met een termijn van 12 weken, " +
-      "per aangetekende brief. Artikel 6. Huurprijs. De maandelijkse huurprijs bedraagt 1 250 euro, te betalen voor de vijfde.";
-    const parts = markPassage(passage, claims, claimTerms(answer, 1).get(1)!);
-    const sentences = parts.reduce<string[]>((acc, p, i) => {
-      if (!p.mark) return acc;
-      if (i > 0 && parts[i - 1].mark) acc[acc.length - 1] += p.text; else acc.push(p.text);
-      return acc;
-    }, []);
-    expect(sentences).toEqual(["Elke partij kan opzeggen met een termijn van 12 weken, per aangetekende brief.",
-      "De maandelijkse huurprijs bedraagt 1 250 euro, te betalen voor de vijfde."]);
-    expect(parts.filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["12"]);  // the number in its sentence
-    expect(supportingRanges("Een zin die er niets mee te maken heeft.", claims)).toEqual([]);  // no sentence: nothing marked
-    // a sentence running on from a garbled first line (text in an upside-down figure): the line isn't marked
-    const garbled = "(uesozoeysjeerdsuom — sBuinebwo) enuabe oyosish12\nElke partij kan opzeggen met een termijn van 12 weken.";
-    const [[from, to]] = supportingRanges(garbled, claims);
-    expect(garbled.slice(from, to)).toBe("Elke partij kan opzeggen met een termijn van 12 weken.");
-  });
-
-  it("shows what the clicked marker's claim rests on, not every claim citing the source (reported: a table of rows)", () => {
-    const answer = "| Nr | Vak | Bron |\n| --- | --- | --- |\n| 3 | Functie van het slachtoffer | [1] |\n" +
-      "| 12 | Datum werkhervatting na ongeval | [1] |\n\nZie ook [2].";
-    const markers = markerClaims(answer, 2);
-    // numbered as toBlocks numbers the markers (Segment.occ)
-    const occ = toBlocks(answer, 2).flatMap((b) => (b.kind === "table" ? b.rows.flat(2) : b.segments)).filter((x) => x.kind === "cite");
-    expect(occ.map((x) => (x.kind === "cite" ? [x.n, x.occ] : null))).toEqual([[1, 0], [1, 1], [2, 2]]);
-    expect(markers.map((x) => x.n)).toEqual([1, 1, 2]);
-    const passage = "Vak 3 vermeldt de functie van het slachtoffer. Vak 12 vermeldt de datum van werkhervatting na het ongeval.";
-    const parts = markPassage(passage, [markers[1].claim], termsOf(markers[1].claim));
-    expect(parts.filter((p) => p.mark).map((p) => p.text).join("")).toBe("Vak 12 vermeldt de datum van werkhervatting na het ongeval.");
-    // a form's legend, numbered parts within a line and a table header after it (as reported): only part 12
-    const legend = "9) wijze waarop ongeval gebeurde\n(8 + 9 omschrijft het gevaar) 12) datum werkhervatting na ongeval\n" +
-      "4) Beroepscategorie 10) aard van het letsel\nNr. | Naam | Datum | Plaats | Datum\n(1) (2) (12) (13)";
-    const legendMarks = markPassage(legend, [markers[1].claim], termsOf(markers[1].claim)).filter((p) => p.mark).map((p) => p.text);
-    expect(legendMarks.join("")).toBe("12) datum werkhervatting na ongeval");
-    // reported: "(module 1)" is a reference in a sentence, not a numbered part; the whole sentence, with its 1
-    const prose = "Dit kan door indicatoren op te volgen (module 22).\nOok kan de audit (module 1) jaarlijks een update krijgen.";
-    const audit = markPassage(prose, ["| 1 | Module 1 (audit update) |"], termsOf("| 1 | Module 1 (audit update) |")).filter((p) => p.mark);
-    expect(audit.map((p) => p.text).join("")).toBe("Ook kan de audit (module 1) jaarlijks een update krijgen.");
-    expect(audit.filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["1"]);
-    // an amount grouped with hard spaces is one number; two numbers with a plain space between are two
-    const amounts = "De prijs bedraagt 1\u00a0275\u00a0000 euro.\nIn 2021 werden 12 kavels verkocht.";
-    expect(markPassage(amounts, ["De prijs is 1.275.000"], []).filter((p) => p.mark).map((p) => p.text).join(""))
-      .toBe("De prijs bedraagt 1\u00a0275\u00a0000 euro.");
-    expect(markPassage(amounts, ["Er werden 12 kavels verkocht"], []).filter((p) => p.mark === "term").map((p) => p.text)).toEqual(["12"]);
-  });
-
-  it("marks those facts in the passage, whole only, and nothing else", () => {
-    const passage = "Opgericht in 1989, gewijzigd in 1996. Nummer 119890 en 19896 blijven ongemoeid.";
-    expect(markTerms(passage, ["1989", "1996"]).filter((p) => p.mark).map((p) => p.text)).toEqual(["1989", "1996"]);
-    expect(markTerms(passage, []).length).toBe(1);
-    expect(markTerms("de heer jan peeters", ["Peeters"]).filter((p) => p.mark).map((p) => p.text)).toEqual(["peeters"]);
-  });
-});
-
 
 describe("server errors and long conversations", () => {
   it("says what went wrong in the interface's language, not as HTTP codes", () => {

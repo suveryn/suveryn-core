@@ -4,6 +4,8 @@
  * positional citation contract). Rendering goes through React, so model output is never
  * injected as HTML.
  */
+import { facts, factValues } from "./facts";
+
 export type Segment =
   | { kind: "text"; text: string }
   | { kind: "bold"; text: string }
@@ -135,7 +137,7 @@ const NAME = new RegExp(`${NAME_WORD}(?:\\s+(?:${PARTICLE}\\s+)*${NAME_WORD})*`,
  */
 export function claimTerms(text: string, available: number): Map<number, string[]> {
   const out = new Map<number, string[]>();
-  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+  for (const sentence of answerSentences(text)) {
     let start = 0;
     for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
       const terms = termsOf(sentence.slice(start, group.index));
@@ -157,7 +159,7 @@ export function claimTerms(text: string, available: number): Map<number, string[
  */
 export function markerClaims(text: string, available: number): { n: number; claim: string }[] {
   const out: { n: number; claim: string }[] = [];
-  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+  for (const sentence of answerSentences(text)) {
     let start = 0;
     for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
       const claim = cleanClaim(sentence.slice(start, group.index));
@@ -165,6 +167,32 @@ export function markerClaims(text: string, available: number): { n: number; clai
       for (const n of group[0].match(/\d{1,2}/g)!.map(Number)) if (n >= 1 && n <= available) out.push({ n, claim });
     }
   }
+  return out;
+}
+
+// Abbreviations whose full stop doesn't end a sentence (legal and everyday Dutch, French and English; language data,
+// like the translation tables). A single capital is an initial ("J. Peeters").
+const ABBREVIATIONS = new Set(("art artt nr nrs no nos n° bv b.v vb zgn enz e.a e.g i.e cf vgl al par hfst hfdst afd blz p pp ca resp " +
+  "dhr mevr mr mme mlle me dr prof st ste ir ing lic jr sr vs viz approx fig tab vol " +
+  "jan feb febr mrt apr jun jul aug sep sept okt oct nov dec").split(" "));
+
+/** Whether the full stop just before ``at`` closes an abbreviation or an initial rather than a sentence. */
+function abbreviated(text: string, at: number): boolean {
+  if (text[at - 1] !== ".") return false;
+  const word = /(?<![\p{L}°.])([\p{L}°][\p{L}°.]*)\.$/u.exec(text.slice(Math.max(0, at - 40), at))?.[1];
+  return !!word && (ABBREVIATIONS.has(word.toLowerCase()) || /^\p{Lu}$/u.test(word));
+}
+
+/** An answer's sentences: split after . ! ? (not after an abbreviation: "art. 3") and at line ends. */
+export function answerSentences(text: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  for (const b of text.matchAll(/(?<=[.!?])\s+|\n+/g)) {
+    if (!b[0].includes("\n") && abbreviated(text, b.index!)) continue;
+    out.push(text.slice(start, b.index));
+    start = b.index! + b[0].length;
+  }
+  out.push(text.slice(start));
   return out;
 }
 
@@ -180,7 +208,8 @@ export function termsOf(rawClaim: string): string[] {
   // only for a claim without numbers: those are what it says, and a capitalised word ("Europese", a table
   // cell's "Datum") isn't always a name. A single capitalised word only when it isn't the claim's first
   // word (capitalised anyway) and has 4+ letters.
-  const names = /\d/.test(claim) ? [] : [...claim.matchAll(NAME)].map((m) => ({ text: m[0], at: m.index! }));
+  // A closing quote after a name ("‘Harbour Builders’") isn't part of it.
+  const names = /\d/.test(claim) ? [] : [...claim.matchAll(NAME)].map((m) => ({ text: m[0].replace(/['’]+$/, ""), at: m.index! }));
   for (const n of names) {
     const several = /\s/.test(n.text);
     if ((several || (n.at > 0 && n.text.length >= 4)) && !terms.includes(n.text)) terms.push(n.text);
@@ -195,7 +224,7 @@ export function termsOf(rawClaim: string): string[] {
 /** Per source number, the claims (sentence parts before a marker group) that cite it. */
 export function claimTexts(text: string, available: number): Map<number, string[]> {
   const out = new Map<number, string[]>();
-  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+  for (const sentence of answerSentences(text)) {
     let start = 0;
     for (const group of sentence.matchAll(/(?:\[\d{1,2}\])+/g)) {
       const claim = cleanClaim(sentence.slice(start, group.index));
@@ -215,25 +244,30 @@ const STOP = new Set(("de het een en van in op te voor met aan is zijn was werd 
   "le la les un une des du et en au aux est sont par pour sur dans que qui avec ce cette ces il elle " +
   "the a an and of in on to for with is are was were by as that this these from at it be has have").split(" "));
 
-// A number on its own, not glued to letters ("oyosish4" in OCR noise is no 4).
-// Grouped by . or , or by a (hard) space between thousands ("1 250"), not any space ("2021 12" is two numbers).
-const NUMBER = /(?<![\p{L}\d])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?![\p{L}])/gu;
-
-/** The comparable words and numbers of a text: numbers without separators (1.275.000,00 = 1 275 000). */
-function tokens(text: string): { words: Set<string>; numbers: Set<string> } {
-  const numbers = new Set([...text.matchAll(NUMBER)].map((m) => m[0].replace(/[.,]0{1,2}$/, "").replace(/\D/g, "")));
-  const words = new Set([...text.toLowerCase().matchAll(/[\p{L}]{3,}/gu)].map((m) => m[0]).filter((w) => !STOP.has(w)));
+/** The comparable words and facts of a text: words without line-break hyphens, facts normalised (``facts``). */
+function tokens(raw: string): { words: Set<string>; numbers: Set<string> } {
+  const text = raw.replace(/(\p{L})-[ \t]*\n\s*(?=\p{Ll})/gu, "$1");
+  const found = facts(text);
+  const numbers = new Set(found.flatMap((f) => f.values));
+  // The facts' own words ("twelve", "March") count as facts, not words.
+  let rest = text;
+  for (const f of found) rest = rest.slice(0, f.start) + " ".repeat(f.end - f.start) + rest.slice(f.end);
+  const words = new Set([...rest.toLowerCase().matchAll(/[\p{L}]{3,}/gu)].map((m) => m[0]).filter((w) => !STOP.has(w)));
   return { words, numbers };
 }
 
 /**
- * The passage's sentences as [start, end) ranges: split after . ! ? ; : before a capital, digit or quote, at a blank
- * line, before a list item, and before a numbered part within a line ("… 11) dagen … 12) datum …", as in a form's legend).
+ * The passage's sentences as [start, end) ranges: split after . ! ? ; : before a capital, digit or quote (not after an
+ * abbreviation: "art. 3", "nr. 4"), at a blank line, before a list item, before a numbered part within a line
+ * ("… 11) dagen … 12) datum …", as in a form's legend), and around a table row (a line with | or a tab): a row is a
+ * sentence of its own.
  */
-function sentenceRanges(passage: string): [number, number][] {
+export function sentenceRanges(passage: string): [number, number][] {
   const out: [number, number][] = [];
   let start = 0;
-  for (const b of passage.matchAll(/(?<=[.!?;:])\s+(?=[\p{Lu}\d“"'(])|\n\s*\n|\n(?=\s*(?:[-*•▪]|\d+[.)])\s)|(?<=\S)\s+(?=\d{1,2}\)\s)/gu)) {
+  const breaks = /(?<=[.!?;:])\s+(?=[\p{Lu}\d“"'(])|\n\s*\n|\n(?=\s*(?:[-*•▪]|\d+[.)])\s)|(?<=\S)\s+(?=\d{1,2}\)\s)|\n(?=[^\n]*[|\t])|(?<=[|\t][^\n]*)\n/gu;
+  for (const b of passage.matchAll(breaks)) {
+    if (!b[0].includes("\n") && abbreviated(passage, b.index!)) continue;
     // "1)" closing a parenthesis opened earlier on the line ("de audit (module 1) jaarlijks") is no numbered part.
     const line = passage.slice(passage.lastIndexOf("\n", b.index!) + 1, b.index!);
     if (/^\s+\d/.test(b[0] + passage[b.index! + b[0].length]) && !b[0].includes("\n")
@@ -245,23 +279,38 @@ function sentenceRanges(passage: string): [number, number][] {
   return out.filter(([a, z]) => passage.slice(a, z).trim());
 }
 
+type Tokens = ReturnType<typeof tokens>;
+const keys = (t: Tokens) => [...[...t.words].map((w) => `w:${w}`), ...[...t.numbers].map((x) => `n:${x}`)];
+const weight = (key: string) => (key.startsWith("n:") ? 2 : 1);
+
 /**
- * Where in a passage each claim comes from: the sentences sharing most of the claim's words and numbers
- * (a number counts double). A sentence is taken when it holds at least a third of the claim and nearly as much as
- * the best sentence (80%), so a claim drawn from two sentences shows both but a sentence sharing a word or two doesn't.
+ * Where in a passage each claim comes from: the sentences sharing most of the claim's words and facts (a fact counts
+ * double). A sentence is taken when it holds at least a third of the claim and nearly as much as the best sentence
+ * (80%). A claim drawn from several sentences: a further sentence is taken when it adds what the taken ones don't
+ * hold, at least a fact or two words and a quarter of the claim, so one shared word never adds a sentence.
  */
 export function supportingRanges(passage: string, claims: string[]): [number, number][] {
-  const sentences = sentenceRanges(passage).map(([a, z]) => ({ a, z, t: tokens(passage.slice(a, z)) }));
-  const picked = new Map<number, ReturnType<typeof tokens>[]>();
+  const sentences = sentenceRanges(passage).map(([a, z]) => ({ a, z, keys: new Set(keys(tokens(passage.slice(a, z)))) }));
+  const picked = new Map<number, Tokens[]>();
   for (const claim of claims) {
     const c = tokens(claim);
-    const total = c.words.size + 2 * c.numbers.size;
+    const own = keys(c);
+    const total = own.reduce((sum, k) => sum + weight(k), 0);
     if (total < 2) continue;
-    const scores = sentences.map(({ t }) =>
-      ([...c.words].filter((w) => t.words.has(w)).length + 2 * [...c.numbers].filter((x) => t.numbers.has(x)).length) / total);
+    const held = (i: number, skip: Set<string> = new Set()) =>
+      own.filter((k) => sentences[i].keys.has(k) && !skip.has(k)).reduce((sum, k) => sum + weight(k), 0);
+    const scores = sentences.map((_, i) => held(i) / total);
     const best = Math.max(0, ...scores);
     if (best < 1 / 3) continue;
-    scores.forEach((s, i) => { if (s >= Math.max(1 / 3, 0.8 * best)) picked.set(i, [...(picked.get(i) ?? []), c]); });
+    const taken = new Set(scores.flatMap((s, i) => (s >= Math.max(1 / 3, 0.8 * best) ? [i] : [])));
+    for (let extra = 0; extra < 2; extra++) {
+      const covered = new Set(own.filter((k) => [...taken].some((i) => sentences[i].keys.has(k))));
+      const gains = sentences.map((_, i) => (taken.has(i) ? 0 : held(i, covered)));
+      const gain = Math.max(0, ...gains);
+      if (gain < Math.max(2, total / 4)) break;
+      taken.add(gains.indexOf(gain));
+    }
+    for (const i of taken) picked.set(i, [...(picked.get(i) ?? []), c]);
   }
   return [...picked.keys()].sort((x, y) => x - y).map((i) => trimLines(passage, sentences[i].a, sentences[i].z, picked.get(i)!));
 }
@@ -269,15 +318,21 @@ export function supportingRanges(passage: string, claims: string[]): [number, nu
 /**
  * A sentence range without its first and last lines that share nothing with the claims: a "sentence" runs
  * to the next full stop, and can start with a heading or noise from a figure (reported: a garbled first line
- * was marked along with the sentence after it).
+ * was marked along with the sentence after it). A word hyphenated over two lines keeps its lines together.
  */
-function trimLines(passage: string, a: number, z: number, claims: ReturnType<typeof tokens>[]): [number, number] {
+function trimLines(passage: string, a: number, z: number, claims: Tokens[]): [number, number] {
   const shares = (line: string) => {
     const t = tokens(line);
     return claims.some((c) => [...c.words].some((w) => t.words.has(w)) || [...c.numbers].some((x) => t.numbers.has(x)));
   };
-  const lines = [...passage.slice(a, z).matchAll(/[^\n]*(?:\n|$)/g)].map((m) => ({ s: a + m.index!, e: a + m.index! + m[0].length }))
-    .filter((l) => l.e > l.s);
+  const lines: { s: number; e: number }[] = [];
+  for (const m of passage.slice(a, z).matchAll(/[^\n]*(?:\n|$)/g)) {
+    const line = { s: a + m.index!, e: a + m.index! + m[0].length };
+    if (line.e <= line.s) continue;
+    const previous = lines[lines.length - 1];
+    if (previous && /\p{L}-[ \t]*\n$/u.test(passage.slice(previous.s, previous.e)) && /^\s*\p{Ll}/u.test(m[0])) previous.e = line.e;
+    else lines.push(line);
+  }
   let i = 0, j = lines.length - 1;
   while (i < j && !shares(passage.slice(lines[i].s, lines[i].e))) i++;
   while (j > i && !shares(passage.slice(lines[j].s, lines[j].e))) j--;
@@ -288,21 +343,30 @@ export type PassagePart = { text: string; mark: "sentence" | "term" | null };
 
 /**
  * A passage with what its citing claims rest on marked: the supporting sentences (``supportingRanges``), and in
- * them every number of the claims, plus the claims' figures, dates and names (``terms``) anywhere.
+ * them every fact of the claims however the source writes it ("12" for "twelve", "12/03/2021" for "12 March 2021"),
+ * plus anywhere the claims' figures, dates and names (``terms``), also in another form.
  */
 export function markPassage(passage: string, claims: string[], terms: string[]): PassagePart[] {
-  const numbers = claims.flatMap((c) => [...c.matchAll(NUMBER)].map((m) => m[0]));
-  const out: PassagePart[] = [];
-  const termParts = (text: string, extra: string[]) =>
-    markTerms(text, [...terms, ...extra]).map((p) => ({ text: p.text, mark: p.mark ? ("term" as const) : null }));
-  let last = 0;
-  for (const [a, z] of supportingRanges(passage, claims)) {
-    if (a > last) out.push(...termParts(passage.slice(last, a), []));
-    out.push(...termParts(passage.slice(a, z), numbers).map((p) => (p.mark ? p : { ...p, mark: "sentence" as const })));
-    last = z;
+  const claimFacts = new Set(claims.flatMap((c) => [...factValues(c)]));
+  const termFacts = new Set(terms.flatMap((t) => [...factValues(t)]));
+  const ranges = supportingRanges(passage, claims);
+  const mark: PassagePart["mark"][] = new Array(passage.length).fill(null);
+  for (const [a, z] of ranges) mark.fill("sentence", a, z);
+  let at = 0;
+  for (const p of markTerms(passage, terms)) {
+    if (p.mark) mark.fill("term", at, at + p.text.length);
+    at += p.text.length;
   }
-  if (last < passage.length) out.push(...termParts(passage.slice(last), []));
-  return out.filter((p) => p.text);
+  for (const f of facts(passage)) {
+    const inSentence = ranges.some(([a, z]) => f.start >= a && f.end <= z);
+    if (f.values.some((v) => termFacts.has(v) || (inSentence && claimFacts.has(v)))) mark.fill("term", f.start, f.end);
+  }
+  const out: PassagePart[] = [];
+  for (let i = 0; i < passage.length; i++) {
+    if (out.length && out[out.length - 1].mark === mark[i]) out[out.length - 1].text += passage[i];
+    else out.push({ text: passage[i], mark: mark[i] });
+  }
+  return out;
 }
 
 /** A passage split into plain parts and the parts to mark (``terms``, case-insensitive, longest first). */
