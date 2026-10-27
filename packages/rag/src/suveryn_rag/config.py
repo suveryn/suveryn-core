@@ -52,6 +52,10 @@ class RagSettings:
     layout_batch_size: int = 4
     table_batch_size: int = 4
     embed_batch_size: int = 16
+    # Marking by meaning (suveryn-tracker#25, step 3): the least cosine similarity, by the embedding model, for the
+    # source card to mark a sentence that shares too few words with its claim (a paraphrase, another language).
+    # 0: off, until measured on a card (scripts/meaning-benchmark).
+    mark_by_meaning: float = 0.0
 
     @classmethod
     def from_env(cls) -> "RagSettings":
@@ -75,4 +79,5 @@ class RagSettings:
             layout_batch_size=int(os.environ.get("SUVERYN_LAYOUT_BATCH_SIZE", d.layout_batch_size)),
             table_batch_size=int(os.environ.get("SUVERYN_TABLE_BATCH_SIZE", d.table_batch_size)),
             embed_batch_size=int(os.environ.get("SUVERYN_EMBED_BATCH_SIZE", d.embed_batch_size)),
+            mark_by_meaning=float(os.environ.get("SUVERYN_MARK_BY_MEANING") or d.mark_by_meaning),
         )

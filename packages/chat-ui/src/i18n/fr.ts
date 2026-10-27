@@ -320,6 +320,7 @@ const fr: Messages = {
   sourceWithReference: (n) => `la source ${n} avec sa référence`,
   sourceN: (n) => `la source ${n}`,
   sourceCaption: "Le passage tel qu'il a été lu dans le document. Vérifiez la page originale avant de vous y fier.",
+  markedByMeaning: "Marqué selon le sens : le passage le dit en d'autres termes. Vérifiez qu'il dit la même chose.",
   calcFailed: (expression, why) => `Impossible de calculer ${expression} : ${why}.`,
   calculatedBy: "Calculé par sūveryn, pas lu dans les documents :",
   calcMissing: (figures) => ` Vérifiez ${figures.join(", ")} : ${figures.length === 1 ? "ce montant n'apparaît" : "ces montants n'apparaissent"} pas dans les sources.`,

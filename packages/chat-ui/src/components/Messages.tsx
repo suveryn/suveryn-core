@@ -15,7 +15,7 @@ import type { AnswerExport } from "../lib/export";
 import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
 import { useWatermark, withWatermark } from "../lib/watermark";
-import { sourceParts, verdictOf } from "../lib/sources";
+import { markedByMeaning, sourceParts, verdictOf } from "../lib/sources";
 import { statusText } from "../lib/status";
 import { thoughtTime } from "../lib/thinking";
 import {
@@ -203,6 +203,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose 
               <span>{verdict.text}</span>
             </p>
           )}
+          {markedByMeaning(turn, n, occ) && <p className="caption">{m.markedByMeaning}</p>}
           <p className="caption">{m.sourceCaption}</p>
         </>}
       </div>

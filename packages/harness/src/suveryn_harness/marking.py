@@ -422,12 +422,14 @@ def _merge(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return [(a, z) for a, z in out]
 
 
-def marks(passage: str, claim: str) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
-    """The supporting sentences of one claim in a passage, and the facts to mark strongly: in those sentences the
-    claim's facts in any form, anywhere its figures, dates and names (also in another form). Code-point offsets."""
+def marks(passage: str, claim: str, sentences: list[tuple[int, int]] | None = None,
+          ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """The supporting sentences of one claim in a passage (``sentences`` when already chosen, by meaning), and the
+    facts to mark strongly: in those sentences the claim's facts in any form, anywhere its figures, dates and names
+    (also in another form). Code-point offsets."""
     terms = terms_of(claim)
     claim_facts, term_facts = fact_values(claim), {v for t in terms for v in fact_values(t)}
-    ranges = supporting_ranges(passage, [claim])
+    ranges = supporting_ranges(passage, [claim]) if sentences is None else sentences
     strong = term_ranges(passage, terms)
     for f in facts(passage):
         in_sentence = any(a <= f.start and f.end <= z for a, z in ranges)
@@ -461,17 +463,62 @@ def marker_claims(answer: str, available: int) -> list[tuple[int, str]]:
     return out
 
 
-def support_spans(answer: str, citations: list[Citation]) -> list[SupportSpan]:
-    """Per valid marker: what in its cited passage to mark (see the module docstring)."""
+def support_spans(answer: str, citations: list[Citation], similarities: dict[int, list[float]] | None = None,
+                  meaning: "Meaning | None" = None) -> list[SupportSpan]:
+    """Per valid marker: what in its cited passage to mark (see the module docstring). ``similarities``: per marker
+    occurrence that ``needs_meaning`` listed, its claim's similarity to each sentence of its passage."""
     out: list[SupportSpan] = []
     for occ, (n, claim) in enumerate(marker_claims(answer, len(citations))):
         passage = citations[n - 1].text
         if not claim or not passage:
             continue
-        ranges, strong = marks(passage, claim)
+        chosen, how = None, "words"
+        if similarities and meaning and occ in similarities and (i := meaning.closest(claim, passage, similarities[occ])) is not None:
+            a, z, _ = _sentences(passage)[i]
+            chosen, how = [(a, z)], "meaning"
+        ranges, strong = marks(passage, claim, chosen)
         if not ranges and not strong:
             continue
         at = _utf16(passage)
         out.append(SupportSpan(marker=occ, n=n, ranges=[(at(a), at(z)) for a, z in ranges],
-                               facts=[(at(a), at(z)) for a, z in strong]))
+                               facts=[(at(a), at(z)) for a, z in strong], how=how))
+    return out
+
+
+# --------------------------------------------------------------------------------------- meaning
+
+@dataclass(frozen=True)
+class Meaning:
+    """Marking by meaning (step 3): when no sentence of the passage shares enough of a claim's words and facts (a
+    paraphrase: "employer" for "undertaking"; a French source for a Dutch answer), the sentence the embedding model
+    finds closest in meaning, when it is close enough (``minimum``), clearly closer than the next (``margin``), and
+    holds at least one of the claim's facts if the claim has any. The source card says it was found by meaning."""
+
+    minimum: float
+    margin: float = 0.03
+
+    def closest(self, claim: str, passage: str, similarities: list[float]) -> int | None:
+        sentences = _sentences(passage)
+        if len(similarities) != len(sentences) or not sentences:
+            return None
+        order = sorted(range(len(sentences)), key=lambda i: -similarities[i])
+        best = order[0]
+        runner_up = similarities[order[1]] if len(order) > 1 else -1.0
+        if similarities[best] < self.minimum or similarities[best] - runner_up < self.margin:
+            return None
+        claim_facts = {k for k in tokens(claim) if k.startswith("n:")}
+        if claim_facts and not claim_facts & sentences[best][2]:
+            return None  # a sentence about other figures or dates isn't what the claim rests on
+        return best
+
+
+def needs_meaning(answer: str, citations: list[Citation]) -> list[tuple[int, str, list[str]]]:
+    """The markers whose claim no sentence of the cited passage supports by its words and facts, with a claim of three
+    words or more: (occurrence, claim, the passage's sentences). Only these are given to the embedding model."""
+    out: list[tuple[int, str, list[str]]] = []
+    for occ, (n, claim) in enumerate(marker_claims(answer, len(citations))):
+        passage = citations[n - 1].text
+        if not passage or len(re.findall(LETTER + "{2,}", claim)) < 3 or supporting_ranges(passage, [claim]):
+            continue
+        out.append((occ, claim, [passage[a:z] for a, z, _ in _sentences(passage)]))
     return out

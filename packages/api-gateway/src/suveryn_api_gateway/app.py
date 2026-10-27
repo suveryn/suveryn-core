@@ -61,6 +61,7 @@ from suveryn_harness import (
     DocumentsUnavailable,
     LlamaServerClient,
     LLMSettings,
+    Meaning,
     UsageRecord,
 )
 
@@ -201,7 +202,15 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             except SearchUnavailable as e:
                 raise DocumentsUnavailable(str(e)) from e
 
-        app.state.chat = ChatService(app.state.llm, retriever)
+        async def similarity(claims: list[str], sentences: list[str]) -> list[list[float]]:
+            # Marking by meaning (suveryn-tracker#25): the search's embedding model, off the event loop.
+            if docs is None:
+                raise DocumentsUnavailable("document search is not available right now")
+            return await run_in_threadpool(docs.similarity, claims, sentences)
+
+        minimum = getattr(getattr(docs, "settings", None), "mark_by_meaning", 0.0) or 0.0
+        app.state.chat = ChatService(app.state.llm, retriever, similarity if minimum > 0 else None,
+                                     Meaning(minimum) if minimum > 0 else None)
         own_db = load_documents  # tests without documents don't connect to a database
         app.state.history = Database("conversation", conversations, None if conversations is not None or not own_db
                                      else _connector(ConversationStore, ConversationSettings.from_env()))

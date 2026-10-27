@@ -318,6 +318,7 @@ const nl: Messages = {
   sourceWithReference: (n) => `bron ${n} met zijn verwijzing`,
   sourceN: (n) => `bron ${n}`,
   sourceCaption: "De passage zoals ze uit het document is gelezen. Controleer de oorspronkelijke pagina voordat u erop steunt.",
+  markedByMeaning: "Gemarkeerd op betekenis: de passage zegt dit in andere woorden. Controleer of ze hetzelfde zegt.",
   calcFailed: (expression, why) => `${expression} kon niet worden berekend: ${why}.`,
   calculatedBy: "Berekend door sūveryn, niet uit de documenten gelezen:",
   calcMissing: (figures) => ` Controleer ${figures.join(", ")}: ${figures.length === 1 ? "dat bedrag staat" : "die bedragen staan"} niet in de bronnen.`,
