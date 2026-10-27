@@ -1,6 +1,11 @@
 /** French interface text: formal (vous). Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
 
+/** "à la page 4", "aux pages 2 et 7"; "de la page 4", "des pages 2 et 7" */
+const frList = (p: number[]) => `${p.slice(0, -1).join(", ")} et ${p[p.length - 1]}`;
+const frAt = (p: number[]) => (p.length > 1 ? `aux pages ${frList(p)}` : `à la page ${p[0]}`);
+const frOf = (p: number[]) => (p.length > 1 ? `des pages ${frList(p)}` : `de la page ${p[0]}`);
+
 const fr: Messages = {
   language: "Langue",
 
@@ -569,6 +574,14 @@ const fr: Messages = {
   statusReady: "Prêt",
   statusReview: "À vérifier",
   statusReviewPages: (pages) => `À vérifier · p. ${pages}`,
+  readingNotes: "Remarques à la lecture",
+  noteAiRow: (pages) => `Contient un texte adressé à une IA${pages.length ? `, ${frAt(pages)}` : ""}.`,
+  noteRecoveredRow: (pages) => `Une partie du texte ${frOf(pages)} a été récupérée sans sa mise en page.`,
+  noteAi: (pages) => `Un texte adressé à une IA${pages.length ? ` ${frAt(pages)}` : ""}, comme « ignorez les instructions ». Sūveryn le traite comme le contenu du document, jamais comme une consigne. Vérifiez d'où il vient : il a pu être placé là pour orienter une IA.`,
+  noteRecovered: (pages) => `Le texte ${frOf(pages)} manqué par la lecture de la mise en page a été repris du PDF lui-même, sans sa mise en page : titres, tableaux ou colonnes peuvent s'y mélanger. Vérifiez avec l'original les réponses qui s'y appuient.`,
+  noteHeaders: (pages) => `Des en-têtes ou pieds de page ${frOf(pages)} ont été récupérés sans leur mise en page. Ils sont conservés et comptent rarement.`,
+  cardNoteAi: "Lu. Vérifiez ce document : il contient un texte adressé à une IA.",
+  cardNoteRecovered: "Lu. Une partie du texte a été récupérée sans sa mise en page.",
   statusProcessing: "En cours de lecture",
   statusFailed: "Échec",
   statusCaseClosed: (date) => (date ? `Dossier clôturé · supprimé le ${date}` : "Dossier clôturé"),
