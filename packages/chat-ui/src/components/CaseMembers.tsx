@@ -97,7 +97,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
         <div className="case-confidential">
           <Switch label={m.strictlyConfidential} checked={!!kase.confidential} onChange={setConfidential} isDisabled={busy} />
           <p className="ui-hint">{m.confidentialHint}{" "}
-            {!kase.confidential && sharedCount > 0 && <>{m.confidentialUnshares(sharedCount)}{" "}</>}{m.confidentialLogged}</p>
+            {!kase.confidential && sharedCount > 0 && m.confidentialUnshares(sharedCount)}</p>
         </div>
       )}
       {canManage && officeWide && (

@@ -628,9 +628,8 @@ function Chat({ me }: { me: Me }) {
                           { id: "members", label: m.members, icon: <Users size={16} /> },
                           ...(canShare ? [current?.shared
                             ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
-                            // §11: not in a strictly confidential case, disabled with the reason
-                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} />, isDisabled: !!currentCase!.confidential,
-                                ...(currentCase!.confidential ? { description: m.notInConfidential } : {}) }] : []),
+                            // §11: not in a strictly confidential case (disabled)
+                            : { id: "share", label: m.shareConversation, icon: <Share2 size={16} />, isDisabled: !!currentCase!.confidential }] : []),
                           ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
                           ...(manages && !closed ? ["-" as const,
                             { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
@@ -990,7 +989,7 @@ function Chat({ me }: { me: Me }) {
                              }} />
         </div>}
         {view === "cases" && <div className="conversation conversation-wide">
-          <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations} officeWide={me.office_wide ?? false}
+          <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations}
                          onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
                          onShowDocuments={(id) => showOverview("documents", id)} onShowConversations={(id) => showOverview("conversations", id)} />
         </div>}
@@ -1051,7 +1050,6 @@ function Chat({ me }: { me: Me }) {
             <div className="start" data-first={firstUse || undefined}>
               <div className="start-head"><img src={icon} width={36} height={36} alt="" /><h1>{m.welcome(firstName)}</h1></div>
               {firstUse && <>
-                <p className="start-intro">{m.firstUseIntro}</p>
                 <div className="start-cards">
                   <section className="start-card"><MessageSquare size={18} aria-hidden /><h2>{m.askCardTitle}</h2><p>{m.askCardText}</p></section>
                   <section className="start-card"><Folder size={18} aria-hidden /><h2>{m.caseCardTitle}</h2><p>{m.caseCardText}</p>

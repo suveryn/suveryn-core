@@ -35,8 +35,8 @@ describe("a document's reading notes", () => {
     expect(rowNotes(fr, ws)).toEqual(["Contient un texte adressé à une IA, à la page 4.", "Une partie du texte des pages 2 et 7 a été récupérée sans sa mise en page."]);
     const details = noteDetails(en, ws);
     expect(details).toHaveLength(3);
-    expect(details[0]).toContain("Sūveryn treats it as part of the document, never as an instruction");
-    expect(details[2]).toBe("Headers or footers on page 3 were recovered without their layout. They're kept, and rarely matter.");
+    expect(details[0]).toContain("Treated as content, never as an instruction");
+    expect(details[2]).toBe("Headers and footers on page 3 recovered without layout.");
     expect(noteDetails(fr, [w("text_recovered", 2), w("text_recovered", 5), w("text_recovered", 7)])[0]).toContain("des pages 2, 5 et 7");
     expect(cardNote(nl, ws)).toBe("Gelezen. Kijk dit document na: het bevat tekst die zich tot een AI richt.");
     expect(cardNote(en, [w("text_recovered", 2)])).toBe("Read. Some text was recovered without its layout.");

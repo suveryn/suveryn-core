@@ -81,14 +81,13 @@ export function AdminBackups() {
 function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: string | null; onTest: (files: File[]) => void }) {
   const m = useT();
   const k = keyTestState(status);
-  const why = (step?: string | null) => m.keyTestStep[(step ?? "other") as keyof typeof m.keyTestStep] ?? m.keyTestStep.other;
   return (
     <>
       {k.kind === "testing" && <InlineNotice icon={<Info size={14} />}>{m.keyTesting}</InlineNotice>}
       {k.kind === "never" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
-      {k.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.keyTestOk(when(k.test.at), when(k.test.created ?? k.test.at))}</InlineNotice>}
+      {k.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.keyTestOk(when(k.test.at))}</InlineNotice>}
       {k.kind === "due" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
-      {k.kind === "failed" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>{m.keyTestFailed(when(k.test.at), why(k.test.step))}</InlineNotice>}
+      {k.kind === "failed" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>{m.keyTestFailed}</InlineNotice>}
       {problem && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{problem}</InlineNotice>}
       {k.kind !== "testing" && (
         <FileButton accept={[".txt", ".key"]} onSelect={onTest}>
