@@ -9,15 +9,15 @@ import { AdminView } from "./Admin";
 
 describe("Administration", () => {
   it("opens on Status, with the menu in two groups", () => {
-    const html = renderToStaticMarkup(<AdminView onBack={() => {}} />);
+    const html = renderToStaticMarkup(<AdminView me="me" onBack={() => {}} onLostAdministration={() => {}} />);
     expect(html.indexOf("Office")).toBeLessThan(html.indexOf("Appliance"));
-    for (const item of ["Cases", "Playbooks", "Usage", "Status", "Backups"]) expect(html).toContain(`>${item}</span>`);
+    for (const item of ["Users", "Cases", "Playbooks", "Usage", "Status", "Backups"]) expect(html).toContain(`>${item}</span>`);
     expect(html).toMatch(/aria-current="page"[^>]*>.*?Status/);
     expect(html).toContain('<h1 class="admin-page-title">Status</h1>');
   });
 
   it("opens the page it is asked for", () => {
-    const html = renderToStaticMarkup(<AdminView onBack={() => {}} initialPage="backups" />);
+    const html = renderToStaticMarkup(<AdminView me="me" onBack={() => {}} onLostAdministration={() => {}} initialPage="backups" />);
     expect(html).toContain('<h1 class="admin-page-title">Backups</h1>');
   });
 });

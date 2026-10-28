@@ -313,7 +313,17 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   *Backups*; the other items join as their pages are built. *Status* reads `GET /v1/admin/status` (the
   gateway checks every minute, so "since" is when a failure began); the overview shows the version when
   the appliance sets `SUVERYN_VERSION`, and the last backup. Users against the agreement and support join
-  with *Users* and *Licence*. A full disk says "Almost full" (a string the table didn't have).
+  with *Licence*. A full disk says "Almost full" (a string the table didn't have).
+- *Users*, as the administrator who is signed in (Filip, 28 October: no extra client; the gateway's
+  README). Built as drawn, with these
+  differences: the temporary password has no expiry (Filip, 28 October: Keycloak is the password
+  manager and can't expire one password; it works until its first use, and one never used shows as
+  "never" signed in), so the pass-on dialog has no "Valid until"; *Sign-ins and changes* takes the changes from Keycloak's
+  admin events, which name the administrator but hold no details, so switching an account off or on reads
+  as "Account changed"; the dialog titles, the event lines and the filter
+  needed strings the table didn't have; the Dutch and French texts that named a person "haar", "hij",
+  "ze", "il" or "elle" (drawn for one example person) use the name or "de" instead, since an account
+  has no known gender; the "Advanced: open Keycloak" link isn't built, as nobody should need it.
 
 ## History
 

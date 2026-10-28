@@ -73,6 +73,7 @@ from .cases import CaseSettings, CaseStore
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import ConversationSettings, ConversationStore
 from .directory import Directory, DirectorySettings, LocalDirectory
+from .accounts import Accounts, AccountsSettings
 from .playbooks import RunStore
 from .ratelimit import RateLimiter, RateLimits
 from .routes.common import (
@@ -164,14 +165,15 @@ def sign_in_unavailable(e: Exception) -> JSONResponse:
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
                auth: Authenticator | None = None, conversations=None, usage=None, cases=None,
                case_settings: CaseSettings | None = None, directory=None,
-               rate_limits: RateLimits | None = None, runs=None, avatars=None) -> FastAPI:
+               rate_limits: RateLimits | None = None, runs=None, avatars=None, accounts=None) -> FastAPI:
     """Build the FastAPI app.
 
     ``client``, ``documents``, ``auth``, ``conversations``, ``usage`` and ``cases`` let tests inject a
     fake model server, a fake document service, a sign-in with a fake Keycloak, a conversation store,
     a usage store and a case store; in production all are created from environment variables when
     the app starts. ``case_settings`` sets the appliance's default access for cases (tests);
-    ``directory`` injects the office's user list (``directory.py``).
+    ``directory`` injects the office's user list (``directory.py``), ``accounts`` the account management
+    of Administration › Users (``accounts.py``).
     """
     authenticator = auth or Authenticator(AuthSettings.from_env())
     cases_settings = case_settings or CaseSettings.from_env()
@@ -224,6 +226,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         app.state.running = set()  # the asyncio tasks reading for a run, kept until they finish
         app.state.avatars = Database("avatar", avatars, None if avatars is not None or not own_db or not cases_settings.database_url
                                      else (lambda: AvatarStore(cases_settings.database_url)))
+        # Administration › Users: Keycloak's accounts, as the administrator who asks (accounts.py)
+        app.state.accounts = accounts if accounts is not None else Accounts(AccountsSettings.from_env())
         if directory is not None:
             app.state.directory = directory
         elif not authenticator.enabled:
@@ -293,6 +297,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             app.state.sweep.cancel()
         await app.state.llm.aclose()
         await authenticator.aclose()
+        if accounts is None:
+            await app.state.accounts.aclose()
         if directory is None:
             await app.state.directory.aclose()
         if docs is not None:
@@ -400,7 +406,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     # The order matters where paths overlap: /v1/cases/due before /v1/cases/{case_id} (both in cases).
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
-                   routes.conversations, routes.usage, routes.backups, routes.status):
+                   routes.conversations, routes.usage, routes.backups, routes.status, routes.users):
         app.include_router(module.router)
     return app
 
