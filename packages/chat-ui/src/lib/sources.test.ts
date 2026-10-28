@@ -9,7 +9,7 @@ const turn = (over: Partial<AssistantTurn> = {}): AssistantTurn => ({
   citations: [passage("The price is EUR 300,000."), passage("A deposit of EUR 30,000.")], citationIssues: [], ...over,
 });
 
-describe("the source panel's verdict (docs/design/sidebar.md §5)", () => {
+describe("the source panel's verdict (docs/design/chat-ui.md §5)", () => {
   it("says the claim is in the passage, for a marker or for the whole source", () => {
     expect(verdictOf(turn(), 1, 0)).toEqual({ kind: "sentence" });
     expect(verdictOf(turn(), 1, null)).toEqual({ kind: "source" });

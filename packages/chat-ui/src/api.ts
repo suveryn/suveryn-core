@@ -61,9 +61,9 @@ export const ANSWER_TOKENS = 3000;
  *  (suveryn_rag.service.SKIP_REASONS). */
 export type ArchiveUpload = { archive: string; jobs: Job[]; skipped: { name: string; reason: string }[] };
 export const isArchiveUpload = (r: Job | ArchiveUpload): r is ArchiveUpload => "jobs" in r;
-/** sūveryn's export mark found in an upload (docs/design/sidebar.md §6): the line as it stands in the file. */
+/** sūveryn's export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file. */
 export type Noticed = { ref: string; kind: "answer" | "playbook"; line: string };
-/** More about where a document came from (docs/design/sidebar.md §6). */
+/** More about where a document came from (docs/design/chat-ui.md §6). */
 export type Provenance = {
   playbook?: string; version?: string; run?: string;               // a playbook's result
   noticed?: Noticed; confirmed?: { by: string; at: string };      // an upload that looked like sūveryn's own output
@@ -105,7 +105,7 @@ export type StreamStatus = {
   model: string | null;
 };
 /** An installed model (GET /v1/models); only one is in GPU memory at a time. */
-// thinks: the model can think before it answers, so *Thorough* is possible (docs/design/sidebar.md §5)
+// thinks: the model can think before it answers, so *Thorough* is possible (docs/design/chat-ui.md §5)
 export type ModelInfo = { id: string; loaded: boolean; default: boolean; thinks?: boolean };
 
 /** The models installed on this appliance, with which one is loaded and which is the default. */
@@ -209,13 +209,13 @@ export async function getHealth(): Promise<Health | null> {
 const inCase = (caseId: string | null | undefined, first = true) =>
   caseId ? `${first ? "?" : "&"}case=${encodeURIComponent(caseId)}` : "";
 
-/** Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/sidebar.md §6). */
+/** Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md §6). */
 export async function confirmAsSource(documentId: string, caseId?: string | null): Promise<void> {
   const r = await fetch(`/v1/documents/${encodeURIComponent(documentId)}/source${inCase(caseId)}`, { method: "POST" });
   if (!r.ok) throw await responseError(r);
 }
 
-/** An answer saved to its case (docs/design/sidebar.md §5): a document with origin answer, never a source.
+/** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source.
  *  Saving the same answer again gives the document already saved (`created` false). */
 export async function saveAnswerToCase(caseId: string, body: {
   filename: string; text: string; content: SavedAnswer; conversation_id: string; message_id: string;
@@ -235,7 +235,7 @@ export async function documentContent(documentId: string, caseId?: string | null
 }
 
 /** Every document the signed-in user may see, with where it is (`case_id` null: the personal space),
- *  newest first: the sidebar's "Documents" (docs/design/sidebar.md). */
+ *  newest first: the sidebar's "Documents" (docs/design/chat-ui.md). */
 export async function listAllDocuments(): Promise<(StoredDocument & { case_id: string | null })[]> {
   const r = await fetch("/v1/documents/all");
   if (!r.ok) throw await responseError(r);
@@ -281,7 +281,7 @@ export async function getJob(id: string): Promise<Job> {
   return r.json();
 }
 
-/** Cancels an upload still waiting or being read (docs/design/sidebar.md §5). One already read is a
+/** Cancels an upload still waiting or being read (docs/design/chat-ui.md §5). One already read is a
  *  document (409) and one unknown is gone (404): both are fine to ignore here. */
 export async function cancelJob(id: string): Promise<void> {
   const r = await fetch(`/v1/documents/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -412,7 +412,7 @@ export async function listConversations(caseId?: string | null): Promise<Convers
 }
 
 /** The signed-in user's own conversations everywhere they may still look (their space and every case
- *  they may read), most recently changed first: the sidebar's "Conversations" (docs/design/sidebar.md). */
+ *  they may read), most recently changed first: the sidebar's "Conversations" (docs/design/chat-ui.md). */
 export async function listAllConversations(): Promise<ConversationSummary[]> {
   const r = await fetch("/v1/conversations?all=true");
   if (!r.ok) throw await responseError(r);
@@ -465,8 +465,8 @@ export type Case = {
   created_by: string;
   updated_at: string;
   my_role: CaseRole | null;
-  pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/sidebar.md)
-  confidential?: boolean;     // strictly confidential (docs/design/sidebar.md §11)
+  pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/chat-ui.md)
+  confidential?: boolean;     // strictly confidential (docs/design/chat-ui.md §11)
 };
 export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string> };
 
@@ -478,7 +478,7 @@ export async function listCases(closed = false): Promise<Case[]> {
   return r.json();
 }
 
-/** A case as the Cases overview shows it (docs/design/sidebar.md §4): its members (the manager first)
+/** A case as the Cases overview shows it (docs/design/chat-ui.md §4): its members (the manager first)
  *  and its last activity, when and who. An administrator who isn't a member gets no members. */
 export type CaseOverview = Case & { members: Member[]; last_activity_at: string | null; last_activity_by: string };
 
@@ -709,7 +709,7 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 
 /** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
 /** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
-/** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/sidebar.md). */
+/** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/chat-ui.md). */
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
                              case_types?: string[]; active?: boolean;
                              /** Per language: its title, one line on what it does, its fact labels (the playbook carries them). */

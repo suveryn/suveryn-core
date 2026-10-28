@@ -1,4 +1,4 @@
-"""Stopping a streamed answer (docs/design/sidebar.md §5): the connection to llama-server is closed, so it
+"""Stopping a streamed answer (docs/design/chat-ui.md §5): the connection to llama-server is closed, so it
 stops generating, and the tokens used until then are still recorded for the user (suveryn-tracker#7)."""
 
 import asyncio

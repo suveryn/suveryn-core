@@ -138,7 +138,7 @@ SETTING_KEYS = ("default_access", "keep", "conversations_keep")  # what an admin
 
 
 class StrictlyConfidential(ValueError):
-    """The change isn't allowed while the case is strictly confidential (docs/design/sidebar.md §11)."""
+    """The change isn't allowed while the case is strictly confidential (docs/design/chat-ui.md §11)."""
 
 
 class DuplicateReference(ValueError):
@@ -207,7 +207,7 @@ class CaseUpdate(BaseModel):
     type: str | None = Field(default=None, min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
     subject: dict[str, str | int | float | bool | None] | None = None
     access: Access | None = None
-    # Strictly confidential (docs/design/sidebar.md §11): members only, no shared conversations,
+    # Strictly confidential (docs/design/chat-ui.md §11): members only, no shared conversations,
     # watermarked exports, shielded titles in the lists. Turning it on restricts the access too.
     confidential: bool | None = None
 
@@ -231,13 +231,13 @@ class Case(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
-    confidential: bool = False  # strictly confidential (docs/design/sidebar.md §11)
+    confidential: bool = False  # strictly confidential (docs/design/chat-ui.md §11)
     my_role: Role | None = None
-    pinned: bool = False  # by the caller, for the sidebar's "pinned" section (docs/design/sidebar.md)
+    pinned: bool = False  # by the caller, for the sidebar's "pinned" section (docs/design/chat-ui.md)
 
 
 class CaseOverview(Case):
-    """A case as the Cases overview shows it (docs/design/sidebar.md §4): with its members (the
+    """A case as the Cases overview shows it (docs/design/chat-ui.md §4): with its members (the
     manager first) and its last activity, who and when, from the access log. For an administrator who
     isn't a member, no members: only that the case exists."""
 
@@ -441,7 +441,7 @@ class CaseStore(PgStore):
         return {str(r[0]) for r in rows}
 
     def set_pinned(self, case_id: uuid.UUID, user: str, pinned: bool) -> None:
-        """Pin or unpin a case for one user (the sidebar's "pinned" section, docs/design/sidebar.md)."""
+        """Pin or unpin a case for one user (the sidebar's "pinned" section, docs/design/chat-ui.md)."""
         if pinned:
             self._execute('INSERT INTO case_pins (case_id, "user") VALUES (%s, %s) ON CONFLICT DO NOTHING', (case_id, user))
         else:

@@ -1,5 +1,5 @@
 /**
- * The model chip in the composer (suveryn-tracker#4, docs/design/sidebar.md §5). It opens one small
+ * The model chip in the composer (suveryn-tracker#4, docs/design/chat-ui.md §5). It opens one small
  * dialog: the installed models (GET /v1/models, so a new model appears without a UI change) and the
  * thinking mode, *Fast* or *Thorough*. The chip shows the model and, when thinking is on, the brain
  * and "· Thorough". With one model that can't think there is nothing to choose: a plain tag.

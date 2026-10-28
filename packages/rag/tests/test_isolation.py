@@ -228,7 +228,7 @@ def test_the_reader_works_in_its_own_folder(tmp_path, monkeypatch):
     assert not list(reader.glob("doc-*")) and (reader.stat().st_mode & 0o777) == 0o700
 
 
-# ---------------------------------------------------------------------- progress, cancelling, reasons (sidebar.md §5)
+# ---------------------------------------------------------------------- progress, cancelling, reasons (chat-ui.md §5)
 import time
 
 from suveryn_rag.reading import Cancelled, Progress, Watch

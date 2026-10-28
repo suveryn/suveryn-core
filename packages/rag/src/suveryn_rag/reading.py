@@ -1,4 +1,4 @@
-"""Following a document while it is read (docs/design/sidebar.md §5, the attachment cards).
+"""Following a document while it is read (docs/design/chat-ui.md §5, the attachment cards).
 
 - ``Progress``: how far reading has got. A PDF is read in steps: text recognition on scanned pages
   (``ocr``, page by page: OCRmyPDF reports each page, ``ocr_progress``), the layout (``layout``, the

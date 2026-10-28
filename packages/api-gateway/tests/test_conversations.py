@@ -366,7 +366,7 @@ def test_store_hides_expired_conversations_and_leaves_deleting_them_to_the_sweep
 
 @needs_db
 def test_store_lists_all_of_the_owners_conversations_across_cases(store):
-    """The column's Recent and the Conversations overview (docs/design/sidebar.md §2, §4): own conversations in
+    """The column's Recent and the Conversations overview (docs/design/chat-ui.md §2, §4): own conversations in
     the personal space and in readable cases, and the ones colleagues shared with those cases."""
     mine_personal, mine_in_case, mine_elsewhere, others = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     case_a, case_b = uuid.uuid4(), uuid.uuid4()
@@ -425,7 +425,7 @@ def test_redact_takes_out_passages_and_names_of_deleted_documents_only():
 
 
 def test_a_document_a_question_was_asked_about_is_redacted_too():
-    """Ask about (docs/design/sidebar.md §10): the choice saved with a question names documents too."""
+    """Ask about (docs/design/chat-ui.md §10): the choice saved with a question names documents too."""
     turns = [{"id": "u1", "role": "user", "text": "What is the price?", "attachments": [],
               "about": [{"documentId": DOC, "filename": "deed-north.pdf"}, {"documentId": OTHER, "filename": "lease.pdf"}]}]
     assert cited_documents(turns) == {DOC, OTHER}

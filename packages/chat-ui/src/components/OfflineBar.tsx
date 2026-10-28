@@ -1,5 +1,5 @@
 /**
- * The server can't be reached (docs/design/sidebar.md §5, artboard 09): a bar at the top of the pane
+ * The server can't be reached (docs/design/chat-ui.md §5, artboard 09): a bar at the top of the pane
  * that says so, that nothing is lost, when sūveryn tries again, and *Try now*. The composer keeps the
  * typed text and says why it can't send (App.tsx). The title is announced once; the countdown isn't.
  */

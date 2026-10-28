@@ -1,4 +1,4 @@
-"""sūveryn's mark on its own exports (docs/design/sidebar.md §6, a document's origin).
+"""sūveryn's mark on its own exports (docs/design/chat-ui.md §6, a document's origin).
 
 Every Word and Excel file sūveryn makes, and the Markdown it exports, carries one plain line such as
 "Made by sūveryn: answer from case 2026/0611, 19/10/2026 · sūveryn-ref A-3f9c2e1b". The

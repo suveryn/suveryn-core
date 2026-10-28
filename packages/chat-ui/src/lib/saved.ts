@@ -1,5 +1,5 @@
 /**
- * An answer as a Word file, and saved to its case (docs/design/sidebar.md §5).
+ * An answer as a Word file, and saved to its case (docs/design/chat-ui.md §5).
  *
  * The Word file is built in the browser (lib/office.ts). Saving to a case stores what builds it (the
  * question, the answer as written, its sources with their file names, its checks), and the file is

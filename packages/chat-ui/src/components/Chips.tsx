@@ -12,7 +12,7 @@ import { failureText, pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
 
 /**
- * An attachment in the composer, as a card (docs/design/sidebar.md §5, artboard 13): one shape for every
+ * An attachment in the composer, as a card (docs/design/chat-ui.md §5, artboard 13): one shape for every
  * state, × at the top right. Reading: a bar (the upload's share, then indeterminate while the server
  * reads it). Ready: a check and the pages. Usable with a warning: the pages to check. Failed: why, and
  * *Another file*. sūveryn's own output: §6. A question can be sent while one is still read: it counts
@@ -91,7 +91,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
  */
 export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
   a: Attachment; onRemove?: () => void;
-  /** For an upload that looks like sūveryn's own output (docs/design/sidebar.md §6): the person's two choices. */
+  /** For an upload that looks like sūveryn's own output (docs/design/chat-ui.md §6): the person's two choices. */
   onUseAsSource?: () => void; onDelete?: () => void;
 }) {
   const m = useT();

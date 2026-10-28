@@ -11,7 +11,7 @@ const turn: AssistantTurn = {
   model: "Qwen3.8-27B", calculations: [], unverifiedFigures: [], citationIssues: [], instructionLikeSources: [],
 };
 
-describe("an answer saved to its case (docs/design/sidebar.md §5)", () => {
+describe("an answer saved to its case (docs/design/chat-ui.md §5)", () => {
   it("names the file after the question, without what a file name can't hold", () => {
     expect(answerFileName("What is the price?")).toBe("What is the price.docx");
     expect(answerFileName("Price / costs: 2026*")).toBe("Price costs 2026.docx");
