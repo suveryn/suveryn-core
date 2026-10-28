@@ -3,6 +3,8 @@
  * target, as the appliance's backup service recorded them (GET /v1/admin/backups; lib/backups.ts). And
  * the recovery key test (review of the backup strategy, 26 October 2026): the appliance can't read its
  * own backups, so the administrator gives the key, and the appliance checks it opens the newest backup.
+ * And changing them (docs/design/admin.md, artboard 36; AdminBackupSettings.tsx): back up now, where, when,
+ * how long, and the recovery sheet.
  */
 import { AlertCircle, AlertTriangle, Check, FileKey, Info } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -10,6 +12,7 @@ import { getBackups, HttpError, testRecoveryKey, type BackupStatus } from "../ap
 import { locale, useT } from "../i18n";
 import { backupState, keyTestState, sizeLabel } from "../lib/backups";
 import { Button, FileButton, InlineNotice, readText, Rows } from "../ui";
+import { BackUpNow, BackupSettingsForm, RecoverySheet } from "./AdminBackupSettings";
 
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
 
@@ -20,12 +23,13 @@ export function AdminBackups() {
   const [keyProblem, setKeyProblem] = useState<string | null>(null);
   const load = useCallback(() => getBackups().then(setStatus).catch((e: Error) => setError(e.message)), []);
   useEffect(() => { load(); }, [load]);
-  // While a key test runs, its result is read again every few seconds.
+  // While a key test or a backup runs, the status is read again every few seconds.
+  const busy = !!status?.key_testing || !!status?.running_since;
   useEffect(() => {
-    if (!status?.key_testing) return;
+    if (!busy) return;
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
-  }, [status?.key_testing, load]);
+  }, [busy, load]);
   const test = async (files: File[]) => {
     setKeyProblem(null);
     const key = files[0] ? await readText(files[0], 4096) : null;
@@ -44,6 +48,7 @@ export function AdminBackups() {
   return (
     <>
       <p className="view-intro">{m.adminBackupsIntro}</p>
+      {status.settings && <BackUpNow status={status} onStarted={load} />}
       {state.kind === "unavailable" && <InlineNotice icon={<Info size={14} />}>{m.backupsUnavailable}</InlineNotice>}
       {state.kind === "not_set_up" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
       {state.kind === "never" && (state.failing
@@ -61,9 +66,7 @@ export function AdminBackups() {
             )}
             <Rows rows={[
               ...(state.kind !== "ok" ? [{ label: m.backupLastGood, value: `${when(ok.at)} · ${sizeLabel(ok.size, locale())}` }] : []),
-              ...(s.target ? [{ label: m.backupWhere, value: s.target === "usb" ? m.backupUsb : m.backupShare }] : []),
               ...(ok.on_target != null ? [{ label: m.backupOnTarget, value: m.backupCount(ok.on_target, ok.oldest ? when(ok.oldest) : null) }] : []),
-              ...(s.retention_days != null ? [{ label: m.backupKept, value: m.backupDays(s.retention_days) }] : []),
               ...(ok.disk ? [{ label: m.backupDisk, value: ok.disk }] : []),
             ]} />
             {s.target === "usb" && <p className="caption">{m.backupRotate}</p>}
@@ -73,6 +76,8 @@ export function AdminBackups() {
           </>
         );
       })()}
+      <BackupSettingsForm status={status} onSaved={load} />
+      {status.settings && <RecoverySheet status={status} onSaved={load} />}
       <p className="caption">{m.backupsCaption}</p>
     </>
   );

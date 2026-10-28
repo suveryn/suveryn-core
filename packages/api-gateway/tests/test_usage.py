@@ -263,6 +263,7 @@ def test_the_backups_status_is_for_administrators_and_read_as_written(setup, tmp
 
     c, kc, _ = setup
     monkeypatch.setattr(backups, "STATUS", tmp_path / "status.json")
+    monkeypatch.setattr(backups, "SETTINGS", tmp_path / "backups.json")
     user, admin = as_user(kc, BOB), as_user(kc, ALICE, admin=True)
     assert c.get("/v1/admin/backups", headers=user).status_code == 403
     assert c.get("/v1/admin/backups", headers=admin).json()["available"] is False  # never run, or not an appliance
@@ -315,3 +316,58 @@ def test_the_recovery_key_is_passed_to_the_backup_service_for_a_test_and_its_res
     body = c.get("/v1/admin/backups", headers=admin).json()
     assert body["key_testing"] is False and body["key_test"] == {"at": "2026-10-26T10:00:00Z", "ok": False, "created": None, "step": "decrypt"}
     assert key not in json.dumps(body)
+
+
+def test_the_backup_settings_are_shown_and_changed_through_the_backup_service(setup, tmp_path, monkeypatch):
+    """Administration › Backups (docs/design/admin.md, artboard 36): the settings as saved, never the share's
+    password; and every change as a request the appliance's backup service acts on, one at a time."""
+    import json
+    import stat
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from suveryn_api_gateway.routes import backups
+
+    c, kc, _ = setup
+    folder = tmp_path / "requests"
+    for name, value in (("STATUS", tmp_path / "status.json"), ("SETTINGS", tmp_path / "backups.json"),
+                        ("SHARE_SECRET", tmp_path / "share.secret"), ("REQUESTS", folder),
+                        ("REQUEST_RESULT", tmp_path / "request-result.json")):
+        monkeypatch.setattr(backups, name, value)
+    user, admin = as_user(kc, BOB), as_user(kc, ALICE, admin=True)
+    recipient = "age1" + "q" * 58
+    (tmp_path / "backups.json").write_text(json.dumps({"target": "share", "protocol": "smb", "address": "//nas.office.lan/b",
+                                                       "user": "backup", "retention_days": 90, "hour": 23, "recipient": recipient}))
+    (tmp_path / "share.secret").write_text("not-a-real-password")
+    s = c.get("/v1/admin/backups", headers=admin).json()["settings"]
+    assert s["target"] == "share" and s["address"] == "//nas.office.lan/b" and s["has_password"] is True and s["hour"] == 23
+    assert "not-a-real-password" not in json.dumps(s)
+    local = datetime.strptime(s["next_run"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("Europe/Brussels"))
+    assert (local.hour, local.minute) == (23, 0)
+    ask = lambda body, who=admin: c.post("/v1/admin/backups/requests", json=body, headers=who)  # noqa: E731
+    assert ask({"kind": "run"}, user).status_code == 403
+    assert ask({"kind": "run"}).status_code == 503  # not an appliance: no backup service
+    folder.mkdir()
+    settings = {"kind": "settings", "target": "share", "protocol": "smb", "address": "//nas.office.lan/b", "user": "backup",
+                "password": "another-password", "retention_days": 30, "hour": 1}
+    r = ask(settings)
+    assert r.status_code == 202 and r.json()["pending"] is True
+    rid = r.json()["id"]
+    left = folder / "request.json"
+    assert json.loads(left.read_text()) == {"id": rid, **settings, "keep_password": False} and stat.S_IMODE(left.stat().st_mode) == 0o600
+    assert ask({"kind": "disks"}).status_code == 409  # one at a time
+    assert c.get(f"/v1/admin/backups/requests/{rid}", headers=admin).json()["pending"] is True
+    left.unlink()  # the backup service took it, and answered
+    (tmp_path / "request-result.json").write_text(json.dumps({"id": rid, "kind": "settings", "ok": False,
+                                                              "errors": {"address": "address"}}))
+    answer = c.get(f"/v1/admin/backups/requests/{rid}", headers=admin).json()
+    assert answer["ok"] is False and answer["errors"] == {"address": "address"} and answer["pending"] is False
+    assert ask({**settings, "hour": 24}).status_code == 422 and ask({**settings, "retention_days": 7}).status_code == 422
+    assert ask({"kind": "settings", "target": "usb"}).status_code == 422  # no retention or hour
+    rid = ask({"kind": "disks", "password": "never-passed-on"}).json()["id"]
+    assert json.loads(left.read_text()) == {"id": rid, "kind": "disks"}
+    left.unlink()
+    (tmp_path / "request-result.json").write_text(json.dumps({"id": rid, "ok": True, "disks": [
+        {"id": "usb-Extreme_SER1", "name": "Extreme", "size_bytes": 10**12}, {"id": "../../etc", "name": "x"}]}))
+    assert c.get(f"/v1/admin/backups/requests/{rid}", headers=admin).json()["disks"] == [
+        {"id": "usb-Extreme_SER1", "name": "Extreme", "size_bytes": 10**12}]

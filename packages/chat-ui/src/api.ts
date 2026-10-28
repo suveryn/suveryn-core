@@ -697,6 +697,44 @@ export interface BackupStatus {
   /** The administrator's last test of the recovery key: it opened the newest backup, every part there. */
   key_test?: { at: string; ok: boolean; created?: string | null; step?: string | null } | null;
   key_testing?: boolean;
+  /** A backup is being made, since then. */
+  running_since?: string | null;
+  /** Where, when and how long, as saved (Administration › Backups); never the share's password. */
+  settings?: BackupSettings | null;
+}
+
+export type BackupRetention = 14 | 30 | 90 | 365;
+export type BackupSettings = {
+  target: "usb" | "share"; disk: string | null; protocol: "smb" | "nfs" | null; address: string | null; user: string | null;
+  has_password: boolean; retention_days: BackupRetention; hour: number; recipient: string; next_run: string | null;
+};
+/** What Administration › Backups asks the appliance's backup service for (admin.md, artboard 36). */
+export type BackupRequest =
+  | { kind: "run" } | { kind: "disks" }
+  | { kind: "test-share"; protocol: "smb" | "nfs"; address: string; user?: string | null; password?: string | null; keep_password?: boolean }
+  | { kind: "settings"; target: "usb" | "share"; disk?: string; protocol?: "smb" | "nfs"; address?: string; user?: string | null;
+      password?: string | null; keep_password?: boolean; retention_days: BackupRetention; hour: number; recipient?: string };
+export type BackupDisk = { id: string; name: string; size_bytes: number };
+export type BackupAnswer = {
+  id: string; pending: boolean; ok: boolean | null; error: string | null; errors: Record<string, string> | null;
+  disks: BackupDisk[] | null; key_changed: boolean | null;
+};
+
+/** Ask the backup service, then ask again every second until it has answered (at most ``seconds``). */
+export async function askBackupService(body: BackupRequest, seconds = 60): Promise<BackupAnswer> {
+  const r = await fetch("/v1/admin/backups/requests", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!r.ok) throw await responseError(r);
+  const { id } = (await r.json()) as BackupAnswer;
+  for (let i = 0; i < seconds; i++) {
+    await new Promise((done) => setTimeout(done, 1000));
+    const a = await fetch(`/v1/admin/backups/requests/${encodeURIComponent(id)}`);
+    if (!a.ok) throw await responseError(a);
+    const answer = (await a.json()) as BackupAnswer;
+    if (!answer.pending) return answer;
+  }
+  throw new Error(t().backupServiceSilent);
 }
 
 /** Administration › Status (docs/design/admin.md): the five checks, counts only. ``since``: when it was first seen
