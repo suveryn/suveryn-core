@@ -43,6 +43,18 @@ API = {
         {"id": "signin", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None},
         {"id": "data", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None},
         {"id": "disk", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": 1_200_000_000_000, "total": 2_000_000_000_000}]},
+    "/v1/admin/users": {"agreement_users": None, "users": [
+        {"sub": "u1", "username": "test.beheerder@kantoor.be", "name": "Test Beheerder", "email": "test.beheerder@kantoor.be", "admin": True, "enabled": True, "last_sign_in": "2026-10-28T07:12:00Z"},
+        {"sub": "u2", "username": "mieke.d@kantoor.be", "name": "Mieke Delarivière", "email": "mieke.d@kantoor.be", "admin": False, "enabled": True, "last_sign_in": "2026-10-28T08:40:00Z"},
+        {"sub": "u3", "username": "filip.t@kantoor.be", "name": "Filip Tack", "email": "filip.t@kantoor.be", "admin": True, "enabled": True, "last_sign_in": "2026-10-27T16:05:00Z"},
+        {"sub": "u4", "username": "ellen.p@kantoor.be", "name": "Ellen Peeters", "email": "ellen.p@kantoor.be", "admin": False, "enabled": True, "last_sign_in": "2026-10-24T09:00:00Z"},
+        {"sub": "u5", "username": "jonas.c@kantoor.be", "name": "Jonas Claes", "email": "jonas.c@kantoor.be", "admin": False, "enabled": True, "last_sign_in": None},
+        {"sub": "u6", "username": "miet.v@kantoor.be", "name": "Miet Vandenberghe", "email": "miet.v@kantoor.be", "admin": False, "enabled": False, "last_sign_in": "2026-09-02T09:00:00Z"}]},
+    "/v1/admin/users/events": [
+        {"at": "2026-10-28T08:40:00Z", "kind": "signed_in", "user": "u2", "name": "Mieke Delarivière", "by": None, "reason": None},
+        {"at": "2026-10-28T08:31:00Z", "kind": "sign_in_failed", "user": "u2", "name": "Mieke Delarivière", "by": None, "reason": "wrong_password"},
+        {"at": "2026-10-28T07:12:00Z", "kind": "signed_in", "user": "u1", "name": "Test Beheerder", "by": None, "reason": None},
+        {"at": "2026-10-27T16:05:00Z", "kind": "signed_out_everywhere", "user": "u3", "name": "Filip Tack", "by": "Test Beheerder", "reason": None}],
     "/v1/admin/backups": {"available": True, "configured": True, "target": "usb", "retention_days": 30,
                           "last_attempt": "2026-10-28T01:14:00Z",
                           "last_success": {"at": "2026-10-28T01:14:00Z", "size": 1_340_000_000, "on_target": 30,
