@@ -94,7 +94,7 @@ export function Sidebar(p: Props) {
     ...(p.admin ? [{ heading: m.administratorsOnly, items: [
       { id: "admin", label: m.administration, icon: <Shield size={16} />, meta: m.adminMeta },
       { id: "playbooks", label: m.playbooks, icon: <ClipboardList size={16} />,
-        meta: p.activePlaybooks === null ? m.playbooksMeta : m.playbooksActive(p.activePlaybooks) },
+        ...(p.activePlaybooks === null ? {} : { meta: m.playbooksActive(p.activePlaybooks) }) },
     ] }] : []),
     "-",
     { id: "signout", label: m.signOut, icon: <LogOut size={16} /> },
