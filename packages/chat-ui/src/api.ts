@@ -681,6 +681,21 @@ export interface BackupStatus {
   key_testing?: boolean;
 }
 
+/** Administration › Status (docs/design/admin.md): the five checks, counts only. ``since``: when it was first seen
+ *  failing, while it fails. */
+export type StatusCheckId = "answering" | "reading" | "signin" | "data" | "disk";
+export type StatusCheck = {
+  id: StatusCheckId; ok: boolean; since: string | null;
+  in_progress: number | null; waiting: number | null; free: number | null; total: number | null;
+};
+export type AdminStatus = { checked_at: string; checks: StatusCheck[]; version: string | null };
+
+export async function getAdminStatus(): Promise<AdminStatus> {
+  const r = await fetch("/v1/admin/status");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
 export async function getBackups(): Promise<BackupStatus> {
   const r = await fetch("/v1/admin/backups");
   if (!r.ok) throw await responseError(r);

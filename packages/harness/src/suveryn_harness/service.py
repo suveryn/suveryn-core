@@ -121,6 +121,7 @@ class ChatService:
         self.retriever = retriever
         self.similarity = similarity  # with ``meaning``: a source sentence saying a claim in other words is marked too
         self.meaning = meaning
+        self.answering = 0  # answers being written now (Administration › Status: a count, nothing else)
 
     async def _support_spans(self, answer: str, citations: list[Citation]) -> list[SupportSpan]:
         """What each marker's passage says for its claim (``marking``): by words and facts, and for the claims no
@@ -169,6 +170,24 @@ class ChatService:
         return None
 
     async def answer(self, req: ChatRequest, owner: str) -> ChatResponse:
+        """Whole answer at once (``_answer``), counted in ``answering`` while it is written."""
+        self.answering += 1
+        try:
+            return await self._answer(req, owner)
+        finally:
+            self.answering -= 1
+
+    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
+        """The streamed answer (``_answer_stream``), counted in ``answering`` until it ends or is stopped."""
+        self.answering += 1
+        try:
+            async with aclosing(self._answer_stream(req, owner)) as events:
+                async for event in events:
+                    yield event
+        finally:
+            self.answering -= 1
+
+    async def _answer(self, req: ChatRequest, owner: str) -> ChatResponse:
         """Whole answer at once, grounded only in ``owner``'s documents."""
         prepared, citations = await self._prepare(req, owner)
         response = await self.llm.complete(prepared, user=owner, kind="chat")
@@ -181,7 +200,7 @@ class ChatService:
                                            "support_spans": await self._support_spans(text, citations),
                                            "instruction_like_sources": _suspicious(citations, owner, response.model)})
 
-    async def answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
+    async def _answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
         """Status steps, then for a grounded answer its passages, then in *Thorough* the reasoning, then
         answer text as it is generated, then the complete answer with citations.
 

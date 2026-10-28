@@ -51,7 +51,8 @@ import { ConfidentialBand } from "./components/ConfidentialBand";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar, type AllDocument, type CaseAction, type SideView } from "./components/Sidebar";
 import { SignOutDialog } from "./components/SignOutDialog";
-import { AdminView, UsageView, type AdminTab } from "./components/UsageView";
+import { UsageView } from "./components/UsageView";
+import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
@@ -178,7 +179,7 @@ function Chat({ me }: { me: Me }) {
   const [aboutGone, setAboutGone] = useState(false);
   useEffect(() => { if (view !== "documents" && view !== "conversations") setOverviewFilter("all"); }, [view]);
   const showOverview = (v: "documents" | "conversations", filter = "all") => { setOverviewFilter(filter); setView(v); };
-  const [adminTab, setAdminTab] = useState<AdminTab>("usage");
+  const [adminPage, setAdminPage] = useState<AdminPage | undefined>(undefined);  // undefined: Status, or the menu when narrow
   const [collapsed, setCollapsedState] = useState(readCollapsed);
   const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
   const [showSettings, setShowSettings] = useState(false);
@@ -613,7 +614,7 @@ function Chat({ me }: { me: Me }) {
                onOpenView={closing((v: SideView) => { setOverviewFilter("all"); setView(v); })} onOpenConversation={closing(openListed)} onOpenDocument={closing(openDocument)} onOpenCase={closing(openCase)}
                onCaseAction={closing(caseAction)} onConversationAction={(c, a) => (a === "open" ? closing(conversationAction)(c, a) : conversationAction(c, a))}
                pinHint={pinHint} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
-               onOpenAdmin={closing((tab) => { setAdminTab(tab); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
+               onOpenAdmin={closing((page) => { setAdminPage(page); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
                onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} />
   );
 
@@ -970,11 +971,11 @@ function Chat({ me }: { me: Me }) {
         {!reachable && <OfflineBar nextCheck={nextCheck} onTryNow={checkNow} />}
         {reachable && view === "chat" && backupReason && !backupBarDismissed && (
           <BackupBar reason={backupReason} onDismiss={() => setBackupBarDismissed(true)}
-                     onOpen={() => { backupsReadAt.current = 0; setAdminTab("backups"); setView("admin"); }} />
+                     onOpen={() => { backupsReadAt.current = 0; setAdminPage("backups"); setView("admin"); }} />
         )}
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
-        {view === "admin" && <div className="conversation"><AdminView onBack={() => setView("chat")} initialTab={adminTab} /></div>}
+        {view === "admin" && <AdminView onBack={() => setView("chat")} initialPage={adminPage} />}
         {view === "conversations" && <div className="conversation conversation-wide">
           <ConversationsOverview key={overviewFilter} initialCase={overviewFilter} conversations={allConversations} cases={casesWithMembers} me={me}
                                  onOpen={openListed} onAction={conversationAction} onNew={newChat} />

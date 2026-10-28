@@ -67,7 +67,7 @@ type Props = {
   /** Administrators: how many playbooks are switched on (null: not known). */
   activePlaybooks: number | null;
   onOpenUsage: () => void;
-  onOpenAdmin: (tab: "usage" | "cases" | "playbooks") => void;
+  onOpenAdmin: (page?: "playbooks") => void;
   onOpenSettings: () => void;
   onOpenAvatar: () => void;
   onSignOut: () => void;
@@ -103,7 +103,7 @@ export function Sidebar(p: Props) {
     if (id.startsWith("lang:")) setLang(id.slice(5) as Lang);
     else if (id === "usage") p.onOpenUsage();
     else if (id === "settings") p.onOpenSettings();
-    else if (id === "admin") p.onOpenAdmin("usage");
+    else if (id === "admin") p.onOpenAdmin();
     else if (id === "playbooks") p.onOpenAdmin("playbooks");
     else if (id === "signout") p.onSignOut();
   };

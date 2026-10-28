@@ -675,3 +675,57 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .status-ok, .status-warn { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .status-ok { color: var(--teal-ink); }
 .status-warn { color: var(--text); }
+
+/* Administration (docs/design/admin.md, artboards 30 and 42): a header, then the side menu and the page. The
+   active item: an ink bar on its left and bold text (navigation, never orange). */
+.admin { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.admin-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-6); border-bottom: 1px solid var(--line); }
+.admin-head h1 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-title); }
+.admin-body { flex: 1; min-height: 0; display: flex; }
+.admin-menu { flex: none; width: 240px; padding: var(--space-6) var(--space-2) var(--space-6) 0; border-right: 1px solid var(--line); overflow-y: auto; }
+.admin-menu-group + .admin-menu-group { margin-top: var(--space-6); }
+.admin-menu-heading { margin: 0 0 var(--space-2); padding-left: var(--space-5); font-size: var(--text-label); font-weight: 600;
+                      letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-dim); }
+.admin-menu ul { list-style: none; margin: 0; padding: 0; }
+.admin-menu-item { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 36px; padding: 6px var(--space-3) 6px var(--space-5);
+                   border: 0; border-left: 2px solid transparent; background: none; color: var(--text); font: inherit; font-size: var(--text-body-sm);
+                   text-align: left; cursor: pointer; }
+.admin-menu-item:hover { background: var(--surface-alt); }
+.admin-menu-item:focus-visible { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.admin-menu-item[aria-current="page"] { border-left-color: var(--text); font-weight: 600; }
+.admin-menu-item > svg { flex: none; color: var(--text-dim); }
+.admin-menu-label { flex: 1; min-width: 0; }
+.admin-menu-mark { display: flex; color: var(--text); }
+.admin-page { flex: 1; min-width: 0; overflow-y: auto; padding: var(--space-6) var(--space-8) var(--space-8); }
+.admin-page > * { max-width: 760px; }
+.admin-page-title { margin: 0; font-size: var(--text-title); }
+
+/* narrow (artboard 42): the menu is the first page, a list of rows of 44 px with a chevron */
+.admin[data-narrow] .admin-head { padding: var(--space-2) var(--space-4); }
+.admin[data-narrow] .admin-menu { width: auto; flex: 1; border-right: 0; padding: var(--space-4); }
+.admin[data-narrow] .admin-menu-heading { padding-left: 0; }
+.admin[data-narrow] .admin-menu ul { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.admin[data-narrow] .admin-menu li + li { border-top: 1px solid var(--line); }
+.admin[data-narrow] .admin-menu-item { min-height: 44px; padding-left: var(--space-3); border-left: 0; }
+.admin-menu-chevron { color: var(--text-dim); }
+.admin[data-narrow] .admin-page { padding: var(--space-4); }
+
+/* Status (artboard 30): what needs attention, the checks, the overview */
+.admin-attention, .admin-checks { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); }
+.admin-attention li { display: flex; align-items: center; gap: var(--space-3); padding: 12px var(--space-4); }
+.admin-attention li + li, .admin-check + .admin-check { border-top: 1px solid var(--line); }
+.admin-attention-text { flex: 1; min-width: 0; font-size: var(--text-body-sm); }
+.admin-check { display: flex; align-items: center; gap: var(--space-3); min-height: 52px; padding: 8px var(--space-4); font-size: var(--text-body-sm); }
+.admin-check-icon { display: flex; color: var(--text-dim); }
+.admin-check-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.admin-check-detail { font-size: var(--text-caption); color: var(--text-dim); }
+.admin-skeleton span { display: block; height: 10px; border-radius: 4px; background: var(--surface-alt); }
+.admin-skeleton span:first-child { width: 16px; height: 16px; }
+.admin-skeleton span:last-child { width: 40%; }
+.admin-overview { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); }
+.admin-tile { display: flex; flex-direction: column; gap: 6px; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); }
+.admin-tile-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); color: var(--text-dim); }
+.admin-tile b { font-size: var(--text-body); }
+.admin-page section { display: flex; flex-direction: column; gap: var(--space-2); }
+.admin-page section > h2.label { margin: var(--space-2) 0 0; }
+.admin-page section > .caption { margin: 0; }
