@@ -15,7 +15,7 @@ import type { AllDocument } from "./Sidebar";
 import { ViewHeader } from "./UsageView";
 import { Button, SearchField } from "../ui";
 
-/** The icon that says where a document comes from, wherever it appears (docs/design/sidebar.md §6). */
+/** The icon that says where a document comes from, wherever it appears (docs/design/chat-ui.md §6). */
 export function OriginIcon({ kind, size = 16 }: { kind: OriginKind; size?: number }) {
   return kind === "made" ? <FileOutput size={size} aria-hidden /> : kind === "pending" ? <AlertTriangle size={size} aria-hidden />
     : <FileText size={size} aria-hidden />;

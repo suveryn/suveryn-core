@@ -1,5 +1,5 @@
 /**
- * What the source panel says about a source (docs/design/sidebar.md §5), kept apart from the panel so it
+ * What the source panel says about a source (docs/design/chat-ui.md §5), kept apart from the panel so it
  * can be tested: whether the claim(s) citing it were checked, and what the check found.
  */
 import type { CitationIssue } from "../api";

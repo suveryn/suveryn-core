@@ -1,5 +1,5 @@
 /**
- * The person's own settings (docs/design/sidebar.md): their picture (the avatar dialog) and their
+ * The person's own settings (docs/design/chat-ui.md): their picture (the avatar dialog) and their
  * password, which lives in the office's sign-in (Keycloak's account console, `account_url`): a link
  * that opens in a new tab, since the appliance never sees a password. With sign-in off there is none.
  * And the default thinking mode for new conversations (§5), kept in this browser (lib/thinking.ts),

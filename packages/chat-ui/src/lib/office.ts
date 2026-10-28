@@ -73,7 +73,7 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
                                                        footers: markFooter(d, a.mark) }] }));
 }
 
-/** A strictly confidential case's watermark on every page (docs/design/sidebar.md §11): the label
+/** A strictly confidential case's watermark on every page (docs/design/chat-ui.md §11): the label
  *  across the page, as Word's own Design > Watermark draws it (so Word recognises it), and the line
  *  with the case, the person and the time at the top. */
 async function watermarkHeader(d: typeof import("docx"), w: Watermark | undefined) {

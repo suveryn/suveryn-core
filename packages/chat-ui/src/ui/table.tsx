@@ -1,12 +1,12 @@
 /**
- * The overviews' table (docs/design/sidebar.md §4): React Aria's Table. Arrow keys move between rows
+ * The overviews' table (docs/design/chat-ui.md §4): React Aria's Table. Arrow keys move between rows
  * and cells, Enter on a row runs its action (opening it); a cell's own buttons (a pin, a row's menu)
  * are reached with the arrow keys and Tab. A column can sort; the caller sorts the rows. 25 rows per
  * page with `Pager`; at that size the rows aren't virtualised (nothing would be gained).
  *
  * `FilterSelect`: a filter as a chip. Active (anything but its first option), it is drawn as
  * `surface-alt` with a darker border and has a clear button. `FilterToggle`: a chip that is on or off
- * ("Show closed"), drawn the same way when on. `PinToggle`: a row's pin (docs/design/sidebar.md §3).
+ * ("Show closed"), drawn the same way when on. `PinToggle`: a row's pin (docs/design/chat-ui.md §3).
  */
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pin, X } from "lucide-react";
 import type { ReactNode } from "react";

@@ -190,7 +190,7 @@ def test_full_sign_in_gives_an_httponly_session_and_opens_the_api(client, kc):
     assert kc.token_calls[0]["code_verifier"]  # PKCE verifier sent, and checked by the fake
     assert client.get("/v1/documents").status_code == 200
     assert client.get("/auth/me").json() == {"username": "notaris.test", "name": "Test Notaris", "sub": "user-1", "admin": False, "office_wide": False, "cases_keep": "manual", "avatar": None,
-                                              "account_url": f"{SETTINGS.issuer}/account"}  # the settings dialog's password link (sidebar.md)
+                                              "account_url": f"{SETTINGS.issuer}/account"}  # the settings dialog's password link (chat-ui.md)
     assert "token" not in client.get("/auth/me").text  # no token ever reaches the browser
 
 

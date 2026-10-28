@@ -400,7 +400,7 @@ const en = {
   ratesDefault: "Default: the published price of a comparable cloud model.",
   ratesInvalid: "Enter amounts from 0 to 10,000, with at most 4 decimals.",
   // Word and Excel downloads (made in the browser)
-  // Ask about (docs/design/sidebar.md §10)
+  // Ask about (docs/design/chat-ui.md §10)
   askAbout: "Ask about:",
   askAboutTitle: "Ask about",
   askAboutAll: "all documents",
@@ -424,7 +424,7 @@ const en = {
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Download this answer as a Word document, with its sources",
   downloadWordWhatConfidential: "Download this answer as a Word document, with its sources and the Strictly confidential watermark",
-  // Save to case (docs/design/sidebar.md §5)
+  // Save to case (docs/design/chat-ui.md §5)
   saveToCase: "Save to case",
   saveToCaseWhat: (ref: string) => `Save this answer to case ${ref} as a Word document. It is never used as a source.`,
   savingToCase: "Saving…",
@@ -529,14 +529,14 @@ const en = {
   question: "Question",
   date: "Date",
 
-  // the sidebar (docs/design/sidebar.md)
+  // the sidebar (docs/design/chat-ui.md)
   navigation: "Navigation",
   search: "Search",
   searchPlaceholder: "Search conversations, cases and documents",
   searchEmpty: "Nothing matches.",
   collapseSidebar: "Collapse the sidebar",
   expandSidebar: "Expand the sidebar",
-  // the overviews (docs/design/sidebar.md §4)
+  // the overviews (docs/design/chat-ui.md §4)
   clearFilter: (what: string) => `Clear the filter: ${what}`,
   pageRange: (from: number, to: number, total: number) => `${from}–${to} of ${total}`,
   previousPage: "Previous",
@@ -622,7 +622,7 @@ const en = {
   downloadAsWord: "Download as Word",
   legendSource: "the model may cite it",
   legendMade: "by sūveryn, never a source",
-  // the conversation pane (docs/design/sidebar.md §5)
+  // the conversation pane (docs/design/chat-ui.md §5)
   headMembers: (names: string) => `Members: ${names}. Show the members`,
   asManager: (name: string) => `${name} (case manager)`,
   askInCase: (ref: string) => `Ask about case ${ref}…`,
@@ -641,7 +641,7 @@ const en = {
   verdictSentence: "Every name, date and figure in the answer's sentence is in this passage.",
   verdictSource: "Every name, date and figure the answer takes from this source is in this passage.",
   verdictUnchecked: "Not checked: the answer was stopped before it was finished.",
-  // attachment cards and the server unreachable (docs/design/sidebar.md §5, part 2)
+  // attachment cards and the server unreachable (docs/design/chat-ui.md §5, part 2)
   attachedDocuments: "Added documents",
   cardUploading: (pct: number) => `Uploading · ${pct}%`,
   cardWaiting: "Waiting to be read",
@@ -677,7 +677,7 @@ const en = {
   failUnsupported: "This kind of file can't be read.",
   failTimeout: (minutes: number) => `Reading took longer than ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
   failUnreadable: "Try again, or another file.",
-  // the column, the start screen and narrow screens (docs/design/sidebar.md §2)
+  // the column, the start screen and narrow screens (docs/design/chat-ui.md §2)
   recent: "Recent",
   newChatHint: "Personal, outside a case",
   newChatHintInCase: (ref: string) => `Personal, outside case ${ref}`,
@@ -809,8 +809,8 @@ const en = {
   playbookMenuFooter: "Which playbooks appear here is decided by the administrator under Administration › Playbooks.",
   caseMenu: (reference: string) => `Case ${reference}: actions`,
 
-  // origin: source or made by sūveryn (docs/design/sidebar.md §6)
-  // Strictly confidential (docs/design/sidebar.md §11)
+  // origin: source or made by sūveryn (docs/design/chat-ui.md §6)
+  // Strictly confidential (docs/design/chat-ui.md §11)
   strictlyConfidential: "Strictly confidential",
   confidentialRules: "Members only · Conversations aren't shared · Exports carry a watermark",
   confidentialWhat: "What does this mean?",

@@ -1,5 +1,5 @@
 /**
- * The three overview pages behind the column's rows (docs/design/sidebar.md §4, artboards 06 to 08):
+ * The three overview pages behind the column's rows (docs/design/chat-ui.md §4, artboards 06 to 08):
  * every case, every conversation and every document the person may see, as a table with a search
  * box, filter chips, a sort (or, for documents, a grouping), 25 rows per page and a menu per row. An
  * action the person has no right to is shown disabled, never hidden; the server still decides.
@@ -84,7 +84,7 @@ function RowMenu({ name, entries, onAction }: { name: string; entries: MenuEntry
 /** "Type: all" as a chip: the filter's name, then what it is set to. */
 const chip = (label: string, options: Option[]) => options.map((o) => ({ ...o, label: `${label}: ${o.label}` }));
 
-/** A member's face, the manager with the folder badge (docs/design/sidebar.md §4). */
+/** A member's face, the manager with the folder badge (docs/design/chat-ui.md §4). */
 function Face({ member, size = "small" }: { member: Pick<Member, "user" | "name" | "username" | "avatar" | "admin" | "role">; size?: "small" }) {
   const m = useT();
   const face = <Avatar name={member.name || member.username} sub={member.user} etag={member.avatar} admin={member.admin} adminLabel={m.administrator} size={size} />;
@@ -314,9 +314,9 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
   /** "all", "personal" or a case's id. */
   initialCase?: string;
   onOpen: (d: AllDocument) => void; onDelete: (d: AllDocument) => void;
-  /** An upload that looks like sūveryn's own output: use it as a source anyway (docs/design/sidebar.md §6). */
+  /** An upload that looks like sūveryn's own output: use it as a source anyway (docs/design/chat-ui.md §6). */
   onUseAsSource: (d: AllDocument) => void;
-  /** A saved answer's Word file, built again (docs/design/sidebar.md §5). */
+  /** A saved answer's Word file, built again (docs/design/chat-ui.md §5). */
   onDownload: (d: AllDocument) => void;
   /** Into the place that is open, ready to ask about. */
   onUpload: (files: File[]) => void;

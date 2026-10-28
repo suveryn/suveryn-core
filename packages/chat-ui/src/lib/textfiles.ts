@@ -1,5 +1,5 @@
 /**
- * An answer as Markdown and a table as CSV (docs/design/sidebar.md §6, "Other formats"): the same content
+ * An answer as Markdown and a table as CSV (docs/design/chat-ui.md §6, "Other formats"): the same content
  * as the Word and Excel files (lib/office.ts), as plain text, made in the browser.
  *
  * - Markdown: the question, the date and model, the answer with its [n] markers (tables as Markdown

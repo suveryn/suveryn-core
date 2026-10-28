@@ -1,5 +1,5 @@
 /**
- * sūveryn's mark on its own exports (docs/design/sidebar.md §6, a document's origin). Every Word and
+ * sūveryn's mark on its own exports (docs/design/chat-ui.md §6, a document's origin). Every Word and
  * Excel file it makes carries one plain line, for example "Made by sūveryn: answer from case
  * 2026/0611, 19/10/2026 · sūveryn-ref A-3f9c2e1b". When such a file is uploaded again, the server finds
  * "sūveryn-ref" (suveryn_rag.marks) and asks the person before it becomes a source. The words follow

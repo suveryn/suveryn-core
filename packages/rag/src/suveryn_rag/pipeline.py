@@ -183,7 +183,7 @@ class Rag:
         if existing:
             doc_id = self.store.replace_document(existing, name, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
         else:
-            # sūveryn's own export coming back (docs/design/sidebar.md §6): stored, but not a source
+            # sūveryn's own export coming back (docs/design/chat-ui.md §6): stored, but not a source
             # until a person says so. The text layer has the footers the chunks may leave out.
             noticed = find_mark([*ex.page_texts, *(c.text for c in chunks)])
             doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings,

@@ -1,7 +1,7 @@
 /** Media queries a component needs to know about in its code, not only in CSS. */
 import { useEffect, useState } from "react";
 
-/** Below this width the column is a drawer and the composer one pill (docs/design/sidebar.md §2). */
+/** Below this width the column is a drawer and the composer one pill (docs/design/chat-ui.md §2). */
 export const NARROW = "(max-width: 767px)";
 
 /** Whether `query` matches now, following the window as it changes. */

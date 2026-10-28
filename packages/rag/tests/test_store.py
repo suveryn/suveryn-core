@@ -100,7 +100,7 @@ def test_documents_are_isolated_per_scope():
         assert store.in_scope([c, g], case) == {c, g}
         assert store.in_scope([c, g], case, sources_only=True) == {c}
         assert store.list_documents(case)[0]["origin"] == "generated"
-        # an upload carrying sūveryn's own export mark (docs/design/sidebar.md §6): not a source until
+        # an upload carrying sūveryn's own export mark (docs/design/chat-ui.md §6): not a source until
         # a person confirms it; only in its own scope; the confirmation records who
         mark = {"ref": "A-3f9c2e1b", "kind": "answer", "line": "Made by suveryn · suveryn-ref A-3f9c2e1b"}
         n = store.add_document("returned.pdf", sha + "-n", 1, 0, chunk, np.stack([unit(4)]), owner=alice.owner,
@@ -238,7 +238,7 @@ def test_word_and_spreadsheet_passages_are_stored_with_their_place(tmp_path):
 
 
 def test_a_saved_answer_keeps_its_content_and_loses_a_deleted_sources_passages():
-    """docs/design/sidebar.md §5: a saved answer's content rebuilds its file; when a document it cites is
+    """docs/design/chat-ui.md §5: a saved answer's content rebuilds its file; when a document it cites is
     deleted, that document's passages and name are taken out of it, as from saved conversations."""
     store = Store(URL, DIM)
     case = Scope.case(uuid.uuid4())

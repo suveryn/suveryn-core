@@ -1,5 +1,5 @@
 /**
- * Administration › Playbooks (docs/design/sidebar.md, 15): every installed playbook with a switch.
+ * Administration › Playbooks (docs/design/admin.md): every installed playbook with a switch.
  * Off, it leaves every case's composer menu and can't be started; runs already made stay. The
  * switch applies at once (PUT /v1/admin/playbooks/{slug}); a failure shows and the switch goes back.
  */

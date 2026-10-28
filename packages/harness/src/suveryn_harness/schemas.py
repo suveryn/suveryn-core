@@ -53,7 +53,7 @@ class ChatRequest(BaseModel):
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     # Which installed model answers (an id from GET /v1/models). None: the appliance's default model.
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
-    # Think before answering (*Thorough*, docs/design/sidebar.md §5): slower, for a model that can
+    # Think before answering (*Thorough*, docs/design/chat-ui.md §5): slower, for a model that can
     # (``ModelInfo.thinks``); ignored for one that can't. False: *Fast*, the appliance's default.
     thinking: bool = False
 
@@ -94,7 +94,7 @@ class ModelInfo(BaseModel):
     id: str                 # what to send as ``ChatRequest.model``
     loaded: bool            # in GPU memory now; otherwise the first answer waits for it to load
     default: bool = False   # the appliance's default model
-    thinks: bool = False    # the model family can think before answering: *Thorough* is possible (docs/design/sidebar.md §5)
+    thinks: bool = False    # the model family can think before answering: *Thorough* is possible (docs/design/chat-ui.md §5)
 
 
 class Calculation(BaseModel):

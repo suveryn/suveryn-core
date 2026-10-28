@@ -32,7 +32,7 @@ API = {
                                      "status": "ok", "warnings": []}], "jobs": []},
     "/v1/conversations": [{"id": "c1", "title": "Wie zijn de verkopers?", "created_at": "2026-10-15T09:00:00Z",
                            "updated_at": "2026-10-15T09:05:00Z"}],
-    # the chat's column and overviews (docs/design/sidebar.md): everything the user may see, the cases, the playbooks
+    # the chat's column and overviews (docs/design/chat-ui.md): everything the user may see, the cases, the playbooks
     "/v1/documents/all": {"documents": []},
     "/v1/cases": [],
     "/v1/admin/playbooks": [],

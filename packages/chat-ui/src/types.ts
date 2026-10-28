@@ -17,11 +17,11 @@ export type Attachment = {
   reviewPages?: number[]; // with status needs_review: pages to check (text may be missing, or the reading noticed something)
   note?: string;          // once read: what the reading noticed, in a sentence (suveryn-tracker#26)
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
-  noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/sidebar.md §6)
+  noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/chat-ui.md §6)
   notAdded?: boolean; // failed on arrival: refused, or left out of its archive. Nothing went wrong reading it
 };
 
-/** A document chosen under *Ask about* (docs/design/sidebar.md §10). ``removed``: deleted since, its
+/** A document chosen under *Ask about* (docs/design/chat-ui.md §10). ``removed``: deleted since, its
  *  name taken out as an attachment's is (the server's ``redact``). */
 export type Chosen = { documentId: string; filename: string; removed?: boolean };
 
@@ -40,7 +40,7 @@ export type AssistantTurn = {
   instructionLikeSources?: number[]; // passages given to the model whose text addresses an AI (suveryn-tracker#21)
   /** The chosen documents were too large to read whole: their best-matching passages were read (§10). */
   partial?: boolean;
-  /** Saved to its case as a document (docs/design/sidebar.md §5): which one. */
+  /** Saved to its case as a document (docs/design/chat-ui.md §5): which one. */
   saved?: { documentId: string; filename: string };
   status: "streaming" | "done" | "stopped" | "error"; // stopped: the person stopped it; the text so far stays, unchecked
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
@@ -49,7 +49,7 @@ export type AssistantTurn = {
   /** The connection dropped mid-answer: the text so far stays, unchecked, with *Regenerate* (§5). */
   cutOff?: boolean;
   model?: string;
-  /** Asked *Thorough* (docs/design/sidebar.md §5): the conversation's mode, restored when it is reopened. */
+  /** Asked *Thorough* (docs/design/chat-ui.md §5): the conversation's mode, restored when it is reopened. */
   thinking?: boolean;
   /** What the model thought before answering, and for how long: "Thought for 14 s" above the answer. */
   reasoning?: string;

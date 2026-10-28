@@ -80,7 +80,7 @@ async def document_job(job_id: str, request: Request):
 @router.delete("/v1/documents/jobs/{job_id}", status_code=204, responses={
     404: {"description": "Unknown job"}, 409: {"description": "Already read: it is a document, delete that instead"}})
 async def cancel_job(job_id: str, request: Request):
-    """Cancel one of the caller's uploads (docs/design/sidebar.md §5, the attachment card's ×): one still
+    """Cancel one of the caller's uploads (docs/design/chat-ui.md §5, the attachment card's ×): one still
     waiting is never read; one being read is stopped, its reader with it, before it is stored. One
     already being stored finishes. Noted in the case's access log."""
     docs, owner = docs_or_503(request), owner_of(request)
@@ -99,7 +99,7 @@ async def cancel_job(job_id: str, request: Request):
 @router.get("/v1/documents/all")
 async def list_all_documents(request: Request):
     """Every document the caller may see, newest first, with its ``case_id`` (null: their personal
-    space): the sidebar's "Documents" (docs/design/sidebar.md). No jobs: those are per place."""
+    space): the sidebar's "Documents" (docs/design/chat-ui.md). No jobs: those are per place."""
     docs = docs_or_503(request)
     stored = await run_in_threadpool(docs.documents_many, owner_of(request), await readable_case_ids(request))
     return {"documents": [dict(d, id=str(d["id"]), case_id=str(d["case_id"]) if d.get("case_id") else None,
@@ -132,7 +132,7 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     try:
         scope = await scope_of(request, case, "manage")
     except HTTPException as e:
-        # A contributor may delete what they put there themselves, in two cases (docs/design/sidebar.md):
+        # A contributor may delete what they put there themselves, in two cases (docs/design/chat-ui.md):
         # their upload that carries sūveryn's export mark and that nobody confirmed yet (the card's
         # delete action, §6), and an answer they saved to the case (*Undo*, §5).
         if e.status_code != 403 or not case:
@@ -174,7 +174,7 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
 
 @router.post("/v1/documents/{document_id}/source", responses={404: {"description": "Not here, or nothing was noticed"}})
 async def use_as_source(document_id: str, request: Request, case: str | None = None):
-    """Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/sidebar.md
+    """Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md
     §6): the person decides, the system only said what it
     noticed. The uploader's right in their personal space, a contributor's in a case (as uploading);
     in a case the decision goes to its access log. Idempotent."""
@@ -224,7 +224,7 @@ class AnswerContent(BaseModel):
 
 
 class SaveAnswerIn(BaseModel):
-    """Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/sidebar.md §5)."""
+    """Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/chat-ui.md §5)."""
 
     filename: str = Field(min_length=6, max_length=200, pattern=r"^[^/\\\x00-\x1f]+\.docx$")
     text: str = Field(min_length=1, max_length=200_000)  # what search finds: the question and the answer
@@ -244,7 +244,7 @@ class SaveAnswerIn(BaseModel):
     200: {"description": "This answer was saved before: that document"},
     403: {"description": "Not a contributor, or the case is closed"}, 404: {"description": "No such case here"}})
 async def save_answer(case_id: str, body: SaveAnswerIn, request: Request, response: Response):
-    """Save an answer to its case, as a document with origin ``answer`` (docs/design/sidebar.md §5): a
+    """Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a
     contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
     deleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).
     Saving the same message again gives the document already saved. Logged as ``answer_saved``."""

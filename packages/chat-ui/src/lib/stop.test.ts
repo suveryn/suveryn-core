@@ -25,7 +25,7 @@ function endlessAnswer() {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("stopping an answer (docs/design/sidebar.md §5)", () => {
+describe("stopping an answer (docs/design/chat-ui.md §5)", () => {
   it("has the passages before the first word, and stops when aborted", async () => {
     vi.stubGlobal("fetch", endlessAnswer());
     const abort = new AbortController();

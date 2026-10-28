@@ -34,7 +34,7 @@ async def list_conversations(request: Request, case: str | None = None, all: boo
     """The caller's saved conversations in their personal space, or in the case ``case`` their own
     and the ones its members shared (``shared``, ``owner``), most recently changed first (titles
     and dates, no content). With ``all``: every one of their own, across the cases they may read
-    and their personal space (the sidebar's list, docs/design/sidebar.md)."""
+    and their personal space (the sidebar's list, docs/design/chat-ui.md)."""
     store = history_or_503(request)
     if all:
         owner, case_ids = owner_of(request), await readable_case_ids(request)
@@ -89,7 +89,7 @@ async def share_conversation(conversation_id: str, body: ShareIn, request: Reque
 @router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses={
     404: {"description": "Not the caller's conversation"}})
 async def rename_conversation(conversation_id: str, body: RenameIn, request: Request):
-    """Rename one of the caller's conversations (docs/design/sidebar.md §4). The title is kept over
+    """Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
     later saves, which otherwise name a conversation after its first question."""
     store = history_or_503(request)
     changed = await run_in_threadpool(store.rename, _conversation_id(conversation_id), owner_of(request), body.title)
@@ -194,7 +194,7 @@ async def delete_all_conversations(request: Request):
 
 
 async def confidential_cases(request: Request, conversations: list[ConversationSummary]) -> set[str]:
-    """The strictly confidential cases among these conversations' cases (docs/design/sidebar.md §11)."""
+    """The strictly confidential cases among these conversations' cases (docs/design/chat-ui.md §11)."""
     ids = {uuid.UUID(c.case_id) for c in conversations if c.case_id}
     db = request.app.state.cases
     store = db.get() if db.configured else None
@@ -213,7 +213,7 @@ def shielded(request: Request, conversations: list[ConversationSummary], confide
 
 async def with_owner_names(request: Request, conversations: list[ConversationSummary], me: str) -> list[ConversationSummary]:
     """A colleague's shared conversation with their name as its case knows it (the Conversations
-    overview's "From", docs/design/sidebar.md §4); the caller's own stay without one."""
+    overview's "From", docs/design/chat-ui.md §4); the caller's own stay without one."""
     others = {uuid.UUID(c.case_id) for c in conversations if c.owner != me and c.case_id}
     db = request.app.state.cases
     store = db.get() if db.configured else None

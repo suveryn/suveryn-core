@@ -34,7 +34,7 @@ export function Dialog({ isOpen, onClose, title, busy, children, actions }: {
 }
 
 /**
- * A panel that slides over the page from the left, over a scrim (docs/design/sidebar.md §2, narrow
+ * A panel that slides over the page from the left, over a scrim (docs/design/chat-ui.md §2, narrow
  * screens): the column as a 320px drawer; from the right, a source (§5). A modal like Dialog: the focus moves in and stays, Escape
  * or a tap on the scrim closes it, and the focus returns to the menu button.
  */

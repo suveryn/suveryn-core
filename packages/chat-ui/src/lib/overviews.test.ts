@@ -8,7 +8,7 @@ const doc = (over: Partial<AllDocument> = {}): AllDocument => ({
 });
 const open = { state: "open" as const };
 
-describe("the Documents overview's rows (docs/design/sidebar.md §4)", () => {
+describe("the Documents overview's rows (docs/design/chat-ui.md §4)", () => {
   it("says a document's status", () => {
     expect(documentStatus(doc(), open)).toBe("ready");
     expect(documentStatus(doc({ status: "needs_review" }), open)).toBe("review");
