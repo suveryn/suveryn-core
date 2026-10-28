@@ -297,16 +297,23 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 | From a USB stick. The signature is checked first. | Van een USB-stick. De handtekening wordt eerst gecontroleerd. | Depuis une clé USB. La signature est vérifiée d'abord. |
 | Load model bundle | Modelbundel laden | Charger un paquet de modèles |
 
-## Open
+## Decided (Filip, 28 October)
 
-- "Nothing is blocked" against appliance-architecture.md ("installers refuse updates released
-  after `valid_until`") and the setup's `skipNote` ("no updates, model bundles or support"):
-  both need to change.
-- first-boot-setup says deviations from the agreement are shown to everyone after 14 days; the
-  brief says the page informs. Keep the banner for everyone?
-- The update durations (20 and 15 minutes) are estimates for #40 to confirm, and the place on
+- **Nothing is blocked by the agreement**, updates and model bundles included. appliance-architecture.md
+  (suveryn-appliance) and the setup's `skipNote` now say so.
+- **Everyone sees the notice**: without a manifest after 14 days, every deviation from the agreement,
+  and again when support ends.
+- **The certificate's expiry** appears on *Status* when it nears (with #41's work, suveryn-tracker).
+- The update durations (20 and 15 minutes) stay estimates for #40 to confirm, and the place on
   suveryn.com where an appliance learns of a new version isn't designed yet.
-- Renewing the certificate has no screen; its expiry should appear on *Status* when it nears.
+
+## Built so far
+
+- The side menu (and the narrow list) with *Status*, and the existing *Cases*, *Playbooks*, *Usage* and
+  *Backups*; the other items join as their pages are built. *Status* reads `GET /v1/admin/status` (the
+  gateway checks every minute, so "since" is when a failure began); the overview shows the version when
+  the appliance sets `SUVERYN_VERSION`, and the last backup. Users against the agreement and support join
+  with *Users* and *Licence*. A full disk says "Almost full" (a string the table didn't have).
 
 ## History
 

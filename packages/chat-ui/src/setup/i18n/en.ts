@@ -119,7 +119,7 @@ const en = {
   chooseAFile: "choose a file",
   manifestHint: ".yaml, signed by Sūveryn Labs for this appliance only",
   manifestChecked: "Checked on this appliance. Nothing is sent anywhere.",
-  skipNote: "You can skip this and the appliance works normally. For 14 days only administrators see a reminder. After that, everyone who signs in sees a banner that this appliance runs without a support agreement: no updates, model bundles or support.",
+  skipNote: "You can skip this and the appliance works normally. For 14 days only administrators see a reminder. After that, everyone who signs in sees a banner that this appliance runs without a support agreement: nothing is blocked.",
   identityMissing: "This appliance's ID isn't ready yet. Restart the appliance from its console, then reload this page.",
   agreement: "Agreement",
   validFor: (id: string) => `Valid for this appliance: ${id}`,

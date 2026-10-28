@@ -676,6 +676,12 @@ class DocumentService:
                 return True
             return False
 
+    def job_counts(self) -> tuple[int, int]:
+        """Everyone's documents being read now, and waiting to be (Administration › Status): counts only."""
+        with self._jobs_lock:
+            jobs = list(self._jobs.values())
+        return (sum(j.status == "processing" for j in jobs), sum(j.status in ("receiving", "queued") for j in jobs))
+
     def pending_jobs(self, owner: str, scope: Scope | None = None) -> list[Job]:
         """The owner's jobs not yet in the store: queued, processing, or failed (not one still being
         received). With a ``scope``, only those going into it (the personal space or one case)."""
