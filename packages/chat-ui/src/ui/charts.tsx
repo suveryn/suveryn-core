@@ -1,5 +1,5 @@
 /**
- * Charts (suveryn-tracker#46): columns over time and bars per person or thing, each with up to two
+ * Charts (suveryn-tracker#46): columns over time and bars per person or thing, each with up to four
  * stacked series (such as input and output tokens). Drawn in HTML with the brand's chart colours
  * from ui.css; heights and widths are style properties set through the DOM, which the CSP allows
  * (docs/content-security-policy.md). No chart library: d3-array gives the round axis steps
@@ -7,14 +7,15 @@
  *
  * For everyone: every chart can be shown as a table; the columns are one Tab stop, and the arrow
  * keys, Home and End move between them, each read out with its values; the bars print their totals.
- * Series differ in lightness as well as hue, and the legend names them in stacking order.
+ * The legend names the series in stacking order; ochre is light on white, so the legend and the table
+ * always come with the chart.
  */
 import { Table2, ChartColumnBig } from "lucide-react";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "./Button";
 import { marks, share, step, sum, valueAxis } from "./chartScale";
 
-/** At most two: the brand has two chart colours that tell apart in greyscale (ui.css, --chart-*). */
+/** At most four: the brand's chart colours, in order (ui.css, --chart-1 to --chart-4). A fifth becomes "Other". */
 export type Series = { id: string; label: string };
 /** One column or bar: its label, and a value per series, in the order of `series`. */
 export type Datum = { key: string; label: string; values: number[] };

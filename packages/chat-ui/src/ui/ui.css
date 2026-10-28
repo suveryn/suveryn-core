@@ -76,8 +76,8 @@
 .ui-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .ui-label { font-size: var(--text-body-sm); font-weight: 600; }
 .ui-hint { font-size: var(--text-ui-sm); line-height: 1.5; color: var(--text-dimmer); }
-.ui-input[data-invalid] { border-color: var(--accent-ink); }
-.ui-field-error { display: flex; gap: 6px; align-items: flex-start; font-size: var(--text-ui-sm); line-height: 1.5; color: var(--accent-ink); }
+.ui-input[data-invalid] { border-color: var(--text); border-width: 1.5px; }
+.ui-field-error { display: flex; gap: 6px; align-items: flex-start; font-size: var(--text-ui-sm); line-height: 1.5; color: var(--text); }
 .ui-field-error svg { flex: none; margin-top: 2px; }
 .ui-input-group { position: relative; display: flex; align-items: center; }
 .ui-input-group .ui-input { padding-right: 48px; }
@@ -88,11 +88,11 @@
 .ui-radio-card { display: flex; gap: 14px; align-items: flex-start; padding: var(--space-4); background: var(--bg);
                  border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
 .ui-radio-card[data-hovered] { border-color: oklch(from var(--ink) l c h / 0.40); }
-.ui-radio-card[data-selected] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ui-radio-card[data-selected] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
 .ui-radio-card[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 .ui-radio-card-icon { flex: none; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--surface-alt);
                       display: flex; align-items: center; justify-content: center; color: var(--text); }
-.ui-radio-card[data-selected] .ui-radio-card-icon { background: var(--accent); color: var(--on-accent); }
+.ui-radio-card[data-selected] .ui-radio-card-icon { background: var(--surface-alt); color: var(--text); }
 .ui-radio-card-body { flex: 1; min-width: 0; }
 .ui-radio-card-title { display: block; font-size: var(--text-control); font-weight: 600; margin-bottom: 2px; }
 .ui-radio-card-desc { display: block; font-size: var(--text-ui-sm); line-height: 1.5; color: var(--text-dim); }
@@ -100,8 +100,8 @@
 .ui-radio-dot { flex: none; width: 18px; height: 18px; border-radius: var(--radius-pill); border: 1.5px solid var(--text-dim);
                 display: flex; align-items: center; justify-content: center; }
 .ui-radio-card .ui-radio-dot { margin-top: 9px; }
-[data-selected] > .ui-radio-dot { border-color: var(--accent); background: var(--accent); }
-[data-selected] > .ui-radio-dot::after { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--on-accent); }
+[data-selected] > .ui-radio-dot { border-color: var(--text); background: var(--text); }
+[data-selected] > .ui-radio-dot::after { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--bg); }
 
 .ui-radio-list { display: flex; flex-direction: column; }
 .ui-radio-option { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
@@ -154,7 +154,7 @@
 .ui-menu-item-rich .ui-menu-item-label { grid-column: 2; font-size: var(--text-ui-sm); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ui-menu-item-rich .ui-menu-item-meta { grid-column: 3; display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-caption); color: var(--text-dimmer); white-space: nowrap; }
 .ui-menu-item-rich .ui-menu-item-meta[data-tone="teal"] { color: var(--teal-ink); }
-.ui-menu-item-rich .ui-menu-item-meta[data-tone="warn"] { color: var(--accent-ink); }
+.ui-menu-item-rich .ui-menu-item-meta[data-tone="warn"] { color: var(--text); }
 .ui-menu-item-rich[data-described] { align-items: center; row-gap: 2px; padding-block: 8px; }
 .ui-menu-item-rich[data-described] .ui-menu-item-icon { grid-row: 1 / span 2; }
 .ui-menu-item-rich[data-described] .ui-menu-item-label { font-weight: 600; white-space: normal; }
@@ -164,7 +164,7 @@
                    text-transform: uppercase; color: var(--text-dim); }
 .ui-menu-header:has(.ui-menu-eyebrow) { border-bottom: 0; padding-bottom: 2px; margin-bottom: 0; }
 .ui-menu-item-rich .ui-menu-item-more, .ui-menu-item-rich .ui-menu-item-check { grid-column: 4; color: var(--text-dim); }
-.ui-menu-item-rich[data-tone="accent"] .ui-menu-item-icon { color: var(--accent-ink); }
+.ui-menu-item-rich[data-tone="accent"] .ui-menu-item-icon { color: var(--text); }  /* menus are quiet */
 .ui-menu-item-rich[data-disabled] { opacity: 0.5; cursor: default; }
 .ui-menu-separator { height: 1px; margin: 4px 2px; background: var(--line); }
 /* a group under a small label ("Administrators only"), with a hairline above */
@@ -201,7 +201,7 @@
 .ui-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; font-size: var(--text-body-sm); cursor: pointer; }
 .ui-switch-track { position: relative; flex: none; width: 36px; height: 20px; border-radius: var(--radius-pill); background: var(--control-off); transition: background 120ms; }
 .ui-switch-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform 120ms; }
-.ui-switch[data-selected] .ui-switch-track { background: var(--teal-ink); }
+.ui-switch[data-selected] .ui-switch-track { background: var(--text); }  /* a setting, not a status */
 .ui-switch[data-selected] .ui-switch-thumb { transform: translateX(16px); }
 .ui-switch[data-focus-visible] .ui-switch-track { box-shadow: 0 0 0 3px var(--focus-glow); }
 .ui-switch[data-disabled] { opacity: 0.5; cursor: default; }
@@ -211,7 +211,7 @@
 .ui-badge { position: absolute; right: -6px; bottom: -4px; display: grid; place-items: center; width: 11px; height: 11px; border-radius: 30%;
             background: transparent; color: var(--teal-ink); }
 .ui-badge svg { stroke-width: 2.5; }
-.ui-badge[data-tone="accent"] { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 1.5px var(--surface); }
+.ui-badge[data-tone="accent"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1.5px var(--text); }  /* the administrator: an ink outline */
 .ui-badge svg { width: 100%; height: 100%; }
 .ui-badge[data-tone="accent"] svg { width: 70%; height: 70%; }
 /* neutral: on an avatar, the manager's folder or the owner's speech bubble (docs/design/chat-ui.md §4) */
@@ -223,7 +223,7 @@
 .ui-steps .ui-eyebrow { min-height: 36px; display: flex; align-items: center; margin-bottom: 12px; padding-right: 11.5rem; }
 .ui-rail { display: flex; gap: var(--space-2); }
 .ui-rail-segment { flex: 1; height: 4px; border-radius: var(--radius-pill); background: var(--line); }
-.ui-rail-segment[data-done] { background: var(--accent); }
+.ui-rail-segment[data-done] { background: var(--teal); }  /* a step done: a system status */
 
 .ui-note { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--surface-alt); border: 1px solid var(--line);
            border-radius: var(--radius-md); padding: 14px var(--space-4); font-size: var(--text-ui-sm); line-height: 1.55; color: var(--text-dim); }
@@ -250,8 +250,9 @@
 .ui-text-link, .ui-link-button { color: var(--accent-ink); font: inherit; font-weight: 600; text-decoration: underline;
                                  text-underline-offset: 2px; background: none; border: none; padding: 0; cursor: pointer; }
 .ui-text-link[data-focus-visible], .ui-link-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
-.ui-form-error { display: flex; gap: 8px; color: var(--accent-ink); font-size: var(--text-body-sm); margin: 0 0 var(--space-4); }
+.ui-form-error { display: flex; gap: 8px; color: var(--text); font-size: var(--text-body-sm); margin: 0 0 var(--space-4); }
 .ui-form-error:focus { outline: none; }
+.ui-form-error svg { flex: none; margin-top: 3px; }
 
 /* files */
 .ui-file { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: center;
@@ -263,7 +264,7 @@
 .ui-file-title { font-size: var(--text-control); font-weight: 600; }
 .ui-file-hint { font-size: var(--text-caption); color: var(--text-dim); overflow-wrap: anywhere; }
 .ui-file-error { grid-column: 2 / -1; margin-top: 6px; }
-.ui-file[data-invalid] .ui-button { border-color: var(--accent-ink); }
+.ui-file[data-invalid] .ui-button { border-color: var(--text); border-width: 1.5px; }
 .ui-drop { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; padding: 28px var(--space-4);
            border: 1.5px dashed oklch(from var(--ink) l c h / 0.28); border-radius: var(--radius-md); background: var(--bg); outline: none; }
 .ui-drop[data-focus-visible] { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
@@ -279,20 +280,20 @@
 .ui-checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: var(--text-body-sm); line-height: 1.5; cursor: pointer; }
 .ui-checkbox-box { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 4px; border: 1.5px solid var(--text-dim);
                    background: var(--bg); display: flex; align-items: center; justify-content: center; color: transparent; }
-.ui-checkbox[data-selected] .ui-checkbox-box { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.ui-checkbox[data-invalid] .ui-checkbox-box { border-color: var(--accent-ink); }
+.ui-checkbox[data-selected] .ui-checkbox-box { background: var(--text); border-color: var(--text); color: var(--bg); }
+.ui-checkbox[data-invalid] .ui-checkbox-box { border-color: var(--text); }
 .ui-checkbox[data-focus-visible] .ui-checkbox-box { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
 /* select with a label */
 .ui-select-field-button { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); text-align: left; cursor: pointer; }
 .ui-select-field-button[data-focus-visible], .ui-select-field-button[data-pressed] { outline: none; border-color: var(--focus-border);
                                                                                        box-shadow: 0 0 0 3px var(--focus-glow); }
-.ui-select-field[data-invalid] .ui-select-field-button { border-color: var(--accent-ink); }
+.ui-select-field[data-invalid] .ui-select-field-button { border-color: var(--text); border-width: 1.5px; }
 
 /* combo box (a text field with suggestions), search field and select list (lists.tsx) */
 .ui-combobox .ui-input-group .ui-input { padding-right: 44px; }
 .ui-combobox-open { color: var(--text-dim); background: transparent; border: none; cursor: pointer; }
-.ui-combobox[data-invalid] .ui-input { border-color: var(--accent-ink); }
+.ui-combobox[data-invalid] .ui-input { border-color: var(--text); border-width: 1.5px; }
 .ui-search { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 6px 0 10px; border: 1px solid var(--line);
              border-radius: var(--radius-sm); background: var(--bg); color: var(--text-dim); }
 .ui-search[data-focus-within] { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
@@ -336,26 +337,29 @@
 .ui-status:last-child { border-bottom: none; }
 .ui-status-icon { display: flex; color: var(--text-dim); }
 .ui-status[data-state="done"] .ui-status-icon { color: var(--teal-ink); }
-.ui-status[data-state="running"] .ui-status-icon, .ui-status[data-state="failed"] .ui-status-icon { color: var(--accent-ink); }
+.ui-status[data-state="running"] .ui-status-icon { color: var(--teal-ink); }  /* system work */
+.ui-status[data-state="failed"] .ui-status-icon { color: var(--text); }
 .ui-status[data-state="running"] .ui-status-label { font-weight: 600; }
 .ui-status[data-state="waiting"] .ui-status-label { color: var(--text-dim); }
 .ui-status-detail { font-size: var(--text-ui-sm); color: var(--text-dim); text-align: right; }
 @media (max-width: 480px) { .ui-status-detail { grid-column: 2 / -1; text-align: left; } }
 .ui-spin { animation: ui-spin 1s linear infinite; }
+/* a check is always a system status (chat-ui.md section 1): teal ink, also inside a button ("Copied", "Saved") */
+.ui-icon-ok { color: var(--teal-ink); }
 @keyframes ui-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ui-spin { animation: none; } }
 
 /* notices */
 .ui-notice { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--surface-alt); border: 1px solid var(--line);
              border-radius: var(--radius-md); padding: 14px var(--space-4); font-size: var(--text-body-sm); line-height: 1.55; color: var(--text-dim); }
-.ui-notice[data-tone="warning"] { background: var(--bg); border-color: var(--accent-ink); }
-.ui-notice[data-tone="warning"] .ui-note-icon { color: var(--accent-ink); }
+/* One notice box everywhere (chat-ui.md section 1): the icon and the text carry the meaning, never the box. */
+.ui-notice[data-tone="warning"] .ui-note-icon { color: var(--text); }
 .ui-notice-title { display: block; color: var(--text); font-weight: 600; }
 .ui-notice-text { display: block; }
 
 /* progress */
 .ui-progress-track { display: block; height: 4px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
-.ui-progress-fill { display: block; height: 100%; background: var(--accent); transition: width 300ms ease; }
+.ui-progress-fill { display: block; height: 100%; background: var(--teal); transition: width 300ms ease; }
 .ui-progress[data-indeterminate] .ui-progress-fill { width: 30% !important; animation: ui-progress-slide 1.4s ease-in-out infinite; }
 @keyframes ui-progress-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 @media (prefers-reduced-motion: reduce) { .ui-progress-fill { transition: none; } .ui-progress[data-indeterminate] .ui-progress-fill { animation: none; width: 100% !important; opacity: 0.35; } }
@@ -364,13 +368,10 @@
 .ui-qr { display: block; border-radius: var(--radius-sm); }
 
 /* ------------------------------------------------------------------------------------------------ charts */
-/* suveryn-tracker#46. Two series colours, each 3:1 or more against the page and the cards, and 3:1
-   or more against each other, so they also tell apart in greyscale (src/ui/charts.test.ts checks).
-   Stacked segments are parted by a 1px line in the page colour. */
-:root {
-  --chart-1: var(--teal-ink);   /* the first series, at the bottom of a stack */
-  --chart-2: var(--ink);        /* the second, on top */
-}
+/* suveryn-tracker#46. The brand's chart palette (tokens v3.4: --chart-1 to --chart-4, violet, ochre, sky
+   blue, moss green), always in this order and used by nothing else (chat-ui.md section 1). Ochre on white
+   is about 2.2:1, so every chart has a legend and Show table (src/ui/charts.test.ts checks). The first
+   series sits at the bottom of a stack; stacked segments are parted by a 1px line in the page colour. */
 .ui-chart { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .ui-chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3);
                  min-height: 32px; }
@@ -383,6 +384,8 @@
 
 .ui-chart [data-series="0"] { background: var(--chart-1); }
 .ui-chart [data-series="1"] { background: var(--chart-2); }
+.ui-chart [data-series="2"] { background: var(--chart-3); }
+.ui-chart [data-series="3"] { background: var(--chart-4); }
 
 /* columns over time: the axis on the left, the plot beside it */
 .ui-chart-plot { display: flex; gap: var(--space-2); height: 160px; }
@@ -497,12 +500,13 @@
 .ui-segmented-field { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .ui-segmented-hint { font-size: var(--text-caption); line-height: 1.45; color: var(--text-dim); }
 
-/* a line of text with an icon (under an answer, the sign-in screen); errors: the icon in accent ink */
+/* a line of text with an icon (under an answer, the sign-in screen); errors in ink, a system status in teal ink */
 .ui-inline-notice { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) 0 0;
                     font-size: var(--text-caption); line-height: 1.5; color: var(--text-dim); }
 .ui-inline-notice-icon { flex: none; display: flex; margin-top: 2px; }
 .ui-inline-notice[data-tone="error"] { color: var(--text); }
-.ui-inline-notice[data-tone="error"] .ui-inline-notice-icon { color: var(--accent-ink); }
+.ui-inline-notice[data-tone="error"] .ui-inline-notice-icon { color: var(--text); }
+.ui-inline-notice[data-tone="ok"] { color: var(--teal-ink); }
 
 /* dates: day, month and year as segments */
 .ui-date-input { display: inline-flex; align-items: center; width: auto; min-width: 9em; font-variant-numeric: tabular-nums; }
@@ -512,13 +516,14 @@
 .ui-date-segment[data-placeholder] { color: var(--text-dimmer); }
 .ui-date-segment[data-focused] { background: var(--surface-alt); color: var(--text); box-shadow: inset 0 0 0 1px var(--focus-border); }
 
-/* avatar: the mark's rounded square (radius a quarter of the side), a teal border, initials or a picture;
-   an administrator's badge over the corner */
+/* avatar: the mark's rounded square (radius a quarter of the side), ink initials on surface-alt with a fine line
+   border (chat-ui.md section 1: a person is not a system status), or a picture; an administrator's badge over the
+   corner, in an ink outline */
 .ui-avatar { --avatar: 32px; position: relative; display: inline-block; flex: none; width: var(--avatar); height: var(--avatar);
              font-family: var(--font-display); font-weight: 600; user-select: none; }
 .ui-avatar-face { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 25%; box-sizing: border-box;
-                  border: max(1.5px, calc(var(--avatar) * 0.05)) solid var(--teal); background: oklch(from var(--teal) l c h / 0.14);
-                  color: var(--teal-ink); overflow: hidden; }
+                  border: max(1.5px, calc(var(--avatar) * 0.05)) solid var(--line); background: var(--surface-alt);
+                  color: var(--text); overflow: hidden; }
 .ui-avatar[data-size="small"] { --avatar: 24px; }
 .ui-avatar[data-size="large"] { --avatar: 48px; }
 .ui-avatar[data-size="huge"] { --avatar: 96px; }

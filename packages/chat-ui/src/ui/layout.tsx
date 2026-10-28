@@ -108,7 +108,8 @@ const STATUS_ICON: Record<Status, ReactNode> = {
   failed: <CircleAlert size={16} />,
 };
 
-/** A boxed message: a note (neutral) or a warning (accent-ink border and icon: the brand has no red). */
+/** The one notice box (chat-ui.md section 1): a note, or a warning with its own icon in ink. The icon and the text
+ *  carry the meaning, never the box. */
 export function Notice({ icon, title, children, tone = "note" }: { icon: ReactNode; title?: string; children?: ReactNode;
                                                                    tone?: "note" | "warning" }) {
   return (
@@ -123,10 +124,11 @@ export function Notice({ icon, title, children, tone = "note" }: { icon: ReactNo
 }
 
 /** A line of text with an icon, in the flow of the page (under an answer, on the sign-in screen):
- *  lighter than Notice. `error`: the icon in accent ink (the brand has no red). With `alert`, a screen
- *  reader reads it as soon as it appears. */
+ *  lighter than Notice. `error`: in ink, with its own icon (the brand has no red). `ok`: a system status
+ *  (a backup made, a passed test), in teal ink with its check. With `alert`, a screen reader reads it as
+ *  soon as it appears. */
 export function InlineNotice({ icon, tone = "note", alert, className, children }: {
-  icon: ReactNode; tone?: "note" | "error"; alert?: boolean; className?: string; children: ReactNode;
+  icon: ReactNode; tone?: "note" | "error" | "ok"; alert?: boolean; className?: string; children: ReactNode;
 }) {
   return (
     <p className={cx("ui-inline-notice", className)} data-tone={tone} role={alert ? "alert" : undefined}>

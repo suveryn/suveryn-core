@@ -12,6 +12,7 @@
 import { createContext, startTransition, useActionState, useContext, useEffect, useMemo, useRef, useState,
          type ReactNode } from "react";
 import { Form as AriaForm } from "react-aria-components";
+import { CircleAlert } from "lucide-react";
 
 /** Errors by field name; empty when everything is right. */
 export type FieldErrors = Record<string, string>;
@@ -90,5 +91,5 @@ export function Form({ check, onValid, className, children, ...rest }: Props) {
 export function FormError() {
   const { error } = useFieldError("_");
   if (!error) return null;
-  return <p className="ui-form-error" role="alert" data-form-error>{error}</p>;
+  return <p className="ui-form-error" role="alert" data-form-error><CircleAlert size={16} aria-hidden /><span>{error}</span></p>;
 }
