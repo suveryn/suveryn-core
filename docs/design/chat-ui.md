@@ -141,8 +141,9 @@ applicable), the name and chevrons. It opens a `Menu`:
    administrators only.
 6. *Sign out*, with the fine print "Documents and answers stay on this server".
 
-**Avatar badges.** A small disc in the surface colour sits over the avatar's bottom-right corner,
-with an ink outline icon:
+**Avatar badges.** An ink outline icon over the avatar's bottom-right corner; the manager's and the
+owner's sit on a small disc in the surface colour, the administrator's shield is only its outline, with
+no disc and no ring (Filip, 28 October):
 
 - `shield` for an administrator;
 - `folder` for a case's manager;
