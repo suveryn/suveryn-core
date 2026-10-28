@@ -244,6 +244,11 @@ class ConversationStore(PgStore):
             return "true", ()
         return "updated_at > now() - make_interval(days => %s)", (self.max_age_days,)
 
+    def older_than(self, days: int) -> int:
+        """How many saved conversations a keep period of ``days`` would delete now (every owner's)."""
+        return self._execute("SELECT count(*) FROM conversations WHERE updated_at <= now() - make_interval(days => %s)",
+                             (days,)).fetchone()[0]
+
     def purge(self) -> int:
         """Delete every owner's conversations older than the keep period; returns how many."""
         if self.max_age_days is None:

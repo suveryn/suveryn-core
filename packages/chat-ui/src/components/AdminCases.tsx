@@ -1,24 +1,25 @@
 /**
  * Cases, stage 4 (suveryn-tracker#10): the administrator's case pages.
  *
- * The office's two settings for cases (who sees a new case, how long closed cases are kept), as
- * provisioned until an administrator changes them here; every case on the appliance with who
+ * The office's settings for cases (who sees a case, how long closed cases and conversations are kept), shown
+ * here and changed in Settings (docs/design/admin.md); every case on the appliance with who
  * manages it, so a case can be handed over before an account goes (decision 6); and what is due
  * for deletion. Nothing from inside a case: an administrator who isn't a member reads no documents.
  */
-import { AlertCircle, ArrowRightLeft, Check, Lock, Folder } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, Folder, Lock, MessageSquare, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getCaseSettings, handOver, listAdminCases, searchUsers, setCaseSettings,
+  getCaseSettings, handOver, listAdminCases, searchUsers,
   type AdminCase, type CaseSettings, type KeepPeriod, type Person,
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, ComboBoxField, Dialog, InlineNotice, SelectField, TextButton } from "../ui";
+import { Button, ComboBoxField, Dialog, Facts, InlineNotice, TextButton } from "../ui";
+import type { AdminPage } from "./Admin";
 import { keepPeriodLabel } from "./CaseDialogs";
 import { fateLabel, isDue } from "./CaseState";
 
-export function AdminCases() {
+export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   const m = useT();
   const [cases, setCases] = useState<AdminCase[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export function AdminCases() {
   return (
     <>
       <p className="view-intro">{m.adminCasesIntro}</p>
-      <SettingsForm />
+      <SettingsFacts onOpen={onOpen} />
       {due.length > 0 && (
         <InlineNotice icon={<AlertCircle size={14} />}>
           {m.casesDue(due.length)}: {due.map((c) => c.reference).join(", ")}
@@ -68,52 +69,22 @@ export function AdminCases() {
   );
 }
 
-function SettingsForm() {
+/** The office's settings for cases as they apply now; changed in Administration › Settings. */
+function SettingsFacts({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   const m = useT();
   const [settings, setSettings] = useState<CaseSettings | null>(null);
-  const [access, setAccess] = useState<"office" | "members">("members");
-  const [keep, setKeep] = useState<KeepPeriod>("manual");
-  const [conversations, setConversations] = useState<KeepPeriod>("manual");
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    getCaseSettings().then((s) => { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); })
-      .catch((e: Error) => setError(m.settingsFailed(e.message)));
-  }, [m]);
-  const changed = settings !== null && (access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep);
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const s = await setCaseSettings({ default_access: access, keep, conversations_keep: conversations });
-      setSettings(s);
-      setSaved(true);
-    } catch (e) { setError(m.settingsFailed((e as Error).message)); } finally { setBusy(false); }
+  useEffect(() => { getCaseSettings().then(setSettings).catch(() => setSettings(null)); }, []);
+  if (!settings) return null;
+  const period = (p: KeepPeriod) => {
+    const l = keepPeriodLabel(p, m);
+    return l ? l.charAt(0).toUpperCase() + l.slice(1) : m.keepUntilDeleted;
   };
-  const keepLabel = (p: KeepPeriod) => (p === "manual" ? m.keepManual : m.keepFor(keepPeriodLabel(p, m) ?? p));
-  const conversationsLabel = (p: KeepPeriod) => (p === "manual" ? m.conversationsKeepManual : m.keepFor(keepPeriodLabel(p, m) ?? p));
   return (
-    <section className="case-settings" aria-labelledby="case-settings-title">
-      <h2 id="case-settings-title" className="label">{m.caseSettingsTitle}</h2>
-      <div className="case-settings-row">
-        <SelectField name="default_access" label={m.settingDefaultAccess} value={access} size="small"
-                     onChange={(v) => { setAccess(v as "office" | "members"); setSaved(false); }}
-                     options={[{ id: "members", label: m.accessMembers }, { id: "office", label: m.accessOffice }]} />
-        <SelectField name="keep" label={m.settingKeep} value={keep} size="small"
-                     onChange={(v) => { setKeep(v as KeepPeriod); setSaved(false); }}
-                     options={(["6m", "1y", "5y", "manual"] as KeepPeriod[]).map((p) => ({ id: p, label: keepLabel(p) }))} />
-        <SelectField name="conversations_keep" label={m.settingConversationsKeep} value={conversations} size="small"
-                     onChange={(v) => { setConversations(v as KeepPeriod); setSaved(false); }}
-                     options={(["6m", "1y", "5y", "manual"] as KeepPeriod[]).map((p) => ({ id: p, label: conversationsLabel(p) }))} />
-        <Button size="small" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
-      </div>
-      <p className="caption">
-        {saved ? <span className="status-ok"><Check size={12} aria-hidden /> {m.settingsSaved}</span> :
-         settings?.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}
-      </p>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
-    </section>
+    <Facts facts={[
+      { icon: <Users size={16} />, label: m.whoSeesACase, value: settings.default_access === "office" ? m.accessEveryone : m.accessMembersOnly },
+      { icon: <Lock size={16} />, label: m.keepClosedCase, value: period(settings.keep) },
+      { icon: <MessageSquare size={16} />, label: m.keepConversations, value: period(settings.conversations_keep) },
+    ]} footer={<TextButton onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>} />
   );
 }
 

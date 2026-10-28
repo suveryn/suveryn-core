@@ -271,6 +271,18 @@ class SettingsIn(BaseModel):
     default_access: Literal["office", "members"] | None = None
     keep: Literal["6m", "1y", "5y", "manual"] | None = None
     conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None
+    # When the default access opens up to the office: "new" (the default) leaves the existing cases with
+    # their members, "all" opens every case (strictly confidential ones never). Closing it to the members
+    # applies to every case that follows the default; there is nothing to choose then.
+    apply_to: Literal["new", "all"] = "new"
+
+
+class SettingsPreview(BaseModel):
+    """What a change in Settings would do now, for its confirmation (``GET /v1/admin/cases/settings/preview``)."""
+
+    cases_opened: int = 0  # cases that become visible to everyone in the office
+    cases_closed: int = 0  # cases that become visible to their members only
+    conversations_deleted: int = 0  # saved conversations a shorter keep period deletes
 
 
 class Member(BaseModel):
@@ -568,9 +580,22 @@ class CaseStore(PgStore):
         self.overrides()
         return self._overrides_meta
 
-    def set_overrides(self, changes: dict[str, str], by: str) -> dict[str, str]:
-        """Store what an administrator chose; returns the overrides as they are now."""
+    def set_overrides(self, changes: dict[str, str], by: str, *, keep_existing: bool = False, open_all: bool = False,
+                      by_user: str = "") -> dict[str, str]:
+        """Store what an administrator chose; returns the overrides as they are now.
+
+        With a new default access (Administration › Settings, docs/design/admin.md): ``keep_existing``
+        leaves every existing case as it is, by restricting those that follow the default (when the office
+        opens up, its cases stay with their members; a manager can open one); ``open_all`` opens every case,
+        those restricted included, each with a line in its access log by ``by_user``. Strictly confidential
+        cases change with neither: their members decide. In the same transaction as the setting."""
         with self.transaction():
+            if keep_existing:
+                self._execute("UPDATE cases SET access = 'restricted' WHERE access = 'default' AND NOT confidential")
+            if open_all:
+                for (case_id,) in self._execute("UPDATE cases SET access = 'default' WHERE access = 'restricted'"
+                                                " AND NOT confidential RETURNING id").fetchall():
+                    self.log(case_id, by_user, "access_changed", {"access": "default"})
             for key, value in changes.items():
                 if key not in SETTING_KEYS:
                     raise ValueError(f"not a setting: {key}")
@@ -579,6 +604,12 @@ class CaseStore(PgStore):
                               (key, value, by))
         self._overrides = None
         return self.overrides()
+
+    def access_counts(self) -> dict[str, int]:
+        """How many cases follow the office's default access and how many are restricted to their members,
+        strictly confidential ones left out (no setting changes them): for the confirmation in Settings."""
+        rows = self._execute("SELECT access, count(*) FROM cases WHERE NOT confidential GROUP BY access").fetchall()
+        return {"default": 0, "restricted": 0, **{r[0]: r[1] for r in rows}}
 
     def manages(self, user: str) -> int:
         """How many cases this user manages (an account can't go while it manages one, decision 6)."""

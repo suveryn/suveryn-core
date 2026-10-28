@@ -2,19 +2,20 @@
  * Token usage views (suveryn-tracker#7, development context §5.3):
  * - UsageView: the signed-in user's own usage (never a colleague's);
  * - AdminUsage: Administration › Usage (components/Admin.tsx), administrators only: the office's usage
- *   in total and per user, with a notional cloud cost and its editable rates.
+ *   in total and per user, with a notional cloud cost; its rates are changed in Administration › Settings.
  * Both pick a period (last hour, day, week, month, or whole local days) and show the totals and a
  * chart of input and output tokens (src/ui/charts.tsx, suveryn-tracker#46). Counts only: the server
  * never stores or returns text. Informational: nothing limits anyone.
  */
-import { AlertCircle, ArrowLeft, BarChart3, Check } from "lucide-react";
+import { AlertCircle, ArrowLeft, BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
+import { getMyUsage, getOfficeUsage, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
+import type { AdminPage } from "./Admin";
 import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
 import {
-  BarChart, Button, ColumnChart, DateField, Form, FormError, InlineNotice, NumberField, Segmented, SelectField, TextButton,
-  type ChartText, type Datum, type FieldErrors, type Series,
+  BarChart, ColumnChart, DateField, InlineNotice, Segmented, TextButton,
+  type ChartText, type Datum, type Series,
 } from "../ui";
 
 function useReport<R>(load: (start: Date, end?: Date) => Promise<R>) {
@@ -166,7 +167,7 @@ export function UsageView({ onBack }: { onBack: () => void }) {
 
 /** Administrators: the office's usage, per user, with the notional cloud cost and its rates. */
 /** Administration › Usage: the office's usage in total and per user, with the notional cost and its rates. */
-export function AdminUsage() {
+export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   const m = useT();
   const r = useReport(getOfficeUsage);
   const report = r.report as OfficeUsageReport | null;
@@ -204,49 +205,14 @@ export function AdminUsage() {
               </div>
             </>
           )}
-          <RatesForm report={report} onSaved={r.refresh} />
+          <p className="caption">
+            {m.rateInput}: {money(report.rates.input_per_million, report.rates.currency)} · {m.rateOutput}:{" "}
+            {money(report.rates.output_per_million, report.rates.currency)}.{" "}
+            <TextButton onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>
+          </p>
         </>
       )}
     </>
   );
 }
 
-function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: () => void }) {
-  const m = useT();
-  const [input, setInput] = useState(Number(report.rates.input_per_million));
-  const [output, setOutput] = useState(Number(report.rates.output_per_million));
-  const [currency, setCurrency] = useState(report.rates.currency);
-  const [saved, setSaved] = useState(false);
-  const edited = <T,>(set: (v: T) => void) => (v: T) => { set(v); setSaved(false); };
-  // As the server checks them (usage.py Rates): 0 to 10,000, at most 4 decimals.
-  const valid = (v: number) => Number.isFinite(v) && v >= 0 && v <= 10_000 && Number(v.toFixed(4)) === v;
-  const check = async (): Promise<FieldErrors> => {
-    const errors: FieldErrors = {};
-    if (!valid(input)) errors.input = m.ratesInvalid;
-    if (!valid(output)) errors.output = m.ratesInvalid;
-    if (Object.keys(errors).length > 0) return errors;
-    try {
-      await setRates({ input_per_million: String(input), output_per_million: String(output), currency });
-      return {};
-    } catch (e) {
-      return { _: (e as Error).message };
-    }
-  };
-  const changed = report.rates.updated_by && report.rates.updated_at;
-  return (
-    <Form className="rates" check={check} onValid={() => { setSaved(true); onSaved(); }} aria-labelledby="rates-title">
-      <h2 id="rates-title" className="label">{m.rates}</h2>
-      <FormError />
-      <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} minValue={0} maxValue={10_000}
-                   maxDecimals={4} size="small" className="rates-field" />
-      <NumberField name="output" label={m.rateOutput} value={output} onChange={edited(setOutput)} minValue={0} maxValue={10_000}
-                   maxDecimals={4} size="small" className="rates-field" />
-      <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)} size="small"
-                   options={["USD", "EUR", "GBP"].map((c) => ({ id: c, label: c }))} />
-      <Button type="submit" size="small">
-        {saved ? <><Check size={14} aria-hidden className="ui-icon-ok" /> {m.saved}</> : m.save}
-      </Button>
-      <p className="caption">{changed ? m.ratesChanged(report.rates.updated_by!, new Date(report.rates.updated_at!).toLocaleDateString(locale(), { dateStyle: "long" })) : m.ratesDefault}</p>
-    </Form>
-  );
-}
