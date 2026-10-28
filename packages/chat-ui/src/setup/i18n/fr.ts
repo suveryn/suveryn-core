@@ -302,6 +302,8 @@ const fr: Text = {
     denied: "Le partage a refusé le nom d'utilisateur ou le mot de passe.",
     not_writable: "L'appliance peut atteindre le partage mais ne peut pas y écrire.",
     not_local: "Cette adresse n'est pas sur votre propre réseau.",
+    login: "Le partage a refusé le nom d'utilisateur ou le mot de passe.",
+    write: "Connexion réussie, mais l'appliance ne peut pas y écrire.",
     disk_gone: "Ce disque n'est plus branché. Cherchez à nouveau.",
     not_answered: "Certaines étapes ne sont pas encore complétées. Revenez en arrière pour les compléter.",
     provisioning_started: "La mise en service a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",

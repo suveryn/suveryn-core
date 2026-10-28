@@ -302,6 +302,8 @@ const en = {
     denied: "The share refused the user name or password.",
     not_writable: "The appliance can reach the share but can't write to it.",
     not_local: "This address isn't on your own network.",
+    login: "The share refused the user name or password.",
+    write: "Signed in, but the appliance can't write there.",
     disk_gone: "This disk isn't plugged in any more. Look again.",
     not_answered: "Some steps aren't answered yet. Go back and complete them.",
     provisioning_started: "Provisioning has already started, so answers can't change now. Reload this page to follow it.",
