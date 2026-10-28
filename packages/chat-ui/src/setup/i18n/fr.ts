@@ -119,7 +119,7 @@ const fr: Text = {
   chooseAFile: "choisissez un fichier",
   manifestHint: ".yaml, signé par Sūveryn Labs pour cette appliance uniquement",
   manifestChecked: "Vérifié sur cette appliance. Rien n'est envoyé.",
-  skipNote: "Vous pouvez passer cette étape et l'appliance fonctionne normalement. Pendant 14 jours, seuls les administrateurs voient un rappel. Ensuite, toute personne qui se connecte voit un bandeau indiquant que cette appliance fonctionne sans contrat de support : pas de mises à jour, de bundles de modèles ni de support.",
+  skipNote: "Vous pouvez passer cette étape et l'appliance fonctionne normalement. Pendant 14 jours, seuls les administrateurs voient un rappel. Ensuite, toute personne qui se connecte voit un bandeau indiquant que cette appliance fonctionne sans contrat de support ; rien n'est bloqué.",
   identityMissing: "L'identifiant de cette appliance n'est pas encore prêt. Redémarrez l'appliance depuis sa console, puis rechargez cette page.",
   agreement: "Contrat",
   validFor: (id) => `Valable pour cette appliance\u00a0: ${id}`,

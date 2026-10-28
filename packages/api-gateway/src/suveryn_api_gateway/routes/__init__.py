@@ -16,5 +16,6 @@ from . import (  # noqa: F401 - the modules app.py includes
     health,
     playbooks,
     signin,
+    status,
     usage,
 )

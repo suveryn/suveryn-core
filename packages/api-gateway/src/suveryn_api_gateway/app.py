@@ -285,7 +285,10 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
         app.state.sweep = (asyncio.create_task(sweep_due_cases())
                            if app.state.cases.configured or app.state.history.configured or app.state.usage.configured else None)
+        # Administration › Status: the checks every minute, so a failure's time is when it began (routes/status.py)
+        monitor = asyncio.create_task(app.state.status.run(app.state))
         yield
+        monitor.cancel()
         if app.state.sweep is not None:
             app.state.sweep.cancel()
         await app.state.llm.aclose()
@@ -312,6 +315,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     app.state.auth = authenticator
     app.state.case_settings = cases_settings
     app.state.known_users = set()  # (sub, username, name) already stored for the usage table
+    app.state.status = routes.status.StatusMonitor()
     settings = authenticator.settings
 
     @app.middleware("http")
@@ -396,7 +400,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     # The order matters where paths overlap: /v1/cases/due before /v1/cases/{case_id} (both in cases).
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
-                   routes.conversations, routes.usage, routes.backups):
+                   routes.conversations, routes.usage, routes.backups, routes.status):
         app.include_router(module.router)
     return app
 
