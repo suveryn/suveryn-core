@@ -24,9 +24,9 @@ describe("the files sūveryn reads", () => {
 
   it("says which files can be added when one can't, in the interface's language", () => {
     setLang("en", false);
-    expect(httpErrorText(415, "only PDF ... files can be added")).toMatch(/PDF, Word \(\.docx\), Excel \(\.xlsx\), Markdown \(\.md\) and CSV/);
+    expect(httpErrorText(415, "only PDF ... files can be added")).toBe("this file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip");
     setLang("fr", false);
-    expect(httpErrorText(415, "the file is not a valid Word file")).toMatch(/^ce fichier ne peut pas être ajouté/);
+    expect(httpErrorText(415, "the file is not a valid Word file")).toMatch(/^ce type de fichier n'est pas lu/);
     setLang("en", false);
   });
 

@@ -198,15 +198,13 @@ function AdminUsage() {
   const report = r.report as OfficeUsageReport | null;
   return (
     <>
-      <p className="view-intro">{m.adminIntro}</p>
       <RangePicker {...r} />
       {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
           <Totals totals={report.totals} extra={{ label: m.notionalCost, value: money(report.cost, report.rates.currency) }} />
-          <p className="caption">{m.costExplain(money(report.cost, report.rates.currency),
-            money(report.rates.input_per_million, report.rates.currency), money(report.rates.output_per_million, report.rates.currency))}</p>
+          <p className="caption">{m.costExplain(money(report.cost, report.rates.currency))}</p>
           {report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
             <>
               <Chart report={report} />

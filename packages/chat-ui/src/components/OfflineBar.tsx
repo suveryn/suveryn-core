@@ -20,7 +20,7 @@ export function OfflineBar({ nextCheck, onTryNow }: { nextCheck: number; onTryNo
     <div className="offline-bar">
       <WifiOff size={18} aria-hidden />
       <p className="offline-bar-text">
-        <strong role="alert">{m.offlineTitle}</strong> {m.offlineKept} <span>{m.offlineRetry(seconds)}</span>
+        <strong role="alert">{m.offlineTitle}</strong> <span>{m.offlineRetry(seconds)}</span>
       </p>
       <Button size="small" onPress={onTryNow}><RefreshCw size={14} aria-hidden /> {m.tryNow}</Button>
     </div>

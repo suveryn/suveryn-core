@@ -153,7 +153,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
                     onChange={askAbout.onChange} label={m.askAboutTitle} triggerLabel={m.askAboutLabel(askAbout.selected.length)}
                     allLabel={m.askAboutAllIn(caseReference)} allMeta={m.askAboutSources(askAbout.items.length)}
                     chosenHeading={m.askAboutChosen} othersHeading={(q, n) => (q ? m.askAboutMatching(q, n) : null)}
-                    searchLabel={m.askAboutSearch} doneLabel={m.askAboutDone} footnote={m.askAboutFine}
+                    searchLabel={m.askAboutSearch} doneLabel={m.askAboutDone}
                     action={{ label: m.askAboutUpload, description: m.askAboutUploadHint, onPress: () => picker.open() }}
                     trigger={<>
                       <Files size={14} aria-hidden />
@@ -204,7 +204,6 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
             <ActionMenu className="chip-playbook" aria-label={m.playbookChip} menuLabel={m.playbookMenu} placement="top start"
                         popoverClassName="playbook-menu"
                         header={<span className="ui-menu-eyebrow">{m.playbookMenuTitle(caseReference ?? "", caseType ?? "")}</span>}
-                        footer={m.playbookMenuFooter}
                         entries={playbookEntries}
                         onAction={onPlaybook}>
               <ClipboardList size={13} aria-hidden /> {m.playbook} <ChevronDown size={13} aria-hidden />

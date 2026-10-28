@@ -178,7 +178,7 @@ describe("model picker", () => {
   it("says when the chosen model has to load first, and that others wait too", async () => {
     const { loadingNote } = await import("../components/ModelPicker");
     expect(loadingNote(models, null)).toBeNull();
-    expect(loadingNote(models, "mistral-small-3.2-24b")).toMatch(/^Mistral Small 3\.2 isn't loaded yet: .*other people's questions wait/);
+    expect(loadingNote(models, "mistral-small-3.2-24b")).toBe("Mistral Small 3.2 is loading.");
   });
 });
 
@@ -189,7 +189,7 @@ describe("waiting status (suveryn-tracker#6)", () => {
     expect(statusText(st({ step: "reading", passages: 6, complete: false }))).toBe("Reading the 6 passages that best match your question…");
     expect(statusText(st({ step: "reading", passages: 1, complete: true }))).toBe("Reading your documents (1 passage)…");
     expect(statusText(st({ step: "loading_model", model: "mistral-small-3.2-24b" })))
-      .toBe("Loading Mistral Small 3.2, which can take up to half a minute…");
+      .toBe("Mistral Small 3.2 is loading…");
     expect(statusText(st({ step: "writing" }))).toBe("Writing the answer…");
   });
   it("never says something vague", () => {
@@ -379,8 +379,8 @@ describe("server errors and long conversations", () => {
     expect(httpErrorText(413, "The file is larger than 100 MB.")).toMatch(/^het bestand is groter/);
     expect(httpErrorText(418, "I'm a teapot")).toBe("I'm a teapot");  // others keep the server's text
     // Which part is down, when the gateway says (Pod check of cbccd38)
-    expect(httpErrorText(503, "The database can't be reached right now.", null, "database")).toMatch(/^de database op deze server is nu niet bereikbaar/);
-    expect(httpErrorText(503, "Sign-in is not available: …", null, "signin")).toMatch(/^de inlogdienst op deze server antwoordt nu niet/);
+    expect(httpErrorText(503, "The database can't be reached right now.", null, "database")).toMatch(/^de database antwoordt niet/);
+    expect(httpErrorText(503, "Sign-in is not available: …", null, "signin")).toMatch(/^aanmelden werkt nu niet/);
     expect(httpErrorText(503, "Document search is unavailable.")).toBe("dit deel van de server is nu niet beschikbaar; probeer het later opnieuw");
     setLang("en", false);
   });
