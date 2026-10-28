@@ -183,7 +183,7 @@ function DownloadButton({ downloaded, disabled, label, doneLabel, aria, onPress 
     <span className="setup-key-action" data-field-invalid={error ? true : undefined}>
       <Button size="small" isDisabled={disabled} onPress={() => { clear(); onPress(); }} aria-label={aria}
               aria-describedby={error ? "download-error" : undefined}>
-        {downloaded ? <CircleCheck size={14} aria-hidden /> : <Download size={14} aria-hidden />}
+        {downloaded ? <CircleCheck size={14} aria-hidden className="ui-icon-ok" /> : <Download size={14} aria-hidden />}
         {downloaded ? doneLabel : label}
       </Button>
       {error && <span id="download-error" className="ui-field-error">{error}</span>}

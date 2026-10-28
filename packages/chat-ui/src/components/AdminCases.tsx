@@ -55,7 +55,7 @@ export function AdminCases() {
                   <td>{c.state === "closed" ? `${m.caseClosed} ${dayLabel(c.closed_at!)}` : m.stateOpen}</td>
                   <td title={c.manager_username}>{c.manager_name || c.manager_username || c.manager}</td>
                   <td>{c.members}</td>
-                  <td>{c.state === "closed" ? fateLabel(c, m) : ""}</td>
+                  <td>{c.state !== "closed" ? "" : isDue(c) ? <b>{fateLabel(c, m)}</b> : fateLabel(c, m)}</td>
                   <td><TextButton onPress={() => setHanding(c)}><ArrowRightLeft size={12} aria-hidden /> {m.handOver}</TextButton></td>
                 </tr>
               ))}
@@ -109,7 +109,7 @@ function SettingsForm() {
         <Button size="small" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
       </div>
       <p className="caption">
-        {saved ? <><Check size={12} aria-hidden /> {m.settingsSaved}</> :
+        {saved ? <span className="status-ok"><Check size={12} aria-hidden /> {m.settingsSaved}</span> :
          settings?.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}
       </p>
       {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}

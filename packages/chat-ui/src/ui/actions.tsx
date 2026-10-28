@@ -39,7 +39,7 @@ export function CopyButton({ text, label, copiedLabel, onFail }: { text: string;
       <Button size="small" onPress={async () => {
         try { await navigator.clipboard.writeText(text); setCopied(true); } catch { onFail?.(); }
       }}>
-        {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+        {copied ? <Check size={14} aria-hidden className="ui-icon-ok" /> : <Copy size={14} aria-hidden />}
         {copied ? copiedLabel : label}
       </Button>
       <span className="ui-visually-hidden" role="status">{copied ? copiedLabel : ""}</span>

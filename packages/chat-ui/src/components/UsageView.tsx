@@ -272,7 +272,7 @@ function RatesForm({ report, onSaved }: { report: OfficeUsageReport; onSaved: ()
       <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)} size="small"
                    options={["USD", "EUR", "GBP"].map((c) => ({ id: c, label: c }))} />
       <Button type="submit" size="small">
-        {saved ? <><Check size={14} aria-hidden /> {m.saved}</> : m.save}
+        {saved ? <><Check size={14} aria-hidden className="ui-icon-ok" /> {m.saved}</> : m.save}
       </Button>
       <p className="caption">{changed ? m.ratesChanged(report.rates.updated_by!, new Date(report.rates.updated_at!).toLocaleDateString(locale(), { dateStyle: "long" })) : m.ratesDefault}</p>
     </Form>

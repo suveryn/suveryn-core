@@ -55,7 +55,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         </>
       )}
       {a.status === "ready" && (
-        <span className="card-attachment-state"><Check size={14} aria-hidden />{[m.cardReady, a.pages ? m.pages(a.pages) : ""].filter(Boolean).join(" · ")}</span>
+        <span className="card-attachment-state" data-tone="ok"><Check size={14} aria-hidden />{[m.cardReady, a.pages ? m.pages(a.pages) : ""].filter(Boolean).join(" · ")}</span>
       )}
       {a.status === "needs_review" && (
         <span className="card-attachment-state" data-tone="warn" role="status" title={a.note ? undefined : reviewHint(a.reviewPages)}>

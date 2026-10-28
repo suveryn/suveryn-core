@@ -1,7 +1,6 @@
 /**
  * Charts (suveryn-tracker#46): the axis arithmetic, the keyboard steps, and the colour rules in
- * ui.css (each series 3:1 against the backgrounds and against the other, so they tell apart in
- * greyscale too).
+ * ui.css (the brand's four chart tokens in order, with a legend and a table on every chart).
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -105,8 +104,11 @@ describe("chart colours (ui.css)", () => {
     return (x + 0.05) / (y + 0.05);
   };
 
-  it("are opaque OKLCH colours", () => {
-    for (const n of ["chart-1", "chart-2", "bg", "surface"]) expect(oklch(n), n).toMatch(/^oklch\([\d.]+ [\d.]+ [\d.]+\)$/);
+  it("are the brand's four chart tokens, opaque OKLCH, and nothing in ui.css redefines them", () => {
+    for (const n of ["chart-1", "chart-2", "chart-3", "chart-4", "bg", "surface"]) expect(oklch(n), n).toMatch(/^oklch\([\d.]+ [\d.]+ [\d.]+\)$/);
+    expect(value(ui, "chart-1")).toBeUndefined();
+    // violet first, then ochre, sky blue and moss green (chat-ui.md section 1)
+    expect(["chart-1", "chart-2", "chart-3", "chart-4"].map((n) => Number(oklch(n).match(/ ([\d.]+)\)$/)![1]))).toEqual([300, 82, 230, 150]);
   });
 
   it("convert to sRGB luminance (white is 1, the ink is near 0)", () => {
@@ -114,17 +116,14 @@ describe("chart colours (ui.css)", () => {
     expect(luminance(oklch("ink"))).toBeLessThan(0.002);  // #010205 or thereabouts
   });
 
-  it("stand out 3:1 against the page and the cards", () => {
-    for (const s of ["chart-1", "chart-2"]) {
-      for (const bg of ["bg", "surface", "surface-alt"]) expect(contrast(oklch(s), oklch(bg)), `${s} on ${bg}`).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  it("tell apart from each other without colour", () => {
-    expect(contrast(oklch("chart-1"), oklch("chart-2"))).toBeGreaterThanOrEqual(3);
+  it("keep a legend and a table, since ochre is light on white", () => {
+    expect(contrast(oklch("chart-2"), oklch("bg"))).toBeLessThan(3);  // why the legend and the table stay
+    const charts = readFileSync(new URL("./charts.tsx", import.meta.url), "utf8");
+    expect(charts).toContain("ui-chart-legend");
+    expect(charts).toContain("text.showTable");
   });
 
   it("are given to every series the charts draw", () => {
-    for (const i of [0, 1]) expect(ui).toContain(`.ui-chart [data-series="${i}"] { background: var(--chart-${i + 1}); }`);
+    for (const i of [0, 1, 2, 3]) expect(ui).toContain(`.ui-chart [data-series="${i}"] { background: var(--chart-${i + 1}); }`);
   });
 });
