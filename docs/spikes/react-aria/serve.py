@@ -123,6 +123,19 @@ def cost(t):
     return str(raw.quantize(Decimal("0.01")))
 
 
+CASE_SETTINGS = {"default_access": "members", "keep": "manual", "conversations_keep": "manual", "updated_at": None, "updated_by": ""}
+
+
+def settings_preview(query: str) -> dict:
+    """What Settings would do: fixed counts for the confirmation (the gateway counts the cases and conversations)."""
+    from urllib.parse import parse_qs
+    q = {k: v[0] for k, v in parse_qs(query).items()}
+    opens = q.get("default_access") == "office" and CASE_SETTINGS["default_access"] == "members"
+    return {"cases_opened": 38 if opens and q.get("apply_to") == "all" else 0,
+            "cases_closed": 12 if q.get("default_access") == "members" and CASE_SETTINGS["default_access"] == "office" else 0,
+            "conversations_deleted": 214 if q.get("conversations_keep") in ("6m", "1y") else 0}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(DIST), **k)
@@ -134,8 +147,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
-        if path in API or path in ("/v1/usage", "/v1/admin/usage"):
-            body = json.dumps(API[path] if path in API else usage(self.path, admin=path.startswith("/v1/admin"))).encode()
+        live = {"/v1/admin/cases/settings": lambda: CASE_SETTINGS, "/v1/admin/usage/rates": lambda: RATES,
+                "/v1/admin/cases/settings/preview": lambda: settings_preview(self.path.partition("?")[2])}
+        if path in API or path in live or path in ("/v1/usage", "/v1/admin/usage"):
+            body = json.dumps(API[path] if path in API else live[path]() if path in live
+                              else usage(self.path, admin=path.startswith("/v1/admin"))).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -165,15 +181,21 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_PUT(self):
-        """The administrator's rates, kept in memory (the gateway: PUT /v1/admin/usage/rates)."""
-        if self.path.split("?")[0] != "/v1/admin/usage/rates":
+        """The administrator's rates and the office's settings, kept in memory (the gateway: PUT
+        /v1/admin/usage/rates and /v1/admin/cases/settings)."""
+        path = self.path.split("?")[0]
+        if path not in ("/v1/admin/usage/rates", "/v1/admin/cases/settings"):
             self.send_error(404)
             return
         from datetime import datetime, timezone
         new = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-        RATES.update({k: str(new[k]) for k in ("input_per_million", "output_per_million", "currency") if k in new},
-                     updated_at=datetime.now(timezone.utc).isoformat(), updated_by="filip")
-        body = json.dumps(RATES).encode()
+        stamp = {"updated_at": datetime.now(timezone.utc).isoformat(), "updated_by": "filip"}
+        if path == "/v1/admin/cases/settings":
+            CASE_SETTINGS.update({k: new[k] for k in ("default_access", "keep", "conversations_keep") if k in new}, **stamp)
+            body = json.dumps(CASE_SETTINGS).encode()
+        else:
+            RATES.update({k: str(new[k]) for k in ("input_per_million", "output_per_million", "currency") if k in new}, **stamp)
+            body = json.dumps(RATES).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
