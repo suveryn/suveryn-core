@@ -63,7 +63,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .side-sub[aria-current] { color: var(--text); font-weight: 600; }
 .side-sub[data-guide] { padding-left: 0; }
 .side-dot { flex: none; width: 7px; height: 7px; margin-left: -4px !important; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--control-off); background: var(--surface); }
-.side-sub[aria-current] .side-dot, .side-dot[data-current] { background: var(--accent); border-color: var(--accent); }
+.side-sub[aria-current] .side-dot, .side-dot[data-current] { background: var(--text); border-color: var(--text); }  /* navigation: ink */
 .side-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-text b { font-weight: 600; }
 .side-dim { color: var(--text-dim); font-weight: 400; }
@@ -164,7 +164,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 /* a closed case: when it was closed and what becomes of it, with the manager's choices (CaseState.tsx) */
 .case-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-6);
               border-bottom: 1px solid var(--line); font-size: var(--text-caption); color: var(--text-dim); }
-.case-state[data-due] { background: oklch(from var(--accent) l c h / 0.12); color: var(--accent-ink); }
+.case-state[data-due] { background: var(--surface-alt); color: var(--text); }  /* the notice box: the triangle and the text carry it */
 .case-state .case-state-text { flex: 1; min-width: 0; }
 .case-state .case-action { display: inline-flex; align-items: center; gap: var(--space-1); color: inherit; font-size: var(--text-caption); white-space: nowrap; }
 .case-state .case-action:hover { color: var(--text); }
@@ -214,8 +214,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--line); }
 .tab { padding: var(--space-2) 0; font-size: var(--text-body-sm); font-weight: 600; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
        color: var(--text-dim); border-radius: 0; background: none; font-family: inherit; cursor: pointer; }
-.tab[data-focus-visible] { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
-.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.tab[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.tab.on { color: var(--text); border-bottom-color: var(--text); }  /* navigation, not action */
 .tab:hover { color: var(--text); }
 /* the administrator's case pages (AdminCases.tsx, stage 4) */
 .case-settings { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -243,7 +243,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .playbook-fact-value em { color: var(--text-dim); }
 .playbook-fact-meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: center; }
 .playbook-fact-source { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--teal-ink); }
-.playbook-fact-issue { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--accent-ink); }
+.playbook-fact-issue { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--text); }
 .playbook-fact[data-found="false"] .ui-eyebrow { color: var(--text-dimmer); }
 .playbook-fact-passage { margin-top: var(--space-2); }
 .playbook-fact-passage .source-card { margin: 0; }
@@ -259,7 +259,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .cases-table th:first-child { white-space: nowrap; }
 .cases-table .cases-name { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .cases-table td, .cases-table thead th { text-align: left; }
-.cases-table tr[data-due] td, .cases-table tr[data-due] th { background: oklch(from var(--accent) l c h / 0.08); }
+.cases-table tr[data-due] td, .cases-table tr[data-due] th { background: var(--surface-alt); }  /* and the date in bold */
 .range { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); } /* level with the dates' fields, under their labels */
 .range-dates { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
 .range-dates .ui-field { margin: 0; }
@@ -379,13 +379,13 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
 .answer-table tr:last-child td { border-bottom: none; }
-/* Strictly confidential (§11): the band above the case header, in inverted ink (the dark theme
-   inverts it by itself); the switch in Members and access. */
+/* Strictly confidential (§11): the band above the case header, in violet (tokens v3.4: confidential, with
+   on-confidential for its text and icon); the switch in Members and access. */
 .confidential-band { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 32px; padding: 4px var(--space-4);
-                     background: var(--text); color: var(--bg); font-size: var(--text-caption); }
+                     background: var(--confidential); color: var(--on-confidential); font-size: var(--text-caption); }
 .confidential-band b { font-weight: 600; }
 .confidential-rules-line { opacity: 0.85; }
-.confidential-band .confidential-what { color: var(--bg); text-decoration: underline; font-size: var(--text-caption); }
+.confidential-band .confidential-what { color: var(--on-confidential); text-decoration: underline; font-size: var(--text-caption); }
 .confidential-rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
 .case-confidential { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-3); }
 .case-confidential .ui-hint { margin: 0; }
@@ -415,14 +415,16 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .copy-button.ui-split-more { padding-inline: 6px; border-inline-start-color: var(--line); }
 /* Save to case (docs/design/chat-ui.md §5): the button, then what was saved with Open and Undo */
 .save-to-case { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.saved-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-caption); color: var(--text); }
+.saved-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-caption); color: var(--teal-ink); }  /* a system status */
+.saved-note strong { color: var(--text); }
 .saved-note strong { font-weight: 600; }
-/* A marker whose source doesn't contain everything its sentence says (suveryn-tracker#11): accent-ink ring. */
-.cite-marker.flagged { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
+/* A marker whose source doesn't contain everything its sentence says (suveryn-tracker#11): a warning, so an ink
+   ring around the teal marker (Filip, 28 October). */
+.cite-marker.flagged { box-shadow: inset 0 0 0 1.5px var(--text); }
 /* A deleted document's citation or attachment (suveryn-tracker#12). */
 .chip-removed { opacity: 0.7; font-style: italic; }
-/* a figure to check: in no source and not calculated by the server (accent-ink, no separate red) */
-.unverified { background: none; color: inherit; text-decoration: underline wavy var(--accent-ink) 1.5px;
+/* a figure to check: in no source and not calculated by the server (a warning: an ink wavy underline) */
+.unverified { background: none; color: inherit; text-decoration: underline wavy var(--text) 1.5px;
               text-underline-offset: 3px; cursor: help; }
 
 .banner { display: flex; gap: var(--space-2); align-items: center; margin: 0; padding: var(--space-2) var(--space-6);
@@ -486,7 +488,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .item-static .item-pending .item-meta { grid-column: 2; }
 .item-static .item-meta { grid-column: 1; }
 .item-static .ui-switch { margin-right: var(--space-2); }
-.item .item-pinned { color: var(--accent-ink); }
+.item .item-pinned { color: var(--text); }  /* pins are ink */
 /* a document's origin, source or made, ink only (docs/design/chat-ui.md §1, §6) */
 .item-origin { display: flex; align-items: center; gap: var(--space-3); flex: 0 0 auto; max-width: 45%; font-size: var(--text-caption); color: var(--text-dim); }
 .item-origin-text { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -587,8 +589,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .overview-truncate { display: inline-block; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .overview-status { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; }
 .overview-status > svg { flex: none; }
+/* system statuses (chat-ui.md section 1): Ready and Confirmed in teal ink with their check; reading's spinner */
+.overview-status[data-tone="ok"], .overview-status[data-tone="ok"] svg { color: var(--teal-ink); }
+.overview-status[data-tone="working"] svg { color: var(--teal-ink); }
 .overview-status[data-tone="warn"] { color: var(--text); }
-.overview-status[data-tone="warn"] svg { color: var(--accent-ink); }
+.overview-status[data-tone="warn"] svg { color: var(--text); }
 .overview-faces { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 .overview-stack { display: inline-flex; }
 .overview-stack { gap: 4px; }
@@ -624,7 +629,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .source-panel-verdict { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; padding: 10px 12px; border-radius: var(--radius-sm);
                         background: var(--surface-alt); font-size: var(--text-caption); line-height: 1.5; color: var(--text); }
 .source-panel-verdict > svg { flex: none; margin-top: 1px; }
-.source-panel-verdict:not([data-ok]) > svg { color: var(--accent-ink); }
+.source-panel-verdict:not([data-ok]) > svg { color: var(--text); }
 .source-panel-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-5) var(--space-5); }
 
 /* ------------------------------------------------------------------------------------------------ attachment cards (§5, artboard 13) */
@@ -637,10 +642,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .card-attachment-top > svg { flex: none; color: var(--text-dim); }
 .card-attachment-name { flex: 1; min-width: 0; font-size: var(--text-ui-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-attachment .ui-progress { margin-right: 6px; }
-.card-attachment .ui-progress-fill { background: var(--text-dim); }
+.card-attachment .ui-progress-fill { background: var(--teal); }  /* system work */
 .card-attachment-state { display: flex; align-items: flex-start; gap: 6px; padding-right: 6px; font-size: var(--text-caption); line-height: 1.4; color: var(--text-dim); }
 .card-attachment-state > svg { flex: none; margin-top: 1px; color: var(--text); }
 .card-attachment-state[data-tone="warn"] { color: var(--text); }
+.card-attachment-state[data-tone="ok"], .card-attachment-state[data-tone="ok"] > svg { color: var(--teal-ink); }
 .card-attachment-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ------------------------------------------------------------------------------------------------ the server unreachable (§5, artboard 09) */
@@ -655,11 +661,17 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .attention-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 10px var(--space-6);
                  background: var(--surface-alt); border-bottom: 1px solid var(--line); color: var(--text); font-size: var(--text-body-sm); }
 .attention-bar > svg { flex: none; }
-.attention-bar[data-serious] > svg { color: var(--accent-ink); }
+.attention-bar[data-serious] > svg { color: var(--text); }
 .attention-bar-text { flex: 1; min-width: 200px; margin: 0; line-height: 1.5; }
 .attention-bar-text strong { font-weight: 600; }
 .attention-bar-close { display: inline-flex; padding: 4px; border-radius: var(--radius-sm); color: var(--text-dim); }
 .attention-bar-close[data-hovered], .attention-bar-close[data-focus-visible] { color: var(--text); background: var(--surface); }
 .answer-failed { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0 0;
                  font-size: var(--text-caption); color: var(--text-dim); }
-.answer-failed > svg { flex: none; color: var(--accent-ink); }
+.answer-failed > svg { flex: none; color: var(--text); }
+
+/* A system status inline in a line of meta text (chat-ui.md section 1): teal ink with its check; a warning in ink
+   with its triangle. */
+.status-ok, .status-warn { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.status-ok { color: var(--teal-ink); }
+.status-warn { color: var(--text); }

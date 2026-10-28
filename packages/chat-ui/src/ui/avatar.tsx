@@ -1,6 +1,6 @@
 /**
  * Avatar: a person's picture, or their initials, in the rounded square of the brand mark's outer
- * boundary (corner radius a quarter of the side, as suveryn-icon.svg: rx 5 on 20) with a teal
+ * boundary (corner radius a quarter of the side, as suveryn-icon.svg: rx 5 on 20) with a fine line
  * border. An administrator wears a small shield badge over the corner. The picture is the
  * gateway's `/v1/users/{sub}/avatar`, keyed by its ETag so a new upload shows at once; when there
  * is none, or it fails to load, the initials show instead (never a broken image).
