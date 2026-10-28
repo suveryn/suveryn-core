@@ -466,6 +466,29 @@ class Authenticator:
             session.user = replace(session.user, roles=user_from_claims(claims).roles)
             return session.user
 
+    async def fresh_access_token(self, session_id: str | None) -> str:
+        """A new access token for this browser's session, for one call the gateway makes as that person
+        (Administration › Users: Keycloak's admin API as the administrator, so its log names them). From
+        the session's refresh token; the session takes the new tokens, and the access token itself is
+        returned, never kept. Raises ``AuthError`` when the session has ended."""
+        session = self._sessions.get(session_id or "")
+        if session is None or not session.refresh_token:
+            raise AuthError("sign in again")
+        async with session.lock:
+            tokens = await self._require_provider().refresh(session.refresh_token)
+            claims = await self._require_provider().verify(tokens.get("access_token", ""), kind="access")
+            if claims["sub"] != session.user.sub:
+                self.drop(session.id)
+                raise AuthError("sign in again")
+            now = time.time()
+            session.access_expires = now + int(tokens.get("expires_in", 60))
+            session.refresh_token = tokens.get("refresh_token", session.refresh_token)
+            if tokens.get("refresh_expires_in"):
+                session.refresh_expires = now + int(tokens["refresh_expires_in"])
+            session.id_token = tokens.get("id_token", session.id_token)
+            session.user = replace(session.user, roles=user_from_claims(claims).roles)
+            return tokens["access_token"]
+
     async def bearer_user(self, token: str) -> User:
         """The user of a bearer access token (non-browser clients). Raises ``AuthError``."""
         claims = await self._require_provider().verify(token, kind="access")

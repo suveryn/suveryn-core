@@ -93,7 +93,7 @@ class FakeKeycloak:
                     return httpx.Response(500, text="Internal Server Error")
                 if not self.refresh_allowed:
                     return httpx.Response(400, json={"error": "invalid_grant"})
-                return httpx.Response(200, json=self.tokens())
+                return httpx.Response(200, json=self.tokens(over=getattr(self, "refresh_over", None)))
         return httpx.Response(404)
 
 
@@ -343,6 +343,12 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     # chat client's access token (the client has fullScopeAllowed false, so it must be mapped).
     from suveryn_api_gateway.app import ADMIN_ROLE
     assert [r["name"] for r in realm["roles"]["realm"]] == [ADMIN_ROLE]
+    # Administration › Users (admin.md): an administrator manages the office's accounts with their own sign-in,
+    # so the role carries the user rights and the sign-in events, nothing on the realm's settings or clients.
+    # Mapped to the chat client's scope with the role itself, so they reach its token (checked with Keycloak 26.8).
+    [admin_role] = realm["roles"]["realm"]
+    assert admin_role["composite"] and admin_role["composites"] == {
+        "client": {"realm-management": ["manage-users", "view-users", "view-realm", "view-events"]}}
     assert chat["fullScopeAllowed"] is False
     assert realm["scopeMappings"] == [{"client": "suveryn-chat", "roles": [ADMIN_ROLE]}]
 
