@@ -1,16 +1,13 @@
 /**
  * Token usage views (suveryn-tracker#7, development context §5.3):
  * - UsageView: the signed-in user's own usage (never a colleague's);
- * - AdminView: administrators only (realm role suveryn-admin, enforced by the gateway): the
- *   office's usage in total and per user, with a notional cloud cost and its editable rates.
+ * - AdminUsage: Administration › Usage (components/Admin.tsx), administrators only: the office's usage
+ *   in total and per user, with a notional cloud cost and its editable rates.
  * Both pick a period (last hour, day, week, month, or whole local days) and show the totals and a
  * chart of input and output tokens (src/ui/charts.tsx, suveryn-tracker#46). Counts only: the server
  * never stores or returns text. Informational: nothing limits anyone.
  */
-import { AlertCircle, ArrowLeft, BarChart3, Check, Shield } from "lucide-react";
-import { AdminBackups } from "./AdminBackups";
-import { AdminCases } from "./AdminCases";
-import { AdminPlaybooks } from "./AdminPlaybooks";
+import { AlertCircle, ArrowLeft, BarChart3, Check } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, setRates, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
@@ -168,31 +165,8 @@ export function UsageView({ onBack }: { onBack: () => void }) {
 }
 
 /** Administrators: the office's usage, per user, with the notional cloud cost and its rates. */
-export type AdminTab = "usage" | "cases" | "playbooks" | "backups";
-
-export function AdminView({ onBack, initialTab = "usage" }: { onBack: () => void; initialTab?: AdminTab }) {
-  const m = useT();
-  const [tab, setTab] = useState<AdminTab>(initialTab);
-  useEffect(() => { setTab(initialTab); }, [initialTab]);
-  return (
-    <section className="view">
-      <ViewHeader icon={<Shield size={18} aria-hidden />} title={m.administration} onBack={onBack} />
-      <nav className="tabs" aria-label={m.administration}>
-        <Button variant="plain" className={`tab${tab === "usage" ? " on" : ""}`} aria-current={tab === "usage" ? "page" : undefined}
-                onPress={() => setTab("usage")}>{m.adminUsage}</Button>
-        <Button variant="plain" className={`tab${tab === "cases" ? " on" : ""}`} aria-current={tab === "cases" ? "page" : undefined}
-                onPress={() => setTab("cases")}>{m.adminCases}</Button>
-        <Button variant="plain" className={`tab${tab === "playbooks" ? " on" : ""}`} aria-current={tab === "playbooks" ? "page" : undefined}
-                onPress={() => setTab("playbooks")}>{m.adminPlaybooks}</Button>
-        <Button variant="plain" className={`tab${tab === "backups" ? " on" : ""}`} aria-current={tab === "backups" ? "page" : undefined}
-                onPress={() => setTab("backups")}>{m.adminBackups}</Button>
-      </nav>
-      {tab === "cases" ? <AdminCases /> : tab === "playbooks" ? <AdminPlaybooks /> : tab === "backups" ? <AdminBackups /> : <AdminUsage />}
-    </section>
-  );
-}
-
-function AdminUsage() {
+/** Administration › Usage: the office's usage in total and per user, with the notional cost and its rates. */
+export function AdminUsage() {
   const m = useT();
   const r = useReport(getOfficeUsage);
   const report = r.report as OfficeUsageReport | null;

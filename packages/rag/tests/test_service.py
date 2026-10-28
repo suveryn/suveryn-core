@@ -498,3 +498,9 @@ def test_similarity_by_the_search_embedder(tmp_path):
     docs._search, docs.state = Search(), "ready"
     scores = docs.similarity(["claim"], ["same", "other", "half"])
     assert [[round(x, 2) for x in row] for row in scores] == [[1.0, 0.0, 0.6]]
+
+
+def test_everyones_jobs_are_counted_for_the_administrators_status(tmp_path):
+    """Administration › Status: documents being read and waiting, counts only."""
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    assert docs.job_counts() == (0, 0)

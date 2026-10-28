@@ -119,7 +119,7 @@ const nl: Text = {
   chooseAFile: "kies een bestand",
   manifestHint: ".yaml, ondertekend door Sūveryn Labs, alleen voor deze appliance",
   manifestChecked: "Gecontroleerd op deze appliance. Er wordt niets verstuurd.",
-  skipNote: "U kunt dit overslaan en de appliance werkt gewoon. Gedurende 14 dagen zien alleen beheerders een herinnering. Daarna ziet iedereen die zich aanmeldt een melding dat deze appliance zonder ondersteuningsovereenkomst draait: geen updates, modelbundels of ondersteuning.",
+  skipNote: "U kunt dit overslaan en de appliance werkt gewoon. Gedurende 14 dagen zien alleen beheerders een herinnering. Daarna ziet iedereen die zich aanmeldt een melding dat deze appliance zonder ondersteuningsovereenkomst draait; er wordt niets geblokkeerd.",
   identityMissing: "De ID van deze appliance is nog niet klaar. Herstart de appliance via haar console en laad deze pagina daarna opnieuw.",
   agreement: "Overeenkomst",
   validFor: (id) => `Geldig voor deze appliance: ${id}`,

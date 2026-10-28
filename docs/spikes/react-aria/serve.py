@@ -36,6 +36,19 @@ API = {
     "/v1/documents/all": {"documents": []},
     "/v1/cases": [],
     "/v1/admin/playbooks": [],
+    # Administration (docs/design/admin.md): Status and Backups, as on artboard 30
+    "/v1/admin/status": {"checked_at": "2026-10-28T09:42:00Z", "version": "sūveryn 1.4.2", "checks": [
+        {"id": "answering", "ok": True, "since": None, "in_progress": 2, "waiting": None, "free": None, "total": None},
+        {"id": "reading", "ok": False, "since": "2026-10-28T08:12:00Z", "in_progress": 0, "waiting": 7, "free": None, "total": None},
+        {"id": "signin", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None},
+        {"id": "data", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None},
+        {"id": "disk", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": 1_200_000_000_000, "total": 2_000_000_000_000}]},
+    "/v1/admin/backups": {"available": True, "configured": True, "target": "usb", "retention_days": 30,
+                          "last_attempt": "2026-10-28T01:14:00Z",
+                          "last_success": {"at": "2026-10-28T01:14:00Z", "size": 1_340_000_000, "on_target": 30,
+                                           "oldest": "2026-09-28T01:10:00Z", "disk": None},
+                          "last_error": None, "key_test": {"ok": True, "at": "2026-07-21T10:00:00Z", "created": None, "step": None},
+                          "key_testing": False},
     "/v1/documents/d1/conversations": [{"id": "c1", "title": "Wie zijn de verkopers?", "created_at": "2026-10-15T09:00:00Z",
                                         "updated_at": "2026-10-15T09:05:00Z"}],
 }
