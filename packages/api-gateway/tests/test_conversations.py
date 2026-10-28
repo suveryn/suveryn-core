@@ -6,7 +6,7 @@ tests at the end run against a real PostgreSQL and are skipped unless SUVERYN_TE
 
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -44,6 +44,10 @@ class FakeConversations:
 
     def purge(self):
         return 0
+
+    def older_than(self, days):
+        limit = datetime.now(UTC) - timedelta(days=days)
+        return sum(1 for r in self.rows.values() if r["updated_at"] <= limit)
 
     # unfinished cleanings after a document's deletion (routes/documents.py): (owner, document) -> (delete, case)
     cleanups: dict

@@ -2,11 +2,14 @@
 keep period. The rules are in ``cases.may``; ``common.case_for`` applies them per request."""
 
 import uuid
+from functools import partial
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 
 from ..cases import (
+    KEEP_PERIODS,
     AdminCase,
     Case,
     CaseEvent,
@@ -21,11 +24,13 @@ from ..cases import (
     PinIn,
     SettingsIn,
     SettingsOut,
+    SettingsPreview,
     StrictlyConfidential,
     may,
 )
 from ..directory import DirectoryUnavailable, Person
 from .common import (
+    LOCAL_OWNER,
     CleanupUnavailable,
     admin_or_403,
     case_for,
@@ -322,17 +327,49 @@ async def admin_case_settings(request: Request):
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
+@router.get("/v1/admin/cases/settings/preview", response_model=SettingsPreview,
+            responses={403: {"description": "Not an administrator"}})
+async def preview_case_settings(request: Request, default_access: Literal["office", "members"] | None = None,
+                                apply_to: Literal["new", "all"] = "new",
+                                conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None):
+    """Administrators: what saving these settings would do now, for the confirmation in Settings: how many
+    cases become visible to everyone in the office or to their members only, and how many saved
+    conversations a shorter keep period deletes. Counts only."""
+    admin_or_403(request)
+    store, now = cases_or_503(request), case_settings(request)
+    counts = await run_in_threadpool(store.access_counts)
+    out = SettingsPreview()
+    if default_access == "office" and now.default_access == "members" and apply_to == "all":
+        out.cases_opened = counts["default"] + counts["restricted"]
+    elif default_access == "members" and now.default_access == "office":
+        out.cases_closed = counts["default"]
+    period = KEEP_PERIODS.get(conversations_keep or now.conversations_keep)
+    current = KEEP_PERIODS.get(now.conversations_keep)
+    history = history_or_none(request)
+    if history is not None and period is not None and (current is None or period < current):
+        out.conversations_deleted = await run_in_threadpool(history.older_than, period.days)
+    return out
+
+
 @router.put("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
 async def set_admin_case_settings(body: SettingsIn, request: Request):
     """Administrators: change the default access (``office`` or ``members``), the keep period of
     closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).
     Takes effect at once for new cases and for cases closed from now on; a case already closed keeps
     its date (extend or keep it from the case). The conversations period applies to every saved
-    conversation from its last change: shortening it deletes the older ones at the next listing or sweep."""
+    conversation from its last change: shortening it deletes the older ones at the next listing or sweep.
+
+    Opening the default access to the office applies to new cases (``apply_to: new``: the existing ones
+    stay with their members, restricted, and a manager can open one) or to all of them (``all``: every case,
+    restricted ones too, each with a line in its access log). Closing it to the members applies to every
+    case that follows the default. Strictly confidential cases never change: their members decide."""
     admin_or_403(request)
-    changes = body.model_dump(exclude_none=True)
+    changes = body.model_dump(exclude_none=True, exclude={"apply_to"})
     if not changes:
         raise HTTPException(422, "Say what to change: default_access, keep, or conversations_keep.")
     user = getattr(request.state, "user", None)
-    await run_in_threadpool(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev")
+    opens = changes.get("default_access") == "office" and case_settings(request).default_access == "members"
+    await run_in_threadpool(partial(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev",
+                                    keep_existing=opens and body.apply_to == "new", open_all=opens and body.apply_to == "all",
+                                    by_user=user.sub if user else LOCAL_OWNER))
     return await admin_case_settings(request)
