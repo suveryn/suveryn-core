@@ -93,7 +93,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
       <TextButton onPress={onClose} isDisabled={busy}>{m.close}</TextButton>
     </>}>
       {canManage && (
-        // Strictly confidential (docs/design/sidebar.md §11): the manager's switch, with what it changes.
+        // Strictly confidential (docs/design/chat-ui.md §11): the manager's switch, with what it changes.
         <div className="case-confidential">
           <Switch label={m.strictlyConfidential} checked={!!kase.confidential} onChange={setConfidential} isDisabled={busy} />
           <p className="ui-hint">{m.confidentialHint}{" "}
@@ -222,7 +222,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
   );
 }
 
-/** A case's members as faces (the case header, docs/design/sidebar.md §5): the manager first, set apart
+/** A case's members as faces (the case header, docs/design/chat-ui.md §5): the manager first, set apart
  *  with the folder badge, then up to three others overlapping, then "+n". Decorative: the button
  *  around it names everyone. */
 export function CaseFaces({ members }: { members: Member[] }) {

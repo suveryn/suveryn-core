@@ -11,7 +11,7 @@ function fakeStorage() {
 const question: Turn = { id: "q", role: "user", text: "What is the price?", attachments: [] };
 const answer = (over = {}): Turn => ({ id: "a", role: "assistant", text: "EUR 1 [1].", citations: [], status: "done", grounded: true, ...over });
 
-describe("Fast or Thorough (docs/design/sidebar.md §5)", () => {
+describe("Fast or Thorough (docs/design/chat-ui.md §5)", () => {
   beforeEach(() => { vi.resetModules(); vi.stubGlobal("localStorage", fakeStorage()); });
 
   it("starts Fast, then keeps the default chosen under Settings in this browser", async () => {

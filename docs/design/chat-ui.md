@@ -1,7 +1,9 @@
-# The chat UI: left column, overviews and conversation
+# The chat UI
 
-The spec for the chat UI's left column, the overview pages and the conversation pane, as decided with
-Filip on 18 and 19 October 2026 in a design canvas (artboards 01 to 16).
+The spec for the chat UI (`packages/chat-ui`): the left column, the overview pages, the conversation
+pane and everything around a question, first decided with Filip on 18 and 19 October 2026 in a
+design canvas (artboards 01 to 25). *Administration* has its own spec, [admin.md](admin.md). This
+file was `sidebar.md` until 28 October 2026.
 The column is a collapsible rail with a flat menu, pinned items with their children underneath and
 an account row at the bottom, and keeps sūveryn's brand and the UI
 kit in `packages/chat-ui/src/ui/` (React Aria, Lucide, the light product theme).
@@ -22,21 +24,38 @@ string.
 
 These apply to every screen below.
 
-- **Orange means action, nothing else**: *New*, send, primary buttons, and the current-conversation
-  dot. Links use `accent-ink`.
-- **Teal means the system vouches for something, nothing else** (suveryn-brand guidelines, "Where
-  the teal goes", tokens v3.3): the assistant mark, citation markers and the cited passage in the
-  source panel, "Covered", `focus`, and `case-surface`.
+- **Orange means action, nothing else**: *New*, send, primary buttons (one per view), and text
+  actions in `accent-ink` (links, "Check now", "Remove", "Copy", "Undo", "try again"). Quiet
+  controls stay ink: secondary outline buttons, icon buttons, row menus, switches.
+- **Teal means a system status, nothing else** (suveryn-brand guidelines, "What each colour
+  means", tokens v3.4): what the system vouches for or is doing. The assistant mark,
+  citation markers and the cited passage, "Covered", "Working", "Enough", "Ready", "Confirmed",
+  "Reachable", "Signature checked", "Loaded", "Backed up", a passed key test, done steps, and
+  progress bars and spinners of system work; plus `focus` and `case-surface`. A check icon always
+  means such a status, so it is never used as a bullet (use numbers) or on an attribute
+  ("Administrator: Yes", "Account: On" are plain text).
 - **Everything else is ink on neutral surfaces**:
   - avatars: ink initials on `surface-alt`, with a finer `line` border of `max(1.5px, 5%)` of the
     side;
   - avatar badges: an ink outline;
-  - statuses ("Ready", "Confirmed"): an ink check;
   - active filters: `surface-alt` with a darker border;
-  - progress bars: `text-dim`;
-  - the playbook and model chips, the `brain` icon and the pins.
+  - the playbook and model chips, the `brain` icon and the pins;
+  - the current conversation's dot.
+- **Violet is the second brand colour, for two things only**: the band of a strictly confidential
+  case (`confidential`, section 11) and the first chart series.
+- **Charts use their own four colours**, always in this order, and nothing else does: chart-1 violet
+  `oklch(0.52 0.16 300)`, chart-2 ochre `oklch(0.76 0.14 82)`, chart-3 sky blue
+  `oklch(0.62 0.12 230)`, chart-4 moss green `oklch(0.62 0.13 150)`; dark theme 0.58, 0.66, 0.64,
+  0.63 at the same hues. Validated for colour-blind separation in both themes. Ochre on white is
+  only 2.2:1, so every chart has a legend and *Show table*. A fifth series becomes "Other".
+- **Navigation is never orange**: the active tab is underlined in ink, the active item of a side
+  menu has an ink bar on its left and bold text.
+- **One notice box everywhere**: `surface-alt` (light) or `surface` (dark, one step lighter than
+  the page and a dialog) with a `line` border, radius 8, an icon on the left.
+  The icon and the colour of the text carry the meaning (teal for a system status, ink otherwise),
+  never the box: no white variant, no heavier border for errors.
 - **Warnings and errors are ink with their own icon** (triangle, cross, circle-alert). The brand has
-  no red. They never block, unless the action is impossible.
+  no red and no yellow. They never block, unless the action is impossible.
 - **Copy** follows the brand voice (suveryn-brand, "Tone of voice", "Wording and spelling") and
   reuses the strings already in `i18n/*.ts` as they are.
   - "sūveryn" is lower case, also mid-sentence. It takes a capital S only where the name opens a
@@ -44,6 +63,11 @@ These apply to every screen below.
   - Dutch is formal (u and uw, never je, jij, jouw or jullie); this is also checked.
   - Copy is sober and exact. It says what happens, with no "we", no exclamation marks and no hype:
     "Retrying in 8 seconds.", not "We're trying to reconnect".
+  - **Short.** One sentence where one will do, and often none. Say the outcome, not the mechanism.
+    Don't repeat what the title or the button already says. A hint only when the field isn't clear
+    on its own. Explain a consequence only when it is irreversible or surprising. Dialog bodies are
+    one or two short sentences; status details a few words ("3 waiting", not "3 documents are
+    waiting to be read").
   - Roles follow cases.md: **administrator** is the office's system role, and **manager** is a
     case's manager. *Administration* is the name of the menu item.
   - Case access: "Whole office", "Members only".
@@ -91,7 +115,7 @@ everywhere, the rail included.
 
 - A pinned case shows its reference in bold and its name dim. Opened, it lists the person's own
   conversations in the case (and, for the open case, those shared with it) on a hairline aligned
-  with the case icon. The current conversation has an orange dot.
+  with the case icon. The current conversation has an ink dot.
 - A pinned personal conversation has a conversation icon and no chevron, aligned with the case
   icons.
 - Every pinned row has a three-dot actions button. It shows on hover and keyboard focus, and always
@@ -381,19 +405,10 @@ can't be closed completely, but the common case is caught (built in phase a):
   - *Delete*, which its uploader may do even as a contributor, while nobody has confirmed it.
 - Meanwhile a question can be sent; the document is just not used.
 
-## 7. Administrators
+## 7. Administration
 
-**Playbooks**, in the account menu:
-
-- The list: name, id, version, pack, covered or not.
-- An *Active* switch per playbook (`playbook_settings`, `GET /v1/admin/playbooks`,
-  `PUT /v1/admin/playbooks/{slug} {active}`).
-  - An inactive playbook leaves the composer's menu, and starting it answers 404.
-  - Runs already made stay readable.
-
-**Creating a playbook** (an office's own: name, case types, facts, instructions, labels in nl, fr
-and en) is wanted, but it pulls the manifest and pack format forward (platform.md). An office
-playbook is never covered.
+Moved to [admin.md](admin.md) on 28 October 2026: the side menu, every page of *Administration*
+and its strings (artboards 26 to 43). The colour and copy rules of section 1 apply there too.
 
 ## 8. New case
 
@@ -417,6 +432,8 @@ playbook is never covered.
 7. ~~**Markdown and CSV**~~ (built, #79), and ~~**pinned personal conversations**~~ (built, with the
    conversation menu).
 8. ~~**"Thought for …"** and the per-request thinking flag.~~ Built (21 October).
+9. **Administration** ([admin.md](admin.md)): the side menu and *Users* first, then *Status*, *Settings* and
+   editable *Backups*, *Licence*, and *Updates* once #40 exists.
 
 ## 10. Choosing which documents a question is about (artboards 17 to 19)
 
@@ -537,15 +554,18 @@ under professional secrecy, so the ordinary level has no label.
 **Who sets it**: the case's manager, in *Members and access*, as a switch with one paragraph on what
 changes. Turning it on or off goes to the case's access log.
 
-**How it looks**: one sign, the same everywhere, in ink. No new colour (Filip, 21 October, after
-six options were drawn on artboard 25: violet, night blue, aubergine, raspberry, ochre, ink): teal
-and `case-surface` already mean something, the inverted band stands out enough, and the icon and
-the word carry the meaning.
+**How it looks**: one sign, the same everywhere, and one colour of its own. Six options were drawn
+on artboard 25 (violet, night blue, aubergine, raspberry, ochre, ink). Ink was chosen on 21 October,
+then violet on 27 October, once violet also became the first chart colour: one second brand colour
+with two uses reads as deliberate.
 
-- **A band above the case header**, with `folder-key`, in inverted ink (`text` as the background,
-  `bg` as the text), so it turns light-on-dark in the dark theme by itself: "Strictly confidential · Members only ·
-  Conversations aren't shared · Exports carry a watermark". It says what the label does, not
-  how secret the case is.
+- **The token `confidential`**: light `oklch(0.42 0.15 300)` with white text (8.5:1), dark
+  `oklch(0.75 0.12 300)` with ink text (9.3:1). The icon and the label take the same token. It is
+  for this meaning only, and never alone: the key icon and the words are always there. In suveryn-brand
+  tokens v3.4 (`confidential`, `on-confidential`), with `chart-1` to `chart-4`.
+- **A band above the case header**, with `folder-key`, in `confidential`: "Strictly confidential ·
+  Members only · Conversations aren't shared · Exports carry a watermark". It says what the label
+  does, not how secret the case is.
 - On narrow screens, the band shortens to the icon, the label and *What does this mean?*, which
   opens the three rules in a sheet.
 - **One sign: the key**, in the shape of the thing it marks. The shape says what it is; the key or
@@ -560,7 +580,7 @@ the word carry the meaning.
     the lock. No eye icon anywhere.
 - **In the Cases overview**, the status column also carries an ink outline label in words, and a
   filter chip offers *Strictly confidential*.
-- In the conversation menu, *Share with the case* is disabled with the reason.
+- In the conversation menu, *Share with the case* isn't shown at all (decided 28 October); the band already says conversations aren't shared.
 - The answer toolbar looks as in any case; no extra label. The *Word* button's description says
   the file carries the watermark ("Download this answer as a Word document, with its sources and the
   Strictly confidential watermark"). The band already says that exports carry one.
@@ -646,6 +666,8 @@ here.
 | Only members see this case. Conversations aren't shared. Every export carries a watermark with name and time. Lists show no conversation titles. | Alleen leden zien dit dossier. Gesprekken worden niet gedeeld. Elke export krijgt een watermerk met naam en tijdstip. In de lijsten staan geen titels van gesprekken. |
 | Two conversations in this case were shared. They are no longer shared; their owners keep them. Turning this on or off goes to the access log. | Twee gesprekken in dit dossier waren gedeeld. Ze worden niet meer gedeeld; hun eigenaars houden ze. Het aan- en uitzetten komt in het toegangslogboek. |
 | STRICTLY CONFIDENTIAL · case 125 · Test Beheerder · 21/10/2026 14:32 | STRIKT VERTROUWELIJK · dossier 125 · Test Beheerder · 21/10/2026 14:32 |
+
+The strings of *Administration* are in [admin.md](admin.md).
 
 ## Resolved while building
 
@@ -1025,6 +1047,7 @@ here.
 - **A dark-theme check of artboard 02**: `case-surface` has a dark value, but no dark screen has
   been drawn.
 - **The reading budget** (section 10): measure on the Pod before raising the 48,000 characters.
+- *Administration*: see [admin.md](admin.md), *Open*.
 
 ## History
 
@@ -1058,3 +1081,12 @@ here.
     with `eye-off`;
   - the new artboards use the token values as CSS variables, so their dark versions are the same
     markup.
+- **27 October**:
+  - copy made shorter across *Administration* (30 to 43), and the rule added to section 1;
+  - violet back for the strictly confidential band, as the token `confidential`, and a chart
+    palette of four colours starting from the same violet (artboards 25 and 26);
+  - *Administration* redesigned from the build chat's brief: a side menu, *Users*, *Settings*,
+    editable *Backups*, *Licence and support*, *Updates and models*, *Status*, with their states,
+    dark and narrow versions and the strings in three languages (artboards 30 to 43).
+- **28 October**: colour review of every artboard. System statuses, done steps and progress in teal; text actions in `accent-ink`; the current-conversation dot and the open account trigger in ink; check icons no longer used as bullets or on attributes.
+- **28 October**: renamed from `sidebar.md` to `chat-ui.md`, and *Administration* moved to `admin.md`.

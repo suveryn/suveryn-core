@@ -1,4 +1,4 @@
-"""sūveryn's export mark found in an upload's text (docs/design/sidebar.md §6)."""
+"""sūveryn's export mark found in an upload's text (docs/design/chat-ui.md §6)."""
 import pytest
 
 pytest.importorskip("suveryn_rag")

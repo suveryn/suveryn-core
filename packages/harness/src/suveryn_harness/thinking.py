@@ -1,4 +1,4 @@
-"""Thinking before answering (docs/design/sidebar.md §5, *Fast* and *Thorough*).
+"""Thinking before answering (docs/design/chat-ui.md §5, *Fast* and *Thorough*).
 
 A model that can think (``llm.can_think``) reasons first when a request asks for it
 (``ChatRequest.thinking``). The appliance's presets switch thinking off for speed

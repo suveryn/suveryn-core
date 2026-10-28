@@ -162,7 +162,7 @@ def test_other_files_are_refused_and_leave_nothing_behind(tmp_path, name, head, 
     assert not docs.pending_jobs("user-a")
 
 
-# ------------------------------------------------------------------ progress, cancelling, reasons (sidebar.md §5)
+# ------------------------------------------------------------------ progress, cancelling, reasons (chat-ui.md §5)
 from suveryn_rag.reading import Progress, Unreadable
 
 

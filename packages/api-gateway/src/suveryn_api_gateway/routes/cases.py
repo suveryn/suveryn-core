@@ -58,7 +58,7 @@ async def list_cases(request: Request, closed: bool = False):
 @router.get("/v1/cases/overview", response_model=list[CaseOverview])
 async def cases_overview(request: Request):
     """Every case the caller may see, open and closed, as the Cases overview shows them
-    (docs/design/sidebar.md §4): each with its members (the manager first, with their pictures'
+    (docs/design/chat-ui.md §4): each with its members (the manager first, with their pictures'
     ETags) and its last activity, who and when. An administrator who isn't a member sees no members."""
     store, caller = cases_or_503(request), principal(request)
     cases = await run_in_threadpool(store.list, caller.sub, office_wide=case_settings(request).office_wide,
@@ -155,7 +155,7 @@ async def delete_case(case_id: str, request: Request):
 
 @router.put("/v1/cases/{case_id}/pin", response_model=Case, responses={404: {"description": "Unknown case"}})
 async def pin_case(case_id: str, body: PinIn, request: Request):
-    """Pin or unpin the case in the caller's own sidebar (docs/design/sidebar.md): anyone who may
+    """Pin or unpin the case in the caller's own sidebar (docs/design/chat-ui.md): anyone who may
     read it; per user, never shared, not in the access log."""
     case = await case_for(request, case_id, "read")
     store, cid = cases_or_503(request), uuid.UUID(case.id)

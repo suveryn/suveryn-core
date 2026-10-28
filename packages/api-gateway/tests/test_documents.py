@@ -109,7 +109,7 @@ class FakeDocuments:
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
     def store_text(self, filename, text, scope, origin, provenance=None, content=None, by=None):
-        """A playbook's result (suveryn-tracker#51) or a saved answer (docs/design/sidebar.md §5): stored as a
+        """A playbook's result (suveryn-tracker#51) or a saved answer (docs/design/chat-ui.md §5): stored as a
         document in the scope, never a source."""
         did = str(uuid.uuid4())
         self.docs[did] = (scope, origin)
@@ -132,7 +132,7 @@ class FakeDocuments:
         return found if found and found[2] is not None and self.docs.get(document_id, (None,))[0] == scope else None
 
     def confirm_source(self, document_id, scope, by):
-        """An upload with sūveryn's own export mark, used as a source anyway (docs/design/sidebar.md §6)."""
+        """An upload with sūveryn's own export mark, used as a source anyway (docs/design/chat-ui.md §6)."""
         if document_id not in self.noticed or self.docs.get(document_id, (None,))[0] != scope:
             return None
         self.confirmed[document_id] = by
@@ -347,7 +347,7 @@ def test_database_unreachable_is_503():
 
 
 def test_an_upload_can_be_cancelled_until_it_is_read():
-    """docs/design/sidebar.md §5: the attachment card's ×. The real queue (no worker: it stays waiting)."""
+    """docs/design/chat-ui.md §5: the attachment card's ×. The real queue (no worker: it stays waiting)."""
     import pytest
     pytest.importorskip("suveryn_rag")
     import tempfile
@@ -379,7 +379,7 @@ def test_a_read_upload_or_someone_elses_cant_be_cancelled():
 
 
 def test_a_thorough_answer_streams_its_reasoning_apart_from_the_answer():
-    """docs/design/sidebar.md §5: with thinking, the model is told to think, and its reasoning comes as `thinking`
+    """docs/design/chat-ui.md §5: with thinking, the model is told to think, and its reasoning comes as `thinking`
     events, never in a `delta` or the answer."""
     docs, captured = FakeDocuments(), []
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"),

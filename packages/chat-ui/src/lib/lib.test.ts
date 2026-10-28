@@ -408,12 +408,12 @@ describe("server errors and long conversations", () => {
   });
 });
 
-// ---------------------------------------------------------------- origin: source or made (docs/design/sidebar.md §6)
+// ---------------------------------------------------------------- origin: source or made (docs/design/chat-ui.md §6)
 import { exportRef } from "./marks";
 import { originKind, originText } from "./origin";
 import { TABLES_FOR_TESTS } from "../i18n";
 
-describe("sūveryn's own output (docs/design/sidebar.md §6)", () => {
+describe("sūveryn's own output (docs/design/chat-ui.md §6)", () => {
   it("an export reference is stable, short and of its kind", () => {
     expect(exportRef("A", "t1-2")).toMatch(/^A-[0-9a-f]{8}$/);
     expect(exportRef("A", "t1-2")).toBe(exportRef("A", "t1-2"));
@@ -441,7 +441,7 @@ describe("sūveryn's own output (docs/design/sidebar.md §6)", () => {
   });
 });
 
-describe("attachment cards (docs/design/sidebar.md §5)", () => {
+describe("attachment cards (docs/design/chat-ui.md §5)", () => {
   it("says why an upload failed without the exception's name", async () => {
     const { failureReason } = await import("./review");
     expect(failureReason("ValueError: the file is not a valid Word file")).toBe("The file is not a valid Word file.");

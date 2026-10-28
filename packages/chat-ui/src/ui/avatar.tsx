@@ -13,7 +13,7 @@ export type AvatarSize = "small" | "normal" | "large" | "huge";  // 24, 32, 48, 
 
 /**
  * A small badge over the corner of an icon or a picture: the administrator's shield on an avatar,
- * the link on a conversation that is in a case (docs/design/sidebar.md). `badge` is the small icon;
+ * the link on a conversation that is in a case (docs/design/chat-ui.md). `badge` is the small icon;
  * the children are what it sits on. Decorative: the meaning is in the parent's accessible name.
  */
 export function IconBadge({ badge, children, className, tone = "teal" }: {

@@ -1,5 +1,5 @@
 /**
- * The band above a strictly confidential case (docs/design/sidebar.md §11, artboards 23 and 24): in
+ * The band above a strictly confidential case (docs/design/chat-ui.md §11, artboards 23 and 24): in
  * inverted ink, so it turns light-on-dark in the dark theme by itself, with the key and what the
  * label does (not how secret the case is). On a narrow screen: the key, the label and *What does this
  * mean?*, which opens the three rules.

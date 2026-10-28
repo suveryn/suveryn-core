@@ -380,7 +380,7 @@ const fr: Messages = {
   ratesChanged: (who, when) => `Dernière modification par ${who} le ${when}.`,
   ratesDefault: "Par défaut : le prix publié d'un modèle cloud comparable.",
   ratesInvalid: "Saisissez des montants de 0 à 10 000, avec au plus 4 décimales.",
-  // Question sur (docs/design/sidebar.md §10)
+  // Question sur (docs/design/chat-ui.md §10)
   askAbout: "Question sur :",
   askAboutTitle: "Question sur",
   askAboutAll: "tous les documents",
@@ -505,7 +505,7 @@ const fr: Messages = {
   question: "Question",
   date: "Date",
 
-  // la barre latérale (docs/design/sidebar.md)
+  // la barre latérale (docs/design/chat-ui.md)
   navigation: "Navigation",
   search: "Rechercher",
   searchPlaceholder: "Rechercher dans les conversations, dossiers et documents",
@@ -596,7 +596,7 @@ const fr: Messages = {
   downloadAsWord: "Télécharger en Word",
   legendSource: "le modèle peut la citer",
   legendMade: "par sūveryn, jamais une source",
-  // le volet de conversation (docs/design/sidebar.md §5)
+  // le volet de conversation (docs/design/chat-ui.md §5)
   headMembers: (names: string) => `Membres : ${names}. Afficher les membres`,
   asManager: (name: string) => `${name} (gestionnaire du dossier)`,
   askInCase: (ref: string) => `Posez une question sur le dossier ${ref}…`,
@@ -615,7 +615,7 @@ const fr: Messages = {
   verdictSentence: "Chaque nom, date et montant de la phrase de la réponse se trouve dans ce passage.",
   verdictSource: "Chaque nom, date et montant que la réponse tire de cette source se trouve dans ce passage.",
   verdictUnchecked: "Non vérifié : la réponse a été arrêtée avant d'être terminée.",
-  // cartes de documents et serveur injoignable (docs/design/sidebar.md §5, partie 2)
+  // cartes de documents et serveur injoignable (docs/design/chat-ui.md §5, partie 2)
   attachedDocuments: "Documents ajoutés",
   cardUploading: (pct) => `Envoi en cours · ${pct} %`,
   cardWaiting: "En attente de lecture",
@@ -782,8 +782,8 @@ const fr: Messages = {
   playbookMenuFooter: "Les playbooks proposés ici sont choisis par l'administrateur sous Administration › Playbooks.",
   caseMenu: (reference: string) => `Dossier ${reference} : actions`,
 
-  // origin: source or made by sūveryn (docs/design/sidebar.md §6)
-  // Strictement confidentiel (docs/design/sidebar.md §11)
+  // origin: source or made by sūveryn (docs/design/chat-ui.md §6)
+  // Strictement confidentiel (docs/design/chat-ui.md §11)
   strictlyConfidential: "Strictement confidentiel",
   confidentialRules: "Membres uniquement · Les conversations ne sont pas partagées · Les exports portent un filigrane",
   confidentialWhat: "Qu'est-ce que cela signifie ?",

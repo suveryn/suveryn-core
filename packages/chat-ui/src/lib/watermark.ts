@@ -1,5 +1,5 @@
 /**
- * The watermark on every export from a strictly confidential case (docs/design/sidebar.md §11):
+ * The watermark on every export from a strictly confidential case (docs/design/chat-ui.md §11):
  * "STRICTLY CONFIDENTIAL" across every page of a Word file, and one line naming the case, the person
  * and the time on every export, so whoever leaks a file is named on it. Made at the moment of the
  * download, in the interface language; the date the Belgian way (21/10/2026 14:32).

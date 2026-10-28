@@ -149,7 +149,7 @@ def endless_backend(state: dict, words: int):
 
 @pytest.mark.parametrize("words, stop_after", [(0, "status"), (2, "delta")])
 def test_closing_the_connection_stops_the_model(words, stop_after):
-    """*Stop* (docs/design/sidebar.md §5): the browser closes the request. The gateway notices at once, also
+    """*Stop* (docs/design/chat-ui.md §5): the browser closes the request. The gateway notices at once, also
     before the first word while the model reads, and closes its own connection to llama-server."""
     import anyio
 

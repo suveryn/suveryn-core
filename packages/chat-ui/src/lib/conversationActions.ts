@@ -1,5 +1,5 @@
 /**
- * What a conversation's menu offers (docs/design/sidebar.md §3 and §4), kept apart from the column and
+ * What a conversation's menu offers (docs/design/chat-ui.md §3 and §4), kept apart from the column and
  * the overview so both say the same and it can be tested. An action without the right is shown
  * disabled, never hidden; the server still decides (routes/conversations.py).
  *

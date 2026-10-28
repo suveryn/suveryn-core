@@ -134,7 +134,7 @@ class PlaybookOut(BaseModel):
     facts: list[str]
     case_types: list[str] = Field(default_factory=list)
     text: dict[str, PlaybookWords] = Field(default_factory=dict)  # per language: what the UI shows (docs/translations.md)
-    active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/sidebar.md, 15)
+    active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/admin.md)
 
 
 class ActiveIn(BaseModel):
