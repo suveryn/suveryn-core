@@ -7,7 +7,7 @@
  * Earlier runs are listed under the current one. A reader sees runs; only a contributor starts or
  * confirms (the gateway decides; the view only hides what would fail).
  */
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, ClipboardList, Download, FileText, Loader2, Play } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, ClipboardList, Download, FileText, Loader2, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   casePlaybooks, confirmRun, getRun, listRuns, startRun,
@@ -192,7 +192,7 @@ function RunPanel({ run, kase, canRun, words, onConfirmed }: {
           {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
           <div className="playbook-actions">
             {atCheckpoint && canRun && (
-              <Button onPress={confirm} isDisabled={busy}><Check size={14} aria-hidden /> {busy ? m.saving : m.confirmAll}</Button>
+              <Button onPress={confirm} isDisabled={busy}>{busy ? m.saving : m.confirmAll}</Button>
             )}
             {atCheckpoint && !canRun && <span className="caption">{kase.state === "closed" ? m.checkpointCaseClosed : m.checkpointReadOnly}</span>}
             {run.status === "confirmed" && (

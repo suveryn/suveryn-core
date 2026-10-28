@@ -72,7 +72,7 @@ button { font: inherit; color: inherit; }
 .setup-test { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .setup-test-status { font-size: var(--text-ui-sm); color: var(--text-dim); }
 .setup-test-status[data-state="ok"] { color: var(--teal-ink); }
-.setup-test-status[data-state="failed"] { color: var(--accent-ink); }
+.setup-test-status[data-state="failed"] { color: var(--text); }
 .setup-no-disk { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
 .setup-restore-hint { margin-top: var(--space-6); margin-bottom: var(--space-2); }
 .setup-key { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding: var(--space-4);
@@ -87,7 +87,7 @@ button { font: inherit; color: inherit; }
 /* provisioning and complete */
 .setup-final { display: flex; flex-direction: column; }
 .setup-final-icon { align-self: center; width: 56px; height: 56px; border-radius: var(--radius-lg); border: 1px solid var(--line);
-                    background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--accent-ink);
+                    background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text);
                     margin-bottom: var(--space-4); }
 .setup-final-icon[data-tone="ok"] { color: var(--teal-ink); }
 .setup-progress { display: flex; flex-direction: column; gap: var(--space-2); }

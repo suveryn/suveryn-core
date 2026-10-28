@@ -56,7 +56,7 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
   return (
     <Button variant="plain" className="copy-button" aria-label={m.copyWhat(what)}
             onPress={async () => setState((await copyText(text)) ? "copied" : "failed")}>
-      {state === "copied" ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+      {state === "copied" ? <Check size={13} aria-hidden className="ui-icon-ok" /> : <Copy size={13} aria-hidden />}
       <span aria-live="polite">{state === "copied" ? m.copied : state === "failed" ? m.copyFailed : label}</span>
     </Button>
   );

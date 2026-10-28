@@ -365,12 +365,12 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
   const status = (r: DocRow) => {
     const k = byId.get(r.caseId ?? "");
     switch (r.status) {
-      case "processing": return <span className="overview-status overview-dim"><Loader2 size={14} className="spin" aria-hidden />{m.statusProcessing}</span>;
+      case "processing": return <span className="overview-status overview-dim" data-tone="working"><Loader2 size={14} className="spin" aria-hidden />{m.statusProcessing}</span>;
       case "failed": return <span className="overview-status" data-tone="warn"><XCircle size={14} aria-hidden />{m.statusFailed}</span>;
       case "closed": return <span className="overview-status overview-dim"><Lock size={14} aria-hidden />
         {m.statusCaseClosed(k && !k.keep && k.keep_until ? longDate(k.keep_until) : null)}</span>;
       case "notSource": return <span className="overview-status overview-dim">{m.statusNotASource}</span>;
-      case "confirmed": return <span className="overview-status"><Check size={14} aria-hidden />{m.statusConfirmed}</span>;
+      case "confirmed": return <span className="overview-status" data-tone="ok"><Check size={14} aria-hidden />{m.statusConfirmed}</span>;
       case "review": {
         // The pages, and for a screen reader what the reading noticed (#26: words, never only the icon)
         const pages = checkPages(r.doc?.warnings);
@@ -378,7 +378,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
         return <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}
           {notes.length > 0 && <span className="visually-hidden">. {notes.join(" ")}</span>}</span>;
       }
-      default: return <span className="overview-status"><Check size={14} aria-hidden />{m.statusReady}</span>;
+      default: return <span className="overview-status" data-tone="ok"><Check size={14} aria-hidden />{m.statusReady}</span>;
     }
   };
   const mayDelete = (d: AllDocument) => mayDeleteDocument(d, d.case_id ? byId.get(d.case_id) ?? null : null, me.sub ?? "");

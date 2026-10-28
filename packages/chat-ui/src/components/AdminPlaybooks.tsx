@@ -3,7 +3,7 @@
  * Off, it leaves every case's composer menu and can't be started; runs already made stay. The
  * switch applies at once (PUT /v1/admin/playbooks/{slug}); a failure shows and the switch goes back.
  */
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listAdminPlaybooks, setPlaybookActive, type PlaybookInfo } from "../api";
 import { useT } from "../i18n";
@@ -34,7 +34,9 @@ export function AdminPlaybooks() {
             <li key={p.id} className="item item-static">
               <span className="item-open">
                 <span className="item-name">{p.name} <span className="item-dim">{p.version} · {p.pack}</span></span>
-                <span className="item-meta">{m.playbookFor((p.case_types ?? []).map((t) => caseTypeLabel(t, m)).join(", "))} · {p.covered ? m.covered : m.notCovered}</span>
+                <span className="item-meta">{m.playbookFor((p.case_types ?? []).map((t) => caseTypeLabel(t, m)).join(", "))} · {p.covered
+                  ? <span className="status-ok"><Check size={13} aria-hidden /> {m.covered}</span>
+                  : <span className="status-warn"><AlertTriangle size={13} aria-hidden /> {m.notCovered}</span>}</span>
               </span>
               <Switch label={m.playbookActive} checked={p.active !== false} onChange={(v) => flip(p, v)} />
             </li>

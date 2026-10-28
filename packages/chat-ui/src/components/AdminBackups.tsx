@@ -53,7 +53,7 @@ export function AdminBackups() {
         const s = state.status, ok = s.last_success!;
         return (
           <>
-            {state.kind === "ok" && <InlineNotice icon={<Check size={14} />}>{m.backupLast(when(ok.at), sizeLabel(ok.size, locale()))}</InlineNotice>}
+            {state.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.backupLast(when(ok.at), sizeLabel(ok.size, locale()))}</InlineNotice>}
             {state.kind !== "ok" && (
               <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>
                 {state.kind === "stale" ? m.backupStale(when(ok.at)) : m.backupFailed(when(s.last_error!.at), reason(s.last_error!.step))}
@@ -86,7 +86,7 @@ function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: s
     <>
       {k.kind === "testing" && <InlineNotice icon={<Info size={14} />}>{m.keyTesting}</InlineNotice>}
       {k.kind === "never" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
-      {k.kind === "ok" && <InlineNotice icon={<Check size={14} />}>{m.keyTestOk(when(k.test.at), when(k.test.created ?? k.test.at))}</InlineNotice>}
+      {k.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.keyTestOk(when(k.test.at), when(k.test.created ?? k.test.at))}</InlineNotice>}
       {k.kind === "due" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
       {k.kind === "failed" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>{m.keyTestFailed(when(k.test.at), why(k.test.step))}</InlineNotice>}
       {problem && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{problem}</InlineNotice>}
