@@ -736,6 +736,7 @@ const fr: Messages = {
   retention: "Durée de conservation",
   olderStayUsb: "Les anciennes sauvegardes restent sur le disque USB.",
   olderStayShare: "Les anciennes sauvegardes restent sur le partage.",
+  shareTestOk: "Connecté : connexion réussie, fichier de test écrit puis supprimé.",
   keepSavedPassword: "Laissez vide pour garder le mot de passe enregistré.",
   setUpBackups: "Configurer les sauvegardes",
   diskFails: "Si le disque tombe en panne, vous perdez tout.",

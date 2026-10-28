@@ -763,6 +763,7 @@ const en = {
   retention: "Retention",
   olderStayUsb: "Older backups stay on the USB disk.",
   olderStayShare: "Older backups stay on the share.",
+  shareTestOk: "Connected: signed in, and a test file written and removed.",
   keepSavedPassword: "Leave empty to keep the saved password.",
   setUpBackups: "Set up backups",
   diskFails: "If the disk fails, you lose everything.",

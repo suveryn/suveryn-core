@@ -215,7 +215,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
             <div className="backup-test">
               <Button size="small" isDisabled={test.state === "testing"} onPress={runTest}>{t.testConnection}</Button>
               <span className="backup-test-status" role="status" data-state={tested ? "ok" : test.state === "failed" || errors.test ? "failed" : undefined}>
-                {test.state === "testing" ? t.testing : tested ? t.testOk : test.state === "failed" ? test.message : errors.test ?? (shareChanged ? t.notTested : "")}
+                {test.state === "testing" ? t.testing : tested ? m.shareTestOk : test.state === "failed" ? test.message : errors.test ?? (shareChanged ? t.notTested : "")}
               </span>
             </div>
           </>
