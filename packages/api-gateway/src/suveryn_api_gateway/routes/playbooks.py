@@ -102,7 +102,7 @@ def _out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> Play
 
 
 async def _inactive(request: Request) -> set[str]:
-    """The playbooks an administrator switched off (docs/design/sidebar.md, 15); none when the
+    """The playbooks an administrator switched off (docs/design/admin.md); none when the
     runs store isn't there, so the list of playbooks still answers."""
     db = request.app.state.runs
     store = db.get() if db.configured else None
@@ -121,7 +121,7 @@ async def case_playbooks(case_id: str, request: Request):
 @router.get("/v1/admin/playbooks", response_model=list[PlaybookOut])
 async def admin_playbooks(request: Request):
     """Every installed playbook with its case types and whether it is switched on (an administrator's
-    list; docs/design/sidebar.md, 15)."""
+    list; docs/design/admin.md)."""
     admin_or_403(request)
     inactive = await _inactive(request)
     return [_out(p, inactive) for p in PLAYBOOKS]
@@ -174,7 +174,7 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     docs, store, cid = docs_or_503(request), runs_or_503(request), uuid.UUID(case.id)
     scope = Scope.case(cid)
     stored = await run_in_threadpool(docs.documents, scope)
-    # Only sources (cases.md decision 7): uploads, never sūveryn's own output (docs/design/sidebar.md §6).
+    # Only sources (cases.md decision 7): uploads, never sūveryn's own output (docs/design/chat-ui.md §6).
     uploaded = {str(d["id"]): d["filename"] for d in stored if d.get("source", d.get("origin", "uploaded") == "uploaded")}
     wanted = body.document_ids or list(uploaded)
     if not wanted or any(d not in uploaded for d in wanted):

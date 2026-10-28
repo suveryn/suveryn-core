@@ -1,5 +1,5 @@
 /**
- * *Fast* or *Thorough* (docs/design/sidebar.md §5): whether the model thinks before it answers.
+ * *Fast* or *Thorough* (docs/design/chat-ui.md §5): whether the model thinks before it answers.
  *
  * - The choice belongs to the conversation: each answer records it (``AssistantTurn.thinking``), and a
  *   reopened conversation goes on as it was.

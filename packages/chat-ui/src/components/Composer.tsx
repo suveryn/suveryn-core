@@ -1,6 +1,6 @@
 /**
  * The question box: text, the paperclip for documents, attachment chips, the case's playbooks (a teal
- * chip with a menu; docs/design/sidebar.md) and the model picker. Sending is disabled while the
+ * chip with a menu; docs/design/chat-ui.md) and the model picker. Sending is disabled while the
  * model is unavailable or an attachment is still being read; Enter sends, Shift+Enter starts a new line.
  *
  * On a narrow screen (`compact`, §2) it is one pill: the question, one "+" menu for the document, the
@@ -20,7 +20,7 @@ import { ActionMenu, Button, DocumentPicker, IconButton, TextArea, useFilePicker
 import { AttachmentCard } from "./Chips";
 import { defaultModel, loadingNote, ModelPicker } from "./ModelPicker";
 
-/** Ask about (docs/design/sidebar.md §10): the case's documents to choose from, and the choice. */
+/** Ask about (docs/design/chat-ui.md §10): the case's documents to choose from, and the choice. */
 export type AskAbout = {
   items: PickItem[];
   selected: string[];
@@ -42,7 +42,7 @@ type Props = {
   models: ModelInfo[];            // installed models (GET /v1/models)
   chosenModel: string | null;     // null: the default model
   onChooseModel: (id: string) => void;
-  /** *Thorough* for this conversation (docs/design/sidebar.md §5). */
+  /** *Thorough* for this conversation (docs/design/chat-ui.md §5). */
   thinking: boolean;
   onThinking: (on: boolean) => void;
   disabledReason: string | null; // why sending is impossible right now, shown under the input
@@ -53,7 +53,7 @@ type Props = {
   onUseAsSource?: (key: string) => void;
   onDeleteAttachment?: (key: string) => void;
   onSend: (text: string) => void;
-  /** Stop the answer being written (docs/design/sidebar.md §5): in the send button's place, and Esc. */
+  /** Stop the answer being written (docs/design/chat-ui.md §5): in the send button's place, and Esc. */
   onStop?: () => void;
   /** The open case's reference: the question box and the line under it name the case (§5); null in the personal space. */
   caseReference?: string | null;
@@ -176,7 +176,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
     <div className="composer-wrap" ref={wrap}>
       {compact && picker2}
       {compact && cards}
-      {/* The canvas's composer: the question on top, the tools under it (docs/design/sidebar.md). On a
+      {/* The canvas's composer: the question on top, the tools under it (docs/design/chat-ui.md). On a
           narrow screen one pill: the question, "+" and send. */}
       <div className="composer" data-compact={compact || undefined}>
         {!compact && cards}

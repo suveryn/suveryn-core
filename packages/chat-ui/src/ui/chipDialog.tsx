@@ -1,6 +1,6 @@
 /**
  * ChipDialog: a chip that opens a small dialog of choices (the model and its thinking mode,
- * docs/design/sidebar.md §5). A `DialogTrigger` with a `Popover`, or on a narrow screen a sheet from
+ * docs/design/chat-ui.md §5). A `DialogTrigger` with a `Popover`, or on a narrow screen a sheet from
  * the bottom with *Done*, as DocumentPicker. The focus moves into the dialog, Escape closes it and the
  * focus returns to the chip; the choices inside apply at once.
  */

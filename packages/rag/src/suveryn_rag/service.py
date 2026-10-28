@@ -735,7 +735,7 @@ class DocumentService:
         return self._with_search(lambda rag: rag.store.content(uuid.UUID(document_id), scope))
 
     def confirm_source(self, document_id: str, scope: Scope, by: str) -> dict | None:
-        """Use a noticed upload as a source anyway (docs/design/sidebar.md §6); the mark, or None."""
+        """Use a noticed upload as a source anyway (docs/design/chat-ui.md §6); the mark, or None."""
         return self._with_search(lambda rag: rag.store.confirm_source(uuid.UUID(document_id), scope, by))
 
     def delete(self, document_id: str, scope: Scope) -> bool:

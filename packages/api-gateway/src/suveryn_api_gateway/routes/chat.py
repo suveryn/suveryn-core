@@ -106,7 +106,7 @@ async def chat(req: ChatRequest, request: Request):
 
 class StopOnDisconnect(StreamingResponse):
     """A streamed answer that stops as soon as the client goes: the person pressed *Stop*, started a new
-    chat or closed the tab (docs/design/sidebar.md §5).
+    chat or closed the tab (docs/design/chat-ui.md §5).
 
     Starlette notices a closed connection only when it next sends something (ASGI 2.4); before the first
     word, while the model reads the passages, that can be half a minute of the GPU for nobody. So the

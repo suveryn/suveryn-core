@@ -7,10 +7,10 @@
  * - MenuButton: a menu of choices that act at once (the chat's model menu). With `selected`, its items
  *   are single-choice (menuitemradio) and the chosen one is ticked.
  * - SplitButton: a button that acts at once (download in the default format) with a chevron beside it
- *   that opens a single-choice menu of the other ways (the formats; docs/design/sidebar.md §6). The two
+ *   that opens a single-choice menu of the other ways (the formats; docs/design/chat-ui.md §6). The two
  *   are separate buttons in a group, each with its own name, so a screen reader hears "Word (.docx),
  *   Download this answer…" and then "Other formats, menu".
- * - ActionMenu: a richer menu (the sidebar's account menu, a case's actions; docs/design/sidebar.md):
+ * - ActionMenu: a richer menu (the sidebar's account menu, a case's actions; docs/design/chat-ui.md):
  *   items with an icon and a meta text, separators, an item that opens a submenu (the language), a
  *   header above the items and fine print under them. The trigger is any content; the button is
  *   the menu's own, so the look of the trigger belongs to the caller's class.

@@ -13,7 +13,7 @@ const kase = (over: Partial<Case> = {}): Case => ({
 const offered = (c: ConversationSummary, me = "alice", withOpen = false) =>
   conversationActions(c, me, withOpen).map((a) => `${a.id}${a.disabled ? "-" : ""}${a.reason ? `(${a.reason})` : ""}`);
 
-describe("a conversation's menu (docs/design/sidebar.md §3 and §4)", () => {
+describe("a conversation's menu (docs/design/chat-ui.md §3 and §4)", () => {
   it("offers everything for one's own personal conversation", () => {
     expect(offered(conv())).toEqual(["pin", "rename", "move", "delete"]);
     expect(offered(conv({ pinned: true }), "alice", true)).toEqual(["open", "unpin", "rename", "move", "delete"]);

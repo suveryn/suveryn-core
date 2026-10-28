@@ -1,5 +1,5 @@
 /**
- * DocumentPicker (docs/design/sidebar.md §10, artboards 17 to 19): a button that opens a choice of
+ * DocumentPicker (docs/design/chat-ui.md §10, artboards 17 to 19): a button that opens a choice of
  * documents, several at once, with search. `MenuButton` can't do multiple choice with search, so this
  * is a `DialogTrigger` with a `Popover` (on a narrow screen a sheet from the bottom, with *Done*):
  *

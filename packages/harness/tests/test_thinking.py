@@ -1,4 +1,4 @@
-"""Thinking before answering (*Thorough*, docs/design/sidebar.md §5): asked per request, only for a model
+"""Thinking before answering (*Thorough*, docs/design/chat-ui.md §5): asked per request, only for a model
 that can; the reasoning kept apart from the answer, whether llama-server sends it apart or in the text."""
 
 import asyncio

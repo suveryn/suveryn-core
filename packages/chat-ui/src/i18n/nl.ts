@@ -378,7 +378,7 @@ const nl: Messages = {
   ratesChanged: (who, when) => `Laatst gewijzigd door ${who} op ${when}.`,
   ratesDefault: "Standaard: de gepubliceerde prijs van een vergelijkbaar cloudmodel.",
   ratesInvalid: "Vul bedragen van 0 tot 10.000 in, met hoogstens 4 decimalen.",
-  // Vraag over (docs/design/sidebar.md §10)
+  // Vraag over (docs/design/chat-ui.md §10)
   askAbout: "Vraag over:",
   askAboutTitle: "Vraag over",
   askAboutAll: "alle documenten",
@@ -503,7 +503,7 @@ const nl: Messages = {
   question: "Vraag",
   date: "Datum",
 
-  // de zijbalk (docs/design/sidebar.md)
+  // de zijbalk (docs/design/chat-ui.md)
   navigation: "Navigatie",
   search: "Zoeken",
   searchPlaceholder: "Zoek in gesprekken, dossiers en documenten",
@@ -594,7 +594,7 @@ const nl: Messages = {
   downloadAsWord: "Downloaden als Word",
   legendSource: "het model mag eruit citeren",
   legendMade: "door sūveryn, nooit een bron",
-  // het gespreksvenster (docs/design/sidebar.md §5)
+  // het gespreksvenster (docs/design/chat-ui.md §5)
   headMembers: (names: string) => `Leden: ${names}. De leden tonen`,
   asManager: (name: string) => `${name} (dossierbeheerder)`,
   askInCase: (ref: string) => `Vraag iets over dossier ${ref}…`,
@@ -613,7 +613,7 @@ const nl: Messages = {
   verdictSentence: "Elke naam, datum en elk bedrag in de zin van het antwoord staat in deze passage.",
   verdictSource: "Elke naam, datum en elk bedrag dat het antwoord uit deze bron haalt, staat in deze passage.",
   verdictUnchecked: "Niet nagekeken: het antwoord werd gestopt voor het klaar was.",
-  // documentkaarten en een onbereikbare server (docs/design/sidebar.md §5, deel 2)
+  // documentkaarten en een onbereikbare server (docs/design/chat-ui.md §5, deel 2)
   attachedDocuments: "Toegevoegde documenten",
   cardUploading: (pct) => `Wordt opgeladen · ${pct}%`,
   cardWaiting: "Wacht om gelezen te worden",
@@ -780,8 +780,8 @@ const nl: Messages = {
   playbookMenuFooter: "Welke playbooks hier staan, bepaalt de beheerder onder Beheer › Playbooks.",
   caseMenu: (reference: string) => `Dossier ${reference}: acties`,
 
-  // origin: source or made by sūveryn (docs/design/sidebar.md §6)
-  // Strikt vertrouwelijk (docs/design/sidebar.md §11)
+  // origin: source or made by sūveryn (docs/design/chat-ui.md §6)
+  // Strikt vertrouwelijk (docs/design/chat-ui.md §11)
   strictlyConfidential: "Strikt vertrouwelijk",
   confidentialRules: "Alleen leden · Gesprekken worden niet gedeeld · Exports krijgen een watermerk",
   confidentialWhat: "Wat betekent dit?",

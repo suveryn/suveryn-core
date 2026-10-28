@@ -1,5 +1,5 @@
 /**
- * Which format a download button makes by default (docs/design/sidebar.md §6, "Other formats"): the
+ * Which format a download button makes by default (docs/design/chat-ui.md §6, "Other formats"): the
  * last one the person chose, for answers (Word or Markdown) and for tables (Excel or CSV) separately.
  * Kept in this browser (localStorage); without it, for this page only. Every button on the page follows
  * a change at once.

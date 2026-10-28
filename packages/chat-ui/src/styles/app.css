@@ -38,9 +38,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                 display: flex; flex-direction: column; gap: var(--space-6); }
 .conversation > * { width: 100%; max-width: 760px; margin-inline: auto; }
 
-/* sidebar (docs/design/sidebar.md): one column, 272px, or a 60px rail when collapsed */
+/* sidebar (docs/design/chat-ui.md): one column, 272px, or a 60px rail when collapsed */
 .app[data-sidebar="collapsed"] { grid-template-columns: 60px minmax(0, 1fr); }
-/* the source panel beside the conversation (docs/design/sidebar.md §5) */
+/* the source panel beside the conversation (docs/design/chat-ui.md §5) */
 .app[data-panel] { grid-template-columns: 272px minmax(0, 1fr) 440px; }
 .app[data-panel][data-sidebar="collapsed"] { grid-template-columns: 60px minmax(0, 1fr) 440px; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--line); padding: var(--space-3) var(--space-3) var(--space-3);
@@ -413,7 +413,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-actions .copy-button:hover, .answer-actions .copy-button[data-focus-visible] { background: var(--surface-alt); color: var(--text); }
 /* A split download button (Word or Markdown, Excel or CSV): the hairline between the two halves stays. */
 .copy-button.ui-split-more { padding-inline: 6px; border-inline-start-color: var(--line); }
-/* Save to case (docs/design/sidebar.md §5): the button, then what was saved with Open and Undo */
+/* Save to case (docs/design/chat-ui.md §5): the button, then what was saved with Open and Undo */
 .save-to-case { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .saved-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-caption); color: var(--text); }
 .saved-note strong { font-weight: 600; }
@@ -459,7 +459,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .answer-thought-body p { margin: 0 0 6px; }
 .model-section { display: flex; flex-direction: column; gap: 6px; }
 .model-section-label { margin: 0; color: var(--text-dim); }
-/* the composer's chips: the case and its playbooks (docs/design/sidebar.md) */
+/* the composer's chips: the case and its playbooks (docs/design/chat-ui.md) */
 .chip-case, .chip-playbook { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 0;
                              border-radius: var(--radius-pill); font-size: var(--text-ui-sm); white-space: nowrap; }
 .chip-case { background: var(--surface-alt); color: var(--text-dim); }
@@ -487,7 +487,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .item-static .item-meta { grid-column: 1; }
 .item-static .ui-switch { margin-right: var(--space-2); }
 .item .item-pinned { color: var(--accent-ink); }
-/* a document's origin, source or made, ink only (docs/design/sidebar.md §1, §6) */
+/* a document's origin, source or made, ink only (docs/design/chat-ui.md §1, §6) */
 .item-origin { display: flex; align-items: center; gap: var(--space-3); flex: 0 0 auto; max-width: 45%; font-size: var(--text-caption); color: var(--text-dim); }
 .item-origin-text { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-origin b { color: var(--text); font-weight: 600; }
@@ -536,7 +536,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin, .waiting-dots i { animation: none; } }
 
-/* narrow screens (docs/design/sidebar.md §2, artboard 15): below 768px the column is a drawer
+/* narrow screens (docs/design/chat-ui.md §2, artboard 15): below 768px the column is a drawer
    (ui/dialog.tsx Drawer), a 56px top bar says where you are, every target is 44px, and the composer is
    one pill; the model chip shortens to its family from 860px down */
 @media (max-width: 860px) {
@@ -566,7 +566,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .composer-more[data-hovered] { background: var(--surface-alt); color: var(--text); }
 .composer-more[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
-/* ------------------------------------------------------------------------------------------------ the overviews (docs/design/sidebar.md §4) */
+/* ------------------------------------------------------------------------------------------------ the overviews (docs/design/chat-ui.md §4) */
 .conversation-wide > * { max-width: 1320px; }
 .overview { display: flex; flex-direction: column; gap: var(--space-4); padding-block: var(--space-2) var(--space-6); min-width: 0; }
 .overview > * { min-width: 0; }

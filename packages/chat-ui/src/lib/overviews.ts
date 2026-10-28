@@ -1,5 +1,5 @@
 /**
- * What the Documents overview says of a row (docs/design/sidebar.md §4), kept apart from the page so it
+ * What the Documents overview says of a row (docs/design/chat-ui.md §4), kept apart from the page so it
  * can be tested: a document's status, and whether its menu offers *Delete*. The server still decides
  * (routes/documents.py); this only keeps the menu honest, an action without the right shown disabled.
  */

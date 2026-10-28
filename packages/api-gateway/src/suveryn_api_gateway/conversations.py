@@ -128,17 +128,17 @@ class ConversationSummary(BaseModel):
 
     id: str
     # None when ``shielded``: a conversation in a strictly confidential case, in the lists that span
-    # cases (docs/design/sidebar.md §11); the UI shows "Shielded conversation" with the case.
+    # cases (docs/design/chat-ui.md §11); the UI shows "Shielded conversation" with the case.
     title: str | None
     created_at: datetime
     updated_at: datetime
     case_id: str | None = None
     owner: str = ""        # who started it (a Keycloak id); the UI names them from the case's members
     shared: bool = False   # shared with the case's members (stage 4)
-    messages: int = 0      # how many turns (questions and answers): the Conversations overview (docs/design/sidebar.md §4)
+    messages: int = 0      # how many turns (questions and answers): the Conversations overview (docs/design/chat-ui.md §4)
     owner_name: str = ""   # a colleague's name, for one shared with a case (the overview's "From"); empty for the caller's own
     shielded: bool = False
-    pinned: bool = False   # a personal conversation pinned by its owner (docs/design/sidebar.md §3)
+    pinned: bool = False   # a personal conversation pinned by its owner (docs/design/chat-ui.md §3)
 
 
 class PinIn(BaseModel):
@@ -182,7 +182,7 @@ def _references(turns: list[dict]) -> Iterator[tuple[str, dict]]:
         for c in turn.get("citations") or []:
             if isinstance(c, dict) and isinstance(c.get("source"), dict) and isinstance(c["source"].get("document_id"), str):
                 yield c["source"]["document_id"], c
-        # attachments, and the documents a question was asked about (Ask about, docs/design/sidebar.md §10)
+        # attachments, and the documents a question was asked about (Ask about, docs/design/chat-ui.md §10)
         for a in [*(turn.get("attachments") or []), *(turn.get("about") or [])]:
             if isinstance(a, dict) and isinstance(a.get("documentId"), str):
                 yield a["documentId"], a
@@ -277,7 +277,7 @@ class ConversationStore(PgStore):
     def summaries_all(self, owner: str, case_ids: list[uuid.UUID]) -> list[ConversationSummary]:
         """Every conversation of the owner's own, in their personal space and in the cases they may
         still read (``case_ids``), and the ones colleagues shared with those cases, most recently
-        changed first (the column's Recent and the Conversations overview, docs/design/sidebar.md §2, §4).
+        changed first (the column's Recent and the Conversations overview, docs/design/chat-ui.md §2, §4).
         Expired ones are left out here and deleted by the hourly sweep."""
         fresh, params = self._fresh()
         rows = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
@@ -308,7 +308,7 @@ class ConversationStore(PgStore):
 
     def set_pinned(self, conversation_id: uuid.UUID, owner: str, pinned: bool) -> ConversationSummary | None:
         """Pin or unpin the owner's personal conversation (a conversation in a case follows its case,
-        docs/design/sidebar.md §3). None if it isn't the owner's or is in a case."""
+        docs/design/chat-ui.md §3). None if it isn't the owner's or is in a case."""
         r = self._execute(f"UPDATE conversations SET pinned_at = CASE WHEN %s THEN coalesce(pinned_at, now()) END"
                           f" WHERE id = %s AND owner = %s AND case_id IS NULL RETURNING {self.SUMMARY}",
                           (pinned, conversation_id, owner)).fetchone()

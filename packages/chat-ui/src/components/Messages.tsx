@@ -3,7 +3,7 @@
  * marked by the teal brand-mark outline. Model output is rendered as React text only (lib/answer.ts),
  * never as HTML. Under an answer: the cited sources, copy and download, calculation notes and the
  * "not sourced" notices that tell a reader what to check. A citation opens its passage in the source
- * panel beside the conversation (``SourcePanel``, docs/design/sidebar.md §5, artboard 11).
+ * panel beside the conversation (``SourcePanel``, docs/design/chat-ui.md §5, artboard 11).
  */
 import { AlertCircle, AlertTriangle, Brain, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, Files, FolderInput, Square, X } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
@@ -129,14 +129,14 @@ export function sourceName(c: Citation, filenames: Map<string, string>, m: Retur
 }
 
 /**
- * The source panel (docs/design/sidebar.md §5, artboard 11): one source of an answer beside the
+ * The source panel (docs/design/chat-ui.md §5, artboard 11): one source of an answer beside the
  * conversation. The file, the page and the case; previous and next between the answer's sources; the
  * passage, with the sentences the claim rests on in a teal wash and the rest dimmed; what the check
  * found, in words; *Copy passage* and the download. Esc closes it (from inside it, or anywhere when no
  * answer is being written: App), and the focus goes back to what opened it.
  *
  * Not here: *Open document at p. 3*. sūveryn keeps a document's text, not the file it was read from,
- * so there is no page to open (docs/design/sidebar.md, "Resolved while building").
+ * so there is no page to open (docs/design/chat-ui.md, "Resolved while building").
  */
 export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose }: {
   turn: AssistantTurn; open: OpenSource; filenames: Map<string, string>; caseRef: string | null;
@@ -222,7 +222,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose 
  * The assistant's turn: no bubble, marked by the teal brand-mark outline. Citation markers [n]
  * become buttons that open the source (citations[n-1]); only cited sources are listed below.
  */
-/** Saving an answer to its case (docs/design/sidebar.md §5): only in a case, for a contributor. */
+/** Saving an answer to its case (docs/design/chat-ui.md §5): only in a case, for a contributor. */
 export type SaveToCase = {
   caseRef: string;
   saved: { documentId: string; filename: string } | null;  // saved, and still in the case
@@ -331,7 +331,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
       <div className="answer" aria-live={turn.status === "streaming" || turn.status === "stopped" ? "polite" : undefined}>
         {/* Thorough (§5): what the model thought, collapsed, once the answer has begun */}
         {turn.reasoning && (turn.text || settled) && <ThoughtFor reasoning={turn.reasoning} seconds={turn.thoughtSeconds} />}
-        {/* Which documents the answer rests on, before it (docs/design/sidebar.md §5): in a case, a fact
+        {/* Which documents the answer rests on, before it (docs/design/chat-ui.md §5): in a case, a fact
             from the wrong deed shows at a glance (Pod check of 470b9da). */}
         {settled && basis.length > 0 && (
           <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
@@ -451,7 +451,7 @@ function AnswerTable({ table, render, done, exported }: {
 }
 
 /**
- * A download made in the browser, as a split button (docs/design/sidebar.md §6, "Other formats"): the
+ * A download made in the browser, as a split button (docs/design/chat-ui.md §6, "Other formats"): the
  * word makes the person's default format; the chevron's menu offers both, and the one chosen becomes
  * the default (lib/downloadFormat.ts). Says so if the file can't be made.
  */
@@ -489,7 +489,7 @@ function DownloadFormats({ kind, formats, make }: {
 
 /**
  * *Save to case*, then "✓ Saved to case 123 as <file>.docx" with *Open* and, during this visit, *Undo*
- * (docs/design/sidebar.md §5, artboard 16). The focus follows: to *Open* once saved, back to *Save to
+ * (docs/design/chat-ui.md §5, artboard 16). The focus follows: to *Open* once saved, back to *Save to
  * case* after Undo, so a keyboard user isn't left on a button that disappeared.
  */
 function SaveToCaseActions({ save }: { save: SaveToCase }) {

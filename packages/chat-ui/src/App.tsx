@@ -11,7 +11,7 @@
  * - Cases (suveryn-tracker#10): the sidebar opens a case or the personal space; documents,
  *   uploads, conversations and questions are then that case's (the gateway checks the right),
  *   and switching starts a new chat there. The personal space is the user's own, as before cases.
- * - The sidebar (docs/design/sidebar.md) lists conversations, cases and documents across every
+ * - The sidebar (docs/design/chat-ui.md) lists conversations, cases and documents across every
  *   place at once; opening one of them goes to its place first. Pinned cases are the user's own
  *   choice (per user, on the server). The sidebar collapses to a rail, remembered in this browser.
  * - Each question is sent with the completed earlier turns (lib/history.ts) and every document
@@ -70,7 +70,7 @@ import { restoreThinking, thinkingDefault } from "./lib/thinking";
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
 const readCollapsed = () => { try { return localStorage.getItem(SIDEBAR_KEY) === "collapsed"; } catch { return false; } };
-// The five-pinned hint shows once in this browser (docs/design/sidebar.md §3); without storage, once per page.
+// The five-pinned hint shows once in this browser (docs/design/chat-ui.md §3); without storage, once per page.
 const PIN_HINT_KEY = "suveryn.pinHint";
 let pinHintSeen = false;
 const pinHintShown = () => { try { return pinHintSeen || localStorage.getItem(PIN_HINT_KEY) === "shown"; } catch { return pinHintSeen; } };
@@ -78,7 +78,7 @@ const rememberPinHint = () => { pinHintSeen = true; try { localStorage.setItem(P
 let counter = 0;
 // Unique across page loads too: turns of a reopened conversation keep the ids they were saved with.
 /** An attachment as its upload job says it is now. An upload that carries sūveryn's own export mark is
- *  read but waits for the person's choice before it is a source (docs/design/sidebar.md §6): never
+ *  read but waits for the person's choice before it is a source (docs/design/chat-ui.md §6): never
  *  blocked, never used unasked. */
 function attachmentFromJob(a: Attachment, j: Job): Attachment {
   const noticed = j.noticed && (j.status === "ready" || j.status === "needs_review") ? j.noticed : undefined;
@@ -168,11 +168,11 @@ function Chat({ me }: { me: Me }) {
   const narrow = useMedia(NARROW);
   const [drawer, setDrawer] = useState(false);
   // The Conversations and Documents overviews' case filter: "all" from the column, a case's id from
-  // its count in the Cases overview, from the case itself or from an answer saved there (docs/design/sidebar.md §4).
+  // its count in the Cases overview, from the case itself or from an answer saved there (docs/design/chat-ui.md §4).
   const [overviewFilter, setOverviewFilter] = useState("all");
   const [overviewCases, setOverviewCases] = useState<CaseOverview[] | null>(null);
   const [savedHere, setSavedHere] = useState<Set<string>>(new Set());  // answers saved during this visit: Undo is offered
-  // Ask about (docs/design/sidebar.md §10): the documents this conversation's questions are about, in a
+  // Ask about (docs/design/chat-ui.md §10): the documents this conversation's questions are about, in a
   // case; none: the whole case. ``aboutGone``: the chosen ones all left the case.
   const [about, setAbout] = useState<Chosen[]>([]);
   const [aboutGone, setAboutGone] = useState(false);
@@ -202,7 +202,7 @@ function Chat({ me }: { me: Me }) {
   const [showLog, setShowLog] = useState(false);
   const [caseMembers, setCaseMembers] = useState<Member[]>([]);  // the open case's members (stage 4), for its header
   const names = useMemo(() => new Map(caseMembers.map((x) => [x.user, x.name || x.username])), [caseMembers]);
-  // The source open in the panel beside the conversation (docs/design/sidebar.md §5): which answer, which source.
+  // The source open in the panel beside the conversation (docs/design/chat-ui.md §5): which answer, which source.
   const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
   const openCaseId = useRef(caseId);
@@ -422,7 +422,7 @@ function Chat({ me }: { me: Me }) {
       }
     }
   };
-  // The card's × (docs/design/sidebar.md §5): a document still on its way or being read is cancelled
+  // The card's × (docs/design/chat-ui.md §5): a document still on its way or being read is cancelled
   // (the upload stopped, or the server's job); one that is read only leaves this question.
   const removeAttachment = (key: string) => {
     const a = pending.find((x) => x.key === key);
@@ -462,7 +462,7 @@ function Chat({ me }: { me: Me }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
 
-  // An upload that looks like sūveryn's own output (docs/design/sidebar.md §6): the person decides.
+  // An upload that looks like sūveryn's own output (docs/design/chat-ui.md §6): the person decides.
   const useNoticedAsSource = async (key: string) => {
     const a = pending.find((x) => x.key === key);
     if (!a?.documentId) return;
@@ -551,7 +551,7 @@ function Chat({ me }: { me: Me }) {
                status: "done", model: done.model, ...(asked.length && whole === false ? { partial: true } : {}) });
     } catch (e) {
       if (stopped.current) {
-        // Stopped (docs/design/sidebar.md §5): what was written stays, with the passages its markers
+        // Stopped (docs/design/chat-ui.md §5): what was written stays, with the passages its markers
         // point to, marked unchecked; the server has stopped the model.
         update({ text: streamed, citations: sources, status: "stopped", step: undefined, ...thoughtSoFar() });
       } else if (streamed && (e instanceof TypeError || (e as Error).message === m.streamCutOff)) {
@@ -597,7 +597,7 @@ function Chat({ me }: { me: Me }) {
   const viewTitle = view === "conversations" ? m.conversations : view === "cases" ? m.cases : view === "documents" ? m.documents
     : view === "search" ? m.search : view === "usage" ? m.myUsage : view === "admin" ? m.administration : "";
 
-  // The left column (docs/design/sidebar.md §2); on a narrow screen a drawer that closes once something is chosen.
+  // The left column (docs/design/chat-ui.md §2); on a narrow screen a drawer that closes once something is chosen.
   const closing = <A extends unknown[]>(f: (...a: A) => unknown) => (...a: A) => { setDrawer(false); f(...a); };
   const sidebar = (inDrawer: boolean) => (
       <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={me.admin ?? false} collapsed={inDrawer ? false : collapsed} onCollapse={setCollapsed}
@@ -648,7 +648,7 @@ function Chat({ me }: { me: Me }) {
             </ActionMenu>
   );
 
-  // Save to case (docs/design/sidebar.md §5): a finished answer in a case, for a contributor, the case open.
+  // Save to case (docs/design/chat-ui.md §5): a finished answer in a case, for a contributor, the case open.
   const setTurn = (id: string, patch: Partial<AssistantTurn>) =>
     setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
   const saveControls = (t: AssistantTurn, question: string): SaveToCase | null => {
@@ -764,7 +764,7 @@ function Chat({ me }: { me: Me }) {
     newChat();
   };
   const caseById = (id: string | null | undefined) => (id ? cases.find((c) => c.id === id) ?? null : null);
-  // A conversation from a list that spans every place: go to its place first (docs/design/sidebar.md).
+  // A conversation from a list that spans every place: go to its place first (docs/design/chat-ui.md).
   const openListed = (c: ConversationSummary) => {
     const target = c.case_id ?? null;
     if (target !== caseId) goTo(caseById(target));
@@ -834,7 +834,7 @@ function Chat({ me }: { me: Me }) {
     }
   };
 
-  // The conversation menu (docs/design/sidebar.md §3 and §4), in the column and the Conversations overview.
+  // The conversation menu (docs/design/chat-ui.md §3 and §4), in the column and the Conversations overview.
   const pinOwnConversation = async (c: ConversationSummary, pinned: boolean) => {
     try {
       await pinConversation(c.id, pinned);
@@ -908,7 +908,7 @@ function Chat({ me }: { me: Me }) {
     if (using.length > 0) setDeleting({ doc: d, conversations: using, where });
     else await deleteNow(d, "clean", [], where).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
   };
-  // A document deleted from the list of everything (docs/design/sidebar.md): asked in its own place.
+  // A document deleted from the list of everything (docs/design/chat-ui.md): asked in its own place.
   const removeListed = (d: AllDocument) => {
     const target = d.case_id ?? null;
     if (target !== caseId) { goTo(caseById(target)); newChat(); }
@@ -1006,7 +1006,7 @@ function Chat({ me }: { me: Me }) {
         {view === "chat" && <>
         {currentCase?.confidential && <ConfidentialBand narrow={narrow} />}
         {currentCase && (
-          // The case header (docs/design/sidebar.md §5, artboard 02): the case and its type, the
+          // The case header (docs/design/chat-ui.md §5, artboard 02): the case and its type, the
           // conversation, the members (the manager set apart), its documents and one menu for the case's actions.
           <header className="case-head">
             {closed ? <Lock size={15} aria-hidden /> : currentCase.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}

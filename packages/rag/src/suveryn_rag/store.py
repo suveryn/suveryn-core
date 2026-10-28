@@ -55,11 +55,11 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS case_id uuid;
 -- Where the document came from: uploaded, generated (by sūveryn: an export, a draft) or playbook.
 -- Only uploaded documents are sources for answers: the AI never cites its own earlier output.
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'uploaded';
--- More about where it came from (docs/design/sidebar.md §6): for a playbook result the playbook and
+-- More about where it came from (docs/design/chat-ui.md §6): for a playbook result the playbook and
 -- its version; for an upload that carries sūveryn's own export mark, what was noticed ("noticed")
 -- and, once a person chose to use it as a source anyway, who and when ("confirmed").
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS provenance jsonb;
--- What sūveryn made, as the UI needs it to rebuild the file (docs/design/sidebar.md §5): a saved
+-- What sūveryn made, as the UI needs it to rebuild the file (docs/design/chat-ui.md §5): a saved
 -- answer's question, text, sources and checks. Not in the lists; read one document at a time. Its
 -- sources' passages are taken out when their document is deleted (``delete_document``).
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS content jsonb;
@@ -110,7 +110,7 @@ def without(content: dict, document_id: str) -> dict:
 
 
 # A source for answers (cases.md decision 7): uploaded, and not sūveryn's own export coming back
-# unless a person chose to use it anyway (docs/design/sidebar.md §6). Constants only, no input.
+# unless a person chose to use it anyway (docs/design/chat-ui.md §6). Constants only, no input.
 SOURCE = ("d.origin = 'uploaded' AND NOT (coalesce(d.provenance, '{}') ? 'noticed'"
           " AND NOT coalesce(d.provenance, '{}') ? 'confirmed')")
 
@@ -271,7 +271,7 @@ class Store:
 
     def list_documents_many(self, owner: str, case_ids: list[uuid.UUID]) -> list[dict]:
         """The owner's personal documents and every document of the cases given (the sidebar's
-        "Documents", docs/design/sidebar.md), newest first, with ``case_id``."""
+        "Documents", docs/design/chat-ui.md), newest first, with ``case_id``."""
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
             "       d.origin, d.owner, d.case_id, d.provenance,"
@@ -308,7 +308,7 @@ class Store:
         return row[0] if row else None
 
     def saved_answer(self, scope: Scope, message: str) -> tuple[uuid.UUID, str] | None:
-        """(id, file name) of the answer ``message`` already saved in the scope (docs/design/sidebar.md §5), or None."""
+        """(id, file name) of the answer ``message`` already saved in the scope (docs/design/chat-ui.md §5), or None."""
         where, params = scope.where()
         row = self._conn.execute(f"SELECT id, filename FROM documents WHERE origin = 'answer' AND {where}"
                                  " AND provenance->>'message' = %s ORDER BY created_at LIMIT 1", (*params, message)).fetchone()

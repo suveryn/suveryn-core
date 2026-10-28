@@ -397,7 +397,7 @@ def test_documents_in_a_case_are_separate_from_the_personal_space(office):
     listed = c.get(f"/v1/documents?case={cid}", headers=alice).json()["documents"]
     assert [d["id"] for d in listed] == [in_case] and listed[0]["origin"] == "uploaded"
     assert c.get(f"/v1/documents?case={uuid.uuid4()}", headers=alice).status_code == 404
-    # the sidebar's "Documents": everything Alice may see, each with where it is (sidebar.md)
+    # the sidebar's "Documents": everything Alice may see, each with where it is (chat-ui.md)
     everything = {d["id"]: d["case_id"] for d in c.get("/v1/documents/all", headers=alice).json()["documents"]}
     assert everything == {DOC: None, in_case: cid}
     assert c.get("/v1/documents/all", headers=as_user(kc, BOB)).json()["documents"] == []  # not Bob's case
@@ -408,7 +408,7 @@ def test_documents_in_a_case_are_separate_from_the_personal_space(office):
 
 
 def test_suveryns_own_output_coming_back_is_no_source_until_a_contributor_says_so(office):
-    """docs/design/sidebar.md §6: an upload with the export mark is stored, never blocked, and not
+    """docs/design/chat-ui.md §6: an upload with the export mark is stored, never blocked, and not
     used as a source until someone who may upload there chooses to; the case's log says so."""
     c, kc, _, _, docs = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
@@ -454,7 +454,7 @@ def test_the_uploader_may_delete_their_own_noticed_upload_while_nobody_has_confi
 
 
 def saved(question="What is the price?", message="m-1", **over):
-    """An answer as the chat saves it to a case (docs/design/sidebar.md §5)."""
+    """An answer as the chat saves it to a case (docs/design/chat-ui.md §5)."""
     return {"filename": "What is the price.docx", "text": f"{question}\n\nThe price is EUR 300,000.",
             "content": {"question": question, "answer": "The price is EUR 300,000 [1].", "answeredOn": "2026-10-19T10:00:00Z",
                         "citations": [{"text": "The price is EUR 300,000.", "source": {"document_id": DOC, "page": 2}}],
@@ -515,7 +515,7 @@ def test_a_closed_case_takes_no_saved_answer(office):
 
 
 def test_a_reader_pins_a_case_in_their_own_sidebar(office):
-    """docs/design/sidebar.md: per user, anyone who may read the case, not logged."""
+    """docs/design/chat-ui.md: per user, anyone who may read the case, not logged."""
     c, kc, cases, _, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
@@ -584,7 +584,7 @@ def test_conversations_are_listed_with_their_case(office):
 
 
 def test_the_cases_overview_has_members_and_the_last_activity(office):
-    """docs/design/sidebar.md §4: open and closed cases, each with its members (the manager first) and who did
+    """docs/design/chat-ui.md §4: open and closed cases, each with its members (the manager first) and who did
     something last; an administrator who isn't a member sees only that the case exists."""
     c, kc, cases, _, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
@@ -1038,7 +1038,7 @@ def test_store_creates_lists_updates_and_deletes(store):
     assert s.list(bob, office_wide=False) == []
     assert [x.my_role for x in s.list(bob, office_wide=True) if x.id == c.id] == ["reader"]
     assert [x.my_role for x in s.list(bob, office_wide=False, admin=True) if x.id == c.id] == [None]
-    # pins (docs/design/sidebar.md): per user, in the list and the single case
+    # pins (docs/design/chat-ui.md): per user, in the list and the single case
     assert not s.list(alice, office_wide=False)[0].pinned
     s.set_pinned(uuid.UUID(c.id), alice, True)
     assert s.list(alice, office_wide=False)[0].pinned and s.get(uuid.UUID(c.id), alice).pinned and s.pinned_by(uuid.UUID(c.id), alice)
@@ -1330,7 +1330,7 @@ def test_store_lists_every_case_for_the_administrator_and_keeps_the_offices_sett
 
 
 def test_a_strictly_confidential_case_is_for_its_members_with_no_sharing_and_shielded_titles(office):
-    """docs/design/sidebar.md §11: the manager turns the label on; access becomes members only and
+    """docs/design/chat-ui.md §11: the manager turns the label on; access becomes members only and
     can't be opened, shared conversations are unshared (their owners keep them), sharing is refused,
     the lists that span cases show no title, and the access log says so."""
     c, kc, _, _, _ = office

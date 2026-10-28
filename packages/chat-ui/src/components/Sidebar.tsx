@@ -1,5 +1,5 @@
 /**
- * The left column (docs/design/sidebar.md §2): one column that reads the same whatever is open.
+ * The left column (docs/design/chat-ui.md §2): one column that reads the same whatever is open.
  *
  * - The top strip: the lockup, search, and the collapse control (on a narrow screen, in the drawer: close).
  * - "New": a personal chat, outside any case, or a new case.
@@ -39,7 +39,7 @@ type Props = {
   user: Me;
   /** The overview open in the main area, if any: its navigation row is current. */
   view: string;
-  /** In the drawer on a narrow screen: a close button instead of collapsing (docs/design/sidebar.md §2). */
+  /** In the drawer on a narrow screen: a close button instead of collapsing (docs/design/chat-ui.md §2). */
   onClose?: () => void;
   admin: boolean;
   collapsed: boolean;

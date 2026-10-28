@@ -1,5 +1,5 @@
 /**
- * A row that expands in place (docs/design/sidebar.md): the sidebar's "Conversations", "Cases" and
+ * A row that expands in place (docs/design/chat-ui.md): the sidebar's "Conversations", "Cases" and
  * "Documents", and a pinned case with its conversations. Two controls in one row: the label is a
  * button of its own (it opens the full view), the chevron toggles the panel under it. The panel is
  * a plain region; what is in it is the caller's. With no `onOpen`, the whole row toggles.
@@ -27,7 +27,7 @@ export function Expander({ label, icon, meta, expanded, onToggle, onOpen, title,
   /** The chevron's accessible name ("Show conversations"). */
   toggleLabel: string;
   /** The chevron before the icon, pointing right when closed and down when open (a pinned case,
-   *  docs/design/sidebar.md §2); otherwise after the label. */
+   *  docs/design/chat-ui.md §2); otherwise after the label. */
   toggleFirst?: boolean;
   className?: string;
   children?: ReactNode;

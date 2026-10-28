@@ -78,7 +78,7 @@ export function withoutDocument(turns: Turn[], documentId: string): Turn[] {
 
 
 /** A conversation's name in a list: its title, or "Shielded conversation" for one in a strictly
- *  confidential case, whose title the lists that span cases don't carry (docs/design/sidebar.md §11). */
+ *  confidential case, whose title the lists that span cases don't carry (docs/design/chat-ui.md §11). */
 export function listedTitle(c: { title: string | null; shielded?: boolean }): string {
   return c.shielded || c.title === null ? t().shieldedConversation : c.title;
 }

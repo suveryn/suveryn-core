@@ -1,5 +1,5 @@
 /**
- * Ask about (docs/design/sidebar.md §10): which of a case's documents a conversation's questions are
+ * Ask about (docs/design/chat-ui.md §10): which of a case's documents a conversation's questions are
  * about. The choice belongs to the conversation: it stays for every following question until changed,
  * is saved with each question (``UserTurn.about``), and is never carried to another conversation.
  */

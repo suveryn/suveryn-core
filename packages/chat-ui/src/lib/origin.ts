@@ -1,5 +1,5 @@
 /**
- * A document's origin (docs/design/sidebar.md §6; cases.md decision 7): where it comes from, as one
+ * A document's origin (docs/design/chat-ui.md §6; cases.md decision 7): where it comes from, as one
  * word and a detail, for the Documents overview's origin column and its filter, and the icon
  * that follows the document wherever it appears. The server decides what is a source (``source``);
  * this only says it.

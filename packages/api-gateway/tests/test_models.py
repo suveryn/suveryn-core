@@ -45,7 +45,7 @@ def test_router_lists_installed_models_with_load_state_and_default():
     with client(True, []) as c:
         assert c.get("/v1/models").json() == [
             {"id": MISTRAL, "loaded": False, "default": False, "thinks": False},
-            {"id": QWEN, "loaded": True, "default": True, "thinks": True},  # a Qwen3 can think (sidebar.md)
+            {"id": QWEN, "loaded": True, "default": True, "thinks": True},  # a Qwen3 can think (chat-ui.md)
         ]
 
 

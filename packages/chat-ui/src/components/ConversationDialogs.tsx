@@ -1,5 +1,5 @@
 /**
- * The conversation menu's two dialogs (docs/design/sidebar.md §4): *Rename* and *Move to a case*. The
+ * The conversation menu's two dialogs (docs/design/chat-ui.md §4): *Rename* and *Move to a case*. The
  * server decides (routes/conversations.py); these only ask, and say what went wrong.
  */
 import { AlertCircle, FolderInput, MessageSquare, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
