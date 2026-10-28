@@ -302,6 +302,8 @@ const nl: Text = {
     denied: "De server van de gedeelde map weigerde de gebruikersnaam of het wachtwoord.",
     not_writable: "De appliance kan de gedeelde map bereiken, maar er niet naar schrijven.",
     not_local: "Dit adres ligt niet op uw eigen netwerk.",
+    login: "De gedeelde map weigerde de gebruikersnaam of het wachtwoord.",
+    write: "Aangemeld, maar de appliance kan er niet schrijven.",
     disk_gone: "Deze schijf is niet meer aangesloten. Kijk opnieuw.",
     not_answered: "Nog niet alle stappen zijn ingevuld. Ga terug en vul ze aan.",
     provisioning_started: "De inrichting is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om ze te volgen.",

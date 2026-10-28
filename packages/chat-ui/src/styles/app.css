@@ -760,8 +760,44 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .handover-table thead th { font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-dim); font-weight: 600; }
 .handover-table tbody th { font-weight: 400; }
 .handover-table .ui-field { margin: 0; }
+/* Backups, editable (artboard 36) */
+.backup-now { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.backup-now .ui-inline-notice { flex-basis: 100%; }
+.backup-settings { display: flex; flex-direction: column; gap: var(--space-3); }
+.backup-settings-detail { display: flex; flex-direction: column; gap: var(--space-3); padding-left: var(--space-1); }
+.backup-settings-row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+.backup-settings-row > .ui-field { flex: 1 1 12rem; margin: 0; }
+.backup-disk-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
+.backup-disk-row > .ui-field { flex: 1 1 16rem; margin: 0; }
+.backup-test { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.backup-test-status { font-size: var(--text-ui-sm); color: var(--text-dim); }
+.backup-test-status[data-state="ok"] { color: var(--teal-ink); }
+.backup-test-status[data-state="failed"] { color: var(--text); }
+.backup-key { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line);
+              border-radius: var(--radius-md); }
+.backup-key-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.backup-key-title { font-weight: 600; }
+.backup-sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+.recovery-sheet { color: var(--text); }
+.recovery-sheet h2 { display: none; }  /* the dialog's title says it; printed, the sheet's own */
+.recovery-sheet h3 { font-size: var(--text-body); margin: var(--space-4) 0 var(--space-2); }
+.recovery-sheet dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px var(--space-4); margin: 0 0 var(--space-3); }
+.recovery-sheet dt { color: var(--text-dim); }
+.recovery-sheet dd { margin: 0; overflow-wrap: anywhere; }
+.recovery-sheet-mono { font-family: var(--font-mono); }
+.recovery-sheet-key { font-size: var(--text-ui-sm); overflow-wrap: anywhere; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.recovery-sheet ol { margin: 0; padding-left: 1.4em; }
+.recovery-sheet-kept { margin-top: var(--space-5); min-height: 4.5em; padding: var(--space-2) var(--space-3); border: 1px solid var(--text);
+                       border-radius: var(--radius-md); color: var(--text-dim); }
+
 /* the temporary password printed: only the dialog's content, ink on white */
 @media print {
   body:has(.temporary-password) > *:not(:has(.temporary-password)) { display: none !important; }
   .ui-modal-overlay:has(.temporary-password) .ui-dialog-actions { display: none !important; }
+  /* the recovery sheet printed the same way, with its own title */
+  .recovery-sheet h2 { display: block; font-size: 20pt; margin: 0 0 12pt; }
+  .ui-modal-overlay:has(.recovery-sheet), .ui-modal-overlay:has(.recovery-sheet) * { background: #fff !important; box-shadow: none !important; }
+  .ui-modal-overlay:has(.recovery-sheet) [role="dialog"] { border: 0 !important; max-width: none !important; width: 100% !important; }
+  body:has(.recovery-sheet) > *:not(:has(.recovery-sheet)) { display: none !important; }
+  .ui-modal-overlay:has(.recovery-sheet) .ui-dialog-actions, .ui-modal-overlay:has(.recovery-sheet) .ui-dialog-title { display: none !important; }
 }

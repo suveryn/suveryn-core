@@ -60,7 +60,11 @@ API = {
                           "last_success": {"at": "2026-10-28T01:14:00Z", "size": 1_340_000_000, "on_target": 30,
                                            "oldest": "2026-09-28T01:10:00Z", "disk": None},
                           "last_error": None, "key_test": {"ok": True, "at": "2026-07-21T10:00:00Z", "created": None, "step": None},
-                          "key_testing": False},
+                          "key_testing": False, "running_since": None,
+                          "settings": {"target": "usb", "disk": "usb-Extreme_55AE_3233", "protocol": None, "address": None, "user": None,
+                                       "has_password": False, "retention_days": 30, "hour": 2,
+                                       "recipient": "age1lggyhqrw2nlhcxprm67z43rta597azn8gknawjehu9ch3qqqlgcsxekdwx",
+                                       "next_run": "2026-10-29T01:00:00Z"}},
     "/v1/documents/d1/conversations": [{"id": "c1", "title": "Wie zijn de verkopers?", "created_at": "2026-10-15T09:00:00Z",
                                         "updated_at": "2026-10-15T09:05:00Z"}],
 }
@@ -123,6 +127,7 @@ def cost(t):
     return str(raw.quantize(Decimal("0.01")))
 
 
+ANSWERS: dict = {}
 CASE_SETTINGS = {"default_access": "members", "keep": "manual", "conversations_keep": "manual", "updated_at": None, "updated_by": ""}
 
 
@@ -147,6 +152,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path.startswith("/v1/admin/backups/requests/"):
+            API[path] = ANSWERS.get(path.rsplit("/", 1)[1], {"id": "x", "pending": True})
         live = {"/v1/admin/cases/settings": lambda: CASE_SETTINGS, "/v1/admin/usage/rates": lambda: RATES,
                 "/v1/admin/cases/settings/preview": lambda: settings_preview(self.path.partition("?")[2])}
         if path in API or path in live or path in ("/v1/usage", "/v1/admin/usage"):
@@ -162,8 +169,32 @@ class Handler(SimpleHTTPRequestHandler):
             self.path = "/index.html"
         super().do_GET()
 
+    def backup_request(self):
+        """Administration › Backups: the backup service's answers, at once (the gateway: a request, then its answer)."""
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        kind, rid = body.get("kind"), f"{len(ANSWERS):016x}"
+        ANSWERS[rid] = {"id": rid, "pending": False, "ok": True, "error": None, "errors": None, "key_changed": None,
+                        "disks": [{"id": "usb-Extreme_55AE_3233", "name": "SanDisk Extreme", "size_bytes": 1_000_204_886_016},
+                                  {"id": "usb-Portable_SSD_T7_S5", "name": "Samsung Portable SSD T7", "size_bytes": 2_000_398_934_016}]
+                        if kind == "disks" else None}
+        if kind == "test-share" and body.get("password") == "wrong":
+            ANSWERS[rid].update(ok=False, error="login")
+        if kind == "settings":
+            settings = API["/v1/admin/backups"]["settings"]
+            settings.update({k: body[k] for k in ("target", "disk", "protocol", "address", "user", "hour", "recipient") if k in body},
+                            retention_days=body.get("retention_days", settings["retention_days"]))
+        return {"id": rid, "pending": True}
+
     def do_POST(self):
         """A fixed, fictional answer with one source for /v1/chat (the gateway streams Server-Sent Events)."""
+        if self.path.split("?")[0] == "/v1/admin/backups/requests":
+            reply = json.dumps(self.backup_request()).encode()
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+            return
         if self.path.split("?")[0] != "/v1/chat":
             self.send_error(404)
             return
