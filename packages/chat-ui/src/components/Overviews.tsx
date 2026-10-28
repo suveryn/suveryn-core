@@ -93,8 +93,8 @@ function Face({ member, size = "small" }: { member: Pick<Member, "user" | "name"
 
 // ================================================================== Cases (artboard 06)
 
-export function CasesOverview({ cases, documents, conversations, officeWide, onOpen, onPin, onNew, onAction, onShowDocuments, onShowConversations }: {
-  cases: CaseOverview[]; documents: AllDocument[]; conversations: ConversationSummary[]; officeWide: boolean;
+export function CasesOverview({ cases, documents, conversations, onOpen, onPin, onNew, onAction, onShowDocuments, onShowConversations }: {
+  cases: CaseOverview[]; documents: AllDocument[]; conversations: ConversationSummary[];
   onOpen: (c: CaseOverview) => void; onPin: (c: CaseOverview, pinned: boolean) => void; onNew: () => void;
   onAction: (c: CaseOverview, action: CaseAction) => void;
   onShowDocuments: (caseId: string) => void; onShowConversations: (caseId: string) => void;
@@ -190,7 +190,7 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
 
   return (
     <section className="overview">
-      <OverviewHead title={m.cases} summary={m.casesSummary(open, cases.length - open, officeWide)}
+      <OverviewHead title={m.cases} summary={m.casesSummary(open, cases.length - open)}
                     action={<Button variant="primary" onPress={onNew}><Folder size={16} aria-hidden /> {m.newCase}</Button>} />
       <div className="overview-tools">
         <SearchField label={m.findCase} placeholder={m.caseSearchPlaceholder} value={query} onChange={setQuery} className="overview-search" />
@@ -203,7 +203,7 @@ export function CasesOverview({ cases, documents, conversations, officeWide, onO
         <Select label={m.sortBy} options={sortOptions} value={sort} onChange={setSort} icon={<ArrowUpDown size={14} />} className="overview-sort" />
       </div>
       <DataTable label={m.cases} columns={columns} rows={shown} onRowAction={onOpen} empty={q || type !== "all" || member !== "all" || confidential ? m.noCaseFound : m.casesEmpty} />
-      <Footer count={m.caseCount(rows.length)} note={<span>{m.casesFootnote}</span>} page={page} total={rows.length} onPage={setPage} />
+      <Footer count={m.caseCount(rows.length)} page={page} total={rows.length} onPage={setPage} />
     </section>
   );
 }
