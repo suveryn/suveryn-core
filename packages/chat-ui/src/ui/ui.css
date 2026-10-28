@@ -211,7 +211,8 @@
 .ui-badge { position: absolute; right: -6px; bottom: -4px; display: grid; place-items: center; width: 11px; height: 11px; border-radius: 30%;
             background: transparent; color: var(--teal-ink); }
 .ui-badge svg { stroke-width: 2.5; }
-.ui-badge[data-tone="accent"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1.5px var(--text); }  /* the administrator: an ink outline */
+/* the administrator: only the shield's outline, in ink (Filip, 28 October): no disc, no ring */
+.ui-badge[data-tone="accent"], .ui-avatar .ui-badge[data-tone="accent"] { background: transparent; color: var(--text); box-shadow: none; }
 .ui-badge svg { width: 100%; height: 100%; }
 .ui-badge[data-tone="accent"] svg { width: 70%; height: 70%; }
 /* neutral: on an avatar, the manager's folder or the owner's speech bubble (docs/design/chat-ui.md §4) */
