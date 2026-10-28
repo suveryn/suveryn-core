@@ -351,7 +351,9 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   stay as they were, so a failure still shows in the notice at the top. New strings: "Started.", "Backing
   up since…", "Next: today/tomorrow at…", "Leave empty to keep the saved password.", "Saved. The next
   backup uses these settings.", the backup service not answering, the new key's dialog, the sheet's
-  labels and restore steps, and the share test's "login" and "write" refusals.
+  labels and restore steps, the share test's "login" and "write" refusals, and its success ("Connected:
+  signed in, and a test file written and removed.": the setup's own says signing in is checked at the
+  first backup, which is no longer so here).
 
 ## History
 
