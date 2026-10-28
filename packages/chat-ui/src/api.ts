@@ -4,6 +4,7 @@
  */
 import { clearDraft } from "./lib/draft";
 import { createSSEParser } from "./lib/sse";
+import { RateLimited } from "./lib/turns";
 import { lang, t } from "./i18n";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
@@ -266,7 +267,13 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job | ArchiveUpload);
       else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
-      else reject(new Error(httpErrorText(xhr.status, xhr.response?.detail, xhr.getResponseHeader("Retry-After"), xhr.response?.reason)));
+      else {
+        const detail = xhr.response?.detail, after = xhr.getResponseHeader("Retry-After");
+        const text = httpErrorText(xhr.status, detail, after, xhr.response?.reason);
+        // The per-person rate limit, not a full queue: the chat waits its turn (lib/turns.ts).
+        const rateLimited = xhr.status === 429 && !(typeof detail === "string" && /documents are waiting|playbook runs/.test(detail));
+        reject(rateLimited ? new RateLimited(text, after && /^\d+$/.test(after) ? Number(after) : 30) : new Error(text));
+      }
     };
     xhr.onerror = () => reject(new Error(t().uploadInterrupted));
     xhr.onabort = () => reject(new DOMException("cancelled", "AbortError"));

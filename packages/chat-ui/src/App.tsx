@@ -44,6 +44,7 @@ import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
 import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
+import { inTurn } from "./lib/turns";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { SearchView } from "./components/ListViews";
 import { CasesOverview, ConversationsOverview, DocumentsOverview } from "./components/Overviews";
@@ -401,8 +402,10 @@ function Chat({ me }: { me: Me }) {
       uploads.current.set(key, abort);
       setPending((p) => [...p, { key, filename: file.name, status: "uploading" }]);
       try {
-        const job = await uploadDocument(file, (fraction) =>
-          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId, abort.signal);
+        // Refused by the rate limit: wait the gateway's time and send it again (lib/turns.ts), the card uploading.
+        const job = await inTurn(() => uploadDocument(file, (fraction) =>
+          setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: fraction } : a))), caseId, abort.signal),
+          () => setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: undefined } : a))), abort.signal);
         if (isArchiveUpload(job)) {
           // The archive's card becomes a card per document in it, and one per file left out, saying why.
           const cards: Attachment[] = [
