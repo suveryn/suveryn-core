@@ -9,7 +9,7 @@
  * Administrators only: the gateway answers 403 to anyone else on every /v1/admin route.
  */
 import {
-  AlertTriangle, ArrowLeft, BarChart3, ChevronRight, ClipboardList, Folder, Gauge, HardDrive, Shield, Users,
+  AlertTriangle, ArrowLeft, BarChart3, ChevronRight, ClipboardList, Folder, Gauge, HardDrive, Settings, Shield, Users,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getBackups, type BackupStatus } from "../api";
@@ -19,12 +19,13 @@ import { IconButton, NARROW, useMedia } from "../ui";
 import { AdminBackups } from "./AdminBackups";
 import { AdminCases } from "./AdminCases";
 import { AdminPlaybooks } from "./AdminPlaybooks";
+import { AdminSettings } from "./AdminSettings";
 import { AdminStatus } from "./AdminStatus";
 import { AdminUsers } from "./AdminUsers";
 import { AdminUsage } from "./UsageView";
 
-/** The pages built so far; Users, Settings, Updates and models, Network and Licence join as they are built. */
-export type AdminPage = "status" | "users" | "cases" | "playbooks" | "usage" | "backups";
+/** The pages built so far; Updates and models, Network and Licence join as they are built. */
+export type AdminPage = "status" | "users" | "cases" | "playbooks" | "usage" | "settings" | "backups";
 
 type Item = { id: AdminPage; label: string; icon: ReactNode; mark?: ReactNode };
 
@@ -49,6 +50,7 @@ export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
       { id: "cases", label: m.adminCases, icon: <Folder size={16} aria-hidden /> },
       { id: "playbooks", label: m.adminPlaybooks, icon: <ClipboardList size={16} aria-hidden /> },
       { id: "usage", label: m.adminUsage, icon: <BarChart3 size={16} aria-hidden /> },
+      { id: "settings", label: m.adminSettings, icon: <Settings size={16} aria-hidden /> },
     ] },
     { heading: m.adminAppliance, items: [
       { id: "status", label: m.adminStatus, icon: <Gauge size={16} aria-hidden /> },
@@ -83,9 +85,10 @@ export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
 
   const body = shown === "status" ? <AdminStatus onOpen={setPage} />
     : shown === "users" ? <AdminUsers me={me} onLostAdministration={onLostAdministration} />
-    : shown === "cases" ? <AdminCases />
+    : shown === "cases" ? <AdminCases onOpen={setPage} />
     : shown === "playbooks" ? <AdminPlaybooks />
-    : shown === "usage" ? <AdminUsage />
+    : shown === "usage" ? <AdminUsage onOpen={setPage} />
+    : shown === "settings" ? <AdminSettings />
     : shown === "backups" ? <AdminBackups /> : null;
 
   return (

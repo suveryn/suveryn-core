@@ -619,7 +619,18 @@ export async function getCaseSettings(): Promise<CaseSettings> {
   return r.json();
 }
 
-export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep">>): Promise<CaseSettings> {
+/** What saving these settings would do now, for the confirmation in Administration › Settings: counts only. */
+export type SettingsPreview = { cases_opened: number; cases_closed: number; conversations_deleted: number };
+
+export async function previewCaseSettings(q: { default_access?: "office" | "members"; apply_to?: "new" | "all"; conversations_keep?: KeepPeriod }): Promise<SettingsPreview> {
+  const params = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined) as [string, string][]);
+  const r = await fetch(`/v1/admin/cases/settings/preview?${params}`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
+export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep">> & { apply_to?: "new" | "all" }): Promise<CaseSettings> {
   const r = await fetch("/v1/admin/cases/settings", {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
   });
@@ -743,6 +754,12 @@ export async function testRecoveryKey(keyFile: string): Promise<void> {
 }
 
 /** Administrators: change the rates the notional cost uses. */
+export async function getRates(): Promise<Rates> {
+  const r = await fetch("/v1/admin/usage/rates");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
 export async function setRates(rates: Pick<Rates, "input_per_million" | "output_per_million" | "currency">): Promise<Rates> {
   const r = await fetch("/v1/admin/usage/rates", {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rates),

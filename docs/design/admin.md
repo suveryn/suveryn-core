@@ -239,6 +239,11 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 | Indicative cost | Indicatieve kost | Coût indicatif |
 | For the comparison on Usage. | Voor de vergelijking op Verbruik. | Pour la comparaison dans Utilisation. |
 | Change in Settings | Wijzigen in Instellingen | Modifier dans Paramètres |
+| Applies to | Geldt voor | S'applique à |
+| {n} cases become visible to their members only. | {n} dossiers worden alleen nog zichtbaar voor de leden. | {n} dossiers ne sont plus visibles que par leurs membres. |
+| {n} saved conversations will be deleted. | {n} bewaarde gesprekken worden verwijderd. | {n} conversations enregistrées seront supprimées. |
+| Save the settings? | Instellingen opslaan? | Enregistrer les paramètres ? |
+| Settings couldn't be loaded. | Instellingen niet geladen. | Paramètres non chargés. |
 | **Backups** | | |
 | Back up now | Nu een back-up maken | Sauvegarder maintenant |
 | Where the backups are | Waar de back-ups staan | Emplacement des sauvegardes |
@@ -304,6 +309,7 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 - **Everyone sees the notice**: without a manifest after 14 days, every deviation from the agreement,
   and again when support ends.
 - **The certificate's expiry** appears on *Status* when it nears (with #41's work, suveryn-tracker).
+- **The dark theme waits**: the chat UI has none yet, so the dark artboards aren't built.
 - The update durations (20 and 15 minutes) stay estimates for #40 to confirm, and the place on
   suveryn.com where an appliance learns of a new version isn't designed yet.
 
@@ -324,6 +330,15 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   needed strings the table didn't have; the Dutch and French texts that named a person "haar", "hij",
   "ze", "il" or "elle" (drawn for one example person) use the name or "de" instead, since an account
   has no known gender; the "Advanced: open Keycloak" link isn't built, as nobody should need it.
+- *Settings*: who sees a case, the two keep periods and the indicative cost's rates, one *Save* for all;
+  *Cases* and *Usage* only show them, with "Change in Settings". Differences: "New cases" keeps the
+  existing cases with their members by restricting those that followed the default (the case model has no
+  other way to hold "as it was"); "All cases" also opens cases a manager restricted, as drawn, with a line
+  in each access log; closing to the members needs no choice (it applies to every case that follows the
+  default) but is confirmed with its count too; a shorter period for closed cases deletes nothing at once
+  (it applies to cases closed from then on, cases.md), so only conversations are counted. New strings:
+  "Applies to", "Save the settings?", the counts of cases closed and conversations deleted, and "Settings
+  couldn't be loaded.".
 
 ## History
 

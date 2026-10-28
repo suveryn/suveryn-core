@@ -217,10 +217,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .tab[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 .tab.on { color: var(--text); border-bottom-color: var(--text); }  /* navigation, not action */
 .tab:hover { color: var(--text); }
-/* the administrator's case pages (AdminCases.tsx, stage 4) */
-.case-settings { display: flex; flex-direction: column; gap: var(--space-2); }
-.case-settings-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
-.case-settings .caption { display: flex; align-items: center; gap: var(--space-1); margin: 0; }
 
 /* playbooks (suveryn-tracker#51): deed intake */
 .playbook-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
@@ -272,16 +268,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .usage-table th, .usage-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 .usage-table th:first-child, .usage-table thead th:first-child { text-align: left; font-weight: 500; }
 .usage-table thead th { font-size: var(--text-caption); color: var(--text-dim); font-weight: 500; }
-.rates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); border-top: 1px solid var(--line);
-         padding-top: var(--space-4); margin-top: var(--space-2); }
-.rates h2 { flex-basis: 100%; }
-.rates { align-items: flex-start; }
-.rates .ui-field { margin: 0; }
-.rates > .ui-button { margin-top: 20px; } /* level with the small fields: their label is 16px, then a 4px gap */
 .rates-field .ui-input { width: 9em; }
-.rates .ui-field-error { max-width: 16em; }
-.rates .ui-select-field-button { min-width: 7em; }
-.rates .caption, .rates .ui-form-error { flex-basis: 100%; margin: 0; }
 
 /* sign-in screen */
 .signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -729,6 +716,18 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .admin-page section { display: flex; flex-direction: column; gap: var(--space-2); }
 .admin-page section > h2.label { margin: var(--space-2) 0 0; }
 .admin-page section > .caption { margin: 0; }
+
+/* Settings (artboard 35): sections apart, the keep periods side by side, Save at the foot */
+.admin-settings { display: flex; flex-direction: column; gap: var(--space-6); }
+.admin-settings-apply { padding-left: var(--space-6); }
+.admin-settings-apply h3.label { margin: 0 0 var(--space-1); }
+.admin-settings-row, .admin-page section.admin-settings-row { display: flex; flex-flow: row wrap; gap: var(--space-4); align-items: flex-start; }
+.admin-settings-row > .ui-field { flex: 1 1 14rem; margin: 0; }
+.admin-settings-row > .rates-field, .admin-settings-row > .rates-field ~ .ui-field { flex: 0 0 auto; }
+.admin-settings-row .ui-select-field-button { min-width: 7em; }
+.admin-settings-save { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3);
+                       border-top: 1px solid var(--line); padding-top: var(--space-4); }
+.admin-settings-save .caption { margin: 0; display: inline-flex; align-items: center; gap: var(--space-1); }
 
 /* Users (artboards 32 and 34) */
 .users-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }

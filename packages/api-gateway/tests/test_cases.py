@@ -259,7 +259,22 @@ class FakeCases:
     def overrides_meta(self):
         return self.settings_meta
 
-    def set_overrides(self, changes, by):
+    def access_counts(self):
+        out = {"default": 0, "restricted": 0}
+        for c in self.cases.values():
+            if not c.confidential:
+                out[c.access] += 1
+        return out
+
+    def set_overrides(self, changes, by, *, keep_existing=False, open_all=False, by_user=""):
+        for cid, c in list(self.cases.items()):
+            if c.confidential:
+                continue
+            if keep_existing and c.access == "default":
+                self.cases[cid] = c.model_copy(update={"access": "restricted"})
+            if open_all and c.access == "restricted":
+                self.cases[cid] = c.model_copy(update={"access": "default"})
+                self.log(cid, by_user, "access_changed", {"access": "default"})
         self.settings_rows.update(changes)
         self.settings_meta = (datetime.now(UTC), by)
         return dict(self.settings_rows)
@@ -1282,7 +1297,7 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     before = c.get("/v1/admin/cases/settings", headers=admin).json()
     assert before == {"default_access": "members", "keep": "6m", "conversations_keep": "manual", "updated_at": None, "updated_by": ""}
     assert c.put("/v1/admin/cases/settings", json={}, headers=admin).status_code == 422
-    r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual"}, headers=admin)
+    r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual", "apply_to": "all"}, headers=admin)
     assert r.status_code == 200 and r.json()["default_access"] == "office" and r.json()["keep"] == "manual"
     # the conversations period (the data lifecycle, suveryn-tracker#31) reaches the conversation store at the next listing
     r = c.put("/v1/admin/cases/settings", json={"conversations_keep": "1y"}, headers=admin)
@@ -1295,6 +1310,63 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     closed = c.post(f"/v1/cases/{cid}/close", headers=alice).json()
     assert closed["keep_until"] is None  # the new period applies to cases closed from now on
     assert c.put("/v1/admin/cases/settings", json={"keep": "2y"}, headers=admin).status_code == 422
+
+
+def test_opening_the_office_applies_to_new_cases_or_by_choice_to_all_but_never_strictly_confidential_ones(office):
+    """Administration › Settings (docs/design/admin.md, artboard 35): who sees a case, for new cases or all of them."""
+    c, kc, cases, history, _ = office
+    alice, carla, admin = as_user(kc, ALICE), as_user(kc, CARLA), admin_headers(kc)
+    first = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    secret = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=alice).json()["id"]
+    c.patch(f"/v1/cases/{secret}", json={"confidential": True}, headers=alice)
+    preview = lambda q: c.get("/v1/admin/cases/settings/preview", params=q, headers=admin).json()  # noqa: E731
+    assert c.get("/v1/admin/cases/settings/preview", headers=alice).status_code == 403
+    assert preview({"default_access": "office", "apply_to": "new"})["cases_opened"] == 0
+    assert preview({"default_access": "office", "apply_to": "all"})["cases_opened"] == 1  # the strictly confidential one never
+    # new cases only: the existing one stays with its members, restricted, and its manager can open it
+    c.put("/v1/admin/cases/settings", json={"default_access": "office"}, headers=admin)
+    assert c.get(f"/v1/cases/{first}", headers=carla).status_code in (403, 404)
+    assert cases.cases[uuid.UUID(first)].access == "restricted"
+    later = c.post("/v1/cases", json={**NEW, "reference": "2026/0419"}, headers=alice).json()["id"]
+    assert c.get(f"/v1/cases/{later}", headers=carla).json()["my_role"] == "reader"
+    # back to members only: every case that follows the default, counted first
+    assert preview({"default_access": "members"})["cases_closed"] == 1
+    c.put("/v1/admin/cases/settings", json={"default_access": "members"}, headers=admin)
+    assert c.get(f"/v1/cases/{later}", headers=carla).status_code in (403, 404)
+    # all cases: the restricted one opens too, with a line in its access log; the strictly confidential one stays
+    c.put("/v1/admin/cases/settings", json={"default_access": "office", "apply_to": "all"}, headers=admin)
+    assert c.get(f"/v1/cases/{first}", headers=carla).json()["my_role"] == "reader"
+    assert c.get(f"/v1/cases/{secret}", headers=carla).status_code in (403, 404)
+    assert "access_changed" in [e["action"] for e in c.get(f"/v1/cases/{first}/events", headers=alice).json()]
+
+
+def test_a_shorter_keep_period_for_conversations_is_counted_before_it_is_saved(office):
+    c, kc, _, history, _ = office
+    admin = admin_headers(kc)
+    old, now = datetime.now(UTC) - timedelta(days=400), datetime.now(UTC)
+    for at in (old, old, now):
+        history.rows[uuid.uuid4()] = {"updated_at": at}
+    preview = lambda keep: c.get("/v1/admin/cases/settings/preview", params={"conversations_keep": keep}, headers=admin).json()  # noqa: E731
+    assert preview("1y")["conversations_deleted"] == 2 and preview("5y")["conversations_deleted"] == 0
+    assert preview("manual")["conversations_deleted"] == 0
+    c.put("/v1/admin/cases/settings", json={"conversations_keep": "1y"}, headers=admin)
+    assert preview("5y")["conversations_deleted"] == 0  # longer: nothing goes
+
+
+def test_store_opens_or_keeps_the_existing_cases_with_the_setting_never_strictly_confidential_ones(store):
+    s, alice = store, f"alice-{uuid.uuid4()}"
+    first = s.create(CaseIn(**NEW), alice)
+    secret = s.create(CaseIn(**{**NEW, "reference": "2026/0418"}), alice)
+    s.update(uuid.UUID(secret.id), CaseUpdate(confidential=True))
+    before = s.access_counts()
+    s.set_overrides({"default_access": "office"}, "admin", keep_existing=True)
+    assert s.get(uuid.UUID(first.id), alice).access == "restricted" and s.access_counts()["default"] == 0
+    s.set_overrides({"default_access": "office"}, "admin", open_all=True, by_user="admin-sub")
+    assert s.get(uuid.UUID(first.id), alice).access == "default"
+    assert s.get(uuid.UUID(secret.id), alice).access == "restricted"  # their members decide
+    assert s.access_counts()["default"] == before["default"] + before["restricted"]
+    assert [(e.action, e.user) for e in s.events(uuid.UUID(first.id))][0] == ("access_changed", "admin-sub")
+    s.set_overrides({"default_access": "members"}, "admin")
 
 
 def test_store_lists_every_case_for_the_administrator_and_keeps_the_offices_settings(store):
