@@ -340,6 +340,19 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   "Applies to", "Save the settings?", the counts of cases closed and conversations deleted, and "Settings
   couldn't be loaded.".
 
+- *Backups*, editable: *Back up now* with when the next one runs, where (the USB disk, or a share whose
+  *Test connection* now signs in and writes a test file: the setup's only saw whether the server answered),
+  *Every day at* (whole hours, 02:00 by default) and *Retention* with one *Save*, and the recovery sheet
+  with *Make a new recovery key…*. The gateway can't change the appliance's backups itself: each change is
+  a request its backup service checks as the setup does (suveryn-appliance `backup/README.md`). Since /etc
+  is read-only, the hour is in the backup settings and the timer runs hourly. Differences: the sheet shows
+  the appliance's address, not its ID (that comes with the manifest, #41), and the key's fingerprint is
+  its public half shortened, as on the key file's "public key" line; the existing status and the key test
+  stay as they were, so a failure still shows in the notice at the top. New strings: "Started.", "Backing
+  up since…", "Next: today/tomorrow at…", "Leave empty to keep the saved password.", "Saved. The next
+  backup uses these settings.", the backup service not answering, the new key's dialog, the sheet's
+  labels and restore steps, and the share test's "login" and "write" refusals.
+
 ## History
 
 - **27 October**: designed from the build chat's brief: a side menu, *Users*, *Settings*, editable
