@@ -18,4 +18,5 @@ from . import (  # noqa: F401 - the modules app.py includes
     signin,
     status,
     usage,
+    users,
 )

@@ -35,7 +35,9 @@
     "realm": [
       {
         "name": "suveryn-admin",
-        "description": "Sūveryn administrator: the office's token usage per user and the notional-cost rates (suveryn-tracker#7)"
+        "description": "Sūveryn administrator: Administration in the chat UI, including the office's accounts (users, their sign-ins)",
+        "composite": true,
+        "composites": { "client": { "realm-management": ["manage-users", "view-users", "view-realm", "view-events"] } }
       }
     ]
   },

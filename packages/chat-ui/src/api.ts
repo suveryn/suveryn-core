@@ -696,6 +696,37 @@ export async function getAdminStatus(): Promise<AdminStatus> {
   return r.json();
 }
 
+/** Administration › Users (admin.md): the office's accounts through the gateway, never Keycloak's console. */
+export type Account = { sub: string; username: string; name: string; email: string; admin: boolean; enabled: boolean; last_sign_in: string | null };
+export type UsersList = { users: Account[]; agreement_users: number | null };
+/** A temporary password to pass on, in the answer once and nowhere else. */
+export type TemporaryPassword = { user: Account; address: string; password: string };
+export type AccountEventKind = "signed_in" | "sign_in_failed" | "signed_out" | "added" | "made_admin" | "admin_removed"
+  | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "changed";
+export type AccountEvent = {
+  at: string; kind: AccountEventKind; user: string | null; name: string; by: string | null;
+  reason: "wrong_password" | "locked" | "switched_off" | "other" | null;
+};
+
+async function accountCall<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const r = await fetch(`/v1/admin/users${path}`, {
+    method, ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return (r.status === 204 ? undefined : await r.json()) as T;
+}
+
+export const listAccounts = () => accountCall<UsersList>("", "GET");
+export const addAccount = (name: string, email: string, admin: boolean) =>
+  accountCall<TemporaryPassword>("", "POST", { name, email, admin });
+export const setAccountAdmin = (sub: string, admin: boolean) => accountCall<Account>(`/${encodeURIComponent(sub)}/admin`, "PUT", { admin });
+export const setAccountEnabled = (sub: string, enabled: boolean) =>
+  accountCall<Account>(`/${encodeURIComponent(sub)}/enabled`, "PUT", { enabled });
+export const resetAccountPassword = (sub: string) => accountCall<TemporaryPassword>(`/${encodeURIComponent(sub)}/password`, "POST");
+export const resetAccountTwoStep = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}/two-step`, "POST");
+export const signAccountOut = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}/sign-out`, "POST");
+export const listAccountEvents = (limit: number) => accountCall<AccountEvent[]>(`/events?limit=${limit}`, "GET");
+
 export async function getBackups(): Promise<BackupStatus> {
   const r = await fetch("/v1/admin/backups");
   if (!r.ok) throw await responseError(r);

@@ -84,15 +84,19 @@ export function Select({ label, options, value, onChange, icon, className }: Sel
 }
 
 /** A select with a visible label and an optional hint, for forms (the backup disk, the retention). */
-export function SelectField({ name, label, description, options, value, onChange, size }: {
+export function SelectField({ name, label, description, options, value, onChange, size, placeholder, hideLabel }: {
   name: string; label: string; description?: string; options: Option[]; value: string; onChange: (id: string) => void;
   /** As the text fields (fields.tsx, FieldSize). */
   size?: "regular" | "small";
+  /** Shown while nothing is chosen (`value` ""). */
+  placeholder?: string;
+  /** The label for screen readers only (a table's column header already says it). */
+  hideLabel?: boolean;
 }) {
   return (
-    <AriaSelect name={name} selectedKey={value} onSelectionChange={(k) => k != null && onChange(String(k))}
+    <AriaSelect name={name} selectedKey={value || null} onSelectionChange={(k) => k != null && onChange(String(k))} placeholder={placeholder}
                 className="ui-field ui-select-field" data-size={size === "small" ? "small" : undefined}>
-      <Label className="ui-label">{label}</Label>
+      <Label className={hideLabel ? "ui-visually-hidden" : "ui-label"}>{label}</Label>
       <AriaButton className="ui-input ui-select-field-button">
         <SelectValue className="ui-select-value" />
         <ChevronDown size={16} aria-hidden />

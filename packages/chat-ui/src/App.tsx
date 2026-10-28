@@ -180,6 +180,7 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => { if (view !== "documents" && view !== "conversations") setOverviewFilter("all"); }, [view]);
   const showOverview = (v: "documents" | "conversations", filter = "all") => { setOverviewFilter(filter); setView(v); };
   const [adminPage, setAdminPage] = useState<AdminPage | undefined>(undefined);  // undefined: Status, or the menu when narrow
+  const [adminGone, setAdminGone] = useState(false);  // removed their own administrator rights: Administration closes
   const [collapsed, setCollapsedState] = useState(readCollapsed);
   const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
   const [showSettings, setShowSettings] = useState(false);
@@ -601,7 +602,7 @@ function Chat({ me }: { me: Me }) {
   // The left column (docs/design/chat-ui.md §2); on a narrow screen a drawer that closes once something is chosen.
   const closing = <A extends unknown[]>(f: (...a: A) => unknown) => (...a: A) => { setDrawer(false); f(...a); };
   const sidebar = (inDrawer: boolean) => (
-      <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={me.admin ?? false} collapsed={inDrawer ? false : collapsed} onCollapse={setCollapsed}
+      <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={(me.admin ?? false) && !adminGone} collapsed={inDrawer ? false : collapsed} onCollapse={setCollapsed}
                conversations={allConversations} caseConversations={conversations} documents={allDocuments} cases={cases}
                currentCase={currentCase} currentConversation={conversationId}
                casesNote={health === null || casesReady ? null : health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable}
@@ -975,7 +976,8 @@ function Chat({ me }: { me: Me }) {
         )}
         {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
-        {view === "admin" && <AdminView onBack={() => setView("chat")} initialPage={adminPage} />}
+        {view === "admin" && <AdminView me={me.sub ?? ""} onBack={() => setView("chat")} initialPage={adminPage}
+                                         onLostAdministration={() => { setAdminGone(true); setView("chat"); }} />}
         {view === "conversations" && <div className="conversation conversation-wide">
           <ConversationsOverview key={overviewFilter} initialCase={overviewFilter} conversations={allConversations} cases={casesWithMembers} me={me}
                                  onOpen={openListed} onAction={conversationAction} onNew={newChat} />
