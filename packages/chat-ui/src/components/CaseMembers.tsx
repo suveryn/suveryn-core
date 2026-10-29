@@ -123,12 +123,12 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
                 <span className="member-role-text">{roleLabel(member.role, m)}</span>
               )}
               {canManage && member.role !== "manager" && (
-                <TextButton onPress={() => act(() => removeMember(kase.id, member.user))} isDisabled={busy}>
+                <TextButton link onPress={() => act(() => removeMember(kase.id, member.user))} isDisabled={busy}>
                   <Trash2 size={14} aria-hidden /> {m.remove}
                 </TextButton>
               )}
               {canHandOver && !canManage && member.role !== "manager" && (
-                <TextButton onPress={() => setHandingOver(member.user)} isDisabled={busy}>
+                <TextButton link onPress={() => setHandingOver(member.user)} isDisabled={busy}>
                   <ArrowRightLeft size={14} aria-hidden /> {m.makeManager}
                 </TextButton>
               )}
@@ -139,7 +139,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
       {taking && (
         <InlineNotice icon={<ArrowRightLeft size={14} />}>
           {m.handOverConfirm(taking.name || taking.username)}{" "}
-          <TextButton onPress={confirmHandOver} isDisabled={busy}>{m.handOver}</TextButton>{" "}
+          <TextButton link onPress={confirmHandOver} isDisabled={busy}>{m.handOver}</TextButton>{" "}
           <TextButton onPress={() => setHandingOver(null)} isDisabled={busy}>{m.cancel}</TextButton>
         </InlineNotice>
       )}
@@ -211,7 +211,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
           {events.map((e) => (
             <li key={e.id} className="event">
               <span className="event-when">{dayLabel(e.at)} {new Date(e.at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })}</span>
-              <span className="event-who">{names.get(e.user) || e.user}</span>
+              <span className="event-who">{e.name || names.get(e.user) || e.user}</span>
               <span className="event-what"><ScrollText size={12} aria-hidden /> {eventLabel(e, m)}</span>
             </li>
           ))}

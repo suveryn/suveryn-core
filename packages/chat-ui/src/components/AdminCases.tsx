@@ -57,7 +57,7 @@ export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                   <td title={c.manager_username}>{c.manager_name || c.manager_username || c.manager}</td>
                   <td>{c.members}</td>
                   <td>{c.state !== "closed" ? "" : isDue(c) ? <b>{fateLabel(c, m)}</b> : fateLabel(c, m)}</td>
-                  <td><TextButton onPress={() => setHanding(c)}><ArrowRightLeft size={12} aria-hidden /> {m.handOver}</TextButton></td>
+                  <td><TextButton link onPress={() => setHanding(c)}><ArrowRightLeft size={12} aria-hidden /> {m.handOver}</TextButton></td>
                 </tr>
               ))}
             </tbody>
@@ -84,7 +84,7 @@ function SettingsFacts({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       { icon: <Users size={16} />, label: m.whoSeesACase, value: settings.default_access === "office" ? m.accessEveryone : m.accessMembersOnly },
       { icon: <Lock size={16} />, label: m.keepClosedCase, value: period(settings.keep) },
       { icon: <MessageSquare size={16} />, label: m.keepConversations, value: period(settings.conversations_keep) },
-    ]} footer={<TextButton onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>} />
+    ]} footer={<TextButton link onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>} />
   );
 }
 

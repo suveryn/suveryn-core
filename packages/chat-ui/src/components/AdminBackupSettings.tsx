@@ -191,12 +191,12 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         {form.target === "usb" && (diskOptions.length ? (
           <div className="backup-disk-row">
             <SelectField name="disk" label={t.backupDisk} value={form.disk} onChange={set("disk")} options={diskOptions} />
-            <TextButton onPress={lookForDisks} isDisabled={looking}>{t.lookAgain}</TextButton>
+            <TextButton link onPress={lookForDisks} isDisabled={looking}>{t.lookAgain}</TextButton>
           </div>
         ) : (
           <div className="backup-disk-row">
             <p className="caption" role="status">{looking ? t.testing : t.noDisk}</p>
-            <TextButton onPress={lookForDisks} isDisabled={looking}>{t.lookAgain}</TextButton>
+            <TextButton link onPress={lookForDisks} isDisabled={looking}>{t.lookAgain}</TextButton>
           </div>
         ))}
         {form.target === "share" && (
@@ -320,7 +320,7 @@ export function RecoverySheet({ status, onSaved }: { status: BackupStatus; onSav
       {fresh && <InlineNotice icon={<KeyRound size={14} />}>{m.newRecoveryKeySaved}</InlineNotice>}
       <div className="backup-sheet-actions">
         <Button size="small" onPress={() => setPrinting(true)}><Printer size={14} aria-hidden /> {m.printRecoverySheet}</Button>
-        <TextButton onPress={begin}>{m.newRecoveryKey}</TextButton>
+        <TextButton link onPress={begin}>{m.newRecoveryKey}</TextButton>
       </div>
       <Dialog isOpen={printing} onClose={() => setPrinting(false)} title={m.recoverySheet} actions={<>
         <TextButton onPress={() => setPrinting(false)}>{m.cancel}</TextButton>

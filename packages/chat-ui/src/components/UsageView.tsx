@@ -208,7 +208,7 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
           <p className="caption">
             {m.rateInput}: {money(report.rates.input_per_million, report.rates.currency)} · {m.rateOutput}:{" "}
             {money(report.rates.output_per_million, report.rates.currency)}.{" "}
-            <TextButton onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>
+            <TextButton link onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>
           </p>
         </>
       )}
