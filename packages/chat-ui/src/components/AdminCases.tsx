@@ -52,7 +52,7 @@ export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
               {cases.map((c) => (
                 <tr key={c.id} data-due={isDue(c) || undefined}>
                   <th scope="row">{c.state === "closed" ? <Lock size={12} aria-hidden /> : <Folder size={12} aria-hidden />} {c.reference}</th>
-                  <td className="cases-name" title={c.name}>{c.name}</td>
+                  <td className="cases-name" title={c.name}>{c.name || (c.confidential ? <span className="overview-dim">{m.strictlyConfidential}</span> : "")}</td>
                   <td>{c.state === "closed" ? `${m.caseClosed} ${dayLabel(c.closed_at!)}` : m.stateOpen}</td>
                   <td title={c.manager_username}>{c.manager_name || c.manager_username || c.manager}</td>
                   <td>{c.members}</td>
