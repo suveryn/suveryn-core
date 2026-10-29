@@ -43,6 +43,7 @@ class FakeConversations:
         self.keep = "manual"  # the gateway sets the office's period before listing (routes/common.py)
 
     def purge(self):
+        self.purged = getattr(self, "purged", []) + [self.keep]
         return 0
 
     def older_than(self, days):

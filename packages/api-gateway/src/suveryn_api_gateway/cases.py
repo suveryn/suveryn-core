@@ -197,6 +197,9 @@ class CaseIn(BaseModel):
     type: str = Field(min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
     subject: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     access: Access = "default"
+    # Strictly confidential from the start (VM check of 28 October, finding 14: it was silently ignored here and
+    # only a PATCH set it). Members only, so the access is restricted too.
+    confidential: bool = False
 
 
 class CaseUpdate(BaseModel):
@@ -398,9 +401,10 @@ class CaseStore(PgStore):
         try:
             with self.transaction():  # the case, its manager and the first log line: all or nothing
                 row = self._execute(
-                    "INSERT INTO cases (id, reference, name, type, subject, access, manager, created_by)"
-                    f" VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING {self._COLS}",
-                    (case_id, body.reference, body.name, body.type, json.dumps(body.subject), body.access, user, user)).fetchone()
+                    "INSERT INTO cases (id, reference, name, type, subject, access, confidential, manager, created_by)"
+                    f" VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING {self._COLS}",
+                    (case_id, body.reference, body.name, body.type, json.dumps(body.subject),
+                     "restricted" if body.confidential else body.access, body.confidential, user, user)).fetchone()
                 self._execute('INSERT INTO case_members (case_id, "user", role, added_by, username, name)'
                               " VALUES (%s, %s, %s, %s, %s, %s)", (case_id, user, "manager", user, username, name))
                 self.log(case_id, user, "created", {})

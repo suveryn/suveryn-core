@@ -101,7 +101,7 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
   if (failed && !list) {
     return (
       <>
-        <Notice icon={<AlertCircle size={16} />} title={m.usersUnavailable}>{failed}</Notice>
+        <Notice icon={<AlertCircle size={16} />} title={m.usersUnavailable}>{sentence(failed)}</Notice>
         <Button size="small" onPress={load}><RefreshCw size={14} aria-hidden /> {m.tryAgain}</Button>
       </>
     );
@@ -346,3 +346,6 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
     </Dialog>
   );
 }
+
+/** An error's text as a sentence of its own: a capital first, a full stop last (VM check of 28 October, finding 11). */
+const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?…]$/.test(text) ? "" : ".");

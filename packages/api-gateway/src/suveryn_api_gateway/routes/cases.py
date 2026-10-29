@@ -372,4 +372,8 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
     await run_in_threadpool(partial(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev",
                                     keep_existing=opens and body.apply_to == "new", open_all=opens and body.apply_to == "all",
                                     by_user=user.sub if user else LOCAL_OWNER))
+    if "conversations_keep" in changes and (history := history_or_none(request)) is not None:
+        # At once, not at the next hourly sweep: the confirmation said they are deleted, and until then they would go
+        # into the night's backup (VM check of 28 October, finding 4). history_or_none told it the new period.
+        await run_in_threadpool(history.purge)
     return await admin_case_settings(request)
