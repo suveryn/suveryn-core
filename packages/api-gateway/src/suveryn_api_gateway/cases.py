@@ -125,6 +125,15 @@ CREATE TABLE IF NOT EXISTS case_pins (
     PRIMARY KEY (case_id, "user")
 );
 CREATE INDEX IF NOT EXISTS case_events_at ON case_events (at);
+-- People whose account an administrator deleted (Administration › Users): their name stays with what they did
+-- in the cases (the access log, shared conversations, documents they added). Nothing else about them.
+CREATE TABLE IF NOT EXISTS departed_accounts (
+    sub         text PRIMARY KEY,
+    username    text NOT NULL,
+    name        text NOT NULL,
+    deleted_at  timestamptz NOT NULL DEFAULT now(),
+    deleted_by  text NOT NULL
+);
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS confidential boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS case_settings (
     key        text PRIMARY KEY,
@@ -335,6 +344,7 @@ class CaseEvent(BaseModel):
     at: datetime
     action: str
     detail: dict
+    name: str = ""  # who, as the case knows them or, for a deleted account, as it was called
 
 
 @dataclass(frozen=True)
@@ -668,6 +678,27 @@ class CaseStore(PgStore):
                                 (user, case_id)).fetchone()
         return self._case(row, self.role_of(case_id, by))
 
+    def depart(self, sub: str, username: str, name: str, by: str) -> int:
+        """An account deleted by an administrator: out of every case it was in (it manages none: ``manages``
+        first), its pins gone, its name kept for what it did there (``departed_names``). One transaction; how
+        many cases it left. A line in each case's access log, by the administrator."""
+        with self.transaction():
+            self._execute("INSERT INTO departed_accounts (sub, username, name, deleted_by) VALUES (%s, %s, %s, %s)"
+                          " ON CONFLICT (sub) DO UPDATE SET username = EXCLUDED.username, name = EXCLUDED.name,"
+                          " deleted_at = now(), deleted_by = EXCLUDED.deleted_by", (sub, username, name, by))
+            left = [r[0] for r in self._execute('DELETE FROM case_members WHERE "user" = %s AND role <> \'manager\''
+                                                ' RETURNING case_id', (sub,)).fetchall()]
+            self._execute('DELETE FROM case_pins WHERE "user" = %s', (sub,))
+            for case_id in left:
+                self.log(case_id, by, "member_removed", {"user": sub, "account_deleted": True})
+        return len(left)
+
+    def departed_names(self, subs: list[str] | None = None) -> dict[str, str]:
+        """The names of deleted accounts (all, or these), for what they did in the cases."""
+        rows = self._execute("SELECT sub, name, username FROM departed_accounts"
+                             + (" WHERE sub = ANY(%s)" if subs is not None else ""), ((list(subs),) if subs is not None else ())).fetchall()
+        return {r[0]: r[1] or r[2] for r in rows}
+
     def members_of(self, case_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[Member]]:
         """The members of several cases at once, the manager first, then by name (the overviews)."""
         rows = self._execute('SELECT case_id, "user", username, name, role, added_by, added_at FROM case_members'
@@ -696,9 +727,11 @@ class CaseStore(PgStore):
     def events(self, case_id: uuid.UUID, limit: int = MAX_EVENTS) -> list[CaseEvent]:
         """The case's access log, newest first, within the retention."""
         self.purge_events()
-        rows = self._execute('SELECT id, "user", at, action, detail FROM case_events WHERE case_id = %s'
-                             " ORDER BY at DESC, id DESC LIMIT %s", (case_id, limit)).fetchall()
-        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=r[4]) for r in rows]
+        rows = self._execute('SELECT e.id, e."user", e.at, e.action, e.detail, coalesce(m.name, d.name, \'\') FROM case_events e'
+                             ' LEFT JOIN case_members m ON m.case_id = e.case_id AND m."user" = e."user"'
+                             ' LEFT JOIN departed_accounts d ON d.sub = e."user"'
+                             " WHERE e.case_id = %s ORDER BY e.at DESC, e.id DESC LIMIT %s", (case_id, limit)).fetchall()
+        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=r[4], name=r[5]) for r in rows]
 
     def purge_events(self) -> int:
         """Delete access-log lines older than the retention; how many."""

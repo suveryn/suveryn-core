@@ -857,6 +857,14 @@ const nl: Messages = {
   noLongerOpensAdministration: (name) => `${name} kan Beheer dan niet meer openen.`,
   administrationClosesForYou: "Beheer sluit dan voor u.",
   onlyAdministrator: "Kan niet: u bent de enige administrator.",
+  deleteAccount: "Account verwijderen…",
+  switchOffFirst: "Schakel het account eerst uit.",
+  deleteAccountTitle: (name) => `Het account van ${name} verwijderen?`,
+  deleteAccountGoes: (documents, conversations) =>
+    `Mee verwijderd: ${documents} eigen ${documents === 1 ? "document" : "documenten"} en ${conversations} ${conversations === 1 ? "gesprek" : "gesprekken"} die niemand anders kan lezen.`,
+  deleteAccountStays: (shared) =>
+    `In de dossiers blijft alles onder dezelfde naam staan: de toegevoegde documenten, het toegangslogboek${shared ? ` en ${shared} ${shared === 1 ? "gedeeld gesprek" : "gedeelde gesprekken"}` : ""}.`,
+  deleteAccountAction: "Account verwijderen",
   notForOwnAccount: "Kan niet voor uw eigen account.",
   resetPasswordTitle: (name) => `Wachtwoord van ${name} opnieuw instellen?`,
   resetPasswordBody: "Het huidige wachtwoord vervalt. U krijgt een tijdelijk wachtwoord om door te geven.",
@@ -879,7 +887,7 @@ const nl: Messages = {
     signed_in: "Aangemeld", signed_out: "Afgemeld", added: "Toegevoegd", made_admin: "Administrator gemaakt",
     admin_removed: "Administratorrechten ingetrokken", password_reset: "Wachtwoord opnieuw ingesteld",
     two_step_reset: "Tweestapsaanmelding opnieuw ingesteld", signed_out_everywhere: "Overal afgemeld",
-    changed: "Account gewijzigd",
+    changed: "Account gewijzigd", deleted: "Account verwijderd",
   },
   signInFailed: { wrong_password: "Mislukt: verkeerd wachtwoord", locked: "Mislukt: tijdelijk geblokkeerd", switched_off: "Mislukt: account uit", other: "Mislukt" },
   unknownAccount: "Onbekend account",

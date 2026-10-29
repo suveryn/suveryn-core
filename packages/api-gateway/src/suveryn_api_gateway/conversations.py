@@ -416,6 +416,21 @@ class ConversationStore(PgStore):
                                        (json.dumps(row[0]), summary.id)).rowcount
         return n
 
+    def personal(self, owner: str) -> int:
+        """How many of this owner's conversations nobody else can read: outside a case, or in one and not shared."""
+        return self._execute("SELECT count(*) FROM conversations WHERE owner = %s AND (case_id IS NULL OR NOT shared)",
+                             (owner,)).fetchone()[0]
+
+    def shared_count(self, owner: str) -> int:
+        """How many of this owner's conversations are shared with a case (they stay when the account is deleted)."""
+        return self._execute("SELECT count(*) FROM conversations WHERE owner = %s AND case_id IS NOT NULL AND shared",
+                             (owner,)).fetchone()[0]
+
+    def delete_personal(self, owner: str) -> int:
+        """Delete them (Administration › Users, an account deleted); those shared with a case stay with the case."""
+        return self._execute("DELETE FROM conversations WHERE owner = %s AND (case_id IS NULL OR NOT shared)",
+                             (owner,)).rowcount
+
     def delete_all(self, owner: str) -> int:
         """Delete every conversation of this owner (the sign-out choice "Delete history")."""
         return self._execute("DELETE FROM conversations WHERE owner = %s", (owner,)).rowcount

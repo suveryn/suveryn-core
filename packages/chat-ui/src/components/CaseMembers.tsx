@@ -211,7 +211,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
           {events.map((e) => (
             <li key={e.id} className="event">
               <span className="event-when">{dayLabel(e.at)} {new Date(e.at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })}</span>
-              <span className="event-who">{names.get(e.user) || e.user}</span>
+              <span className="event-who">{e.name || names.get(e.user) || e.user}</span>
               <span className="event-what"><ScrollText size={12} aria-hidden /> {eventLabel(e, m)}</span>
             </li>
           ))}

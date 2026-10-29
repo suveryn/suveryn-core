@@ -229,6 +229,15 @@ async def list_users(request: Request, q: str = ""):
     return await with_faces(request, people)
 
 
+@router.get("/v1/users/departed", response_model=dict[str, str])
+async def departed_users(request: Request):
+    """The names of accounts an administrator deleted, by id: what they did in the cases keeps their name
+    (who added a document, whose shared conversation). Names only."""
+    db = request.app.state.cases
+    store = db.get() if db.configured else None
+    return await run_in_threadpool(store.departed_names) if store is not None else {}
+
+
 @router.get("/v1/cases/{case_id}/members", response_model=list[Member], responses={404: {"description": "Unknown case"}})
 async def list_members(case_id: str, request: Request):
     """The case's members and their roles, the manager first (anyone who may read the case)."""

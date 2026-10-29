@@ -309,6 +309,14 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 - **Everyone sees the notice**: without a manifest after 14 days, every deviation from the agreement,
   and again when support ends.
 - **The certificate's expiry** appears on *Status* when it nears (with #41's work, suveryn-tracker).
+- **Deleting an account** (29 October): an administrator can, as a second step once the account is off (so
+  its cases are handed over already); not their own. Its own space goes with it: its documents outside a
+  case, the conversations nobody else can read, its picture and pins. What it did in its cases stays there
+  under its name: documents it added, conversations it shared, the access log. Usage keeps its counts.
+- **Text actions are orange** (29 October), as the brand says: Remove, Undo, Hand over, Look again, Change in
+  Settings… Cancel and Close stay ink.
+- **Status shows the version** (29 October): the release and the core commit, without a setting.
+- **The order of a new account's first sign-in** (two-step first, then the password: Keycloak's) is fine for now.
 - **The dark theme waits**: the chat UI has none yet, so the dark artboards aren't built.
 - The update durations (20 and 15 minutes) stay estimates for #40 to confirm, and the place on
   suveryn.com where an appliance learns of a new version isn't designed yet.
