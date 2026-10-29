@@ -96,7 +96,7 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
     { id: "user", label: m.colUser, rowHeader: true, render: face },
     { id: "admin", label: m.colAdministrator, render: (u) => (u.admin ? m.yes : <span className="overview-dim">{m.no}</span>) },
     { id: "last", label: m.colLastSignedIn,
-      render: (u) => <span className="overview-dim">{u.last_sign_in ? whenLabel(u.last_sign_in) : m.neverSignedIn}</span> },
+      render: (u) => <span className="overview-dim">{(u.last_sign_in ? whenLabel(u.last_sign_in) : u.last_sign_in_unknown ? m.notSignedInLately : m.neverSignedIn)}</span> },
     { id: "account", label: m.colAccount, render: (u) => (u.enabled ? m.accountOn : <span className="overview-dim">{m.accountOff}</span>) },
     { id: "actions", label: m.colActions, hideLabel: true, width: "48px", render: rowMenu },
   ];
@@ -141,7 +141,7 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
             <li key={u.sub}>
               {face(u)}
               <span className="users-list-meta overview-dim">
-                {[u.admin ? m.administrator : "", u.enabled ? (u.last_sign_in ? whenLabel(u.last_sign_in) : m.neverSignedIn) : m.accountOff]
+                {[u.admin ? m.administrator : "", u.enabled ? ((u.last_sign_in ? whenLabel(u.last_sign_in) : u.last_sign_in_unknown ? m.notSignedInLately : m.neverSignedIn)) : m.accountOff]
                   .filter(Boolean).join(" · ")}
               </span>
               {rowMenu(u)}
@@ -231,7 +231,7 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
         {max !== null && counted + 1 > max
           ? <Notice icon={<AlertTriangle size={16} />}>{m.overAgreement(counted + 1, max)}</Notice>
           : <p className="caption">{m.temporaryPasswordNote}</p>}
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -356,7 +356,7 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
           </tbody>
         </table>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
     </Dialog>
   );
 }
