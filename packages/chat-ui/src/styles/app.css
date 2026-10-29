@@ -166,8 +166,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
               border-bottom: 1px solid var(--line); font-size: var(--text-caption); color: var(--text-dim); }
 .case-state[data-due] { background: var(--surface-alt); color: var(--text); }  /* the notice box: the triangle and the text carry it */
 .case-state .case-state-text { flex: 1; min-width: 0; }
-.case-state .case-action { display: inline-flex; align-items: center; gap: var(--space-1); color: inherit; font-size: var(--text-caption); white-space: nowrap; }
-.case-state .case-action:hover { color: var(--text); }
+.case-state .case-action { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); white-space: nowrap; }  /* an action: accent-ink */
 .case-state .case-state-error { flex-basis: 100%; margin: 0; }
 /* members and the access log (CaseMembers.tsx) */
 .case-access { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-4); }

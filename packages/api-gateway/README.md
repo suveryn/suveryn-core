@@ -107,7 +107,7 @@ Every `/v1/...` endpoint needs a signed-in user: 401 without one, 503 if sign-in
 | `SUVERYN_LOG_LEVEL` | Default `INFO`: how much of sūveryn's own log (the `suveryn.*` loggers) goes to stderr, and so to the journal (`DEBUG`, `INFO`, `WARNING`, `ERROR`). The lines hold ids, counts and kinds, never document text |
 | `SUVERYN_DIRECTORY_CLIENT_ID` | Default `suveryn-directory`: the client that reads the office's accounts for cases (suveryn-tracker#10) |
 | `SUVERYN_DIRECTORY_CLIENT_SECRET` | Its secret (`0600` file); without it the directory is unavailable and members can't be added |
-| `SUVERYN_VERSION` | The appliance's version, shown on Administration › Status (optional) |
+| `SUVERYN_VERSION` | The version Administration › Status shows (optional). Without it: the read-only system's release (`IMAGE_VERSION`) and the core commit it was built with, or that commit alone |
 | `SUVERYN_PUBLIC_URL` | The URL people open the UI at; the callback is `<this>/auth/callback`, and it is the only accepted `Origin` |
 | `SUVERYN_AUTH=off` | Development only: no sign-in. Refused at start unless the gateway binds to a loopback address |
 

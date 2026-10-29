@@ -123,12 +123,12 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
                 <span className="member-role-text">{roleLabel(member.role, m)}</span>
               )}
               {canManage && member.role !== "manager" && (
-                <TextButton onPress={() => act(() => removeMember(kase.id, member.user))} isDisabled={busy}>
+                <TextButton link onPress={() => act(() => removeMember(kase.id, member.user))} isDisabled={busy}>
                   <Trash2 size={14} aria-hidden /> {m.remove}
                 </TextButton>
               )}
               {canHandOver && !canManage && member.role !== "manager" && (
-                <TextButton onPress={() => setHandingOver(member.user)} isDisabled={busy}>
+                <TextButton link onPress={() => setHandingOver(member.user)} isDisabled={busy}>
                   <ArrowRightLeft size={14} aria-hidden /> {m.makeManager}
                 </TextButton>
               )}
@@ -139,7 +139,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
       {taking && (
         <InlineNotice icon={<ArrowRightLeft size={14} />}>
           {m.handOverConfirm(taking.name || taking.username)}{" "}
-          <TextButton onPress={confirmHandOver} isDisabled={busy}>{m.handOver}</TextButton>{" "}
+          <TextButton link onPress={confirmHandOver} isDisabled={busy}>{m.handOver}</TextButton>{" "}
           <TextButton onPress={() => setHandingOver(null)} isDisabled={busy}>{m.cancel}</TextButton>
         </InlineNotice>
       )}
