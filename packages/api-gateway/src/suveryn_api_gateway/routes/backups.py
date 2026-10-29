@@ -20,7 +20,7 @@ import json
 import os
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -104,6 +104,22 @@ class BackupStatus(BaseModel):
     settings: BackupSettings | None = None
 
 
+def appliance_zone() -> tzinfo:
+    """The appliance's own time zone, the one the backup tool's hour is in (it runs on local time): ``TZ`` when
+    set, else /etc/localtime, else UTC. Not SUVERYN_TIMEZONE, which the installer doesn't set (VM check of 28
+    October, finding 5: the page said 03:00 in Brussels while the backup ran at 03:00 UTC)."""
+    if (key := os.environ.get("TZ", "").lstrip(":")):
+        try:
+            return ZoneInfo(key)
+        except (ValueError, KeyError, OSError):
+            pass
+    try:
+        with open("/etc/localtime", "rb") as f:
+            return ZoneInfo.from_file(f)
+    except (OSError, ValueError):
+        return ZoneInfo("UTC")
+
+
 def read_settings(now: datetime | None = None) -> BackupSettings | None:
     try:
         raw = json.loads(SETTINGS.read_text())
@@ -113,7 +129,7 @@ def read_settings(now: datetime | None = None) -> BackupSettings | None:
         return None
     hour = raw.get("hour", DEFAULT_HOUR)
     hour = hour if type(hour) is int and 0 <= hour <= 23 else DEFAULT_HOUR
-    zone = ZoneInfo(os.environ.get("SUVERYN_TIMEZONE", "Europe/Brussels"))
+    zone = appliance_zone()
     local = (now or datetime.now(zone)).astimezone(zone)
     slot = local.replace(hour=hour, minute=0, second=0, microsecond=0)
     if slot <= local:

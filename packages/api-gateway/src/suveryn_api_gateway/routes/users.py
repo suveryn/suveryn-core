@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from ..accounts import Account, AccountEvent, AccountRefused, Accounts, AccountsUnavailable
+from ..accounts import Account, AccountEvent, AccountRefused, Accounts, AccountsUnavailable, RightsRefused
 from ..auth import AuthError, AuthUnavailable
 from .common import admin_or_403, owner_of
 
@@ -82,6 +82,8 @@ async def _do(call):
         if e.code == "exists":
             raise HTTPException(409, "An account with this e-mail address exists.") from e
         raise HTTPException(409, e.code) from e
+    except RightsRefused:
+        raise  # app.py: 503 with reason "rights", which the page says in its own sentence
     except AccountsUnavailable as e:
         raise HTTPException(503, str(e)) from e
 
@@ -146,6 +148,7 @@ async def sign_out(sub: str, request: Request):
     """Signed out on every device; they can sign in again straight away."""
     accounts, token = await as_admin(request)
     await _do(accounts.sign_out(token, sub))
+    request.app.state.auth.drop_user(sub)  # this gateway's own sessions too, not only Keycloak's
 
 
 @router.put("/v1/admin/users/{sub}/enabled", response_model=Account, responses={
@@ -167,6 +170,8 @@ async def set_enabled(sub: str, body: EnabledIn, request: Request):
             raise HTTPException(409, f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.")
     if user.enabled != body.enabled:
         await _do(accounts.set_enabled(token, sub, body.enabled))
+        if not body.enabled:
+            request.app.state.auth.drop_user(sub)  # signed out here too, at once
     return user.model_copy(update={"enabled": body.enabled})
 
 

@@ -47,7 +47,7 @@ type Form = {
 
 function formFrom(s: BackupSettings | null | undefined): Form {
   return {
-    target: s?.target ?? "usb", disk: s?.disk ?? "", protocol: s?.protocol ?? "smb", address: s?.address ?? "",
+    target: s?.target ?? "usb", disk: s?.disk ?? "", protocol: s?.protocol || "smb", address: s?.address ?? "",
     user: s?.user ?? "", password: "", retention: s?.retention_days ?? 30, hour: s?.hour ?? 2,
   };
 }
@@ -84,7 +84,10 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
   const t = useText();
   const saved = status.settings ?? null;
   const [form, setForm] = useState<Form>(() => formFrom(saved));
-  useEffect(() => { setForm(formFrom(saved)); }, [saved]);
+  // Only when what is saved changes: the status is read again every few seconds while a backup runs, and that
+  // mustn't undo what the administrator is typing.
+  const savedKey = JSON.stringify(saved);
+  useEffect(() => { setForm(formFrom(saved)); }, [savedKey]);  // eslint-disable-line react-hooks/exhaustive-deps
   const set = <K extends keyof Form>(key: K) => (value: Form[K]) => { setForm((f) => ({ ...f, [key]: value })); setDone(false); setErrors({}); };
   const [disks, setDisks] = useState<BackupDisk[] | null>(null);
   const [looking, setLooking] = useState(false);
@@ -127,7 +130,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
       const a = await askBackupService({ kind: "test-share", protocol: form.protocol, address: form.address.trim(),
         ...(form.protocol === "smb" ? { user: form.user.trim() || null, password: form.password || null, keep_password: keepPassword } : {}) }, 60);
       setTest(a.ok ? { state: "ok", for: shareKey } : { state: "failed", message: t.errors[a.error as keyof typeof t.errors] ?? t.errUnexpected });
-    } catch { setTest({ state: "failed", message: t.errUnexpected }); }
+    } catch (e) { setTest({ state: "failed", message: (e as Error).message }); }  // the test's own reason, not saving's
   };
 
   const download = () => {
@@ -213,7 +216,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
             )}
             {errors.user && <p className="ui-field-error">{errors.user}</p>}
             <div className="backup-test">
-              <Button size="small" isDisabled={test.state === "testing"} onPress={runTest}>{t.testConnection}</Button>
+              <Button size="small" isDisabled={test.state === "testing" || !form.address.trim()} onPress={runTest}>{t.testConnection}</Button>
               <span className="backup-test-status" role="status" data-state={tested ? "ok" : test.state === "failed" || errors.test ? "failed" : undefined}>
                 {test.state === "testing" ? t.testing : tested ? m.shareTestOk : test.state === "failed" ? test.message : errors.test ?? (shareChanged ? t.notTested : "")}
               </span>

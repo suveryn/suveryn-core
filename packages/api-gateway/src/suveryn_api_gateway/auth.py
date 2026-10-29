@@ -497,6 +497,15 @@ class Authenticator:
     def drop(self, session_id: str | None) -> Session | None:
         return self._sessions.pop(session_id or "", None)
 
+    def drop_user(self, sub: str) -> int:
+        """End every browser session of this account at once, here as in Keycloak: an administrator signed it out
+        everywhere or switched it off (VM check of 28 October, finding 2: the open session kept working until its
+        access token ran out, about 4½ minutes). Returns how many."""
+        ended = [sid for sid, s in self._sessions.items() if s.user.sub == sub]
+        for sid in ended:
+            del self._sessions[sid]
+        return len(ended)
+
     async def logout(self, session_id: str | None) -> str | None:
         """End the session here; return Keycloak's end-session URL (ends the Keycloak session too)."""
         session = self.drop(session_id)

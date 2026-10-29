@@ -51,7 +51,7 @@ class FakeAdminApi:
         method = request.method
         token = request.headers.get("authorization", "").removeprefix("Bearer ")
         caller = jwt.decode(token, options={"verify_signature": False})
-        if ADMIN_ROLE not in caller.get("realm_access", {}).get("roles", []):
+        if ADMIN_ROLE not in caller.get("realm_access", {}).get("roles", []) or getattr(self, "no_composites", False):
             return httpx.Response(403, json={"error": "unknown_error"})  # the composite role isn't there
         self.callers.append(caller["sub"])
         path = request.url.path.removeprefix("/admin/realms/suveryn")
@@ -267,3 +267,27 @@ def test_nobody_else_can_and_a_browser_session_calls_with_a_fresh_token(setup):
     assert api.callers[-1] == ALICE and api.logged_out == [BOB]
     kc.refresh_allowed = False  # the administrator's session ended in Keycloak
     assert c.post(f"/v1/admin/users/{BOB}/sign-out", headers={"Origin": PUBLIC}).status_code == 401
+
+
+def test_signing_out_everywhere_or_switching_off_ends_this_gateways_sessions_at_once(setup):
+    """VM check of 28 October, finding 2: Keycloak ended the account's sessions, but the gateway's own session kept
+    working until its access token ran out (about 4½ minutes)."""
+    c, kc, api, _ = setup
+    admin = as_user(kc, ALICE, admin=True)
+    for action in (lambda: c.post(f"/v1/admin/users/{CAROL}/sign-out", headers=admin),
+                   lambda: c.put(f"/v1/admin/users/{CAROL}/enabled", json={"enabled": False}, headers=admin)):
+        carol = TestClient(c.app)  # Carol's own browser
+        kc.refresh_over = {"sub": CAROL, "name": "Carol Claes"}
+        sign_in(carol, kc, sub=CAROL, name="Carol Claes")
+        assert carol.get("/v1/admin/users").status_code == 403  # signed in, not an administrator
+        assert action().status_code in (200, 204)
+        assert carol.get("/v1/admin/users").status_code == 401  # at once, not when her token runs out
+        c.put(f"/v1/admin/users/{CAROL}/enabled", json={"enabled": True}, headers=admin)
+
+
+def test_a_role_without_its_composites_says_the_rights_were_refused(setup):
+    """VM check of 28 October, finding 11: a realm imported before Users answered "not available"."""
+    c, kc, api, _ = setup
+    api.no_composites = True
+    r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
+    assert r.status_code == 503 and r.json()["reason"] == "rights"

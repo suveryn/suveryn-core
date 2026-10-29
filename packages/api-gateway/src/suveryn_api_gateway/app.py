@@ -73,7 +73,7 @@ from .cases import CaseSettings, CaseStore
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import ConversationSettings, ConversationStore
 from .directory import Directory, DirectorySettings, LocalDirectory
-from .accounts import Accounts, AccountsSettings
+from .accounts import Accounts, AccountsSettings, RightsRefused
 from .playbooks import RunStore
 from .ratelimit import RateLimiter, RateLimits
 from .routes.common import (
@@ -379,6 +379,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         # ``reason``: the page says which part is down in the person's language (api.ts httpErrorText).
         return JSONResponse({"detail": "The database can't be reached right now. Try again shortly.", "reason": "database"},
                             status_code=503)
+
+    @app.exception_handler(RightsRefused)
+    async def rights_refused(request: Request, exc: RightsRefused):
+        """Users: Keycloak refused the administrator's rights. Its own sentence on the page, not "unavailable"
+        (VM check of 28 October, finding 11): an install brings the rights back."""
+        log.warning("accounts: %s", exc)
+        return JSONResponse({"detail": str(exc), "reason": "rights"}, status_code=503)
 
     @app.exception_handler(AuthUnavailable)
     async def auth_unavailable(request: Request, exc: AuthUnavailable):

@@ -685,6 +685,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .admin-menu-mark { display: flex; color: var(--text); }
 .admin-page { flex: 1; min-width: 0; overflow-y: auto; padding: var(--space-6) var(--space-8) var(--space-8); }
 .admin-page > * { max-width: 760px; }
+/* VM check of 28 October, finding 1: a flex column that scrolls, whose children may shrink, gave the Users table
+   (overflow: auto, so a minimum height of 0) its height away once the page grew taller than the window. Nothing in
+   a page shrinks; the page scrolls. */
+.admin-page > *, .admin-page section > * { flex-shrink: 0; }
 .admin-page-title { margin: 0; font-size: var(--text-title); }
 
 /* narrow (artboard 42): the menu is the first page, a list of rows of 44 px with a chevron */

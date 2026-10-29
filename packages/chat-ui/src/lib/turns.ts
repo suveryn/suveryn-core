@@ -4,7 +4,8 @@
  * of 38 files had 18 refused, each card saying "too many requests". The chat waits the time the gateway names
  * and sends the file again itself, so a large drop simply takes longer.
  *
- * Only the rate limit is waited for. A full reading queue ("documents are waiting") is said, as before.
+ * A full reading queue ("documents are waiting") is waited for too (VM check of 28 October, finding 3: a drop of
+ * 40 lost 5 to 10 files to it): it names no time, so the chat looks again every 10 seconds while documents are read.
  */
 
 /** A 429 from the per-person rate limit, with the seconds the gateway asks to wait. */
@@ -15,7 +16,7 @@ export class RateLimited extends Error {
   }
 }
 
-export const MAX_TURNS = 10;  // at most this many waits for one file: 10 minutes at the gateway's 60 s window
+export const MAX_TURNS = 60;  // at most this many waits for one file: 10 minutes of a full queue, more of the rate limit
 const MAX_WAIT_S = 120;
 
 /** Resolves after `ms`, or rejects with an AbortError when `signal` aborts (the card's ×). */
