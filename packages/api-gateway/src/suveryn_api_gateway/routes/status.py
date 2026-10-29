@@ -28,6 +28,31 @@ log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
 
 INTERVAL_S = 60
+OS_RELEASE = Path(os.environ.get("SUVERYN_OS_RELEASE", "/usr/lib/os-release"))
+CORE_BUILT = Path(os.environ.get("SUVERYN_CORE_BUILT", "/opt/suveryn/core/.suveryn-built"))
+
+
+def appliance_version() -> str | None:
+    """What Status shows as the version (Filip, 29 October: it should): ``SUVERYN_VERSION`` when set, else the
+    read-only system's release (``IMAGE_VERSION`` in os-release, sūveryn's image only) and the core commit the
+    appliance was built with, e.g. "1.2.0 · core a34d3fb"; on a machine installed with the provisioning, the core
+    commit alone. None when none of these is there (a development machine)."""
+    if (given := os.environ.get("SUVERYN_VERSION", "").strip()):
+        return given[:60]
+    parts = []
+    try:
+        release = dict(line.split("=", 1) for line in OS_RELEASE.read_text().splitlines() if "=" in line)
+        if release.get("IMAGE_ID", "").strip('"').startswith("suveryn") and (v := release.get("IMAGE_VERSION", "").strip('"')):
+            parts.append(v[:30])
+    except OSError:
+        pass
+    try:
+        built = CORE_BUILT.read_text().strip()  # "suveryn-core@<full commit>"
+        if built.startswith("suveryn-core@"):
+            parts.append(f"core {built.split('@', 1)[1][:7]}")
+    except OSError:
+        pass
+    return " · ".join(parts) or None
 FRESH_S = 15  # a page asking within this long of the last check gets that one
 # Disk space is short below either: a tenth of the disk, or room for a night's backup and a few uploads.
 LOW_SHARE = 0.10
@@ -51,7 +76,7 @@ class Check(BaseModel):
 class AdminStatus(BaseModel):
     checked_at: datetime
     checks: list[Check]
-    version: str | None = None  # the appliance's version when it says (SUVERYN_VERSION)
+    version: str | None = None  # the appliance's version (appliance_version)
 
 
 def _disk() -> tuple[int, int] | None:
@@ -96,7 +121,7 @@ class StatusMonitor:
                     self.failing_since.pop(c.id, None)
                 else:
                     c.since = self.failing_since.setdefault(c.id, now)
-            self.latest = AdminStatus(checked_at=now, checks=checks, version=os.environ.get("SUVERYN_VERSION") or None)
+            self.latest = AdminStatus(checked_at=now, checks=checks, version=appliance_version())
             return self.latest
 
     async def run(self, state) -> None:

@@ -118,7 +118,7 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
         {(onUseAsSource || onDelete) && (
           <span className="chip-noticed-actions">
             {onUseAsSource && <TextButton link onPress={onUseAsSource}>{m.useAsSource}</TextButton>}
-            {onDelete && <TextButton onPress={onDelete}>{m.delete}</TextButton>}
+            {onDelete && <TextButton link onPress={onDelete}>{m.delete}</TextButton>}
           </span>
         )}
       </span>

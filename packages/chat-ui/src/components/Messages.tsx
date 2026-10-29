@@ -513,7 +513,7 @@ function SaveToCaseActions({ save }: { save: SaveToCase }) {
           <Check size={13} aria-hidden /> {m.savedToCase(save.caseRef)} <strong>{save.saved.filename}</strong>
         </span>
         <TextButton link onPress={save.onOpen}>{m.openSaved}</TextButton>
-        {save.undoable && <TextButton isDisabled={busy} onPress={() => act(save.onUndo)}>{m.undoSave}</TextButton>}
+        {save.undoable && <TextButton link isDisabled={busy} onPress={() => act(save.onUndo)}>{m.undoSave}</TextButton>}
       </>) : (
         <Button variant="plain" className="copy-button" isDisabled={busy} onPress={() => act(save.onSave)}
                 aria-label={m.saveToCaseWhat(save.caseRef)} title={m.saveToCaseWhat(save.caseRef)}>

@@ -135,7 +135,7 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
           <Slider label={m.avatarZoom} value={framing.zoom} onChange={zoomTo} min={1} max={MAX_ZOOM} step={0.05}
                   format={(v) => `${v.toFixed(2)}×`} />
           <p className="caption">{m.avatarFrameHint}</p>
-          <FileButton accept={ACCEPT} onSelect={pick}><TextButton>{m.avatarAnotherPicture}</TextButton></FileButton>
+          <FileButton accept={ACCEPT} onSelect={pick}><TextButton link>{m.avatarAnotherPicture}</TextButton></FileButton>
         </div>
       ) : (
         <div className="avatar-pick">

@@ -102,7 +102,7 @@ export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChang
           <ul>
             {runs.filter((r) => r.id !== current?.id).map((r) => (
               <li key={r.id}>
-                <TextButton onPress={() => getRun(kase.id, r.id).then(setCurrent).catch((e: Error) => setError(e.message))}>
+                <TextButton link onPress={() => getRun(kase.id, r.id).then(setCurrent).catch((e: Error) => setError(e.message))}>
                   {dayLabel(r.started_at)} · {statusLabel(r.status, m)}{r.out_of_date ? ` · ${m.runOutOfDate}` : ""}
                 </TextButton>
               </li>

@@ -318,7 +318,8 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 - The side menu (and the narrow list) with *Status*, and the existing *Cases*, *Playbooks*, *Usage* and
   *Backups*; the other items join as their pages are built. *Status* reads `GET /v1/admin/status` (the
   gateway checks every minute, so "since" is when a failure began); the overview shows the version when
-  the appliance sets `SUVERYN_VERSION`, and the last backup. Users against the agreement and support join
+  the appliance has one (its release and the core commit, or `SUVERYN_VERSION`; Filip, 29 October), and the
+  last backup. Users against the agreement and support join
   with *Licence*. A full disk says "Almost full" (a string the table didn't have).
 - *Users*, as the administrator who is signed in (Filip, 28 October: no extra client; the gateway's
   README). Built as drawn, with these
