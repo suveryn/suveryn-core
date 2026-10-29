@@ -166,7 +166,10 @@ class FakeCases:
         if any(c.reference.lower() == body.reference.lower() for c in self.cases.values()):
             raise DuplicateReference(body.reference)
         now = datetime.now(UTC)
-        c = Case(id=str(uuid.uuid4()), **body.model_dump(), state="open", opened_at=now, closed_at=None, keep_until=None,
+        fields = body.model_dump()
+        if fields["confidential"]:
+            fields["access"] = "restricted"
+        c = Case(id=str(uuid.uuid4()), **fields, state="open", opened_at=now, closed_at=None, keep_until=None,
                  keep=False, manager=user, created_by=user, created_at=now, updated_at=now)
         cid = uuid.UUID(c.id)
         self.cases[cid] = c
@@ -1299,12 +1302,11 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     assert c.put("/v1/admin/cases/settings", json={}, headers=admin).status_code == 422
     r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual", "apply_to": "all"}, headers=admin)
     assert r.status_code == 200 and r.json()["default_access"] == "office" and r.json()["keep"] == "manual"
-    # the conversations period (the data lifecycle, suveryn-tracker#31) reaches the conversation store at the next listing
+    # the conversations period (the data lifecycle, suveryn-tracker#31) reaches the conversation store at once
     r = c.put("/v1/admin/cases/settings", json={"conversations_keep": "1y"}, headers=admin)
     assert r.status_code == 200 and r.json()["conversations_keep"] == "1y" and r.json()["keep"] == "manual"
-    assert history.keep == "manual"
+    assert history.keep == "1y" and history.purged[-1] == "1y"  # told and purged when saved (VM check of 28 October)
     assert c.get("/v1/conversations", headers=alice).status_code == 200
-    assert history.keep == "1y"
     assert r.json()["updated_by"] and r.json()["updated_at"]  # the administrator's username, and when
     assert c.get(f"/v1/cases/{cid}", headers=as_user(kc, CARLA)).json()["my_role"] == "reader"  # office-wide now
     closed = c.post(f"/v1/cases/{cid}/close", headers=alice).json()
@@ -1350,6 +1352,7 @@ def test_a_shorter_keep_period_for_conversations_is_counted_before_it_is_saved(o
     assert preview("1y")["conversations_deleted"] == 2 and preview("5y")["conversations_deleted"] == 0
     assert preview("manual")["conversations_deleted"] == 0
     c.put("/v1/admin/cases/settings", json={"conversations_keep": "1y"}, headers=admin)
+    assert history.purged[-1] == "1y"  # deleted when saved, not at the next sweep (VM check of 28 October, finding 4)
     assert preview("5y")["conversations_deleted"] == 0  # longer: nothing goes
 
 
@@ -1441,3 +1444,10 @@ def test_a_strictly_confidential_case_is_for_its_members_with_no_sharing_and_shi
     # turning it off and opening the access in one change is allowed
     c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
     assert c.patch(f"/v1/cases/{cid}", json={"confidential": False, "access": "default"}, headers=alice).json()["access"] == "default"
+
+
+def test_a_case_can_be_strictly_confidential_from_the_start(office):
+    """VM check of 28 October, finding 14: POST /v1/cases ignored "confidential"."""
+    c, kc, _, _, _ = office
+    r = c.post("/v1/cases", json={**NEW, "confidential": True}, headers=as_user(kc, ALICE))
+    assert r.status_code == 201 and r.json()["confidential"] is True and r.json()["access"] == "restricted"

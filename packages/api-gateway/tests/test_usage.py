@@ -329,6 +329,7 @@ def test_the_backup_settings_are_shown_and_changed_through_the_backup_service(se
     from suveryn_api_gateway.routes import backups
 
     c, kc, _ = setup
+    monkeypatch.setattr(backups, "appliance_zone", lambda: ZoneInfo("Europe/Brussels"))  # the machine's own zone
     folder = tmp_path / "requests"
     for name, value in (("STATUS", tmp_path / "status.json"), ("SETTINGS", tmp_path / "backups.json"),
                         ("SHARE_SECRET", tmp_path / "share.secret"), ("REQUESTS", folder),
@@ -371,3 +372,24 @@ def test_the_backup_settings_are_shown_and_changed_through_the_backup_service(se
         {"id": "usb-Extreme_SER1", "name": "Extreme", "size_bytes": 10**12}, {"id": "../../etc", "name": "x"}]}))
     assert c.get(f"/v1/admin/backups/requests/{rid}", headers=admin).json()["disks"] == [
         {"id": "usb-Extreme_SER1", "name": "Extreme", "size_bytes": 10**12}]
+
+
+def test_the_next_backup_is_given_in_the_appliances_own_zone(monkeypatch, tmp_path):
+    """VM check of 28 October, finding 5: the backup tool runs on the machine's time, so the page must too."""
+    import json
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from suveryn_api_gateway.routes import backups
+
+    monkeypatch.setattr(backups, "SETTINGS", tmp_path / "backups.json")
+    (tmp_path / "backups.json").write_text(json.dumps({"target": "usb", "disk": "usb-X_1", "retention_days": 30, "hour": 3,
+                                                       "recipient": "age1" + "q" * 58}))
+    now = datetime(2026, 10, 28, 20, 0, tzinfo=ZoneInfo("UTC"))
+    monkeypatch.setattr(backups, "appliance_zone", lambda: ZoneInfo("UTC"))
+    assert backups.read_settings(now).next_run == "2026-10-29T03:00:00Z"
+    monkeypatch.setattr(backups, "appliance_zone", lambda: ZoneInfo("Europe/Brussels"))
+    assert backups.read_settings(now).next_run == "2026-10-29T02:00:00Z"
+    monkeypatch.undo()  # the real appliance_zone, with TZ set as systemd may set it
+    monkeypatch.setenv("TZ", "Asia/Tokyo")
+    assert str(backups.appliance_zone()) == "Asia/Tokyo"
