@@ -14,11 +14,12 @@ password manager: the gateway keeps no dates, passwords or log beside it. One ne
 signed in" on the list, where the administrator can set it again or switch the account off.
 """
 
+import asyncio
 import logging
 import os
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 import httpx
@@ -28,6 +29,7 @@ log = logging.getLogger("suveryn.gateway")
 ADMIN_ROLE = "suveryn-admin"
 MAX_USERS = 1000
 MAX_EVENTS = 200
+EVENTS_KEPT_DAYS = 180  # the realm's eventsExpiration (development and production): older sign-ins are gone
 PAIRED_S = 2  # what one change does in several calls, one right after the other, shows as one line
 # A temporary password the policy accepts (15 characters or more) and a person can read out: four groups
 # of letters and digits without look-alikes (no l, 1, o, 0).
@@ -77,6 +79,9 @@ class Account(BaseModel):
     admin: bool = False
     enabled: bool = True
     last_sign_in: datetime | None = None
+    # No sign-in found, but the account is older than the sign-in events Keycloak keeps: "not in the last
+    # 180 days", not "never" (external review, pass 7).
+    last_sign_in_unknown: bool = False
 
 
 EventKind = Literal["signed_in", "sign_in_failed", "signed_out", "added", "made_admin", "admin_removed",
@@ -142,12 +147,26 @@ class Accounts:
         """Every person's account (no service accounts), with administrator, on or off, and last sign-in."""
         users = (await self._call(token, "GET", "/users", params={"max": str(MAX_USERS), "briefRepresentation": "false"})).json()
         admins = await self._admins(token)
+        people = [u for u in users if not u.get("serviceAccountClientId")]
         last: dict[str, datetime] = {}
         for e in (await self._call(token, "GET", "/events", params={"type": "LOGIN", "max": "2000"})).json():
             uid = e.get("userId")
             if uid and uid not in last:  # newest first
                 last[uid] = _time(e)
-        out = [_account(u, u["id"] in admins, last.get(u["id"])) for u in users if not u.get("serviceAccountClientId")]
+        # The newest 2,000 sign-ins can miss someone who signed in less often (external review, pass 7): each
+        # of them is asked for on their own, newest first, one event.
+        missing = [u["id"] for u in people if u["id"] not in last]
+        answers = await asyncio.gather(*(self._call(token, "GET", "/events", params={"type": "LOGIN", "user": uid, "max": "1"})
+                                         for uid in missing))
+        for uid, r in zip(missing, answers):
+            if (found := r.json()):
+                last[uid] = _time(found[0])
+        kept_since = datetime.now(UTC) - timedelta(days=EVENTS_KEPT_DAYS)
+        out = []
+        for u in people:
+            created = datetime.fromtimestamp(u["createdTimestamp"] / 1000, UTC) if u.get("createdTimestamp") else None
+            out.append(_account(u, u["id"] in admins, last.get(u["id"]),
+                                unknown=u["id"] not in last and (created is None or created < kept_since)))
         return sorted(out, key=lambda a: a.name.lower())
 
     async def get(self, token: str, sub: str) -> Account:
@@ -287,8 +306,8 @@ def _check_id(sub: str) -> None:
         raise AccountRefused("not_found")
 
 
-def _account(u: dict, admin: bool, last: datetime | None) -> Account:
+def _account(u: dict, admin: bool, last: datetime | None, unknown: bool = False) -> Account:
     username = u.get("username") or u["id"]
     name = " ".join(p for p in (u.get("firstName"), u.get("lastName")) if p) or username
     return Account(sub=u["id"], username=username, name=name, email=u.get("email") or "", admin=admin,
-                   enabled=u.get("enabled", True), last_sign_in=last)
+                   enabled=u.get("enabled", True), last_sign_in=last, last_sign_in_unknown=unknown)

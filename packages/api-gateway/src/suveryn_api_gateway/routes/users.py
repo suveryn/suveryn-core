@@ -13,9 +13,11 @@ the record of what changed and who changed it; the gateway keeps none of its own
 A temporary password is in the answer once and nowhere else: not logged, not stored.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -93,6 +95,17 @@ def _temporary(request: Request, user: Account, password: str) -> Temporary:
     return Temporary(user=user, address=address, password=password)
 
 
+def _admin_changes(request: Request) -> asyncio.Lock:
+    """One change at a time that could leave the office without an administrator: the check and the change
+    happen under this lock, so two administrators removing each other's rights in the same instant can't both
+    pass the check (external review, pass 7). One gateway per appliance, so a lock in it is enough; a change
+    made in Keycloak's own console is outside it, as it is outside every rule here."""
+    lock = getattr(request.app.state, "admin_changes", None)
+    if lock is None:
+        lock = request.app.state.admin_changes = asyncio.Lock()
+    return lock
+
+
 async def _admins(accounts: Accounts, token: str) -> list[Account]:
     return [a for a in await _do(accounts.everyone(token)) if a.admin and a.enabled]
 
@@ -119,11 +132,12 @@ async def add_user(body: NewUser, request: Request):
 async def set_admin(sub: str, body: AdminIn, request: Request):
     """Make someone an administrator, or remove the rights; never the last administrator's."""
     accounts, token = await as_admin(request)
-    user = await _do(accounts.get(token, sub))
-    if not body.admin and user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
-        raise HTTPException(409, "There must always be one administrator.")
-    if user.admin != body.admin:
-        await _do(accounts.set_admin(token, sub, body.admin))
+    async with _admin_changes(request):
+        user = await _do(accounts.get(token, sub))
+        if not body.admin and user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
+            raise HTTPException(409, "There must always be one administrator.")
+        if user.admin != body.admin:
+            await _do(accounts.set_admin(token, sub, body.admin))
     return user.model_copy(update={"admin": body.admin})
 
 
@@ -158,20 +172,21 @@ async def set_enabled(sub: str, body: EnabledIn, request: Request):
     """Switch an account off, or on again. Off: not your own, not the last administrator, and only once every
     case it manages has a new manager."""
     accounts, token = await as_admin(request)
-    user = await _do(accounts.get(token, sub))
-    if not body.enabled:
-        if sub == owner_of(request):
-            raise HTTPException(409, "You can't switch your own account off.")
-        if user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
-            raise HTTPException(409, "There must always be one administrator.")
-        cases = request.app.state.cases
-        store = cases.get() if cases.configured else None
-        if store is not None and (n := await run_in_threadpool(store.manages, sub)):
-            raise HTTPException(409, f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.")
-    if user.enabled != body.enabled:
-        await _do(accounts.set_enabled(token, sub, body.enabled))
+    async with _admin_changes(request):
+        user = await _do(accounts.get(token, sub))
         if not body.enabled:
-            request.app.state.auth.drop_user(sub)  # signed out here too, at once
+            if sub == owner_of(request):
+                raise HTTPException(409, "You can't switch your own account off.")
+            if user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
+                raise HTTPException(409, "There must always be one administrator.")
+            cases = request.app.state.cases
+            store = cases.get() if cases.configured else None
+            if store is not None and (n := await run_in_threadpool(store.manages, sub)):
+                raise HTTPException(409, f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.")
+        if user.enabled != body.enabled:
+            await _do(accounts.set_enabled(token, sub, body.enabled))
+            if not body.enabled:
+                request.app.state.auth.drop_user(sub)  # signed out here too, at once
     return user.model_copy(update={"enabled": body.enabled})
 
 
@@ -248,14 +263,30 @@ async def delete_user(sub: str, request: Request):
     accounts, token = await as_admin(request)
     user = await _deletable(request, accounts, token, sub)
     docs, history, avatars = _stores(request)
-    if docs is not None:
-        await run_in_threadpool(docs.delete_all, Scope.personal(sub))
-    if history is not None:
-        await run_in_threadpool(history.delete_personal, sub)
-    if avatars is not None:
-        await run_in_threadpool(avatars.remove, sub)
-    if request.app.state.cases.configured:
-        await run_in_threadpool(cases_or_503(request).depart, sub, user.username, user.name, owner_of(request))
-    await _do(accounts.delete(token, sub))
+    cases = cases_or_503(request) if request.app.state.cases.configured else None
+    # Every store was reached above; nothing is deleted yet. From here a failed step leaves the account in
+    # Keycloak, switched off, with part of its own space gone: said in its own sentence, not "unavailable",
+    # and deleting again finishes it, as every step is repeatable (external audit, 29 October).
+    try:
+        if docs is not None:
+            await run_in_threadpool(docs.delete_all, Scope.personal(sub))
+        if history is not None:
+            await run_in_threadpool(history.delete_personal, sub)
+        if avatars is not None:
+            await run_in_threadpool(avatars.remove, sub)
+        if cases is not None:
+            await run_in_threadpool(cases.depart, sub, user.username, user.name, owner_of(request))
+        try:
+            await accounts.delete(token, sub)
+        except AccountRefused as e:
+            if e.code != "not_found":  # not found: gone already, which is what was asked
+                raise
+    except RightsRefused:
+        raise  # its own sentence (app.py); deleting again once the rights are back finishes it
+    except Exception as e:  # noqa: BLE001 - whichever step failed, the answer is the same
+        log.warning("account %s: deletion stopped partway (%s); deleting again finishes it", sub, type(e).__name__)
+        return JSONResponse({"detail": "The deletion stopped partway: the account is still there, switched off, and part "
+                                       "of its own space may be gone. Delete it again to finish.", "reason": "unfinished"},
+                            status_code=503)
     request.app.state.auth.drop_user(sub)
     log.info("account %s deleted by an administrator", sub)
