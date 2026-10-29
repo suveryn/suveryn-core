@@ -56,6 +56,7 @@ const nl: Messages = {
   forbidden: "u hebt hiervoor geen toestemming",
   serverUnavailable: "dit deel van de server is nu niet beschikbaar; probeer het later opnieuw",
   adminRightsRefused: "de aanmeldservice weigerde uw beheerrechten; de appliance opnieuw installeren herstelt ze, of vraag ondersteuning",
+  accountDeletionUnfinished: "het verwijderen stopte halverwege: het account bestaat nog, uitgeschakeld, en een deel van de eigen ruimte kan al weg zijn; verwijder het opnieuw om af te ronden",
   databaseUnavailable: "de database antwoordt niet; probeer het over een minuut opnieuw",
   signInServiceUnavailable: "aanmelden werkt nu niet; probeer het over een minuut opnieuw",
 
@@ -828,6 +829,7 @@ const nl: Messages = {
   accountOn: "Aan",
   accountOff: "Uit",
   neverSignedIn: "nog nooit",
+  notSignedInLately: "niet in de laatste 180 dagen",
   makeAdministrator: "Administrator maken",
   removeAdministratorRights: "Administratorrechten intrekken",
   removeRights: "Rechten intrekken",

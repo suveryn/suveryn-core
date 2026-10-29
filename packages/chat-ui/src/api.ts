@@ -186,7 +186,7 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
     case 403: return m.forbidden;
     // ``reason`` (the gateway's 503s): which part is down, so the person reads what it is.
     case 502: case 503: return reason === "database" ? m.databaseUnavailable : reason === "signin" ? m.signInServiceUnavailable
-      : reason === "rights" ? m.adminRightsRefused : m.serverUnavailable;
+      : reason === "rights" ? m.adminRightsRefused : reason === "unfinished" ? m.accountDeletionUnfinished : m.serverUnavailable;
     default: return typeof detail === "string" ? detail : `HTTP ${status}`;
   }
 }
@@ -764,7 +764,9 @@ export async function getAdminStatus(): Promise<AdminStatus> {
 }
 
 /** Administration › Users (admin.md): the office's accounts through the gateway, never Keycloak's console. */
-export type Account = { sub: string; username: string; name: string; email: string; admin: boolean; enabled: boolean; last_sign_in: string | null };
+export type Account = { sub: string; username: string; name: string; email: string; admin: boolean; enabled: boolean; last_sign_in: string | null;
+  /** No sign-in found, and the account is older than the 180 days of sign-ins Keycloak keeps. */
+  last_sign_in_unknown?: boolean };
 export type UsersList = { users: Account[]; agreement_users: number | null };
 /** A temporary password to pass on, in the answer once and nowhere else. */
 export type TemporaryPassword = { user: Account; address: string; password: string };
