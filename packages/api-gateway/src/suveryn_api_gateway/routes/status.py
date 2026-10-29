@@ -22,7 +22,7 @@ from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from .common import admin_or_403
+from .common import admin_or_403, signin_status
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
@@ -103,7 +103,7 @@ class StatusMonitor:
             docs = state.documents
             reading_ok = docs is not None and docs.state == "ready"
             in_progress, waiting = await run_in_threadpool(docs.job_counts) if docs is not None and hasattr(docs, "job_counts") else (None, None)
-            signin_ok = (await state.auth.status())[0] in ("ready", "disabled")
+            signin_ok = (await signin_status(state))[0] in ("ready", "disabled")
             stores = [state.history, state.usage, state.cases]
             statuses = [await run_in_threadpool(s.status) for s in stores if s.configured]
             data_ok = all(s.status == "ready" for s in statuses)

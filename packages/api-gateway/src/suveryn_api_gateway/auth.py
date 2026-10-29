@@ -68,6 +68,8 @@ LOGIN_TTL_S = 600         # a login must be completed within ten minutes
 REFRESH_MARGIN_S = 30     # refresh the access token this long before it expires
 CLOCK_LEEWAY_S = 30       # tolerated clock difference between gateway and Keycloak
 JWKS_MIN_REFRESH_S = 60   # re-read Keycloak's keys at most once a minute (on an unknown key id)
+REACHABLE_TTL_S = 15      # how long "Keycloak answered" counts, for /health and Status (round 2, finding 3)
+REACHABLE_TIMEOUT_S = 3.0
 MAX_SESSIONS = 10_000
 MAX_RETURN_PATH = 1024    # longer return paths fall back to "/" (the login cookie must stay small)
 LOGIN_COOKIE = "suveryn_login"
@@ -228,6 +230,7 @@ class OIDCProvider:
         self._keys: dict[str, PyJWK] = {}
         self._keys_read = 0.0
         self._lock = asyncio.Lock()
+        self._reached: tuple[float, str | None] | None = None  # (when, None if it answered, else why not)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -246,6 +249,22 @@ class OIDCProvider:
                 raise AuthUnavailable("the sign-in service reports a different issuer than configured")
             self._meta = meta
         return self._meta
+
+    async def reachable(self) -> None:
+        """Does Keycloak answer now? The discovery document is cached for good, so it can't say: this asks
+        the realm again, at most every REACHABLE_TTL_S, with a short timeout. Raises ``AuthUnavailable``."""
+        now = time.monotonic()
+        if self._reached is None or now - self._reached[0] >= REACHABLE_TTL_S:
+            try:
+                r = await self._http.get(f"{self.settings.issuer}/.well-known/openid-configuration", timeout=REACHABLE_TIMEOUT_S)
+                r.raise_for_status()
+                why = None
+            except httpx.HTTPError as e:
+                why = f"sign-in service unreachable: {type(e).__name__}"
+            self._reached = (now, why)
+        if self._reached[1] is not None:
+            raise AuthUnavailable(self._reached[1])
+        await self.metadata()
 
     async def _key(self, kid: str | None) -> PyJWK:
         async with self._lock:
@@ -377,7 +396,7 @@ class Authenticator:
         if self.provider is None:
             return "not_configured", "set SUVERYN_OIDC_ISSUER, SUVERYN_OIDC_CLIENT_SECRET and SUVERYN_PUBLIC_URL"
         try:
-            await self.provider.metadata()
+            await self.provider.reachable()
         except AuthUnavailable as e:
             return "unavailable", str(e)
         return "ready", None

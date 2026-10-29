@@ -126,6 +126,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
 
   const runTest = async () => {
     setTest({ state: "testing" });
+    setErrors({});
     try {
       const a = await askBackupService({ kind: "test-share", protocol: form.protocol, address: form.address.trim(),
         ...(form.protocol === "smb" ? { user: form.user.trim() || null, password: form.password || null, keep_password: keepPassword } : {}) }, 60);
@@ -141,8 +142,10 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
     Object.assign(document.createElement("a"), { href: url, download: `suveryn-backup-recovery-key-${name}.txt` }).click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setDownloaded(true);
+    setErrors({});
   };
 
+  const firstProblem = errors.test ?? errors.address ?? errors.user ?? errors.disk ?? errors.key;
   const save = async () => {
     const problems: Record<string, string> = {};
     if (form.target === "usb" && !form.disk) problems.disk = t.noDisk;
@@ -240,7 +243,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
           <h3 className="label">{t.recoveryHeading}</h3>
           <p className="caption">{t.recoveryLead}</p>
           <KeyDownload ready={!!key} downloaded={downloaded} onDownload={download} />
-          <Checkbox name="stored" checked={stored} onChange={setStored}>{t.recoveryConfirm}</Checkbox>
+          <Checkbox name="stored" checked={stored} onChange={(v) => { setStored(v); setErrors({}); }}>{t.recoveryConfirm}</Checkbox>
           {errors.key && <p className="ui-field-error">{errors.key}</p>}
         </>
       )}
@@ -250,6 +253,9 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
       <div className="admin-settings-save">
         <Button variant="primary" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
         {done && <span className="caption status-ok"><Check size={12} aria-hidden /> {m.backupSettingsSaved}</span>}
+        {/* Errors show on saving, at their fields; this line says so beside the button, where the press was
+            (round 2, finding 6: the share's "test first" sat far above, and Save seemed to do nothing). */}
+        {firstProblem && !busy && <span className="ui-field-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.backupSettingsNotSaved(firstProblem)}</span>}
       </div>
     </section>
   );

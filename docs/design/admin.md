@@ -28,7 +28,13 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 - *Needs attention*, only when something does, each with the button that fixes it.
 - *Is everything working?*: answering questions (the model), reading documents, signing in
   (Keycloak), keeping your data (the database), disk space. A teal check with "Working", or an ink cross
-  with "Not working since 09:12" and what still works (39).
+  with "Not working since 09:12" and what still works (39). Signing in asks Keycloak each time, not a copy read at
+  start (round 2, finding 3), in two steps: does it answer (its discovery document), and can it sign
+  someone in, which needs its database (the number of accounts, read with the directory's service
+  account; Keycloak serves its discovery document while its database is down, and then every sign-in
+  fails). Each answer counts 15 s. A stopped Keycloak or its stopped database shows within the minute,
+  and `/health`'s `auth` says the same. The read leaves no event in Keycloak; the service account's
+  token, a sign-in of its own, is fetched again only when it expires, every few minutes.
 - An overview: version, last backup, users against the agreement, support.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.
