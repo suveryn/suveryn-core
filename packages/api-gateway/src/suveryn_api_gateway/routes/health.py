@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from suveryn_harness import BackendError, LlamaServerClient, ModelInfo
 
-from .common import StoreStatus
+from .common import StoreStatus, signin_status
 
 router = APIRouter()
 
@@ -65,7 +65,7 @@ async def health(request: Request):
         status="ok" if h.status == "ok" else "degraded",
         backend=BackendStatus(reachable=h.reachable, status=h.status, model=h.model),
         documents=DocumentsStatus(status="unavailable" if docs is None else docs.state),
-        auth=AuthStatus(status=(await state.auth.status())[0]),
+        auth=AuthStatus(status=(await signin_status(state))[0]),
         # each asks the database (a SELECT 1), so not on the event loop
         history=await run_in_threadpool(state.history.status),
         usage=await run_in_threadpool(state.usage.status),
