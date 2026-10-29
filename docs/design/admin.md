@@ -45,7 +45,8 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 - *Add user* (the page's one orange button): name, e-mail, administrator or not. **The appliance
   sends no e-mail** (no mail server, maybe air-gapped), so adding shows a temporary password once,
   with the address, to pass on (Keycloak `temporary`, `UPDATE_PASSWORD`). It has no expiry: it works
-  until its first use. The person chooses a password and sets up two-step sign-in at first sign-in.
+  until its first use. The person chooses a password at first sign-in, and sets up two-step sign-in
+  then too when the office requires it (Settings).
 - The row menu: make administrator or remove the rights; have the password set again (a new
   temporary password, as above); have two-step sign-in set again; sign out everywhere; switch the
   account off, or on again; and, only once it is off, *Delete account*.
@@ -66,12 +67,15 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
     2,000, then one `GET /events?user=` for each account not among them; with none found, an account older
     than the 180 days of events kept reads "not in the last 180 days", a newer one "never" (external
     review, pass 7);
-  - add: `POST /users` with `requiredActions` `UPDATE_PASSWORD` and `CONFIGURE_TOTP`, then
+  - add: `POST /users` with `requiredActions` `UPDATE_PASSWORD` (and `CONFIGURE_TOTP` while the office
+    requires two-step sign-in), then
     `PUT /users/{id}/reset-password` with `temporary: true`;
   - administrator: realm role `suveryn-admin` through `/users/{id}/role-mappings/realm`;
   - off or on: `PUT /users/{id}` with `enabled`;
-  - reset password: `reset-password`, temporary; reset two-step: delete the `otp` credential and add
-    `CONFIGURE_TOTP`;
+  - reset password: `reset-password`, temporary; reset two-step: delete the `otp` credential, and add
+    `CONFIGURE_TOTP` while the office requires two-step sign-in;
+  - two-step for everyone (Settings): `CONFIGURE_TOTP` added to every account without an `otp`
+    credential, or taken away from every account when turned off;
   - sign out everywhere: `POST /users/{id}/logout`, and the gateway ends the account's own sessions at
     once (also when it is switched off or deleted);
   - delete: `DELETE /users/{id}`, after the account's own space is deleted. Every store is reached first,
@@ -92,7 +96,9 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   replaces a separate *Activity* page. Nothing from inside a case.
 
 **Settings** (35): what the office decides, in one place. Who sees a case, how long closed
-cases and conversations are kept, and the rates for the indicative cost. *Cases* and *Usage* then
+cases and conversations are kept, whether two-step sign-in is required for everyone (off by default:
+Filip, 29 October 2026; on asks everyone without an authenticator app at their next sign-in, and the
+confirmation says so), and the rates for the indicative cost. *Cases* and *Usage* then
 only show these, with "Change in Settings". *Save* is active after a change, and a shorter keep
 period asks for confirmation with the number of cases or conversations that will go.
 

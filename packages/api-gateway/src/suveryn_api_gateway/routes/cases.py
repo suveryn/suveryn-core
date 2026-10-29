@@ -30,6 +30,7 @@ from ..cases import (
     shielded,
 )
 from ..directory import DirectoryUnavailable, Person
+from .users import _do, as_admin
 from .common import (
     LOCAL_OWNER,
     CleanupUnavailable,
@@ -346,7 +347,7 @@ async def admin_case_settings(request: Request):
     store, effective = cases_or_503(request), case_settings(request)
     meta = await run_in_threadpool(store.overrides_meta)
     return SettingsOut(default_access=effective.default_access, keep=effective.keep,
-                       conversations_keep=effective.conversations_keep,
+                       conversations_keep=effective.conversations_keep, two_step=effective.two_step,
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
@@ -389,7 +390,15 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
     admin_or_403(request)
     changes = body.model_dump(exclude_none=True, exclude={"apply_to"})
     if not changes:
-        raise HTTPException(422, "Say what to change: default_access, keep, or conversations_keep.")
+        raise HTTPException(422, "Say what to change: default_access, keep, conversations_keep or two_step.")
+    if "two_step" in changes:
+        on = changes.pop("two_step")
+        if on != case_settings(request).two_step:
+            # Two-step sign-in for every account (Filip, 29 October: off by default, the administrator's choice).
+            # Keycloak first, as the administrator: the setting is stored only once every account follows it.
+            accounts, token = await as_admin(request)
+            await _do(accounts.require_two_step(token, on))
+        changes["two_step"] = "on" if on else "off"
     user = getattr(request.state, "user", None)
     opens = changes.get("default_access") == "office" and case_settings(request).default_access == "members"
     await run_in_threadpool(partial(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev",

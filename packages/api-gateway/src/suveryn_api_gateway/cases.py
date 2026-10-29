@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS case_settings (
 );
 """
 
-SETTING_KEYS = ("default_access", "keep", "conversations_keep")  # what an administrator may change at runtime
+SETTING_KEYS = ("default_access", "keep", "conversations_keep", "two_step")  # what an administrator may change at runtime
 
 
 class StrictlyConfidential(ValueError):
@@ -162,6 +162,8 @@ class CaseSettings:
     default_access: Literal["office", "members"] = "members"  # fail closed
     keep: Literal["6m", "1y", "5y", "manual"] = "manual"      # how long closed cases are kept; manual: until deleted by hand
     conversations_keep: Literal["6m", "1y", "5y", "manual"] = "manual"  # saved conversations, from their last change
+    # Two-step sign-in for every account: off unless an administrator turns it on (Filip, 29 October 2026)
+    two_step: bool = False
 
     @property
     def office_wide(self) -> bool:
@@ -181,6 +183,8 @@ class CaseSettings:
             changes["keep"] = overrides["keep"]
         if overrides.get("conversations_keep") in KEEP_PERIODS:
             changes["conversations_keep"] = overrides["conversations_keep"]
+        if overrides.get("two_step") in ("on", "off"):
+            changes["two_step"] = overrides["two_step"] == "on"
         return replace(self, **changes) if changes else self
 
     @classmethod
@@ -284,6 +288,7 @@ class SettingsOut(BaseModel):
     default_access: Literal["office", "members"]
     keep: Literal["6m", "1y", "5y", "manual"]
     conversations_keep: Literal["6m", "1y", "5y", "manual"]
+    two_step: bool = False  # every account must set up two-step sign-in
     updated_at: datetime | None = None  # None: as provisioned, never changed in the dashboard
     updated_by: str = ""
 
@@ -294,6 +299,7 @@ class SettingsIn(BaseModel):
     default_access: Literal["office", "members"] | None = None
     keep: Literal["6m", "1y", "5y", "manual"] | None = None
     conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None
+    two_step: bool | None = None
     # When the default access opens up to the office: "new" (the default) leaves the existing cases with
     # their members, "all" opens every case (strictly confidential ones never). Closing it to the members
     # applies to every case that follows the default; there is nothing to choose then.

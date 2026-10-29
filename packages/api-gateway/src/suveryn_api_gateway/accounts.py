@@ -201,13 +201,13 @@ class Accounts:
         return sorted(out, key=lambda e: e.at, reverse=True)[:limit]
 
     # ------------------------------------------------------------------ changing
-    async def add(self, token: str, name: str, email: str, admin: bool) -> tuple[Account, str]:
+    async def add(self, token: str, name: str, email: str, admin: bool, two_step: bool = False) -> tuple[Account, str]:
         """A new account that signs in with its e-mail address, with a temporary password; at first sign-in the
-        person chooses a password and sets up two-step sign-in."""
+        person chooses a password and, when the office requires two-step sign-in (``two_step``), sets it up."""
         first, last = split_name(name)
         r = await self._call(token, "POST", "/users", json={
             "username": email.lower(), "email": email.lower(), "firstName": first, "lastName": last, "enabled": True,
-            "emailVerified": True, "requiredActions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"]})
+            "emailVerified": True, "requiredActions": ["UPDATE_PASSWORD", *(["CONFIGURE_TOTP"] if two_step else [])]})
         if r.status_code == 409:
             raise AccountRefused("exists")
         sub = r.headers.get("location", "").rstrip("/").rsplit("/", 1)[-1]
@@ -228,16 +228,39 @@ class Accounts:
         role = (await self._call(token, "GET", f"/roles/{ADMIN_ROLE}")).json()
         await self._call(token, "POST" if on else "DELETE", f"/users/{sub}/role-mappings/realm", json=[role])
 
-    async def reset_two_step(self, token: str, sub: str) -> None:
-        """Remove the authenticator app; the person sets it up again at the next sign-in."""
+    async def reset_two_step(self, token: str, sub: str, require: bool = False) -> None:
+        """Remove the authenticator app (a lost phone). When the office requires two-step sign-in (``require``),
+        the person sets it up again at the next sign-in; otherwise they may, from their account."""
         _check_id(sub)
         for c in (await self._call(token, "GET", f"/users/{sub}/credentials")).json():
             if c.get("type") == "otp":
                 await self._call(token, "DELETE", f"/users/{sub}/credentials/{c['id']}")
         u = (await self._call(token, "GET", f"/users/{sub}")).json()
         actions = u.get("requiredActions", [])
-        if "CONFIGURE_TOTP" not in actions:
+        if require and "CONFIGURE_TOTP" not in actions:
             await self._call(token, "PUT", f"/users/{sub}", json={"requiredActions": [*actions, "CONFIGURE_TOTP"]})
+
+    async def require_two_step(self, token: str, on: bool) -> int:
+        """The office's setting, applied to every person's account (Filip, 29 October: off by default, the
+        administrator's choice). On: everyone without an authenticator app sets one up at their next sign-in.
+        Off: nobody is asked to any more; whoever has an app keeps it. How many accounts changed."""
+        users = (await self._call(token, "GET", "/users", params={"max": str(MAX_USERS), "briefRepresentation": "false"})).json()
+        changed = 0
+        for u in users:
+            if u.get("serviceAccountClientId"):
+                continue
+            actions = u.get("requiredActions", [])
+            if on and "CONFIGURE_TOTP" not in actions:
+                creds = (await self._call(token, "GET", f"/users/{u['id']}/credentials")).json()
+                if any(c.get("type") == "otp" for c in creds):
+                    continue
+                await self._call(token, "PUT", f"/users/{u['id']}", json={"requiredActions": [*actions, "CONFIGURE_TOTP"]})
+                changed += 1
+            elif not on and "CONFIGURE_TOTP" in actions:
+                await self._call(token, "PUT", f"/users/{u['id']}",
+                                 json={"requiredActions": [a for a in actions if a != "CONFIGURE_TOTP"]})
+                changed += 1
+        return changed
 
     async def sign_out(self, token: str, sub: str) -> None:
         _check_id(sub)
