@@ -28,6 +28,7 @@ log = logging.getLogger("suveryn.gateway")
 ADMIN_ROLE = "suveryn-admin"  # the realm role; routes/common.py names the same
 
 CACHE_S = 30
+WORKING_TTL_S = 15  # how long a sign-in check's answer counts, for /health and Status
 MAX_RESULTS = 20
 
 
@@ -83,6 +84,7 @@ class Directory:
         self._admins: tuple[float, set[str]] | None = None
         self._admins_warned = False
         self._lock = asyncio.Lock()
+        self._working: tuple[float, str | None] | None = None  # (when, None if it worked, else why not)
 
     @property
     def configured(self) -> bool:
@@ -157,6 +159,24 @@ class Directory:
             self._admins = (time.monotonic(), found)
             return found
 
+    async def working(self) -> None:
+        """Can Keycloak sign someone in now? Its discovery document answers even while its database is
+        down, when every sign-in fails (round 2). This asks for something only the database knows, the
+        number of accounts, with the service account's token; getting that token is itself a sign-in,
+        done again whenever the token expires (a few minutes). A read leaves no event in Keycloak, so
+        checking every minute doesn't fill its log. At most every WORKING_TTL_S. Raises
+        ``DirectoryUnavailable``."""
+        now = time.monotonic()
+        if self._working is None or now - self._working[0] >= WORKING_TTL_S:
+            try:
+                r = await self._admin_get("/users/count", {"enabled": "true"})
+                why = None if r.status_code == 200 else f"the sign-in service failed (HTTP {r.status_code})"
+            except DirectoryUnavailable as e:
+                why = str(e)
+            self._working = (now, why)
+        if self._working[1] is not None:
+            raise DirectoryUnavailable(self._working[1])
+
     async def _admin_get(self, path: str, params: dict | None = None) -> httpx.Response:
         token = await self._access_token()
         try:
@@ -209,6 +229,9 @@ class LocalDirectory:
 
     async def admins(self) -> set[str]:
         return {p.sub for p in self._people}  # with sign-in off, the one local user administers
+
+    async def working(self) -> None:
+        pass  # sign-in is off
 
     async def aclose(self) -> None:
         pass

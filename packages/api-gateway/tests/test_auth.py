@@ -67,6 +67,8 @@ class FakeKeycloak:
                 "expires_in": self.expires_in, "refresh_expires_in": 1800, "token_type": "Bearer"}
 
     def handler(self, request: httpx.Request) -> httpx.Response:
+        if getattr(self, "stopped", False):  # keycloak.service not running
+            raise httpx.ConnectError("connection refused", request=request)
         path = request.url.path
         if path.endswith("/.well-known/openid-configuration"):
             base = f"{ISSUER}/protocol/openid-connect"
@@ -510,3 +512,25 @@ def test_a_jwks_key_without_a_kid_is_ignored(client, kc):
     kc.keys_override = [{**jwk, "alg": "RS256", "use": "sig"}]  # no kid at all
     no_kid = jwt.encode(claims, kc.key, algorithm="RS256")        # no kid header either
     assert bearer(client, no_kid) == 401
+
+
+def test_sign_in_status_notices_keycloak_stopping_and_coming_back(monkeypatch):
+    """Round 2, finding 3: the discovery document is read once, so /health and Status said sign-in
+    worked while Keycloak was stopped. They ask Keycloak again, at most every REACHABLE_TTL_S."""
+    import asyncio
+
+    import suveryn_api_gateway.auth as auth_module
+
+    kc = FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    clock = [1000.0]
+    monkeypatch.setattr(auth_module.time, "monotonic", lambda: clock[0])
+    assert asyncio.run(auth.status())[0] == "ready"
+    kc.stopped = True
+    assert asyncio.run(auth.status())[0] == "ready"  # within the TTL: the last answer stands
+    clock[0] += auth_module.REACHABLE_TTL_S
+    state, detail = asyncio.run(auth.status())
+    assert state == "unavailable" and "ConnectError" in detail
+    kc.stopped = False
+    clock[0] += auth_module.REACHABLE_TTL_S
+    assert asyncio.run(auth.status())[0] == "ready"

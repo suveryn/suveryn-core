@@ -307,8 +307,10 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
 
 type DocRow = { id: string; doc?: AllDocument; job?: Job; caseId: string | null; status: DocStatus };
 
-export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initialCase = "all", onOpen, onDelete, onUseAsSource, onDownload, onUpload }: {
+export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, departed = {}, initialCase = "all", onOpen, onDelete, onUseAsSource, onDownload, onUpload }: {
   documents: AllDocument[]; cases: CaseOverview[]; me: Me;
+  /** The names of deleted accounts by id: a document one of them added keeps its name. */
+  departed?: Record<string, string>;
   /** Uploads still being read, or failed, in the place that is open (`jobsCase`): not documents yet. */
   jobs: Job[]; jobsCase: string | null;
   /** "all", "personal" or a case's id. */
@@ -360,7 +362,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, initia
     if (!d.uploaded_by) return "";
     if (d.uploaded_by === me.sub) return me.name || me.username;
     const x = byId.get(d.case_id ?? "")?.members.find((p) => p.user === d.uploaded_by);
-    return x ? x.name || x.username : "";
+    return x ? x.name || x.username : departed[d.uploaded_by] ?? "";
   };
   const status = (r: DocRow) => {
     const k = byId.get(r.caseId ?? "");

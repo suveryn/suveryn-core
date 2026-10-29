@@ -612,6 +612,7 @@ def test_store_renames_pins_and_moves_a_personal_conversation(store):
     assert store.get(cid, ALICE).turns == TURNS
 
 
+@needs_db
 def test_store_shares_a_conversation_with_its_case_and_cleans_every_members(store):
     """Stage 4 of docs/design/cases.md: shared conversations, and a case's document taken out of
     everyone's conversations when it is deleted."""

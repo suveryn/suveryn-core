@@ -740,6 +740,7 @@ const nl: Messages = {
   setUpBackups: "Back-ups instellen",
   diskFails: "Bij een defecte schijf bent u alles kwijt.",
   backupSettingsSaved: "Bewaard. De volgende back-up gebruikt deze instellingen.",
+  backupSettingsNotSaved: (why: string) => `Niet bewaard. ${why}`,
   backupServiceSilent: "De back-updienst van de appliance antwoordde niet. Probeer het over een minuut opnieuw.",
   recoverySheet: "Herstelblad",
   printRecoverySheet: "Herstelblad afdrukken",
