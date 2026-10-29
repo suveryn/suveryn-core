@@ -38,6 +38,11 @@ class AccountsUnavailable(Exception):
     """Keycloak can't be reached, refuses the administrator's token, or the issuer isn't configured."""
 
 
+class RightsRefused(AccountsUnavailable):
+    """Keycloak refused the administrator's token for its admin API: the ``suveryn-admin`` role lacks its
+    composites (a realm imported before them; the provisioning adds them again)."""
+
+
 class AccountRefused(Exception):
     """Keycloak refused the change for a reason the administrator can act on (``code``)."""
 
@@ -123,7 +128,7 @@ class Accounts:
         if r.status_code == 404:
             raise AccountRefused("not_found")
         if r.status_code in (401, 403):
-            raise AccountsUnavailable(f"the sign-in service refused the administrator's rights (HTTP {r.status_code})")
+            raise RightsRefused(f"the sign-in service refused the administrator's rights (HTTP {r.status_code})")
         if r.status_code >= 400 and r.status_code != 409:
             raise AccountsUnavailable(f"the sign-in service refused {method} {path.split('/')[1]} (HTTP {r.status_code})")
         return r

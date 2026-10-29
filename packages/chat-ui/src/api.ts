@@ -185,7 +185,8 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
     case 404: return m.notFound;
     case 403: return m.forbidden;
     // ``reason`` (the gateway's 503s): which part is down, so the person reads what it is.
-    case 502: case 503: return reason === "database" ? m.databaseUnavailable : reason === "signin" ? m.signInServiceUnavailable : m.serverUnavailable;
+    case 502: case 503: return reason === "database" ? m.databaseUnavailable : reason === "signin" ? m.signInServiceUnavailable
+      : reason === "rights" ? m.adminRightsRefused : m.serverUnavailable;
     default: return typeof detail === "string" ? detail : `HTTP ${status}`;
   }
 }
@@ -270,9 +271,11 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
       else {
         const detail = xhr.response?.detail, after = xhr.getResponseHeader("Retry-After");
         const text = httpErrorText(xhr.status, detail, after, xhr.response?.reason);
-        // The per-person rate limit, not a full queue: the chat waits its turn (lib/turns.ts).
-        const rateLimited = xhr.status === 429 && !(typeof detail === "string" && /documents are waiting|playbook runs/.test(detail));
-        reject(rateLimited ? new RateLimited(text, after && /^\d+$/.test(after) ? Number(after) : 30) : new Error(text));
+        // The per-person rate limit, or a full reading queue: the chat waits its turn (lib/turns.ts). The queue
+        // names no time; it empties as documents are read, so the chat looks again every 10 seconds.
+        const queueFull = typeof detail === "string" && /documents are waiting/.test(detail);
+        const rateLimited = xhr.status === 429 && !(typeof detail === "string" && /playbook runs/.test(detail));
+        reject(rateLimited ? new RateLimited(text, after && /^\d+$/.test(after) ? Number(after) : queueFull ? 10 : 30) : new Error(text));
       }
     };
     xhr.onerror = () => reject(new Error(t().uploadInterrupted));
