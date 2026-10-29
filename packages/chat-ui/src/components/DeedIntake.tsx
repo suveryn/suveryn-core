@@ -165,7 +165,7 @@ function RunPanel({ run, kase, canRun, words, onConfirmed }: {
   return (
     <section className="playbook-run" aria-live="polite">
       <div className="playbook-run-head">
-        <span className="label">{statusLabel(run.status, m)}</span>
+        <span className="label" data-status={run.status}>{statusLabel(run.status, m)}</span>
         <span className="caption">
           {m.runStartedBy(run.started_by, dayLabel(run.started_at))}
           {run.model ? ` · ${run.model}` : ""}
