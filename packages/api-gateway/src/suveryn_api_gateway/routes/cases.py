@@ -311,7 +311,20 @@ async def case_events(case_id: str, request: Request):
     store, cid, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, "read_log", case_settings(request).office_wide):
         raise HTTPException(403, "Only the case's manager or an administrator can see its access log.")
-    return await run_in_threadpool(store.events, cid)
+    events = await run_in_threadpool(store.events, cid)
+    # Someone who acted without being a member (an administrator handing a case over) has no name in the case:
+    # it comes from the directory (VM regression of 29 October, finding 9). Never fatal: the id stays.
+    nameless = {e.user for e in events if not e.name and e.user}
+    names: dict[str, str] = {}
+    directory = getattr(request.app.state, "directory", None)
+    for sub in list(nameless)[:20] if directory is not None else []:
+        try:
+            person = await directory.get(sub)
+        except Exception:  # noqa: BLE001 - a missing name is cosmetic
+            person = None
+        if person is not None:
+            names[sub] = person.name or person.username
+    return [e.model_copy(update={"name": names[e.user]}) if not e.name and e.user in names else e for e in events]
 
 
 # ------------------------------------------------------------------ the administrator's pages (stage 4)

@@ -223,3 +223,6 @@ class StreamError(BaseModel):
     document search is unavailable, or an unexpected server error occurred (reported generically)."""
 
     message: str
+    # What failed, for the page to say in its own language (VM regression of 29 October, finding 14: the
+    # message is English and technical): "model", "documents", "document" or "server".
+    code: str | None = None

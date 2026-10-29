@@ -157,10 +157,12 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
                     yield _sse("delta", StreamDelta(text=event.text))
                 elif isinstance(event, Done):
                     yield _sse("done", event.response)
-    except (BackendError, DocumentsUnavailable, json.JSONDecodeError) as e:
-        yield _sse("error", StreamError(message=str(e)))
+    except (BackendError, json.JSONDecodeError) as e:
+        yield _sse("error", StreamError(message=str(e), code="model"))
+    except DocumentsUnavailable as e:
+        yield _sse("error", StreamError(message=str(e), code="documents"))
     except DocumentNotFound:
-        yield _sse("error", StreamError(message="unknown document"))
+        yield _sse("error", StreamError(message="unknown document", code="document"))
     except Exception as e:  # noqa: BLE001 - the stream must end with an event; the client discards the partial answer
         log.error("chat stream failed: %s", type(e).__name__)  # the message may contain document text
-        yield _sse("error", StreamError(message="the answer couldn't be completed because of a server error"))
+        yield _sse("error", StreamError(message="the answer couldn't be completed because of a server error", code="server"))

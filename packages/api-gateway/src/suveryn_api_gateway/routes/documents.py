@@ -12,6 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..conversations import ConversationSummary
+from .status import disk_low
 from .common import (
     UploadRejected,
     docs_or_503,
@@ -37,7 +38,8 @@ def _document_id(document_id: str) -> uuid.UUID:
 
 @router.post("/v1/documents", status_code=202, responses={
     411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
-    415: {"description": "Not a PDF, Word, Excel, Markdown, CSV or ZIP file"}, 503: {"description": "Unavailable"}})
+    415: {"description": "Not a PDF, Word, Excel, Markdown, CSV or ZIP file"}, 503: {"description": "Unavailable"},
+    507: {"description": "The disk is nearly full"}})
 async def upload_document(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
     """Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
     Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
@@ -51,6 +53,8 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
     one upload against the queue limits, however many documents it holds."""
     docs = docs_or_503(request)
     scope = await scope_of(request, case, "contribute")
+    if await run_in_threadpool(disk_low):
+        raise HTTPException(507, "The appliance's disk is nearly full: no documents can be added until there is room.")
     filename = file.filename or "document.pdf"
     archive = filename.lower().endswith(".zip")
     try:

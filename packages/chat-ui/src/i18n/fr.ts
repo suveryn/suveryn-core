@@ -294,6 +294,10 @@ const fr: Messages = {
   settingsThinkingHint: "Pour les nouvelles conversations.",
 
   answerFailed: (why) => `La réponse a échoué : ${why}. Posez à nouveau la question.`,
+  streamErrorModel: "le modèle est injoignable pour le moment",
+  streamErrorDocuments: "les documents ne peuvent pas être consultés pour le moment",
+  streamErrorDocument: "un document choisi n'existe plus",
+  streamErrorServer: "un problème est survenu sur le serveur",
   answerInterrupted: "Cette réponse a été interrompue.",
   answerTruncated: "Interrompue : cette réponse est incomplète. Demandez la suite.",
   thoughtTooLong: "Le modèle a réfléchi trop longtemps. Essayez Rapide, ou une question plus courte.",
@@ -744,6 +748,7 @@ const fr: Messages = {
   setUpBackups: "Configurer les sauvegardes",
   diskFails: "Si le disque tombe en panne, vous perdez tout.",
   backupSettingsSaved: "Enregistré. La prochaine sauvegarde utilise ces paramètres.",
+  backupHourYours: (time: string) => `L'heure de l'appliance. Chez vous : ${time}.`,
   backupSettingsNotSaved: (why: string) => `Pas enregistré. ${why}`,
   backupServiceSilent: "Le service de sauvegarde de l'appliance n'a pas répondu. Réessayez dans une minute.",
   recoverySheet: "Fiche de récupération",

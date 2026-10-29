@@ -347,7 +347,13 @@ export async function streamChat(
     else if (event === "thinking") thinking?.onText(payload.text);
     else if (event === "delta") onDelta(payload.text);
     else if (event === "done") done = payload as ChatResponse;
-    else if (event === "error") failure = payload.message ?? "unknown error";
+    else if (event === "error") {
+      // The page's own words for what failed; the server's English detail only for a code it doesn't know.
+      const m = t();
+      const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments,
+                                               document: m.streamErrorDocument, server: m.streamErrorServer };
+      failure = known[payload.code as string] ?? payload.message ?? m.streamErrorServer;
+    }
   });
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
   for (;;) {

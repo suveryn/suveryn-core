@@ -1566,3 +1566,54 @@ def test_store_shows_a_strictly_confidential_case_by_its_number_outside_it(store
     assert next(x for x in s.list_all(admin) if x.id == c.id).name == ""
     assert next(x for x in s.list_all(alice) if x.id == c.id).name == NEW["name"]
     assert next(x for x in s.list(alice, office_wide=False) if x.id == c.id).subject == NEW["subject"]
+
+
+def test_a_due_case_left_while_documents_start_is_deleted_minutes_later_not_an_hour(monkeypatch):
+    """VM regression of 29 October, finding 4: at start the sweep ran while documents were still starting, the
+    due case was left, and the sweep slept an hour. A due case left for a store not reachable yet is looked at
+    again within SWEEP_RETRY_S."""
+    import time
+
+    import suveryn_api_gateway.app as app_module
+
+    monkeypatch.setattr(app_module, "SWEEP_RETRY_S", 0.05)
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(state="starting", owner=ALICE)
+    store_case = cases.create(CaseIn(**NEW), ALICE, "alice", "Alice")
+    cid = uuid.UUID(store_case.id)
+    cases.cases[cid] = cases.cases[cid].model_copy(update={"state": "closed", "keep_until": datetime.now(UTC) - timedelta(days=1)})
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app):
+        time.sleep(0.2)
+        assert cid in cases.cases  # documents still starting: left
+        docs.state = "ready"
+        for _ in range(100):
+            if cid not in cases.cases:
+                break
+            time.sleep(0.05)
+        assert cid not in cases.cases  # deleted at the retry, not an hour later
+
+
+def test_an_administrators_action_in_a_case_they_arent_in_carries_their_name(office):
+    """VM regression of 29 October, finding 9: Alice's handover from Administration showed in the access log
+    with no name (she isn't a member); the name comes from the directory."""
+    c, kc, cases, _, _ = office
+    alice, admin = as_user(kc, ALICE), admin_headers(kc)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    assert c.post(f"/v1/cases/{cid}/handover", json={"user": BOB}, headers=admin).status_code == 200
+    events = c.get(f"/v1/cases/{cid}/events", headers=admin).json()
+    handed = next(e for e in events if e["action"] == "handed_over")
+    assert handed["user"] == ADMIN and handed["name"] == "The Administrator"
+
+
+def test_administration_refuses_someone_else_before_reading_the_body(office):
+    """VM regression of 29 October, finding 11: a non-administrator with a malformed body got 422 from 7
+    administration endpoints (the body was checked first); it is 403 everywhere now."""
+    c, kc, _, _, _ = office
+    bob = as_user(kc, BOB)
+    for method, path in (("PUT", "/v1/admin/cases/settings"), ("POST", "/v1/admin/users"), ("PUT", "/v1/admin/playbooks"),
+                         ("POST", "/v1/admin/backups/requests"), ("PUT", "/v1/admin/usage/rates")):
+        r = c.request(method, path, content=b"{not json", headers={**bob, "Content-Type": "application/json"})
+        assert r.status_code == 403, (method, path, r.status_code)

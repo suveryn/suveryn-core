@@ -447,3 +447,21 @@ def test_a_zip_goes_to_the_service_as_an_archive_and_each_document_is_logged():
     with client(docs) as c:
         r = c.post("/v1/documents", files={"file": ("Dossier.ZIP", io.BytesIO(b"PK\x03\x04"), "application/zip")})
         assert r.status_code == 202 and len(r.json()["jobs"]) == 2 and r.json()["skipped"][0]["reason"] == "unsupported"
+
+
+def test_an_upload_is_refused_while_the_disk_is_nearly_full(monkeypatch):
+    """VM regression of 29 October, finding 5: at 7 % free, Status warned but an upload was still accepted and
+    read. Below Status's own limit (a tenth of the disk, or 10 GB) an upload is refused with 507."""
+    import tempfile
+    from pathlib import Path
+
+    import suveryn_api_gateway.routes.status as status
+
+    docs = FakeDocuments()
+    monkeypatch.setattr(status, "DATA_PATH", Path(tempfile.mkdtemp()))  # an appliance's data partition
+    monkeypatch.setattr(status, "_disk", lambda: (8 * 1024**3, 155 * 1024**3))  # 8 GB of 155: short
+    with client(docs) as c:
+        r = c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7 fictional"), "application/pdf")})
+        assert r.status_code == 507 and "nearly full" in r.json()["detail"] and docs.uploads == []
+        monkeypatch.setattr(status, "_disk", lambda: (60 * 1024**3, 155 * 1024**3))  # room again
+        assert c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7 fictional"), "application/pdf")}).status_code == 202
