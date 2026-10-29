@@ -27,6 +27,7 @@ from ..cases import (
     SettingsPreview,
     StrictlyConfidential,
     may,
+    shielded,
 )
 from ..directory import DirectoryUnavailable, Person
 from .common import (
@@ -138,7 +139,7 @@ async def update_case(case_id: str, body: CaseUpdate, request: Request):
     if set(fields) - {"access", "confidential"}:
         await log_access(request, uuid.UUID(case.id), "changed", {"fields": sorted(set(fields) - {"access", "confidential"})})
     # the caller's own view of it: their role and their pin (the sidebar keeps a pinned case pinned)
-    return changed.model_copy(update={"my_role": case.my_role, "pinned": case.pinned}) if changed else changed
+    return shielded(changed.model_copy(update={"my_role": case.my_role, "pinned": case.pinned})) if changed else changed
 
 
 @router.delete("/v1/cases/{case_id}", status_code=204, responses={
@@ -181,7 +182,7 @@ async def close_case(case_id: str, request: Request):
         raise HTTPException(409, "This case is already closed.")
     await log_access(request, uuid.UUID(case.id), "closed",
                      {"keep_until": closed.keep_until.isoformat() if closed.keep_until else None})
-    return closed.model_copy(update={"my_role": case.my_role})
+    return shielded(closed.model_copy(update={"my_role": case.my_role}))
 
 
 @router.post("/v1/cases/{case_id}/reopen", response_model=Case, responses={
@@ -193,7 +194,7 @@ async def reopen_case(case_id: str, request: Request):
     if reopened is None:
         raise HTTPException(409, "This case is not closed.")
     await log_access(request, uuid.UUID(case.id), "reopened")
-    return reopened.model_copy(update={"my_role": case.my_role})
+    return shielded(reopened.model_copy(update={"my_role": case.my_role}))
 
 
 @router.post("/v1/cases/{case_id}/keep", response_model=Case, responses={
@@ -214,7 +215,7 @@ async def keep_case(case_id: str, body: KeepIn, request: Request):
         raise HTTPException(409, "This case is not closed.")
     await log_access(request, cid, "keep_changed", {"keep": changed.keep,
                                                     "keep_until": changed.keep_until.isoformat() if changed.keep_until else None})
-    return changed.model_copy(update={"my_role": case.my_role})
+    return shielded(changed.model_copy(update={"my_role": case.my_role}))
 
 
 # ------------------------------------------------------------------ members and the office's directory (stage 2)
@@ -299,7 +300,7 @@ async def handover(case_id: str, body: HandoverIn, request: Request):
     if handed is None:
         raise HTTPException(404, "Unknown case.")
     await log_access(request, cid, "handed_over", {"manager": body.user})
-    return handed
+    return shielded(handed, await run_in_threadpool(store.role_of, cid, caller.sub))
 
 
 @router.get("/v1/cases/{case_id}/events", response_model=list[CaseEvent], responses={
@@ -320,7 +321,7 @@ async def admin_cases(request: Request):
     many members it has; nothing from inside a case. For handing cases over before an account
     goes (decision 6), and for seeing what is closed and due."""
     admin_or_403(request)
-    return await run_in_threadpool(cases_or_503(request).list_all)
+    return await run_in_threadpool(cases_or_503(request).list_all, owner_of(request))
 
 
 @router.get("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})

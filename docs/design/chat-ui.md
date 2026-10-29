@@ -550,10 +550,12 @@ under professional secrecy, so the ordinary level has no label.
   name, because the person chose to pin it; the conversation titles under it show only while the
   case is open.
 - **Not**: a reason for an administrator who opens the access log, or a shorter retention.
-- **Administrators who aren't members** see that the case exists, with its reference and name (never
-  a client's name, by design), in the Cases overview and in *Administration*, so they can hand it
-  over, close or delete it, and they can open its access log. They never see its documents, its
-  conversations or their titles.
+- **Administrators who aren't members** see that the case exists, by its reference only, with
+  "Strictly confidential" where the name would be, in the Cases overview and in *Administration*, so
+  they can hand it over, close or delete it, and they can open its access log. The gateway leaves the
+  name and the subject out of every answer to them (`shielded`; Filip, 29 October, after the external
+  review's pass 7). They never see its documents, its conversations or their titles. Its manager and
+  members still show, for handing it over.
 
 **Who sets it**: the case's manager, in *Members and access*, as a switch with one paragraph on what
 changes. Turning it on or off goes to the case's access log.

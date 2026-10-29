@@ -62,7 +62,10 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   access token, never by the browser and with no service-account client of its own. The `suveryn-admin`
   role carries `manage-users`, `view-users`, `view-realm` and `view-events`, so Keycloak's admin
   events name the administrator who made each change:
-  - list: `GET /users`; last sign-in from the `LOGIN` events (Keycloak keeps no such field);
+  - list: `GET /users`; last sign-in from the `LOGIN` events (Keycloak keeps no such field): the newest
+    2,000, then one `GET /events?user=` for each account not among them; with none found, an account older
+    than the 180 days of events kept reads "not in the last 180 days", a newer one "never" (external
+    review, pass 7);
   - add: `POST /users` with `requiredActions` `UPDATE_PASSWORD` and `CONFIGURE_TOTP`, then
     `PUT /users/{id}/reset-password` with `temporary: true`;
   - administrator: realm role `suveryn-admin` through `/users/{id}/role-mappings/realm`;
@@ -71,9 +74,16 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
     `CONFIGURE_TOTP`;
   - sign out everywhere: `POST /users/{id}/logout`, and the gateway ends the account's own sessions at
     once (also when it is switched off or deleted);
-  - delete: `DELETE /users/{id}`, after the account's own space is deleted;
+  - delete: `DELETE /users/{id}`, after the account's own space is deleted. Every store is reached first,
+    so a store that is down deletes nothing. A step that fails after that (a store, or Keycloak itself)
+    answers 503 with reason `unfinished`, in its own sentence: the account is still there, switched off,
+    part of its own space may be gone, and deleting again finishes it, as every step is repeatable
+    (external audit, 29 October; tested with each step failing);
   - events: `GET /events` and `GET /admin-events`.
-  The gateway enforces "always one administrator" and the case hand-over before switching off. This
+  The gateway enforces "always one administrator" and the case hand-over before switching off. The check
+  and the change that could leave no administrator (rights removed, an account switched off) happen one at
+  a time in the gateway, so two administrators removing each other at once leave one (external review,
+  pass 7). This
   replaces a separate *Activity* page. Nothing from inside a case.
 
 **Settings** (35): what the office decides, in one place. Who sees a case, how long closed
