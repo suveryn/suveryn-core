@@ -1299,7 +1299,8 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     assert all("subject" not in x or x["subject"] == NEW["subject"] for x in listed)  # the case's label, nothing inside it
     # the settings: as provisioned (members, 6m) until changed here, then effective at once
     before = c.get("/v1/admin/cases/settings", headers=admin).json()
-    assert before == {"default_access": "members", "keep": "6m", "conversations_keep": "manual", "updated_at": None, "updated_by": ""}
+    assert before == {"default_access": "members", "keep": "6m", "conversations_keep": "manual", "two_step": False,
+                      "updated_at": None, "updated_by": ""}
     assert c.put("/v1/admin/cases/settings", json={}, headers=admin).status_code == 422
     r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual", "apply_to": "all"}, headers=admin)
     assert r.status_code == 200 and r.json()["default_access"] == "office" and r.json()["keep"] == "manual"
