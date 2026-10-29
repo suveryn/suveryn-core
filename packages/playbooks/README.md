@@ -15,4 +15,12 @@ land: whether a playbook is certified and listed in the appliance's manifest. An
 still runs, with a warning to everyone (the licensing model warns, never blocks); today every
 official playbook is covered.
 
-`schema/playbook.schema.json` is the future manifest schema, a placeholder until the runtime exists.
+What is here:
+
+| Path | Contents |
+|---|---|
+| `src/suveryn_playbooks/__init__.py` | `Playbook`, `Fact` and `Wording`; `covered`, `find`, `by_slug` and `for_case_type`; `LANGUAGES`, the interface languages |
+| `src/suveryn_playbooks/be_notary/deed_intake.py` | Deed intake: its thirteen facts, the instructions the model gets and the case type it fits |
+| `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary and fact labels in English, Dutch and French |
+| `tests/test_content.py` | The identities, the case types, and that every playbook has its words in each language |
+| `schema/` | Empty: the manifest schema joins when the runtime is extracted |

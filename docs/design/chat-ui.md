@@ -39,7 +39,9 @@ These apply to every screen below.
     side;
   - avatar badges: an ink outline;
   - active filters: `surface-alt` with a darker border;
-  - the playbook and model chips, the `brain` icon and the pins;
+  - chips: the composer's playbook chip and model chip are ink text on `surface-alt`, never teal or
+    orange, whatever they lead to; inside the playbook menu only "Covered" is teal (a status);
+  - the `brain` icon and the pins;
   - the current conversation's dot.
 - **Violet is the second brand colour, for two things only**: the band of a strictly confidential
   case (`confidential`, section 11) and the first chart series.
@@ -137,8 +139,8 @@ applicable), the name and chevrons. It opens a `Menu`:
 2. *My usage*, with the person's own tokens today as meta: personal, never the group's.
 3. *Settings*: picture, password, and the default thinking mode.
 4. *Language*: the `LanguagePicker`.
-5. *Administration* (users, office usage) and *Playbooks*, under "Administrators only" and shown to
-   administrators only.
+5. *Administration* (meta "office · appliance") and *Playbooks* (meta "{n} active"), under
+   "Administrators only" and shown to administrators only.
 6. *Sign out*, with the fine print "Documents and answers stay on this server".
 
 **Avatar badges.** An ink outline icon over the avatar's bottom-right corner; the manager's and the
@@ -326,7 +328,7 @@ top right to remove:
 | Ready | A check, the page count |
 | Usable with a warning | An ink triangle, the pages to check |
 | Failed | An ink cross, the reason in words, and one button *Another file* (aria-label "Choose another file") |
-| Not added | Refused on arrival (a full queue, a kind of file sūveryn doesn't read) or left out of a .zip: "Not added." and the reason, never "Couldn't be read", since nothing went wrong reading it. A .zip's card becomes a card per document in it, and one per file left out ("From Prospectus.zip: it is empty."), and the same *Another file* button |
+| Not added | Refused on arrival (a kind of file sūveryn doesn't read, or too large) or left out of a .zip. A full reading queue and the upload rate limit are not refusals: the card waits and the upload is sent again (`lib/turns.ts`). For the rest: "Not added." and the reason, never "Couldn't be read", since nothing went wrong reading it. A .zip's card becomes a card per document in it, and one per file left out ("From Prospectus.zip: it is empty."), and the same *Another file* button |
 | sūveryn's own output | Section 6 |
 
 Asking is allowed while a document is still being read. The line beside send says it counts once it
@@ -426,15 +428,16 @@ and its strings (artboards 26 to 43). The colour and copy rules of section 1 app
 1. ~~**Source or Made**, with the upload mark (section 6).~~ Built (phase a, a71b5ae).
 2. ~~***Stop***.~~ Built (phase b).
 3. ~~***Save to case***, with its API change.~~ Built (phase c).
-4. ***Ask about*** (section 10), and drop the server's guess. Then measure the reading budget.
-5. **Strictly confidential** (section 11).
+4. ~~***Ask about*** (section 10), and drop the server's guess.~~ Built. The reading budget is still to
+   be measured (*Open*).
+5. ~~**Strictly confidential** (section 11).~~ Built.
 6. **The column and overviews as specified** (sections 2 to 4), where they still differ from what
    is built.
 7. ~~**Markdown and CSV**~~ (built, #79), and ~~**pinned personal conversations**~~ (built, with the
    conversation menu).
 8. ~~**"Thought for …"** and the per-request thinking flag.~~ Built (21 October).
-9. **Administration** ([admin.md](admin.md)): the side menu and *Users* first, then *Status*, *Settings* and
-   editable *Backups*, *Licence*, and *Updates* once #40 exists.
+9. ~~**Administration** ([admin.md](admin.md)): the side menu, *Users*, *Status*, *Settings* and editable
+   *Backups*.~~ Built. *Licence*, *Network*, and *Updates* once #40 exists, are still to come.
 
 ## 10. Choosing which documents a question is about (artboards 17 to 19)
 
@@ -609,8 +612,9 @@ conversations, and the client shows the placeholder.
   - a `Table` wrapper for the overviews.
 - **`Composer.tsx`**: the playbook chip, *Ask about* (`DocumentPicker`, new in `ui/`) and the model dialog
   (`ModelPicker.tsx`).
-- **`Messages.tsx`**: the answer toolbar, the split buttons, `WaitingDots`, and later "Thought for".
-- **`App.tsx`**: the three overviews in the main area. Administration gains a Playbooks tab.
+- **`Messages.tsx`**: the answer toolbar, the split buttons, `WaitingDots`, and "Thought for".
+- **`App.tsx`**: the three overviews in the main area. *Playbooks* is an item of Administration's side
+  menu (`Admin.tsx`).
 - **`i18n/*.ts`**: every new string, in the three languages.
 
 ## New strings
@@ -1091,3 +1095,4 @@ The strings of *Administration* are in [admin.md](admin.md).
     dark and narrow versions and the strings in three languages (artboards 30 to 43).
 - **28 October**: colour review of every artboard. System statuses, done steps and progress in teal; text actions in `accent-ink`; the current-conversation dot and the open account trigger in ink; check icons no longer used as bullets or on attributes.
 - **28 October**: renamed from `sidebar.md` to `chat-ui.md`, and *Administration* moved to `admin.md`.
+- **29 October**: the brand made consistent in the code (Filip: "Playbook chip in ink"): the composer's playbook chip in ink on `surface-alt`, like the model chip; the avatar dialog's frame and its zoom slider in ink and `line`, not teal; a playbook run's status label teal only while reading and once confirmed.

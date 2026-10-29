@@ -12,9 +12,9 @@ wins. Interface text is quoted in English, with Dutch and French under *Strings*
 
 From the build chat's brief (27 October) and Filip's decisions the same day: a side menu, nothing is
 ever blocked by the support agreement, no scheduled install, and updates never uploaded through the
-browser. Artboards 26 to 29 are what is built (with tabs); 30 to 43 are the design.
+browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are the design.
 
-**A side menu in two groups** replaces the tabs, which no longer fit:
+**A side menu in two groups** (built: `components/Admin.tsx`; the pages not built yet are left out):
 
 - *Office*: Users, Cases, Playbooks, Usage, Settings.
 - *Appliance*: Status, Updates and models, Backups, Network, Licence.
@@ -38,11 +38,11 @@ browser. Artboards 26 to 29 are what is built (with tabs); 30 to 43 are the desi
   count.
 - *Add user* (the page's one orange button): name, e-mail, administrator or not. **The appliance
   sends no e-mail** (no mail server, maybe air-gapped), so adding shows a temporary password once,
-  with the address and an expiry, to pass on (Keycloak `temporary`, `UPDATE_PASSWORD`). The person
-  chooses a password and sets up two-step sign-in at first sign-in.
+  with the address, to pass on (Keycloak `temporary`, `UPDATE_PASSWORD`). It has no expiry: it works
+  until its first use. The person chooses a password and sets up two-step sign-in at first sign-in.
 - The row menu: make administrator or remove the rights; have the password set again (a new
   temporary password, as above); have two-step sign-in set again; sign out everywhere; switch the
-  account off, or on again.
+  account off, or on again; and, only once it is off, *Delete account*.
 - **Switching off someone who manages cases** hands each case over inside the dialog, showing only
   the case's reference and name. The button waits until every case has a new manager: the one
   thing that can't be done. The person stays a member.
@@ -52,8 +52,10 @@ browser. Artboards 26 to 29 are what is built (with tabs); 30 to 43 are the desi
 - **More users than agreed** shows a triangle by the count and one sentence in the add dialog.
   Adding still works.
 - *Sign-ins and changes*: Keycloak's sign-in and admin events in plain words, kept 180 days.
-- **Through Keycloak's admin REST API**, called by the gateway with a service-account client
-  (`manage-users`, `view-users`, `view-events`), never by the browser:
+- **Through Keycloak's admin REST API**, called by the gateway with the signed-in administrator's own
+  access token, never by the browser and with no service-account client of its own. The `suveryn-admin`
+  role carries `manage-users`, `view-users`, `view-realm` and `view-events`, so Keycloak's admin
+  events name the administrator who made each change:
   - list: `GET /users`; last sign-in from the `LOGIN` events (Keycloak keeps no such field);
   - add: `POST /users` with `requiredActions` `UPDATE_PASSWORD` and `CONFIGURE_TOTP`, then
     `PUT /users/{id}/reset-password` with `temporary: true`;
@@ -61,7 +63,9 @@ browser. Artboards 26 to 29 are what is built (with tabs); 30 to 43 are the desi
   - off or on: `PUT /users/{id}` with `enabled`;
   - reset password: `reset-password`, temporary; reset two-step: delete the `otp` credential and add
     `CONFIGURE_TOTP`;
-  - sign out everywhere: `POST /users/{id}/logout`;
+  - sign out everywhere: `POST /users/{id}/logout`, and the gateway ends the account's own sessions at
+    once (also when it is switched off or deleted);
+  - delete: `DELETE /users/{id}`, after the account's own space is deleted;
   - events: `GET /events` and `GET /admin-events`.
   The gateway enforces "always one administrator" and the case hand-over before switching off. This
   replaces a separate *Activity* page. Nothing from inside a case.
@@ -323,8 +327,9 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 
 ## Built so far
 
-- The side menu (and the narrow list) with *Status*, and the existing *Cases*, *Playbooks*, *Usage* and
-  *Backups*; the other items join as their pages are built. *Status* reads `GET /v1/admin/status` (the
+- The side menu (and the narrow list): *Users*, *Cases*, *Playbooks*, *Usage* and *Settings* for the
+  office, *Status* and *Backups* for the appliance; *Updates and models*, *Network* and *Licence* join as
+  their pages are built. *Status* reads `GET /v1/admin/status` (the
   gateway checks every minute, so "since" is when a failure began); the overview shows the version when
   the appliance has one (its release and the core commit, or `SUVERYN_VERSION`; Filip, 29 October), and the
   last backup. Users against the agreement and support join
@@ -336,7 +341,7 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   "never" signed in), so the pass-on dialog has no "Valid until"; *Sign-ins and changes* takes the changes from Keycloak's
   admin events, which name the administrator but hold no details, so switching an account off or on reads
   as "Account changed"; the dialog titles, the event lines and the filter
-  needed strings the table didn't have; the Dutch and French texts that named a person "haar", "hij",
+  needed strings the table didn't have; *Delete account* in the row menu once an account is off (Filip, 29 October); the Dutch and French texts that named a person "haar", "hij",
   "ze", "il" or "elle" (drawn for one example person) use the name or "de" instead, since an account
   has no known gender; the "Advanced: open Keycloak" link isn't built, as nobody should need it.
 - *Settings*: who sees a case, the two keep periods and the indicative cost's rates, one *Save* for all;

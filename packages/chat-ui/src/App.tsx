@@ -423,7 +423,7 @@ function Chat({ me }: { me: Me }) {
         refreshDocuments();
       } catch (e) {
         if ((e as Error).name === "AbortError") continue;  // cancelled while it was sent: its card is gone
-        // Refused on arrival (a full queue, a file sūveryn doesn't read): not added, rather than unreadable.
+        // Refused on arrival (a file sūveryn doesn't read, or too large; a full queue only after waiting its turns): not added, rather than unreadable.
         setPending((p) => p.map((a) => (a.key === key ? { ...a, status: "failed", notAdded: true, error: (e as Error).message } : a)));
       } finally {
         uploads.current.delete(key);

@@ -145,11 +145,13 @@ review, 17 October 2026).
 
 ## The chat UI
 
-A **Deed intake** action in a sale case's header (contributors and managers; a reader sees the
-runs, not the action). It opens a panel in place of the conversation, like Usage and Administration:
+Deed intake opens from the composer's **Playbook** chip, in a case whose type has playbooks: the
+chip's menu lists them, each with *Covered* or *Not covered*. Every member of the case gets the chip;
+a reader sees the runs, and only a contributor or the manager starts or confirms one. The view
+takes the conversation's place (`components/DeedIntake.tsx`):
 the run's facts in the playbook's order, each a row with the label, the value as read, the source
 (file name, page) that opens the passage with the claim marked, the check's warning when there is
-one, and a text field to confirm or correct. "Confirm all" at the bottom; a fact left empty is
+one, and a text field to confirm or correct. "Confirm the facts" at the bottom; a fact left empty is
 confirmed as empty. After confirmation: the summary, a Word download (made in the browser, as
 answers are), and the document appears in the case's list. Earlier runs are listed under the
 current one. Every piece of text in three languages; every control from `packages/chat-ui/src/ui/`.
