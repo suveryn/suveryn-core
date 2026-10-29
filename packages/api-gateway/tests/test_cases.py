@@ -17,6 +17,7 @@ from suveryn_api_gateway.app import _delete_case_everywhere, create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.cases import (
     AdminCase,
+    shielded,
     Case,
     CaseEvent,
     CaseIn,
@@ -243,15 +244,15 @@ class FakeCases:
             if role is None and office_wide and c.access == "default":
                 role = "reader"
             if (role or admin) and (closed or c.state == "open"):
-                out.append(c.model_copy(update={"my_role": role, "pinned": (cid, user) in self.pins}))
+                out.append(shielded(c.model_copy(update={"my_role": role, "pinned": (cid, user) in self.pins})))
         return sorted(out, key=lambda c: (c.state != "open", -c.updated_at.timestamp()))
 
-    def list_all(self):
+    def list_all(self, viewer):
         out = []
         for cid, c in self.cases.items():
             m = self.rows[cid].get(c.manager)
-            out.append(AdminCase(**c.model_dump(), manager_username=m.username if m else "", manager_name=m.name if m else "",
-                                 members=len(self.rows[cid])))
+            out.append(AdminCase(**shielded(c, self.role_of(cid, viewer)).model_dump(), manager_username=m.username if m else "",
+                                 manager_name=m.name if m else "", members=len(self.rows[cid])))
         return sorted(out, key=lambda c: (c.state != "open", -c.updated_at.timestamp()))
 
     settings_meta = None
@@ -340,7 +341,7 @@ class FakeCases:
         now = datetime.now(UTC)
         out = [c for c in self.cases.values() if c.state == "closed" and not c.keep and c.keep_until and c.keep_until <= now + within
                and (admin or c.manager == user)]
-        return sorted((c.model_copy(update={"my_role": self.role_of(uuid.UUID(c.id), user)}) for c in out), key=lambda c: c.keep_until)
+        return sorted((shielded(c.model_copy(update={"my_role": self.role_of(uuid.UUID(c.id), user)})) for c in out), key=lambda c: c.keep_until)
 
     def due_for_deletion(self):
         now = datetime.now(UTC)
@@ -1379,7 +1380,7 @@ def test_store_lists_every_case_for_the_administrator_and_keeps_the_offices_sett
     s.set_member(uuid.UUID(c.id), bob, "reader", alice, "bob", "Bob Janssens")
     other = s.create(CaseIn(**{**NEW, "reference": "2026/0418"}), bob, "bob", "Bob Janssens")
     s.close_case(uuid.UUID(other.id), None)
-    mine = [x for x in s.list_all() if x.id in (c.id, other.id)]
+    mine = [x for x in s.list_all("admin-sub") if x.id in (c.id, other.id)]
     assert [(x.id, x.state, x.manager_name, x.manager_username, x.members) for x in mine] == [
         (c.id, "open", "Alice Peeters", "alice", 2), (other.id, "closed", "Bob Janssens", "bob", 1)]
     # the settings: nothing chosen until an administrator does; then kept, and merged over the environment's
@@ -1522,3 +1523,46 @@ def test_the_sign_in_check_needs_keycloaks_database(monkeypatch):
         await d.aclose()
 
     asyncio.run(run())
+
+
+def test_an_administrator_outside_a_strictly_confidential_case_sees_its_number_only(office):
+    """Filip, 29 October (external review, pass 7, item 9): an administrator who isn't a member sees that a
+    strictly confidential case exists, by its reference, with its manager, to hand it over or close it; never
+    its name or subject. Every other case, and for its members, as before."""
+    c, kc, cases, _, _ = office
+    alice, admin = as_user(kc, ALICE), admin_headers(kc)
+    secret = c.post("/v1/cases", json={**NEW, "confidential": True}, headers=alice).json()["id"]
+    plain = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=alice).json()["id"]
+    assert c.get("/v1/cases", headers=alice).json()[0]["name"] == "Verkoop Kerkstraat 12"  # the member: all of it
+
+    def by_id(rows):
+        return {r["id"]: r for r in rows}
+
+    for rows in (c.get("/v1/cases", headers=admin).json(), c.get("/v1/cases/overview", headers=admin).json(),
+                 c.get("/v1/admin/cases", headers=admin).json()):
+        seen = by_id(rows)
+        assert seen[secret]["reference"] == "2026/0417" and seen[secret]["name"] == "" and seen[secret]["subject"] == {}
+        assert seen[plain]["name"] == "Verkoop Kerkstraat 12"  # not strictly confidential: as before
+    assert by_id(c.get("/v1/admin/cases", headers=admin).json())[secret]["manager_name"]  # who manages it, to hand over
+    # handed over by the administrator, the answer still holds no name
+    handed = c.post(f"/v1/cases/{secret}/handover", json={"user": BOB}, headers=admin).json()
+    assert handed["reference"] == "2026/0417" and handed["name"] == "" and handed["subject"] == {}
+    # closed by its new manager, then due: an administrator sees the number only there too
+    bob = as_user(kc, BOB)
+    c.post(f"/v1/cases/{secret}/close", headers=bob)
+    for row in c.get("/v1/cases/due", headers=admin).json():
+        if row["id"] == secret:
+            assert row["name"] == "" and row["subject"] == {}
+
+
+def test_store_shows_a_strictly_confidential_case_by_its_number_outside_it(store):
+    """The real store's lists: an administrator outside a strictly confidential case gets its reference,
+    no name and no subject (list, list_all); its member gets all of it."""
+    s = store
+    alice, admin = f"alice-{uuid.uuid4()}", f"admin-{uuid.uuid4()}"
+    c = s.create(CaseIn(**{**NEW, "reference": f"S-{uuid.uuid4().hex[:8]}", "confidential": True}), alice, "alice", "Alice")
+    outside = next(x for x in s.list(admin, office_wide=False, admin=True) if x.id == c.id)
+    assert (outside.name, outside.subject, outside.my_role) == ("", {}, None) and outside.reference == c.reference
+    assert next(x for x in s.list_all(admin) if x.id == c.id).name == ""
+    assert next(x for x in s.list_all(alice) if x.id == c.id).name == NEW["name"]
+    assert next(x for x in s.list(alice, office_wide=False) if x.id == c.id).subject == NEW["subject"]

@@ -248,6 +248,17 @@ class Case(BaseModel):
     pinned: bool = False  # by the caller, for the sidebar's "pinned" section (docs/design/chat-ui.md)
 
 
+def shielded(case: "Case", role: "Role | None" = ...) -> "Case":
+    """A strictly confidential case as someone outside it sees it: its reference only, no name and no subject
+    (Filip, 29 October 2026, after the external review's pass 7). An administrator who isn't a member sees it
+    exists, by its number, to hand it over, close or delete it; its manager and members stay, for that. Every
+    other case, or for a member, as it is. ``role``: the viewer's, when ``case.my_role`` isn't theirs."""
+    role = case.my_role if role is ... else role
+    if not case.confidential or role is not None:
+        return case
+    return case.model_copy(update={"name": "", "subject": {}})
+
+
 class CaseOverview(Case):
     """A case as the Cases overview shows it (docs/design/chat-ui.md §4): with its members (the
     manager first) and its last activity, who and when, from the access log. For an administrator who
@@ -456,7 +467,7 @@ class CaseStore(PgStore):
             role, pinned = row[-2], row[-1]
             if role is None and office_wide and row[5] == "default":
                 role = "reader"
-            cases.append(self._case(row[:-2], role, pinned))
+            cases.append(shielded(self._case(row[:-2], role, pinned)))
         return cases
 
     def confidential_ids(self, case_ids: list[uuid.UUID]) -> set[str]:
@@ -551,7 +562,7 @@ class CaseStore(PgStore):
             f'{self._SELECT}, m.role FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
             " WHERE c.state = 'closed' AND NOT c.keep AND c.keep_until IS NOT NULL AND c.keep_until <= now() + %s"
             "   AND (%s OR c.manager = %s) ORDER BY c.keep_until", (user, within, admin, user)).fetchall()
-        return [self._case(r[:-1], r[-1]) for r in rows]
+        return [shielded(self._case(r[:-1], r[-1])) for r in rows]
 
     def due_for_deletion(self) -> list[uuid.UUID]:
         """The closed cases whose keep period has passed and that aren't marked kept."""
@@ -568,15 +579,17 @@ class CaseStore(PgStore):
         to delete (the gateway does, by ``case_id``), before this."""
         return self._execute("DELETE FROM cases WHERE id = %s", (case_id,)).rowcount > 0
 
-    def list_all(self) -> list[AdminCase]:
+    def list_all(self, viewer: str) -> list[AdminCase]:
         """Every case, open ones first, most recently changed first, with its manager's name and
-        its member count: the administrator's list (stage 4). Nothing from inside a case."""
+        its member count: the administrator's list (stage 4). Nothing from inside a case; a strictly
+        confidential one the ``viewer`` isn't a member of by its reference only (``shielded``)."""
         rows = self._execute(
-            f"{self._SELECT}, m.username, m.name, (SELECT count(*) FROM case_members x WHERE x.case_id = c.id)"
+            f"{self._SELECT}, m.username, m.name, (SELECT count(*) FROM case_members x WHERE x.case_id = c.id), v.role"
             ' FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = c.manager'
-            " ORDER BY c.state = 'closed', c.updated_at DESC").fetchall()
-        return [AdminCase(**self._case(r[:-3]).model_dump(), manager_username=r[-3] or "", manager_name=r[-2] or "",
-                          members=r[-1]) for r in rows]
+            ' LEFT JOIN case_members v ON v.case_id = c.id AND v."user" = %s'
+            " ORDER BY c.state = 'closed', c.updated_at DESC", (viewer,)).fetchall()
+        return [AdminCase(**shielded(self._case(r[:-4]), r[-1]).model_dump(), manager_username=r[-4] or "",
+                          manager_name=r[-3] or "", members=r[-2]) for r in rows]
 
     # ------------------------------------------------------------------ the office's settings (stage 4)
     def overrides(self) -> dict[str, str]:

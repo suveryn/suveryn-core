@@ -168,7 +168,7 @@ export function CasesOverview({ cases, documents, conversations, onOpen, onPin, 
       render: (c) => <PinToggle label={c.pinned ? m.unpinCase(c.reference) : m.pinCase(c.reference)} isSelected={!!c.pinned} onChange={(on) => onPin(c, on)} /> },
     { id: "case", label: m.colCase, rowHeader: true,
       render: (c) => <span className="overview-name">{c.state === "closed" ? <Lock size={15} aria-hidden /> : c.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
-        <span><b>{c.reference}</b> <span className="overview-dim">{c.name}</span></span></span> },
+        <span><b>{c.reference}</b> <span className="overview-dim">{c.name || (c.confidential ? m.strictlyConfidential : "")}</span></span></span> },
     { id: "type", label: m.colType, render: (c) => <span className="overview-dim">{caseTypeLabel(c.type, m)}</span> },
     { id: "status", label: m.colStatus, render: (c) => <span className="overview-status-cell">{status(c)}
         {/* §11: an ink outline label in words beside the status */}
