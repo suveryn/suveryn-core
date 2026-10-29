@@ -49,21 +49,21 @@ export function CaseState({ kase, canReopen, canKeep, onChanged }: {
         {kase.closed_at && m.closedOn(onDay(kase.closed_at))} · {fateLabel(kase, m)}
       </span>
       {canReopen && (
-        <TextButton className="case-action" onPress={() => act(() => reopenCase(kase.id))} isDisabled={busy}>
+        <TextButton link className="case-action" onPress={() => act(() => reopenCase(kase.id))} isDisabled={busy}>
           <LockOpen size={14} aria-hidden /> {m.reopenCase}
         </TextButton>
       )}
       {canKeep && kase.keep_until !== null && !kase.keep && (
-        <TextButton className="case-action" onPress={() => act(() => keepCase(kase.id, { extend: true }))} isDisabled={busy}>
+        <TextButton link className="case-action" onPress={() => act(() => keepCase(kase.id, { extend: true }))} isDisabled={busy}>
           <CalendarPlus size={14} aria-hidden /> {m.extendCase}
         </TextButton>
       )}
       {canKeep && kase.keep_until !== null && (kase.keep ? (
-        <TextButton className="case-action" onPress={() => act(() => keepCase(kase.id, { keep: false }))} isDisabled={busy}>
+        <TextButton link className="case-action" onPress={() => act(() => keepCase(kase.id, { keep: false }))} isDisabled={busy}>
           <StarOff size={14} aria-hidden /> {m.unkeepCase}
         </TextButton>
       ) : (
-        <TextButton className="case-action" onPress={() => act(() => keepCase(kase.id, { keep: true }))} isDisabled={busy}>
+        <TextButton link className="case-action" onPress={() => act(() => keepCase(kase.id, { keep: true }))} isDisabled={busy}>
           <Star size={14} aria-hidden /> {m.keepCase}
         </TextButton>
       ))}

@@ -1451,3 +1451,19 @@ def test_a_case_can_be_strictly_confidential_from_the_start(office):
     c, kc, _, _, _ = office
     r = c.post("/v1/cases", json={**NEW, "confidential": True}, headers=as_user(kc, ALICE))
     assert r.status_code == 201 and r.json()["confidential"] is True and r.json()["access"] == "restricted"
+
+
+def test_store_keeps_a_deleted_accounts_name_with_what_it_did(store):
+    """Administration › Users, deleting an account (Filip, 29 October): out of its cases, its name kept."""
+    s, alice, bob = store, f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}"
+    c = s.create(CaseIn(**NEW), alice, "alice", "Alice")
+    cid = uuid.UUID(c.id)
+    s.set_member(cid, bob, "contributor", alice, "bob", "Bob Peeters")
+    s.log(cid, bob, "uploaded", {})
+    s.set_pinned(cid, bob, True)
+    assert s.depart(bob, "bob", "Bob Peeters", alice) == 1
+    assert s.role_of(cid, bob) is None and not s.pinned_by(cid, bob)
+    assert s.departed_names([bob]) == {bob: "Bob Peeters"} and bob in s.departed_names()
+    names = {(e.user, e.action): e.name for e in s.events(cid)}
+    assert names[(bob, "uploaded")] == "Bob Peeters" and names[(alice, "member_removed")] == "Alice"
+    s._execute("DELETE FROM departed_accounts WHERE sub = %s", (bob,))

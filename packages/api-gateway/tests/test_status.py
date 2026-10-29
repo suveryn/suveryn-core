@@ -34,3 +34,21 @@ def test_a_nearly_full_disk_is_not_enough(setup, monkeypatch):  # noqa: F811
     monkeypatch.setattr(status, "_disk", lambda: (5 * 1024**3, 2 * 1024**4))  # 5 GB of 2 TB
     disk = c.get("/v1/admin/status", headers=as_user(kc, ALICE, admin=True)).json()["checks"][4]
     assert disk["id"] == "disk" and not disk["ok"]
+
+
+def test_status_shows_the_appliances_version(tmp_path, monkeypatch):
+    """Filip, 29 October: Status shows the version, without the installation having to set it."""
+    from suveryn_api_gateway.routes import status
+
+    monkeypatch.delenv("SUVERYN_VERSION", raising=False)
+    monkeypatch.setattr(status, "OS_RELEASE", tmp_path / "os-release")
+    monkeypatch.setattr(status, "CORE_BUILT", tmp_path / "built")
+    assert status.appliance_version() is None  # a development machine
+    (tmp_path / "built").write_text("suveryn-core@a34d3fb3b732847d619cffb26cd26e463d7ae929\n")
+    assert status.appliance_version() == "core a34d3fb"  # installed with the provisioning
+    (tmp_path / "os-release").write_text('ID=ubuntu\nIMAGE_ID="suveryn"\nIMAGE_VERSION="1.2.0"\n')
+    assert status.appliance_version() == "1.2.0 · core a34d3fb"  # the read-only system
+    (tmp_path / "os-release").write_text('ID=ubuntu\nIMAGE_ID="other"\nIMAGE_VERSION="9"\n')
+    assert status.appliance_version() == "core a34d3fb"
+    monkeypatch.setenv("SUVERYN_VERSION", "1.2.1-rc1")
+    assert status.appliance_version() == "1.2.1-rc1"

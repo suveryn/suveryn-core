@@ -221,5 +221,7 @@ async def with_owner_names(request: Request, conversations: list[ConversationSum
         return conversations
     members = await run_in_threadpool(store.members_of, list(others))
     names = {(str(cid), m.user): m.name or m.username for cid, ms in members.items() for m in ms}
-    return [c.model_copy(update={"owner_name": names.get((c.case_id or "", c.owner), "")}) if c.owner != me else c
-            for c in conversations]
+    gone = {c.owner for c in conversations if c.owner != me and (c.case_id or "", c.owner) not in names}
+    departed = await run_in_threadpool(store.departed_names, list(gone)) if gone else {}  # deleted accounts keep their name
+    return [c.model_copy(update={"owner_name": names.get((c.case_id or "", c.owner)) or departed.get(c.owner, "")})
+            if c.owner != me else c for c in conversations]

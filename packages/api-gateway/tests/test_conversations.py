@@ -686,3 +686,18 @@ def test_conversations_saved_before_the_count_was_kept_get_it_on_start(store):
         assert again.fill_in() == 0  # nothing left to do on the next start
     finally:
         again.close()
+
+
+@needs_db
+def test_store_deletes_an_accounts_own_conversations_and_keeps_those_shared_with_a_case(store):
+    """Administration › Users, deleting an account (Filip, 29 October)."""
+    case = uuid.uuid4()
+    personal, unshared, shared = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    store.save(personal, ALICE, ConversationIn(**BODY))
+    store.save(unshared, ALICE, ConversationIn(**{**BODY, "case_id": str(case)}))
+    store.save(shared, ALICE, ConversationIn(**{**BODY, "case_id": str(case)}))
+    store.set_shared(shared, ALICE, True)
+    store.save(uuid.uuid4(), BOB, ConversationIn(**BODY))
+    assert (store.personal(ALICE), store.shared_count(ALICE)) == (2, 1)
+    assert store.delete_personal(ALICE) == 2
+    assert store.get_shared(shared) is not None and store.get(personal, ALICE) is None and len(store.summaries(BOB)) == 1

@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from ..accounts import Account, AccountEvent, AccountRefused, Accounts, AccountsUnavailable, RightsRefused
 from ..auth import AuthError, AuthUnavailable
-from .common import admin_or_403, owner_of
+from .common import Scope, admin_or_403, cases_or_503, docs_or_503, history_or_503, owner_of
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
@@ -182,4 +182,80 @@ async def events(request: Request, limit: int = 20):
     accounts, token = await as_admin(request)
     limit = max(1, min(limit, 200))
     known = {a.sub: a.name for a in await _do(accounts.everyone(token))}
+    cases = request.app.state.cases
+    store = cases.get() if cases.configured else None
+    if store is not None:  # a deleted account's sign-ins and its deletion keep its name
+        known = {**await run_in_threadpool(store.departed_names), **known}
     return await _do(accounts.events(token, known, limit))
+
+
+# ------------------------------------------------------------------ deleting an account
+class Deletion(BaseModel):
+    """What deleting an account removes (its own space) and what stays with its cases."""
+
+    documents: int = 0              # its own documents, outside any case
+    conversations: int = 0          # its conversations nobody else can read
+    shared_conversations: int = 0   # shared with a case: they stay there, under its name
+
+
+def _stores(request: Request):
+    """Every store the account's own space is in; a configured one that can't be reached stops the deletion (503),
+    so nothing is half deleted. One that isn't configured here (a development machine) holds nothing."""
+    docs = docs_or_503(request) if request.app.state.documents is not None else None
+    history = history_or_503(request) if request.app.state.history.configured else None
+    avatars_db = request.app.state.avatars
+    avatars = avatars_db.get() if avatars_db.configured else None
+    if avatars_db.configured and avatars is None:
+        raise HTTPException(503, "Pictures are not available right now.")
+    return docs, history, avatars
+
+
+async def _deletable(request: Request, accounts: Accounts, token: str, sub: str) -> Account:
+    user = await _do(accounts.get(token, sub))
+    if sub == owner_of(request):
+        raise HTTPException(409, "You can't delete your own account.")
+    if user.enabled:
+        raise HTTPException(409, "Switch the account off first.")  # Filip, 29 October: a deliberate second step
+    if request.app.state.cases.configured and (n := await run_in_threadpool(cases_or_503(request).manages, sub)):
+        raise HTTPException(409, f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.")
+    return user
+
+
+@router.get("/v1/admin/users/{sub}/deletion", response_model=Deletion, responses={
+    403: {"description": "Not an administrator"}, 409: {"description": "Your own account, one that is on, or one that manages cases"}})
+async def deletion(sub: str, request: Request):
+    """What deleting this account would remove, for the confirmation: counts only."""
+    accounts, token = await as_admin(request)
+    await _deletable(request, accounts, token, sub)
+    docs, history, _ = _stores(request)
+    out = Deletion()
+    if docs is not None:
+        out.documents = len(await run_in_threadpool(docs.documents, Scope.personal(sub)))
+    if history is not None:
+        out.conversations = await run_in_threadpool(history.personal, sub)
+        out.shared_conversations = await run_in_threadpool(history.shared_count, sub)
+    return out
+
+
+@router.delete("/v1/admin/users/{sub}", status_code=204, responses={
+    403: {"description": "Not an administrator"}, 409: {"description": "Your own account, one that is on, or one that manages cases"}})
+async def delete_user(sub: str, request: Request):
+    """Delete an account (Filip, 29 October). Only one that is switched off, so its cases are handed over already.
+    Its own space goes with it: its documents outside a case, the conversations nobody else can read, its picture,
+    its pins. What it did in its cases stays with them under its name: documents it added, conversations it
+    shared, the access log. Then the account itself, in Keycloak. Usage keeps its counts. Repeatable: a step
+    that failed is done again."""
+    accounts, token = await as_admin(request)
+    user = await _deletable(request, accounts, token, sub)
+    docs, history, avatars = _stores(request)
+    if docs is not None:
+        await run_in_threadpool(docs.delete_all, Scope.personal(sub))
+    if history is not None:
+        await run_in_threadpool(history.delete_personal, sub)
+    if avatars is not None:
+        await run_in_threadpool(avatars.remove, sub)
+    if request.app.state.cases.configured:
+        await run_in_threadpool(cases_or_503(request).depart, sub, user.username, user.name, owner_of(request))
+    await _do(accounts.delete(token, sub))
+    request.app.state.auth.drop_user(sub)
+    log.info("account %s deleted by an administrator", sub)
