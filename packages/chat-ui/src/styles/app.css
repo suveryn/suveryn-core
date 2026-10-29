@@ -194,7 +194,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .avatar-pick { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
 .avatar-pick .ui-button { display: inline-flex; align-items: center; gap: var(--space-2); }
 .avatar-editor { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); margin-bottom: var(--space-4); }
-.avatar-frame { width: 240px; height: 240px; align-self: center; border-radius: 25%; border: 4px solid var(--teal);
+/* the frame's border is a line, as the avatar's: a person is not a system status */
+.avatar-frame { width: 240px; height: 240px; align-self: center; border-radius: 25%; border: 4px solid var(--line);
                 box-sizing: content-box; background: var(--surface-alt); cursor: grab; touch-action: none; }
 .avatar-frame:active { cursor: grabbing; }
 .avatar-editor .caption { text-align: center; }
@@ -223,7 +224,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .playbook-run { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); background: var(--surface);
                 border: 1px solid var(--line); border-radius: var(--radius-md); }
 .playbook-run-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
-.playbook-run-head .label { color: var(--teal-ink); }
+.playbook-run-head .label { color: var(--text); }
+.playbook-run-head .label[data-status="reading"], .playbook-run-head .label[data-status="confirmed"] { color: var(--teal-ink); }  /* system work, or confirmed */
 .playbook-reading { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-dim); font-size: var(--text-body-sm); }
 .playbook-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .playbook-fact { padding: var(--space-3) 0; border-top: 1px solid var(--line); }
@@ -452,8 +454,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
                              border-radius: var(--radius-pill); font-size: var(--text-ui-sm); white-space: nowrap; }
 .chip-case { background: var(--surface-alt); color: var(--text-dim); }
 .playbook-menu { min-width: 340px; max-width: 380px; }
-.chip-playbook { background: oklch(from var(--teal) l c h / 0.14); color: var(--teal-ink); cursor: pointer; }
-.chip-playbook[data-hovered] { background: oklch(from var(--teal) l c h / 0.24); }
+/* ink on a neutral surface, as the model chip: a chip is neither an action nor a status (chat-ui.md section 1) */
+.chip-playbook { background: var(--surface-alt); color: var(--text); cursor: pointer; }
+.chip-playbook[data-hovered] { background: var(--line); }
 /* the full lists behind the sidebar's rows */
 .view-tools { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .view-search { max-width: 28rem; flex: 1; }
