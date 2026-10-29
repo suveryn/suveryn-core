@@ -1467,3 +1467,58 @@ def test_store_keeps_a_deleted_accounts_name_with_what_it_did(store):
     names = {(e.user, e.action): e.name for e in s.events(cid)}
     assert names[(bob, "uploaded")] == "Bob Peeters" and names[(alice, "member_removed")] == "Alice"
     s._execute("DELETE FROM departed_accounts WHERE sub = %s", (bob,))
+
+
+def test_the_sign_in_check_needs_keycloaks_database(monkeypatch):
+    """Round 2: Keycloak serves its discovery document while its database is down, and then every
+    sign-in fails. Directory.working asks for the number of accounts with the service account's
+    token, which needs the database; /health and Status say sign-in is unavailable meanwhile, and
+    ready again once it is back. A read, so Keycloak logs no event for it."""
+    import asyncio
+
+    import suveryn_api_gateway.directory as directory_module
+    from suveryn_api_gateway.directory import Directory, DirectorySettings, DirectoryUnavailable
+    from suveryn_api_gateway.routes.common import signin_status
+
+    db = {"up": True}
+    asked = []
+
+    def keycloak(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        if not db["up"]:
+            return httpx.Response(500, text="Internal Server Error")  # what Keycloak 26.8 answered
+        if request.url.path.endswith("/protocol/openid-connect/token"):
+            return httpx.Response(200, json={"access_token": "svc-token", "expires_in": 300})
+        if request.url.path == "/admin/realms/suveryn/users/count":
+            assert request.url.params["enabled"] == "true"
+            return httpx.Response(200, json=3)
+        return httpx.Response(404)
+
+    clock = [100.0]
+    monkeypatch.setattr(directory_module.time, "monotonic", lambda: clock[0])
+    d = Directory(DirectorySettings(issuer="http://keycloak.test/realms/suveryn", client_secret="d1r"),
+                  transport=httpx.MockTransport(keycloak))
+
+    class Auth:
+        async def status(self):
+            return "ready", None  # the discovery document answers, as it did
+
+    class State:
+        auth, directory = Auth(), d
+
+    async def run():
+        assert await signin_status(State()) == ("ready", None)
+        db["up"] = False
+        assert await signin_status(State()) == ("ready", None)  # within the TTL: the last answer stands
+        clock[0] += directory_module.WORKING_TTL_S
+        state, why = await signin_status(State())
+        assert state == "unavailable" and "500" in why
+        with pytest.raises(DirectoryUnavailable):
+            await d.working()
+        db["up"] = True
+        clock[0] += directory_module.WORKING_TTL_S
+        assert await signin_status(State()) == ("ready", None)
+        assert asked.count("/realms/suveryn/protocol/openid-connect/token") == 1  # the token kept, not a sign-in a minute
+        await d.aclose()
+
+    asyncio.run(run())

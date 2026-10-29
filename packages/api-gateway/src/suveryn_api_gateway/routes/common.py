@@ -341,3 +341,17 @@ async def delete_case_everywhere(app: FastAPI, case_id: uuid.UUID) -> bool:
     if run_store is not None:
         await run_in_threadpool(run_store.delete_case, case_id)
     return await run_in_threadpool(case_store.delete, case_id)
+
+
+async def signin_status(state) -> tuple[str, str | None]:
+    """Whether people can sign in, for /health and Status: Keycloak answers (``Authenticator.status``),
+    and it can sign someone in, which needs its database (``Directory.working``). Keycloak keeps
+    answering while its database is down, and then every sign-in fails (round 2)."""
+    status, detail = await state.auth.status()
+    directory = getattr(state, "directory", None)
+    if status == "ready" and directory is not None and getattr(directory, "configured", False) and hasattr(directory, "working"):
+        try:
+            await directory.working()
+        except DirectoryUnavailable as e:
+            return "unavailable", str(e)
+    return status, detail
