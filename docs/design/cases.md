@@ -15,7 +15,7 @@ sūveryn keeps what the AI needs, for as long as the office says, and no longer.
 |---|---|
 | 1 | The case **reference** is the office's own file number, typed in as the office writes it. Sūveryn keeps its own UUID underneath. |
 | 2 | **No client names** in the reference or the case name. The parties are information inside the case, read from its documents (the facts layer, #27), never a label on the outside. |
-| 3 | The **default access** for a new case is a setting per appliance: *office-wide* (everyone signed in sees it; notary offices, where all staff share the same secrecy) or *members only* (law firms with conflict walls, healthcare, government units). Chosen at setup or in the admin dashboard. |
+| 3 | The **default access** for a new case is a setting per appliance: *office-wide* (everyone signed in sees it; notary offices, where all staff share the same secrecy) or *members only* (law firms with conflict walls, healthcare, government units). The web setup asks none of the settings: an appliance starts with the fail-safe values (members only, closed cases kept until deleted by hand), and an administrator sets them in Administration › Settings. |
 | 4 | A manager can **restrict** any case to its members, whatever the default. |
 | 5 | **Every user may create** a case. |
 | 6 | A case always has exactly one **manager**. When a manager's account is to be removed, an administrator hands their cases to someone else first; the account can't go while it manages a case. |
@@ -54,17 +54,21 @@ short free text and, where the type defines them, a few named fields the playboo
 ## The data model
 
 ```
-cases           id, reference, name, type, subject jsonb, access (default|restricted),
-                state (open|closed), opened_at, closed_at, keep_until, keep (bool),
-                manager (Keycloak sub), created_by, created_at, updated_at
-case_members    case_id, user (sub), role (reader|contributor|manager), added_by, added_at
-documents       + case_id (null = personal space), origin (uploaded|generated|playbook), uploaded_by
-conversations   + case_id (null = personal), shared (bool)          (owner stays: who started it)
-case_events     id, case_id, user, at, action, detail jsonb          (the access log, 180 days)
-playbook runs, checkpoints, facts (#27, #28): + case_id from day one
+cases             id, reference, name, type, subject jsonb, access (default|restricted),
+                  state (open|closed), opened_at, closed_at, keep_until, keep (bool), confidential (bool),
+                  manager (Keycloak sub), created_by, created_at, updated_at
+case_members      case_id, user (sub), role (reader|contributor|manager), added_by, added_at, username, name
+documents         + case_id (null = personal space), origin (uploaded|generated|playbook|answer), owner
+conversations     + case_id (null = personal), shared (bool)          (owner stays: who started it)
+case_events       id, case_id, user, at, action, detail jsonb          (the access log, 180 days)
+case_pins         case_id, user, pinned_at                             (each person's own pins)
+case_settings     key, value, updated_at, updated_by                   (Administration › Settings)
+departed_accounts sub, username, name, deleted_at, deleted_by          (deleted accounts' names)
+playbook_runs     + case_id (#27, #28)
 ```
 
-- A document's `owner` becomes `uploaded_by`; the case, not the uploader, decides who may read it.
+- A document's column stays `owner`: the uploader. The API calls it `uploaded_by`. The case, not the
+  uploader, decides who may read it.
 - Personal space is `case_id IS NULL`, authorised by `uploaded_by`/`owner` as today.
 - Deleting a case deletes everything with its `case_id` (cascade), including chunks and facts, then
   the files in the work directory. Deleting a document inside a case: as today, plus its facts out
@@ -93,7 +97,8 @@ Documents stored before cases existed have no `case_id` and keep their owner: fa
   appliance's default, changeable here.
 - **Closing**: a confirmation that says what closing means and when the case will be deleted under
   the office's keep period.
-- **Admin dashboard**: the default access, the keep period, the cases due for deletion, handover.
+- **Administration**: *Cases* lists every case with its manager, the cases due for deletion and
+  handover; *Settings* holds the default access and the keep periods.
 
 ## Sequencing
 
@@ -111,8 +116,8 @@ syncing cases with the practice software (a connector, later).
 
 - **Stage 1** (core PR #43): the case, the personal space, "ask about this case", `may`.
 - **Stage 2** (core PR #44, appliance #35): members and roles, the office's directory, handover, the access log, `SUVERYN_CASES_DEFAULT_ACCESS`.
-- **Stage 3**: closing, the keep period and deletion. `POST /v1/cases/{id}/close`, `/reopen`, `/keep` and `GET /v1/cases/due`; the office's period is `SUVERYN_CASES_KEEP` (`6m`, `1y`, `5y`, `manual`), from the appliance's `--cases-keep` or `CASES_KEEP`, default `manual` since nothing is chosen for the office. Closing sets `keep_until` one period ahead; from 30 days before, the case is listed for its manager and the administrators, who can extend it by one period, reopen it, or mark it *keep*; an hourly sweep in the gateway deletes what is due, the way deleting a case does. Decided while building: `set_keep` (extend, keep) is a right on a *closed* case, for its manager and the administrators; the office's period itself is the appliance setting (the admin dashboard will change it in stage 4). The confirmation and the warning are worded in the three languages in the chat UI (`closeCase*`, `deletedOn*` in `i18n/`); what deletion guarantees on the appliance is #31's.
-- **Stage 4**: shared conversations and the administrator's case pages. `POST /v1/conversations/{id}/share` (its owner, in an open case) makes a conversation readable for everyone who may read the case, read-only for them; the list in a case shows one's own and the shared ones (`owner`, `shared`), and the access log notes shares. Deleting a case's document now cleans every member's conversations, not only the deleter's. The administrator's pages: `GET /v1/admin/cases` (every case with its manager and member count, nothing from inside), hand over from there, and `GET`/`PUT /v1/admin/cases/settings` for the default access and the keep period, stored in `case_settings` on top of what the appliance was provisioned with (`SUVERYN_CASES_DEFAULT_ACCESS`, `SUVERYN_CASES_KEEP` stay the initial values). Decided while building: a shared conversation can't be continued by others (decision 12 says read-only; several people in one live conversation stays out of scope); sharing needs the contributor's right and an open case; a changed keep period applies to cases closed from then on (a closed case keeps its date). The web setup asks none of this (it throws as few hurdles as possible: the appliance is provisioned with the fail-safe defaults, members only and kept until deleted by hand), and the dashboard is where the office sets them. The same page carries the third office setting, how long saved conversations are kept (`conversations_keep`, `SUVERYN_CONVERSATIONS_KEEP` as provisioned; the data lifecycle, suveryn-tracker#31), with the same periods. **Administration › Settings** (admin.md, 28 October): opening the default access to the office applies to new cases or, by choice, to all cases. "New cases" restricts the existing cases that followed the default, so they stay with their members (a manager can open one); "All cases" opens every case, those a manager restricted too, with a line in each access log. Closing it to the members applies to every case that follows the default. Strictly confidential cases never change. The page counts first (`/v1/admin/cases/settings/preview`) and asks for confirmation with the number.
+- **Stage 3**: closing, the keep period and deletion. `POST /v1/cases/{id}/close`, `/reopen`, `/keep` and `GET /v1/cases/due`; the office's period is `SUVERYN_CASES_KEEP` (`6m`, `1y`, `5y`, `manual`), from the appliance's `--cases-keep` or `CASES_KEEP`, default `manual` since nothing is chosen for the office. Closing sets `keep_until` one period ahead; from 30 days before, the case is listed for its manager and the administrators, who can extend it by one period, reopen it, or mark it *keep*; an hourly sweep in the gateway deletes what is due, the way deleting a case does. Decided while building: `set_keep` (extend, keep) is a right on a *closed* case, for its manager and the administrators; the office's period itself is the appliance setting (changed in Administration › Settings since stage 4). The confirmation and the warning are worded in the three languages in the chat UI (`closeCase*`, `deletedOn*` in `i18n/`); what deletion guarantees on the appliance is #31's.
+- **Stage 4**: shared conversations and the administrator's case pages. `POST /v1/conversations/{id}/share` (its owner, in an open case) makes a conversation readable for everyone who may read the case, read-only for them; the list in a case shows one's own and the shared ones (`owner`, `shared`), and the access log notes shares. Deleting a case's document now cleans every member's conversations, not only the deleter's. The administrator's pages: `GET /v1/admin/cases` (every case with its manager and member count, nothing from inside), hand over from there, and `GET`/`PUT /v1/admin/cases/settings` for the default access and the keep period, stored in `case_settings` on top of what the appliance was provisioned with (`SUVERYN_CASES_DEFAULT_ACCESS`, `SUVERYN_CASES_KEEP` stay the initial values). Decided while building: a shared conversation can't be continued by others (decision 12 says read-only; several people in one live conversation stays out of scope); sharing needs the contributor's right and an open case; a changed keep period applies to cases closed from then on (a closed case keeps its date). The web setup asks none of this (it throws as few hurdles as possible: the appliance is provisioned with the fail-safe defaults, members only and kept until deleted by hand), and Administration › Settings is where the office sets them. The same page carries the third office setting, how long saved conversations are kept (`conversations_keep`, `SUVERYN_CONVERSATIONS_KEEP` as provisioned; the data lifecycle, suveryn-tracker#31), with the same periods. **Administration › Settings** (admin.md, 28 October): opening the default access to the office applies to new cases or, by choice, to all cases. "New cases" restricts the existing cases that followed the default, so they stay with their members (a manager can open one); "All cases" opens every case, those a manager restricted too, with a line in each access log. Closing it to the members applies to every case that follows the default. Strictly confidential cases never change. The page counts first (`/v1/admin/cases/settings/preview`) and asks for confirmation with the number.
 
 ## Open
 

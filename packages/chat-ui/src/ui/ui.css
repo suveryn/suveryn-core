@@ -541,9 +541,10 @@
 .ui-slider-track { grid-column: 1 / -1; position: relative; height: 24px; }
 .ui-slider-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; transform: translateY(-50%);
                            background: var(--line); border-radius: var(--radius-pill); }
-.ui-slider-fill { position: absolute; left: 0; top: 50%; height: 4px; transform: translateY(-50%); background: var(--teal); border-radius: var(--radius-pill); }
+/* a setting, not a status: ink, as a switch that is on */
+.ui-slider-fill { position: absolute; left: 0; top: 50%; height: 4px; transform: translateY(-50%); background: var(--text); border-radius: var(--radius-pill); }
 .ui-slider-thumb { position: absolute; top: 50%; width: 20px; height: 20px; border-radius: 50%; background: var(--surface);
-                   border: 2px solid var(--teal); box-sizing: border-box; cursor: grab; }
+                   border: 2px solid var(--text); box-sizing: border-box; cursor: grab; }
 .ui-slider-thumb[data-dragging] { cursor: grabbing; }
 .ui-slider-thumb[data-focus-visible] { outline: none; box-shadow: 0 0 0 3px var(--focus-glow); border-color: var(--focus-border); }
 
