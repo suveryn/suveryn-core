@@ -2,9 +2,9 @@
 
 A design note, October 2026, written after two outside reviews of the repositories and a
 discussion of what "features, playbooks and connectors" (the [manifesto](https://github.com/suveryn/suveryn-docs/blob/main/MANIFESTO.md))
-mean once they have to be built. It records decisions, not code: `packages/mcp-host`,
-`packages/connectors` and `packages/playbooks` are still placeholders, and this note says what
-has to be known before they stop being placeholders. What exists today is in
+mean once they have to be built. It records decisions, not code. `packages/playbooks` is built, by hand, with deed intake
+(step 1 below); `packages/mcp-host` and `packages/connectors` are still placeholders, and this note
+says what has to be known before they stop being placeholders. What exists today is in
 [architecture.md](../architecture.md); cases are in [cases.md](cases.md).
 
 ## The four layers
@@ -140,8 +140,9 @@ connector/<vendor>-<product>          a connector; the egress declaration travel
 
 ## Sequencing
 
-None of the three packages is built, which is the right state: the biggest risk now is designing
-the platform from a specification. The order:
+`packages/playbooks` is built by hand, with deed intake; `packages/mcp-host` and
+`packages/connectors` are not. The biggest risk is still designing the platform from a
+specification. The order:
 
 1. **Three hand-built playbooks for notaries**, hard-coded and plain: deed intake first (it
    exercises everything at once: documents in a case, facts read and checked against their

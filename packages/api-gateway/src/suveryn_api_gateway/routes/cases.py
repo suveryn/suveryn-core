@@ -366,7 +366,7 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
     closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).
     Takes effect at once for new cases and for cases closed from now on; a case already closed keeps
     its date (extend or keep it from the case). The conversations period applies to every saved
-    conversation from its last change: shortening it deletes the older ones at the next listing or sweep.
+    conversation from its last change: shortening it hides the older ones from lists at once and deletes them when it is saved (and by the hourly sweep).
 
     Opening the default access to the office applies to new cases (``apply_to: new``: the existing ones
     stay with their members, restricted, and a manager can open one) or to all of them (``all``: every case,

@@ -6,7 +6,7 @@
  * Each step's answers are saved on the appliance when Continue is pressed, so a reload resumes where
  * it was and secrets (the administrator's password, the share's password, a private key) pass through
  * the page once and aren't kept in it. The appliance checks everything again; the codes it answers
- * with are shown in the interface's language (text.ts, `errors`).
+ * with are shown in the interface's language (`errors` in i18n/<lang>.ts).
  *
  *   GET  setup/v1/state                    → SetupState
  *   PUT  setup/v1/answers/network          { mode, outgoing }

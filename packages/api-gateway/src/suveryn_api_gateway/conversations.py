@@ -14,10 +14,11 @@ the store only knows ``shared``.
 Retention: kept until the user deletes it (one conversation, or all of them when signing out), or
 until the office's keep period for conversations passes (the data lifecycle, suveryn-tracker#31):
 ``SUVERYN_CONVERSATIONS_KEEP`` as provisioned (``6m``, ``1y``, ``5y`` or ``manual``, the default:
-nothing is chosen for the office), changed by an administrator in the dashboard with the case
-settings (``conversations_keep`` in ``case_settings``). The gateway tells the store the period
-that applies (``keep``); conversations older than it, by last change and in cases too, are no
-longer listed or returned, and are deleted on start, on each listing and by the hourly sweep.
+nothing is chosen for the office), changed by an administrator in Administration › Settings
+(``conversations_keep`` in ``case_settings``). The gateway tells the store the period that applies
+(``keep``); conversations older than it, by last change and in cases too, are hidden from lists and
+no longer returned at once, and are deleted on start, when the setting is saved and by the hourly
+sweep.
 
 Deleted documents (suveryn-tracker#12): saved answers quote the passages they cite. When a
 document is deleted, every passage of it is taken out of the owner's conversations
