@@ -51,7 +51,9 @@ class FakeAdminApi:
         method = request.method
         token = request.headers.get("authorization", "").removeprefix("Bearer ")
         caller = jwt.decode(token, options={"verify_signature": False})
-        if ADMIN_ROLE not in caller.get("realm_access", {}).get("roles", []) or getattr(self, "no_composites", False):
+        # Keycloak judges the caller's rights now, not as their token says: rights removed meanwhile are refused
+        if (ADMIN_ROLE not in caller.get("realm_access", {}).get("roles", []) or caller["sub"] not in self.admins
+                or getattr(self, "no_composites", False)):
             return httpx.Response(403, json={"error": "unknown_error"})  # the composite role isn't there
         self.callers.append(caller["sub"])
         path = request.url.path.removeprefix("/admin/realms/suveryn")
@@ -167,8 +169,31 @@ def setup():
     auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
     accounts = Accounts(AccountsSettings(issuer=ISSUER), transport=httpx.MockTransport(api.handler))
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
-    with TestClient(create_app(llm, load_documents=False, auth=auth, accounts=accounts, cases=cases)) as c:
+    with TestClient(create_app(llm, load_documents=False, auth=auth, accounts=accounts, cases=cases,
+                               directory=FakeDirectory(api))) as c:
         yield c, kc, api, cases
+
+
+class FakeDirectory:
+    """What the gateway asks the directory's service account here: who holds the administrator role now."""
+
+    def __init__(self, api: "FakeAdminApi"):
+        self.api, self.configured = api, True
+
+    async def holds_admin(self, sub):
+        return sub in self.api.admins
+
+    async def admins(self):
+        return set(self.api.admins)
+
+    async def search(self, query="", limit=20):
+        return []
+
+    async def get(self, sub):
+        return None
+
+    async def aclose(self):
+        pass
 
 
 def as_user(kc: FakeKeycloak, sub: str, admin: bool = False) -> dict:
@@ -215,7 +240,11 @@ def test_there_is_always_one_administrator(setup):
     assert c.put(f"/v1/admin/users/{BOB}/admin", json={"admin": True}, headers=admin).json()["admin"] is True
     assert c.put(f"/v1/admin/users/{ALICE}/admin", json={"admin": False}, headers=admin).status_code == 200  # Bob is one now
     assert api.admins == {BOB}
-    assert c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin).status_code == 409  # the last one
+    r = c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
+    assert r.status_code == 403 and r.json()["reason"] == "rights_removed"  # Alice isn't one any more
+    bob = as_user(kc, BOB, admin=True)
+    assert c.put(f"/v1/admin/users/{ALICE}/enabled", json={"enabled": False}, headers=bob).status_code == 200
+    assert c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=bob).status_code == 409  # the last one
 
 
 def test_switching_off_not_your_own_and_only_with_cases_handed_over(setup):
@@ -347,14 +376,14 @@ def test_last_sign_in_is_found_beyond_the_newest_two_thousand(setup):
     assert users["user-d"]["last_sign_in"] is None and not users["user-d"]["last_sign_in_unknown"]
 
 
-def test_two_administrators_removing_each_other_at_once_leave_one(setup, monkeypatch):
-    """External review, pass 7: "always one administrator" was checked, then acted on; two administrators
-    removing each other's rights in the same instant could both pass the check. The check and the change now
-    happen one at a time. Keycloak answers slowly here, so the two requests overlap as they would."""
+def test_two_administrators_removing_each_other_at_once_leave_one(setup):
+    """External review, pass 7: "always one administrator" was checked, then acted on. The check and the change
+    now happen one at a time in the gateway, and Keycloak judges each caller's rights as they are: of two
+    administrators removing each other at once, one wins and the other, whose rights went meanwhile, is told
+    so (403 "removed meanwhile", VM check of 29 October, round 3, finding 2), never to reinstall. Keycloak
+    answers slowly here, so the requests overlap as they would."""
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
-
-    import suveryn_api_gateway.routes.users as users_routes
 
     c, kc, api, cases = setup
     api.person("user-d", "Dirk Daems", "dirk@office.test", admin=True)
@@ -365,21 +394,32 @@ def test_two_administrators_removing_each_other_at_once_leave_one(setup, monkeyp
         return api.handler(request)
 
     accounts._http = httpx.AsyncClient(transport=httpx.MockTransport(slow))
-    alice, dirk = as_user(kc, ALICE, admin=True), {**as_user(kc, "user-d", admin=True)}
-
-    def both():
+    alice, dirk = as_user(kc, ALICE, admin=True), as_user(kc, "user-d", admin=True)
+    for _ in range(3):
+        api.admins = {ALICE, "user-d"}
         with ThreadPoolExecutor(2) as pool:
             a = pool.submit(c.put, "/v1/admin/users/user-d/admin", json={"admin": False}, headers=alice)
             d = pool.submit(c.put, f"/v1/admin/users/{ALICE}/admin", json={"admin": False}, headers=dirk)
-            return sorted([a.result().status_code, d.result().status_code])
+            answers = sorted([a.result(), d.result()], key=lambda r: r.status_code)
+        assert len(api.admins) == 1
+        assert answers[0].status_code == 200 and answers[1].status_code in (403, 409)
+        if answers[1].status_code == 403:
+            assert answers[1].json()["reason"] == "rights_removed"
 
-    # without the lock, the race is real: both pass the check and nobody is left
-    real = users_routes._admin_changes
-    monkeypatch.setattr(users_routes, "_admin_changes", lambda request: asyncio.Lock())
-    assert both() == [200, 200] and not api.admins
-    api.admins = {ALICE, "user-d"}
-    monkeypatch.setattr(users_routes, "_admin_changes", real)
-    assert both() == [200, 409] and len(api.admins) == 1
+
+def test_rights_removed_meanwhile_are_told_apart_from_a_role_without_its_rights(setup):
+    """VM check of 29 October, round 3, finding 2: an administrator whose rights another removed meanwhile
+    still has a token that says administrator; Keycloak refuses them. That is 403 "removed meanwhile", not the
+    503 that says to reinstall, which stays for a role that lost its rights."""
+    c, kc, api, cases = setup
+    api.person("user-d", "Dirk Daems", "dirk@office.test", admin=True)
+    dirk = as_user(kc, "user-d", admin=True)  # issued while he was one
+    api.admins.discard("user-d")
+    r = c.get("/v1/admin/users", headers=dirk)
+    assert r.status_code == 403 and r.json()["reason"] == "rights_removed"
+    api.no_composites = True
+    r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
+    assert r.status_code == 503 and r.json()["reason"] == "rights"
 
 
 class FakeDocuments:
