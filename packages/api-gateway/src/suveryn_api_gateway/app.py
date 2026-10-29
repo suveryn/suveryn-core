@@ -382,8 +382,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     @app.exception_handler(RightsRefused)
     async def rights_refused(request: Request, exc: RightsRefused):
-        """Users: Keycloak refused the administrator's rights. Its own sentence on the page, not "unavailable"
-        (VM check of 28 October, finding 11): an install brings the rights back."""
+        """Users: Keycloak refused the administrator's rights. Two causes, each with its own sentence: the
+        caller's rights were removed meanwhile, by another administrator (their session still says
+        administrator until it is renewed; VM check of 29 October, round 3, finding 2: the one who lost a
+        race was told to reinstall), or the role lost its rights, which an install brings back (VM check of
+        28 October, finding 11). The directory's service account tells which."""
+        directory = getattr(app.state, "directory", None)
+        holds = await directory.holds_admin(owner_of(request)) if directory is not None and hasattr(directory, "holds_admin") else None
+        if holds is False:
+            log.info("accounts: an administrator's rights were removed meanwhile")
+            return JSONResponse({"detail": "Your administrator rights were removed meanwhile.", "reason": "rights_removed"},
+                                status_code=403)
         log.warning("accounts: %s", exc)
         return JSONResponse({"detail": str(exc), "reason": "rights"}, status_code=503)
 

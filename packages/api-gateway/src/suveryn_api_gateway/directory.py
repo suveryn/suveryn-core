@@ -159,6 +159,19 @@ class Directory:
             self._admins = (time.monotonic(), found)
             return found
 
+    async def holds_admin(self, sub: str) -> bool | None:
+        """Does this account hold ``suveryn-admin`` now, asked afresh (not the badge's cache)? None when Keycloak
+        can't say. For telling "your rights were removed meanwhile" from "the role lost its rights"."""
+        try:
+            r = await self._admin_get(f"/roles/{ADMIN_ROLE}/users", {"max": "1000", "briefRepresentation": "true"})
+        except DirectoryUnavailable:
+            return None
+        if r.status_code != 200:
+            return None
+        found = {u["id"] for u in r.json() if u.get("id")}
+        self._admins = (time.monotonic(), found)
+        return sub in found
+
     async def working(self) -> None:
         """Can Keycloak sign someone in now? Its discovery document answers even while its database is
         down, when every sign-in fails (round 2). This asks for something only the database knows, the
@@ -229,6 +242,9 @@ class LocalDirectory:
 
     async def admins(self) -> set[str]:
         return {p.sub for p in self._people}  # with sign-in off, the one local user administers
+
+    async def holds_admin(self, sub: str) -> bool | None:
+        return any(p.sub == sub for p in self._people)
 
     async def working(self) -> None:
         pass  # sign-in is off

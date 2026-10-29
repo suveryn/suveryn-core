@@ -83,7 +83,12 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   The gateway enforces "always one administrator" and the case hand-over before switching off. The check
   and the change that could leave no administrator (rights removed, an account switched off) happen one at
   a time in the gateway, so two administrators removing each other at once leave one (external review,
-  pass 7). This
+  pass 7). Keycloak judges every call by the caller's rights as they are now, so an administrator whose
+  rights another removed meanwhile is refused even though their session still says administrator; the
+  gateway asks the directory's service account whether they still hold the role, and says "Your
+  administrator rights were removed meanwhile" (403, reason `rights_removed`) rather than the sentence
+  that sends them to reinstall, which stays for a role that lost its rights (VM check of 29 October,
+  round 3, finding 2). This
   replaces a separate *Activity* page. Nothing from inside a case.
 
 **Settings** (35): what the office decides, in one place. Who sees a case, how long closed

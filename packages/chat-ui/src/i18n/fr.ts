@@ -58,6 +58,7 @@ const fr: Messages = {
   forbidden: "vous n'avez pas l'autorisation pour cela",
   serverUnavailable: "cette partie du serveur n'est pas disponible pour le moment ; réessayez plus tard",
   adminRightsRefused: "le service de connexion a refusé vos droits d'administrateur ; réinstaller l'appliance les rétablit, ou contactez le support",
+  adminRightsRemoved: "vos droits d'administrateur ont été retirés entre-temps par un autre administrateur",
   accountDeletionUnfinished: "la suppression s'est arrêtée en cours de route : le compte existe encore, désactivé, et une partie de son espace peut déjà avoir disparu ; supprimez-le à nouveau pour terminer",
   databaseUnavailable: "la base de données ne répond pas ; réessayez dans une minute",
   signInServiceUnavailable: "la connexion ne fonctionne pas ; réessayez dans une minute",
