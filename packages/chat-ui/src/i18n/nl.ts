@@ -734,6 +734,7 @@ const nl: Messages = {
   retention: "Bewaartermijn",
   olderStayUsb: "Oude back-ups blijven op de USB-schijf.",
   olderStayShare: "Oude back-ups blijven op de gedeelde map.",
+  shareTestOk: "Verbonden: aangemeld, en een testbestand geschreven en verwijderd.",
   keepSavedPassword: "Laat leeg om het bewaarde wachtwoord te houden.",
   setUpBackups: "Back-ups instellen",
   diskFails: "Bij een defecte schijf bent u alles kwijt.",
