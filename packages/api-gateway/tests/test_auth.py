@@ -351,6 +351,11 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
         "client": {"realm-management": ["manage-users", "view-users", "view-realm", "view-events"]}}
     assert chat["fullScopeAllowed"] is False
     assert realm["scopeMappings"] == [{"client": "suveryn-chat", "roles": [ADMIN_ROLE]}]
+    # Users' last sign-in and Sign-ins and changes read Keycloak's events: on in development as in the appliance's
+    # production realm (build_realm.py), kept 180 days, admin events without the changed representation.
+    assert realm["eventsEnabled"] is True and realm["eventsExpiration"] == 180 * 24 * 3600
+    assert realm["adminEventsEnabled"] is True and realm["adminEventsDetailsEnabled"] is False
+    assert realm["attributes"] == {"adminEventsExpiration": str(180 * 24 * 3600)}
 
 
 def test_a_flood_of_unfinished_sign_ins_never_blocks_a_real_one(kc):
