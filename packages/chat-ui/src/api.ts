@@ -183,7 +183,7 @@ export function httpErrorText(status: number, detail: unknown, retryAfter: strin
       return m.fileNotSupported;
     case 422: return m.requestRejected;
     case 404: return m.notFound;
-    case 403: return m.forbidden;
+    case 403: return reason === "rights_removed" ? m.adminRightsRemoved : m.forbidden;
     // ``reason`` (the gateway's 503s): which part is down, so the person reads what it is.
     case 502: case 503: return reason === "database" ? m.databaseUnavailable : reason === "signin" ? m.signInServiceUnavailable
       : reason === "rights" ? m.adminRightsRefused : reason === "unfinished" ? m.accountDeletionUnfinished : m.serverUnavailable;

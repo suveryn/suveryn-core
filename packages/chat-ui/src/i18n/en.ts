@@ -65,6 +65,7 @@ const en = {
   forbidden: "you don't have permission for this",
   serverUnavailable: "this part of the server isn't available right now; try again later",
   adminRightsRefused: "the sign-in service refused your administrator rights; installing the appliance again restores them, or ask support",
+  adminRightsRemoved: "your administrator rights were removed meanwhile, by another administrator",
   accountDeletionUnfinished: "the deletion stopped partway: the account is still there, switched off, and part of its own space may be gone; delete it again to finish",
   databaseUnavailable: "the database isn't answering; try again in a minute",
   signInServiceUnavailable: "sign-in isn't working; try again in a minute",
