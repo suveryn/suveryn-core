@@ -88,6 +88,15 @@ def _disk() -> tuple[int, int] | None:
     return usage.free, usage.total
 
 
+def disk_low() -> bool:
+    """The data partition below Status's own limit (a tenth of the disk, or 10 GB): uploads are refused then, as
+    Status already says it is short (VM regression of 29 October, finding 5: at 7 % free an upload was still read)."""
+    if not DATA_PATH.exists():  # not an appliance (a development machine, the tests): its own disk is its owner's
+        return False
+    disk = _disk()
+    return disk is not None and (disk[0] < LOW_SHARE * disk[1] or disk[0] < LOW_BYTES)
+
+
 class StatusMonitor:
     """The latest checks, and since when each has failed."""
 

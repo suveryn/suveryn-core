@@ -312,6 +312,10 @@ const en = {
 
   // answers
   answerFailed: (why: string) => `The answer failed: ${why}. Ask again.`,
+  streamErrorModel: "the model can't be reached right now",
+  streamErrorDocuments: "the documents can't be searched right now",
+  streamErrorDocument: "a chosen document no longer exists",
+  streamErrorServer: "something went wrong on the server",
   answerInterrupted: "This answer was interrupted.",
   answerTruncated: "Cut off: this answer is incomplete. Ask for the rest.",
   thoughtTooLong: "The model thought too long. Try Fast, or a smaller question.",
@@ -771,6 +775,7 @@ const en = {
   setUpBackups: "Set up backups",
   diskFails: "If the disk fails, you lose everything.",
   backupSettingsSaved: "Saved. The next backup uses these settings.",
+  backupHourYours: (time: string) => `The appliance's time. In yours: ${time}.`,
   backupSettingsNotSaved: (why: string) => `Not saved. ${why}`,
   backupServiceSilent: "The appliance's backup service didn't answer. Try again in a minute.",
   recoverySheet: "Recovery sheet",

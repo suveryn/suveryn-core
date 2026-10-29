@@ -36,8 +36,15 @@ export function toSaved(turns: Turn[]): Turn[] {
 
 /** Turns read back from the server. An answer saved mid-stream (it shouldn't be) shows as interrupted. */
 export function fromSaved(turns: Turn[]): Turn[] {
-  return turns.map((turn) => (turn.role === "assistant" && turn.status === "streaming"
-    ? { ...turn, text: "", status: "error", error: t().answerInterrupted } : turn));
+  return turns.map((saved, i) => {
+    // A turn saved without the UI's own fields (through the API, or by an older version) opens all the same:
+    // the lists default to empty, the id and status to something usable (VM regression of 29 October, finding 10).
+    const turn = { ...saved, id: saved.id || `saved-${i}`, text: saved.text ?? "" } as Turn;
+    if (turn.role === "user") return { ...turn, attachments: Array.isArray(turn.attachments) ? turn.attachments : [] };
+    const answer = { ...turn, citations: Array.isArray(turn.citations) ? turn.citations : [], status: turn.status ?? "done",
+                     grounded: turn.grounded ?? false };
+    return answer.status === "streaming" ? { ...answer, text: "", status: "error", error: t().answerInterrupted } : answer;
+  });
 }
 
 /** "Today", "Yesterday", "8 Oct" or "8 Oct 2025" (in the current language): when a conversation last changed. */
