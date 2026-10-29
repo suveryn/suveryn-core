@@ -742,6 +742,7 @@ const fr: Messages = {
   setUpBackups: "Configurer les sauvegardes",
   diskFails: "Si le disque tombe en panne, vous perdez tout.",
   backupSettingsSaved: "Enregistré. La prochaine sauvegarde utilise ces paramètres.",
+  backupSettingsNotSaved: (why: string) => `Pas enregistré. ${why}`,
   backupServiceSilent: "Le service de sauvegarde de l'appliance n'a pas répondu. Réessayez dans une minute.",
   recoverySheet: "Fiche de récupération",
   printRecoverySheet: "Imprimer la fiche de récupération",

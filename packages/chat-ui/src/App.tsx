@@ -208,6 +208,8 @@ function Chat({ me }: { me: Me }) {
   const [departed, setDeparted] = useState<Record<string, string>>({});
   const names = useMemo(() => new Map([...Object.entries(departed), ...caseMembers.map((x) => [x.user, x.name || x.username] as [string, string])]),
                         [caseMembers, departed]);
+  // The Documents overview names who added each document, a deleted account's too (round 2, finding 5).
+  useEffect(() => { if (view === "documents") departedNames().then(setDeparted).catch(() => {}); }, [view]);
   // The source open in the panel beside the conversation (docs/design/chat-ui.md §5): which answer, which source.
   const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
@@ -761,10 +763,13 @@ function Chat({ me }: { me: Me }) {
     if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
     if (c && c.my_role !== null) loadMembers(c.id);
   };
-  // A case's members, unless another case was opened meanwhile.
-  const loadMembers = (id: string) =>
+  // A case's members, unless another case was opened meanwhile, and the names of deleted accounts,
+  // so what they did in the case keeps its name. Fetched when a case opens, never in the body: there
+  // it ran on every render, and each answer caused the next (round 2, finding 1).
+  const loadMembers = (id: string) => {
     listMembers(id).then((ms) => { if (openCaseId.current === id) setCaseMembers(ms); }).catch(() => {});
     departedNames().then(setDeparted).catch(() => {});
+  };
   // Opening a case or the personal space: a new chat there.
   const openCase = (c: Case | null) => {
     if ((c?.id ?? null) === caseId) { setView("chat"); return; }
@@ -990,7 +995,7 @@ function Chat({ me }: { me: Me }) {
                                  onOpen={openListed} onAction={conversationAction} onNew={newChat} />
         </div>}
         {view === "documents" && <div className="conversation conversation-wide">
-          <DocumentsOverview key={overviewFilter} initialCase={overviewFilter} onDownload={downloadSaved} me={me}
+          <DocumentsOverview key={overviewFilter} initialCase={overviewFilter} onDownload={downloadSaved} me={me} departed={departed}
                              documents={allDocuments} jobs={jobs} jobsCase={caseId} cases={casesWithMembers} onOpen={openDocument} onDelete={removeListed}
                              onUpload={(files) => { setView("chat"); if (documentsReady) attachFiles(files); else setProblem(m.documentsCantBeAdded); }}
                              onUseAsSource={async (d) => {

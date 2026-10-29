@@ -63,7 +63,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 {"status": "ok", "backend": {"reachable": true, "status": "ok", "url": null, "model": "qwen3.8-27b", "detail": null}, "documents": {"status": "ready", "detail": null}, "auth": {"status": "ready", "detail": null}, "history": {"status": "ready", "detail": null}, "usage": {"status": "ready", "detail": null}, "cases": {"status": "ready", "detail": null}, "directory": {"status": "ready", "detail": null}}
 ```
 
-`documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code.
+`documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code. `auth.status` is `unavailable` while Keycloak doesn't answer; it is asked again at most every 15 s.
 
 Every `/v1/...` request needs a signed-in user: the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
 

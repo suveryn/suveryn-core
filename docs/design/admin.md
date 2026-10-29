@@ -28,7 +28,9 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 - *Needs attention*, only when something does, each with the button that fixes it.
 - *Is everything working?*: answering questions (the model), reading documents, signing in
   (Keycloak), keeping your data (the database), disk space. A teal check with "Working", or an ink cross
-  with "Not working since 09:12" and what still works (39).
+  with "Not working since 09:12" and what still works (39). Signing in asks Keycloak each time (its discovery
+  document, answered within the last 15 s), not a copy read at start: a stopped Keycloak shows within the
+  minute, and `/health`'s `auth` says the same (round 2, finding 3).
 - An overview: version, last backup, users against the agreement, support.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.

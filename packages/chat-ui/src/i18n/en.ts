@@ -769,6 +769,7 @@ const en = {
   setUpBackups: "Set up backups",
   diskFails: "If the disk fails, you lose everything.",
   backupSettingsSaved: "Saved. The next backup uses these settings.",
+  backupSettingsNotSaved: (why: string) => `Not saved. ${why}`,
   backupServiceSilent: "The appliance's backup service didn't answer. Try again in a minute.",
   recoverySheet: "Recovery sheet",
   printRecoverySheet: "Print the recovery sheet",
