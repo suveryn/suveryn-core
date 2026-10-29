@@ -45,7 +45,8 @@ same thing. The fixed terms, in every place:
 | backup | back-up | sauvegarde |
 | recovery key | herstelsleutel | clé de récupération |
 | restore (a backup) | terugzetten | restaurer |
-| admin dashboard | beheerdashboard | tableau de bord d'administration |
+| Administration (the chat's pages for administrators) | Beheer | Administration |
+| admin dashboard (the web setup's text only, for the same pages) | beheerdashboard | tableau de bord d'administration |
 | case | dossier | dossier |
 
 `copyProblems` refuses "share" and "support" in Dutch (an address written as `\\server\share` is fine).
