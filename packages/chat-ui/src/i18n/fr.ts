@@ -859,6 +859,14 @@ const fr: Messages = {
   noLongerOpensAdministration: (name) => `${name} ne pourra plus ouvrir l'administration.`,
   administrationClosesForYou: "L'administration se ferme pour vous.",
   onlyAdministrator: "Impossible : vous êtes le seul administrateur.",
+  deleteAccount: "Supprimer le compte…",
+  switchOffFirst: "Désactivez d'abord le compte.",
+  deleteAccountTitle: (name) => `Supprimer le compte de ${name} ?`,
+  deleteAccountGoes: (documents, conversations) =>
+    `Supprimés avec le compte : ${documents} ${documents === 1 ? "document personnel" : "documents personnels"} et ${conversations} ${conversations === 1 ? "conversation que personne d'autre ne peut lire" : "conversations que personne d'autre ne peut lire"}.`,
+  deleteAccountStays: (shared) =>
+    `Dans les dossiers, tout reste sous le même nom : les documents ajoutés, le journal d'accès${shared ? ` et ${shared} ${shared === 1 ? "conversation partagée" : "conversations partagées"}` : ""}.`,
+  deleteAccountAction: "Supprimer le compte",
   notForOwnAccount: "Impossible pour votre propre compte.",
   resetPasswordTitle: (name) => `Réinitialiser le mot de passe de ${name} ?`,
   resetPasswordBody: "Son mot de passe actuel ne fonctionne plus. Vous recevez un mot de passe temporaire à transmettre.",
@@ -881,7 +889,7 @@ const fr: Messages = {
     signed_in: "Connecté", signed_out: "Déconnecté", added: "Ajouté", made_admin: "Nommé administrateur",
     admin_removed: "Droits d'administrateur retirés", password_reset: "Mot de passe réinitialisé",
     two_step_reset: "Connexion en deux étapes réinitialisée", signed_out_everywhere: "Déconnecté partout",
-    changed: "Compte modifié",
+    changed: "Compte modifié", deleted: "Compte supprimé",
   },
   signInFailed: { wrong_password: "Échec : mot de passe erroné", locked: "Échec : bloqué temporairement", switched_off: "Échec : compte désactivé", other: "Échec" },
   unknownAccount: "Compte inconnu",

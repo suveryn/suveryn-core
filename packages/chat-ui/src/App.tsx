@@ -27,7 +27,7 @@ import {
   getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks, getBackups,
+  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks, getBackups,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -204,7 +204,10 @@ function Chat({ me }: { me: Me }) {
   const self: Me = { ...me, avatar };
   const [showLog, setShowLog] = useState(false);
   const [caseMembers, setCaseMembers] = useState<Member[]>([]);  // the open case's members (stage 4), for its header
-  const names = useMemo(() => new Map(caseMembers.map((x) => [x.user, x.name || x.username])), [caseMembers]);
+  // A deleted account keeps its name with what it did in the case (Filip, 29 October).
+  const [departed, setDeparted] = useState<Record<string, string>>({});
+  const names = useMemo(() => new Map([...Object.entries(departed), ...caseMembers.map((x) => [x.user, x.name || x.username] as [string, string])]),
+                        [caseMembers, departed]);
   // The source open in the panel beside the conversation (docs/design/chat-ui.md §5): which answer, which source.
   const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
@@ -761,6 +764,7 @@ function Chat({ me }: { me: Me }) {
   // A case's members, unless another case was opened meanwhile.
   const loadMembers = (id: string) =>
     listMembers(id).then((ms) => { if (openCaseId.current === id) setCaseMembers(ms); }).catch(() => {});
+    departedNames().then(setDeparted).catch(() => {});
   // Opening a case or the personal space: a new chat there.
   const openCase = (c: Case | null) => {
     if ((c?.id ?? null) === caseId) { setView("chat"); return; }

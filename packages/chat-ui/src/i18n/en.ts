@@ -886,6 +886,14 @@ const en = {
   noLongerOpensAdministration: (name: string) => `${name} can no longer open Administration.`,
   administrationClosesForYou: "Administration closes for you.",
   onlyAdministrator: "Not possible: you are the only administrator.",
+  deleteAccount: "Delete account…",
+  switchOffFirst: "Switch the account off first.",
+  deleteAccountTitle: (name: string) => `Delete ${name}'s account?`,
+  deleteAccountGoes: (documents: number, conversations: number) =>
+    `Deleted with it: ${documents} ${documents === 1 ? "document" : "documents"} of its own and ${conversations} ${conversations === 1 ? "conversation" : "conversations"} nobody else can read.`,
+  deleteAccountStays: (shared: number) =>
+    `In the cases, everything stays under the same name: the documents it added, the access log${shared ? ` and ${shared} shared ${shared === 1 ? "conversation" : "conversations"}` : ""}.`,
+  deleteAccountAction: "Delete account",
   notForOwnAccount: "Not possible for your own account.",
   resetPasswordTitle: (name: string) => `Reset ${name}'s password?`,
   resetPasswordBody: "Their current password stops working. You get a temporary password to pass on.",
@@ -907,7 +915,7 @@ const en = {
   accountEvent: {
     signed_in: "Signed in", signed_out: "Signed out", added: "Added", made_admin: "Made administrator",
     admin_removed: "Administrator rights removed", password_reset: "Password reset", two_step_reset: "Two-step sign-in reset",
-    signed_out_everywhere: "Signed out everywhere", changed: "Account changed",
+    signed_out_everywhere: "Signed out everywhere", changed: "Account changed", deleted: "Account deleted",
   },
   signInFailed: { wrong_password: "Failed: wrong password", locked: "Failed: locked for a while", switched_off: "Failed: account off", other: "Failed" },
   unknownAccount: "Unknown account",

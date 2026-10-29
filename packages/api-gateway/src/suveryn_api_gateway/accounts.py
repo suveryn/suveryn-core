@@ -80,7 +80,7 @@ class Account(BaseModel):
 
 
 EventKind = Literal["signed_in", "sign_in_failed", "signed_out", "added", "made_admin", "admin_removed",
-                    "password_reset", "two_step_reset", "signed_out_everywhere", "changed"]
+                    "password_reset", "two_step_reset", "signed_out_everywhere", "changed", "deleted"]
 
 
 class AccountEvent(BaseModel):
@@ -224,6 +224,11 @@ class Accounts:
         _check_id(sub)
         await self._call(token, "POST", f"/users/{sub}/logout")
 
+    async def delete(self, token: str, sub: str) -> None:
+        """Delete the account in Keycloak (its credentials, sessions and role mappings with it)."""
+        _check_id(sub)
+        await self._call(token, "DELETE", f"/users/{sub}")
+
     async def set_enabled(self, token: str, sub: str, on: bool) -> None:
         _check_id(sub)
         await self._call(token, "PUT", f"/users/{sub}", json={"enabled": on})
@@ -248,6 +253,8 @@ def _change_kind(e: dict) -> tuple[str, str] | None:
         return sub, "added"
     if rest == [] and op == "UPDATE":
         return sub, "changed"
+    if rest == [] and op == "DELETE":
+        return sub, "deleted"
     if rest == ["reset-password"]:
         return sub, "password_reset"
     if rest == ["logout"]:

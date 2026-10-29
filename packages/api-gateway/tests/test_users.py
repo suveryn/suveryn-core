@@ -113,6 +113,10 @@ class FakeAdminApi:
         if rest.startswith("/credentials/") and method == "DELETE":
             self.credentials[sub] = [c for c in self.credentials.get(sub, []) if c["id"] != rest.rsplit("/", 1)[1]]
             return httpx.Response(204)
+        if rest == "" and method == "DELETE":
+            del self.users[sub]
+            self.admins.discard(sub)
+            return httpx.Response(204)
         if rest == "/logout":
             self.logged_out.append(sub)
             return httpx.Response(204)
@@ -127,6 +131,15 @@ class FakeCases:
 
     def manages(self, user):
         return self.managed.get(user, 0)
+
+    departed: dict
+
+    def depart(self, sub, username, name, by):
+        self.__dict__.setdefault("departed", {})[sub] = name
+        return 0
+
+    def departed_names(self, subs=None):
+        return dict(self.__dict__.get("departed", {}))
 
     # what the gateway's hourly sweep asks
     def purge_events(self):
@@ -291,3 +304,22 @@ def test_a_role_without_its_composites_says_the_rights_were_refused(setup):
     api.no_composites = True
     r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
     assert r.status_code == 503 and r.json()["reason"] == "rights"
+
+
+def test_an_account_is_deleted_only_once_it_is_off_and_its_name_stays(setup):
+    """Filip, 29 October: an administrator can delete an account, as a second step after switching it off."""
+    c, kc, api, cases = setup
+    admin = as_user(kc, ALICE, admin=True)
+    assert c.delete(f"/v1/admin/users/{BOB}", headers=as_user(kc, CAROL)).status_code == 403
+    r = c.delete(f"/v1/admin/users/{BOB}", headers=admin)
+    assert r.status_code == 409 and "off first" in r.json()["detail"]
+    assert c.get(f"/v1/admin/users/{BOB}/deletion", headers=admin).status_code == 409
+    assert c.delete(f"/v1/admin/users/{ALICE}", headers=admin).status_code == 409  # not your own
+    c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
+    assert c.get(f"/v1/admin/users/{BOB}/deletion", headers=admin).json() == {
+        "documents": 0, "conversations": 0, "shared_conversations": 0}  # no stores on this test gateway
+    assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 204
+    assert BOB not in api.users and cases.departed == {BOB: "Bob Peeters"}
+    events = c.get("/v1/admin/users/events", headers=admin).json()
+    assert ("deleted", "Bob Peeters", "Alice Admin") in [(e["kind"], e["name"], e["by"]) for e in events]
+    assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 404  # gone

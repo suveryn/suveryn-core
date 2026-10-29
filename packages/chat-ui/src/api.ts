@@ -534,7 +534,15 @@ export type Member = { user: string; username: string; name: string; role: CaseR
 /** One of the office's accounts, from the directory (Keycloak), to add to a case. */
 export type Person = { sub: string; username: string; name: string; admin?: boolean; avatar?: string | null };
 /** One line of a case's access log: who did what, when (never document text). */
-export type CaseEvent = { id: number; user: string; at: string; action: string; detail: Record<string, unknown> };
+/** ``name``: who, as the case knows them or, for a deleted account, as it was called. */
+export type CaseEvent = { id: number; user: string; at: string; action: string; detail: Record<string, unknown>; name?: string };
+
+/** The names of deleted accounts, by id: what they did in the cases keeps their name. */
+export async function departedNames(): Promise<Record<string, string>> {
+  const r = await fetch("/v1/users/departed");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
 
 export async function listMembers(caseId: string): Promise<Member[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members`);
@@ -761,7 +769,7 @@ export type UsersList = { users: Account[]; agreement_users: number | null };
 /** A temporary password to pass on, in the answer once and nowhere else. */
 export type TemporaryPassword = { user: Account; address: string; password: string };
 export type AccountEventKind = "signed_in" | "sign_in_failed" | "signed_out" | "added" | "made_admin" | "admin_removed"
-  | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "changed";
+  | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "changed" | "deleted";
 export type AccountEvent = {
   at: string; kind: AccountEventKind; user: string | null; name: string; by: string | null;
   reason: "wrong_password" | "locked" | "switched_off" | "other" | null;
@@ -784,6 +792,10 @@ export const setAccountEnabled = (sub: string, enabled: boolean) =>
 export const resetAccountPassword = (sub: string) => accountCall<TemporaryPassword>(`/${encodeURIComponent(sub)}/password`, "POST");
 export const resetAccountTwoStep = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}/two-step`, "POST");
 export const signAccountOut = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}/sign-out`, "POST");
+/** Deleting an account (Filip, 29 October): only once it is off. What would go, for the confirmation. */
+export type AccountDeletion = { documents: number; conversations: number; shared_conversations: number };
+export const accountDeletion = (sub: string) => accountCall<AccountDeletion>(`/${encodeURIComponent(sub)}/deletion`, "GET");
+export const deleteAccount = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}`, "DELETE");
 export const listAccountEvents = (limit: number) => accountCall<AccountEvent[]>(`/events?limit=${limit}`, "GET");
 
 export async function getBackups(): Promise<BackupStatus> {

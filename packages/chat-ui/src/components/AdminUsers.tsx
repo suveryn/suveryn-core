@@ -7,12 +7,12 @@
  * pass on; it works until its first use, when Keycloak asks for the person's own (no expiry kept beside Keycloak). Switching off someone who manages cases hands each case over inside the dialog first. There is
  * always one administrator: the menu item is disabled with the reason under it, and the gateway refuses too.
  */
-import { AlertCircle, AlertTriangle, Copy, Folder, LogOut, MoreHorizontal, Printer, RefreshCw, RectangleEllipsis, Shield, ShieldOff, Smartphone, UserPlus, UserRoundCheck, UserRoundX } from "lucide-react";
+import { AlertCircle, AlertTriangle, Copy, Folder, LogOut, MoreHorizontal, Printer, RefreshCw, RectangleEllipsis, Shield, ShieldOff, Smartphone, Trash2, UserPlus, UserRoundCheck, UserRoundX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  addAccount, handOver, HttpError, listAccountEvents, listAccounts, listAdminCases, resetAccountPassword, resetAccountTwoStep,
+  accountDeletion, addAccount, deleteAccount, handOver, HttpError, listAccountEvents, listAccounts, listAdminCases, resetAccountPassword, resetAccountTwoStep,
   setAccountAdmin, setAccountEnabled, signAccountOut,
-  type Account, type AccountEvent, type AdminCase, type TemporaryPassword, type UsersList,
+  type Account, type AccountDeletion, type AccountEvent, type AdminCase, type TemporaryPassword, type UsersList,
 } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
@@ -22,7 +22,7 @@ import {
 } from "../ui";
 
 type Filter = "on" | "off" | "all";
-type Confirm = { kind: "admin_on" | "admin_off" | "password" | "two_step" | "sign_out" | "off" | "on"; user: Account };
+type Confirm = { kind: "admin_on" | "admin_off" | "password" | "two_step" | "sign_out" | "off" | "on" | "delete"; user: Account };
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 const whenLabel = (iso: string) => `${dayLabel(iso)} ${timeLabel(iso)}`;
@@ -75,6 +75,9 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
         ? { id: "off", label: m.switchAccountOff, icon: <UserRoundX size={16} />, isDisabled: self || lastAdmin,
             ...(self ? { description: m.notForOwnAccount } : lastAdmin ? { description: m.onlyAdministrator } : {}) }
         : { id: "on", label: m.switchAccountOn, icon: <UserRoundCheck size={16} /> },
+      // Deleting is a second step, once the account is off (Filip, 29 October).
+      { id: "delete", label: m.deleteAccount, icon: <Trash2 size={16} />, isDisabled: self || u.enabled,
+        ...(self ? { description: m.notForOwnAccount } : u.enabled ? { description: m.switchOffFirst } : {}) },
     ];
   };
   const rowMenu = (u: Account) => (
@@ -271,11 +274,14 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
   const [cases, setCases] = useState<AdminCase[] | null>(null);
   const [heirs, setHeirs] = useState<Record<string, string>>({});
   const [people, setPeople] = useState<Account[]>([]);
+  const [goes, setGoes] = useState<AccountDeletion | null>(null);
   const c = confirm;
   useEffect(() => {
     setError(null);
     setHeirs({});
     setCases(null);
+    setGoes(null);
+    if (c?.kind === "delete") accountDeletion(c.user.sub).then(setGoes).catch((e: Error) => setError(e.message));
     if (c?.kind === "off") {
       listAdminCases().then((all) => setCases(all.filter((k) => k.manager === c.user.sub))).catch(() => setCases([]));
       listAccounts().then((l) => setPeople(l.users.filter((u) => u.enabled && u.sub !== c.user.sub))).catch(() => setPeople([]));
@@ -293,6 +299,7 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
       if (c.kind === "two_step") await resetAccountTwoStep(sub);
       if (c.kind === "sign_out") await signAccountOut(sub);
       if (c.kind === "on") await setAccountEnabled(sub, true);
+      if (c.kind === "delete") await deleteAccount(sub);
       if (c.kind === "off") {
         for (const k of managed) await handOver(k.id, heirs[k.id]);
         await setAccountEnabled(sub, false);
@@ -317,14 +324,21 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
     off: { title: m.switchOffTitle(named), body: managed.length ? m.chooseTakeOver(managed.length) : m.conversationsStay,
            action: managed.length ? m.handOverAndSwitchOff : m.switchOff },
     on: { title: m.switchAccountOn, action: m.switchAccountOn },
+    delete: { title: m.deleteAccountTitle(named), action: m.deleteAccountAction },
   };
-  const waiting = c.kind === "off" && (cases === null || managed.some((k) => !heirs[k.id]));
+  const waiting = (c.kind === "off" && (cases === null || managed.some((k) => !heirs[k.id]))) || (c.kind === "delete" && goes === null);
   return (
     <Dialog isOpen onClose={onClose} busy={busy} title={text[c.kind].title} actions={<>
       <TextButton onPress={onClose} isDisabled={busy}>{m.cancel}</TextButton>
       <Button variant="primary" onPress={run} isDisabled={busy || waiting}>{text[c.kind].action}</Button>
     </>}>
       {text[c.kind].body && <p>{text[c.kind].body}</p>}
+      {c.kind === "delete" && goes && (
+        <>
+          <p>{m.deleteAccountGoes(goes.documents, goes.conversations)}</p>
+          <p>{m.deleteAccountStays(goes.shared_conversations)}</p>
+        </>
+      )}
       {c.kind === "off" && managed.length > 0 && (
         <table className="handover-table">
           <thead><tr><th scope="col">{m.colCase}</th><th scope="col">{m.colNewManager}</th></tr></thead>
