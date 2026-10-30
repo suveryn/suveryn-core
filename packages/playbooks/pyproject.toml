@@ -1,10 +1,13 @@
 [project]
 name = "suveryn-playbooks"
 version = "0.1.0"
-description = "Sūveryn playbooks: the official, hand-built playbooks (content: fields, instructions, identity); no runtime"
+description = "Sūveryn playbooks: the official playbooks as manifest files (identity, facts, instructions) and their loader; no runtime"
 requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
-dependencies = []
+dependencies = [
+    "pydantic>=2.8",
+    "pyyaml>=6.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/suveryn/suveryn-core"
