@@ -17,7 +17,7 @@ def test_identity_is_the_platforms():
     for p in PLAYBOOKS:
         pack = p.pack.removeprefix("pack/")
         assert p.id == f"playbook/{pack}/{p.slug}" and p.pack.startswith("pack/")
-        assert p.version.count(".") == 1 and p.major >= 1
+        assert p.version.count(".") == 1 and int(p.version.split(".")[0]) >= 1
         assert len({f.id for f in p.facts}) == len(p.facts)
         for lang in LANGUAGES:  # every language has the title, the line and a label for every fact
             words = p.text[lang]

@@ -3,9 +3,15 @@ from suveryn_harness.calc import (
     CalcError,
     CalcRewriter,
     evaluate,
-    rewrite,
     unverified_figures,
 )
+
+
+def rewrite(answer: str, source: str, cited_sources: list[str] | None = None):
+    """Every calculation marker in a complete answer replaced, as the service does while streaming."""
+    r = CalcRewriter(source)
+    text = r.feed(answer) + r.flush()
+    return text, r.check_figures([source] if cited_sources is None else cited_sources)
 
 SOURCE = "Nettobedrag: + 6.507,11 EUR\nNettobedrag: + 6.417,42 EUR\n3.000 stukken aan 2,15 EUR"
 

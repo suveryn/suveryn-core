@@ -59,7 +59,7 @@ Only characters unusual in Dutch, French, English or German are changed, and onl
 
 **Uploading the same file again** returns the stored copy (de-duplicated by SHA-256 per scope: a personal space or a case), unless that copy was read poorly: in review, over half its text recovered from the text layer, misread characters, or recovered OCR noise. Then it is read again and replaced in place, keeping its id, so saved conversations still point to it (`should_read_again`).
 
-Every document is in one **scope** (`store.Scope`): its uploader's personal space (`owner`, the Keycloak user id, and no case), or a **case** (`case_id`; suveryn-tracker#10). The document service lists, retrieves and deletes within the scope the gateway passes (the gateway has checked the caller may see it), and de-duplicates by file hash per scope. Each document records its `origin` (`uploaded`, `generated`, `playbook`); only uploaded documents are ever retrieved as sources for an answer. `suveryn-retrieve` and `suveryn-forget` are operator tools on the server and are not limited by scope.
+Every document is in one **scope** (`store.Scope`): its uploader's personal space (`owner`, the Keycloak user id, and no case), or a **case** (`case_id`; suveryn-tracker#10). The document service lists, retrieves and deletes within the scope the gateway passes (the gateway has checked the caller may see it), and de-duplicates by file hash per scope. Each document records its `origin` (`uploaded`, `generated`, `playbook`); only uploaded documents are ever retrieved as sources for an answer. `suveryn-forget` is a developer tool (`scripts/intake-benchmark`) and is not limited by scope.
 
 PostgreSQL and pgvector are provisioned outside this repository (by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance)). This package only connects to them, and creates its own tables.
 
@@ -86,7 +86,6 @@ It loads bge-m3, its tokenizer and Docling's layout and table models exactly as 
 uv sync --locked --all-packages
 export SUVERYN_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/suveryn
 uv run suveryn-ingest deed.pdf --owner <keycloak-user-id>   # without --owner: visible to no chat user
-uv run suveryn-retrieve "In welke rang wordt de hypotheek gevestigd?" -k 5 [--document <id>]
 uv run suveryn-forget <document-id>
 ```
 
@@ -125,7 +124,7 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 - `test_integrity.py` and `test_units.py` are fast unit tests (`test_units.py` also checks the offline guard).
 - `test_isolation.py` checks the separate reader with a fake one (`fake_reader.py`): no secrets in its environment, JSON only, a crash, a hang and garbage fail only that document, progress arrives before the answer, a cancel stops the reader at once, and a reason comes with its code.
 - `test_formats.py` checks the Word, Excel, Markdown and CSV readers: sections, cell ranges, tables, content controls and tracked changes, nothing left out, the limits, and the mark in the chat's own Word and Excel exports (`fixtures/marked-answer.docx`, `fixtures/marked-table.xlsx`).
-- `test_store.py` checks storage and search against a real pgvector database.
+- `test_store.py` checks storage and the ranking answers use (`best_chunks`) against a real pgvector database.
 - `test_answers_e2e.py` is the harness for model updates (suveryn-tracker#21): answers through the whole pipeline, per model, against the citation requirement, the expected facts, the two OCR issues, an injected instruction and server-side sums. See its docstring and `docs/architecture.md` §7. Pages the layout model couldn't read (after a CPU retry when the GPU ran out of memory, `extract.convert_with_fallback`) get a `layout_failed` warning and put the document in `needs_review`. Ingestion adds an `instruction_like_text` warning on pages with text addressed to an AI; it doesn't change the document's status.
 - `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It also includes a soil report that exists only as a pasted-in image. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:
   - no lost text, and dropped furniture
