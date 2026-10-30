@@ -160,15 +160,18 @@ step; until then only runs use it. Event-sourcing the run (deriving steps, facts
 event log) was considered and rejected: tables a notary can read beat a log only a developer can.
 
 **A run is visible, and it can be paused, stopped or cancelled.** The case lists show a chip
-("Deed intake · waiting for documents"); the run's view has a banner with the status, the step,
-what it waits for and from whom, and the model while it reads. Statuses: `reading` (the model),
+("Deed intake · waiting for documents"; the gateway puts the playbook's title per language and the
+step's kind on every run it answers, so a list that spans cases needs no playbook lookup); the run's
+view has a banner with the status, the step, what it waits for and from whom, and the model while it
+reads; an ended run's banner names no step. Statuses: `reading` (the model),
 `waiting` (a person), `paused`, `done`, `stopped`, `cancelled`, `failed` (by kind; `busy` when no
 place to read was free, start again). Three acts, three states: **pause** keeps everything and
 waits (anyone who contributes; a run that is reading is paused when it next waits); **stop** ends
 early and keeps what was achieved: confirmed facts stay the case's, proposed ones are dropped
-(superseded), a product so far stays; **cancel** says the run should not have happened: confirmed
-facts get a new `proposed` version pointing at the confirmed one (provenance kept), the product is
-marked `withdrawn` in its provenance, never deleted. Stop and cancel are the starter's (by id,
+(superseded), a product so far stays; **cancel** says the run should not have happened: every
+version the run established, read, answered or confirmed, becomes `superseded` (kept in the record,
+no longer the case's), and the product is marked `withdrawn` in its provenance, never deleted (the
+Pod check of d0f680e asked whether cancel should also drop what was only read, as stop does: yes). Stop and cancel are the starter's (by id,
 never by the shown name) or the case manager's. In every case the run record stays; nothing is
 deleted except with the case. **One live run per playbook per case**: a second start answers 409
 with the live run's id.

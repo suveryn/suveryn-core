@@ -130,7 +130,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     r = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice)
     assert r.status_code == 409 and r.json()["detail"]["run"] == rid
     # the chip: the live run per readable case
-    assert c.get("/v1/playbooks/runs/active", headers=bob).json()[cid]["step"] == "agreement"
+    chip = c.get("/v1/playbooks/runs/active", headers=bob).json()[cid]
+    assert chip["step"] == "agreement" and chip["step_kind"] == "request" and chip["title"]["nl"] == "Akte-intake"
     # answering is a contributor's; saying there is no agreement isn't allowed here; with the document in, the read starts
     assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=bob).status_code == 403
     assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "none": True}, headers=alice).status_code == 422
@@ -265,23 +266,26 @@ def test_cancel_reverts_confirmed_facts_and_withdraws_the_product(office):
 
 
 @needs_db
-def test_cancel_of_a_run_with_confirmed_facts_reverts_them(runs):
-    """Through the store: a run whose checkpoint passed and that is then cancelled (the routes only
-    cancel live runs; a routine with steps after its checkpoint can be live with confirmed facts)."""
+def test_cancel_supersedes_everything_the_run_established_and_keeps_the_record(runs):
+    """Pod check of d0f680e, question Q: a cancelled run leaves nothing of its own as the case's, read
+    or confirmed; the rows stay, superseded, so the history is whole (through the store: a routine with
+    steps after its checkpoint can be live with confirmed facts)."""
     cid = uuid.uuid4()
     run = runs.create(cid, DEED_INTAKE, [DOC], ALICE, None)
     rid = uuid.UUID(run.id)
     runs.write_facts(cid, rid, "read", [dict(fact_id="price", kind="amount", value="1", status="proposed",
+                                              source={"kind": "document", "citations": []}, by=DEED_INTAKE.id),
+                                         dict(fact_id="deposit", kind="amount", value="2", status="proposed",
                                               source={"kind": "document", "citations": []}, by=DEED_INTAKE.id)])
     first = runs.current_versions(rid)["price"]["id"]
     runs.write_facts(cid, rid, "confirm", [dict(fact_id="price", kind="amount", value="2", status="confirmed",
                                                  source={"kind": "person", "checkpoint": True}, by="alice", replaces=first)])
-    assert [f.confirmed for f in runs.facts_for_run(rid)] == ["2"]
-    assert runs.end(rid, "cancelled", "alice", "oops") and runs.revert_confirmed(rid, "alice") == 1
+    assert [f.confirmed for f in runs.facts_for_run(rid)] == ["2", None]
+    assert runs.end(rid, "cancelled", "alice", "oops") and runs.discard_all(rid) == 2  # the confirmed price and the proposed deposit
     facts = runs.facts_for_run(rid)
-    assert facts[0].confirmed is None and facts[0].value == "1"  # no longer the case's; the reading is still shown
-    rows = [(r["status"], r["source"].get("reverted", False)) for r in runs.fact_rows(rid) if r["fact_id"] == "price"]
-    assert rows == [("superseded", False), ("superseded", False), ("proposed", True)]  # provenance kept, nothing rewritten
+    assert facts[0].confirmed is None and facts[0].value == "1"  # no longer the case's; what was read is still shown
+    rows = [(r["fact_id"], r["status"]) for r in runs.fact_rows(rid)]
+    assert rows == [("price", "superseded"), ("deposit", "superseded"), ("price", "superseded")]  # kept, nothing rewritten
     runs.delete_case(cid)
 
 

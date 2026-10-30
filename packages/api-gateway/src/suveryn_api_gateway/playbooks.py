@@ -23,6 +23,11 @@ assembled from the current versions; runs made before this table keep their fact
 **The thread** is in ``turns`` (``conversations.TurnStore``): the playbook's questions and the
 people's answers, one row each, appended, stamped with who and when.
 
+**Stop and cancel** (Pod check of d0f680e, question Q): a stopped run keeps its confirmed facts as the
+case's and supersedes the proposed ones; a cancelled run supersedes every current version it has,
+confirmed ones included, so nothing from it is the case's any more. Superseded rows stay: the record
+is whole, nothing is rewritten.
+
 Identity and provenance: every run records ``playbook_id`` and ``playbook_version``; so does the
 result document's name. ``suveryn_playbooks.covered`` is reported with the playbooks; an uncovered
 playbook runs with a warning, never a block (the licensing model, development context §8).
@@ -145,6 +150,8 @@ class RunSummary(BaseModel):
     ended_by: str | None = None          # who stopped or cancelled it
     ended_reason: str | None = None      # the reason given for a cancel
     starter: str | None = None           # the starter's Keycloak id (rights)
+    title: dict[str, str] = Field(default_factory=dict)  # the playbook's title per language, for a chip anywhere (filled by the routes)
+    step_kind: str | None = None         # the kind of the step the run is on (request, read, ask, checkpoint), for the chip's words
 
 
 class Run(RunSummary):
@@ -254,6 +261,11 @@ class RunStore(TurnStore):
     changed. ``TurnStore`` gives it the thread on the same connection."""
 
     schema = SCHEMA
+
+    def __init__(self, database_url: str):
+        super().__init__(database_url)
+        log.info("playbook store ready: playbook_runs, case_facts, turns")  # the schema is idempotent DDL, run silently
+
     COLUMNS = ("id, case_id, playbook_id, playbook_version, status, documents, started_by, started_at, finished_at,"
                " confirmed_by, confirmed_at, model, error, result_document_id, out_of_date,"
                " step, language, paused_by, paused_at, ended_by, ended_reason, starter")
@@ -352,7 +364,7 @@ class RunStore(TurnStore):
                              " WHERE id = %s AND status = 'paused'", (run_id,)).rowcount == 1
 
     def end(self, run_id: uuid.UUID, status: Literal["stopped", "cancelled"], by: str, reason: str = "") -> bool:
-        """Stop or cancel: terminal. The facts' fate is the caller's (``discard_proposed``, ``revert_confirmed``)."""
+        """Stop or cancel: terminal. The facts' fate is the caller's (``discard_proposed``, ``discard_all``)."""
         return self._execute("UPDATE playbook_runs SET status = %s, ended_by = %s, ended_reason = %s, finished_at = now(),"
                              " paused_by = NULL, paused_at = NULL WHERE id = %s AND status IN ('waiting', 'paused', 'reading')",
                              (status, by, reason or None, run_id)).rowcount == 1
@@ -431,7 +443,7 @@ class RunStore(TurnStore):
             elif kind == "person" and not at_checkpoint:
                 slot["answer"] = row                     # a person's answer to an ask: the newest
             if at_checkpoint and row["status"] in ("confirmed", "not_established"):
-                slot["confirmed"] = row                  # what the checkpoint settled; a cancel supersedes it
+                slot["confirmed"] = row                  # what the checkpoint settled; a cancel supersedes it (then not shown)
         out: list[RunFact] = []
         for fact_id in order:
             slot = by_fact[fact_id]
@@ -448,14 +460,9 @@ class RunStore(TurnStore):
         """A stopped run: what a person confirmed stays the case's; what was only proposed goes."""
         return self._execute("UPDATE case_facts SET status = 'superseded' WHERE run_id = %s AND status = 'proposed'", (run_id,)).rowcount
 
-    def revert_confirmed(self, run_id: uuid.UUID, by: str) -> int:
-        """A cancelled run: its confirmed facts are no longer the case's. Each gets a new version,
-        ``proposed`` again, same source, pointing at the confirmed one (provenance is kept)."""
-        rows = [r for r in self.fact_rows(run_id) if r["status"] == "confirmed"]
-        self.write_facts(uuid.UUID(str(self._case_of(run_id))), run_id, "cancel", [
-            dict(fact_id=r["fact_id"], kind=r["kind"], value=r["value"], status="proposed",
-                 source={**r["source"], "reverted": True}, issues=r["issues"], by=by, replaces=r["id"]) for r in rows])
-        return len(rows)
-
-    def _case_of(self, run_id: uuid.UUID):
-        return self._execute("SELECT case_id FROM playbook_runs WHERE id = %s", (run_id,)).fetchone()[0]
+    def discard_all(self, run_id: uuid.UUID) -> int:
+        """A cancelled run: nothing it established is the case's any more. Every current version,
+        confirmed ones included, becomes superseded; the rows stay, so the record shows what was read,
+        answered and confirmed before the cancel."""
+        return self._execute("UPDATE case_facts SET status = 'superseded' WHERE run_id = %s AND status IN ('proposed', 'confirmed', 'not_established')",
+                             (run_id,)).rowcount
