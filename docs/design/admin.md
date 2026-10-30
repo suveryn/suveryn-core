@@ -94,8 +94,8 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   rights another removed meanwhile is refused even though their session still says administrator; the
   gateway asks the directory's service account whether they still hold the role, and says "Your
   administrator rights were removed meanwhile" (403, reason `rights_removed`) rather than the sentence
-  that sends them to reinstall, which stays for a role that lost its rights (VM check of 29 October,
-  round 3, finding 2). This
+  for a role that lacks a permission, which asks them to contact support (VM check of 29 October,
+  round 3, finding 2; round 4, finding 5). This
   replaces a separate *Activity* page. Nothing from inside a case.
 
 **Settings** (35): what the office decides, in one place. Who sees a case, how long closed
