@@ -97,14 +97,6 @@ async def create_case(body: CaseIn, request: Request):
         raise HTTPException(409, "A case with this reference already exists.") from None
 
 
-@router.get("/v1/cases/due", response_model=list[Case])
-async def due_cases(request: Request):
-    """Closed cases due for deletion within a month (or overdue), soonest first: every one for an
-    administrator, the ones they manage for anyone else. Shown so they can extend, reopen or keep."""
-    store, caller = cases_or_503(request), principal(request)
-    return await run_in_threadpool(store.due, caller.sub, admin=caller.admin)
-
-
 @router.get("/v1/cases/{case_id}", response_model=Case, responses={404: {"description": "Unknown case"}})
 async def get_case(case_id: str, request: Request):
     """One case the caller may see."""
