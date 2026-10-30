@@ -19,7 +19,7 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, RotateCw, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import { AlertCircle, ClipboardList, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, RotateCw, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -27,7 +27,7 @@ import {
   getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, listAdminPlaybooks, getBackups,
+  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -39,7 +39,7 @@ import { BackupBar } from "./components/BackupBar";
 import { backupAttention, type BackupAttention } from "./lib/backups";
 import { cardNote, checkPages, readingNotes, toCheck } from "./lib/readingNotes";
 import { CaseState } from "./components/CaseState";
-import { PlaybookView } from "./components/DeedIntake";
+import { PlaybookView, runChipText } from "./components/PlaybookRun";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
@@ -61,7 +61,8 @@ import { originKind } from "./lib/origin";
 import { afterDeletion, questionDocuments } from "./lib/questionDocuments";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
-import { lang, locale, t, useT } from "./i18n";
+import { lang, locale, t, useLang, useT } from "./i18n";
+import { playbookWords } from "./lib/playbooks";
 import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
@@ -161,6 +162,7 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
 
 function Chat({ me }: { me: Me }) {
   const m = useT();
+  const language = useLang();
   const [health, setHealth] = useState<Health | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [chosenModel, setChosenModel] = useState<string | null>(null); // null: the appliance default
@@ -197,6 +199,7 @@ function Chat({ me }: { me: Me }) {
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
+  const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});         // the live playbook run per case (the chip)
   const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const [cases, setCases] = useState<Case[]>([]);
@@ -343,6 +346,18 @@ function Chat({ me }: { me: Me }) {
     if (!caseId || role === null) { setPlaybooks([]); return; }
     casePlaybooks(caseId).then(setPlaybooks).catch(() => setPlaybooks([]));
   }, [caseId, role, view]);
+
+  // The live run per case (docs/design/playbooks.md, "A running playbook is visible"): the chip on the
+  // case lists and the line under the case header. Read when the view changes and when a case opens,
+  // then every so often, so a colleague's run shows up without a reload.
+  useEffect(() => {
+    if (view === "admin") return;
+    let stopped = false;
+    const load = () => activeRuns_().then((r) => { if (!stopped) setActiveRuns(r); }).catch(() => undefined);
+    load();
+    const t = window.setInterval(load, 15_000);
+    return () => { stopped = true; window.clearInterval(t); };
+  }, [view, caseId]);
 
   // The sidebar's usage counter: today's own tokens, refreshed after each answer.
   useEffect(() => {
@@ -1013,8 +1028,8 @@ function Chat({ me }: { me: Me }) {
                              }} />
         </div>}
         {view === "cases" && <div className="conversation conversation-wide">
-          <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations}
-                         onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
+          <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations} activeRuns={activeRuns}
+                         runChip={(r) => runChipText(r, null, m.playbooks, m)} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
                          onShowDocuments={(id) => showOverview("documents", id)} onShowConversations={(id) => showOverview("conversations", id)} />
         </div>}
         {view === "search" && <div className="conversation">
@@ -1023,7 +1038,7 @@ function Chat({ me }: { me: Me }) {
         </div>}
         {view === "playbook" && currentCase && (
           <div className="conversation">
-            <PlaybookView kase={currentCase} nameOf={(u) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; }} canRun={contributes && !closed} documents={documents.filter((d) => originKind(d) === "source").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
+            <PlaybookView kase={currentCase} me={me.sub ?? undefined} nameOf={(u) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; }} canRun={contributes && !closed} documents={documents.filter((d) => originKind(d) === "source").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
           </div>
         )}
         {view === "chat" && <>
@@ -1058,6 +1073,13 @@ function Chat({ me }: { me: Me }) {
         )}
         {currentCase && closed && (
           <CaseState kase={currentCase} canReopen={manages} canKeep={manages || administers} onChanged={caseChanged} />
+        )}
+        {currentCase && !administers && activeRuns[currentCase.id] && (
+          // A playbook at work in this case: one line that opens it (docs/design/playbooks.md, "A running playbook is visible").
+          <Button variant="plain" className="playbook-chip playbook-chip-head" onPress={() => setView("playbook")} data-status={activeRuns[currentCase.id].status}>
+            <ClipboardList size={14} aria-hidden /> {runChipText(activeRuns[currentCase.id], playbooks.find((p) => p.id === activeRuns[currentCase.id].playbook_id),
+                                                                  playbookWords(playbooks.find((p) => p.id === activeRuns[currentCase.id].playbook_id), language).title, m)}
+          </Button>
         )}
         {administers ? (
           <div className="conversation">

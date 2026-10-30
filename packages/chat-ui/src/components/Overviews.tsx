@@ -9,10 +9,9 @@
  */
 import {
   AlertTriangle, ArrowUpDown, Check, Clock, Download, FileOutput, Filter, Folder, FolderKey, Loader2, Lock, MessageSquare, MessageSquareLock, MoreHorizontal,
-  NotebookText, Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle,
-} from "lucide-react";
+  NotebookText, Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle, ClipboardList } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member } from "../api";
+import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member, type RunSummary } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel, listedTitle } from "../lib/conversations";
 import { ACCEPTED_FILES } from "../lib/formats";
@@ -93,8 +92,10 @@ function Face({ member, size = "small" }: { member: Pick<Member, "user" | "name"
 
 // ================================================================== Cases (artboard 06)
 
-export function CasesOverview({ cases, documents, conversations, onOpen, onPin, onNew, onAction, onShowDocuments, onShowConversations }: {
+export function CasesOverview({ cases, documents, conversations, activeRuns = {}, runChip, onOpen, onPin, onNew, onAction, onShowDocuments, onShowConversations }: {
   cases: CaseOverview[]; documents: AllDocument[]; conversations: ConversationSummary[];
+  /** The live playbook run per case, and its one line (docs/design/playbooks.md, "A running playbook is visible"). */
+  activeRuns?: Record<string, RunSummary>; runChip?: (run: RunSummary) => string;
   onOpen: (c: CaseOverview) => void; onPin: (c: CaseOverview, pinned: boolean) => void; onNew: () => void;
   onAction: (c: CaseOverview, action: CaseAction) => void;
   onShowDocuments: (caseId: string) => void; onShowConversations: (caseId: string) => void;
@@ -172,7 +173,8 @@ export function CasesOverview({ cases, documents, conversations, onOpen, onPin, 
     { id: "type", label: m.colType, render: (c) => <span className="overview-dim">{caseTypeLabel(c.type, m)}</span> },
     { id: "status", label: m.colStatus, render: (c) => <span className="overview-status-cell">{status(c)}
         {/* §11: an ink outline label in words beside the status */}
-        {c.confidential && <span className="overview-label"><FolderKey size={12} aria-hidden /> {m.strictlyConfidential}</span>}</span> },
+        {c.confidential && <span className="overview-label"><FolderKey size={12} aria-hidden /> {m.strictlyConfidential}</span>}
+        {activeRuns[c.id] && runChip && <span className="playbook-chip" data-status={activeRuns[c.id].status}><ClipboardList size={12} aria-hidden /> {runChip(activeRuns[c.id])}</span>}</span> },
     { id: "members", label: m.colMembers, render: members },
     { id: "documents", label: m.colDocuments, align: "end",
       render: (c) => { const n = docs.get(c.id)?.length ?? 0; return (

@@ -19,9 +19,17 @@ What the manifest does *not* carry, on purpose:
   file per language for the whole pack (docs/translations.md); the loader looks it up by the
   manifest's slug. Whether an office's own playbook may carry its wording inline is open
   (docs/design/playbooks.md, "Open").
-- Steps, checkpoints, products, model roles. Deed intake is one ``read`` step and one checkpoint,
-  and that is all ``manifest: 1`` describes. The step graph joins as ``manifest: 2`` when the runtime
-  does; a manifest names its format version so an old file is read as what it is.
+- Products beyond the summary, model roles, conditions. Those join with later formats; a manifest
+  names its format version so an old file is read as what it is.
+
+Two formats load today. ``manifest: 1`` is identity, facts and instructions: it is read as the implicit
+routine read, checkpoint, produce. ``manifest: 2`` adds ``steps``, the routine itself: ``request`` a
+document, ``read`` facts from the documents, ``ask`` about the facts not found, a ``checkpoint`` where
+a person confirms, ``produce`` the summary. Each step says what it ``needs`` (by default the step
+before it). The questions a ``request`` or ``ask`` step puts to people are the pack's wording
+(``text/<lang>.json``, ``questions``), keyed by step id, so they are reviewed and translated like the
+labels; the model never words them. ``validate_steps`` checks the graph: ids unique, needs resolve,
+no cycles, a checkpoint before any produce, an ask only about facts a read before it reads.
 
 The JSON Schema in ``schema/playbook-manifest.schema.json`` is generated from the model here
 (``json_schema``) and kept in sync by a test; editors use it for completion and validation.
@@ -31,14 +39,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from ._model import Fact, FactKind, Playbook, Wording
+from ._model import Fact, FactKind, Playbook, Step, StepKind, Wording
 
-MANIFEST_VERSION = 1
+MANIFEST_VERSIONS = (1, 2)
+_STEP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 
 _ID = re.compile(r"^playbook/[a-z0-9-]+/[a-z0-9-]+$")
 _PACK = re.compile(r"^pack/[a-z0-9-]+$")
@@ -59,12 +68,43 @@ class FactSpec(BaseModel):
     kind: FactKind = Field(default="text", description="text, amount or date: decides which checks apply")
 
 
+class StepSpec(BaseModel):
+    """One step as written (format 2). Which fields apply depends on ``kind``; the others are refused."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(pattern=_STEP_ID.pattern, description="Stable within the playbook; the run records progress by it")
+    kind: StepKind
+    needs: tuple[str, ...] | None = Field(default=None, description="Steps done before this one; default: the previous step")
+    facts: tuple[str, ...] | Literal["all"] | None = Field(default=None, description="read, ask: which facts; \"all\" for every fact")
+    min: int | None = Field(default=None, ge=1, le=50, description="request: uploaded documents needed (default 1)")
+    allow_none: bool | None = Field(default=None, description="request: a person may answer that there is no such document")
+    by: Literal["anyone_in_case"] | None = Field(default=None, description="checkpoint: who may pass it")
+    template: Literal["summary"] | None = Field(default=None, description="produce: the product (only the summary today)")
+
+    _ALLOWED: ClassVar[dict[str, frozenset[str]]] = {
+        "request": frozenset({"min", "allow_none"}),
+        "read": frozenset({"facts"}),
+        "ask": frozenset({"facts"}),
+        "checkpoint": frozenset({"by"}),
+        "produce": frozenset({"template"}),
+    }
+
+    def check_fields(self) -> None:
+        given = {k for k in ("facts", "min", "allow_none", "by", "template") if getattr(self, k) is not None}
+        wrong = given - self._ALLOWED[self.kind]
+        if wrong:
+            raise ValueError(f"step {self.id!r} ({self.kind}): {', '.join(sorted(wrong))} does not apply to this kind")
+        if self.kind in ("read", "ask") and self.facts is None:
+            raise ValueError(f"step {self.id!r} ({self.kind}): facts is required (a list of fact ids, or \"all\")")
+
+
 class Manifest(BaseModel):
     """The file as written. ``to_playbook`` makes the product's object from it."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    manifest: Literal[1] = Field(description="The manifest format's version; this file describes format 1")
+    manifest: Literal[1, 2] = Field(description="The manifest format's version: 1 (facts and instructions) or 2 (with steps)")
     id: str = Field(pattern=_ID.pattern, description="playbook/<pack>/<name>; never changes once published")
     pack: str = Field(pattern=_PACK.pattern, description="pack/<profession-jurisdiction>")
     version: str = Field(pattern=_VERSION.pattern, description="major.minor, separate from the id")
@@ -72,6 +112,7 @@ class Manifest(BaseModel):
     case_types: tuple[str, ...] = Field(min_length=1, description="Which case types the playbook fits")
     facts: tuple[FactSpec, ...] = Field(min_length=1, max_length=100)
     instructions: str = Field(min_length=1, max_length=4000, description="What the model is told, before the table")
+    steps: tuple[StepSpec, ...] | None = Field(default=None, min_length=1, max_length=50, description="Format 2: the routine")
 
     @field_validator("case_types")
     @classmethod
@@ -94,10 +135,33 @@ class Manifest(BaseModel):
         return v
 
     def check_consistent(self) -> None:
-        """The checks that span fields: the id's pack segment is the pack's."""
+        """The checks that span fields: the id's pack segment is the pack's; steps only in format 2,
+        and a valid graph."""
         pack = self.pack.removeprefix("pack/")
         if not self.id.startswith(f"playbook/{pack}/"):
             raise ValueError(f"id {self.id!r} does not belong to pack {self.pack!r}")
+        if self.manifest == 1 and self.steps is not None:
+            raise ValueError("steps: a format-1 manifest has no steps; set manifest: 2")
+        if self.manifest == 2 and self.steps is None:
+            raise ValueError("steps: a format-2 manifest needs its steps")
+        if self.steps is not None:
+            validate_steps(self.resolved_steps(), {f.id for f in self.facts})
+
+    def resolved_steps(self) -> tuple[Step, ...]:
+        """The steps as the runtime sees them: defaults filled in, "all" expanded, ``needs`` defaulting
+        to the step before. A format-1 manifest gets the implicit routine."""
+        if self.steps is None:
+            return implicit_steps(tuple(f.id for f in self.facts))
+        out: list[Step] = []
+        previous: str | None = None
+        for sp in self.steps:
+            sp.check_fields()
+            facts = tuple(f.id for f in self.facts) if sp.facts == "all" else tuple(sp.facts or ())
+            needs = sp.needs if sp.needs is not None else ((previous,) if previous else ())
+            out.append(Step(id=sp.id, kind=sp.kind, needs=tuple(needs), facts=facts, min=sp.min or 1,
+                            allow_none=bool(sp.allow_none), by=sp.by or "anyone_in_case", template=sp.template or "summary"))
+            previous = sp.id
+        return tuple(out)
 
     @property
     def slug(self) -> str:
@@ -114,6 +178,8 @@ class Manifest(BaseModel):
             facts=facts,
             instructions=self.instructions.rstrip("\n") + "\n\n" + table_scaffold(facts),
             text=text,
+            steps=self.resolved_steps(),
+            format=self.manifest,
         )
 
 
@@ -127,6 +193,64 @@ def table_scaffold(facts: tuple[Fact, ...]) -> str:
     return TABLE_HEADER + "".join(f"| {f.id} | | |\n" for f in facts)
 
 
+def implicit_steps(fact_ids: tuple[str, ...]) -> tuple[Step, ...]:
+    """What a format-1 manifest means as a routine: read every fact, a checkpoint, the summary."""
+    return (Step(id="read", kind="read", facts=fact_ids),
+            Step(id="confirm", kind="checkpoint", needs=("read",)),
+            Step(id="summary", kind="produce", needs=("confirm",)))
+
+
+def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:
+    """The graph rules. ``ValueError`` names the step."""
+    ids = [s.id for s in steps]
+    if len(set(ids)) != len(ids):
+        raise ValueError("steps: " + ", ".join(sorted({i for i in ids if ids.count(i) > 1})) + " listed twice")
+    by_id = {s.id: s for s in steps}
+    for s in steps:
+        for n in s.needs:
+            if n not in by_id:
+                raise ValueError(f"step {s.id!r}: needs {n!r}, which is not a step")
+            if n == s.id:
+                raise ValueError(f"step {s.id!r}: needs itself")
+        for f in s.facts:
+            if f not in fact_ids:
+                raise ValueError(f"step {s.id!r}: fact {f!r} is not one of the playbook's facts")
+    # no cycles: every step reachable in dependency order
+    done: set[str] = set()
+    remaining = list(steps)
+    while remaining:
+        ready = [s for s in remaining if all(n in done for n in s.needs)]
+        if not ready:
+            raise ValueError("steps: " + ", ".join(s.id for s in remaining) + " depend on each other in a circle")
+        done.update(s.id for s in ready)
+        remaining = [s for s in remaining if s.id not in done]
+
+    def before(s: Step) -> set[str]:
+        seen: set[str] = set()
+        todo = list(s.needs)
+        while todo:
+            n = todo.pop()
+            if n not in seen:
+                seen.add(n)
+                todo.extend(by_id[n].needs)
+        return seen
+
+    checkpoints = [s for s in steps if s.kind == "checkpoint"]
+    if not checkpoints:
+        raise ValueError("steps: a routine needs a checkpoint where a person confirms the facts")
+    for s in steps:
+        earlier = before(s)
+        if s.kind == "produce" and not any(by_id[e].kind == "checkpoint" for e in earlier):
+            raise ValueError(f"step {s.id!r} (produce): nothing is produced before a checkpoint; it needs one")
+        if s.kind == "ask":
+            read_facts = {f for e in earlier if by_id[e].kind == "read" for f in by_id[e].facts}
+            missing = [f for f in s.facts if f not in read_facts]
+            if missing:
+                raise ValueError(f"step {s.id!r} (ask): asks about {', '.join(missing)} before any read step it needs reads them")
+        if s.kind == "checkpoint" and not any(by_id[e].kind in ("read", "ask") for e in earlier):
+            raise ValueError(f"step {s.id!r} (checkpoint): nothing to confirm; it needs a read or ask step")
+
+
 def parse(source: str, *, where: str = "<manifest>") -> Manifest:
     """The validated manifest from YAML text; ``ManifestError`` says what is wrong and where."""
     try:
@@ -135,9 +259,9 @@ def parse(source: str, *, where: str = "<manifest>") -> Manifest:
         raise ManifestError(f"{where}: not valid YAML: {e}") from None
     if not isinstance(data, dict):
         raise ManifestError(f"{where}: a manifest is a mapping of keys to values, not {type(data).__name__}")
-    if data.get("manifest") != MANIFEST_VERSION:
+    if data.get("manifest") not in MANIFEST_VERSIONS:
         got = data.get("manifest")
-        raise ManifestError(f"{where}: 'manifest' must be {MANIFEST_VERSION} (the format this product reads); got {got!r}")
+        raise ManifestError(f"{where}: 'manifest' must be one of {', '.join(map(str, MANIFEST_VERSIONS))} (the formats this product reads); got {got!r}")
     try:
         m = Manifest.model_validate(data)
         m.check_consistent()
@@ -174,7 +298,7 @@ def pack_text_from_dir(pack_dir: Path, slug: str, *, where: str) -> dict[str, Wo
             raise ManifestError(f"{where}: no wording for {lang}: {f} is missing")
         try:
             entry = json.loads(f.read_text(encoding="utf-8"))[slug]
-            out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]))
+            out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]), dict(entry.get("questions", {})))
         except (KeyError, TypeError, ValueError) as e:
             raise ManifestError(f"{where}: {f}: no usable entry for {slug!r} ({e})") from None
     return out
@@ -184,9 +308,9 @@ def json_schema() -> dict[str, Any]:
     """The manifest format as JSON Schema, for editors (``schema/playbook-manifest.schema.json``)."""
     s = Manifest.model_json_schema()
     s["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-    s["$id"] = "https://suveryn.com/schema/playbook-manifest-1.json"
+    s["$id"] = "https://suveryn.com/schema/playbook-manifest.json"
     s["title"] = "Sūveryn playbook manifest"
-    s["description"] = "A playbook as a file: identity, case types, facts and instructions (manifest format 1)."
+    s["description"] = "A playbook as a file: identity, case types, facts, instructions and, in format 2, the routine's steps."
     return s
 
 

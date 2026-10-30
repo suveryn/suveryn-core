@@ -16,6 +16,10 @@
       "epc": "Energieprestatiecertificaat",
       "soil": "Bodemattest",
       "occupancy": "Bewoning bij levering"
+    },
+    "questions": {
+      "agreement": "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
+      "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet."
     }
   }
 }

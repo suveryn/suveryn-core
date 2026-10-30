@@ -16,6 +16,10 @@
       "epc": "Certificat PEB",
       "soil": "Attestation du sol",
       "occupancy": "Occupation à la délivrance"
+    },
+    "questions": {
+      "agreement": "Chargez le compromis signé et ce que les parties ont transmis (l'acte antérieur, les certificats). Puis continuez.",
+      "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore."
     }
   }
 }

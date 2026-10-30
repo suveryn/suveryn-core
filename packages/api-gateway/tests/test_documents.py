@@ -108,6 +108,13 @@ class FakeDocuments:
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
                           source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
 
+    def withdraw(self, document_id, scope, by, reason=""):
+        """A cancelled playbook run's result (docs/design/playbooks.md): marked, never deleted."""
+        if document_id not in self.docs or self.docs[document_id][0] != scope or self.docs[document_id][1] == "uploaded":
+            return False
+        self.withdrawn = {**getattr(self, "withdrawn", {}), document_id: {"by": by, "reason": reason}}
+        return True
+
     def store_text(self, filename, text, scope, origin, provenance=None, content=None, by=None):
         """A playbook's result (suveryn-tracker#51) or a saved answer (docs/design/chat-ui.md §5): stored as a
         document in the scope, never a source."""

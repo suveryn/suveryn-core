@@ -745,6 +745,10 @@ class DocumentService:
         """(file name, origin, content) of a document sūveryn made, in the scope, or None."""
         return self._with_search(lambda rag: rag.store.content(uuid.UUID(document_id), scope))
 
+    def withdraw(self, document_id: str, scope: Scope, by: str, reason: str = "") -> bool:
+        """Mark a playbook's result withdrawn after its run was cancelled (the document stays); whether it was there."""
+        return self._with_search(lambda rag: rag.store.withdraw(uuid.UUID(document_id), scope, by, reason))
+
     def confirm_source(self, document_id: str, scope: Scope, by: str) -> dict | None:
         """Use a noticed upload as a source anyway (docs/design/chat-ui.md §6); the mark, or None."""
         return self._with_search(lambda rag: rag.store.confirm_source(uuid.UUID(document_id), scope, by))
