@@ -222,8 +222,7 @@ check's warning and a field to confirm or correct); a panel beside the thread li
 its status (read, answered by a person, confirmed, cleared, not found) and the Word download when
 done (made in the browser, as answers are); a menu holds pause/resume, stop and cancel, shown only
 to those the gateway would allow (it decides; the view only hides). The chip under the open case's
-header and in the case overview opens the run. Earlier runs are listed under the current one; a run
-from before the routine opens read-only with a notice. Every piece of text in three languages; every
+header and in the case overview opens the run. Earlier runs are listed under the current one. Every piece of text in three languages; every
 control from `packages/chat-ui/src/ui/`.
 
 ## The manifest (30 October 2026)
@@ -238,8 +237,8 @@ a pack bundle, kept in a private repository and distributed to licensees only (t
 model), uploaded to an appliance by its administrator, written by an office for itself, and shown
 in full to a reviewer. Everything the platform note promised about packs needs the file first.
 
-Format 1 says what deed intake needed and nothing more: `manifest: 1` (the format's own version),
-the identity, `case_types`, the `facts` (id, what to ask, kind) and the `instructions` prose. The
+The manifest says the identity, `case_types`, the `facts` (id, what to ask, kind), the `instructions`
+prose and, since format 2, the routine (below); `manifest:` names the format's own version. The
 table the model fills in is appended by the loader: it is the harness's contract with the model,
 not content, and an author never writes it. The wording per language stays in the pack's
 `text/<lang>.json` beside the manifest. Unknown keys are errors, and every error names the file
@@ -250,8 +249,9 @@ is generated from the model into `packages/playbooks/schema/` and a test keeps t
 Format 2 (30 October 2026) adds `steps`: `request`, `read`, `ask`, `checkpoint`, `produce`, each
 with `needs` (default: the step before). The graph is validated: ids once, needs resolve, no circle,
 a checkpoint before any produce, an ask only about facts a read before it reads, the fields of one
-kind refused on another; every error names the step. A format-1 file loads as the implicit routine
-read, checkpoint, produce. The questions a `request` or `ask` step puts to people are the pack's
+kind refused on another; every error names the step. Format 1, the same without `steps` (read as the
+implicit routine read, checkpoint, produce), was retired before any was published: one format to
+document and test, as nothing written in it exists (external review, pass 8). The questions a `request` or `ask` step puts to people are the pack's
 wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's template, or by
 `step.fact` for one fact's own words), reviewed and translated like the labels; the model never
 words them. Later formats bring `check`, `propose`, conditions, products beyond the summary and a

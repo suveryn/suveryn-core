@@ -462,7 +462,6 @@ const fr: Messages = {
   stepCheckpoint: "à vérifier et confirmer",
   stepProduce: "rédige le résumé",
   runErrorBusy: "Trop de playbooks lisaient en même temps. Redémarrez dans un instant.",
-  runFromEarlierVersion: "Créé par une version antérieure : consultable, mais pas poursuivable. Redémarrez le playbook.",
   runCancelledHint: (who: string, reason: string) => `Annulé par ${who}${reason ? ` : ${reason}` : ""}. Ses données ne valent plus pour le dossier et son résumé est retiré.`,
   runStoppedHint: (who: string) => `Arrêté par ${who}. Ce qui était confirmé reste ; ce qui n'était que lu est abandonné.`,
   pausedHint: "En pause. Rien ne se passe tant que personne ne reprend.",

@@ -16,9 +16,9 @@ still runs, with a warning to everyone (the licensing model warns, never blocks)
 official playbook is covered.
 
 A manifest is a YAML file with the identity, the case types it fits, its facts (id, what to ask,
-kind: text, amount or date), the instructions the model gets and, in format 2, the routine's
-`steps` (`request`, `read`, `ask`, `checkpoint`, `produce`, each with `needs`); a format-1 file is
-the implicit routine read, checkpoint, produce. The table the model fills in is the runtime's,
+kind: text, amount or date), the instructions the model gets and the routine's
+`steps` (`request`, `read`, `ask`, `checkpoint`, `produce`, each with `needs`); `manifest: 2`, the one
+format the loader reads. The table the model fills in is the runtime's,
 appended by the loader; the wording per language is the pack's, in `text/<lang>.json` beside the
 file: title, summary, a label per fact, and the questions the routine puts to people (by step id,
 with `{label}` in an ask's template, or by `step.fact`). Unknown keys, malformed values and a wrong
@@ -37,6 +37,6 @@ What is here:
 | `src/suveryn_playbooks/manifest.py` | The manifest formats 1 and 2 (`Manifest`, validated strictly; `validate_steps` for the graph), `parse`, `load`, the table scaffold and the JSON Schema |
 | `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.1: its thirteen facts, the instructions the model gets, the case type it fits and its five steps |
 | `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary, fact labels and questions in English, Dutch and French |
-| `schema/playbook-manifest.schema.json` | Format 1 as JSON Schema, generated from `manifest.py` |
+| `schema/playbook-manifest.schema.json` | The format as JSON Schema, generated from `manifest.py` |
 | `tests/test_content.py` | The identities, the case types, and that every playbook has its words and its questions in each language |
-| `tests/test_manifest.py` | The loader: deed intake 1.1 reads and asks what 1.0 did (`fixtures/`), format 2's steps and the implicit routine, what is refused and how it says so, the schema in sync |
+| `tests/test_manifest.py` | The loader: deed intake 1.1 reads and asks what 1.0 did (`fixtures/`), the steps and their graph, what is refused and how it says so, the schema in sync |

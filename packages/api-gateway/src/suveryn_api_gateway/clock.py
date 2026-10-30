@@ -28,6 +28,7 @@ import os
 import secrets
 import statistics
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -94,6 +95,9 @@ class Clock:
     def __init__(self) -> None:
         self.reports: dict[str, Report] = {}
         self.last_nudge = 0.0
+        # Reports arrive on the threadpool: two at once could both find the reports agreeing and both leave a
+        # request (external review, pass 8). One at a time; each is quick.
+        self._lock = threading.Lock()
         self._synced: tuple[float, bool | None] = (0.0, None)
 
     def synced(self, now: float | None = None) -> bool | None:
@@ -116,6 +120,10 @@ class Clock:
         now = time.time() if now is None else now
         if not 0 <= rtt_ms <= MAX_RTT_MS:
             return None
+        with self._lock:
+            return self._report(who, admin, offset_ms, rtt_ms, now)
+
+    def _report(self, who: str, admin: bool, offset_ms: int, rtt_ms: int, now: float) -> int | None:
         self.reports[who] = Report(offset_ms, rtt_ms, admin, now)
         reports = self.fresh(now)
         if len(reports) < 2 and not any(r.admin for r in reports):

@@ -62,9 +62,7 @@ class Runtime:
         """Do what can be done without anyone, until the run waits or ends. Returns the ``read``
         step when the model must be asked (the run is then ``reading``); else None."""
         states = dict(run.steps)
-        if not states:  # a run from before the routine: nothing to walk
-            return None
-        rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
+        rid = uuid.UUID(run.id)
         while True:
             step = next_step(playbook, states)
             if step is None:

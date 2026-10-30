@@ -161,11 +161,8 @@
   "description": "A playbook as a file: identity, case types, facts, instructions and, in format 2, the routine's steps.",
   "properties": {
     "manifest": {
-      "description": "The manifest format's version: 1 (facts and instructions) or 2 (with steps)",
-      "enum": [
-        1,
-        2
-      ],
+      "const": 2,
+      "description": "The manifest format's version: 2 (facts, instructions and steps)",
       "title": "Manifest",
       "type": "integer"
     },
@@ -220,22 +217,14 @@
       "type": "string"
     },
     "steps": {
-      "anyOf": [
-        {
-          "items": {
-            "$ref": "#/$defs/StepSpec"
-          },
-          "maxItems": 50,
-          "minItems": 1,
-          "type": "array"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Format 2: the routine",
-      "title": "Steps"
+      "description": "The routine",
+      "items": {
+        "$ref": "#/$defs/StepSpec"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
     }
   },
   "required": [
@@ -246,7 +235,8 @@
     "name",
     "case_types",
     "facts",
-    "instructions"
+    "instructions",
+    "steps"
   ],
   "title": "Sūveryn playbook manifest",
   "type": "object",
