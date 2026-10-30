@@ -16,7 +16,7 @@ import {
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, Dialog, InlineNotice, NumberField, RadioList, SelectField, TextButton } from "../ui";
+import { Button, Dialog, InlineNotice, NumberField, RadioList, SelectField, Switch, TextButton } from "../ui";
 import { keepPeriodLabel } from "./CaseDialogs";
 
 type Access = "office" | "members";
@@ -33,6 +33,7 @@ export function AdminSettings() {
   const [applyTo, setApplyTo] = useState<"new" | "all">("new");
   const [keep, setKeep] = useState<KeepPeriod>("manual");
   const [conversations, setConversations] = useState<KeepPeriod>("manual");
+  const [twoStep, setTwoStep] = useState(false);
   const [input, setInput] = useState(0);
   const [output, setOutput] = useState(0);
   const [currency, setCurrency] = useState("USD");
@@ -42,7 +43,7 @@ export function AdminSettings() {
   const [error, setError] = useState<string | null>(null);
 
   const take = useCallback((s: CaseSettings | null, r: Rates | null) => {
-    if (s) { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); setApplyTo("new"); }
+    if (s) { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); setTwoStep(s.two_step); setApplyTo("new"); }
     if (r) { setSavedRates(r); setInput(Number(r.input_per_million)); setOutput(Number(r.output_per_million)); setCurrency(r.currency); }
   }, []);
   useEffect(() => {
@@ -52,7 +53,9 @@ export function AdminSettings() {
 
   const opens = settings !== null && access === "office" && settings.default_access === "members";
   const casesChanged = settings !== null
-    && (access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep);
+    && (access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep
+        || twoStep !== settings.two_step);
+  const twoStepChanged = settings !== null && twoStep !== settings.two_step;
   const ratesChanged = rates !== null
     && (input !== Number(rates.input_per_million) || output !== Number(rates.output_per_million) || currency !== rates.currency);
   const ratesValid = validRate(input) && validRate(output);
@@ -64,7 +67,7 @@ export function AdminSettings() {
     setError(null);
     try {
       const s = casesChanged
-        ? await setCaseSettings({ default_access: access, keep, conversations_keep: conversations, ...(opens ? { apply_to: applyTo } : {}) })
+        ? await setCaseSettings({ default_access: access, keep, conversations_keep: conversations, two_step: twoStep, ...(opens ? { apply_to: applyTo } : {}) })
         : null;
       const r = ratesChanged ? await setRates({ input_per_million: String(input), output_per_million: String(output), currency }) : null;
       take(s, r);
@@ -81,7 +84,7 @@ export function AdminSettings() {
     try {
       const p = await previewCaseSettings({ default_access: access, apply_to: opens ? applyTo : undefined, conversations_keep: conversations });
       setBusy(false);
-      if (p.cases_opened || p.cases_closed || p.conversations_deleted) setConfirming(p);
+      if (p.cases_opened || p.cases_closed || p.conversations_deleted || twoStepChanged) setConfirming(p);
       else await write();
     } catch (e) {
       setBusy(false);
@@ -122,6 +125,11 @@ export function AdminSettings() {
             <SelectField name="conversations_keep" label={m.keepConversations} description={m.keepConversationsHint} value={conversations}
                          onChange={edited((v: string) => setConversations(v as KeepPeriod))} options={periods} />
           </section>
+          <section aria-labelledby="two-step">
+            <h2 id="two-step" className="label">{m.twoStepHeading}</h2>
+            <Switch label={m.twoStepEveryone} checked={twoStep} onChange={edited(setTwoStep)} />
+            <p className="caption">{m.twoStepHint}</p>
+          </section>
         </>
       )}
       {rates && (
@@ -153,6 +161,7 @@ export function AdminSettings() {
         {confirming?.cases_opened ? <p>{m.casesOpened(confirming.cases_opened)}</p> : null}
         {confirming?.cases_closed ? <p>{m.casesClosed(confirming.cases_closed)}</p> : null}
         {confirming?.conversations_deleted ? <p>{m.conversationsDeleted(confirming.conversations_deleted)}</p> : null}
+        {twoStepChanged ? <p>{twoStep ? m.twoStepTurnsOn : m.twoStepTurnsOff}</p> : null}
         {confirming?.cases_opened || confirming?.cases_closed ? <p className="caption">{m.strictlyStays}</p> : null}
       </Dialog>
     </div>

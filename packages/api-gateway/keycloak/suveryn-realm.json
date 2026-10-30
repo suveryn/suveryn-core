@@ -42,7 +42,7 @@
         "name": "suveryn-admin",
         "description": "Sūveryn administrator: Administration in the chat UI, including the office's accounts (users, their sign-ins)",
         "composite": true,
-        "composites": { "client": { "realm-management": ["manage-users", "view-users", "view-realm", "view-events"] } }
+        "composites": { "client": { "realm-management": ["manage-users", "view-users", "view-realm", "view-events", "manage-realm"] } }
       }
     ]
   },
