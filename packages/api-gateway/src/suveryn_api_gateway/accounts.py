@@ -2,9 +2,10 @@
 
 Nobody needs Keycloak's own console: the gateway manages the accounts through Keycloak's admin REST API **as
 the administrator who is signed in**, with their own access token, never from the browser. The realm role
-``suveryn-admin`` is a composite of realm-management's ``manage-users``, ``view-users``, ``view-realm`` and
-``view-events`` (``keycloak/suveryn-realm.json``), so an administrator's token carries what these calls need
-and nobody else's does. No extra client and no secret: when no administrator is signed in, nothing here can
+``suveryn-admin`` is a composite of realm-management's ``manage-users``, ``view-users``, ``view-realm``,
+``view-events`` and ``manage-realm`` (``keycloak/suveryn-realm.json``), so an administrator's token carries what
+these calls need and nobody else's does. ``manage-realm`` is only for the office's two-step setting, which
+changes the realm's sign-in steps (``require_two_step``; Filip, 30 October). No extra client and no secret: when no administrator is signed in, nothing here can
 be done, and Keycloak's admin events name the administrator who made each change (Filip, 28 October).
 
 The appliance sends no e-mail (no mail server, maybe air-gapped), so adding someone, or having their password
@@ -21,6 +22,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
+from urllib.parse import quote
 
 import httpx
 from pydantic import BaseModel
@@ -135,7 +137,8 @@ class Accounts:
         if r.status_code in (401, 403):
             raise RightsRefused(f"the sign-in service refused the administrator's rights (HTTP {r.status_code})")
         if r.status_code >= 400 and r.status_code != 409:
-            raise AccountsUnavailable(f"the sign-in service refused {method} {path.split('/')[1]} (HTTP {r.status_code})")
+            raise AccountsUnavailable(f"the sign-in service refused {method} {path.split('/')[1] if '/' in path else 'realm'} "
+                                      f"(HTTP {r.status_code})")
         return r
 
     async def _admins(self, token: str) -> set[str]:
@@ -241,9 +244,13 @@ class Accounts:
             await self._call(token, "PUT", f"/users/{sub}", json={"requiredActions": [*actions, "CONFIGURE_TOTP"]})
 
     async def require_two_step(self, token: str, on: bool) -> int:
-        """The office's setting, applied to every person's account (Filip, 29 October: off by default, the
-        administrator's choice). On: everyone without an authenticator app sets one up at their next sign-in.
-        Off: nobody is asked to any more; whoever has an app keeps it. How many accounts changed."""
+        """The office's setting (Filip, 29 October: off by default, the administrator's choice), in the realm's
+        sign-in steps and on every person's account. On: Keycloak asks for the app's code at every sign-in, and
+        whoever has no app sets one up first, so removing one's app on the account page doesn't get round it
+        (Filip, 30 October). Off: the steps as Keycloak makes them, where only someone who has an app is asked
+        for its code; nobody is asked to set one up any more; whoever has an app keeps it. The sign-in steps
+        change first: when Keycloak refuses them, no account has changed. How many accounts changed."""
+        await self._sign_in_steps(token, on)
         users = (await self._call(token, "GET", "/users", params={"max": str(MAX_USERS), "briefRepresentation": "false"})).json()
         changed = 0
         for u in users:
@@ -261,6 +268,24 @@ class Accounts:
                                  json={"requiredActions": [a for a in actions if a != "CONFIGURE_TOTP"]})
                 changed += 1
         return changed
+
+    async def _sign_in_steps(self, token: str, on: bool) -> None:
+        """The realm's browser flow, as Keycloak 26 makes it: a conditional sub-flow ("Browser - Conditional
+        2FA") holds the OTP form, asked only of someone who has an app. On: the sub-flow and the OTP form are
+        required, so everyone is asked, and someone without an app sets one up (the OTP form adds the required
+        action). Off: conditional and alternative again, as Keycloak makes them. Needs ``manage-realm``."""
+        flow = (await self._call(token, "GET", "")).json().get("browserFlow") or "browser"
+        path = f"/authentication/flows/{quote(flow, safe='')}/executions"
+        steps = (await self._call(token, "GET", path)).json()
+        otp = next((i for i, e in enumerate(steps) if e.get("providerId") == "auth-otp-form"), None)
+        sub = next((e for e in reversed(steps[:otp]) if e.get("authenticationFlow") and e.get("level") == steps[otp].get("level", 0) - 1),
+                   None) if otp is not None else None
+        if sub is None:
+            raise AccountsUnavailable(f"the sign-in steps ({flow}) have no two-step sub-flow to require")
+        want = ("REQUIRED", "REQUIRED") if on else ("CONDITIONAL", "ALTERNATIVE")
+        for step, requirement in ((sub, want[0]), (steps[otp], want[1])):
+            if step.get("requirement") != requirement:
+                await self._call(token, "PUT", path, json={**step, "requirement": requirement})
 
     async def sign_out(self, token: str, sub: str) -> None:
         _check_id(sub)
