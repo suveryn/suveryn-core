@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .cases import KEEP_PERIODS
 from .db import PgStore
@@ -112,6 +112,15 @@ class SavedTurn(BaseModel):
     model_config = ConfigDict(extra="allow")
     role: Literal["user", "assistant"]
     text: str = Field(default="", max_length=200_000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _content_as_text(cls, data):
+        """A turn as /v1/chat takes it (``role``, ``content``) is saved with its words as ``text``, the UI's field,
+        so it opens with them (round 4, finding 1: it opened empty)."""
+        if isinstance(data, dict) and "text" not in data and isinstance(data.get("content"), str):
+            return {**data, "text": data["content"]}
+        return data
 
 
 class ConversationIn(BaseModel):

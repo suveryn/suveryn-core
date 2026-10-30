@@ -268,6 +268,7 @@ class Job:
     error_code: str | None = None     # why it failed, for the interface to say in its language (reading.CODES)
     error_detail: dict = field(default_factory=dict)  # the numbers that message needs (pages, max, minutes)
     cancel_requested: bool = False    # the person cancelled it while it was read; the worker stops it
+    already_present: bool = False     # the same file was stored in this scope before: the stored copy, not read again
     archive: str | None = None        # the .zip it came from, by name, for the interface
     upload: str | None = None         # the upload it belongs to, for the queue limits (an archive's id)
 
@@ -378,7 +379,11 @@ class DocumentService:
             # The document's status is "ok" or "needs_review"; the job's is "ready" or "needs_review".
             job.document_id, job.status = str(r.document_id), job_status(r.status)
             job.pages, job.ocr_pages, job.warnings = r.pages, r.ocr_pages, r.warnings
-            log.info("%s", reading_line(job, getattr(r, "timings", None) or {}, started))
+            job.already_present = bool(getattr(r, "already_present", False))
+            if job.already_present:  # not read: said apart, so the log doesn't read as a second reading (round 4, finding 2)
+                log.info("document already stored: job %s, the stored copy", job.id)
+            else:
+                log.info("%s", reading_line(job, getattr(r, "timings", None) or {}, started))
             job.noticed = r.noticed
         except Cancelled:
             job.status = "cancelled"

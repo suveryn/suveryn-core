@@ -393,7 +393,7 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
         changes["two_step"] = "on" if on else "off"
     user = getattr(request.state, "user", None)
     opens = changes.get("default_access") == "office" and case_settings(request).default_access == "members"
-    await run_in_threadpool(partial(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev",
+    await run_in_threadpool(partial(cases_or_503(request).set_overrides, changes, who(request)[1] or who(request)[0],
                                     keep_existing=opens and body.apply_to == "new", open_all=opens and body.apply_to == "all",
                                     by_user=user.sub if user else LOCAL_OWNER))
     if "conversations_keep" in changes and (history := history_or_none(request)) is not None:
