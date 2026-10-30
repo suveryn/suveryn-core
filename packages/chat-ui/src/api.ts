@@ -750,15 +750,31 @@ export async function askBackupService(body: BackupRequest, seconds = 60): Promi
 
 /** Administration › Status (docs/design/admin.md): the five checks, counts only. ``since``: when it was first seen
  *  failing, while it fails. */
-export type StatusCheckId = "answering" | "reading" | "signin" | "data" | "disk";
+export type StatusCheckId = "answering" | "reading" | "signin" | "data" | "disk" | "clock";
 export type StatusCheck = {
   id: StatusCheckId; ok: boolean; since: string | null;
   in_progress: number | null; waiting: number | null; free: number | null; total: number | null;
+  offset_ms?: number | null; synced?: boolean | null; // clock: how far ahead (positive) or behind; a time server keeps it
 };
 export type AdminStatus = { checked_at: string; checks: StatusCheck[]; version: string | null };
 
 export async function getAdminStatus(): Promise<AdminStatus> {
   const r = await fetch("/v1/admin/status");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
+export type ClockAnswer = { id: string; pending: boolean; ok: boolean | null; error: string | null; moved_ms: number | null };
+
+export async function setApplianceClock(measured: { offset_ms: number; rtt_ms: number }): Promise<ClockAnswer> {
+  const r = await fetch("/v1/admin/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(measured) });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function applianceClockAnswer(id: string): Promise<ClockAnswer> {
+  const r = await fetch(`/v1/admin/clock/${encodeURIComponent(id)}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }

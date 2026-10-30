@@ -1,7 +1,8 @@
 """``GET /v1/admin/status``: is everything working? (docs/design/admin.md, *Status*, artboards 30 and 39).
 
-Five checks in plain words, for the administrator: answering questions (the model), reading documents,
-signing in, keeping your data (the databases) and disk space. Each says whether it works, since when it
+Six checks in plain words, for the administrator: answering questions (the model), reading documents,
+signing in, keeping your data (the databases), disk space and the clock (``clock.py``: a time server keeps it, or
+how far off it is by the browsers' measurements; two-step codes fail from about 30 seconds). Each says whether it works, since when it
 doesn't, and a count or two (answers being written, documents in progress and waiting, free space). Counts
 only: never what is asked or read.
 
@@ -22,6 +23,7 @@ from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from ..clock import WARN_MS
 from .common import admin_or_403, signin_status
 
 log = logging.getLogger("suveryn.gateway")
@@ -60,7 +62,7 @@ LOW_BYTES = 10 * 1024**3
 # Where the office's data is: the data partition on an appliance (everything under /var/lib/suveryn).
 DATA_PATH = Path(os.environ.get("SUVERYN_DATA_PATH", "/var/lib/suveryn"))
 
-CheckId = Literal["answering", "reading", "signin", "data", "disk"]
+CheckId = Literal["answering", "reading", "signin", "data", "disk", "clock"]
 
 
 class Check(BaseModel):
@@ -71,6 +73,8 @@ class Check(BaseModel):
     waiting: int | None = None  # reading: documents waiting
     free: int | None = None  # disk: bytes free, and of
     total: int | None = None
+    offset_ms: int | None = None  # clock: how far ahead (positive) or behind the appliance's clock is, by the browsers
+    synced: bool | None = None  # clock: a time server keeps it
 
 
 class AdminStatus(BaseModel):
@@ -125,6 +129,10 @@ class StatusMonitor:
                 Check(id="data", ok=data_ok),
                 Check(id="disk", ok=disk_ok, free=disk[0] if disk else None, total=disk[1] if disk else None),
             ]
+            if (clock := getattr(state, "clock", None)) is not None:
+                synced, offset = await run_in_threadpool(clock.synced), clock.estimate_ms()
+                checks.append(Check(id="clock", ok=bool(synced) or offset is None or abs(offset) < WARN_MS,
+                                    offset_ms=None if synced else offset, synced=synced))
             for c in checks:
                 if c.ok:
                     self.failing_since.pop(c.id, None)
@@ -148,7 +156,7 @@ class StatusMonitor:
 
 @router.get("/v1/admin/status", response_model=AdminStatus, responses={403: {"description": "Not an administrator"}})
 async def admin_status(request: Request):
-    """Is everything working? The five checks, the latest at most a quarter of a minute old."""
+    """Is everything working? The six checks, the latest at most a quarter of a minute old."""
     admin_or_403(request)
     monitor: StatusMonitor = request.app.state.status
     latest = monitor.latest
