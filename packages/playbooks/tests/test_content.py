@@ -24,6 +24,12 @@ def test_identity_is_the_platforms():
             assert words.title.strip() and words.summary.strip(), lang
             assert set(words.labels) == {f.id for f in p.facts} and all(v.strip() for v in words.labels.values()), lang
         assert all(f"| {f.id} | | |" in p.instructions for f in p.facts)
+        # the routine's questions are the pack's words too: every request and ask step has them in every language
+        for step in p.steps:
+            if step.kind == "request":
+                assert all(p.text[lang].question(step.id).strip() for lang in LANGUAGES), step.id
+            if step.kind == "ask":
+                assert all(p.text[lang].question(step.id, f).strip() != p.text[lang].labels[f] for lang in LANGUAGES for f in step.facts), step.id
 
 
 def test_deed_intake_fits_a_sale_and_is_covered():
@@ -31,7 +37,7 @@ def test_deed_intake_fits_a_sale_and_is_covered():
     assert p is not None and p.id == "playbook/be-notary/deed-intake" and p.pack == "pack/be-notary"
     assert for_case_type("sale") == [p] and for_case_type("estate") == []
     assert find(p.id) is p and covered(p.id) and not covered("playbook/be-notary/nothing")
-    assert len(p.facts) == 13
+    assert len(p.facts) == 13 and p.version == "1.1" and [s.kind for s in p.steps] == ["request", "read", "ask", "checkpoint", "produce"]
 
 
 def test_the_languages_are_the_interfaces():
