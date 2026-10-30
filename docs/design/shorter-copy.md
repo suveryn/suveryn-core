@@ -173,6 +173,24 @@ Every "check this" warning stays. They are shorter, but none is dropped.
 | keyTestDue | Laatst getest op ${when}. Test opnieuw. | Last tested on ${when}. Test again. |
 | keyTestFailed | Deze sleutel opent de back-up niet. Probeer een ander bestand. | This key doesn't open the backup. Try another file. |
 
+## The clock on Status (artboard 44, 30 October)
+
+Built in 90cef76; shorter here. French in the handover note
+(`Claude outputs/handover-clock-copy-2026-10-30.md`).
+
+| Key | nl | en |
+|---|---|---|
+| clockKeptByServer | via een tijdserver | via a time server |
+| clockByBrowsers | via de browsers | via the browsers |
+| clockSetTitle | Klok gelijkzetten? | Set the clock? |
+| clockSetBody | Appliance ${appliance} · deze pc ${pc} | Appliance ${appliance} · this PC ${pc} |
+| clockSetCheck | Staat deze pc juist? Gesloten dossiers waarvan de termijn dan voorbij is, worden binnen het uur verwijderd. | Is this PC's time right? Closed cases whose keep period has then passed are deleted within the hour. |
+| clockSetDone | Klok gelijkgezet. | Clock set. |
+| clockSetFailed | Niet gelijkgezet: ${why}. | Not set: ${why}. |
+
+And one change that isn't a string: when the clock is right ("On time"), its detail no longer adds
+the seconds ("via the browsers · 2 s behind" becomes "via the browsers").
+
 ## New: a second backup disk (artboard 29)
 
 Today a second disk only counts when someone makes a `suveryn-backups` folder on it by hand

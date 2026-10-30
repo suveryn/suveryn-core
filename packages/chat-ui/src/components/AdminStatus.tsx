@@ -167,7 +167,7 @@ function SetClock({ offset, onDone }: { offset: number; onDone: () => void }) {
         {m.clockThisPc(offLabel(offset, m))}{" "}
         <Button size="small" onPress={() => { setOutcome(null); setOpen(true); }}><Clock size={14} aria-hidden /> {m.clockSet}</Button>
       </p>
-      {outcome && <InlineNotice tone={outcome.ok ? "ok" : "error"} alert={!outcome.ok}
+      {outcome && <InlineNotice tone={outcome.ok ? "ok" : "error"} alert={!outcome.ok} status={outcome.ok}
                                 icon={outcome.ok ? <Check size={14} /> : <AlertCircle size={14} />}>{outcome.text}</InlineNotice>}
       <Dialog isOpen={open} onClose={() => setOpen(false)} busy={busy} title={m.clockSetTitle} actions={<>
         <TextButton onPress={() => setOpen(false)} isDisabled={busy}>{m.cancel}</TextButton>
@@ -186,6 +186,6 @@ function detail(c: StatusCheck, m: ReturnType<typeof useT>): string {
     return [c.in_progress ? m.nInProgress(c.in_progress) : "", c.waiting ? m.nWaiting(c.waiting) : ""].filter(Boolean).join(" · ");
   }
   if (c.id === "disk" && c.free != null && c.total != null) return m.freeOf(sizeLabel(c.free, locale()), sizeLabel(c.total, locale()));
-  if (c.id === "clock") return c.synced ? m.clockKeptByServer : c.offset_ms != null && c.ok ? `${m.clockByBrowsers} · ${offLabel(c.offset_ms, m)}` : m.clockByBrowsers;
+  if (c.id === "clock") return c.synced ? m.clockKeptByServer : m.clockByBrowsers; // the offset only when it is off, in the status column
   return "";
 }
