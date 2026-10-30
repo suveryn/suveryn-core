@@ -880,7 +880,7 @@ export type RunSummary = {
   id: string; case_id: string; playbook_id: string; playbook_version: string; status: RunStatus; documents: string[];
   started_by: string; started_at: string; finished_at: string | null; confirmed_by: string | null; confirmed_at: string | null;
   model: string | null; error: string | null; result_document_id: string | null; out_of_date: boolean;
-  step: string | null;          // the step the run is on (null: done, or a run from before the routine)
+  step: string | null;          // the step the run is on (null: not started, or ended)
   language: string;             // the thread's language
   paused_by: string | null; paused_at: string | null; ended_by: string | null; ended_reason: string | null;
   starter?: string | null;      // the starter's id: who may stop or cancel, with the case manager
@@ -959,9 +959,9 @@ export async function runAction(caseId: string, runId: string, action: "pause" |
 }
 
 /** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. */
-export async function confirmRun(caseId: string, runId: string, facts: { id: string; confirmed: string }[], language: string): Promise<Run> {
+export async function confirmRun(caseId: string, runId: string, facts: { id: string; confirmed: string }[]): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/facts`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ facts, language }),
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ facts }),
   });
   if (!r.ok) throw await responseError(r);
   return r.json();

@@ -63,24 +63,23 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     finished_at timestamptz,
     confirmed_by text,
     confirmed_at timestamptz,
-    facts jsonb NOT NULL DEFAULT '[]',
     model text,
     error text,
     result_document_id uuid,
     out_of_date boolean NOT NULL DEFAULT false,
-    instruction_like_sources jsonb NOT NULL DEFAULT '[]'
+    instruction_like_sources jsonb NOT NULL DEFAULT '[]',
+    -- The routine (docs/design/playbooks.md, "The routine"): where the run is, each step's state, and
+    -- the pauses and endings. The facts are in case_facts, one row per version.
+    step text,
+    steps jsonb NOT NULL DEFAULT '{}'::jsonb,
+    language text NOT NULL DEFAULT 'en',
+    paused_by text,
+    paused_at timestamptz,
+    ended_by text,
+    ended_reason text,
+    starter text              -- the starter's id: who may stop or cancel (started_by is the shown name)
 );
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
--- The routine (docs/design/playbooks.md, "The routine"): where the run is, each step's state, and
--- the pauses and endings. Runs made before these columns read as they were (``_legacy``).
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS step text;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS steps jsonb NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS language text NOT NULL DEFAULT 'en';
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS paused_by text;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS paused_at timestamptz;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS ended_by text;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS ended_reason text;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS starter text;  -- the starter's id: who may stop or cancel (started_by is the shown name)
 CREATE TABLE IF NOT EXISTS playbook_settings (
     playbook_id text PRIMARY KEY,
     active boolean NOT NULL DEFAULT true,
@@ -116,9 +115,6 @@ FactStatus = Literal["proposed", "confirmed", "not_established", "superseded"]
 MAX_RUNS_LISTED = 100
 MAX_ANSWER = 4000
 
-# Runs made before the routine stored these statuses; they read as the nearest new one.
-_LEGACY_STATUS = {"checkpoint": "waiting", "confirmed": "done"}
-
 
 class StepState(BaseModel):
     status: StepStatus = "pending"
@@ -142,13 +138,13 @@ class RunSummary(BaseModel):
     error: str | None = None
     result_document_id: str | None = None
     out_of_date: bool = False
-    step: str | None = None              # the step the run is on (None: not started, or a run from before the routine)
+    step: str | None = None              # the step the run is on (None: not started, or ended)
     language: str = "en"                 # the thread's language: the starter's interface language at the start
     paused_by: str | None = None
     paused_at: datetime | None = None
     ended_by: str | None = None          # who stopped or cancelled it
     ended_reason: str | None = None      # the reason given for a cancel
-    starter: str | None = None           # the starter's Keycloak id (rights); None for a run from before the routine
+    starter: str | None = None           # the starter's Keycloak id (rights)
 
 
 class Run(RunSummary):
@@ -185,11 +181,9 @@ class ConfirmedFact(BaseModel):
 
 class ConfirmIn(BaseModel):
     """Body of ``PUT …/runs/{run}/facts``: every fact's confirmed value (a correction, the value as
-    read, or empty). ``language`` is accepted from earlier UIs and ignored: the summary is written in
-    the run's language, the thread's."""
+    read, or empty). The summary is written in the run's language, the thread's."""
 
     facts: list[ConfirmedFact] = Field(min_length=1, max_length=100)
-    language: str = Field(default="en", pattern=r"^[a-z]{2}$")
 
 
 class CancelIn(BaseModel):
@@ -263,7 +257,7 @@ class RunStore(TurnStore):
     COLUMNS = ("id, case_id, playbook_id, playbook_version, status, documents, started_by, started_at, finished_at,"
                " confirmed_by, confirmed_at, model, error, result_document_id, out_of_date,"
                " step, language, paused_by, paused_at, ended_by, ended_reason, starter")
-    _N = 22  # columns above; ``facts``, ``instruction_like_sources`` and ``steps`` follow in ``get``
+    _N = 22  # columns above; ``instruction_like_sources`` and ``steps`` follow in ``get``
 
     # -- runs
 
@@ -282,7 +276,7 @@ class RunStore(TurnStore):
     def active(self, case_id: uuid.UUID, playbook_id: str) -> RunSummary | None:
         """The one run of this playbook in this case that is still going (reading, waiting or paused), if any."""
         r = self._execute(f"SELECT {self.COLUMNS} FROM playbook_runs WHERE case_id = %s AND playbook_id = %s"
-                          " AND status IN ('reading', 'waiting', 'paused', 'checkpoint') ORDER BY started_at DESC LIMIT 1",
+                          " AND status IN ('reading', 'waiting', 'paused') ORDER BY started_at DESC LIMIT 1",
                           (case_id, playbook_id)).fetchone()
         return self._summary(r) if r else None
 
@@ -291,19 +285,18 @@ class RunStore(TurnStore):
         if not case_ids:
             return {}
         rows = self._execute(f"SELECT DISTINCT ON (case_id) {self.COLUMNS} FROM playbook_runs WHERE case_id = ANY(%s)"
-                             " AND status IN ('reading', 'waiting', 'paused', 'checkpoint') ORDER BY case_id, started_at DESC",
+                             " AND status IN ('reading', 'waiting', 'paused') ORDER BY case_id, started_at DESC",
                              (case_ids,)).fetchall()
         return {str(r[1]): self._summary(r) for r in rows}
 
     def get(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Run | None:
-        r = self._execute(f"SELECT {self.COLUMNS}, facts, instruction_like_sources, steps FROM playbook_runs WHERE id = %s AND case_id = %s",
+        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps FROM playbook_runs WHERE id = %s AND case_id = %s",
                           (run_id, case_id)).fetchone()
         if r is None:
             return None
         summary = self._summary(r)
-        legacy_facts, suspicious, steps = r[self._N], r[self._N + 1], r[self._N + 2]
-        facts = self.facts_for_run(run_id) if steps else [RunFact(**f) for f in legacy_facts]  # a run from before the routine
-        return Run(**summary.model_dump(), facts=facts, instruction_like_sources=suspicious,
+        suspicious, steps = r[self._N], r[self._N + 1]
+        return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
                    steps={k: StepState(**v) for k, v in steps.items()}, turns=self.for_run(run_id))
 
     def list(self, case_id: uuid.UUID) -> list[RunSummary]:
@@ -313,14 +306,11 @@ class RunStore(TurnStore):
 
     @staticmethod
     def _summary(r) -> RunSummary:
-        status, step = r[4], r[15]
-        if status in _LEGACY_STATUS:  # a run from before the routine: it was at, or past, its checkpoint
-            status, step = _LEGACY_STATUS[status], step or "confirm"
-        return RunSummary(id=str(r[0]), case_id=str(r[1]), playbook_id=r[2], playbook_version=r[3], status=status,
+        return RunSummary(id=str(r[0]), case_id=str(r[1]), playbook_id=r[2], playbook_version=r[3], status=r[4],
                           documents=[str(d) for d in r[5]], started_by=r[6], started_at=r[7], finished_at=r[8],
                           confirmed_by=r[9], confirmed_at=r[10], model=r[11], error=r[12],
                           result_document_id=str(r[13]) if r[13] else None, out_of_date=r[14],
-                          step=step, language=r[16], paused_by=r[17], paused_at=r[18], ended_by=r[19], ended_reason=r[20], starter=r[21])
+                          step=r[15], language=r[16], paused_by=r[17], paused_at=r[18], ended_by=r[19], ended_reason=r[20], starter=r[21])
 
     def set_step(self, run_id: uuid.UUID, step: str | None, status: Status, steps: dict[str, StepState],
                  model: str | None = None, suspicious: list[int] | None = None) -> bool:

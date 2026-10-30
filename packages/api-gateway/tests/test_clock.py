@@ -124,3 +124,26 @@ def test_status_says_how_far_off_the_clock_is_or_that_a_time_server_keeps_it(set
     monkeypatch.setattr(clock, "time_server_keeps_it", lambda: True)
     c.app.state.clock._synced = (0.0, None)
     assert check()["ok"] and check()["synced"] is True and check()["offset_ms"] is None
+
+
+def test_reports_arriving_at_once_ask_for_one_nudge(appliance, monkeypatch):
+    """External review, pass 8: reports at the same moment could all find the reports agreeing and all try to leave
+    a request (without the lock: three tries here, one landing only because the file check was lucky). With the
+    lock, one try; the others find the nudge just asked."""
+    import threading
+    c, now, asks = Clock(), 1_000_000.0, []
+    real = clock.leave_request
+
+    def slow(body):  # widen the window: each request takes a moment to write
+        time.sleep(0.05)
+        rid = real(body)
+        asks.append(rid)
+        return rid
+    monkeypatch.setattr(clock, "leave_request", slow)
+    c.report(BOB, False, 3000, 40, now)
+    threads = [threading.Thread(target=c.report, args=(who, False, 3000, 40, now)) for who in (CARLA, "user-d", "user-e")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(asks) == 1 and asks[0]
