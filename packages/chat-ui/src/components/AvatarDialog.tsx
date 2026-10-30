@@ -7,7 +7,7 @@
  * PNG; the server re-encodes it. Everything happens in the browser until the save; nothing is
  * uploaded that the person hasn't seen.
  */
-import { AlertCircle, ImagePlus, Trash2 } from "lucide-react";
+import { CircleAlert, ImagePlus, Trash } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { removeMyAvatar, setMyAvatar, type Me } from "../api";
 import { useT } from "../i18n";
@@ -122,7 +122,7 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
     <Dialog isOpen={open} onClose={onClose} title={m.avatarTitle} busy={busy} actions={
       <>
         {img && <Button variant="primary" onPress={save} isDisabled={busy}>{busy ? m.saving : m.avatarSave}</Button>}
-        {!img && me.avatar && <Button onPress={remove} isDisabled={busy}><Trash2 size={14} aria-hidden /> {m.avatarRemove}</Button>}
+        {!img && me.avatar && <Button onPress={remove} isDisabled={busy}><Trash size={14} aria-hidden /> {m.avatarRemove}</Button>}
         <TextButton onPress={onClose}>{m.cancel}</TextButton>
       </>
     }>
@@ -146,7 +146,7 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
           <p className="caption">{m.avatarPickHint}</p>
         </div>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

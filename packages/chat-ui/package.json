@@ -19,7 +19,8 @@
     "typecheck": "tsc -b",
     "prebuild": "node scripts/notices.mjs",
     "notices": "node scripts/notices.mjs",
-    "brand:sync": "node scripts/brand-sync.mjs"
+    "brand:sync": "node scripts/brand-sync.mjs",
+    "icons:sync": "node scripts/icons-sync.mjs"
   },
   "dependencies": {
     "@internationalized/date": "3.12.4",

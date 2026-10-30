@@ -9,8 +9,8 @@
  * fail). A reader follows; a contributor answers and confirms. Earlier runs are listed under the current one.
  */
 import {
-  AlertCircle, AlertTriangle, ArrowLeft, ArrowUp, Check, ClipboardList, Download, FileText, Loader2, MoreHorizontal, Paperclip, Pause, Play,
-  Square, XCircle,
+  ArrowLeft, ArrowUp, Check, CircleAlert, CircleX, ClipboardList, Download, Ellipsis, FileText, LoaderCircle,
+  Paperclip, Pause, Play, Square, TriangleAlert
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -97,7 +97,7 @@ export function PlaybookView({ kase, canRun, me, documents, onBack, onDocumentsC
       <p className="view-intro">{m.playbookIntro}</p>
       {playbooks && !playbook && <p className="caption">{m.noPlaybookForType}</p>}
       {playbook && !playbook.covered && (
-        <InlineNotice icon={<AlertTriangle size={14} />}>{m.playbookNotCovered}</InlineNotice>
+        <InlineNotice icon={<TriangleAlert size={14} />}>{m.playbookNotCovered}</InlineNotice>
       )}
       {playbook && canRun && kase.state === "open" && !live && (
         <div className="playbook-start">
@@ -105,7 +105,7 @@ export function PlaybookView({ kase, canRun, me, documents, onBack, onDocumentsC
           <span className="caption">{m.playbookVersion(playbook.version)}</span>
         </div>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {current && (
         <RunView key={current.id} run={current} kase={kase} nameOf={nameOf} me={me} canRun={canRun && kase.state === "open"} documents={documents}
                  words={words} playbook={playbooks?.find((p) => p.id === current.playbook_id) ?? playbook}
@@ -183,17 +183,17 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
       : { id: "pause", label: m.pauseRun, icon: <Pause size={16} />, isDisabled: run.status !== "waiting" },
     "-",
     { id: "stop", label: m.stopRun, icon: <Square size={16} />, isDisabled: !mayEnd, description: m.stopRunHint },
-    { id: "cancel", label: m.cancelRun, icon: <XCircle size={16} />, isDisabled: !mayEnd, description: m.cancelRunHint },
+    { id: "cancel", label: m.cancelRun, icon: <CircleX size={16} />, isDisabled: !mayEnd, description: m.cancelRunHint },
   ];
   return (
     <section className="playbook-run" aria-live="polite">
       <RunBanner run={run} playbook={playbook} words={words} nameOf={nameOf} />
-      {run.status === "failed" && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{errorLabel(run.error, m)}</InlineNotice>}
-      {run.out_of_date && <InlineNotice icon={<AlertTriangle size={14} />}>{m.runOutOfDateHint}</InlineNotice>}
+      {run.status === "failed" && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{errorLabel(run.error, m)}</InlineNotice>}
+      {run.out_of_date && <InlineNotice icon={<TriangleAlert size={14} />}>{m.runOutOfDateHint}</InlineNotice>}
       {run.instruction_like_sources.length > 0 && (
-        <InlineNotice icon={<AlertTriangle size={14} />}>{m.runSuspiciousSources}</InlineNotice>
+        <InlineNotice icon={<TriangleAlert size={14} />}>{m.runSuspiciousSources}</InlineNotice>
       )}
-      {run.status === "cancelled" && <InlineNotice icon={<XCircle size={14} />}>{m.runCancelledHint(nameOf(run.ended_by ?? ""), run.ended_reason ?? "", !!run.result_document_id)}</InlineNotice>}
+      {run.status === "cancelled" && <InlineNotice icon={<CircleX size={14} />}>{m.runCancelledHint(nameOf(run.ended_by ?? ""), run.ended_reason ?? "", !!run.result_document_id)}</InlineNotice>}
       {run.status === "stopped" && <InlineNotice icon={<Square size={14} />}>{m.runStoppedHint(nameOf(run.ended_by ?? ""))}</InlineNotice>}
       <div className="playbook-body">
         <div className="playbook-thread-column">
@@ -211,12 +211,12 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
           <FactsPanel run={run} words={words} kase={kase} nameOf={nameOf} />
         </aside>
       </div>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {live && canRun && (
         <div className="playbook-run-menu">
           <ActionMenu aria-label={m.runMenu} menuLabel={m.runMenu} entries={menu} isDisabled={busy}
                       onAction={(id) => { if (id === "cancel") setCancelling(true); else void act(id as "pause" | "resume" | "stop"); }}>
-            <MoreHorizontal size={16} aria-hidden /> {m.runMenu}
+            <Ellipsis size={16} aria-hidden /> {m.runMenu}
           </ActionMenu>
         </div>
       )}
@@ -253,7 +253,7 @@ export function RunBanner({ run, playbook, words, nameOf }: {
           : run.status === "waiting" ? m.waitingSince(dayLabel(since))
           : m.runStartedBy(nameOf(run.started_by), dayLabel(run.started_at))}
         {run.status === "reading" && run.model ? ` · ${run.model}` : ""}
-        {run.status === "reading" && <> <Loader2 size={12} aria-hidden className="spin" /></>}
+        {run.status === "reading" && <> <LoaderCircle size={12} aria-hidden className="spin" /></>}
       </span>
     </div>
   );
@@ -323,7 +323,7 @@ function Composer({ run, step, kase, words, documents, onChanged, onDocumentsCha
         <div className="playbook-actions">
           <FileButton accept={UPLOAD_TYPES} multiple onSelect={(files) => void upload(files)}>
             <Button variant="secondary" isDisabled={busy || uploading !== null}>
-              {uploading ? <Loader2 size={14} aria-hidden className="spin" /> : <Paperclip size={14} aria-hidden />} {uploading ? m.uploadingFile(uploading) : m.addDocuments}
+              {uploading ? <LoaderCircle size={14} aria-hidden className="spin" /> : <Paperclip size={14} aria-hidden />} {uploading ? m.uploadingFile(uploading) : m.addDocuments}
             </Button>
           </FileButton>
           <Button onPress={() => void send(() => answerRun(kase.id, run.id, step.id, { text: m.documentsAreIn }))} isDisabled={busy || documents === 0}>
@@ -331,7 +331,7 @@ function Composer({ run, step, kase, words, documents, onChanged, onDocumentsCha
           </Button>
           <span className="caption">{documents === 0 ? m.noDocumentsYet : m.documentsInCase(documents)}</span>
         </div>
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       </div>
     );
   }
@@ -350,7 +350,7 @@ function Composer({ run, step, kase, words, documents, onChanged, onDocumentsCha
             </li>
           ))}
         </ol>
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
         <div className="playbook-actions">
           <Button onPress={() => void send(() => answerRun(kase.id, run.id, step.id, { facts: answers }))} isDisabled={busy}>
             <ArrowUp size={14} aria-hidden /> {Object.values(answers).some((v) => v.trim()) ? m.sendAnswers : m.dontKnowYet}
@@ -371,7 +371,7 @@ function Composer({ run, step, kase, words, documents, onChanged, onDocumentsCha
                      onChange={(v) => setValues((vs) => ({ ...vs, [f.id]: v }))} />
           ))}
         </ol>
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
         <div className="playbook-actions">
           <Button onPress={() => void send(() => confirmRun(kase.id, run.id, run.facts.map((f) => ({ id: f.id, confirmed: values[f.id] ?? "" }))))}
                   isDisabled={busy}>{busy ? m.saving : m.confirmAll}</Button>
@@ -460,7 +460,7 @@ function FactRow({ fact, label, value, editable, status, open, onOpen, onChange 
             <span className="caption">{m.factNotInDocuments}</span>
           )}
           {fact.issues.length > 0 && (
-            <span className="playbook-fact-issue"><AlertTriangle size={12} aria-hidden /> {m.factToCheck(fact.issues.join(", "))}</span>
+            <span className="playbook-fact-issue"><TriangleAlert size={12} aria-hidden /> {m.factToCheck(fact.issues.join(", "))}</span>
           )}
           {corrected && <span className="caption">{m.factCorrected(fact.value || m.factNotFound)}</span>}
         </span>

@@ -19,7 +19,10 @@
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
-import { AlertCircle, ClipboardList, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare, MoreHorizontal, RotateCw, ScrollText, Share2, Trash2, Users, UsersRound } from "lucide-react";
+import {
+  CircleAlert, ClipboardList, Ellipsis, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
+  RotateCw, ScrollText, Share2, Trash, Users, UsersRound
+} from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -145,11 +148,11 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
     <main className="signin">
       <Lockup />
       <h1>{TAGLINE}</h1>
-      {ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.sessionEnded}</InlineNotice>}
-      {stuck && !ended && <InlineNotice icon={<AlertCircle size={14} />}>{m.signInIncomplete}</InlineNotice>}
+      {ended && <InlineNotice icon={<CircleAlert size={14} />}>{m.sessionEnded}</InlineNotice>}
+      {stuck && !ended && <InlineNotice icon={<CircleAlert size={14} />}>{m.signInIncomplete}</InlineNotice>}
       {unavailable
         ? <>
-            <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+            <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
             <p className="caption">{m.signInWhenDown}</p>
             <Button variant="primary" onPress={() => window.location.reload()}><RotateCw size={16} aria-hidden /> {m.signInTryAgain}</Button>
           </>
@@ -667,7 +670,7 @@ function Chat({ me }: { me: Me }) {
                           ...(manages || administers ? [{ id: "log", label: m.accessLog, icon: <ScrollText size={16} /> }] : []),
                           ...(manages && !closed ? ["-" as const,
                             { id: "close", label: m.closeCase, icon: <Lock size={16} /> },
-                            { id: "delete", label: m.deleteCase, icon: <Trash2 size={16} />, tone: "accent" as const }] : []),
+                            { id: "delete", label: m.deleteCase, icon: <Trash size={16} />, tone: "accent" as const }] : []),
                         ]}
                         onAction={(id) => {
                           if (id === "members") setShowMembers(true);
@@ -677,7 +680,7 @@ function Chat({ me }: { me: Me }) {
                           else if (id === "close") setClosingCase(true);
                           else if (id === "delete") setDeletingCase(true);
                         }}>
-              <MoreHorizontal size={16} aria-hidden />
+              <Ellipsis size={16} aria-hidden />
             </ActionMenu>
   );
 
@@ -1010,7 +1013,7 @@ function Chat({ me }: { me: Me }) {
           <BackupBar reason={backupReason} onDismiss={() => setBackupBarDismissed(true)}
                      onOpen={() => { backupsReadAt.current = 0; setAdminPage("backups"); setView("admin"); }} />
         )}
-        {problem && <p className="banner" role="alert"><AlertCircle size={14} aria-hidden /> {problem}</p>}
+        {problem && <p className="banner" role="alert"><CircleAlert size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
         {view === "admin" && <AdminView me={me.sub ?? ""} onBack={() => setView("chat")} initialPage={adminPage}
                                          onLostAdministration={() => { setAdminGone(true); setView("chat"); }} />}

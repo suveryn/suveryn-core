@@ -2,7 +2,7 @@
  * The conversation menu's two dialogs (docs/design/chat-ui.md §4): *Rename* and *Move to a case*. The
  * server decides (routes/conversations.py); these only ask, and say what went wrong.
  */
-import { AlertCircle, FolderInput, MessageSquare, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
+import { CircleAlert, FolderInput, MessageSquare, Pencil, Pin, PinOff, Trash } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { moveConversation, renameConversation, type Case, type ConversationSummary } from "../api";
 import { useT } from "../i18n";
@@ -17,7 +17,7 @@ const MAX_TITLE = 200;
 export function conversationMenu(c: ConversationSummary, me: string | undefined, m: ReturnType<typeof useT>, withOpen = false): MenuEntry[] {
   const icons: Record<ConversationAction, ReactNode> = {
     open: <MessageSquare size={16} />, pin: <Pin size={16} />, unpin: <PinOff size={16} />, rename: <Pencil size={16} />,
-    move: <FolderInput size={16} />, delete: <Trash2 size={16} />,
+    move: <FolderInput size={16} />, delete: <Trash size={16} />,
   };
   const labels: Record<ConversationAction, string> = {
     open: m.open, pin: m.pin, unpin: m.unpin, rename: m.rename, move: m.moveToCase, delete: m.delete,
@@ -60,7 +60,7 @@ export function RenameConversationDialog({ conversation, onDone, onCancel }: {
     </>}>
       <Form id="rename-conversation" check={check} onValid={save} className="case-form">
         <TextField name="title" label={m.renameLabel} value={title} onChange={setTitle} autoFocus maxLength={MAX_TITLE} />
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -101,7 +101,7 @@ export function MoveConversationDialog({ conversation, cases, onDone, onCancel }
                        options={targets.map((c) => ({ id: c.id, label: `${c.reference} ${c.name}` }))} />
         : <p>{m.moveNoCase}</p>}
       <p className="caption">{targets.find((c) => c.id === chosen)?.confidential ? m.moveHintConfidential : m.moveHint}</p>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

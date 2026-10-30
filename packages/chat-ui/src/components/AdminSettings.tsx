@@ -8,7 +8,7 @@
  * a confirmation says how many. Opening the office's access asks whether it applies to new cases (the existing
  * ones stay with their members) or to all of them; strictly confidential cases never change with it.
  */
-import { AlertCircle, Check } from "lucide-react";
+import { Check, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   getCaseSettings, getRates, previewCaseSettings, setCaseSettings, setRates,
@@ -99,7 +99,7 @@ export function AdminSettings() {
   const periods = PERIODS.map((p) => ({ id: p, label: periodLabel(p) }));
 
   if (loadFailed && !settings) {
-    return <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.settingsLoadFailed}</InlineNotice>;
+    return <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.settingsLoadFailed}</InlineNotice>;
   }
   return (
     <div className="admin-settings">
@@ -146,7 +146,7 @@ export function AdminSettings() {
           <p className="caption">{ratesValid ? m.indicativeCostHint : m.ratesInvalid}</p>
         </section>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       <div className="admin-settings-save">
         <Button variant="primary" onPress={save} isDisabled={busy || !changed || !ratesValid}>{busy ? m.saving : m.save}</Button>
         <p className="caption">

@@ -7,7 +7,10 @@
  * pass on; it works until its first use, when Keycloak asks for the person's own (no expiry kept beside Keycloak). Switching off someone who manages cases hands each case over inside the dialog first. There is
  * always one administrator: the menu item is disabled with the reason under it, and the gateway refuses too.
  */
-import { AlertCircle, AlertTriangle, Copy, Folder, LogOut, MoreHorizontal, Printer, RefreshCw, RectangleEllipsis, Shield, ShieldOff, Smartphone, Trash2, UserPlus, UserRoundCheck, UserRoundX } from "lucide-react";
+import {
+  CircleAlert, Copy, Ellipsis, Folder, LogOut, Printer, RectangleEllipsis, RefreshCw, Shield, ShieldOff, Smartphone,
+  Trash, TriangleAlert, UserPlus, UserRoundCheck, UserRoundX
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   accountDeletion, addAccount, deleteAccount, handOver, HttpError, listAccountEvents, listAccounts, listAdminCases, resetAccountPassword, resetAccountTwoStep,
@@ -76,14 +79,14 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
             ...(self ? { description: m.notForOwnAccount } : lastAdmin ? { description: m.onlyAdministrator } : {}) }
         : { id: "on", label: m.switchAccountOn, icon: <UserRoundCheck size={16} /> },
       // Deleting is a second step, once the account is off (Filip, 29 October).
-      { id: "delete", label: m.deleteAccount, icon: <Trash2 size={16} />, isDisabled: self || u.enabled,
+      { id: "delete", label: m.deleteAccount, icon: <Trash size={16} />, isDisabled: self || u.enabled,
         ...(self ? { description: m.notForOwnAccount } : u.enabled ? { description: m.switchOffFirst } : {}) },
     ];
   };
   const rowMenu = (u: Account) => (
     <ActionMenu aria-label={m.rowActions(u.name)} menuLabel={m.rowActions(u.name)} entries={menu(u)} placement="bottom end"
                 className="overview-row-menu" onAction={(id) => setConfirm({ kind: id as Confirm["kind"], user: u })}>
-      <MoreHorizontal size={16} aria-hidden />
+      <Ellipsis size={16} aria-hidden />
     </ActionMenu>
   );
   const face = (u: Account) => (
@@ -104,7 +107,7 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
   if (failed && !list) {
     return (
       <>
-        <Notice icon={<AlertCircle size={16} />} title={m.usersUnavailable}>{sentence(failed)}</Notice>
+        <Notice icon={<CircleAlert size={16} />} title={m.usersUnavailable}>{sentence(failed)}</Notice>
         <Button size="small" onPress={load}><RefreshCw size={14} aria-hidden /> {m.tryAgain}</Button>
       </>
     );
@@ -119,7 +122,7 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
         )}
         {list && (
           <span className="users-count">
-            {over && <AlertTriangle size={14} aria-hidden />}{m.usersCount(counted, list.agreement_users)}
+            {over && <TriangleAlert size={14} aria-hidden />}{m.usersCount(counted, list.agreement_users)}
           </span>
         )}
         <Button variant="primary" onPress={() => setAdding(true)} aria-label={narrow ? m.addUser : undefined}>
@@ -184,7 +187,7 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
 
 function eventText(e: AccountEvent, m: ReturnType<typeof useT>) {
   if (e.kind === "sign_in_failed") {
-    return <span className="status-warn"><AlertTriangle size={13} aria-hidden /> {m.signInFailed[e.reason ?? "other"]}</span>;
+    return <span className="status-warn"><TriangleAlert size={13} aria-hidden /> {m.signInFailed[e.reason ?? "other"]}</span>;
   }
   const what = m.accountEvent[e.kind];
   return e.by ? m.byWhom(what, e.by) : what;
@@ -229,9 +232,9 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
           {m.colAdministrator}<span className="ui-hint user-hint">{m.canOpenAdministration}</span>
         </Checkbox>
         {max !== null && counted + 1 > max
-          ? <Notice icon={<AlertTriangle size={16} />}>{m.overAgreement(counted + 1, max)}</Notice>
+          ? <Notice icon={<TriangleAlert size={16} />}>{m.overAgreement(counted + 1, max)}</Notice>
           : <p className="caption">{m.temporaryPasswordNote}</p>}
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -356,7 +359,7 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
           </tbody>
         </table>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
     </Dialog>
   );
 }

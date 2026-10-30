@@ -4,7 +4,10 @@
  * browsers, with "Set to this PC's time" when it is far off and no time server keeps it) ("Working" in teal with its check, or an ink cross and
  * since when); and an overview. Counts only, never what is asked or read. Read again every minute while open.
  */
-import { AlertCircle, AlertTriangle, Brain, Check, Clock, Database, DatabaseBackup, FileText, HardDrive, Lock, RefreshCw, XCircle } from "lucide-react";
+import {
+  Brain, Check, CircleAlert, CircleX, Clock, Database, DatabaseBackup, FileText, HardDrive, Lock, RefreshCw,
+  TriangleAlert
+} from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { applianceClockAnswer, getAdminStatus, getBackups, setApplianceClock, type AdminStatus as Status, type BackupStatus,
   type StatusCheck } from "../api";
@@ -60,7 +63,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
           <h2 id="needs-attention" className="label">{m.needsAttention}</h2>
           <ul className="admin-attention">
             <li>
-              <AlertTriangle size={16} aria-hidden />
+              <TriangleAlert size={16} aria-hidden />
               <span className="admin-attention-text"><b>{m.backupAttention[attention]}</b></span>
               <Button size="small" onPress={() => onOpen("backups")}>{m.backupAttentionOpen}</Button>
             </li>
@@ -72,7 +75,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
         <h2 id="is-it-working" className="label">{m.isEverythingWorking}</h2>
         {failed && !status ? (
           <>
-            <Notice icon={<AlertCircle size={16} />} title={m.statusUnavailable}>{m.tryingInAMinute}</Notice>
+            <Notice icon={<CircleAlert size={16} />} title={m.statusUnavailable}>{m.tryingInAMinute}</Notice>
             <Button size="small" onPress={load}><RefreshCw size={14} aria-hidden /> {m.tryAgain}</Button>
           </>
         ) : !status ? (
@@ -93,10 +96,10 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                     ? <span className="status-ok"><Check size={14} aria-hidden />{" "}
                         {c.id === "disk" ? m.statusEnough : c.id === "clock" ? m.statusOnTime : m.statusWorking}</span>
                     : <span className="status-warn">{c.id === "disk"
-                        ? <><AlertTriangle size={14} aria-hidden /> {m.statusAlmostFull}</>
+                        ? <><TriangleAlert size={14} aria-hidden /> {m.statusAlmostFull}</>
                         : c.id === "clock" && c.offset_ms != null
-                        ? <><AlertTriangle size={14} aria-hidden /> {offLabel(c.offset_ms, m)}</>
-                        : <><XCircle size={14} aria-hidden /> {m.notWorkingSince(clock(c.since ?? status.checked_at))}</>}</span>}
+                        ? <><TriangleAlert size={14} aria-hidden /> {offLabel(c.offset_ms, m)}</>
+                        : <><CircleX size={14} aria-hidden /> {m.notWorkingSince(clock(c.since ?? status.checked_at))}</>}</span>}
                 </li>
               ))}
             </ul>
@@ -168,7 +171,7 @@ function SetClock({ offset, onDone }: { offset: number; onDone: () => void }) {
         <Button size="small" onPress={() => { setOutcome(null); setOpen(true); }}><Clock size={14} aria-hidden /> {m.clockSet}</Button>
       </p>
       {outcome && <InlineNotice tone={outcome.ok ? "ok" : "error"} alert={!outcome.ok} status={outcome.ok}
-                                icon={outcome.ok ? <Check size={14} /> : <AlertCircle size={14} />}>{outcome.text}</InlineNotice>}
+                                icon={outcome.ok ? <Check size={14} /> : <CircleAlert size={14} />}>{outcome.text}</InlineNotice>}
       <Dialog isOpen={open} onClose={() => setOpen(false)} busy={busy} title={m.clockSetTitle} actions={<>
         <TextButton onPress={() => setOpen(false)} isDisabled={busy}>{m.cancel}</TextButton>
         <Button variant="primary" onPress={set} isDisabled={busy}>{busy ? m.clockSetting : m.clockSet}</Button>

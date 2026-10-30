@@ -5,7 +5,10 @@
  * "not sourced" notices that tell a reader what to check. A citation opens its passage in the source
  * panel beside the conversation (``SourcePanel``, docs/design/chat-ui.md §5, artboard 11).
  */
-import { AlertCircle, AlertTriangle, Brain, Calculator, Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, Files, FolderInput, Square, X } from "lucide-react";
+import {
+  Brain, Calculator, Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, FileSpreadsheet, FileText, Files,
+  FolderInput, Square, TriangleAlert, X
+} from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, MenuButton, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
@@ -199,7 +202,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose 
           </blockquote>
           {verdict && (
             <p className="source-panel-verdict" data-ok={verdict.ok || undefined}>
-              {verdict.ok ? <Check size={14} aria-hidden /> : <AlertTriangle size={14} aria-hidden />}
+              {verdict.ok ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
               <span>{verdict.text}</span>
             </p>
           )}
@@ -315,7 +318,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             ? <AnswerTable key={i} table={b} render={render} done={false} exported={exported} />
             : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
           <p className="answer-failed">
-            <AlertCircle size={14} aria-hidden />
+            <CircleAlert size={14} aria-hidden />
             <span>{turn.cutOff ? m.answerCutOff : m.answerFailed(turn.error ?? "")}</span>
             {onRegenerate && <Button size="small" onPress={onRegenerate} title={m.regenerateWhat}>{m.regenerate}</Button>}
           </p>
@@ -336,7 +339,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {settled && basis.length > 0 && (
           <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
         )}
-        {settled && turn.partial && <InlineNotice icon={<AlertCircle size={14} />}>{m.partialRead}</InlineNotice>}
+        {settled && turn.partial && <InlineNotice icon={<CircleAlert size={14} />}>{m.partialRead}</InlineNotice>}
         {blocks.map((b, i) => (b.kind === "table"
           ? <AnswerTable key={i} table={b} render={render} done={turn.status === "done"} exported={exported} />
           : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
@@ -348,7 +351,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
         {issues.length > 0 && <CitationIssuesNote issues={issues} />}
         {turn.status === "done" && (turn.instructionLikeSources?.length ?? 0) > 0 && (
-          <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.instructionLike(turn.instructionLikeSources!)}</InlineNotice>
+          <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.instructionLike(turn.instructionLikeSources!)}</InlineNotice>
         )}
 
         {turn.status === "stopped" && (
@@ -392,12 +395,12 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
 
         {/* stopped at the length limit: say so, and what to do (Pod check of a318b65) */}
         {turn.status === "done" && turn.truncated && (
-          <InlineNotice icon={<AlertTriangle size={14} />} tone="error">
+          <InlineNotice icon={<TriangleAlert size={14} />} tone="error">
             {turn.text.trim() ? m.answerTruncated : m.thoughtTooLong}
           </InlineNotice>
         )}
         {turn.status === "done" && cited.length === 0 && turn.text.trim() !== "" && (
-          <InlineNotice icon={<AlertCircle size={14} />}>{turn.grounded ? m.noSourceCited : m.notGrounded}</InlineNotice>
+          <InlineNotice icon={<CircleAlert size={14} />}>{turn.grounded ? m.noSourceCited : m.notGrounded}</InlineNotice>
         )}
       </div>
     </div>
@@ -411,7 +414,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
 function UnverifiedNote({ figures }: { figures: string[] }) {
   const m = useT();
   return (
-    <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.unverified(figures)}</InlineNotice>
+    <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.unverified(figures)}</InlineNotice>
   );
 }
 
@@ -532,7 +535,7 @@ function CitationIssuesNote({ issues }: { issues: CitationIssue[] }) {
   const m = useT();
   const lines = [...new Set(issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))];
   return (
-    <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{lines.join(" ")}</InlineNotice>
+    <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{lines.join(" ")}</InlineNotice>
   );
 }
 
@@ -544,12 +547,12 @@ function CalculationNote({ calc }: { calc: Calculation }) {
   const m = useT();
   if (calc.result === null) {
     return (
-      <InlineNotice icon={<AlertCircle size={14} />} tone="error">{m.calcFailed(calc.expression, calc.error ?? "")}</InlineNotice>
+      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed(calc.expression, calc.error ?? "")}</InlineNotice>
     );
   }
   const missing = calc.figures_not_in_sources;
   return (
-    <InlineNotice icon={missing.length ? <AlertCircle size={14} /> : <Calculator size={14} />} tone={missing.length ? "error" : "note"}>
+    <InlineNotice icon={missing.length ? <CircleAlert size={14} /> : <Calculator size={14} />} tone={missing.length ? "error" : "note"}>
       {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.
       {missing.length > 0 ? m.calcMissing(missing) : m.calcAllSourced}
     </InlineNotice>
