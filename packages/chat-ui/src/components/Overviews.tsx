@@ -88,8 +88,9 @@ const chip = (label: string, options: Option[]) => options.map((o) => ({ ...o, l
 /** A member's face, the manager with the folder badge (docs/design/chat-ui.md §4). */
 function Face({ member, size = "small" }: { member: Pick<Member, "user" | "name" | "username" | "avatar" | "admin" | "role">; size?: "small" }) {
   const m = useT();
-  const face = <Avatar name={member.name || member.username} sub={member.user} etag={member.avatar} admin={member.admin} adminLabel={m.administrator} size={size} />;
-  return member.role === "manager" ? <IconBadge badge={<Folder />} tone="neutral">{face}</IconBadge> : face;
+  const face = <Avatar name={member.name || member.username} sub={member.user} etag={member.avatar} admin={member.admin} adminLabel={m.administrator}
+    size={size} shield={member.role !== "manager"} />;
+  return member.role === "manager" ? <IconBadge badge={<Folder />} host={size} tone="role">{face}</IconBadge> : face;
 }
 
 // ================================================================== Cases (artboard 06)
@@ -270,12 +271,12 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
         const o = owner(c);
         // A colleague the case's member list doesn't name (not loaded, or no longer a member): their own
         // initials from the name the conversation carries, never the viewer's (Pod check of 5e9a539).
-        const face = o ? <Avatar name={o.name || o.username} sub={o.user} etag={o.avatar} admin={o.admin} adminLabel={m.administrator} size="small" />
-          : mine(c) ? <Avatar name={me.name || me.username} sub={me.sub ?? ""} etag={me.avatar} admin={me.admin} adminLabel={m.administrator} size="small" />
+        const face = o ? <Avatar name={o.name || o.username} sub={o.user} etag={o.avatar} admin={o.admin} adminLabel={m.administrator} size="small" shield={!c.shared} />
+          : mine(c) ? <Avatar name={me.name || me.username} sub={me.sub ?? ""} etag={me.avatar} admin={me.admin} adminLabel={m.administrator} size="small" shield={!c.shared} />
           : <Avatar name={c.owner_name || "?"} sub={c.owner ?? ""} size="small" />;
         return (
           <span className="overview-faces">
-            {c.shared ? <IconBadge badge={<MessageSquare />} tone="neutral">{face}</IconBadge> : face}
+            {c.shared ? <IconBadge badge={<MessageSquare />} host="small" tone="role">{face}</IconBadge> : face}
             <span>{mine(c) ? m.fromYou : c.owner_name || o?.name || ""}</span>
           </span>
         );

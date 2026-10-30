@@ -237,11 +237,12 @@ export function CaseFaces({ members }: { members: Member[] }) {
   const manager = members.find((x) => x.role === "manager");
   const others = members.filter((x) => x !== manager);
   const face = (x: Member) => (
-    <Avatar key={x.user} name={x.name || x.username} sub={x.user} etag={x.avatar} admin={x.admin} adminLabel={m.administrator} size="small" />
+    <Avatar key={x.user} name={x.name || x.username} sub={x.user} etag={x.avatar} admin={x.admin} adminLabel={m.administrator} size="small"
+            shield={x !== manager} />
   );
   return (
     <span className="case-faces" aria-hidden>
-      {manager && <IconBadge badge={<Folder />} tone="neutral">{face(manager)}</IconBadge>}
+      {manager && <IconBadge badge={<Folder />} host="small" tone="role">{face(manager)}</IconBadge>}
       {others.length > 0 && (
         <span className="case-faces-stack">
           {others.slice(0, 3).map(face)}
