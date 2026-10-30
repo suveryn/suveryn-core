@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from suveryn_playbooks import Playbook
@@ -53,6 +54,7 @@ class RunFact(BaseModel):
     issues: list[str] = Field(default_factory=list)   # figures, dates or names not in the cited passages
     found: bool = True                   # False: the model said the documents don't contain it
     confirmed: str | None = None         # what the person confirmed (a correction, the value, or "")
+    source: Literal["document", "person", "none"] = "document"   # where ``value`` came from: the documents, a person's answer, nowhere
 
 
 _ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
@@ -108,7 +110,8 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
         cited = [_cite(n, citations[n - 1], filenames) for n in numbers if 0 < n <= len(citations)]
         # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
         facts.append(RunFact(id=f.id, value=value[:MAX_VALUE] if found else "", citations=cited if found else [],
-                             issues=list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else [], found=found))
+                             issues=list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else [], found=found,
+                             source="document" if found else "none"))
     return facts
 
 

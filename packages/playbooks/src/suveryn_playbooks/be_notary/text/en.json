@@ -16,6 +16,10 @@
       "epc": "Energy certificate",
       "soil": "Soil certificate",
       "occupancy": "Occupancy at delivery"
+    },
+    "questions": {
+      "agreement": "Upload the signed sale agreement and what the parties sent (the earlier deed, the certificates). Then continue.",
+      "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet."
     }
   }
 }

@@ -274,7 +274,13 @@ A conversation in a case has:
 
 The playbook chip opens a menu of the playbooks that fit the case type
 (`GET /v1/cases/{id}/playbooks`). Each item shows the name, one line, the version, and its coverage
-from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blocking).
+from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blocking). A playbook at
+work in the case shows as one line under the case header and in the case overview's status column
+("Deed intake · waiting for documents", `GET /v1/playbooks/runs/active`), which opens the run's
+view: a banner, the thread, the composer for the step the run waits on, the facts beside it, and
+pause, stop and cancel in a menu ([playbooks.md](playbooks.md), "The chat UI"). The run's thread is
+rows in the `turns` table, not a saved conversation; moving ordinary chat onto that table, with the
+conversion of the saved blobs, is a later, separate step.
 
 **Model and thinking mode.** The model chip opens one small dialog:
 

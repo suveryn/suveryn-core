@@ -34,14 +34,138 @@
       ],
       "title": "FactSpec",
       "type": "object"
+    },
+    "StepSpec": {
+      "additionalProperties": false,
+      "description": "One step as written (format 2). Which fields apply depends on ``kind``; the others are refused.",
+      "properties": {
+        "id": {
+          "description": "Stable within the playbook; the run records progress by it",
+          "pattern": "^[a-z][a-z0-9_-]{0,49}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "request",
+            "read",
+            "ask",
+            "checkpoint",
+            "produce"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "needs": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Steps done before this one; default: the previous step",
+          "title": "Needs"
+        },
+        "facts": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "const": "all",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "read, ask: which facts; \"all\" for every fact",
+          "title": "Facts"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "request: uploaded documents needed (default 1)",
+          "title": "Min"
+        },
+        "allow_none": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "request: a person may answer that there is no such document",
+          "title": "Allow None"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "anyone_in_case",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "checkpoint: who may pass it",
+          "title": "By"
+        },
+        "template": {
+          "anyOf": [
+            {
+              "const": "summary",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "produce: the product (only the summary today)",
+          "title": "Template"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "StepSpec",
+      "type": "object"
     }
   },
   "additionalProperties": false,
-  "description": "A playbook as a file: identity, case types, facts and instructions (manifest format 1).",
+  "description": "A playbook as a file: identity, case types, facts, instructions and, in format 2, the routine's steps.",
   "properties": {
     "manifest": {
-      "const": 1,
-      "description": "The manifest format's version; this file describes format 1",
+      "description": "The manifest format's version: 1 (facts and instructions) or 2 (with steps)",
+      "enum": [
+        1,
+        2
+      ],
       "title": "Manifest",
       "type": "integer"
     },
@@ -94,6 +218,24 @@
       "minLength": 1,
       "title": "Instructions",
       "type": "string"
+    },
+    "steps": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/StepSpec"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Format 2: the routine",
+      "title": "Steps"
     }
   },
   "required": [
@@ -109,5 +251,5 @@
   "title": "Sūveryn playbook manifest",
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://suveryn.com/schema/playbook-manifest-1.json"
+  "$id": "https://suveryn.com/schema/playbook-manifest.json"
 }

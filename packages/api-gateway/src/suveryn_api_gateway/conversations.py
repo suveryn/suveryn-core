@@ -29,15 +29,27 @@ The answers themselves stay, and still state facts from the document, so the UI 
 those conversations together with the document (``using_document``). A save from a tab that still
 holds the passages is cleaned the same way before it is stored (``redact``), so they can't come back.
 
+**Turns, one row each** (``turns``, ``TurnStore``; docs/design/playbooks.md, "The thread"). A saved
+conversation is one blob the browser writes whole, which is right for one person's own chat and
+wrong for a thread several people write in: the last save wins and the others' lines are gone, and
+a blob says neither who wrote a line nor when. Playbook runs (suveryn-tracker#51) need exactly that
+thread, so their turns are rows: appended by the server, one per turn, stamped with who and when,
+never rewritten. The table is written for conversations in general (``conversation_id`` or
+``run_id``), so that ordinary chat can move onto it in a later, separate step; until then only runs
+use it, and the blob above stays as it is.
+
 Review notes:
 - Deletion makes rows unreachable, not unrecoverable, as for documents (docs/architecture.md §6).
 - PostgreSQL itself is provisioned outside suveryn-core (suveryn-appliance), as for documents.
+- A turn's text is document-grade data like the blob's: stored, never logged.
 """
 
 import json
 import logging
 import os
 import uuid
+
+import psycopg
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
@@ -53,6 +65,25 @@ log = logging.getLogger("suveryn.gateway")
 MAX_BODY_BYTES = 2 * 1024 * 1024  # one saved conversation, as JSON
 MAX_TURNS = 500
 MAX_TITLE = 200
+MAX_TURN_TEXT = 200_000  # one turn's text (``SavedTurn.text`` has the same bound)
+
+TURNS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS turns (
+    id               bigserial PRIMARY KEY,
+    conversation_id  uuid,
+    run_id           uuid,
+    seq              integer NOT NULL,
+    role             text NOT NULL CHECK (role IN ('user', 'assistant', 'playbook')),
+    step_id          text,
+    "by"             text NOT NULL,
+    at               timestamptz NOT NULL DEFAULT now(),
+    text             text NOT NULL,
+    meta             jsonb NOT NULL DEFAULT '{}'::jsonb,
+    CHECK ((conversation_id IS NULL) <> (run_id IS NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS turns_run_seq ON turns (run_id, seq) WHERE run_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS turns_conversation_seq ON turns (conversation_id, seq) WHERE conversation_id IS NOT NULL;
+"""
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
@@ -211,6 +242,53 @@ def redact(turns: list[dict], gone: Callable[[str], bool]) -> bool:
         ref["removed"] = True
         changed = True
     return changed
+
+
+class Turn(BaseModel):
+    """One line of a thread, as ``turns`` holds it."""
+
+    seq: int
+    role: Literal["user", "assistant", "playbook"]
+    step_id: str | None = None
+    by: str                       # the username, or the playbook id for its own turns
+    at: datetime
+    text: str
+    meta: dict = Field(default_factory=dict)
+
+
+class TurnStore(PgStore):
+    """The ``turns`` table: appended, never rewritten. Runs use it today (``RunStore`` inherits it
+    so one connection serves a run and its thread); conversations move onto it later."""
+
+    schema = TURNS_SCHEMA
+
+    def append(self, run_id: uuid.UUID, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None) -> Turn:
+        """Add a turn at the end of a run's thread. Two writers at once can pick the same ``seq``;
+        the unique index refuses the second, which tries again with the next number."""
+        text = text[:MAX_TURN_TEXT]
+        for _ in range(5):
+            seq = self._execute("SELECT coalesce(max(seq), 0) + 1 FROM turns WHERE run_id = %s", (run_id,)).fetchone()[0]
+            try:
+                r = self._execute("INSERT INTO turns (run_id, seq, role, step_id, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                                  " RETURNING seq, role, step_id, \"by\", at, text, meta",
+                                  (run_id, seq, role, step_id, by, text, json.dumps(meta or {}))).fetchone()
+            except psycopg.errors.UniqueViolation:
+                continue
+            return Turn(seq=r[0], role=r[1], step_id=r[2], by=r[3], at=r[4], text=r[5], meta=r[6])
+        raise RuntimeError("could not append a turn: the thread kept moving")
+
+    def for_run(self, run_id: uuid.UUID, limit: int = MAX_TURNS) -> list[Turn]:
+        rows = self._execute("SELECT seq, role, step_id, \"by\", at, text, meta FROM turns WHERE run_id = %s ORDER BY seq LIMIT %s",
+                             (run_id, limit)).fetchall()
+        return [Turn(seq=r[0], role=r[1], step_id=r[2], by=r[3], at=r[4], text=r[5], meta=r[6]) for r in rows]
+
+    def count_for_run(self, run_id: uuid.UUID) -> int:
+        return self._execute("SELECT count(*) FROM turns WHERE run_id = %s", (run_id,)).fetchone()[0]
+
+    def delete_for_runs(self, run_ids: list[uuid.UUID]) -> int:
+        if not run_ids:
+            return 0
+        return self._execute("DELETE FROM turns WHERE run_id = ANY(%s)", (run_ids,)).rowcount
 
 
 class ConversationStore(PgStore):
