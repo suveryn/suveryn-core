@@ -39,6 +39,16 @@ class FakeAdminApi:
         self.events: list[dict] = []
         self.admin_events: list[dict] = []  # newest first, as Keycloak answers
         self.callers: list[str] = []  # whose token each call carried
+        # The realm's browser flow as Keycloak 26.8 makes it (the steps around two-step sign-in)
+        self.browser = [
+            {"id": "e-cookie", "level": 0, "index": 0, "displayName": "Cookie", "providerId": "auth-cookie", "requirement": "ALTERNATIVE"},
+            {"id": "e-forms", "level": 0, "index": 4, "displayName": "forms", "authenticationFlow": True, "requirement": "ALTERNATIVE"},
+            {"id": "e-pw", "level": 1, "index": 0, "displayName": "Username Password Form", "providerId": "auth-username-password-form", "requirement": "REQUIRED"},
+            {"id": "e-2fa", "level": 1, "index": 1, "displayName": "Browser - Conditional 2FA", "authenticationFlow": True, "requirement": "CONDITIONAL"},
+            {"id": "e-cond", "level": 2, "index": 0, "displayName": "Condition - user configured", "providerId": "conditional-user-configured", "requirement": "REQUIRED"},
+            {"id": "e-otp", "level": 2, "index": 2, "displayName": "OTP Form", "providerId": "auth-otp-form", "requirement": "ALTERNATIVE"},
+        ]
+        self.manage_realm = True  # suveryn-admin's composite for the browser flow (Filip, 30 October)
 
     def person(self, sub: str, name: str, email: str, admin: bool = False, enabled: bool = True) -> None:
         first, _, last = name.partition(" ")
@@ -77,6 +87,16 @@ class FakeAdminApi:
                                      "resourcePath": path.lstrip("/"), "authDetails": {"userId": by, "ipAddress": "10.0.0.9"}})
 
     def _answer(self, path: str, method: str, body) -> httpx.Response:
+        if path == "" and method == "GET":
+            return httpx.Response(200, json={"realm": "suveryn", "browserFlow": "browser"})
+        if path == "/authentication/flows/browser/executions":
+            if method == "GET":
+                return httpx.Response(200, json=self.browser)
+            if not self.manage_realm:
+                return httpx.Response(403, json={"error": "unknown_error"})  # view-realm reads, only manage-realm changes
+            step = next(e for e in self.browser if e["id"] == body["id"])
+            step["requirement"] = body["requirement"]
+            return httpx.Response(202)
         if path == "/users" and method == "GET":
             return httpx.Response(200, json=list(self.users.values()))
         if path == "/users" and method == "POST":
@@ -154,7 +174,15 @@ class FakeCases:
         return []
 
     def overrides(self):
-        return {}
+        return dict(self.__dict__.get("settings", {}))
+
+    # what Administration › Settings asks (the office's two-step setting)
+    def set_overrides(self, changes, by, **kw):
+        self.__dict__.setdefault("settings", {}).update(changes)
+        return self.overrides()
+
+    def overrides_meta(self):
+        return None
 
 
 ALICE, BOB, CAROL = "user-a", "user-b", "user-c"
@@ -221,7 +249,7 @@ def test_adding_someone_gives_a_temporary_password_once_and_keeps_it_nowhere(set
     sub = body["user"]["sub"]
     assert body["user"]["name"] == "Jonas Claes" and body["user"]["username"] == "jonas.c@office.test"
     assert api.passwords[sub] == (body["password"], True)  # temporary: chosen again at first sign-in
-    assert set(api.users[sub]["requiredActions"]) == {"UPDATE_PASSWORD", "CONFIGURE_TOTP"}
+    assert api.users[sub]["requiredActions"] == ["UPDATE_PASSWORD"]  # two-step only when the office requires it
     assert sub in api.admins
     assert "valid_until" not in body  # Keycloak is the password manager: no expiry kept beside it (Filip, 28 October)
     assert set(api.callers) == {ALICE}  # every call as the administrator, with her own token
@@ -269,7 +297,8 @@ def test_password_two_step_and_sign_out(setup):
     assert api.passwords[CAROL] == (r["password"], True) and r["address"]
     api.credentials[CAROL] = [{"id": "c1", "type": "password"}, {"id": "c2", "type": "otp"}]
     assert c.post(f"/v1/admin/users/{CAROL}/two-step", headers=admin).status_code == 204
-    assert [x["type"] for x in api.credentials[CAROL]] == ["password"] and "CONFIGURE_TOTP" in api.users[CAROL]["requiredActions"]
+    # the app removed; not asked again while the office doesn't require two-step
+    assert [x["type"] for x in api.credentials[CAROL]] == ["password"] and "CONFIGURE_TOTP" not in api.users[CAROL]["requiredActions"]
     assert c.post(f"/v1/admin/users/{CAROL}/sign-out", headers=admin).status_code == 204 and api.logged_out == [CAROL]
     assert c.post("/v1/admin/users/no-such-user/sign-out", headers=admin).status_code == 404
     kinds = [e["kind"] for e in c.get("/v1/admin/users/events", headers=admin).json()]
@@ -532,3 +561,48 @@ def test_a_deletion_stopped_partway_says_so_and_finishes_when_done_again(stores,
     assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 204
     assert BOB not in api.users and BOB not in docs.personal and BOB not in history.own and BOB not in avatars.pictures
     assert cases.departed == {BOB: "Bob Peeters"}
+
+
+
+def test_two_step_sign_in_is_the_offices_choice_off_by_default(setup):
+    """Filip, 29 October: two-step sign-in isn't forced; an administrator turns it on for the whole office in
+    Settings. Off (the default): a new account isn't asked, and a reset removes the app without asking again.
+    On: everyone without an app is asked at the next sign-in, new accounts too, and a reset asks again. Off again:
+    nobody is asked any more; an app set up stays."""
+    c, kc, api, cases = setup
+    admin = as_user(kc, ALICE, admin=True)
+    assert c.get("/v1/admin/cases/settings", headers=admin).json()["two_step"] is False
+    api.credentials[BOB] = [{"id": "otp-1", "type": "otp"}]  # Bob set an app up himself
+    r = c.put("/v1/admin/cases/settings", json={"two_step": True}, headers=admin)
+    assert r.status_code == 200 and r.json()["two_step"] is True
+    assert "CONFIGURE_TOTP" in api.users[CAROL]["requiredActions"] and "CONFIGURE_TOTP" in api.users[ALICE]["requiredActions"]
+    assert "CONFIGURE_TOTP" not in api.users[BOB]["requiredActions"]  # has one already
+    new = c.post("/v1/admin/users", json={"name": "Dirk Daems", "email": "dirk@office.test", "admin": False}, headers=admin).json()
+    assert set(api.users[new["user"]["sub"]]["requiredActions"]) == {"UPDATE_PASSWORD", "CONFIGURE_TOTP"}
+    assert c.post(f"/v1/admin/users/{BOB}/two-step", headers=admin).status_code == 204
+    assert "CONFIGURE_TOTP" in api.users[BOB]["requiredActions"]  # a reset asks again while it is required
+    r = c.put("/v1/admin/cases/settings", json={"two_step": False}, headers=admin)
+    assert r.json()["two_step"] is False
+    assert not any("CONFIGURE_TOTP" in u.get("requiredActions", []) for u in api.users.values())
+    assert c.put("/v1/admin/cases/settings", json={"two_step": True}, headers=as_user(kc, CAROL)).status_code == 403
+
+
+def test_two_step_for_everyone_is_asked_at_every_sign_in(setup):
+    """Filip, 30 October: on, Keycloak asks for the code at every sign-in, so removing one's own app on the account
+    page doesn't get round it: the browser flow's two-step sub-flow and OTP form are required. Off: as Keycloak
+    makes them. Without manage-realm Keycloak refuses the flow, and then nothing changes: no account, no setting."""
+    c, kc, api, cases = setup
+    admin = as_user(kc, ALICE, admin=True)
+    steps = lambda: {e["id"]: e["requirement"] for e in api.browser if e["id"] in ("e-2fa", "e-otp")}
+    assert steps() == {"e-2fa": "CONDITIONAL", "e-otp": "ALTERNATIVE"}
+    assert c.put("/v1/admin/cases/settings", json={"two_step": True}, headers=admin).status_code == 200
+    assert steps() == {"e-2fa": "REQUIRED", "e-otp": "REQUIRED"}
+    assert {e["requirement"] for e in api.browser if e["id"] not in ("e-2fa", "e-otp")} == {"ALTERNATIVE", "REQUIRED"}  # the rest untouched
+    assert c.put("/v1/admin/cases/settings", json={"two_step": False}, headers=admin).status_code == 200
+    assert steps() == {"e-2fa": "CONDITIONAL", "e-otp": "ALTERNATIVE"}
+    api.manage_realm = False  # a realm whose suveryn-admin role lacks it
+    r = c.put("/v1/admin/cases/settings", json={"two_step": True}, headers=admin)
+    assert r.status_code == 503
+    assert steps() == {"e-2fa": "CONDITIONAL", "e-otp": "ALTERNATIVE"}
+    assert not any("CONFIGURE_TOTP" in u.get("requiredActions", []) for u in api.users.values())
+    assert c.get("/v1/admin/cases/settings", headers=admin).json()["two_step"] is False

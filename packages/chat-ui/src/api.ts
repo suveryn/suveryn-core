@@ -347,7 +347,13 @@ export async function streamChat(
     else if (event === "thinking") thinking?.onText(payload.text);
     else if (event === "delta") onDelta(payload.text);
     else if (event === "done") done = payload as ChatResponse;
-    else if (event === "error") failure = payload.message ?? "unknown error";
+    else if (event === "error") {
+      // The page's own words for what failed; the server's English detail only for a code it doesn't know.
+      const m = t();
+      const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments,
+                                               document: m.streamErrorDocument, server: m.streamErrorServer };
+      failure = known[payload.code as string] ?? payload.message ?? m.streamErrorServer;
+    }
   });
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
   for (;;) {
@@ -623,7 +629,9 @@ export async function listDueCases(): Promise<Case[]> {
 /** The administrator's pages (stage 4): every case with its manager, and the office's two case settings. */
 export type AdminCase = Case & { manager_username: string; manager_name: string; members: number };
 // conversations_keep: how long saved conversations are kept after their last change, in cases too (the data lifecycle, suveryn-tracker#31)
-export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; conversations_keep: KeepPeriod; updated_at: string | null; updated_by: string };
+// two_step: every account must set up two-step sign-in (off by default; Filip, 29 October 2026)
+export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; conversations_keep: KeepPeriod; two_step: boolean;
+  updated_at: string | null; updated_by: string };
 
 export async function listAdminCases(): Promise<AdminCase[]> {
   const r = await fetch("/v1/admin/cases");
@@ -648,7 +656,7 @@ export async function previewCaseSettings(q: { default_access?: "office" | "memb
 }
 
 /** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
-export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep">> & { apply_to?: "new" | "all" }): Promise<CaseSettings> {
+export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep" | "two_step">> & { apply_to?: "new" | "all" }): Promise<CaseSettings> {
   const r = await fetch("/v1/admin/cases/settings", {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
   });

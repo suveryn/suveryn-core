@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from ..accounts import Account, AccountEvent, AccountRefused, Accounts, AccountsUnavailable, RightsRefused
 from ..auth import AuthError, AuthUnavailable
-from .common import Scope, admin_or_403, cases_or_503, docs_or_503, history_or_503, owner_of
+from .common import Scope, admin_or_403, case_settings, cases_or_503, docs_or_503, history_or_503, owner_of
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
@@ -121,9 +121,9 @@ async def users(request: Request):
              responses={403: {"description": "Not an administrator"}, 409: {"description": "The e-mail address has an account"}})
 async def add_user(body: NewUser, request: Request):
     """A new account, with a temporary password to pass on (shown once). The person signs in with the e-mail
-    address, then chooses a password and sets up two-step sign-in."""
+    address, then chooses a password, and sets up two-step sign-in when the office requires it (Settings)."""
     accounts, token = await as_admin(request)
-    user, password = await _do(accounts.add(token, body.name, body.email, body.admin))
+    user, password = await _do(accounts.add(token, body.name, body.email, body.admin, two_step=case_settings(request).two_step))
     return _temporary(request, user, password)
 
 
@@ -152,9 +152,10 @@ async def reset_password(sub: str, request: Request):
 
 @router.post("/v1/admin/users/{sub}/two-step", status_code=204, responses={403: {"description": "Not an administrator"}})
 async def reset_two_step(sub: str, request: Request):
-    """The person sets up two-step sign-in again at the next sign-in."""
+    """The authenticator app removed (a lost phone): the person sets it up again at the next sign-in when the office
+    requires two-step sign-in, and may otherwise."""
     accounts, token = await as_admin(request)
-    await _do(accounts.reset_two_step(token, sub))
+    await _do(accounts.reset_two_step(token, sub, require=case_settings(request).two_step))
 
 
 @router.post("/v1/admin/users/{sub}/sign-out", status_code=204, responses={403: {"description": "Not an administrator"}})

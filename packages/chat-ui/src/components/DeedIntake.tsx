@@ -25,8 +25,10 @@ import { SourceCard } from "./Messages";
 const POLL_MS = 1500;
 
 
-export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChanged }: {
+export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChanged, nameOf = (u) => u }: {
   kase: Case; canRun: boolean; documents: number; onBack: () => void; onDocumentsChanged: () => void;
+  /** A username as the case knows the person: the run records the username (VM regression, finding 13). */
+  nameOf?: (username: string) => string;
 }) {
   const m = useT();
   const language = useLang();
@@ -94,7 +96,7 @@ export function PlaybookView({ kase, canRun, documents, onBack, onDocumentsChang
         </div>
       )}
       {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
-      {current && <RunPanel key={current.id} run={current} kase={kase} canRun={canRun && kase.state === "open"} onConfirmed={confirmed}
+      {current && <RunPanel key={current.id} run={current} kase={kase} nameOf={nameOf} canRun={canRun && kase.state === "open"} onConfirmed={confirmed}
                             words={playbookWords(playbooks?.find((p) => p.id === current.playbook_id) ?? deedIntake, language)} />}
       {runs.length > 1 && (
         <section className="playbook-runs" aria-labelledby="earlier-runs">
@@ -127,8 +129,8 @@ function errorLabel(error: string | null, m: ReturnType<typeof useT>): string {
   return known[error ?? ""] ?? m.runErrorServer;
 }
 
-function RunPanel({ run, kase, canRun, words, onConfirmed }: {
-  run: Run; kase: Case; canRun: boolean; onConfirmed: (run: Run) => void;
+function RunPanel({ run, kase, canRun, words, onConfirmed, nameOf }: {
+  run: Run; kase: Case; canRun: boolean; onConfirmed: (run: Run) => void; nameOf: (username: string) => string;
   /** The run's playbook's words in the interface language (its title and fact labels). */
   words: PlaybookWords;
 }) {
@@ -150,7 +152,7 @@ function RunPanel({ run, kase, canRun, words, onConfirmed }: {
   const word = async () => {
     const blob = await intakeToWord({
       title: `${words.title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
-      confirmedOn: m.confirmedBy(run.confirmed_by ?? "", new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })),
+      confirmedOn: m.confirmedBy(run.confirmed_by ? nameOf(run.confirmed_by) : "", new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })),
       facts: run.facts.map((f) => ({ label: words.labels[f.id] ?? f.id, value: f.confirmed ?? f.value,
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
@@ -167,7 +169,7 @@ function RunPanel({ run, kase, canRun, words, onConfirmed }: {
       <div className="playbook-run-head">
         <span className="label" data-status={run.status}>{statusLabel(run.status, m)}</span>
         <span className="caption">
-          {m.runStartedBy(run.started_by, dayLabel(run.started_at))}
+          {m.runStartedBy(nameOf(run.started_by), dayLabel(run.started_at))}
           {run.model ? ` · ${run.model}` : ""}
         </span>
       </div>

@@ -346,11 +346,12 @@ def test_dev_realm_allows_only_local_accounts_and_the_safe_flow():
     from suveryn_api_gateway.app import ADMIN_ROLE
     assert [r["name"] for r in realm["roles"]["realm"]] == [ADMIN_ROLE]
     # Administration › Users (admin.md): an administrator manages the office's accounts with their own sign-in,
-    # so the role carries the user rights and the sign-in events, nothing on the realm's settings or clients.
+    # so the role carries the user rights and the sign-in events, and manage-realm for the office's two-step
+    # setting, which changes the realm's browser flow (Filip, 30 October). Nothing on the clients.
     # Mapped to the chat client's scope with the role itself, so they reach its token (checked with Keycloak 26.8).
     [admin_role] = realm["roles"]["realm"]
     assert admin_role["composite"] and admin_role["composites"] == {
-        "client": {"realm-management": ["manage-users", "view-users", "view-realm", "view-events"]}}
+        "client": {"realm-management": ["manage-users", "view-users", "view-realm", "view-events", "manage-realm"]}}
     assert chat["fullScopeAllowed"] is False
     assert realm["scopeMappings"] == [{"client": "suveryn-chat", "roles": [ADMIN_ROLE]}]
     # Users' last sign-in and Sign-ins and changes read Keycloak's events: on in development as in the appliance's

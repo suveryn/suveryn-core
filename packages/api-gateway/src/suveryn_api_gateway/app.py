@@ -121,6 +121,7 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 # With sign-in off, only these clients may use /v1: this machine ("testclient" is Starlette's test client).
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "testclient"}
 SWEEP_INTERVAL_S = 3600  # how often closed cases past their keep period are deleted
+SWEEP_RETRY_S = 120  # sooner when a case couldn't be deleted for a store not yet reachable (a restart: VM regression, finding 4)
 STALE_RUN_S = 30 * 60    # a playbook run reading this long has lost its model call
 
 
@@ -258,6 +259,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             (audit of 21 October 2026, findings 4 and 10); and finish the cleaning of conversations a
             document's deletion left unfinished (finding 3)."""
             while True:
+                waiting = False  # a due case left for a store not reachable yet: look again soon, not in an hour
                 try:
                     store = app.state.cases.get() if app.state.cases.configured else None
                     if store is not None:
@@ -267,6 +269,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                                 if await delete_case_everywhere(app, cid):
                                     log.info("case %s deleted: its keep period passed", cid)
                             except CleanupUnavailable:
+                                waiting = True
                                 log.warning("case %s not deleted yet: a store it is in can't be reached", cid)
                     runs_store = app.state.runs.get() if app.state.runs.configured else None
                     if runs_store is not None:
@@ -285,7 +288,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                         await run_in_threadpool(usage_store.purge)
                 except Exception as e:  # noqa: BLE001 - the sweep must outlive any one failure
                     log.error("sweep: %s", type(e).__name__)
-                await asyncio.sleep(SWEEP_INTERVAL_S)
+                await asyncio.sleep(SWEEP_RETRY_S if waiting else SWEEP_INTERVAL_S)
 
         app.state.sweep = (asyncio.create_task(sweep_due_cases())
                            if app.state.cases.configured or app.state.history.configured or app.state.usage.configured else None)
@@ -362,6 +365,11 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             return JSONResponse({"detail": "Sign in to continue."}, status_code=401,
                                 headers={"WWW-Authenticate": 'Bearer realm="suveryn"'})
         request.state.user = user
+        if request.url.path.startswith("/v1/admin/") and ADMIN_ROLE not in user.roles:
+            # Administration, refused before anything reads the request's body: a malformed body from someone
+            # who isn't an administrator got 422, not 403 (VM regression of 29 October, finding 11). Each route
+            # still checks for itself.
+            return JSONResponse({"detail": "Only administrators can see this."}, status_code=403)
         limiter = per_user_limits.get((request.method, _limit_path(request.url.path)))
         if limiter is not None and (wait := limiter.hit(user.sub)) is not None:
             return _too_many(wait)

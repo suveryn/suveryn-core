@@ -30,6 +30,7 @@ from ..cases import (
     shielded,
 )
 from ..directory import DirectoryUnavailable, Person
+from .users import _do, as_admin
 from .common import (
     LOCAL_OWNER,
     CleanupUnavailable,
@@ -311,7 +312,20 @@ async def case_events(case_id: str, request: Request):
     store, cid, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, "read_log", case_settings(request).office_wide):
         raise HTTPException(403, "Only the case's manager or an administrator can see its access log.")
-    return await run_in_threadpool(store.events, cid)
+    events = await run_in_threadpool(store.events, cid)
+    # Someone who acted without being a member (an administrator handing a case over) has no name in the case:
+    # it comes from the directory (VM regression of 29 October, finding 9). Never fatal: the id stays.
+    nameless = {e.user for e in events if not e.name and e.user}
+    names: dict[str, str] = {}
+    directory = getattr(request.app.state, "directory", None)
+    for sub in list(nameless)[:20] if directory is not None else []:
+        try:
+            person = await directory.get(sub)
+        except Exception:  # noqa: BLE001 - a missing name is cosmetic
+            person = None
+        if person is not None:
+            names[sub] = person.name or person.username
+    return [e.model_copy(update={"name": names[e.user]}) if not e.name and e.user in names else e for e in events]
 
 
 # ------------------------------------------------------------------ the administrator's pages (stage 4)
@@ -333,7 +347,7 @@ async def admin_case_settings(request: Request):
     store, effective = cases_or_503(request), case_settings(request)
     meta = await run_in_threadpool(store.overrides_meta)
     return SettingsOut(default_access=effective.default_access, keep=effective.keep,
-                       conversations_keep=effective.conversations_keep,
+                       conversations_keep=effective.conversations_keep, two_step=effective.two_step,
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
@@ -376,7 +390,15 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
     admin_or_403(request)
     changes = body.model_dump(exclude_none=True, exclude={"apply_to"})
     if not changes:
-        raise HTTPException(422, "Say what to change: default_access, keep, or conversations_keep.")
+        raise HTTPException(422, "Say what to change: default_access, keep, conversations_keep or two_step.")
+    if "two_step" in changes:
+        on = changes.pop("two_step")
+        if on != case_settings(request).two_step:
+            # Two-step sign-in for every account (Filip, 29 October: off by default, the administrator's choice).
+            # Keycloak first, as the administrator: the setting is stored only once every account follows it.
+            accounts, token = await as_admin(request)
+            await _do(accounts.require_two_step(token, on))
+        changes["two_step"] = "on" if on else "off"
     user = getattr(request.state, "user", None)
     opens = changes.get("default_access") == "office" and case_settings(request).default_access == "members"
     await run_in_threadpool(partial(cases_or_503(request).set_overrides, changes, user.username if user else "local-dev",

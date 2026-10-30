@@ -1014,7 +1014,7 @@ function Chat({ me }: { me: Me }) {
         </div>}
         {view === "playbook" && currentCase && (
           <div className="conversation">
-            <PlaybookView kase={currentCase} canRun={contributes && !closed} documents={documents.filter((d) => originKind(d) === "source").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
+            <PlaybookView kase={currentCase} nameOf={(u) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; }} canRun={contributes && !closed} documents={documents.filter((d) => originKind(d) === "source").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
           </div>
         )}
         {view === "chat" && <>

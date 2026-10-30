@@ -65,7 +65,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 `documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code. `auth.status` is `unavailable` while Keycloak doesn't answer or can't sign anyone in (its database down); both are asked again at most every 15 s.
 
-Every `/v1/...` request needs a signed-in user: the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
+Every `/v1/...` request needs a signed-in user, and every `/v1/admin/...` request an administrator (403 before the body is read): the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
 
 `GET /v1/models` lists the installed models: `[{"id": "qwen3.8-27b", "loaded": true, "default": true, "thinks": true}, …]`; `thinks` says the model family can reason before it answers (Qwen3; the chat shows a brain on the model chip).
 
@@ -77,7 +77,7 @@ Without streaming it returns:
 {"id": "...", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "answer": "... [1] ...", "citations": [{"text": "...", "source": {"document_id": "...", "page": 3, "location": "p. 3 · Artikel 2"}}], "calculations": [], "finish_reason": "stop", "usage": {"prompt_tokens": 48, "completion_tokens": 62}}
 ```
 
-With `"stream": true` it returns Server-Sent Events: first one or more `status` events naming what the server is doing (`searching`, `loading_model`, `reading`, `writing`), then `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event (`{"message": "..."}`).
+With `"stream": true` it returns Server-Sent Events: first one or more `status` events naming what the server is doing (`searching`, `loading_model`, `reading`, `writing`), then `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event (`{"message": "...", "code": "model" | "documents" | "document" | "server"}`; the page says the `code` in its own language, the English `message` is a detail).
 
 **Citations.** With `document_ids`, `citations` holds the passages the model was given, in order, and the marker `[n]` in `answer` refers to `citations[n-1]`; clients show only the cited ones. Without `document_ids`, `citations` is `[]`: the answer is unsourced and must be shown as unverified. A citation with `source: null` is unsourced too.
 

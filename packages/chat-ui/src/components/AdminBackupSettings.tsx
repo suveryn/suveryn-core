@@ -145,6 +145,10 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
     setErrors({});
   };
 
+  // The list is in the appliance's time (the backup runs by its clock); "Next: …" is in the browser's. When the
+  // two differ, the field says the hour in the browser's time too (VM regression of 29 October, finding 15).
+  const yourHour = saved?.next_run && saved.hour === form.hour && new Date(saved.next_run).getHours() !== form.hour
+    ? new Date(saved.next_run).getHours() : null;
   const firstProblem = errors.test ?? errors.address ?? errors.user ?? errors.disk ?? errors.key;
   const save = async () => {
     const problems: Record<string, string> = {};
@@ -229,6 +233,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         {errors.disk && <p className="ui-field-error">{errors.disk}</p>}
         <div className="backup-settings-row">
           <SelectField name="hour" label={m.everyDayAt} value={String(form.hour)} onChange={(v) => set("hour")(Number(v))}
+                       description={yourHour !== null ? m.backupHourYours(hourLabel(yourHour)) : undefined}
                        options={HOURS.map((h) => ({ id: String(h), label: hourLabel(h) }))} />
           <SelectField name="retention" label={m.retention} description={t.keepHint} value={String(form.retention)}
                        onChange={(v) => set("retention")(Number(v) as BackupRetention)}
