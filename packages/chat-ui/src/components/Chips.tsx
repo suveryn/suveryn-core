@@ -3,7 +3,7 @@
  * user's turn, show upload and review state) and citation chips (teal, under an answer, open a
  * source). The model badge is in ModelPicker.tsx.
  */
-import { AlertTriangle, Check, FileOutput, FileText, Loader2, X, XCircle } from "lucide-react";
+import { Check, CircleX, FileOutput, FileText, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import type { Citation } from "../api";
 import { useT } from "../i18n";
 import { Button, FileButton, IconButton, Progress, TextButton } from "../ui";
@@ -26,7 +26,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
 }) {
   const m = useT();
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
-  const icon = a.status === "failed" ? <XCircle size={14} aria-hidden />
+  const icon = a.status === "failed" ? <CircleX size={14} aria-hidden />
     : a.status === "noticed" ? <FileOutput size={14} aria-hidden /> : <FileText size={14} aria-hidden />;
   // While the server reads it: page by page during text recognition, then the layout, then storing.
   const r = a.status === "processing" ? a.reading : null;
@@ -59,7 +59,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
       )}
       {a.status === "needs_review" && (
         <span className="card-attachment-state" data-tone="warn" role="status" title={a.note ? undefined : reviewHint(a.reviewPages)}>
-          <AlertTriangle size={14} aria-hidden />{a.note ?? (a.reviewPages?.length ? m.cardCheck(pageList(a.reviewPages)) : m.cardCheckNeeded)}
+          <TriangleAlert size={14} aria-hidden />{a.note ?? (a.reviewPages?.length ? m.cardCheck(pageList(a.reviewPages)) : m.cardCheckNeeded)}
         </span>
       )}
       {a.status === "failed" && <>
@@ -104,7 +104,7 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
     return (
       <span className="chip-attachment chip-noticed" role="group" aria-label={`${a.filename}: ${m.noticedTitle(a.noticed.kind)}`}>
         <span className="chip-noticed-head">
-          <AlertTriangle size={13} aria-hidden />
+          <TriangleAlert size={13} aria-hidden />
           <span className="chip-name">{a.filename}</span>
           {onRemove && (
             <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile(a.filename)}>
@@ -129,13 +129,13 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
   const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}`
     : a.status === "failed" ? `${a.filename}: ${failureText(m, a.errorCode, a.errorDetail, a.error)}` : a.filename;
   if (a.removed) {  // the document was deleted and its name taken out (suveryn-tracker#12)
-    return <span className="chip-attachment chip-removed"><XCircle size={12} aria-hidden /><span className="chip-name">{m.documentRemoved}</span></span>;
+    return <span className="chip-attachment chip-removed"><CircleX size={12} aria-hidden /><span className="chip-name">{m.documentRemoved}</span></span>;
   }
   return (
     <span className="chip-attachment" title={title}>
-      {busy ? <Loader2 size={12} className="spin" aria-hidden /> :
-        a.status === "failed" ? <XCircle size={12} aria-hidden /> :
-        a.status === "needs_review" || a.status === "noticed" ? <AlertTriangle size={12} aria-hidden /> :
+      {busy ? <LoaderCircle size={12} className="spin" aria-hidden /> :
+        a.status === "failed" ? <CircleX size={12} aria-hidden /> :
+        a.status === "needs_review" || a.status === "noticed" ? <TriangleAlert size={12} aria-hidden /> :
         <FileText size={12} aria-hidden />}
       <span className="chip-name">{a.filename}</span>
       {label && (

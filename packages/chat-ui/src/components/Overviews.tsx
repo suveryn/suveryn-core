@@ -8,8 +8,10 @@
  * conversation in its case, or the case a document is in with the document ready to ask about.
  */
 import {
-  AlertTriangle, ArrowUpDown, Check, Clock, Download, FileOutput, Filter, Folder, FolderKey, Loader2, Lock, MessageSquare, MessageSquareLock, MoreHorizontal,
-  NotebookText, Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle, ClipboardList } from "lucide-react";
+  ArrowUpDown, Check, CircleX, ClipboardList, Clock, Download, Ellipsis, FileOutput, Folder, FolderKey, Funnel,
+  LoaderCircle, Lock, MessageSquare, MessageSquareLock, NotebookText, Pin, PinOff, Plus, ScrollText, Trash,
+  TriangleAlert, Upload, Users
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member, type RunSummary } from "../api";
 import { locale, useT } from "../i18n";
@@ -75,7 +77,7 @@ function RowMenu({ name, entries, onAction }: { name: string; entries: MenuEntry
   return (
     <ActionMenu aria-label={m.rowActions(name)} menuLabel={m.rowActions(name)} entries={entries} onAction={onAction}
                 placement="bottom end" className="overview-row-menu">
-      <MoreHorizontal size={16} aria-hidden />
+      <Ellipsis size={16} aria-hidden />
     </ActionMenu>
   );
 }
@@ -141,7 +143,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
     }
     const check = (docs.get(c.id) ?? []).filter((d) => d.status === "needs_review").length;
     return check
-      ? <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{m.statusOpenReview(check)}</span>
+      ? <span className="overview-status" data-tone="warn"><TriangleAlert size={14} aria-hidden />{m.statusOpenReview(check)}</span>
       : <span className="overview-status"><Clock size={14} aria-hidden />{m.statusOpen}</span>;
   };
   const members = (c: CaseOverview) => {
@@ -369,8 +371,8 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
   const status = (r: DocRow) => {
     const k = byId.get(r.caseId ?? "");
     switch (r.status) {
-      case "processing": return <span className="overview-status overview-dim" data-tone="working"><Loader2 size={14} className="spin" aria-hidden />{m.statusProcessing}</span>;
-      case "failed": return <span className="overview-status" data-tone="warn"><XCircle size={14} aria-hidden />{m.statusFailed}</span>;
+      case "processing": return <span className="overview-status overview-dim" data-tone="working"><LoaderCircle size={14} className="spin" aria-hidden />{m.statusProcessing}</span>;
+      case "failed": return <span className="overview-status" data-tone="warn"><CircleX size={14} aria-hidden />{m.statusFailed}</span>;
       case "closed": return <span className="overview-status overview-dim"><Lock size={14} aria-hidden />
         {m.statusCaseClosed(k && !k.keep && k.keep_until ? longDate(k.keep_until) : null)}</span>;
       case "notSource": return <span className="overview-status overview-dim">{m.statusNotASource}</span>;
@@ -379,7 +381,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
         // The pages, and for a screen reader what the reading noticed (#26: words, never only the icon)
         const pages = checkPages(r.doc?.warnings);
         const notes = rowNotes(m, r.doc?.warnings);
-        return <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}
+        return <span className="overview-status" data-tone="warn"><TriangleAlert size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}
           {notes.length > 0 && <span className="visually-hidden">. {notes.join(" ")}</span>}</span>;
       }
       default: return <span className="overview-status" data-tone="ok"><Check size={14} aria-hidden />{m.statusReady}</span>;
@@ -396,7 +398,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
       ...(kind === "pending" ? [{ id: "source", label: m.useAsSource, icon: <FileOutput size={16} />,
                                   isDisabled: k ? k.state === "closed" || !(k.my_role === "manager" || k.my_role === "contributor") : false }] : []),
       "-",
-      { id: "delete", label: m.delete, icon: <Trash2 size={16} />, isDisabled: !mayDelete(d) },
+      { id: "delete", label: m.delete, icon: <Trash size={16} />, isDisabled: !mayDelete(d) },
     ];
   };
   const act = (d: AllDocument, id: string) => {
@@ -448,7 +450,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
         <FilterSelect label={m.filterCase} options={caseOptions} value={where} onChange={setWhere} icon={<Folder size={14} />} clearLabel={m.clearFilter(m.filterCase)} />
         <FilterSelect label={m.colOrigin} options={originOptions} value={origin} onChange={setOrigin} clearLabel={m.clearFilter(m.colOrigin)} />
         <FilterSelect label={m.filterStatus} options={statusOptions} value={statusFilter} onChange={setStatus} clearLabel={m.clearFilter(m.filterStatus)} />
-        <FilterToggle isSelected={grouped} onChange={setGrouped} icon={<Filter size={14} />}>{m.groupByCase}</FilterToggle>
+        <FilterToggle isSelected={grouped} onChange={setGrouped} icon={<Funnel size={14} />}>{m.groupByCase}</FilterToggle>
       </div>
       {grouped && groups.length
         ? groups.map((g) => <div key={g.id ?? "personal"} className="overview-group"><h2 className="label">{g.label}</h2>{table(g.rows, g.label)}</div>)

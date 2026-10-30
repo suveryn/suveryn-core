@@ -7,7 +7,7 @@
  * chart of input and output tokens (src/ui/charts.tsx, suveryn-tracker#46). Counts only: the server
  * never stores or returns text. Informational: nothing limits anyone.
  */
-import { AlertCircle, ArrowLeft, BarChart3 } from "lucide-react";
+import { ArrowLeft, ChartColumn, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { locale, useT } from "../i18n";
@@ -149,10 +149,10 @@ export function UsageView({ onBack }: { onBack: () => void }) {
   const r = useReport(getMyUsage);
   return (
     <section className="view">
-      <ViewHeader icon={<BarChart3 size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
+      <ViewHeader icon={<ChartColumn size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
       <p className="view-intro">{m.usageIntro}</p>
       <RangePicker {...r} />
-      {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
+      {r.error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {r.report && (r.report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
         <>
           <Totals totals={r.report.totals} />
@@ -174,7 +174,7 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   return (
     <>
       <RangePicker {...r} />
-      {r.error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
+      {r.error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>

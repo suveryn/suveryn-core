@@ -2,7 +2,7 @@
  * Asked when signing out with saved conversations (suveryn-tracker#5): keep them (the default,
  * focused) or delete them all. Escape or Cancel closes the dialog and stays signed in.
  */
-import { AlertCircle, LogOut } from "lucide-react";
+import { CircleAlert, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { Button, Dialog, InlineNotice, TextButton } from "../ui";
@@ -34,7 +34,7 @@ export function SignOutDialog({ open, onKeep, onDelete, onCancel }: Props) {
       <TextButton onPress={onCancel} isDisabled={deleting}>{m.cancel}</TextButton>
     </>}>
       <p>{m.keepHistoryBody}</p>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

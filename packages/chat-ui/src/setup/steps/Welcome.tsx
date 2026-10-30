@@ -1,6 +1,6 @@
 /** Setup screen 0: Welcome (design web-00-welcome.html). What setup does, and two things to know first;
  *  or, on a replacement appliance, restoring the office's backup instead (#56). */
-import { Fingerprint, Lock } from "lucide-react";
+import { FingerprintPattern, Lock } from "lucide-react";
 import { Button, Notice } from "../../ui";
 import { useText } from "../i18n";
 
@@ -12,7 +12,7 @@ export function Welcome({ onStart, onRestore, headingId }: { onStart: () => void
       <p className="setup-lead setup-centred">{t.welcomeLead}</p>
       <div className="setup-stack">
         <Notice icon={<Lock size={16} />} title={t.welcomeOpenTitle}>{t.welcomeOpenText}</Notice>
-        <Notice icon={<Fingerprint size={16} />} title={t.welcomeCheckTitle}>{t.welcomeCheckText}</Notice>
+        <Notice icon={<FingerprintPattern size={16} />} title={t.welcomeCheckTitle}>{t.welcomeCheckText}</Notice>
       </div>
       <ol className="setup-step-list" aria-label={t.welcomeSteps}>
         {t.stepNames.map((n) => <li key={n}><span>{n}</span></li>)}

@@ -7,7 +7,7 @@
  * can extend the period by one more, mark the case kept (never deleted by the period) or let the
  * period run again.
  */
-import { AlertCircle, AlertTriangle, CalendarPlus, LockOpen, Star, StarOff } from "lucide-react";
+import { CalendarPlus, CircleAlert, LockOpen, Star, StarOff, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { keepCase, reopenCase, type Case } from "../api";
 import { locale, useT } from "../i18n";
@@ -44,7 +44,7 @@ export function CaseState({ kase, canReopen, canKeep, onChanged }: {
   const due = isDue(kase);
   return (
     <div className="case-state" data-due={due || undefined}>
-      {due ? <AlertTriangle size={14} aria-hidden /> : null}
+      {due ? <TriangleAlert size={14} aria-hidden /> : null}
       <span className="case-state-text">
         {kase.closed_at && m.closedOn(onDay(kase.closed_at))} · {fateLabel(kase, m)}
       </span>
@@ -67,7 +67,7 @@ export function CaseState({ kase, canReopen, canKeep, onChanged }: {
           <Star size={14} aria-hidden /> {m.keepCase}
         </TextButton>
       ))}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert className="case-state-error">{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert className="case-state-error">{error}</InlineNotice>}
     </div>
   );
 }
