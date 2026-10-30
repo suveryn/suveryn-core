@@ -18,12 +18,9 @@ from .chunking import Chunk, Chunker, location_label
 from .config import RagSettings
 from .embed import Embedder
 from .integrity import (
-    LINE_BREAK_HYPHEN,
     IntegrityWarning,
     misdecoding,
-    ocr_noise,
     repair_characters,
-    words,
 )
 from .isolation import make_extractor
 from .marks import find_mark
@@ -54,16 +51,9 @@ class IngestResult:
 REREAD_RECOVERED_SHARE = 0.5
 
 
-def misread(text: str) -> bool:
-    """Whether stored text still shows a misread encoding or line-break hyphens (stored before they were put right)."""
-    return misdecoding(text) is not None or LINE_BREAK_HYPHEN in text
-
-
-def should_read_again(status: str, recovered_share: float, misdecoded: bool = False) -> bool:
-    """Whether an upload of a file already stored should read it again instead of returning the stored copy:
-    also when it was stored with characters read in the wrong encoding, line-break hyphens (``misread``) or
-    recovered OCR noise, from before those were handled."""
-    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE or misdecoded
+def should_read_again(status: str, recovered_share: float) -> bool:
+    """Whether an upload of a file already stored should read it again instead of returning the stored copy."""
+    return status == "needs_review" or recovered_share > REREAD_RECOVERED_SHARE
 
 
 @dataclass
@@ -146,10 +136,7 @@ class Rag:
         existing = self.store.find_by_sha256(digest, Scope(owner, case_id))  # this scope's own copy only
         if existing:
             status, warnings = self.store.document_status(existing)
-            vocabulary = words(self.store.document_text(existing, recovered=False))
-            noisy = any(ocr_noise(line, vocabulary) for line in self.store.document_text(existing, recovered=True).splitlines())
-            if not should_read_again(status, self.store.recovered_share(existing),
-                                     misread(self.store.document_text(existing)) or noisy):
+            if not should_read_again(status, self.store.recovered_share(existing)):
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf, owner=owner, watch=watch)
@@ -244,19 +231,6 @@ class Rag:
         digest = hashlib.sha256(f"{uuid.uuid4()}:{text}".encode()).hexdigest()  # unique: never de-duplicated
         return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin, provenance, content)
 
-    def retrieve(self, question: str, k: int = 5, document_id: uuid.UUID | None = None,
-                 document_ids: list[uuid.UUID] | None = None) -> list[RetrievedChunk]:
-        """Return the ``k`` passages most relevant to ``question``, best first.
-
-        ``document_id`` (one) or ``document_ids`` (several) restrict the search. ``source.page`` is the first page
-        of the passage; ``source.location`` gives the full page range and section heading.
-        Callers that generate answers should pass several hits to the model, not only the
-        first: on real deeds the right passage was at #1 for 15 of 19 questions and in the
-        top 3 for all 19.
-        """
-        query = self.embedder.embed([question])[0]
-        return [_hit(r) for r in self.store.search(query, k, document_id, question=question, document_ids=document_ids)]
-
     def passages(self, question: str, document_ids: list[uuid.UUID], k: int) -> tuple[list[RetrievedChunk], bool]:
         """Passages to ground an answer on, and whether they are the documents' complete text.
 
@@ -273,11 +247,3 @@ class Rag:
         query = self.embedder.embed([question])[0]
         best = self.store.best_chunks(query, question, document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS, k)
         return [_hit(r) for r in best], False
-
-    def forget(self, document_id: uuid.UUID) -> bool:
-        """Delete a document and all its chunks. Returns False if it didn't exist.
-
-        PostgreSQL keeps deleted rows on disk until vacuumed (and in its write-ahead log for a
-        while); see ``Store.delete_document``.
-        """
-        return self.store.delete_document(document_id)

@@ -287,7 +287,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .start-head h1 { margin: 0; font-size: var(--text-h2); line-height: 1.2; }
 .start[data-first] .start-head { flex-direction: column; }
 @media (max-width: 767px) { .start-head { flex-direction: column; } }
-.start-intro { margin: 0; color: var(--text-dim); font-size: var(--text-body); }
 .start-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); width: 100%; text-align: left; }
 .start-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--line);
               border-radius: var(--radius-md); background: var(--bg); }
@@ -433,7 +432,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .chip-model-button { border: none; cursor: pointer; font: inherit; font-size: var(--text-ui-sm); }
 .chip-model-button[data-hovered] { background: var(--line); }
 /* the menu itself: .ui-popover and .ui-menu in src/ui/ui.css */
-.model-menu { min-width: 240px; }
 .model-mode { color: var(--text-dim); }
 /* Thorough (§5): "Thought for 14 s" above the answer, and the reasoning it opens */
 .answer-thought { margin: 0 0 var(--space-2); }
@@ -450,15 +448,13 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .model-section { display: flex; flex-direction: column; gap: 6px; }
 .model-section-label { margin: 0; color: var(--text-dim); }
 /* the composer's chips: the case and its playbooks (docs/design/chat-ui.md) */
-.chip-case, .chip-playbook { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 0;
-                             border-radius: var(--radius-pill); font-size: var(--text-ui-sm); white-space: nowrap; }
-.chip-case { background: var(--surface-alt); color: var(--text-dim); }
+.chip-playbook { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 0;
+                 border-radius: var(--radius-pill); font-size: var(--text-ui-sm); white-space: nowrap; }
 .playbook-menu { min-width: 340px; max-width: 380px; }
 /* ink on a neutral surface, as the model chip: a chip is neither an action nor a status (chat-ui.md section 1) */
 .chip-playbook { background: var(--surface-alt); color: var(--text); cursor: pointer; }
 .chip-playbook[data-hovered] { background: var(--line); }
 /* the full lists behind the sidebar's rows */
-.view-tools { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .view-search { max-width: 28rem; flex: 1; }
 .item-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .item { display: flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-sm); }
@@ -473,20 +469,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .item-dim { color: var(--text-dim); font-weight: 400; }
 .item-meta { grid-column: 2; font-size: var(--text-caption); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-static .item-open { grid-template-columns: minmax(0, 1fr); cursor: default; }
-.item-static .item-pending { grid-template-columns: 20px minmax(0, 1fr); color: var(--text-dim); }
-.item-static .item-pending .item-meta { grid-column: 2; }
 .item-static .item-meta { grid-column: 1; }
 .item-static .ui-switch { margin-right: var(--space-2); }
-.item .item-pinned { color: var(--text); }  /* pins are ink */
-/* a document's origin, source or made, ink only (docs/design/chat-ui.md §1, §6) */
-.item-origin { display: flex; align-items: center; gap: var(--space-3); flex: 0 0 auto; max-width: 45%; font-size: var(--text-caption); color: var(--text-dim); }
-.item-origin-text { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item-origin b { color: var(--text); font-weight: 600; }
-.item-origin .ui-link-button { font-size: var(--text-caption); white-space: nowrap; }
-.view-legend { margin-top: var(--space-2); max-width: 68ch; }
-.view-filter .ui-select-button { width: auto; min-width: 10rem; }
-.view-filter-on .ui-select-button { background: var(--surface-alt); border-color: var(--text-dim); color: var(--text); }
-@media (max-width: 720px) { .item-doc { flex-wrap: wrap; } .item-origin { max-width: none; padding-left: 36px; } }
 /* an upload that looks like sūveryn's own output: a card with the person's two choices */
 .chip-noticed { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 420px; padding: 8px 10px;
                 white-space: normal; }

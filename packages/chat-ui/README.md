@@ -92,7 +92,6 @@ Screens are built from a small component library in [`src/ui/`](src/ui/), shared
 | `Switch` | on or off, applied at once (a playbook's *Active*) |
 | `ComboBoxField` | a text field with suggestions, for a value that may be the user's own (a case's type) |
 | `SearchField` | a search box that filters a list (the full lists of cases, conversations and documents; the search view) |
-| `SelectList` | a list with one current item, moved through with the arrow keys and typed letters |
 | `FilePick`, `FileDrop`, `FileButton` | choose a file, or drop it on an area that also has a button to choose one; any button opening the file picker (the paperclip) |
 | `Dialog` | a modal dialog: the focus moves in (to the safe choice) and back, Escape closes it unless it is busy |
 | `Progress`, `StatusList` | a progress bar; a list of steps, each waiting, running, done or failed |

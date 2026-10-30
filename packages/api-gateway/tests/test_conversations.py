@@ -677,19 +677,6 @@ def test_the_turn_count_and_cited_documents_are_kept_on_save_and_found_without_t
 
 
 @needs_db
-def test_conversations_saved_before_the_count_was_kept_get_it_on_start(store):
-    cid = uuid.uuid4()
-    assert store.save(cid, ALICE, ConversationIn(title="Koopprijs", turns=cited_turns()))
-    store._execute("UPDATE conversations SET messages = NULL, documents = NULL WHERE id = %s", (cid,))  # as an older version left it
-    again = ConversationStore(ConversationSettings(database_url=URL))  # the gateway starting
-    try:
-        assert again._execute("SELECT messages, documents FROM conversations WHERE id = %s", (cid,)).fetchone() == (2, sorted([DOC, OTHER]))
-        assert again.fill_in() == 0  # nothing left to do on the next start
-    finally:
-        again.close()
-
-
-@needs_db
 def test_store_deletes_an_accounts_own_conversations_and_keeps_those_shared_with_a_case(store):
     """Administration › Users, deleting an account (Filip, 29 October)."""
     case = uuid.uuid4()

@@ -160,9 +160,6 @@ class FakeCases:
     def set_pinned(self, case_id, user, pinned):
         (self.pins.add if pinned else self.pins.discard)((case_id, user))
 
-    def pinned_by(self, case_id, user):
-        return (case_id, user) in self.pins
-
     def create(self, body: CaseIn, user: str, username: str = "", name: str = "") -> Case:
         if any(c.reference.lower() == body.reference.lower() for c in self.cases.values()):
             raise DuplicateReference(body.reference)
@@ -336,12 +333,6 @@ class FakeCases:
             until = max(until or now, now) + period
         self.cases[case_id] = c = c.model_copy(update={"keep": kept, "keep_until": until})
         return c
-
-    def due(self, user, *, admin, within=timedelta(days=30)):
-        now = datetime.now(UTC)
-        out = [c for c in self.cases.values() if c.state == "closed" and not c.keep and c.keep_until and c.keep_until <= now + within
-               and (admin or c.manager == user)]
-        return sorted((shielded(c.model_copy(update={"my_role": self.role_of(uuid.UUID(c.id), user)})) for c in out), key=lambda c: c.keep_until)
 
     def due_for_deletion(self):
         now = datetime.now(UTC)
@@ -808,17 +799,12 @@ def test_a_closed_case_due_for_deletion_can_be_extended_kept_or_reopened(office)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.post(f"/v1/cases/{cid}/close", headers=alice)
     assert c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=bob).status_code == 404  # not visible to Bob
-    assert c.get("/v1/cases/due", headers=alice).json() == []  # six months away: not due yet
-    # a case whose deletion is three weeks away is listed as due, for its manager and the administrators
+    # a case whose deletion is three weeks away
     cases.cases[uuid.UUID(cid)] = cases.cases[uuid.UUID(cid)].model_copy(update={"keep_until": datetime.now(UTC) + timedelta(days=21)})
-    assert [x["id"] for x in c.get("/v1/cases/due", headers=alice).json()] == [cid]
-    assert [x["id"] for x in c.get("/v1/cases/due", headers=admin).json()] == [cid]
-    assert c.get("/v1/cases/due", headers=bob).json() == []
     # extend: one period later; keep: never deleted; keep false: one period from now
     r = c.post(f"/v1/cases/{cid}/keep", json={"extend": True}, headers=alice)
     until = datetime.fromisoformat(r.json()["keep_until"])
     assert timedelta(days=203) < until - datetime.now(UTC) < timedelta(days=205)
-    assert c.get("/v1/cases/due", headers=alice).json() == []
     r = c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=admin)
     assert r.status_code == 200 and r.json()["keep"] is True
     r = c.post(f"/v1/cases/{cid}/keep", json={"keep": False}, headers=alice)
@@ -1060,7 +1046,7 @@ def test_store_creates_lists_updates_and_deletes(store):
     # pins (docs/design/chat-ui.md): per user, in the list and the single case
     assert not s.list(alice, office_wide=False)[0].pinned
     s.set_pinned(uuid.UUID(c.id), alice, True)
-    assert s.list(alice, office_wide=False)[0].pinned and s.get(uuid.UUID(c.id), alice).pinned and s.pinned_by(uuid.UUID(c.id), alice)
+    assert s.list(alice, office_wide=False)[0].pinned and s.get(uuid.UUID(c.id), alice).pinned
     assert not s.list(bob, office_wide=True)[0].pinned  # someone else's pin
     s.set_pinned(uuid.UUID(c.id), alice, False)
     assert not s.get(uuid.UUID(c.id), alice).pinned
@@ -1181,23 +1167,21 @@ def test_store_closes_keeps_extends_reopens_and_finds_what_is_due(store):
     # In UTC: two aware times in the same zone subtract by the wall clock, an hour off across a clock change
     assert half_year - timedelta(minutes=1) < closed.keep_until.astimezone(UTC) - closed.closed_at.astimezone(UTC) <= half_year
     assert s.close_case(cid, half_year) is None  # already closed
-    assert s.due(alice, admin=False) == [] and s.due_for_deletion() == []  # not for months
+    assert s.due_for_deletion() == []  # not for months
     s._execute("UPDATE cases SET keep_until = now() + interval '10 days' WHERE id = %s", (cid,))
-    assert [x.id for x in s.due(alice, admin=False)] == [c.id]  # the manager sees it coming
-    assert s.due(bob, admin=False) == [] and [x.id for x in s.due(bob, admin=True)] == [c.id]  # so does an administrator
+    assert s.due_for_deletion() == []  # coming, not due yet
     extended = s.set_keep(cid, None, True, half_year)  # one more period from the planned date
     assert timedelta(days=192) < extended.keep_until - datetime.now(UTC) <= timedelta(days=193)
-    assert s.due(alice, admin=False) == []
     kept = s.set_keep(cid, True, False, half_year)
     assert kept.keep and kept.keep_until == extended.keep_until  # the date stays, it just isn't acted on
     s._execute("UPDATE cases SET keep_until = now() - interval '1 day' WHERE id = %s", (cid,))
-    assert s.due_for_deletion() == [] and s.due(alice, admin=False) == []  # kept: never swept
+    assert s.due_for_deletion() == []  # kept: never swept
     released = s.set_keep(cid, False, False, half_year)  # one period from now again
     assert not released.keep and released.keep_until > datetime.now(UTC) + timedelta(days=182)
     s._execute("UPDATE cases SET keep_until = now() - interval '1 day' WHERE id = %s", (cid,))
-    assert s.due_for_deletion() == [cid] and [x.id for x in s.due(alice, admin=False)] == [c.id]  # overdue: still listed
+    assert s.due_for_deletion() == [cid]  # overdue
     manual = s.close_case(uuid.UUID(s.create(CaseIn(**{**NEW, "reference": "2026/0418"}), bob).id), None)
-    assert manual.keep_until is None and s.due(bob, admin=False) == []  # no period: deleted by hand only
+    assert manual.keep_until is None and s.due_for_deletion() == [cid]  # no period: deleted by hand only
     reopened = s.reopen_case(cid)
     assert reopened.state == "open" and reopened.closed_at is None and reopened.keep_until is None
     assert s.due_for_deletion() == []
@@ -1464,7 +1448,8 @@ def test_store_keeps_a_deleted_accounts_name_with_what_it_did(store):
     s.log(cid, bob, "uploaded", {})
     s.set_pinned(cid, bob, True)
     assert s.depart(bob, "bob", "Bob Peeters", alice) == 1
-    assert s.role_of(cid, bob) is None and not s.pinned_by(cid, bob)
+    assert s.role_of(cid, bob) is None
+    assert s._execute('SELECT 1 FROM case_pins WHERE case_id = %s AND "user" = %s', (cid, bob)).fetchone() is None
     assert s.departed_names([bob]) == {bob: "Bob Peeters"} and bob in s.departed_names()
     names = {(e.user, e.action): e.name for e in s.events(cid)}
     assert names[(bob, "uploaded")] == "Bob Peeters" and names[(alice, "member_removed")] == "Alice"
@@ -1548,12 +1533,6 @@ def test_an_administrator_outside_a_strictly_confidential_case_sees_its_number_o
     # handed over by the administrator, the answer still holds no name
     handed = c.post(f"/v1/cases/{secret}/handover", json={"user": BOB}, headers=admin).json()
     assert handed["reference"] == "2026/0417" and handed["name"] == "" and handed["subject"] == {}
-    # closed by its new manager, then due: an administrator sees the number only there too
-    bob = as_user(kc, BOB)
-    c.post(f"/v1/cases/{secret}/close", headers=bob)
-    for row in c.get("/v1/cases/due", headers=admin).json():
-        if row["id"] == secret:
-            assert row["name"] == "" and row["subject"] == {}
 
 
 def test_store_shows_a_strictly_confidential_case_by_its_number_outside_it(store):

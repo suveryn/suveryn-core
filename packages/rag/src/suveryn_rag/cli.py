@@ -1,7 +1,5 @@
-"""Command-line entry points: ingest, retrieve and forget (development), and fetch-models (set-up).
-
-These print to the terminal of whoever runs them. ``suveryn-retrieve`` prints passages of the
-stored documents, i.e. confidential text; don't redirect its output into shared logs.
+"""Command-line entry points: ingest and forget (development: ``scripts/intake-benchmark``), and
+fetch-models (set-up). They print no document text.
 """
 
 import argparse
@@ -28,24 +26,6 @@ def ingest_main() -> None:
                               "ocr_pages": r.ocr_pages, "mixed_pages": r.mixed_pages, "chunks": r.chunks, "already_present": r.already_present,
                               "status": r.status, "warnings": [{k: w[k] for k in ("page", "kind", "detail")} for w in r.warnings],
                               "timings_s": {k: round(v, 2) for k, v in r.timings.items()}}, ensure_ascii=False))
-    finally:
-        rag.close()
-
-
-def retrieve_main() -> None:
-    """``suveryn-retrieve "question" [-k 5] [--document id]``: print the best passages as citations (JSON)."""
-    ap = argparse.ArgumentParser(prog="suveryn-retrieve", description="Return the chunks most relevant to a question.")
-    ap.add_argument("question")
-    ap.add_argument("-k", type=int, default=5)
-    ap.add_argument("--document", type=uuid.UUID, help="only search this document")
-    a = ap.parse_args()
-    from .pipeline import Rag
-
-    rag = Rag(RagSettings.from_env(), load_extractor=False)
-    try:
-        hits = rag.retrieve(a.question, a.k, a.document)
-        print(json.dumps([{"score": round(h.score, 4), "filename": h.filename, **h.citation.model_dump()} for h in hits],
-                         ensure_ascii=False, indent=1))
     finally:
         rag.close()
 
