@@ -70,6 +70,7 @@ from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
 from .avatars import MAX_UPLOAD_BYTES as AVATAR_MAX_BYTES
 from .avatars import AvatarStore
 from .cases import CaseSettings, CaseStore
+from .clock import Clock
 from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import ConversationSettings, ConversationStore
 from .directory import Directory, DirectorySettings, LocalDirectory
@@ -325,6 +326,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     app.state.case_settings = cases_settings
     app.state.known_users = set()  # (sub, username, name) already stored for the usage table
     app.state.status = routes.status.StatusMonitor()
+    app.state.clock = Clock()  # the browsers' measurements of the appliance's clock (clock.py)
     settings = authenticator.settings
 
     @app.middleware("http")
@@ -429,7 +431,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         return await call_next(request)
 
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
-                   routes.conversations, routes.usage, routes.backups, routes.status, routes.users):
+                   routes.conversations, routes.usage, routes.backups, routes.status, routes.users, routes.clock):
         app.include_router(module.router)
     return app
 
