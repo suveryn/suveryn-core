@@ -697,3 +697,44 @@ def test_a_turn_as_chat_takes_it_is_saved_with_its_words_as_text():
     body = ConversationIn(title="t", turns=[{"role": "user", "content": "Wie is de koper?"},
                                             {"role": "assistant", "content": "Test Bob.", "text": "Bob"}])
     assert [t.text for t in body.turns] == ["Wie is de koper?", "Bob"]
+
+
+# ------------------------------------------------------------------ turns, one row each (``TurnStore``)
+
+@needs_db
+def test_turns_are_appended_in_order_and_two_writers_never_collide():
+    """The ``turns`` table (docs/design/playbooks.md, "The thread"): rows, not a blob. Two sessions
+    appending at the same moment get consecutive numbers (the unique index refuses a duplicate and
+    the loser takes the next one); nothing is overwritten."""
+    import threading
+
+    from suveryn_api_gateway.conversations import TurnStore
+
+    store, rid = TurnStore(URL), uuid.uuid4()
+    try:
+        first = store.append(rid, "playbook", "playbook/x/y", "Upload the agreement.", "agreement")
+        assert (first.seq, first.role, first.step_id, first.by) == (1, "playbook", "agreement", "playbook/x/y")
+        writers = [TurnStore(URL) for _ in range(4)]
+        go = threading.Barrier(4)
+
+        def write(s, i):
+            go.wait()
+            s.append(rid, "user", f"user-{i}", f"answer {i}", "agreement", {"n": i})
+
+        threads = [threading.Thread(target=write, args=(s, i)) for i, s in enumerate(writers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        turns = store.for_run(rid)
+        assert [t.seq for t in turns] == [1, 2, 3, 4, 5] and {t.by for t in turns[1:]} == {f"user-{i}" for i in range(4)}
+        assert store.count_for_run(rid) == 5 and store.for_run(rid, limit=2)[-1].seq == 2
+        assert store.for_run(uuid.uuid4()) == []
+        with pytest.raises(Exception):  # a turn belongs to a run or a conversation, never neither nor both
+            store._execute("INSERT INTO turns (seq, role, \"by\", text) VALUES (1, 'user', 'x', 'y')")
+        assert store.delete_for_runs([rid]) == 5 and store.for_run(rid) == []
+        for s in writers:
+            s.close()
+    finally:
+        store.delete_for_runs([rid])
+        store.close()

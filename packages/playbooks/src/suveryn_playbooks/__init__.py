@@ -25,7 +25,7 @@ from __future__ import annotations
 from importlib.resources import files
 from pathlib import Path
 
-from ._model import LANGUAGES, Fact, FactKind, Playbook, Wording
+from ._model import LANGUAGES, Fact, FactKind, Playbook, Step, StepKind, Wording
 from .manifest import ManifestError, load
 
 OFFICIAL_PACKS = ("be_notary",)   # package directories holding official manifests, in catalogue order
@@ -80,4 +80,4 @@ DEED_INTAKE: Playbook = find("playbook/be-notary/deed-intake")  # type: ignore[a
 assert DEED_INTAKE is not None, "the official pack be_notary must contain deed-intake.yaml"
 
 __all__ = ["DEED_INTAKE", "LANGUAGES", "OFFICIAL_PACKS", "PLAYBOOKS", "Fact", "FactKind", "ManifestError", "Playbook",
-           "Wording", "by_slug", "covered", "find", "for_case_type", "load", "pack_text"]
+           "Step", "StepKind", "Wording", "by_slug", "covered", "find", "for_case_type", "load", "pack_text"]
