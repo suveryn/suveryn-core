@@ -11,6 +11,7 @@ from . import (  # noqa: F401 - the modules app.py includes
     backups,
     cases,
     chat,
+    clock,
     conversations,
     documents,
     health,

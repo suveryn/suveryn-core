@@ -1,4 +1,4 @@
-"""Administration › Status (docs/design/admin.md, artboards 30 and 39): five checks in plain words, counts only."""
+"""Administration › Status (docs/design/admin.md, artboards 30 and 39): six checks in plain words, counts only."""
 
 from test_usage import ALICE, BOB, as_user, setup  # noqa: F401 - the fixture
 
@@ -12,7 +12,7 @@ def test_the_checks_are_for_administrators_and_say_since_when_one_fails(setup, t
     assert c.get("/v1/admin/status", headers=user).status_code == 403
     body = c.get("/v1/admin/status", headers=admin).json()
     checks = {x["id"]: x for x in body["checks"]}
-    assert list(checks) == ["answering", "reading", "signin", "data", "disk"]
+    assert list(checks) == ["answering", "reading", "signin", "data", "disk", "clock"]
     assert checks["answering"]["ok"] and checks["answering"]["in_progress"] == 0
     assert checks["signin"]["ok"] and checks["data"]["ok"]
     # this test app reads no documents: reading doesn't work, and says since when
