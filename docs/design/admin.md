@@ -35,12 +35,14 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   fails). Each answer counts 15 s. A stopped Keycloak or its stopped database shows within the minute,
   and `/health`'s `auth` says the same. The read leaves no event in Keycloak; the service account's
   token, a sign-in of its own, is fetched again only when it expires, every few minutes.
-- The clock (Filip, 30 October 2026): "On time", kept right by a time server or by the browsers of the
-  people signed in, or how far ahead or behind it is ("95 s behind"), warned from 10 seconds (two-step codes
-  fail from about 30). Small differences are corrected by themselves, slowly, when the browsers agree; for a
-  larger one, *Set to this PC's time*, after a confirmation that shows both times and asks to check the PC
-  first (moved forward, closed cases whose keep period has passed are deleted at the next hourly clean-up).
-  Not while a time server keeps the clock. How: the gateway's README, *The clock*.
+- The clock (Filip, 30 October 2026; artboard 44): "On time", "via a time server" or "via the browsers"
+  (the browsers of the people signed in), or how far ahead or behind it is ("95 s behind"), warned from 10
+  seconds (two-step codes fail from about 30). The seconds show only when it is off, never next to "On time".
+  Small differences are corrected by themselves, slowly, when the browsers agree; for a larger one, *Set to this
+  PC's time*, after a confirmation that shows both times ("Appliance 13:36:09 · this PC 13:37:44") and asks
+  whether the PC is right (moved forward, closed cases whose keep period has then passed are deleted within
+  the hour). "Clock set." is announced to a screen reader (`role="status"`), "Not set: …" as an alert. Not
+  while a time server keeps the clock. How: the gateway's README, *The clock*.
 - An overview: version, last backup, users against the agreement, support.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.
@@ -213,6 +215,13 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 | On time | Juist | À l'heure |
 | {n} s ahead / behind | {n} s voor / achter | {n} s d'avance / de retard |
 | Set to this PC's time | Gelijkzetten met deze pc | Régler sur l'heure de ce PC |
+| via a time server | via een tijdserver | via un serveur de temps |
+| via the browsers | via de browsers | via les navigateurs |
+| Set the clock? | Klok gelijkzetten? | Régler l'horloge ? |
+| Appliance {appliance} · this PC {pc} | Appliance {appliance} · deze pc {pc} | Appliance {appliance} · ce PC {pc} |
+| Is this PC's time right? Closed cases whose keep period has then passed are deleted within the hour. | Staat deze pc juist? Gesloten dossiers waarvan de termijn dan voorbij is, worden binnen het uur verwijderd. | L'heure de ce PC est-elle juste ? Les dossiers clôturés dont le délai est alors dépassé sont supprimés dans l'heure. |
+| Clock set. | Klok gelijkgezet. | Horloge réglée. |
+| Not set: {why}. | Niet gelijkgezet: {why}. | Non réglée : {why}. |
 | Working | Werkt | Fonctionne |
 | Enough | Genoeg | Suffisant |
 | Not working since {time} | Werkt niet sinds {time} | En panne depuis {time} |
