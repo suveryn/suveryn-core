@@ -1,12 +1,13 @@
-# Playbooks: deed intake first, hand-built (suveryn-tracker#51)
+# Playbooks: deed intake first, as a routine (suveryn-tracker#51)
 
 A design note, October 2026, for the first playbook. The platform note ([platform.md](platform.md))
-decided the order: three hand-built notary playbooks, plain and hard-coded, before any runtime, SDK
-or registry; the runtime, the manifest and the pack format are extracted afterwards from what the
-three needed. This note says what the first one, deed intake, is, what it leaves behind in the
-case, and the few things that are settled now because they would be expensive to retrofit. It
-replaces the earlier bot-written tickets (#27 facts layer, #28 runner, #29 templates) as the plan:
-what they asked for appears here where the first playbook actually needs it, and not before.
+first decided on three hand-built notary playbooks before any runtime; on 30 October the product
+definition changed (the project's orchestration note): a playbook is a conversation with a routine,
+written as a manifest, and the manifest and the runtime came first, proven on deed intake. This
+note says what deed intake is, what it leaves behind in the case, how the routine, the facts'
+record and the thread work ("The routine"), and the few things that were settled early because
+they would be expensive to retrofit. It replaces the earlier bot-written tickets (#27 facts layer,
+#28 runner, #29 templates) as the plan.
 
 ## What deed intake does
 
@@ -114,29 +115,96 @@ A run holds everything it needs to be shown later, including the cited passages'
 document can be deleted after the run: the run then shows the passage as it was read, marked as
 coming from a deleted document, the same way a saved conversation does (suveryn-tracker#12).
 
+## The routine (30 October 2026)
+
+A playbook is a **conversation with a routine** (the project's orchestration note). When it is
+active in a case it holds the chair: it asks for documents, reads them, asks about what it couldn't
+find, waits for a person at the checkpoint, writes the summary. Everyone who contributes to the
+case takes part through that routine, and it ends in a product. The model is asked only inside a
+``read`` and never decides what comes next; a person's answer never becomes a confirmed fact except
+at the checkpoint, by that person.
+
+The routine is in the manifest (format 2, below): steps of five kinds, each saying what it needs.
+
+| Kind | What the runtime does | Waits for |
+|---|---|---|
+| `request` | Puts the pack's question for documents in the thread | `min` uploaded documents in the case, or a person saying there is none (`allow_none`) |
+| `read` | The grounded model call over the case's uploaded documents for the step's facts, as before | The model |
+| `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
+| `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
+| `produce` | Writes the summary into the case, origin `playbook` | Nothing |
+
+The runtime (`suveryn_api_gateway/playbook_runtime.py`) walks the graph: `next_step` is the first
+step, in the manifest's order, that isn't done and whose needs all are; `advance` does what needs
+nobody (a request already satisfied, an ask with nothing to ask, the summary) and stops where the
+run waits. It takes its stores as arguments and is tested without a request. Deed intake 1.1 is
+the first routine: agreement (request), read, missing (ask), confirm, summary.
+
+**Facts have a record of their own**: `case_facts`, one row per **version**, never rewritten.
+The model's reading is `proposed` (or `not_established` when the documents don't contain it); a
+person's answer to an ask is `proposed` from a person; the checkpoint writes `confirmed`, or
+`not_established` when the person clears it. A version that replaces another points at it
+(`replaces`) and the older one becomes `superseded`. So a fact's history is readable in plain SQL:
+read as X by the model, answered Y by a person, confirmed Z by another. `Run.facts` keeps the shape
+the UI always had (as read, confirmed, citations), assembled from the current versions; runs made
+before this table keep their facts in `playbook_runs.facts` and can be viewed but not continued.
+The shared facts layer the record deferred (#27) is this table; what recurs between playbooks is
+to be seen from the second one.
+
+**The thread** is the `turns` table (`conversations.py`, `TurnStore`): one row per turn, appended
+by the server, stamped with who and when, never rewritten. Not the conversations' JSONB blob: that
+is saved whole by one owner from the browser, two people answering a playbook would overwrite each
+other, and a blob says neither who wrote a line nor when. The table is written for conversations
+in general (`conversation_id` or `run_id`), so ordinary chat can move onto it in a later, separate
+step; until then only runs use it. Event-sourcing the run (deriving steps, facts and turns from one
+event log) was considered and rejected: tables a notary can read beat a log only a developer can.
+
+**A run is visible, and it can be paused, stopped or cancelled.** The case lists show a chip
+("Deed intake · waiting for documents"); the run's view has a banner with the status, the step,
+what it waits for and from whom, and the model while it reads. Statuses: `reading` (the model),
+`waiting` (a person), `paused`, `done`, `stopped`, `cancelled`, `failed` (by kind; `busy` when no
+place to read was free, start again). Three acts, three states: **pause** keeps everything and
+waits (anyone who contributes; a run that is reading is paused when it next waits); **stop** ends
+early and keeps what was achieved: confirmed facts stay the case's, proposed ones are dropped
+(superseded), a product so far stays; **cancel** says the run should not have happened: confirmed
+facts get a new `proposed` version pointing at the confirmed one (provenance kept), the product is
+marked `withdrawn` in its provenance, never deleted. Stop and cancel are the starter's (by id,
+never by the shown name) or the case manager's. In every case the run record stays; nothing is
+deleted except with the case. **One live run per playbook per case**: a second start answers 409
+with the live run's id.
+
+The upload hook is a person's act: after uploading, they press continue and the runtime counts
+the case's uploaded documents. Nothing advances on a GET.
+
 ## The API
 
 ```
-GET    /v1/cases/{id}/playbooks              which playbooks fit this case's type, with covered
-POST   /v1/cases/{id}/playbooks/{playbook}/runs    start a run: {document_ids?}  (contributor)
+GET    /v1/cases/{id}/playbooks              which playbooks fit this case's type, with covered and steps
+POST   /v1/cases/{id}/playbooks/{playbook}/runs    start: {document_ids?, language}; 409 while one is live  (contributor)
+GET    /v1/playbooks/runs/active              the live run per case the caller may read: the chip (reader)
 GET    /v1/cases/{id}/playbooks/runs          the case's runs, newest first        (reader)
-GET    /v1/cases/{id}/playbooks/runs/{run}    one run with its facts               (reader)
-PUT    /v1/cases/{id}/playbooks/runs/{run}/facts    confirm the checkpoint: {facts: [{id, confirmed}]}  (contributor)
+GET    /v1/cases/{id}/playbooks/runs/{run}    one run: step, steps, facts, turns  (reader)
+POST   /v1/cases/{id}/playbooks/runs/{run}/answer   {step_id, text?, facts?, none?}: an ask's facts, or a request  (contributor)
+PUT    /v1/cases/{id}/playbooks/runs/{run}/facts    the checkpoint: {facts: [{id, confirmed}]}  (contributor)
+POST   …/runs/{run}/pause | /resume           anyone who contributes
+POST   …/runs/{run}/stop | /cancel {reason}   the starter or the case manager
 ```
 
 The playbook path segment is the id's last part (`deed-intake`); the full id is in the response.
-Starting a run answers at once with the run in status `reading`; the client polls the run. The
-model call is one grounded request, like a chat question but with the playbook's own instructions
-and no history: the fields as a Markdown table the model fills, each cell citing [n]. The gateway
-parses the table, keeps the citations per fact and runs the check. A row names its fact by id or by
-its label in any of the playbook's languages (a small model translates), never by position: a
-skipped row would shift every later fact onto the wrong label without anyone noticing. An answer
-that isn't the table is asked for once more with a stricter reminder; then the run fails with
-`error: unreadable_answer` and can be started again. Starting a run counts against the caller's
-chat rate limit (it is a model call). A run still `reading` when the gateway stops is failed as
-`interrupted` at the next start, and the hourly sweep fails one that has been reading for over
-thirty minutes, so nobody waits on a spinner for a call that no longer exists. A case closed while
-a run waits at its checkpoint keeps the run; the UI says to reopen the case to confirm.
+A start walks the run to its first wait and answers with it; a run in status `reading` is polled.
+The model call is one grounded request, like a chat question but with the playbook's own
+instructions and no history: the facts as a Markdown table the model fills, each cell citing [n].
+The gateway parses the table, keeps the citations per fact and runs the check. A row names its
+fact by id or by its label in any of the playbook's languages (a small model translates), never by
+position: a skipped row would shift every later fact onto the wrong label without anyone noticing.
+An answer that isn't the table is asked for once more with a stricter reminder; then the run fails
+with `error: unreadable_answer` and can be started again. Starting a run, or answering the request
+its read waits on, counts against the caller's chat rate limit (it is a model call). A run still
+`reading` when the gateway stops is failed as `interrupted` at the next start, and the hourly
+sweep fails one that has been reading for over thirty minutes, so nobody waits on a spinner for a
+call that no longer exists. A case closed while a run waits keeps the run; the UI says to reopen
+the case to go on. Every act is in the case's access log: `playbook_started`, `playbook_answered`,
+`playbook_confirmed`, `playbook_paused`, `playbook_resumed`, `playbook_stopped`, `playbook_cancelled`.
 
 **Provenance in the result.** The summary document and its name carry the run's `playbook_id` and
 `playbook_version`, never the playbook as installed at confirmation time: a run started under 1.0
@@ -145,16 +213,18 @@ review, 17 October 2026).
 
 ## The chat UI
 
-Deed intake opens from the composer's **Playbook** chip, in a case whose type has playbooks: the
-chip's menu lists them, each with *Covered* or *Not covered*. Every member of the case gets the chip;
-a reader sees the runs, and only a contributor or the manager starts or confirms one. The view
-takes the conversation's place (`components/DeedIntake.tsx`):
-the run's facts in the playbook's order, each a row with the label, the value as read, the source
-(file name, page) that opens the passage with the claim marked, the check's warning when there is
-one, and a text field to confirm or correct. "Confirm the facts" at the bottom; a fact left empty is
-confirmed as empty. After confirmation: the summary, a Word download (made in the browser, as
-answers are), and the document appears in the case's list. Earlier runs are listed under the
-current one. Every piece of text in three languages; every control from `packages/chat-ui/src/ui/`.
+The run takes the conversation's place (`components/PlaybookRun.tsx`), like Usage. A banner says
+where the run is; the thread shows the playbook's questions on the assistant side and the people's
+answers with their names; the composer answers the step the run is on (add documents and continue,
+or say there is none where the step allows it; the facts asked, or go on not knowing yet; the
+checkpoint's fact-by-fact view as before, each fact beside the passage it was read from, with the
+check's warning and a field to confirm or correct); a panel beside the thread lists every fact with
+its status (read, answered by a person, confirmed, cleared, not found) and the Word download when
+done (made in the browser, as answers are); a menu holds pause/resume, stop and cancel, shown only
+to those the gateway would allow (it decides; the view only hides). The chip under the open case's
+header and in the case overview opens the run. Earlier runs are listed under the current one; a run
+from before the routine opens read-only with a notice. Every piece of text in three languages; every
+control from `packages/chat-ui/src/ui/`.
 
 ## The manifest (30 October 2026)
 
@@ -177,16 +247,24 @@ and the field: the people writing these by hand are administrators, not develope
 key silently ignored is a playbook that quietly does something else. The JSON Schema for editors
 is generated from the model into `packages/playbooks/schema/` and a test keeps the two in sync.
 
-Format 2 is the step graph: `request`, `read`, `ask`, `check`, `propose`, `checkpoint`, `produce`,
-with conditions, gates, products and a model role per step. It arrives with the runtime, and a
-format-1 file keeps loading as what it is. Open with it: whether an office's own manifest may carry
-its wording inline (one file to upload) rather than in a pack's text files.
+Format 2 (30 October 2026) adds `steps`: `request`, `read`, `ask`, `checkpoint`, `produce`, each
+with `needs` (default: the step before). The graph is validated: ids once, needs resolve, no circle,
+a checkpoint before any produce, an ask only about facts a read before it reads, the fields of one
+kind refused on another; every error names the step. A format-1 file loads as the implicit routine
+read, checkpoint, produce. The questions a `request` or `ask` step puts to people are the pack's
+wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's template, or by
+`step.fact` for one fact's own words), reviewed and translated like the labels; the model never
+words them. Later formats bring `check`, `propose`, conditions, products beyond the summary and a
+model role per step. Open: whether an office's own manifest may carry its wording inline (one file
+to upload) rather than in a pack's text files.
 
 ## What is deferred, on purpose
 
-- A facts layer shared between playbooks (#27): after the second playbook shows which facts recur.
-- A step graph, queued runs, a runtime (#28): the manifest came first (below); the steps join it as
-  format 2 when the runtime does.
+- Which facts recur between playbooks (#27): `case_facts` is the record; its shared vocabulary is
+  to be seen from the second playbook.
+- Conditions, `check`, `propose`, model roles, products beyond the summary, products marked out of
+  date by changed facts (#28, the rest): the next formats.
+- Ordinary chat on the `turns` table: its own step, with the conversion of the saved blobs.
 - The Word document from the office's own template (#22): the summary is sūveryn's own layout now.
 - Named subject fields on the case type (#29): the intake's facts are the first candidates.
 - Facts validated by form (national register numbers, cadastral patterns): an entities table, later.
