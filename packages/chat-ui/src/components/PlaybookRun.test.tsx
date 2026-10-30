@@ -30,7 +30,7 @@ describe("the banner and the chip", () => {
     expect(stepLabel({ ...RUN, step: "missing" }, PLAYBOOK, en)).toBe(en.stepAsk);
     expect(stepLabel({ ...RUN, step: "confirm" }, PLAYBOOK, en)).toBe(en.stepCheckpoint);
     expect(stepLabel({ ...RUN, status: "reading", step: "read" }, PLAYBOOK, en)).toBe(en.stepReading);
-    expect(stepLabel({ ...RUN, step: "confirm" }, null, en)).toBe(en.stepCheckpoint);  // a run from before the routine: by its step's name
+    expect(stepLabel({ ...RUN, step: "confirm" }, null, en)).toBe("");  // the playbook not known (any more): no step to name
     expect(runChipText(RUN, PLAYBOOK, "Deed intake", en)).toBe("Deed intake · waiting for documents");
     expect(runChipText({ ...RUN, status: "paused" }, PLAYBOOK, "Deed intake", en)).toBe("Deed intake · Paused");
     expect(statusLabel("cancelled", en)).toBe(en.runCancelled);

@@ -297,8 +297,6 @@ async def _live_run(request: Request, case_id: str, run_id: str, action: str) ->
     pb = find(run.playbook_id)
     if pb is None:
         raise HTTPException(409, "This run's playbook is no longer installed.")
-    if not run.steps:
-        raise HTTPException(409, "This run was made by an earlier version and can only be viewed. Start the playbook again.")
     return case, store, run, pb
 
 
