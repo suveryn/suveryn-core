@@ -864,6 +864,7 @@ const en = {
   clockSetDone: "Clock set.",
   clockSetFailed: (why: string) => `Not set: ${why}.`,
   clockErrors: { synced: "a time server keeps it", out_of_range: "the difference is more than a year",
+                 not_allowed: "this system may not set its clock",
                  other: "try again in a minute" } as Record<string, string>,
   notWorkingSince: (time: string) => `Not working since ${time}`,
   nInProgress: (n: number) => `${n} in progress`,

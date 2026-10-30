@@ -834,6 +834,7 @@ const nl: Messages = {
   clockSetDone: "Klok gelijkgezet.",
   clockSetFailed: (why: string) => `Niet gelijkgezet: ${why}.`,
   clockErrors: { synced: "een tijdserver houdt ze bij", out_of_range: "het verschil is meer dan een jaar",
+                 not_allowed: "dit systeem mag zijn klok niet zetten",
                  other: "probeer het over een minuut opnieuw" } as Record<string, string>,
   notWorkingSince: (time) => `Werkt niet sinds ${time}`,
   nInProgress: (n) => `${n} bezig`,
