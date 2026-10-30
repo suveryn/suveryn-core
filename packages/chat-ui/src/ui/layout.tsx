@@ -126,12 +126,12 @@ export function Notice({ icon, title, children, tone = "note" }: { icon: ReactNo
 /** A line of text with an icon, in the flow of the page (under an answer, on the sign-in screen):
  *  lighter than Notice. `error`: in ink, with its own icon (the brand has no red). `ok`: a system status
  *  (a backup made, a passed test), in teal ink with its check. With `alert`, a screen reader reads it as
- *  soon as it appears. */
-export function InlineNotice({ icon, tone = "note", alert, className, children }: {
-  icon: ReactNode; tone?: "note" | "error" | "ok"; alert?: boolean; className?: string; children: ReactNode;
+ *  soon as it appears, interrupting; with `status`, when it is next quiet (a success: the clock set). */
+export function InlineNotice({ icon, tone = "note", alert, status, className, children }: {
+  icon: ReactNode; tone?: "note" | "error" | "ok"; alert?: boolean; status?: boolean; className?: string; children: ReactNode;
 }) {
   return (
-    <p className={cx("ui-inline-notice", className)} data-tone={tone} role={alert ? "alert" : undefined}>
+    <p className={cx("ui-inline-notice", className)} data-tone={tone} role={alert ? "alert" : status ? "status" : undefined}>
       <span className="ui-inline-notice-icon" aria-hidden>{icon}</span>
       <span>{children}</span>
     </p>
