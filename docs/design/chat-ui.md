@@ -37,7 +37,8 @@ These apply to every screen below.
 - **Everything else is ink on neutral surfaces**:
   - avatars: ink initials on `surface-alt`, with a finer `line` border of `max(1.5px, 5%)` of the
     side;
-  - avatar badges: an ink outline;
+  - overlay icons on an avatar (the administrator's shield, the manager's folder, the owner's speech
+    bubble): ink, as suveryn-brand's *Overlay icons* sets out (tokens v3.5);
   - active filters: `surface-alt` with a darker border;
   - chips: the composer's playbook chip and model chip are ink text on `surface-alt`, never teal or
     orange, whatever they lead to; inside the playbook menu only "Covered" is teal (a status);
@@ -143,9 +144,10 @@ applicable), the name and chevrons. It opens a `Menu`:
    "Administrators only" and shown to administrators only.
 6. *Sign out*, with the fine print "Documents and answers stay on this server".
 
-**Avatar badges.** An ink outline icon over the avatar's bottom-right corner; the manager's and the
-owner's sit on a small disc in the surface colour, the administrator's shield is only its outline, with
-no disc and no ring (Filip, 28 October):
+**Avatar badges.** Overlay icons, by suveryn-brand's rule (guidelines, *Overlay icons*, tokens v3.5;
+`IconBadge` and `.ui-badge`): one size per host from the `badge` tokens, 40 % outside the bottom-right
+corner, the icon filling its box with no disc, ring or fill, in ink for a role; on a photo, a 1 px outline
+in the surface colour. Board 55 of the design canvas shows them at every size:
 
 - `shield` for an administrator;
 - `folder` for a case's manager;

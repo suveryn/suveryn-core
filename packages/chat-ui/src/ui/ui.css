@@ -206,18 +206,27 @@
 .ui-switch[data-focus-visible] .ui-switch-track { box-shadow: 0 0 0 3px var(--focus-glow); }
 .ui-switch[data-disabled] { opacity: 0.5; cursor: default; }
 
-/* a small badge over the corner of an icon (IconBadge); the avatar's administrator badge is one too */
+/* overlay icons (suveryn-brand guidelines, "Overlay icons", tokens v3.5): one rule for every badge over a corner,
+   the avatar's administrator shield included. One size per host from the badge tokens, never a share of it; 40 %
+   outside the corner, right and bottom; the icon fills its box, no disc, ring or fill. Colour by meaning: teal-ink
+   when the system signals something (a playbook speaking), text for a role or ownership. */
 .ui-badged { position: relative; display: inline-flex; flex: none; }
-.ui-badge { position: absolute; right: -6px; bottom: -4px; display: grid; place-items: center; width: 11px; height: 11px; border-radius: 30%;
-            background: transparent; color: var(--teal-ink); }
-.ui-badge svg { stroke-width: 2.5; }
-/* the administrator: only the shield's outline, in ink (Filip, 28 October): no disc, no ring */
-.ui-badge[data-tone="accent"], .ui-avatar .ui-badge[data-tone="accent"] { background: transparent; color: var(--text); box-shadow: none; }
-.ui-badge svg { width: 100%; height: 100%; }
-.ui-badge[data-tone="accent"] svg { width: 70%; height: 70%; }
-/* neutral: on an avatar, the manager's folder or the owner's speech bubble (docs/design/chat-ui.md §4) */
-.ui-badge[data-tone="neutral"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
-.ui-badge[data-tone="neutral"] svg { width: 80%; height: 80%; }
+.ui-badge { --badge: var(--badge-icon); --badge-offset: var(--badge-icon-offset); --badge-stroke: var(--badge-icon-stroke);
+            position: absolute; right: var(--badge-offset); bottom: var(--badge-offset); display: block;
+            width: var(--badge); height: var(--badge); color: var(--text); pointer-events: none; }
+.ui-badge[data-tone="system"] { color: var(--teal-ink); }
+.ui-badge svg { display: block; width: 100%; height: 100%; stroke-width: var(--badge-stroke); }
+.ui-badge[data-host="small"] { --badge: var(--badge-avatar-sm); --badge-offset: var(--badge-avatar-sm-offset); --badge-stroke: var(--badge-avatar-sm-stroke); }
+.ui-badge[data-host="normal"] { --badge: var(--badge-avatar); --badge-offset: var(--badge-avatar-offset); --badge-stroke: var(--badge-avatar-stroke); }
+.ui-badge[data-host="large"] { --badge: var(--badge-avatar-lg); --badge-offset: var(--badge-avatar-lg-offset); --badge-stroke: var(--badge-avatar-lg-stroke); }
+.ui-badge[data-host="huge"] { --badge: var(--badge-avatar-xl); --badge-offset: var(--badge-avatar-xl-offset); --badge-stroke: var(--badge-avatar-xl-stroke); }
+/* the one exception, a photo: a 1 px outline in the colour of the surface the badge sits on, or its line disappears
+   into the picture (--badge-surface where that isn't --surface). On a plain surface nothing, so the badge reads bare. */
+.ui-avatar:has(.ui-avatar-picture) > .ui-badge,
+.ui-badged:has(> .ui-avatar .ui-avatar-picture) > .ui-badge {
+  filter: drop-shadow(1px 0 0 var(--badge-surface, var(--surface))) drop-shadow(-1px 0 0 var(--badge-surface, var(--surface)))
+          drop-shadow(0 1px 0 var(--badge-surface, var(--surface))) drop-shadow(0 -1px 0 var(--badge-surface, var(--surface)));
+}
 
 /* ------------------------------------------------------------------------------------------------ layout pieces */
 .ui-steps { margin-bottom: 28px; }
@@ -512,8 +521,8 @@
 .ui-date-segment[data-focused] { background: var(--surface-alt); color: var(--text); box-shadow: inset 0 0 0 1px var(--focus-border); }
 
 /* avatar: the mark's rounded square (radius a quarter of the side), ink initials on surface-alt with a fine line
-   border (chat-ui.md section 1: a person is not a system status), or a picture; an administrator's badge over the
-   corner, in an ink outline */
+   border (chat-ui.md section 1: a person is not a system status), or a picture; an administrator's shield over the
+   corner, an overlay icon like any other (above) */
 .ui-avatar { --avatar: 32px; position: relative; display: inline-block; flex: none; width: var(--avatar); height: var(--avatar);
              font-family: var(--font-display); font-weight: 600; user-select: none; }
 .ui-avatar-face { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 25%; box-sizing: border-box;
@@ -524,9 +533,6 @@
 .ui-avatar[data-size="huge"] { --avatar: 96px; }
 .ui-avatar-initials { font-size: calc(var(--avatar) * 0.38); line-height: 1; letter-spacing: 0.02em; }
 .ui-avatar-picture { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ui-avatar-badge { right: -3px; bottom: -3px; width: min(calc(var(--avatar) * 0.42), 26px); height: min(calc(var(--avatar) * 0.42), 26px);
-                   box-shadow: 0 0 0 2px var(--surface); }
-.ui-avatar[data-size="small"] .ui-avatar-badge { width: 12px; height: 12px; box-shadow: 0 0 0 1.5px var(--surface); }
 
 /* slider */
 .ui-slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-1) var(--space-3); }

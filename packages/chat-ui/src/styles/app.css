@@ -156,7 +156,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .case-faces-stack { display: inline-flex; gap: 4px; }
 .case-faces-more { font-size: var(--text-caption); color: var(--text-dim); align-self: center; }
 /* a conversation in a case: the pane and its header on case-surface; the question bubbles white (§5, artboard 02) */
-.main[data-case] { background: var(--case-surface); }
+.main[data-case] { background: var(--case-surface); --badge-surface: var(--case-surface); }  /* a badge on a photo */
 .main[data-case] .bubble { background: var(--bg); border: 1px solid var(--line); }
 .case-menu { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm);
              background: transparent; color: var(--text-dim); }
