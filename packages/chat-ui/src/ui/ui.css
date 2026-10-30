@@ -308,12 +308,6 @@
 .ui-search-clear[data-hovered] { color: var(--text); background: var(--surface-alt); }
 .ui-search-clear[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
 .ui-search[data-empty] .ui-search-clear { display: none; }
-.ui-select-list { outline: none; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.ui-select-list-item { border-radius: var(--radius-sm); cursor: pointer; outline: none; }
-.ui-select-list-item[data-hovered] { background: var(--surface-alt); }
-.ui-select-list-item[data-selected] { background: var(--surface-alt); }
-.ui-select-list-item[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
-.ui-select-list-item:focus-visible { outline: none; }
 
 /* rows (review, support agreement) */
 .ui-rows { margin: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); }

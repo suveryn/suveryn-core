@@ -21,7 +21,7 @@ export { NARROW, useMedia } from "./media";
 export { FileButton, FileDrop, FilePick, readText, useFilePicker } from "./files";
 export { Form, FormError, useFieldError, useFormPending, type FieldErrors } from "./forms";
 export { Card, Chips, Facts, InlineNotice, Note, Notice, Rows, StatusList, Steps, type Fact, type Row, type Status, type StatusItem } from "./layout";
-export { ComboBoxField, SearchField, SelectList, type ListEntry } from "./lists";
+export { ComboBoxField, SearchField } from "./lists";
 export { ActionMenu, MenuButton, Select, SelectField, SplitButton, type MenuEntry, type Option } from "./menus";
 export { DocumentPicker, type PickItem } from "./picker";
 export { Slider } from "./slider";

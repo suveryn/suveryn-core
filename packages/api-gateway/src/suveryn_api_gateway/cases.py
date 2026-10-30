@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS cases (
     closed_at   timestamptz,
     keep_until  timestamptz,
     keep        boolean NOT NULL DEFAULT false,
+    confidential boolean NOT NULL DEFAULT false,
     manager     text NOT NULL,
     created_by  text NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now(),
@@ -102,11 +103,11 @@ CREATE TABLE IF NOT EXISTS case_members (
     role      text NOT NULL CHECK (role IN ('reader', 'contributor', 'manager')),
     added_by  text NOT NULL,
     added_at  timestamptz NOT NULL DEFAULT now(),
+    username  text NOT NULL DEFAULT '',
+    name      text NOT NULL DEFAULT '',
     PRIMARY KEY (case_id, "user")
 );
 CREATE INDEX IF NOT EXISTS case_members_user ON case_members ("user");
-ALTER TABLE case_members ADD COLUMN IF NOT EXISTS username text NOT NULL DEFAULT '';
-ALTER TABLE case_members ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS case_events (
     id       bigserial PRIMARY KEY,
     case_id  uuid NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
@@ -116,7 +117,6 @@ CREATE TABLE IF NOT EXISTS case_events (
     detail   jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 -- A case's log newest first, and its latest line (``last_activity``), straight from the index.
-DROP INDEX IF EXISTS case_events_case_at;
 CREATE INDEX IF NOT EXISTS case_events_case_latest ON case_events (case_id, at DESC, id DESC);
 CREATE TABLE IF NOT EXISTS case_pins (
     case_id   uuid NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
@@ -134,7 +134,6 @@ CREATE TABLE IF NOT EXISTS departed_accounts (
     deleted_at  timestamptz NOT NULL DEFAULT now(),
     deleted_by  text NOT NULL
 );
-ALTER TABLE cases ADD COLUMN IF NOT EXISTS confidential boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS case_settings (
     key        text PRIMARY KEY,
     value      text NOT NULL,
@@ -489,9 +488,6 @@ class CaseStore(PgStore):
             self._execute('INSERT INTO case_pins (case_id, "user") VALUES (%s, %s) ON CONFLICT DO NOTHING', (case_id, user))
         else:
             self._execute('DELETE FROM case_pins WHERE case_id = %s AND "user" = %s', (case_id, user))
-
-    def pinned_by(self, case_id: uuid.UUID, user: str) -> bool:
-        return self._execute('SELECT 1 FROM case_pins WHERE case_id = %s AND "user" = %s', (case_id, user)).fetchone() is not None
 
     def update(self, case_id: uuid.UUID, body: CaseUpdate) -> Case | None:
         """Change what ``body`` sets; None if the case doesn't exist. Strictly confidential means

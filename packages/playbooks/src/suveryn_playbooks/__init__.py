@@ -67,10 +67,6 @@ class Playbook:
         """The id's last part: the path segment in the API (``deed-intake``)."""
         return self.id.rsplit("/", 1)[1]
 
-    @property
-    def major(self) -> int:
-        return int(self.version.split(".")[0])
-
 
 def pack_text(package: str, slug: str) -> dict[str, Wording]:
     """A playbook's words in every language, from its pack's ``text/<language>.json`` (one file per

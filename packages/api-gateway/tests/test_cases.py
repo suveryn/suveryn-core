@@ -160,9 +160,6 @@ class FakeCases:
     def set_pinned(self, case_id, user, pinned):
         (self.pins.add if pinned else self.pins.discard)((case_id, user))
 
-    def pinned_by(self, case_id, user):
-        return (case_id, user) in self.pins
-
     def create(self, body: CaseIn, user: str, username: str = "", name: str = "") -> Case:
         if any(c.reference.lower() == body.reference.lower() for c in self.cases.values()):
             raise DuplicateReference(body.reference)
@@ -1060,7 +1057,7 @@ def test_store_creates_lists_updates_and_deletes(store):
     # pins (docs/design/chat-ui.md): per user, in the list and the single case
     assert not s.list(alice, office_wide=False)[0].pinned
     s.set_pinned(uuid.UUID(c.id), alice, True)
-    assert s.list(alice, office_wide=False)[0].pinned and s.get(uuid.UUID(c.id), alice).pinned and s.pinned_by(uuid.UUID(c.id), alice)
+    assert s.list(alice, office_wide=False)[0].pinned and s.get(uuid.UUID(c.id), alice).pinned
     assert not s.list(bob, office_wide=True)[0].pinned  # someone else's pin
     s.set_pinned(uuid.UUID(c.id), alice, False)
     assert not s.get(uuid.UUID(c.id), alice).pinned
@@ -1464,7 +1461,8 @@ def test_store_keeps_a_deleted_accounts_name_with_what_it_did(store):
     s.log(cid, bob, "uploaded", {})
     s.set_pinned(cid, bob, True)
     assert s.depart(bob, "bob", "Bob Peeters", alice) == 1
-    assert s.role_of(cid, bob) is None and not s.pinned_by(cid, bob)
+    assert s.role_of(cid, bob) is None
+    assert s._execute('SELECT 1 FROM case_pins WHERE case_id = %s AND "user" = %s', (cid, bob)).fetchone() is None
     assert s.departed_names([bob]) == {bob: "Bob Peeters"} and bob in s.departed_names()
     names = {(e.user, e.action): e.name for e in s.events(cid)}
     assert names[(bob, "uploaded")] == "Bob Peeters" and names[(alice, "member_removed")] == "Alice"
