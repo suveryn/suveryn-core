@@ -884,6 +884,8 @@ export type RunSummary = {
   language: string;             // the thread's language
   paused_by: string | null; paused_at: string | null; ended_by: string | null; ended_reason: string | null;
   starter?: string | null;      // the starter's id: who may stop or cancel, with the case manager
+  title?: Record<string, string>;   // the playbook's title per language (the server fills it), for a chip anywhere
+  step_kind?: "request" | "read" | "ask" | "checkpoint" | "produce" | null;  // the kind of the step the run is on
 };
 export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
 

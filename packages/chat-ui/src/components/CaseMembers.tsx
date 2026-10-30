@@ -183,6 +183,13 @@ export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>): string {
     case "keep_changed": return m.eventKeepChanged;
     case "conversation_shared": return m.eventConversationShared;
     case "conversation_unshared": return m.eventConversationUnshared;
+    case "playbook_started": return m.eventPlaybookStarted;
+    case "playbook_answered": return m.eventPlaybookAnswered;
+    case "playbook_confirmed": return m.eventPlaybookConfirmed;
+    case "playbook_paused": return m.eventPlaybookPaused;
+    case "playbook_resumed": return m.eventPlaybookResumed;
+    case "playbook_stopped": return m.eventPlaybookStopped;
+    case "playbook_cancelled": return m.eventPlaybookCancelled;
     default: return e.action;
   }
 }

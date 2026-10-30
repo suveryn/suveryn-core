@@ -1029,7 +1029,7 @@ function Chat({ me }: { me: Me }) {
         </div>}
         {view === "cases" && <div className="conversation conversation-wide">
           <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations} activeRuns={activeRuns}
-                         runChip={(r) => runChipText(r, null, m.playbooks, m)} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
+                         runChip={(r) => runChipText(r, null, m.playbooks, m, language)} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
                          onShowDocuments={(id) => showOverview("documents", id)} onShowConversations={(id) => showOverview("conversations", id)} />
         </div>}
         {view === "search" && <div className="conversation">

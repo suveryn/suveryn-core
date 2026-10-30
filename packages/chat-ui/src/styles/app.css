@@ -246,6 +246,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .playbook-facts-compact .playbook-fact-meta { grid-column: 1; }
 .playbook-fact-status { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--text-dim); }
 .playbook-fact[data-confirmed] .playbook-fact-status { color: var(--teal-ink); }
+.playbook-reason textarea { width: 100%; min-height: 64px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+                            font: inherit; font-size: var(--text-body-sm); color: var(--text); background: var(--bg); resize: vertical; }
+.playbook-reason textarea:focus-visible { outline: none; border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
 .playbook-run-menu { display: flex; justify-content: flex-end; }
 .playbook-run-menu .ui-menu-trigger { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-body-sm); }
 .playbook-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--teal-ink);
@@ -258,6 +261,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .playbook-fact { padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .playbook-fact-main { display: grid; grid-template-columns: minmax(10rem, 14rem) 1fr; gap: var(--space-1) var(--space-3); align-items: start; }
 .playbook-fact-main .ui-eyebrow { padding-top: 0.55rem; }
+.playbook-fact-field { width: 100%; }
 .playbook-fact-field textarea { width: 100%; min-height: 32px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
                                 background: var(--surface); color: var(--text); font: inherit; font-size: var(--text-body-sm); line-height: 1.5;
                                 resize: vertical; field-sizing: content; }

@@ -139,6 +139,17 @@ def _runtime(request: Request) -> Runtime:
     return Runtime(runs_or_503(request), docs_or_503(request), _uploaded_in(request))
 
 
+def _named(run):
+    """A run with its playbook's title per language and the kind of its step, so a chip anywhere can
+    say "Akte-intake · wacht op documenten" without knowing the playbooks (Pod check of d0f680e, finding 1)."""
+    pb = find(run.playbook_id)
+    if pb is None:
+        return run
+    step = pb.step(run.step) if run.step else None
+    return run.model_copy(update={"title": {lang: w.title for lang, w in pb.text.items()},
+                                  "step_kind": step.kind if step else ("checkpoint" if run.step == "confirm" else None)})
+
+
 # ------------------------------------------------------------------------------ which playbooks
 
 @router.get("/v1/cases/{case_id}/playbooks", response_model=list[PlaybookOut])
@@ -180,14 +191,15 @@ async def active_runs(request: Request):
     case_ids = await readable_case_ids(request)
     if not case_ids:
         return {}
-    return await run_in_threadpool(runs_or_503(request).active_in_cases, case_ids)
+    live = await run_in_threadpool(runs_or_503(request).active_in_cases, case_ids)
+    return {k: _named(v) for k, v in live.items()}
 
 
 @router.get("/v1/cases/{case_id}/playbooks/runs", response_model=list[RunSummary])
 async def list_runs(case_id: str, request: Request):
     """The case's runs, newest first (a reader's right)."""
     case = await case_for(request, case_id, "read")
-    return await run_in_threadpool(runs_or_503(request).list, uuid.UUID(case.id))
+    return [_named(r) for r in await run_in_threadpool(runs_or_503(request).list, uuid.UUID(case.id))]
 
 
 @router.get("/v1/cases/{case_id}/playbooks/runs/{run_id}", response_model=Run)
@@ -197,7 +209,7 @@ async def get_run(case_id: str, run_id: str, request: Request):
     run = await run_in_threadpool(runs_or_503(request).get, _run_id(run_id), uuid.UUID(case.id))
     if run is None:
         raise HTTPException(404, "Unknown run.")
-    return run
+    return _named(run)
 
 
 @router.post("/v1/cases/{case_id}/playbooks/{playbook}/runs", response_model=Run, status_code=202, responses={
@@ -404,14 +416,15 @@ async def stop_run(case_id: str, run_id: str, request: Request):
 @router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/cancel", response_model=Run, responses={
     403: {"description": "Not the starter or the manager"}, 409: {"description": "Already ended"}})
 async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request):
-    """The run should not have happened: its confirmed facts go back to proposed (kept, with their
-    provenance), its product is marked withdrawn (never deleted), and the case shows no result from it."""
+    """The run should not have happened: every fact it established, confirmed or not, is superseded
+    (kept in the record, no longer the case's), its product is marked withdrawn (never deleted), and
+    the case shows no result from it."""
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     _may_end(request, case, run)
     rid, username = uuid.UUID(run.id), who(request)[0]
     if not await run_in_threadpool(store.end, rid, "cancelled", username, body.reason):
         raise HTTPException(409, "This run has already ended.")
-    await run_in_threadpool(store.revert_confirmed, rid, username)
+    await run_in_threadpool(store.discard_all, rid)
     if run.result_document_id:
         try:
             await run_in_threadpool(docs_or_503(request).withdraw, run.result_document_id, Scope.case(uuid.UUID(case.id)), username, body.reason)

@@ -22,7 +22,6 @@ import { lang, locale, useLang, useT } from "../i18n";
 import { playbookWords, stepQuestion, type PlaybookWords } from "../lib/playbooks";
 import { dayLabel } from "../lib/conversations";
 import { exportRef } from "../lib/marks";
-import { intakeToWord, saveBlob } from "../lib/office";
 import { ActionMenu, Button, Dialog, FileButton, InlineNotice, TextArea, TextButton, type MenuEntry } from "../ui";
 import { AssistantMark } from "./Brand";
 import { SourceCard } from "./Messages";
@@ -144,9 +143,10 @@ export function stepLabel(run: Pick<RunSummary, "step" | "status">, playbook: Pi
 }
 
 /** One line for the chip on a case: the playbook's title and what the run waits for. */
-export function runChipText(run: RunSummary, playbook: Pick<PlaybookInfo, "steps" | "name" | "text"> | null | undefined, title: string, m: Words): string {
+export function runChipText(run: RunSummary, playbook: Pick<PlaybookInfo, "steps" | "name" | "text"> | null | undefined, title: string, m: Words, lang?: string): string {
+  const name = (lang && run.title?.[lang]) || run.title?.en || title;
   const what = run.status === "paused" ? m.runPaused : stepLabel(run, playbook, m);
-  return what ? `${title} · ${what}` : title;
+  return what ? `${name} · ${what}` : name;
 }
 
 function errorLabel(error: string | null, m: Words): string {
@@ -193,7 +193,7 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
       {run.instruction_like_sources.length > 0 && (
         <InlineNotice icon={<AlertTriangle size={14} />}>{m.runSuspiciousSources}</InlineNotice>
       )}
-      {run.status === "cancelled" && <InlineNotice icon={<XCircle size={14} />}>{m.runCancelledHint(nameOf(run.ended_by ?? ""), run.ended_reason ?? "")}</InlineNotice>}
+      {run.status === "cancelled" && <InlineNotice icon={<XCircle size={14} />}>{m.runCancelledHint(nameOf(run.ended_by ?? ""), run.ended_reason ?? "", !!run.result_document_id)}</InlineNotice>}
       {run.status === "stopped" && <InlineNotice icon={<Square size={14} />}>{m.runStoppedHint(nameOf(run.ended_by ?? ""))}</InlineNotice>}
       <div className="playbook-body">
         <div className="playbook-thread-column">
@@ -226,7 +226,7 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
                 <Button variant="primary" onPress={() => void act("cancel")} isDisabled={busy}>{m.cancelRunConfirm}</Button>
               </>}>
         <p>{m.cancelRunExplain}</p>
-        <TextArea label={m.cancelReason} value={reason} onChange={setReason} rows={2} />
+        <TextArea label={m.cancelReason} value={reason} onChange={setReason} rows={2} className="ui-field playbook-reason" />
       </Dialog>
     </section>
   );
@@ -388,6 +388,7 @@ function FactsPanel({ run, words, kase, nameOf }: { run: Run; words: PlaybookWor
   const [open, setOpen] = useState<string | null>(null);
   const mark = useWatermark();
   const word = async () => {
+    const { intakeToWord, saveBlob } = await import("../lib/office");
     const blob = await intakeToWord({
       title: `${words.title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
       confirmedOn: m.confirmedBy(run.confirmed_by ? nameOf(run.confirmed_by) : "", new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })),
@@ -404,8 +405,10 @@ function FactsPanel({ run, words, kase, nameOf }: { run: Run; words: PlaybookWor
   if (run.facts.length === 0) {
     return <p className="caption">{run.status === "reading" ? m.runReadingHint(run.documents.length) : m.noFactsYet}</p>;
   }
+  // One line says what a fact is: confirmed, cleared or answered by a person; for a fact read from the documents the
+  // source line names the document, and for one not found the value says so (Pod check, finding 5).
   const status = (f: RunFact) => f.confirmed !== null ? (f.confirmed ? m.factConfirmed : m.factCleared)
-    : f.source === "person" ? m.factAnswered : f.found ? m.factRead : m.factNotFound;
+    : f.source === "person" ? m.factAnswered : undefined;
   return (
     <>
       <h2 className="label">{m.factsPanel}</h2>
@@ -449,8 +452,12 @@ function FactRow({ fact, label, value, editable, status, open, onOpen, onChange 
               <FileText size={12} aria-hidden /> {first.filename}{first.page ? `, p. ${first.page}` : ""}
               {fact.citations.length > 1 ? ` +${fact.citations.length - 1}` : ""}
             </TextButton>
-          ) : (
-            <span className="caption">{fact.source === "person" ? m.factFromPerson : fact.found ? m.factNoSource : m.factNotInDocuments}</span>
+          ) : fact.source === "person" ? (
+            <span className="caption">{m.factFromPerson}</span>
+          ) : fact.found ? (
+            <span className="caption">{m.factNoSource}</span>
+          ) : status === undefined && fact.confirmed === null ? null : (  // the value already says "not found"
+            <span className="caption">{m.factNotInDocuments}</span>
           )}
           {fact.issues.length > 0 && (
             <span className="playbook-fact-issue"><AlertTriangle size={12} aria-hidden /> {m.factToCheck(fact.issues.join(", "))}</span>
