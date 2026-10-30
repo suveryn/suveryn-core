@@ -23,7 +23,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 | [`packages/api-gateway`](packages/api-gateway/README.md) | FastAPI app: `POST /v1/chat`, `GET /v1/models`, `/v1/documents`, `/v1/conversations`, `/v1/cases` (with their playbooks), `/v1/me/avatar` and `/v1/users/{sub}/avatar`, `/v1/usage`, and Administration's `/v1/admin/users`, `/v1/admin/status`, `/v1/admin/backups`, `/v1/admin/cases` and its settings, `/v1/admin/playbooks`, `/v1/admin/usage`; `GET /health`; sign-in with Keycloak (`/auth/...`) and rate limits |
 | [`packages/rag`](packages/rag/README.md) | Document ingestion (`ocr_fast` extraction in an isolated reader process, integrity checks, chunking, bge-m3 embeddings, PostgreSQL + pgvector) and retrieval with page-level citations |
 | [`packages/chat-ui`](packages/chat-ui/README.md) | The chat interface (React, TypeScript, Vite) in English, Dutch and French; answers to Word or Markdown, tables to Excel or CSV. Also the appliance's first-boot web setup |
-| [`packages/playbooks`](packages/playbooks/README.md) | The official playbooks, hand-built (deed intake first): what each one asks the model for, and its identity; the gateway runs them in a case ([docs/design/playbooks.md](docs/design/playbooks.md)) |
+| [`packages/playbooks`](packages/playbooks/README.md) | The official playbooks as manifest files (deed intake first) and their loader: what each one asks the model for, and its identity; the gateway runs them in a case ([docs/design/playbooks.md](docs/design/playbooks.md)) |
 | `packages/mcp-host`, `connectors` | Placeholders for later phases |
 
 ## Run locally

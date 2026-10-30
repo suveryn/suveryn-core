@@ -7,78 +7,43 @@ record, every document a playbook produces, and later the registry and the licen
 chosen once and never change. The version is separate from the id: a change that changes results
 is a new minor version, a change that makes an old run unreadable a new major one.
 
+Every playbook is a **manifest file** (``manifest.py``): ``<pack>/<name>.yaml`` in this package,
+with the pack's wording in ``<pack>/text/<lang>.json`` beside it. ``PLAYBOOKS`` is every manifest
+found in the official packs at import; the product's objects are the ``Playbook`` dataclasses the
+loader makes, and nothing outside ``manifest.py`` reads YAML. A manifest that doesn't load is an
+error at import, not a playbook that silently differs: an official pack ships only manifests that
+load, and the test suite loads them all.
+
 ``covered(playbook_id)`` is the single place the licence check lands: whether the playbook is
 certified and listed in the appliance's manifest (development context §8, suveryn-tracker#35). A
 playbook that isn't covered still runs: the licensing model warns and never blocks. Today every
-official playbook is covered on every appliance.
+official playbook is covered.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal
+from importlib.resources import files
+from pathlib import Path
 
-FactKind = Literal["text", "amount", "date"]
+from ._model import LANGUAGES, Fact, FactKind, Playbook, Wording
+from .manifest import ManifestError, load
 
-# The product's interface languages, in this order: the server's one list (docs/translations.md).
-# The gateway uses it for the sign-in page's language; the chat UI has the same list in
-# packages/chat-ui/src/i18n/languages.ts and the Keycloak realm in supportedLocales;
-# tests/test_content.py checks that they all agree and that every playbook has its words in each.
-LANGUAGES = ("en", "nl", "fr")
+OFFICIAL_PACKS = ("be_notary",)   # package directories holding official manifests, in catalogue order
 
 
-@dataclass(frozen=True)
-class Wording:
-    """A playbook's words in one language: its title ("Deed intake"), one line on what it does, and
-    a label per fact id. The playbook carries them, so a new playbook or pack needs no UI change."""
-
-    title: str
-    summary: str
-    labels: dict[str, str]
-
-
-@dataclass(frozen=True)
-class Fact:
-    """One thing the playbook reads: its id (stable, the UI's vocabulary keys on it), what it is,
-    in the words the model gets (English; the model answers in the documents' language), and its kind."""
-
-    id: str
-    ask: str
-    kind: FactKind = "text"
+def _official() -> tuple[Playbook, ...]:
+    out: list[Playbook] = []
+    for pack in OFFICIAL_PACKS:
+        pack_dir = Path(str(files(__package__).joinpath(pack)))
+        for path in sorted(pack_dir.glob("*.yaml")):
+            out.append(load(path))
+    ids = [p.id for p in out]
+    if len(set(ids)) != len(ids):
+        raise ManifestError("two official manifests declare the same id: " + ", ".join(i for i in ids if ids.count(i) > 1))
+    return tuple(out)
 
 
-@dataclass(frozen=True)
-class Playbook:
-    id: str            # playbook/<pack>/<name>
-    pack: str          # pack/<profession-jurisdiction>
-    version: str       # "1.0"
-    name: str          # in English: the stored result's file name ("Deed intake 2026/0417 (1.0).txt")
-    case_types: tuple[str, ...]  # which case types it fits (cases.md: the type decides which playbooks fit)
-    facts: tuple[Fact, ...]
-    instructions: str  # what the model is told, after the grounded instructions, before the excerpts
-    text: dict[str, Wording] = field(default_factory=dict)  # per language (LANGUAGES): title, summary, fact labels
-
-    def wording(self, language: str) -> Wording:
-        """The words in ``language``, else in English."""
-        return self.text.get(language) or self.text["en"]
-
-    @property
-    def slug(self) -> str:
-        """The id's last part: the path segment in the API (``deed-intake``)."""
-        return self.id.rsplit("/", 1)[1]
-
-
-def pack_text(package: str, slug: str) -> dict[str, Wording]:
-    """A playbook's words in every language, from its pack's ``text/<language>.json`` (one file per
-    language for the whole pack, so a new language is one new file per pack; docs/translations.md)."""
-    import json
-    from importlib.resources import files
-
-    out = {}
-    for lang in LANGUAGES:
-        entry = json.loads(files(package).joinpath("text", f"{lang}.json").read_text(encoding="utf-8"))[slug]
-        out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]))
-    return out
+PLAYBOOKS: tuple[Playbook, ...] = _official()
 
 
 def covered(playbook_id: str) -> bool:
@@ -102,11 +67,17 @@ def for_case_type(case_type: str) -> list[Playbook]:
     return [p for p in PLAYBOOKS if case_type in p.case_types]
 
 
-from .be_notary.deed_intake import (
-    DEED_INTAKE,
-)
+def pack_text(package: str, slug: str) -> dict[str, Wording]:
+    """A playbook's words in every language, from its pack's ``text/<language>.json`` (one file per
+    language for the whole pack, so a new language is one new file per pack; docs/translations.md).
+    Kept for callers that have a package name; the loader uses the directory form."""
+    from .manifest import pack_text_from_dir
 
-PLAYBOOKS: tuple[Playbook, ...] = (DEED_INTAKE,)
+    return pack_text_from_dir(Path(str(files(package))), slug, where=package)
 
-__all__ = ["LANGUAGES", "PLAYBOOKS", "Fact", "FactKind", "Playbook", "Wording", "by_slug", "covered", "find", "for_case_type",
-           "pack_text"]
+
+DEED_INTAKE: Playbook = find("playbook/be-notary/deed-intake")  # type: ignore[assignment]  # the first playbook; tests and docs name it
+assert DEED_INTAKE is not None, "the official pack be_notary must contain deed-intake.yaml"
+
+__all__ = ["DEED_INTAKE", "LANGUAGES", "OFFICIAL_PACKS", "PLAYBOOKS", "Fact", "FactKind", "ManifestError", "Playbook",
+           "Wording", "by_slug", "covered", "find", "for_case_type", "load", "pack_text"]
