@@ -15,7 +15,7 @@ export const ALLOWED_ICONS = [
   "FolderInput", "FolderKey", "FolderOpen", "FolderPlus", "FolderSync", "Gauge", "Globe",
   "HardDrive", "ImagePlus", "Info", "KeyRound", "Languages", "Loader2", "LoaderCircle", "Lock",
   "LockOpen", "LogIn", "LogOut", "Menu", "MessageSquare", "MessageSquareLock", "MessagesSquare",
-  "MoreHorizontal", "Network", "NotebookText", "PanelLeft", "Paperclip", "Pencil", "Pin", "PinOff",
+  "MoreHorizontal", "Network", "NotebookText", "PanelLeft", "Paperclip", "Pause", "Pencil", "Pin", "PinOff",
   "Play", "Plus", "Printer", "RectangleEllipsis", "RefreshCw", "RotateCw", "ScrollText", "Search",
   "Server", "Settings", "Share2", "Shield", "ShieldOff", "Smartphone", "Square", "SquareTerminal",
   "Star", "StarOff", "Table2", "Trash2", "TriangleAlert", "Upload", "UserPlus", "UserRoundCheck",

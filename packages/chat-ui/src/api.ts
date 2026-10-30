@@ -851,27 +851,41 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 /** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
 /** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
 /** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/chat-ui.md). */
+export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce"; needs: string[]; facts: string[] };
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
                              case_types?: string[]; active?: boolean;
-                             /** Per language: its title, one line on what it does, its fact labels (the playbook carries them). */
-                             text?: Record<string, { title: string; summary: string; labels: Record<string, string> }> };
+                             /** Per language: its title, one line on what it does, its fact labels and the routine's questions (the playbook carries them). */
+                             text?: Record<string, { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string> }>;
+                             /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
+                             steps?: PlaybookStep[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
 export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
 export type RunFact = {
   id: string;
-  value: string;              // as the model read it, copied from the documents ("" when not found)
+  value: string;              // as read: the model's, from the documents, or a person's answer to the playbook's question ("" when neither)
   citations: FactCitation[];
   issues: string[];           // figures, dates or names the check couldn't find in the cited passages
   found: boolean;             // false: the documents don't contain it
-  confirmed: string | null;   // what the person confirmed, once they have
+  confirmed: string | null;   // what the person confirmed at the checkpoint, once they have
+  source?: "document" | "person" | "none";  // where ``value`` came from
 };
-export type RunStatus = "reading" | "checkpoint" | "confirmed" | "failed";
+/** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
+ *  docs/design/playbooks.md, "A running playbook is visible". */
+export type RunStatus = "reading" | "waiting" | "paused" | "done" | "stopped" | "cancelled" | "failed";
+export type StepState = { status: "pending" | "active" | "done" | "skipped"; by: string | null; at: string | null };
+/** One line of the run's thread (the ``turns`` table): the playbook's question or a person's answer. */
+export type RunTurn = { seq: number; role: "user" | "assistant" | "playbook"; step_id: string | null; by: string; at: string; text: string;
+                     meta: Record<string, unknown> };
 export type RunSummary = {
   id: string; case_id: string; playbook_id: string; playbook_version: string; status: RunStatus; documents: string[];
   started_by: string; started_at: string; finished_at: string | null; confirmed_by: string | null; confirmed_at: string | null;
   model: string | null; error: string | null; result_document_id: string | null; out_of_date: boolean;
+  step: string | null;          // the step the run is on (null: done, or a run from before the routine)
+  language: string;             // the thread's language
+  paused_by: string | null; paused_at: string | null; ended_by: string | null; ended_reason: string | null;
+  starter?: string | null;      // the starter's id: who may stop or cancel, with the case manager
 };
-export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: number[] };
+export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
 
 export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks`);
@@ -907,10 +921,38 @@ export async function getRun(caseId: string, runId: string): Promise<Run> {
   return r.json();
 }
 
-/** Starts a run (a contributor's right): it reads the case's uploaded documents; poll the run until it reaches the checkpoint. */
-export async function startRun(caseId: string, slug: string, documentIds: string[] = []): Promise<Run> {
+/** The live run per case the caller may read (reading, waiting or paused), keyed by case id: the chip on the case lists. */
+export async function activeRuns(): Promise<Record<string, RunSummary>> {
+  const r = await fetch("/v1/playbooks/runs/active");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Starts a run (a contributor's right) in the thread's language and walks it to its first wait; 409 while one is live. */
+export async function startRun(caseId: string, slug: string, language: string, documentIds: string[] = []): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/${encodeURIComponent(slug)}/runs`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document_ids: documentIds }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document_ids: documentIds, language }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Answers the step the run waits on: an ask's facts (a value per fact; empty: still unknown), or a request (the documents are in,
+ *  or ``none`` when the step allows it). The answer goes into the thread and the run walks on. */
+export async function answerRun(caseId: string, runId: string, stepId: string,
+                                answer: { text?: string; facts?: Record<string, string>; none?: boolean } = {}): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/answer`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ step_id: stepId, ...answer }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Pause (keeps everything), resume, stop (keeps confirmed facts, drops proposed ones) or cancel (reverts confirmed facts, withdraws the
+ *  product). Pause and resume: anyone who contributes; stop and cancel: the starter or the case manager. */
+export async function runAction(caseId: string, runId: string, action: "pause" | "resume" | "stop" | "cancel", reason = ""): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/${action}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: action === "cancel" ? JSON.stringify({ reason }) : undefined,
   });
   if (!r.ok) throw await responseError(r);
   return r.json();
