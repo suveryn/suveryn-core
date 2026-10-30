@@ -72,7 +72,6 @@ RIGHTS: dict[str, frozenset[str]] = {"reader": READ, "contributor": CONTRIBUTE, 
 MAX_SUBJECT_BYTES = 8 * 1024
 EVENT_RETENTION_DAYS = 180  # as the sign-in events (suveryn-tracker#16)
 MAX_EVENTS = 1000           # one listing of the access log
-DUE_WARNING_DAYS = 30       # a closed case is listed as due this long before its deletion
 KEEP_PERIODS: dict[str, timedelta | None] = {"6m": timedelta(days=183), "1y": timedelta(days=366),
                                              "5y": timedelta(days=5 * 366), "manual": None}
 
@@ -556,15 +555,6 @@ class CaseStore(PgStore):
             row = self._execute(f"UPDATE cases SET keep_until = %s, keep = %s, updated_at = now() WHERE id = %s RETURNING {self._COLS}",
                                 (keep_until, kept, case_id)).fetchone()
         return self._case(row) if row else None
-
-    def due(self, user: str, *, admin: bool, within: timedelta = timedelta(days=DUE_WARNING_DAYS)) -> list[Case]:
-        """Closed cases due for deletion within ``within`` (or overdue), not marked kept: for an
-        administrator all of them, for anyone else those they manage. Soonest first."""
-        rows = self._execute(
-            f'{self._SELECT}, m.role FROM cases c LEFT JOIN case_members m ON m.case_id = c.id AND m."user" = %s'
-            " WHERE c.state = 'closed' AND NOT c.keep AND c.keep_until IS NOT NULL AND c.keep_until <= now() + %s"
-            "   AND (%s OR c.manager = %s) ORDER BY c.keep_until", (user, within, admin, user)).fetchall()
-        return [shielded(self._case(r[:-1], r[-1])) for r in rows]
 
     def due_for_deletion(self) -> list[uuid.UUID]:
         """The closed cases whose keep period has passed and that aren't marked kept."""
