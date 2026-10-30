@@ -294,6 +294,17 @@ class Store:
             (by, document_id, *params)).fetchone()
         return row[0] if row else None
 
+    def withdraw(self, document_id: uuid.UUID, scope: Scope, by: str, reason: str = "") -> bool:
+        """A playbook's result whose run was cancelled (docs/design/playbooks.md): the document stays,
+        marked ``withdrawn`` in its provenance (who, when, why), never deleted. Only sūveryn's own
+        output can be withdrawn, never an upload. Idempotent; False if there is no such document."""
+        where, params = scope.where()
+        return self._conn.execute(
+            "UPDATE documents SET provenance = coalesce(provenance, '{}') || jsonb_build_object('withdrawn',"
+            "       jsonb_build_object('by', %s::text, 'at', now(), 'reason', %s::text))"
+            f" WHERE id = %s AND {where} AND origin <> 'uploaded'",
+            (by, reason, document_id, *params)).rowcount == 1
+
     def saved_answer(self, scope: Scope, message: str) -> tuple[uuid.UUID, str] | None:
         """(id, file name) of the answer ``message`` already saved in the scope (docs/design/chat-ui.md §5), or None."""
         where, params = scope.where()

@@ -145,12 +145,12 @@ def _default_documents():
     return service
 
 
-_RUN_PATH = re.compile(r"^/v1/cases/[^/]+/playbooks/[^/]+/runs$")
+_RUN_PATH = re.compile(r"^/v1/cases/[^/]+/playbooks/([^/]+/runs|runs/[^/]+/answer)$")
 
 
 def _limit_path(path: str) -> str:
-    """The path a per-user limit is keyed on: starting a playbook run is a model call like a question,
-    so it shares the chat limit (review 2026-10-17)."""
+    """The path a per-user limit is keyed on: starting a playbook run, or answering the request its
+    read step waits on, is a model call like a question, so it shares the chat limit (review 2026-10-17)."""
     return "/v1/chat" if _RUN_PATH.match(path) else path
 
 

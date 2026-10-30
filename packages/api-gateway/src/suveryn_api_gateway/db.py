@@ -4,6 +4,7 @@ PostgreSQL is provisioned outside suveryn-core (suveryn-appliance); a store conn
 ``SUVERYN_DATABASE_URL`` and creates or upgrades its own tables (``schema``, idempotent DDL).
 """
 
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -16,7 +17,10 @@ class PgStore:
     psycopg 3 connections are thread-safe (statements are serialised), so one store serves the
     gateway's thread pool. A write of more than one statement runs inside ``transaction()``, so a
     dropped connection or an error halfway leaves nothing half-written (review finding: a case
-    without its manager, which decision 6 of the cases design forbids).
+    without its manager, which decision 6 of the cases design forbids). A transaction holds the
+    store's lock, and every statement takes it, so two threads can't nest transactions on the one
+    connection (psycopg refuses that: three playbook runs finishing their read at once did it,
+    30 October 2026); a thread outside a transaction simply waits for it to end.
     """
 
     schema = ""
@@ -24,6 +28,7 @@ class PgStore:
     def __init__(self, database_url: str):
         if not database_url:
             raise ValueError("SUVERYN_DATABASE_URL is not set")
+        self._lock = threading.RLock()
         self._url = database_url
         self._conn = psycopg.connect(database_url, autocommit=True)
         if self.schema:
@@ -57,15 +62,16 @@ class PgStore:
         the gateway restarted (Pod check of f0ff96c). While PostgreSQL is still down, the new
         connection fails, and so does the statement (``OperationalError``, answered 503); the next
         call tries again."""
-        if self._lost():
-            self._reconnect()
-        try:
-            return self._conn.execute(sql, params)
-        except psycopg.OperationalError:
-            if not self._lost() and self._conn.info.transaction_status in self._IN_TRANSACTION:
-                raise
-            self._reconnect()
-            return self._conn.execute(sql, params)
+        with self._lock:
+            if self._lost():
+                self._reconnect()
+            try:
+                return self._conn.execute(sql, params)
+            except psycopg.OperationalError:
+                if not self._lost() and self._conn.info.transaction_status in self._IN_TRANSACTION:
+                    raise
+                self._reconnect()
+                return self._conn.execute(sql, params)
 
     def alive(self) -> bool:
         """Whether the database answers now (reconnecting if it can): for /health."""
@@ -79,7 +85,8 @@ class PgStore:
     def transaction(self) -> Iterator[None]:
         """Several statements as one: all written, or none. Reconnects first if the connection was
         lost since the last statement, so a transaction never starts on a dead connection."""
-        if self._lost():
-            self._reconnect()
-        with self._conn.transaction():
-            yield
+        with self._lock:
+            if self._lost():
+                self._reconnect()
+            with self._conn.transaction():
+                yield
