@@ -54,7 +54,7 @@ playbooks together are supposed to show what a fact is before a facts layer is d
 
 ## What is settled now, and why
 
-**Identity.** Every playbook declares, in code for now, its **id**, its **pack** and its **version**:
+**Identity.** Every playbook declares, in its manifest, its **id**, its **pack** and its **version**:
 `playbook/be-notary/deed-intake`, `pack/be-notary`, `1.0`. The identifiers are the ones the
 platform note and the commercial model chose, because they end up in the registry, the licence
 and the invoice; a bundle later is a catalogue entry naming playbook ids with version ranges, which
@@ -156,10 +156,37 @@ confirmed as empty. After confirmation: the summary, a Word download (made in th
 answers are), and the document appears in the case's list. Earlier runs are listed under the
 current one. Every piece of text in three languages; every control from `packages/chat-ui/src/ui/`.
 
+## The manifest (30 October 2026)
+
+A playbook is a **file**, not a Python module: `packages/playbooks/src/suveryn_playbooks/<pack>/<name>.yaml`,
+validated against a schema and loaded into the same `Playbook` object the gateway and the harness
+always used (`suveryn_playbooks.manifest`). Deed intake 1.0 was rewritten as the first one, field
+for field identical to the code it replaced (`tests/test_manifest.py` holds the snapshot), so
+nothing a user or a run sees changed. The reason to do it now, ahead of the runtime: a playbook
+that is code can only exist compiled into the product. A playbook that is a file can be signed into
+a pack bundle, kept in a private repository and distributed to licensees only (the commercial
+model), uploaded to an appliance by its administrator, written by an office for itself, and shown
+in full to a reviewer. Everything the platform note promised about packs needs the file first.
+
+Format 1 says what deed intake needed and nothing more: `manifest: 1` (the format's own version),
+the identity, `case_types`, the `facts` (id, what to ask, kind) and the `instructions` prose. The
+table the model fills in is appended by the loader: it is the harness's contract with the model,
+not content, and an author never writes it. The wording per language stays in the pack's
+`text/<lang>.json` beside the manifest. Unknown keys are errors, and every error names the file
+and the field: the people writing these by hand are administrators, not developers, and a misspelt
+key silently ignored is a playbook that quietly does something else. The JSON Schema for editors
+is generated from the model into `packages/playbooks/schema/` and a test keeps the two in sync.
+
+Format 2 is the step graph: `request`, `read`, `ask`, `check`, `propose`, `checkpoint`, `produce`,
+with conditions, gates, products and a model role per step. It arrives with the runtime, and a
+format-1 file keeps loading as what it is. Open with it: whether an office's own manifest may carry
+its wording inline (one file to upload) rather than in a pack's text files.
+
 ## What is deferred, on purpose
 
 - A facts layer shared between playbooks (#27): after the second playbook shows which facts recur.
-- A manifest, a step graph, queued runs, a runtime (#28): after the third.
+- A step graph, queued runs, a runtime (#28): the manifest came first (below); the steps join it as
+  format 2 when the runtime does.
 - The Word document from the office's own template (#22): the summary is sūveryn's own layout now.
 - Named subject fields on the case type (#29): the intake's facts are the first candidates.
 - Facts validated by form (national register numbers, cadastral patterns): an entities table, later.
