@@ -13,7 +13,7 @@ import { keepCase, reopenCase, type Case } from "../api";
 import { locale, useT } from "../i18n";
 import { InlineNotice, TextButton } from "../ui";
 
-export const DUE_WARNING_DAYS = 30;  // as the gateway's due list
+export const DUE_WARNING_DAYS = 30;  // the warning before a closed case's deletion (docs/design/cases.md, stage 3)
 
 export const isDue = (c: Case, now: Date = new Date()): boolean =>
   c.state === "closed" && !c.keep && c.keep_until !== null &&

@@ -618,14 +618,6 @@ export async function keepCase(id: string, change: { keep?: boolean; extend?: bo
   return r.json();
 }
 
-/** Closed cases due for deletion within a month, soonest first: the ones the signed-in user
- *  manages, or every one for an administrator. */
-export async function listDueCases(): Promise<Case[]> {
-  const r = await fetch("/v1/cases/due");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
 /** The administrator's pages (stage 4): every case with its manager, and the office's two case settings. */
 export type AdminCase = Case & { manager_username: string; manager_name: string; members: number };
 // conversations_keep: how long saved conversations are kept after their last change, in cases too (the data lifecycle, suveryn-tracker#31)

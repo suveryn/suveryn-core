@@ -352,13 +352,3 @@ class CalcRewriter:
         for calc, figures in zip(self.calculations, self._figures, strict=True):
             calc.figures_not_in_sources = [f for f in figures if f not in CONSTANTS and not found_in(f, text)]
         return self.calculations
-
-
-def rewrite(answer: str, source: str, cited_sources: list[str] | None = None) -> tuple[str, list[Calculation]]:
-    """Replace every calculation marker in a complete answer; return the text and the calculations.
-
-    Figures are checked against ``cited_sources`` (default: ``source``).
-    """
-    r = CalcRewriter(source)
-    text = r.feed(answer) + r.flush()
-    return text, r.check_figures([source] if cited_sources is None else cited_sources)

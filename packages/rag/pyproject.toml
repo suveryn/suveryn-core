@@ -24,7 +24,6 @@ Documentation = "https://github.com/suveryn/suveryn-docs"
 
 [project.scripts]
 suveryn-ingest = "suveryn_rag.cli:ingest_main"
-suveryn-retrieve = "suveryn_rag.cli:retrieve_main"
 suveryn-forget = "suveryn_rag.cli:forget_main"
 suveryn-fetch-models = "suveryn_rag.cli:fetch_models_main"
 

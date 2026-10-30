@@ -24,7 +24,6 @@ from .chunking import Chunk
 from .integrity import IntegrityWarning, query_terms
 
 RRF_K = 60            # standard Reciprocal Rank Fusion constant
-CANDIDATES = 30       # candidates taken from each ranking before fusion
 MAX_TERM_SHARE = 0.2  # keyword terms found in more than this share of chunks are ignored
 # Chunks of one or two words (a reference code, a stray header) are too short to carry meaning, yet
 # their embeddings can sit close to a vague question. They stay findable by keyword, not by vector.
@@ -32,7 +31,7 @@ MIN_WORDS_FOR_VECTOR = r"\S+\s+\S+\s+\S"
 
 
 def schema_sql(dim: int) -> str:
-    """Idempotent DDL: creates the tables and indexes, and adds columns introduced later (ADD COLUMN IF NOT EXISTS)."""
+    """Idempotent DDL: creates the tables and indexes."""
     return f"""
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS documents (
@@ -41,32 +40,30 @@ CREATE TABLE IF NOT EXISTS documents (
     sha256      text NOT NULL,
     pages       integer NOT NULL,
     ocr_pages   integer NOT NULL,
+    status      text NOT NULL DEFAULT 'ok',
+    warnings    jsonb NOT NULL DEFAULT '[]',
+    -- Who uploaded it (the Keycloak "sub"), for a document in its uploader's personal space. A document
+    -- with neither owner nor case (``suveryn-ingest`` without ``--owner``) is visible to no one (fail closed).
+    owner       text,
+    -- The case it belongs to (docs/design/cases.md), or NULL for its uploader's personal space. The case
+    -- decides who may read it; the gateway checks that and passes a Scope. Cases live in the gateway's own
+    -- table, so there is no foreign key here (separate connections).
+    case_id     uuid,
+    -- Where it came from: uploaded, generated (by sūveryn: an export, a draft) or playbook. Only uploaded
+    -- documents are sources for answers: the AI never cites its own earlier output.
+    origin      text NOT NULL DEFAULT 'uploaded',
+    -- More about where it came from (docs/design/chat-ui.md §6): for a playbook result the playbook and its
+    -- version; for an upload that carries sūveryn's own export mark, what was noticed ("noticed") and, once a
+    -- person chose to use it as a source anyway, who and when ("confirmed").
+    provenance  jsonb,
+    -- What sūveryn made, as the UI needs it to rebuild the file (docs/design/chat-ui.md §5): a saved answer's
+    -- question, text, sources and checks. Not in the lists; read one document at a time. Its sources'
+    -- passages are taken out when their document is deleted (``delete_document``).
+    content     jsonb,
     created_at  timestamptz NOT NULL DEFAULT now()
 );
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'ok';
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS warnings jsonb NOT NULL DEFAULT '[]';
--- Every document was uploaded by one user (the Keycloak "sub"). Documents stored before owners
--- existed have owner NULL and are visible to no one (fail closed); see docs/architecture.md.
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS owner text;
--- A document belongs to a case (docs/design/cases.md), or to its uploader's personal space
--- (case_id NULL). The case decides who may read it; the gateway checks that and passes a Scope.
--- Cases live in the gateway's own table, so there is no foreign key here (separate connections).
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS case_id uuid;
--- Where the document came from: uploaded, generated (by sūveryn: an export, a draft) or playbook.
--- Only uploaded documents are sources for answers: the AI never cites its own earlier output.
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'uploaded';
--- More about where it came from (docs/design/chat-ui.md §6): for a playbook result the playbook and
--- its version; for an upload that carries sūveryn's own export mark, what was noticed ("noticed")
--- and, once a person chose to use it as a source anyway, who and when ("confirmed").
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS provenance jsonb;
--- What sūveryn made, as the UI needs it to rebuild the file (docs/design/chat-ui.md §5): a saved
--- answer's question, text, sources and checks. Not in the lists; read one document at a time. Its
--- sources' passages are taken out when their document is deleted (``delete_document``).
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS content jsonb;
--- A file is de-duplicated within its scope only: the same PDF in two personal spaces, or in two
--- cases, is two documents, so an upload can never return a document from elsewhere.
-ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_sha256_key;
-DROP INDEX IF EXISTS documents_owner_sha256;
+-- A file is de-duplicated within its scope only: the same PDF in two personal spaces, or in two cases, is
+-- two documents, so an upload can never return a document from elsewhere.
 CREATE UNIQUE INDEX IF NOT EXISTS documents_personal_sha256 ON documents (owner, sha256) WHERE case_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS documents_case_sha256 ON documents (case_id, sha256) WHERE case_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS documents_owner ON documents (owner);
@@ -80,17 +77,14 @@ CREATE TABLE IF NOT EXISTS chunks (
     page_end     integer,
     headings     text[] NOT NULL DEFAULT '{{}}',
     embedding    vector({dim}) NOT NULL,
+    origin       text NOT NULL DEFAULT 'chunker',
+    tsv          tsvector,
+    place        text,  -- a spreadsheet passage's cells, e.g. 'Prices!A2:D31' (formats.py); NULL for everything else
     UNIQUE (document_id, chunk_index)
 );
-ALTER TABLE chunks ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'chunker';
-ALTER TABLE chunks ADD COLUMN IF NOT EXISTS tsv tsvector;
--- A spreadsheet passage's cells, e.g. 'Prices!A2:D31' (formats.py); NULL for everything else.
-ALTER TABLE chunks ADD COLUMN IF NOT EXISTS place text;
 CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
--- No vector index: answers rank every chunk of the documents exactly (``best_chunks``), and keeping an
--- HNSW index up to date made storing a document some hundred times slower (2,500 chunks: 51 s against
--- 0.4 s). Dropped where an earlier version made it.
-DROP INDEX IF EXISTS chunks_embedding_hnsw;
+-- No vector index: answers rank every chunk of the documents exactly (``best_chunks``); keeping an HNSW index
+-- up to date made storing a document some hundred times slower (2,500 chunks: 51 s against 0.4 s).
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 """
 
@@ -199,13 +193,6 @@ class Store:
             "SELECT coalesce(sum(length(text)), 0), coalesce(sum(length(text)) FILTER (WHERE origin = 'text_layer_recovered'), 0)"
             " FROM chunks WHERE document_id = %s", (document_id,)).fetchone()
         return recovered / total if total else 0.0
-
-    def document_text(self, document_id: uuid.UUID, recovered: bool | None = None) -> str:
-        """A document's stored text and headings, to check how it was read: all of it, or only the text recovered
-        from the text layer (``recovered=True``), or all but that (``False``)."""
-        where = {None: "", True: " AND origin = 'text_layer_recovered'", False: " AND origin <> 'text_layer_recovered'"}[recovered]
-        rows = self._conn.execute("SELECT text, headings FROM chunks WHERE document_id = %s" + where, (document_id,)).fetchall()
-        return "\n".join(t + "\n" + "\n".join(h) for t, h in rows)
 
     def replace_document(self, document_id: uuid.UUID, filename: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                          embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
@@ -367,53 +354,6 @@ class Store:
         kept = [t for t, n in zip(terms, shares) if total and 0 < n <= max(1, MAX_TERM_SHARE * total)]
         return " | ".join(kept) or None
 
-    def search(self, query: np.ndarray, k: int, document_id: uuid.UUID | None = None,
-               question: str | None = None, document_ids: list[uuid.UUID] | None = None) -> list[StoredChunk]:
-        """Hybrid search: up to ``CANDIDATES`` hits from each ranking, fused, best ``k`` returned.
-
-        A chunk's score is 1/(60 + rank) summed over the rankings it appears in, so a chunk
-        found by both rises to the top. Without ``question`` this is plain vector search.
-        ``document_id`` (one) or ``document_ids`` (several) restrict the search; neither: all documents.
-
-        Chunks with fewer than three words are left out of the vector ranking (see
-        ``MIN_WORDS_FOR_VECTOR``); the keyword ranking still finds them.
-
-        Review notes:
-        - The SQL is assembled with f-strings, but only from constants and fixed fragments;
-          the question vector, document id, keyword query and k are always bound parameters.
-          Keyword terms are ``\\w+`` tokens (``query_terms``), also passed as parameters.
-        - Both rankings are exact: there is no vector index, so the vector ranking computes every
-          chunk's distance (used by the command line, ``suveryn-retrieve``; answers use ``best_chunks``).
-        """
-        docs = [document_id] if document_id else (list(document_ids) if document_ids else None)
-        scope = "AND c.document_id = ANY(%(docs)s)" if docs else ""
-        tsq = self._keyword_query(question, docs) if question else None
-        keyword_cte = (f"""kw AS (
-              SELECT c.id, row_number() OVER (ORDER BY ts_rank_cd(c.tsv, q) DESC) AS r
-                FROM chunks c, to_tsquery('simple', %(tsq)s) q
-               WHERE c.tsv @@ q {scope}
-               ORDER BY ts_rank_cd(c.tsv, q) DESC LIMIT {CANDIDATES})"""
-                       if tsq else "kw AS (SELECT NULL::bigint AS id, NULL::bigint AS r WHERE false)")
-        rows = self._conn.execute(f"""
-            WITH vec AS (
-              SELECT c.id, row_number() OVER (ORDER BY c.embedding <=> %(q)s) AS r
-                FROM chunks c WHERE c.text ~ %(min_words)s {scope}
-               ORDER BY c.embedding <=> %(q)s LIMIT {CANDIDATES}),
-            {keyword_cte}
-            SELECT c.document_id, d.filename, c.chunk_index, c.text, c.page_start, c.page_end, c.headings, c.origin,
-                   COALESCE(1.0 / ({RRF_K} + vec.r), 0) + COALESCE(1.0 / ({RRF_K} + kw.r), 0) AS score,
-                   1 - (c.embedding <=> %(q)s) AS similarity, c.place
-              FROM chunks c
-              JOIN documents d ON d.id = c.document_id
-              LEFT JOIN vec ON vec.id = c.id
-              LEFT JOIN kw ON kw.id = c.id
-             WHERE vec.id IS NOT NULL OR kw.id IS NOT NULL
-             ORDER BY score DESC, similarity DESC
-             LIMIT %(k)s""", {"q": query, "docs": docs, "tsq": tsq, "k": k,
-                                                  "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
-        return [StoredChunk(r[0], r[1], r[2], r[3], r[4], r[5], list(r[6] or []), r[7], float(r[8]), float(r[9]), r[10])
-                for r in rows]
-
     def best_chunks(self, query: np.ndarray, question: str, document_ids: list[uuid.UUID], max_chars: int,
                     max_chunks: int, min_chunks: int) -> list[StoredChunk]:
         """The documents' best-matching chunks that fit the limits, in reading order.
@@ -421,11 +361,11 @@ class Store:
         For documents too large to give whole: instead of a handful of search hits, the model gets
         as much of the documents as the whole-document budget allows, chosen by relevance.
 
-        Every chunk of the documents is ranked exactly (no ``CANDIDATES`` cut-off and no vector
-        index, so nothing approximate): by vector similarity and by keyword match, fused as in
-        ``search``. Chunks are then taken best first while they fit ``max_chars`` and
-        ``max_chunks``; the best ``min_chunks`` are always taken. The result is returned in reading
-        order (as ``document_chunks``), with the fused score kept on each chunk.
+        Every chunk of the documents is ranked exactly (no cut-off and no vector index, so nothing
+        approximate): by vector similarity and by keyword match, fused by reciprocal rank (``RRF_K``).
+        Chunks are then taken best first while they fit ``max_chars`` and ``max_chunks``; the best
+        ``min_chunks`` are always taken. The result is returned in reading order (as ``document_chunks``),
+        with the fused score kept on each chunk.
 
         Review note: the f-string interpolates constants only; query, documents and terms are
         bound parameters. Every chunk's distance is computed (there is no vector index). Both rankings come

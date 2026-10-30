@@ -5,12 +5,8 @@
  *   but may be the user's own (a case type: the notarial list, or another sector's word). Typing
  *   filters the suggestions; arrow keys move, Enter chooses, Escape closes; a typed value stays.
  * - SearchField: a search box with a clear button (Escape clears too), to filter a list.
- * - SelectList: a list where one item is the current one (the cases in the sidebar). Arrow keys,
- *   Home/End and typing a letter move between items, Enter or a click opens one; the current item
- *   is `aria-selected`. Each item can render its own content.
  */
 import { Check, ChevronDown, CircleAlert, Search, X } from "lucide-react";
-import type { ReactNode } from "react";
 import {
   Button as AriaButton,
   ComboBox,
@@ -69,37 +65,5 @@ export function SearchField({ label, value, onChange, placeholder, className, au
       <Input className="ui-search-input" placeholder={placeholder ?? label} autoFocus={autoFocus} />
       <AriaButton className="ui-search-clear"><X size={14} aria-hidden /></AriaButton>
     </AriaSearchField>
-  );
-}
-
-export type ListEntry = { id: string; textValue: string };
-
-export function SelectList<T extends ListEntry>({ label, items, current, onOpen, children, className }: {
-  /** The list's accessible name ("Cases"). */
-  label: string;
-  items: T[];
-  /** The id of the current item, if any. */
-  current: string | null;
-  onOpen: (item: T) => void;
-  /** Renders one item's content. */
-  children: (item: T, isCurrent: boolean) => ReactNode;
-  className?: string;
-}) {
-  return (
-    <ListBox aria-label={label} items={items} selectionMode="single" selectionBehavior="replace"
-             selectedKeys={current === null ? [] : [current]} disallowEmptySelection
-             onSelectionChange={(keys) => {
-               if (keys === "all") return;
-               const [key] = keys;
-               const item = items.find((i) => i.id === String(key));
-               if (item) onOpen(item);
-             }}
-             className={cx("ui-select-list", className)}>
-      {(item) => (
-        <ListBoxItem id={item.id} textValue={item.textValue} className="ui-select-list-item">
-          {({ isSelected }) => children(item, isSelected)}
-        </ListBoxItem>
-      )}
-    </ListBox>
   );
 }

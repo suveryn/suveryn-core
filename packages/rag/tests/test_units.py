@@ -167,8 +167,6 @@ def test_an_identical_upload_reads_again_only_a_poorly_read_copy():
 
 def test_characters_read_with_the_wrong_encoding_are_put_right():
     from suveryn_rag.integrity import misdecoding, repair_characters
-    from suveryn_rag.pipeline import misread, should_read_again
-
     # reported 2026-10-11 (made-up sentence): Mac Roman read as Windows-1252, next to correct text in another font
     reported = "de ÒopdrachtenreglementeringÓ van 2019 Ð ŽŽn map, ÔwelzijnÕ, dÕHondt, Ÿber; café en “correct”"
     assert misdecoding(reported) == "mac_roman"
@@ -181,5 +179,3 @@ def test_characters_read_with_the_wrong_encoding_are_put_right():
     assert misdecoding("Dara Ó Briain, Óscar, één café, CÔTE, cœur, Straße") is None
     assert misdecoding("ŽŽ α β γ δ ε ζ η θ") is None
     assert repair_characters("Werkher\ufffe\nvatting", None) == "Werkher-\nvatting"  # PDFium's line-break hyphen
-    assert misread("text with a line-break hyphen\ufffe") and not misread("één café")
-    assert should_read_again("ok", 0.0, misdecoded=True)

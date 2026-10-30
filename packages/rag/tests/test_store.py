@@ -22,20 +22,25 @@ def unit(i: int) -> np.ndarray:
     return v
 
 
+def ranked(store, query, doc, question="", k=5):
+    """The document's chunks as answers rank them (``best_chunks``), best first."""
+    return sorted(store.best_chunks(query, question, [doc], max_chars=1 << 30, max_chunks=k, min_chunks=k),
+                  key=lambda c: (-c.score, -c.similarity))
+
+
 def test_add_search_and_forget():
     store = Store(URL, DIM)
     chunks = [Chunk(i, f"text of chunk {i}", f"text of chunk {i}", i + 1, i + 1, [f"Article {i}"]) for i in range(3)]
     doc = store.add_document("test.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 3, 0,
                              chunks, np.stack([unit(i) for i in range(3)]))
     try:
-        hits = store.search(unit(2), k=2, document_id=doc)
-        top = hits[0]
+        top = ranked(store, unit(2), doc, k=2)[0]
         assert top.chunk_index == 2
         assert (top.page_start, top.headings, top.origin, round(top.similarity, 3)) == (3, ["Article 2"], "chunker", 1.0)
         assert store.document_status(doc) == ("ok", [])
     finally:
         assert store.delete_document(doc)
-        assert store.search(unit(2), k=5, document_id=doc) == []
+        assert ranked(store, unit(2), doc) == []
         store.close()
 
 
@@ -48,9 +53,9 @@ def test_short_fragments_are_not_vector_hits_and_whole_documents_read_in_order()
     doc = store.add_document("short.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 2, 0,
                              chunks, np.stack([unit(5), unit(6), unit(7)]))
     try:
-        assert [h.chunk_index for h in store.search(unit(7), k=3, document_id=doc)] != [2]  # not the top vector hit
-        assert all(h.chunk_index != 2 for h in store.search(unit(7), k=3, document_id=doc, question="question"))
-        assert [h.chunk_index for h in store.search(unit(7), k=3, document_id=doc, question=code)][0] == 2  # by keyword
+        assert ranked(store, unit(7), doc)[0].chunk_index != 2  # not the top vector hit
+        assert [c.score for c in ranked(store, unit(7), doc, "question") if c.chunk_index == 2] == [0.0]  # not ranked at all
+        assert ranked(store, unit(7), doc, code)[0].chunk_index == 2  # by keyword
         whole = store.document_chunks([doc], max_chars=10_000, max_chunks=99)
         assert [c.chunk_index for c in whole] == [1, 2, 0]  # page 1 (regular, then restored), then page 2
         assert store.document_chunks([doc], max_chars=20, max_chunks=99) is None
@@ -127,7 +132,7 @@ def test_documents_are_isolated_per_scope():
 def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
     """Large documents: as many best-matching chunks as fit, not a handful of search hits."""
     store = Store(URL, DIM)
-    n = 150  # more than CANDIDATES per ranking and than the 99-chunk cap
+    n = 150  # more than the 99-chunk cap
     # Chunk i is on page i + 1 and points ever further from unit(0), so its vector rank is i.
     vecs = []
     for i in range(n):
@@ -192,7 +197,7 @@ def test_reading_again_replaces_a_document_in_place():
         assert store.replace_document(doc, "scan.pdf", 3, 0, clean, np.stack([unit(i) for i in range(2)])) == doc
         assert store.recovered_share(doc) == 0.0
         assert store.document_status(doc) == ("ok", [])
-        assert [h.chunk_index for h in store.search(unit(1), k=5, document_id=doc)][0] == 1
+        assert ranked(store, unit(1), doc)[0].chunk_index == 1
     finally:
         assert store.delete_document(doc)
         store.close()
@@ -229,7 +234,7 @@ def test_word_and_spreadsheet_passages_are_stored_with_their_place(tmp_path):
         whole = rag.store.document_chunks([r.document_id], max_chars=10_000, max_chunks=99)
         assert [_hit(c).citation.source.location for c in whole] == ["Prices!A1:B2", "Article 2 › Price"]
         assert [_hit(c).citation.source.page for c in whole] == [None, None]
-        assert rag.store.search(unit(0), k=1, document_id=r.document_id, question="Prices")[0].place == "Prices!A1:B2"
+        assert ranked(rag.store, unit(0), r.document_id, "Prices")[0].place == "Prices!A1:B2"
         again = rag.ingest(path, owner=owner)  # the same file again: the stored copy
         assert again.already_present and again.document_id == r.document_id
     finally:

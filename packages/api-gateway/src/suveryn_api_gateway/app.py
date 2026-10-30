@@ -428,7 +428,6 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 return JSONResponse({"detail": "This conversation is too long to save."}, status_code=413)
         return await call_next(request)
 
-    # The order matters where paths overlap: /v1/cases/due before /v1/cases/{case_id} (both in cases).
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
                    routes.conversations, routes.usage, routes.backups, routes.status, routes.users):
         app.include_router(module.router)

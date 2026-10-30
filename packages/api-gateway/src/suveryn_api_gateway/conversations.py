@@ -60,15 +60,19 @@ CREATE TABLE IF NOT EXISTS conversations (
     owner       text NOT NULL,
     title       text NOT NULL,
     turns       jsonb NOT NULL,
+    case_id     uuid,
+    shared      boolean NOT NULL DEFAULT false,
+    pinned_at   timestamptz,
+    renamed     boolean NOT NULL DEFAULT false,
+    -- Kept beside the turns on every save, so lists and look-ups don't open the turns (up to 2 MB each):
+    -- how many turns, and which documents the turns cite or attach (``cited_documents``).
+    messages    integer NOT NULL,
+    documents   text[] NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS conversations_owner_updated ON conversations (owner, updated_at DESC);
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS case_id uuid;
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS shared boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS conversations_case ON conversations (case_id);
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS renamed boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS conversation_cleanups (
     document_id           uuid NOT NULL,
     owner                 text NOT NULL,
@@ -77,14 +81,8 @@ CREATE TABLE IF NOT EXISTS conversation_cleanups (
     created_at            timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (document_id, owner)
 );
--- Kept beside the turns on every save, so lists and look-ups don't open the turns (up to 2 MB each):
--- how many turns, and which documents the turns cite or attach (``cited_documents``). NULL in rows
--- saved before they existed, until ``ConversationStore`` fills them in on start.
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS messages integer;
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS documents text[];
 CREATE INDEX IF NOT EXISTS conversations_documents ON conversations USING gin (documents);
 """
-BACKFILL_BATCH = 200
 
 
 @dataclass(frozen=True)
@@ -219,19 +217,6 @@ class ConversationStore(PgStore):
         self.settings = settings
         self.keep = settings.keep  # as provisioned; the gateway sets what an administrator chose since
         self.purge()
-        self.fill_in()
-
-    def fill_in(self) -> int:
-        """Give conversations saved before ``messages`` and ``documents`` existed their values; how many.
-        Once, on the first start of a version that has them; afterwards there is nothing to do."""
-        n = 0
-        while rows := self._execute("SELECT id, turns FROM conversations WHERE documents IS NULL OR messages IS NULL"
-                                    " LIMIT %s", (BACKFILL_BATCH,)).fetchall():
-            for cid, turns in rows:
-                self._execute("UPDATE conversations SET messages = %s, documents = %s WHERE id = %s",
-                              (len(turns), sorted(cited_documents(turns)), cid))
-            n += len(rows)
-        return n
 
     @property
     def max_age_days(self) -> int | None:
@@ -267,7 +252,7 @@ class ConversationStore(PgStore):
     @staticmethod
     def _summary(r) -> ConversationSummary:
         return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
-                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7] or 0,
+                                   case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7],
                                    pinned=bool(r[8]))
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
