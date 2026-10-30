@@ -55,7 +55,7 @@ const nl: Messages = {
   notFound: "het bestaat niet meer (het werd mogelijk verwijderd)",
   forbidden: "u hebt hiervoor geen toestemming",
   serverUnavailable: "dit deel van de server is nu niet beschikbaar; probeer het later opnieuw",
-  adminRightsRefused: "de aanmeldservice weigerde uw beheerrechten; de appliance opnieuw installeren herstelt ze, of vraag ondersteuning",
+  adminRightsRefused: "de aanmeldservice weigerde uw beheerrechten: de beheerdersrol mist een recht. Vraag ondersteuning",
   adminRightsRemoved: "uw beheerrechten werden intussen ingetrokken door een andere beheerder",
   accountDeletionUnfinished: "het verwijderen stopte halverwege: het account bestaat nog, uitgeschakeld, en een deel van de eigen ruimte kan al weg zijn; verwijder het opnieuw om af te ronden",
   databaseUnavailable: "de database antwoordt niet; probeer het over een minuut opnieuw",

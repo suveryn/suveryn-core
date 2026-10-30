@@ -1293,7 +1293,7 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     assert r.status_code == 200 and r.json()["conversations_keep"] == "1y" and r.json()["keep"] == "manual"
     assert history.keep == "1y" and history.purged[-1] == "1y"  # told and purged when saved (VM check of 28 October)
     assert c.get("/v1/conversations", headers=alice).status_code == 200
-    assert r.json()["updated_by"] and r.json()["updated_at"]  # the administrator's username, and when
+    assert r.json()["updated_by"] and r.json()["updated_at"]  # the administrator's name (round 4, finding 4), and when
     assert c.get(f"/v1/cases/{cid}", headers=as_user(kc, CARLA)).json()["my_role"] == "reader"  # office-wide now
     closed = c.post(f"/v1/cases/{cid}/close", headers=alice).json()
     assert closed["keep_until"] is None  # the new period applies to cases closed from now on

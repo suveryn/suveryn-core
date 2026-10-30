@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
 from ..usage import AdminUsageReport, Rates, UsageReport, parse_range
-from .common import admin_or_403, owner_of, usage_or_503
+from .common import admin_or_403, owner_of, usage_or_503, who
 
 router = APIRouter()
 
@@ -46,5 +46,4 @@ async def usage_rates(request: Request):
 async def set_usage_rates(rates: Rates, request: Request):
     """Administrators: change the rates (e.g. to a cloud model the office would otherwise use)."""
     admin_or_403(request)
-    user = getattr(request.state, "user", None)
-    return await run_in_threadpool(usage_or_503(request).set_rates, rates, user.username if user else "local-dev")
+    return await run_in_threadpool(usage_or_503(request).set_rates, rates, who(request)[1] or who(request)[0])
