@@ -31,19 +31,94 @@ instructions: Read the excerpts and fill in the table.
 WORDS = {lang: Wording("Example", "An example", {"price": "Price", "sellers": "Sellers"}) for lang in ("en", "nl", "fr")}
 
 
-def test_deed_intake_as_a_manifest_is_the_deed_intake_that_was_code():
-    """The snapshot is ``DEED_INTAKE`` as main built it in Python (669e5c6), field for field: the
-    file form changes where a playbook lives, not what it is. The run record and the model prompt
-    stay byte-identical, so a run made before this change reads the same after it."""
+def test_deed_intake_1_1_reads_what_1_0_read_and_tells_the_model_the_same():
+    """The snapshot is ``DEED_INTAKE`` 1.0 as main built it in Python (669e5c6). 1.1 added the routine
+    (format 2): the facts, their wording and the model's instructions are 1.0's, byte for byte, so a
+    run made under 1.0 reads the same and the model is asked the same question. What is new is the
+    version, the steps and the questions."""
     old = json.loads((FIXTURES / "deed-intake-1.0.json").read_text(encoding="utf-8"))
     new = json.loads(json.dumps(dataclasses.asdict(DEED_INTAKE)))  # tuples to lists, as the snapshot has them
-    assert new == old
+    assert new["version"] == "1.1" and old["version"] == "1.0" and new["format"] == 2
+    for k in ("id", "pack", "name", "case_types", "facts", "instructions"):
+        assert new[k] == old[k], k
+    for lang, words in old["text"].items():
+        assert {k: new["text"][lang][k] for k in ("title", "summary", "labels")} == words, lang
+    assert [(s["id"], s["kind"]) for s in new["steps"]] == [("agreement", "request"), ("read", "read"), ("missing", "ask"),
+                                                            ("confirm", "checkpoint"), ("summary", "produce")]
+
+
+def test_a_format_1_manifest_is_the_implicit_routine():
+    p = parse(MINIMAL).to_playbook(WORDS)
+    assert p.format == 1
+    assert [(s.id, s.kind, s.needs, s.facts) for s in p.steps] == [
+        ("read", "read", (), ("price", "sellers")), ("confirm", "checkpoint", ("read",), ()), ("summary", "produce", ("confirm",), ())]
+    assert p.step("confirm") is not None and p.step("nothing") is None
+
+
+STEPS = """\
+steps:
+  - {id: agreement, kind: request, min: 2, allow_none: true}
+  - {id: read, kind: read, facts: all}
+  - {id: missing, kind: ask, facts: [price]}
+  - {id: confirm, kind: checkpoint}
+  - {id: summary, kind: produce}
+"""
+FORMAT_2 = MINIMAL.replace("manifest: 1", "manifest: 2") + STEPS
+
+
+def test_a_format_2_manifest_resolves_its_steps():
+    p = parse(FORMAT_2).to_playbook(WORDS)
+    assert p.format == 2
+    agreement, read, missing, confirm, summary = p.steps
+    assert agreement.kind == "request" and agreement.min == 2 and agreement.allow_none and agreement.needs == ()
+    assert read.facts == ("price", "sellers") and read.needs == ("agreement",)   # "all" expanded; needs defaults to the step before
+    assert missing.facts == ("price",) and confirm.by == "anyone_in_case" and summary.template == "summary"
+    assert summary.needs == ("confirm",)
+
+
+@pytest.mark.parametrize(
+    "old, new, said",
+    [
+        ("manifest: 2", "manifest: 1", "a format-1 manifest has no steps"),
+        ("  - {id: confirm, kind: checkpoint}\n", "", "needs a checkpoint"),
+        ("  - {id: summary, kind: produce}\n", "  - {id: summary, kind: produce, needs: [read]}\n", "nothing is produced before a checkpoint"),
+        ("  - {id: missing, kind: ask, facts: [price]}\n", "  - {id: missing, kind: ask, facts: [price], needs: [agreement]}\n", "before any read step it needs reads them"),
+        ("  - {id: read, kind: read, facts: all}\n", "  - {id: read, kind: read, facts: [colour]}\n", "fact 'colour' is not one of the playbook's facts"),
+        ("  - {id: confirm, kind: checkpoint}\n", "  - {id: confirm, kind: checkpoint, needs: [summary]}\n", "in a circle"),
+        ("  - {id: confirm, kind: checkpoint}\n", "  - {id: read, kind: checkpoint}\n", "read listed twice"),
+        ("  - {id: agreement, kind: request, min: 2, allow_none: true}\n", "  - {id: agreement, kind: request, facts: all}\n", "facts does not apply to this kind"),
+        ("  - {id: read, kind: read, facts: all}\n", "  - {id: read, kind: read}\n", "facts is required"),
+        ("  - {id: summary, kind: produce}\n", "  - {id: summary, kind: produce, needs: [nowhere]}\n", "needs 'nowhere', which is not a step"),
+    ],
+    ids=["steps-in-format-1", "no-checkpoint", "produce-before-checkpoint", "ask-before-read", "unknown-fact", "cycle",
+         "step-twice", "field-of-another-kind", "read-without-facts", "unknown-need"],
+)
+def test_a_wrong_routine_is_refused_and_the_error_names_the_step(old, new, said):
+    text = FORMAT_2.replace(old, new, 1)
+    assert text != FORMAT_2
+    with pytest.raises(ManifestError) as e:
+        parse(text, where="example.yaml")
+    assert said in str(e.value), str(e.value)
+
+
+def test_a_format_2_manifest_without_steps_is_refused():
+    with pytest.raises(ManifestError, match="needs its steps"):
+        parse(MINIMAL.replace("manifest: 1", "manifest: 2"))
+
+
+def test_questions_come_from_the_packs_wording():
+    words = Wording("Example", "An example", {"price": "Price", "sellers": "Sellers"},
+                    {"agreement": "Upload the agreement.", "missing": "What is {label}?", "missing.sellers": "Who sells?"})
+    assert words.question("agreement") == "Upload the agreement."
+    assert words.question("missing", "price") == "What is Price?"       # the template, with the label
+    assert words.question("missing", "sellers") == "Who sells?"         # the fact's own text wins
+    assert words.question("nothing") == "" and words.question("nothing", "price") == "Price"
 
 
 def test_a_minimal_manifest_loads():
     m = parse(MINIMAL)
     p = m.to_playbook(WORDS)
-    assert p.id == "playbook/be-notary/example" and p.slug == "example" and p.version == "1.0"
+    assert p.id == "playbook/be-notary/example" and p.slug == "example" and p.version == "1.0" and p.format == 1
     assert [(f.id, f.kind) for f in p.facts] == [("price", "amount"), ("sellers", "text")]
     assert p.instructions == "Read the excerpts and fill in the table.\n\n" + table_scaffold(p.facts)
     assert p.instructions.endswith("| id | value | source |\n|---|---|---|\n| price | | |\n| sellers | | |\n")
@@ -59,7 +134,7 @@ def test_load_reads_the_packs_wording_beside_the_file():
 @pytest.mark.parametrize(
     "old, new, said",
     [
-        ("manifest: 1\n", "", "'manifest' must be 1"),                                  # the format version is required
+        ("manifest: 1\n", "", "'manifest' must be one of 1, 2"),                                  # the format version is required
         ("id: playbook/be-notary/example", "id: playbook/be-lawyer/example", "does not belong to pack"),
         ('version: "1.0"', 'version: "1"', "version: String should match pattern"),
         ("case_types: [sale]", "case_types: [sale, sale]", "listed twice"),
@@ -86,8 +161,8 @@ def test_not_yaml_and_not_a_mapping_are_refused_plainly():
         parse("manifest: [1", where="x.yaml")
     with pytest.raises(ManifestError, match="a manifest is a mapping"):
         parse("- just\n- a list\n", where="x.yaml")
-    with pytest.raises(ManifestError, match="'manifest' must be 1.*got 2"):
-        parse(MINIMAL.replace("manifest: 1", "manifest: 2"), where="x.yaml")
+    with pytest.raises(ManifestError, match="'manifest' must be one of 1, 2.*got 3"):
+        parse(MINIMAL.replace("manifest: 1", "manifest: 3"), where="x.yaml")
 
 
 def test_missing_wording_is_a_manifest_error(tmp_path):

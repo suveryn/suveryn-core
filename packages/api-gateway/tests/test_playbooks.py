@@ -93,7 +93,7 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
     # which playbooks fit: a sale gets deed intake, covered
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.0")]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.1")]
     # the playbook's own words, in every interface language (docs/translations.md)
     assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["title"] == "Deed intake"
     assert fits[0]["text"]["en"]["labels"]["price"] == "Price"
@@ -102,7 +102,7 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     assert c.post(f"/v1/cases/{cid}/playbooks/estate-intake/runs", json={}, headers=alice).status_code == 404
     r = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice)
     assert r.status_code == 202 and r.json()["status"] == "reading" and r.json()["documents"] == [DOC]
-    assert r.json()["playbook_id"] == "playbook/be-notary/deed-intake" and r.json()["playbook_version"] == "1.0"
+    assert r.json()["playbook_id"] == "playbook/be-notary/deed-intake" and r.json()["playbook_version"] == "1.1"
     rid = r.json()["id"]
     run = wait_for(c, f"/v1/cases/{cid}/playbooks/runs/{rid}", bob, "checkpoint")
     assert "| sellers | | |" in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
@@ -122,8 +122,8 @@ def test_deed_intake_reads_the_case_checks_the_facts_and_stores_the_summary(offi
     assert by["sellers"]["confirmed"] == "Jan Peeters en Marie Claes" and by["cadastral"]["confirmed"].startswith("Gent")
     # the summary is a document in the case with origin playbook, named after the playbook and the case
     name, text = docs.stored_text
-    assert name == "Deed intake 2026/0417 (1.0).txt" and "Price: EUR 412.000,00" in text
-    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.0", "run": rid}  # where it came from
+    assert name == "Deed intake 2026/0417 (1.1).txt" and "Price: EUR 412.000,00" in text
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.1", "run": rid}  # where it came from
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(f"/v1/cases/{cid}/playbooks/runs/{rid}/facts", json=confirm, headers=alice).status_code == 409
     # the access log has both steps

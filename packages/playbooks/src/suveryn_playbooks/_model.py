@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 FactKind = Literal["text", "amount", "date"]
+StepKind = Literal["request", "read", "ask", "checkpoint", "produce"]
 
 # The product's interface languages, in this order: the server's one list (docs/translations.md).
 # The gateway uses it for the sign-in page's language; the chat UI has the same list in
@@ -23,6 +24,19 @@ class Wording:
     title: str
     summary: str
     labels: dict[str, str]
+    # The routine's questions (format 2): keyed by step id for a ``request`` and for an ``ask`` step's
+    # one template (``{label}`` is the fact's label), or by ``<step id>.<fact id>`` for one fact's own.
+    questions: dict[str, str] = field(default_factory=dict)
+
+    def question(self, step_id: str, fact_id: str | None = None) -> str:
+        """The words for a step's question, for one fact when ``fact_id`` is given: that fact's own
+        text if the pack has one, else the step's template with the fact's label filled in."""
+        if fact_id is not None:
+            own = self.questions.get(f"{step_id}.{fact_id}")
+            if own:
+                return own
+            return self.questions.get(step_id, "{label}").replace("{label}", self.labels.get(fact_id, fact_id))
+        return self.questions.get(step_id, "")
 
 
 @dataclass(frozen=True)
@@ -36,6 +50,21 @@ class Fact:
 
 
 @dataclass(frozen=True)
+class Step:
+    """One step of the routine (docs/design/playbooks.md, "The routine"). The runtime in the gateway
+    walks the steps; the model is only ever asked inside a ``read``."""
+
+    id: str
+    kind: StepKind
+    needs: tuple[str, ...] = ()        # steps that must be done first (the manifest's default: the previous one)
+    facts: tuple[str, ...] = ()        # read, ask: the fact ids concerned (the manifest's "all" is expanded)
+    min: int = 1                       # request: how many uploaded documents the case needs before the step is done
+    allow_none: bool = False           # request: a person may say there is no such document
+    by: str = "anyone_in_case"         # checkpoint: who may pass it
+    template: str = "summary"          # produce: which product
+
+
+@dataclass(frozen=True)
 class Playbook:
     id: str            # playbook/<pack>/<name>
     pack: str          # pack/<profession-jurisdiction>
@@ -45,6 +74,11 @@ class Playbook:
     facts: tuple[Fact, ...]
     instructions: str  # what the model is told, after the grounded instructions, before the excerpts
     text: dict[str, Wording] = field(default_factory=dict)  # per language (LANGUAGES): title, summary, fact labels
+    steps: tuple[Step, ...] = ()       # the routine; a format-1 manifest gets the implicit read, checkpoint, produce
+    format: int = 1                    # the manifest format the playbook was written in
+
+    def step(self, step_id: str) -> Step | None:
+        return next((s for s in self.steps if s.id == step_id), None)
 
     def wording(self, language: str) -> Wording:
         """The words in ``language``, else in English."""
