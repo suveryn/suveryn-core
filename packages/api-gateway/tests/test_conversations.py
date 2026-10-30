@@ -689,3 +689,11 @@ def test_store_deletes_an_accounts_own_conversations_and_keeps_those_shared_with
     assert (store.personal(ALICE), store.shared_count(ALICE)) == (2, 1)
     assert store.delete_personal(ALICE) == 2
     assert store.get_shared(shared) is not None and store.get(personal, ALICE) is None and len(store.summaries(BOB)) == 1
+
+
+def test_a_turn_as_chat_takes_it_is_saved_with_its_words_as_text():
+    """Round 4, finding 1: turns with ``role`` and ``content`` (as /v1/chat takes them) opened empty in the UI,
+    which shows ``text``. They are saved with their words as ``text``; a turn that has ``text`` keeps it."""
+    body = ConversationIn(title="t", turns=[{"role": "user", "content": "Wie is de koper?"},
+                                            {"role": "assistant", "content": "Test Bob.", "text": "Bob"}])
+    assert [t.text for t in body.turns] == ["Wie is de koper?", "Bob"]

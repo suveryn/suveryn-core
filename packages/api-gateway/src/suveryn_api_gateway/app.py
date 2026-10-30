@@ -393,8 +393,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         """Users: Keycloak refused the administrator's rights. Two causes, each with its own sentence: the
         caller's rights were removed meanwhile, by another administrator (their session still says
         administrator until it is renewed; VM check of 29 October, round 3, finding 2: the one who lost a
-        race was told to reinstall), or the role lost its rights, which an install brings back (VM check of
-        28 October, finding 11). The directory's service account tells which."""
+        race was told to reinstall), or the role lacks a permission (removed in Keycloak's console: provisioning no longer adds missing ones,
+        so the sentence asks for support; round 4, finding 5). The directory's service account tells which."""
         directory = getattr(app.state, "directory", None)
         holds = await directory.holds_admin(owner_of(request)) if directory is not None and hasattr(directory, "holds_admin") else None
         if holds is False:

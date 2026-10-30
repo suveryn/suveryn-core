@@ -115,7 +115,7 @@ def test_the_office_view_and_rates_are_for_administrators_only(setup):
     assert c.get("/v1/admin/usage", headers=admin).status_code == 200
     new = {"input_per_million": "2.5", "output_per_million": "10", "currency": "EUR"}
     body = c.put("/v1/admin/usage/rates", json=new, headers=admin).json()
-    assert (body["input_per_million"], body["currency"], body["updated_by"]) == ("2.5", "EUR", ALICE)
+    assert (body["input_per_million"], body["currency"], body["updated_by"]) == ("2.5", "EUR", "Test Notaris")  # the name (round 4, finding 4)
     for bad in ({"input_per_million": -1, "output_per_million": 1}, {"input_per_million": 1, "output_per_million": 1, "currency": "euro"}):
         assert c.put("/v1/admin/usage/rates", json=bad, headers=admin).status_code == 422
 

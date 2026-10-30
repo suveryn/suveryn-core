@@ -158,8 +158,13 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
                 elif isinstance(event, Done):
                     yield _sse("done", event.response)
     except (BackendError, json.JSONDecodeError) as e:
+        # What failed, without what the model server said back (it may quote the prompt): round 4, finding 3.
+        what = str(e).split(":", 1)[0] if isinstance(e, BackendError) else "an unreadable answer"
+        cause = f" ({type(e.__cause__).__name__})" if e.__cause__ else ""
+        log.warning("chat stream failed: %s%s, model %s", what, cause, req.model or "default")
         yield _sse("error", StreamError(message=str(e), code="model"))
     except DocumentsUnavailable as e:
+        log.warning("chat stream failed: the documents aren't available (%s)", type(e).__name__)
         yield _sse("error", StreamError(message=str(e), code="documents"))
     except DocumentNotFound:
         yield _sse("error", StreamError(message="unknown document", code="document"))

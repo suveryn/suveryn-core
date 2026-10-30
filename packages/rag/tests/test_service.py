@@ -80,6 +80,27 @@ def test_a_document_that_keeps_meeting_a_lost_connection_fails_alone(tmp_path, m
     assert "db_retries" not in job.public()
 
 
+def test_a_file_stored_before_is_said_to_be_the_stored_copy(tmp_path, caplog):
+    """Round 4, finding 2: a second upload of the same file gave the stored copy, but the job didn't say so and the
+    log read as a second reading. The job carries ``already_present``, and the log says the stored copy."""
+    stored = uuid.uuid4()
+
+    class Again:
+        def ingest(self, path, filename, owner, case_id=None, watch=None):
+            return type("R", (), {"document_id": stored, "status": "ok", "pages": 0, "ocr_pages": 0, "warnings": [],
+                                  "noticed": None, "already_present": True, "timings": {}})()
+
+    caplog.set_level("INFO", logger="suveryn.rag")
+    docs = running(tmp_path, Again())
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
+    assert wait(lambda: docs.job(job.id, "user-a").status == "ready")
+    out = docs.job(job.id, "user-a").public()
+    assert out["already_present"] is True and out["document_id"] == str(stored)
+    lines = [r.getMessage() for r in caplog.records]
+    assert any(m.startswith("document already stored: job ") for m in lines)
+    assert not any(m.startswith("document read:") for m in lines)
+
+
 def test_a_worker_that_stopped_is_not_reported_ready(tmp_path):
     docs = DocumentService(RagSettings(work_dir=tmp_path))
     docs.state = "ready"

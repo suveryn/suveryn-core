@@ -84,10 +84,19 @@ def test_chat_backend_error_is_502(make_client):
         assert c.post("/v1/chat", json=REQ).status_code == 502
 
 
-def test_stream_backend_error_event(make_client):
+def test_stream_backend_error_event(make_client, caplog):
     with make_client(unreachable_backend()) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
         body = r.read().decode()
     assert body.startswith("event: status") and body.rstrip().split("\n\n")[-1].startswith("event: error")
+    # the log says what failed (round 4, finding 3), never what the model server said back
+    assert any(r.getMessage().startswith("chat stream failed: model backend unreachable (") for r in caplog.records)
+
+
+def test_a_model_servers_answer_stays_out_of_the_log(make_client, caplog):
+    with make_client(fake_backend(chat_status=500)) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
+        r.read()
+    [line] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("chat stream failed")]
+    assert line.startswith("chat stream failed: model backend returned HTTP 500, model ") and "{" not in line
 
 
 def test_empty_messages_rejected(make_client):
