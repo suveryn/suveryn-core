@@ -835,6 +835,7 @@ const fr: Messages = {
   clockSetDone: "Horloge réglée.",
   clockSetFailed: (why: string) => `Non réglée : ${why}.`,
   clockErrors: { synced: "un serveur de temps la maintient à l'heure", out_of_range: "l'écart dépasse un an",
+                 not_allowed: "ce système n'a pas le droit de régler son horloge",
                  other: "réessayez dans une minute" } as Record<string, string>,
   notWorkingSince: (time) => `En panne depuis ${time}`,
   nInProgress: (n) => `${n} en cours`,

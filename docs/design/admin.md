@@ -222,6 +222,7 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 | Is this PC's time right? Closed cases whose keep period has then passed are deleted within the hour. | Staat deze pc juist? Gesloten dossiers waarvan de termijn dan voorbij is, worden binnen het uur verwijderd. | L'heure de ce PC est-elle juste ? Les dossiers clôturés dont le délai est alors dépassé sont supprimés dans l'heure. |
 | Clock set. | Klok gelijkgezet. | Horloge réglée. |
 | Not set: {why}. | Niet gelijkgezet: {why}. | Non réglée : {why}. |
+| this system may not set its clock (the appliance's `not_allowed`) | dit systeem mag zijn klok niet zetten | ce système n'a pas le droit de régler son horloge |
 | Working | Werkt | Fonctionne |
 | Enough | Genoeg | Suffisant |
 | Not working since {time} | Werkt niet sinds {time} | En panne depuis {time} |
