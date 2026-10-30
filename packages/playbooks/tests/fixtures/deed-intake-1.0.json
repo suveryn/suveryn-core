@@ -1,0 +1,136 @@
+{
+  "id": "playbook/be-notary/deed-intake",
+  "pack": "pack/be-notary",
+  "version": "1.0",
+  "name": "Deed intake",
+  "case_types": [
+    "sale"
+  ],
+  "facts": [
+    {
+      "id": "sellers",
+      "ask": "the selling party or parties, as named in the agreement (full names as written)",
+      "kind": "text"
+    },
+    {
+      "id": "buyers",
+      "ask": "the buying party or parties (full names as written)",
+      "kind": "text"
+    },
+    {
+      "id": "property",
+      "ask": "the property sold: its address and description",
+      "kind": "text"
+    },
+    {
+      "id": "cadastral",
+      "ask": "the cadastral identification of the property: municipality, division, section, number",
+      "kind": "text"
+    },
+    {
+      "id": "price",
+      "ask": "the sale price",
+      "kind": "amount"
+    },
+    {
+      "id": "deposit",
+      "ask": "the advance or guarantee paid at signing, and to whom it was paid",
+      "kind": "amount"
+    },
+    {
+      "id": "agreement_date",
+      "ask": "the date the private agreement was signed",
+      "kind": "date"
+    },
+    {
+      "id": "deed_deadline",
+      "ask": "the date by which the notarial deed must be signed",
+      "kind": "date"
+    },
+    {
+      "id": "conditions",
+      "ask": "the suspensive conditions (financing, permits, other), each with its term",
+      "kind": "text"
+    },
+    {
+      "id": "title",
+      "ask": "the seller's title: the earlier deed, its date and the notary who passed it",
+      "kind": "text"
+    },
+    {
+      "id": "epc",
+      "ask": "the energy performance certificate: its reference and result",
+      "kind": "text"
+    },
+    {
+      "id": "soil",
+      "ask": "the soil certificate: its reference and conclusion",
+      "kind": "text"
+    },
+    {
+      "id": "occupancy",
+      "ask": "the occupancy at delivery: free, let or occupied, and by whom",
+      "kind": "text"
+    }
+  ],
+  "instructions": "You are preparing the intake of a sale for a notarial deed. Read the excerpts and fill in the table below: one row per fact, in this order, with the fact's id in the first column exactly as given, the value in the second column, copied as the documents write it (names, amounts, dates, references), and in the third column the excerpt numbers the value comes from, as [n]. A fact the excerpts do not contain gets an empty second column and an empty third column: never guess, never fill in from general knowledge. Answer with the table only, no text before or after it, in the language of the documents.\n\n| id | value | source |\n|---|---|---|\n| sellers | | |\n| buyers | | |\n| property | | |\n| cadastral | | |\n| price | | |\n| deposit | | |\n| agreement_date | | |\n| deed_deadline | | |\n| conditions | | |\n| title | | |\n| epc | | |\n| soil | | |\n| occupancy | | |\n",
+  "text": {
+    "en": {
+      "title": "Deed intake",
+      "summary": "Reads the facts for the deed from the documents",
+      "labels": {
+        "sellers": "Seller(s)",
+        "buyers": "Buyer(s)",
+        "property": "Property",
+        "cadastral": "Cadastral data",
+        "price": "Price",
+        "deposit": "Advance or guarantee",
+        "agreement_date": "Agreement signed on",
+        "deed_deadline": "Deed to be signed by",
+        "conditions": "Suspensive conditions",
+        "title": "Title",
+        "epc": "Energy certificate",
+        "soil": "Soil certificate",
+        "occupancy": "Occupancy at delivery"
+      }
+    },
+    "nl": {
+      "title": "Akte-intake",
+      "summary": "Leest de feiten voor de akte uit de documenten",
+      "labels": {
+        "sellers": "Verkoper(s)",
+        "buyers": "Koper(s)",
+        "property": "Goed",
+        "cadastral": "Kadastrale gegevens",
+        "price": "Prijs",
+        "deposit": "Voorschot of waarborg",
+        "agreement_date": "Compromis getekend op",
+        "deed_deadline": "Akte te verlijden tegen",
+        "conditions": "Opschortende voorwaarden",
+        "title": "Eigendomstitel",
+        "epc": "Energieprestatiecertificaat",
+        "soil": "Bodemattest",
+        "occupancy": "Bewoning bij levering"
+      }
+    },
+    "fr": {
+      "title": "Intake de l'acte",
+      "summary": "Lit dans les documents les faits nécessaires à l'acte",
+      "labels": {
+        "sellers": "Vendeur(s)",
+        "buyers": "Acquéreur(s)",
+        "property": "Bien",
+        "cadastral": "Données cadastrales",
+        "price": "Prix",
+        "deposit": "Acompte ou garantie",
+        "agreement_date": "Compromis signé le",
+        "deed_deadline": "Acte à passer pour le",
+        "conditions": "Conditions suspensives",
+        "title": "Titre de propriété",
+        "epc": "Certificat PEB",
+        "soil": "Attestation du sol",
+        "occupancy": "Occupation à la délivrance"
+      }
+    }
+  }
+}
