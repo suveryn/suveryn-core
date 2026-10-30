@@ -22,8 +22,8 @@ What the manifest does *not* carry, on purpose:
 - Products beyond the summary, model roles, conditions. Those join with later formats; a manifest
   names its format version so an old file is read as what it is.
 
-Two formats load today. ``manifest: 1`` is identity, facts and instructions: it is read as the implicit
-routine read, checkpoint, produce. ``manifest: 2`` adds ``steps``, the routine itself: ``request`` a
+One format loads: ``manifest: 2``, identity, facts, instructions and ``steps``, the routine itself
+(format 1, without steps, was retired before any was published; review pass 8): ``request`` a
 document, ``read`` facts from the documents, ``ask`` about the facts not found, a ``checkpoint`` where
 a person confirms, ``produce`` the summary. Each step says what it ``needs`` (by default the step
 before it). The questions a ``request`` or ``ask`` step puts to people are the pack's wording
@@ -46,7 +46,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from ._model import Fact, FactKind, Playbook, Step, StepKind, Wording
 
-MANIFEST_VERSIONS = (1, 2)
+MANIFEST_VERSIONS = (2,)
 _STEP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 
 _ID = re.compile(r"^playbook/[a-z0-9-]+/[a-z0-9-]+$")
@@ -104,7 +104,7 @@ class Manifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    manifest: Literal[1, 2] = Field(description="The manifest format's version: 1 (facts and instructions) or 2 (with steps)")
+    manifest: Literal[2] = Field(description="The manifest format's version: 2 (facts, instructions and steps)")
     id: str = Field(pattern=_ID.pattern, description="playbook/<pack>/<name>; never changes once published")
     pack: str = Field(pattern=_PACK.pattern, description="pack/<profession-jurisdiction>")
     version: str = Field(pattern=_VERSION.pattern, description="major.minor, separate from the id")
@@ -112,7 +112,7 @@ class Manifest(BaseModel):
     case_types: tuple[str, ...] = Field(min_length=1, description="Which case types the playbook fits")
     facts: tuple[FactSpec, ...] = Field(min_length=1, max_length=100)
     instructions: str = Field(min_length=1, max_length=4000, description="What the model is told, before the table")
-    steps: tuple[StepSpec, ...] | None = Field(default=None, min_length=1, max_length=50, description="Format 2: the routine")
+    steps: tuple[StepSpec, ...] = Field(min_length=1, max_length=50, description="The routine")
 
     @field_validator("case_types")
     @classmethod
@@ -135,23 +135,15 @@ class Manifest(BaseModel):
         return v
 
     def check_consistent(self) -> None:
-        """The checks that span fields: the id's pack segment is the pack's; steps only in format 2,
-        and a valid graph."""
+        """The checks that span fields: the id's pack segment is the pack's, and the steps a valid graph."""
         pack = self.pack.removeprefix("pack/")
         if not self.id.startswith(f"playbook/{pack}/"):
             raise ValueError(f"id {self.id!r} does not belong to pack {self.pack!r}")
-        if self.manifest == 1 and self.steps is not None:
-            raise ValueError("steps: a format-1 manifest has no steps; set manifest: 2")
-        if self.manifest == 2 and self.steps is None:
-            raise ValueError("steps: a format-2 manifest needs its steps")
-        if self.steps is not None:
-            validate_steps(self.resolved_steps(), {f.id for f in self.facts})
+        validate_steps(self.resolved_steps(), {f.id for f in self.facts})
 
     def resolved_steps(self) -> tuple[Step, ...]:
         """The steps as the runtime sees them: defaults filled in, "all" expanded, ``needs`` defaulting
-        to the step before. A format-1 manifest gets the implicit routine."""
-        if self.steps is None:
-            return implicit_steps(tuple(f.id for f in self.facts))
+        to the step before."""
         out: list[Step] = []
         previous: str | None = None
         for sp in self.steps:
@@ -191,13 +183,6 @@ def table_scaffold(facts: tuple[Fact, ...]) -> str:
     The harness reads the answer by these rows (``suveryn_harness.facts``); a manifest never writes
     them itself."""
     return TABLE_HEADER + "".join(f"| {f.id} | | |\n" for f in facts)
-
-
-def implicit_steps(fact_ids: tuple[str, ...]) -> tuple[Step, ...]:
-    """What a format-1 manifest means as a routine: read every fact, a checkpoint, the summary."""
-    return (Step(id="read", kind="read", facts=fact_ids),
-            Step(id="confirm", kind="checkpoint", needs=("read",)),
-            Step(id="summary", kind="produce", needs=("confirm",)))
 
 
 def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:
@@ -261,7 +246,7 @@ def parse(source: str, *, where: str = "<manifest>") -> Manifest:
         raise ManifestError(f"{where}: a manifest is a mapping of keys to values, not {type(data).__name__}")
     if data.get("manifest") not in MANIFEST_VERSIONS:
         got = data.get("manifest")
-        raise ManifestError(f"{where}: 'manifest' must be one of {', '.join(map(str, MANIFEST_VERSIONS))} (the formats this product reads); got {got!r}")
+        raise ManifestError(f"{where}: 'manifest' must be {' or '.join(map(str, MANIFEST_VERSIONS))} (the format this product reads); got {got!r}")
     try:
         m = Manifest.model_validate(data)
         m.check_consistent()

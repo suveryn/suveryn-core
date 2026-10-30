@@ -5,7 +5,6 @@ couldn't find, waits at the checkpoint for a person, stores the summary as a doc
 harness's and tested there (packages/harness/tests/test_facts.py); the order of steps without a
 database is test_playbook_runtime.py."""
 
-import json
 import os
 import sys
 import time
@@ -161,7 +160,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert by["cadastral"]["confirmed"] is None  # a person answered; nobody confirmed yet
     assert r.json()["turns"][-1]["role"] == "user" and "Gent" in r.json()["turns"][-1]["text"]
     # the checkpoint: a reader can't confirm; the contributor corrects the price and confirms the rest
-    confirm = {"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}], "language": "en"}
+    confirm = {"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "x", "confirmed": ""}]}, headers=alice).status_code == 422
     r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
@@ -284,30 +283,6 @@ def test_cancel_of_a_run_with_confirmed_facts_reverts_them(runs):
     rows = [(r["status"], r["source"].get("reverted", False)) for r in runs.fact_rows(rid) if r["fact_id"] == "price"]
     assert rows == [("superseded", False), ("superseded", False), ("proposed", True)]  # provenance kept, nothing rewritten
     runs.delete_case(cid)
-
-
-@needs_db
-def test_a_run_from_before_the_routine_still_opens_and_can_only_be_viewed(office):
-    c, kc, _, docs, _ = office
-    cid, alice, bob = a_case_with_a_contributor(c, kc)
-    store = c.app.state.runs.get()
-    rid = uuid.uuid4()
-    facts = read_facts(DEED_INTAKE, response(), {TABLE_DOC: "compromis.pdf"})
-    store._execute("INSERT INTO playbook_runs (id, case_id, playbook_id, playbook_version, status, documents, started_by, facts, steps)"
-                   " VALUES (%s, %s, %s, %s, 'checkpoint', %s, %s, %s, '{}')",
-                   (rid, uuid.UUID(cid), DEED_INTAKE.id, "1.0", [uuid.UUID(TABLE_DOC)], "notaris.test", json.dumps([f.model_dump() for f in facts])))
-    run = c.get(RUN.format(cid=cid, rid=rid), headers=bob).json()
-    assert run["status"] == "waiting" and run["step"] == "confirm" and run["steps"] == {} and len(run["facts"]) == 13
-    assert run["facts"][4]["value"] == "EUR 412.500,00"
-    assert c.get(RUNS.format(cid=cid), headers=bob).json()[0]["status"] == "waiting"
-    r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "price", "confirmed": "x"}]}, headers=alice)
-    assert r.status_code == 409 and "earlier version" in r.json()["detail"]
-    # it counts as live, so it blocks a new start of the same playbook: stop it first
-    assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).status_code == 409
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=alice).status_code == 409  # can only be viewed
-    store._execute("UPDATE playbook_runs SET status = 'confirmed' WHERE id = %s", (rid,))
-    assert c.get(RUN.format(cid=cid, rid=rid), headers=bob).json()["status"] == "done"
-    assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).status_code == 202
 
 
 @needs_db

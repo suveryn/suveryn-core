@@ -137,7 +137,7 @@ export function statusLabel(status: RunStatus, m: Words): string {
 
 /** The step's name, for the banner and the chip: the kind in words, since the playbook names its steps for the machine. */
 export function stepLabel(run: Pick<RunSummary, "step" | "status">, playbook: Pick<PlaybookInfo, "steps"> | null | undefined, m: Words): string {
-  const kind = playbook?.steps?.find((s) => s.id === run.step)?.kind ?? (run.step === "confirm" ? "checkpoint" : run.step === "read" ? "read" : null);
+  const kind = playbook?.steps?.find((s) => s.id === run.step)?.kind ?? null;
   if (run.status === "reading" || kind === "read") return m.stepReading;
   const names: Record<string, string> = { request: m.stepRequest, ask: m.stepAsk, checkpoint: m.stepCheckpoint, produce: m.stepProduce };
   return names[kind ?? ""] ?? "";
@@ -169,8 +169,7 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
   const [reason, setReason] = useState("");
   const step = playbook?.steps?.find((s) => s.id === run.step) ?? null;
   const live = ["reading", "waiting", "paused"].includes(run.status);
-  const legacy = Object.keys(run.steps).length === 0;
-  const mayEnd = live && !legacy && (run.starter === me || kase.manager === me);
+  const mayEnd = live && (run.starter === me || kase.manager === me);
   const act = async (action: "pause" | "resume" | "stop" | "cancel") => {
     setBusy(true);
     setError(null);
@@ -194,13 +193,12 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
       {run.instruction_like_sources.length > 0 && (
         <InlineNotice icon={<AlertTriangle size={14} />}>{m.runSuspiciousSources}</InlineNotice>
       )}
-      {legacy && live && <InlineNotice icon={<AlertTriangle size={14} />}>{m.runFromEarlierVersion}</InlineNotice>}
       {run.status === "cancelled" && <InlineNotice icon={<XCircle size={14} />}>{m.runCancelledHint(nameOf(run.ended_by ?? ""), run.ended_reason ?? "")}</InlineNotice>}
       {run.status === "stopped" && <InlineNotice icon={<Square size={14} />}>{m.runStoppedHint(nameOf(run.ended_by ?? ""))}</InlineNotice>}
       <div className="playbook-body">
         <div className="playbook-thread-column">
           <Thread turns={run.turns} nameOf={nameOf} words={words} />
-          {live && !legacy && canRun && run.status === "waiting" && step && (
+          {live && canRun && run.status === "waiting" && step && (
             <Composer run={run} step={step} kase={kase} words={words} documents={documents} onChanged={onChanged}
                       onDocumentsChanged={onDocumentsChanged} />
           )}
@@ -214,7 +212,7 @@ function RunView({ run, kase, canRun, me, documents, words, playbook, onChanged,
         </aside>
       </div>
       {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
-      {live && !legacy && canRun && (
+      {live && canRun && (
         <div className="playbook-run-menu">
           <ActionMenu aria-label={m.runMenu} menuLabel={m.runMenu} entries={menu} isDisabled={busy}
                       onAction={(id) => { if (id === "cancel") setCancelling(true); else void act(id as "pause" | "resume" | "stop"); }}>
@@ -375,7 +373,7 @@ function Composer({ run, step, kase, words, documents, onChanged, onDocumentsCha
         </ol>
         {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
         <div className="playbook-actions">
-          <Button onPress={() => void send(() => confirmRun(kase.id, run.id, run.facts.map((f) => ({ id: f.id, confirmed: values[f.id] ?? "" })), lang()))}
+          <Button onPress={() => void send(() => confirmRun(kase.id, run.id, run.facts.map((f) => ({ id: f.id, confirmed: values[f.id] ?? "" }))))}
                   isDisabled={busy}>{busy ? m.saving : m.confirmAll}</Button>
         </div>
       </div>

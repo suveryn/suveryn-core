@@ -67,17 +67,8 @@ def for_case_type(case_type: str) -> list[Playbook]:
     return [p for p in PLAYBOOKS if case_type in p.case_types]
 
 
-def pack_text(package: str, slug: str) -> dict[str, Wording]:
-    """A playbook's words in every language, from its pack's ``text/<language>.json`` (one file per
-    language for the whole pack, so a new language is one new file per pack; docs/translations.md).
-    Kept for callers that have a package name; the loader uses the directory form."""
-    from .manifest import pack_text_from_dir
-
-    return pack_text_from_dir(Path(str(files(package))), slug, where=package)
-
-
 DEED_INTAKE: Playbook = find("playbook/be-notary/deed-intake")  # type: ignore[assignment]  # the first playbook; tests and docs name it
 assert DEED_INTAKE is not None, "the official pack be_notary must contain deed-intake.yaml"
 
 __all__ = ["DEED_INTAKE", "LANGUAGES", "OFFICIAL_PACKS", "PLAYBOOKS", "Fact", "FactKind", "ManifestError", "Playbook",
-           "Step", "StepKind", "Wording", "by_slug", "covered", "find", "for_case_type", "load", "pack_text"]
+           "Step", "StepKind", "Wording", "by_slug", "covered", "find", "for_case_type", "load"]

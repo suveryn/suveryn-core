@@ -74,8 +74,8 @@ class Playbook:
     facts: tuple[Fact, ...]
     instructions: str  # what the model is told, after the grounded instructions, before the excerpts
     text: dict[str, Wording] = field(default_factory=dict)  # per language (LANGUAGES): title, summary, fact labels
-    steps: tuple[Step, ...] = ()       # the routine; a format-1 manifest gets the implicit read, checkpoint, produce
-    format: int = 1                    # the manifest format the playbook was written in
+    steps: tuple[Step, ...] = ()       # the routine
+    format: int = 2                    # the manifest format the playbook was written in
 
     def step(self, step_id: str) -> Step | None:
         return next((s for s in self.steps if s.id == step_id), None)

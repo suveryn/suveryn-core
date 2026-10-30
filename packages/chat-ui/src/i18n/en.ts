@@ -486,7 +486,6 @@ const en = {
   stepCheckpoint: "to check and confirm",
   stepProduce: "writing the summary",
   runErrorBusy: "Too many playbooks were reading at once. Start again in a moment.",
-  runFromEarlierVersion: "Made by an earlier version: it can be viewed, not continued. Start the playbook again.",
   runCancelledHint: (who: string, reason: string) => `Cancelled by ${who}${reason ? `: ${reason}` : ""}. Its facts are no longer the case's, and its summary is withdrawn.`,
   runStoppedHint: (who: string) => `Stopped by ${who}. What was confirmed stays; what was only read is dropped.`,
   pausedHint: "Paused. Nothing happens until someone resumes it.",

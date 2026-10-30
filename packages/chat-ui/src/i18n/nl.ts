@@ -460,7 +460,6 @@ const nl: Messages = {
   stepCheckpoint: "na te kijken en te bevestigen",
   stepProduce: "schrijft de samenvatting",
   runErrorBusy: "Te veel playbooks lazen tegelijk. Start zo meteen opnieuw.",
-  runFromEarlierVersion: "Gemaakt door een eerdere versie: te bekijken, niet voort te zetten. Start het playbook opnieuw.",
   runCancelledHint: (who: string, reason: string) => `Geannuleerd door ${who}${reason ? `: ${reason}` : ""}. De gegevens gelden niet meer voor het dossier en de samenvatting is ingetrokken.`,
   runStoppedHint: (who: string) => `Gestopt door ${who}. Wat bevestigd was, blijft; wat alleen gelezen was, vervalt.`,
   pausedHint: "Gepauzeerd. Er gebeurt niets tot iemand het hervat.",

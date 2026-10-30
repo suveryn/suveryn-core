@@ -64,13 +64,3 @@ def test_a_graph_that_is_not_a_line_follows_needs_not_order():
     assert next_step(pb, done("agreement", "read")).id == "missing"
     assert next_step(pb, {**done("agreement", "read"), "missing": StepState(status="skipped")}).id == "confirm"
     assert next_step(pb, done("agreement")).id == "read"
-
-
-def test_a_run_from_before_the_routine_has_no_steps_to_walk():
-    """``Runtime.advance`` returns at once for such a run (its ``steps`` are empty); the routes answer 409."""
-    from suveryn_api_gateway.playbook_runtime import Runtime
-    from suveryn_api_gateway.playbooks import Run
-
-    run = Run(id="00000000-0000-0000-0000-000000000001", case_id="00000000-0000-0000-0000-000000000002", playbook_id=PB.id,
-              playbook_version="1.0", status="waiting", documents=[], started_by="x", started_at="2026-10-30T10:00:00Z")
-    assert Runtime(None, None, lambda _c: {}).advance(run, PB, "2026/1") is None
