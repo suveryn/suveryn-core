@@ -60,6 +60,7 @@ import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion, questionDocuments } from "./lib/questionDocuments";
 import { claimRedirect, clearRedirect } from "./lib/signin";
+import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
 import { lang, locale, t, useT } from "./i18n";
 import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
@@ -119,6 +120,14 @@ export default function App() {
       else if (step === "stuck") { setStuck(true); setMe(null); } // "started": already leaving, render nothing
     }).catch((e: Error) => { setUnavailable(e.message); setMe(null); });
   }, []);
+  // The appliance's clock against this PC's, while someone is signed in (lib/clock.ts): once, then every hour.
+  const signedIn = !!me;
+  useEffect(() => {
+    if (!signedIn) return;
+    reportClock();
+    const timer = setInterval(reportClock, REPORT_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [signedIn]);
 
   useT(); // re-render on a language change, so React Aria's numbers and dates follow it
   if (me === undefined) return null; // checking, or on the way to the login page

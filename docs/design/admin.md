@@ -35,6 +35,12 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   fails). Each answer counts 15 s. A stopped Keycloak or its stopped database shows within the minute,
   and `/health`'s `auth` says the same. The read leaves no event in Keycloak; the service account's
   token, a sign-in of its own, is fetched again only when it expires, every few minutes.
+- The clock (Filip, 30 October 2026): "On time", kept right by a time server or by the browsers of the
+  people signed in, or how far ahead or behind it is ("95 s behind"), warned from 10 seconds (two-step codes
+  fail from about 30). Small differences are corrected by themselves, slowly, when the browsers agree; for a
+  larger one, *Set to this PC's time*, after a confirmation that shows both times and asks to check the PC
+  first (moved forward, closed cases whose keep period has passed are deleted at the next hourly clean-up).
+  Not while a time server keeps the clock. How: the gateway's README, *The clock*.
 - An overview: version, last backup, users against the agreement, support.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.
@@ -203,6 +209,10 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 | Signing in | Aanmelden | Connexion |
 | Keeping your data | Gegevens bewaren | Conservation des données |
 | Disk space | Schijfruimte | Espace disque |
+| Clock | Klok | Horloge |
+| On time | Juist | À l'heure |
+| {n} s ahead / behind | {n} s voor / achter | {n} s d'avance / de retard |
+| Set to this PC's time | Gelijkzetten met deze pc | Régler sur l'heure de ce PC |
 | Working | Werkt | Fonctionne |
 | Enough | Genoeg | Suffisant |
 | Not working since {time} | Werkt niet sinds {time} | En panne depuis {time} |

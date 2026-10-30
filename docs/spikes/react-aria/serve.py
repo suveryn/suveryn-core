@@ -6,6 +6,7 @@ suveryn-appliance/reverse-proxy, plus stand-ins for the few API calls the pages 
 import json
 import re
 import sys
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -16,6 +17,7 @@ HEADERS = re.findall(r'add_header\s+([\w-]+)\s+"([^"]*)"', (PROXY / "suveryn-hea
                      + (PROXY / "suveryn-csp.conf").read_text())
 HEADERS = [(k, v) for k, v in HEADERS if k != "Strict-Transport-Security"]  # plain http here
 
+CLOCK_BEHIND_MS = 95_000
 STATE = {"name": "notary-brussels-01", "address": "192.168.1.50/24", "dhcp": True, "gateway": "192.168.1.1",
          "dns": "192.168.1.1", "language": None}
 API = {
@@ -42,7 +44,10 @@ API = {
         {"id": "reading", "ok": False, "since": "2026-10-28T08:12:00Z", "in_progress": 0, "waiting": 7, "free": None, "total": None},
         {"id": "signin", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None},
         {"id": "data", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None},
-        {"id": "disk", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": 1_200_000_000_000, "total": 2_000_000_000_000}]},
+        {"id": "disk", "ok": True, "since": None, "in_progress": None, "waiting": None, "free": 1_200_000_000_000, "total": 2_000_000_000_000},
+        # the appliance's clock 95 s behind, no time server (the gateway's clock.py): "Set to this PC's time"
+        {"id": "clock", "ok": False, "since": None, "in_progress": None, "waiting": None, "free": None, "total": None,
+         "offset_ms": -95_000, "synced": False}]},
     "/v1/admin/users": {"agreement_users": None, "users": [
         {"sub": "u1", "username": "test.beheerder@kantoor.be", "name": "Test Beheerder", "email": "test.beheerder@kantoor.be", "admin": True, "enabled": True, "last_sign_in": "2026-10-28T07:12:00Z"},
         {"sub": "u2", "username": "mieke.d@kantoor.be", "name": "Mieke Delarivière", "email": "mieke.d@kantoor.be", "admin": False, "enabled": True, "last_sign_in": "2026-10-28T08:40:00Z"},
@@ -152,9 +157,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path.startswith("/v1/admin/clock/"):
+            API[path] = {"id": path.rsplit("/", 1)[1], "pending": False, "ok": True, "error": None, "moved_ms": CLOCK_BEHIND_MS}
         if path.startswith("/v1/admin/backups/requests/"):
             API[path] = ANSWERS.get(path.rsplit("/", 1)[1], {"id": "x", "pending": True})
-        live = {"/v1/admin/cases/settings": lambda: CASE_SETTINGS, "/v1/admin/usage/rates": lambda: RATES,
+        live = {"/v1/clock": lambda: {"now_ms": int(time.time() * 1000) - CLOCK_BEHIND_MS},
+                "/v1/admin/cases/settings": lambda: CASE_SETTINGS, "/v1/admin/usage/rates": lambda: RATES,
                 "/v1/admin/cases/settings/preview": lambda: settings_preview(self.path.partition("?")[2])}
         if path in API or path in live or path in ("/v1/usage", "/v1/admin/usage"):
             body = json.dumps(API[path] if path in API else live[path]() if path in live
@@ -187,6 +195,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         """A fixed, fictional answer with one source for /v1/chat (the gateway streams Server-Sent Events)."""
+        if self.path.split("?")[0] in ("/v1/clock", "/v1/admin/clock"):  # a report, or an administrator's set
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            reply = b"" if self.path.startswith("/v1/clock") else json.dumps({"id": "00000000000000c1", "pending": True}).encode()
+            self.send_response(204 if not reply else 202)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+            return
         if self.path.split("?")[0] == "/v1/admin/backups/requests":
             reply = json.dumps(self.backup_request()).encode()
             self.send_response(202)
