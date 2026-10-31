@@ -520,6 +520,16 @@ def test_people_answer_and_correct_a_playbook_in_words(talking):
     facts = {f["id"]: f for f in run["facts"]}
     assert facts["price"]["value"] == "EUR 415.000,00" and facts["price"]["was"] == "EUR 412.500,00" and facts["price"]["confirmed"] is None
     assert run["turns"][-1]["meta"] == {"kind": "changed", "fact": "price", "value": "EUR 415.000,00"} and run["step"] == "confirm"
+    # a card at the checkpoint (handover of 31 October 2026): the same value says it was checked, no turn;
+    # a changed one is a version and a line; a fact that isn't in the run is refused
+    turns = len(run["turns"])
+    run = c.put(url + "/facts/price", json={"value": "EUR 415.000,00"}, headers=bob).json()
+    facts = {f["id"]: f for f in run["facts"]}
+    assert len(run["turns"]) == turns and facts["price"]["by"] == "bob.test" and facts["price"]["at"]
+    run = c.put(url + "/facts/deposit", json={"value": "EUR 41.500,00"}, headers=bob).json()
+    assert run["turns"][-1]["meta"] == {"kind": "changed", "fact": "deposit", "value": "EUR 41.500,00"}
+    assert c.put(url + "/facts/nothing", json={"value": "1"}, headers=bob).status_code == 404
+    assert c.put(url + "/facts/price", json={"value": ""}, headers=bob).status_code == 422
     # pausing is a line in the thread; a paused run takes nothing said
     run = c.post(url + "/pause", headers=bob).json()
     assert run["turns"][-1]["meta"] == {"kind": "paused"} and run["turns"][-1]["by"] == "bob.test"

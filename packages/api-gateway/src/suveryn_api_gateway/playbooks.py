@@ -202,6 +202,13 @@ class CancelIn(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class FactIn(BaseModel):
+    """Body of ``PUT …/runs/{run}/facts/{fact}``: a value from a playbook's card, *Adjust* or *Fill in*
+    (the value unchanged: the person checked it)."""
+
+    value: str = Field(min_length=1, max_length=MAX_VALUE)
+
+
 class SayIn(BaseModel):
     """Body of ``POST …/runs/{run}/say``: what a person writes in the run's conversation (Filip, 30
     October 2026: a playbook is a conversation). At a ``request``: the documents just added
@@ -478,7 +485,7 @@ class RunStore(TurnStore):
             out.append(RunFact(id=fact_id, value=value, citations=citations, issues=list((read or {}).get("issues", [])) if found else [],
                                found=found, confirmed=confirmed["value"] if confirmed else None,
                                source="person" if answer else ("document" if found else "none"),
-                               by=answer["by"] if answer else None,
+                               by=answer["by"] if answer else None, at=answer["at"] if answer else None,
                                was=read["value"] if answer and found and read else None))
         return out
 

@@ -871,6 +871,7 @@ export type RunFact = {
   source?: "document" | "person" | "none";  // where ``value`` came from
   by?: string | null;         // for a person's value: who gave it, in the conversation
   was?: string | null;        // for a correction of a value read from the documents: the value as read
+  at?: string | null;         // for a person's value: when it was given
 };
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
  *  docs/design/playbooks.md, "A running playbook is visible". */
@@ -959,6 +960,15 @@ export async function answerRun(caseId: string, runId: string, stepId: string,
 export async function sayInRun(caseId: string, runId: string, said: { text?: string; documents?: string[]; unknown?: boolean }): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/say`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(said),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** A value from a playbook's card at the checkpoint (Adjust, Fill in); the same value says the person checked it. */
+export async function setRunFact(caseId: string, runId: string, factId: string, value: string): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/facts/${encodeURIComponent(factId)}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value }),
   });
   if (!r.ok) throw await responseError(r);
   return r.json();

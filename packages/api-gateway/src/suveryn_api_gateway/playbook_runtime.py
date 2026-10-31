@@ -225,8 +225,7 @@ class Runtime:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
         found, total = self.counts(fresh)
         issues = sum(1 for f in fresh.facts if f.issues)
-        return (f"{found} of {total} facts found. They're on the right: check them and confirm."
-                + (f" {issues} not in the cited passage as written." if issues else ""),
+        return (f"{found} of {total} facts found." + (f" {issues} need checking." if issues else ""),
                 {"kind": "checkpoint", "found": found, "total": total, "issues": issues})
 
     # -- products and the thread

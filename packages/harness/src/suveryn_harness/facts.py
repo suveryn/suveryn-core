@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -57,6 +58,7 @@ class RunFact(BaseModel):
     source: Literal["document", "person", "none"] = "document"   # where ``value`` came from: the documents, a person's answer, nowhere
     by: str | None = None                # for a person's value: who gave it (an answer or a correction in the conversation)
     was: str | None = None               # for a correction of a value read from the documents: the value as read
+    at: datetime | None = None           # for a person's value: when it was given
 
 
 _ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")

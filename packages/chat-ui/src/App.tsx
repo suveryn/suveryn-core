@@ -42,7 +42,7 @@ import { BackupBar } from "./components/BackupBar";
 import { backupAttention, type BackupAttention } from "./lib/backups";
 import { cardNote, checkPages, readingNotes, toCheck } from "./lib/readingNotes";
 import { CaseState } from "./components/CaseState";
-import { FactsPanel, RunThread, runChipText, stepKind, useRun } from "./components/RunConversation";
+import { factCounts, RunPanel, runStatusWord, RunThread, runChipText, useRun, type RunPanelView } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
@@ -230,7 +230,8 @@ function Chat({ me }: { me: Me }) {
   const caseId = currentCase?.id ?? null;
   // A playbook run open as a conversation (docs/design/playbooks.md, "The chat UI"), and its facts panel.
   const [openRunId, setOpenRunId] = useState<string | null>(null);
-  const [factsOpen, setFactsOpen] = useState(false);
+  const [runPanel, setRunPanel] = useState<RunPanelView | null>(null);
+  const runPanelOpener = useRef<HTMLElement | null>(null);  // focus goes back here when the panel closes
   const { run: openRun, setRun: setOpenRun, error: runError } = useRun(caseId, openRunId);
   const openCaseId = useRef(caseId);
   openCaseId.current = caseId;
@@ -778,12 +779,15 @@ function Chat({ me }: { me: Me }) {
     refreshConversations();
     if (r.status === "done") refreshDocuments();
   };
-  const runAtCheckpoint = openRun?.status === "waiting" && stepKind(openRun, runPlaybook) === "checkpoint";
-  useEffect(() => { if (runAtCheckpoint) setFactsOpen(true); }, [runAtCheckpoint, openRunId]);
-  const factsPanel = view === "chat" && openRun && currentCase && factsOpen && openRun.facts.length > 0 && (
-    <FactsPanel key={openRun.id} run={openRun} kase={currentCase} words={playbookWords(runPlaybook, language)} canConfirm={contributes && !closed}
-                nameOf={nameOfUsername} onChanged={runChanged}
-                onClose={() => { setFactsOpen(false); document.querySelector<HTMLElement>(".chip-facts")?.focus(); }} />
+  const showRunPanel = (v: RunPanelView | null) => {
+    if (v && !runPanel) runPanelOpener.current = document.activeElement as HTMLElement | null;
+    if (!v) window.setTimeout(() => runPanelOpener.current?.focus(), 0);
+    setRunPanel(v);
+  };
+  const runLive = !!openRun && ["reading", "waiting", "paused"].includes(openRun.status);
+  const factsPanel = view === "chat" && openRun && currentCase && runPanel && openRun.facts.length > 0 && (
+    <RunPanel key={openRun.id} run={openRun} words={playbookWords(runPlaybook, language)} view={runPanel} onView={showRunPanel}
+              onClose={() => showRunPanel(null)} />
   );
 
   const newChat = () => {
@@ -841,7 +845,7 @@ function Chat({ me }: { me: Me }) {
   const openPlaybookRun = (runId: string) => {
     abort.current?.abort();
     setSource(null);
-    setFactsOpen(false);
+    setRunPanel(null);
     setOpenRunId(runId);
   };
   // The composer's Playbook menu: always a new conversation in the case, titled with the playbook (handover of
@@ -1096,7 +1100,12 @@ function Chat({ me }: { me: Me }) {
             <span className="case-ref">{currentCase.reference}</span>
             <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
             <span className="case-type">{caseTypeLabel(currentCase.type, m)}</span>
-            {(current || turns.length > 0) && <>
+            {openRunId && openRun ? <>
+              <span className="case-sep" aria-hidden>/</span>
+              {/* a playbook's conversation: its title and, while it runs, its state: the one place the state is said */}
+              <span className="case-title">{current?.title ?? playbookWords(runPlaybook, language).title}
+                {runLive && runStatusWord(openRun, runPlaybook, m) ? ` · ${runStatusWord(openRun, runPlaybook, m)}` : ""}</span>
+            </> : !openRunId && (current || turns.length > 0) && <>
               <span className="case-sep" aria-hidden>/</span>
               <span className="case-title">{current?.title ?? conversationTitle(turns)}</span>
             </>}
@@ -1105,6 +1114,13 @@ function Chat({ me }: { me: Me }) {
               <Button variant="plain" className="case-members" onPress={() => setShowMembers(true)}
                       aria-label={m.headMembers(caseMembers.map((x) => (x.role === "manager" ? m.asManager(x.name || x.username) : x.name || x.username)).join(", "))}>
                 <CaseFaces members={caseMembers} />
+              </Button>
+            )}
+            {openRun && runLive && openRun.facts.length > 0 && (
+              // every fact, beside the conversation (handover of 31 October 2026, 2.4); the count is here and nowhere else
+              <Button variant="plain" className="case-documents case-facts" aria-pressed={runPanel?.kind === "list"} aria-controls="run-panel"
+                      onPress={() => showRunPanel(runPanel?.kind === "list" ? null : { kind: "list" })}>
+                <FileText size={14} aria-hidden /> {m.factsPanel} · <span aria-live="polite">{m.factsCount(...factCounts(openRun))}</span>
               </Button>
             )}
             {!administers && (
@@ -1129,8 +1145,8 @@ function Chat({ me }: { me: Me }) {
         ) : openRunId && currentCase ? (
           openRun ? (
             <RunThread run={openRun} kase={currentCase} playbook={runPlaybook} words={playbookWords(runPlaybook, language)} me={me.sub ?? undefined}
-                       canAnswer={contributes && !closed} nameOf={nameOfUsername} factsOpen={factsOpen}
-                       onChanged={runChanged} onOpenFacts={() => setFactsOpen((o) => !o)} onDocumentsChanged={refreshDocuments}
+                       canAnswer={contributes && !closed} nameOf={nameOfUsername} panel={runPanel}
+                       onChanged={runChanged} onPanel={showRunPanel} onDocumentsChanged={refreshDocuments}
                        onRestart={runPlaybook ? () => void startPlaybook(runPlaybook.slug) : undefined} />
           ) : (
             <div className="conversation">{runError && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{runError}</InlineNotice>}</div>
@@ -1202,7 +1218,7 @@ function Chat({ me }: { me: Me }) {
         ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source(source!.n)}>{sourcePanel}</Drawer>
         : sourcePanel)}
       {factsPanel && (narrow
-        ? <Drawer isOpen side="right" onClose={() => setFactsOpen(false)} label={m.factsPanel}>{factsPanel}</Drawer>
+        ? <Drawer isOpen side="right" onClose={() => showRunPanel(null)} label={m.factsPanel}>{factsPanel}</Drawer>
         : factsPanel)}
     </div>
   );

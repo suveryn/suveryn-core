@@ -10,7 +10,7 @@ import {
   FolderInput, Square, TriangleAlert, X
 } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { Button, IconButton, InlineNotice, MenuButton, SplitButton, TextButton, Toolbar } from "../ui";
+import { Button, IconButton, InlineNotice, MenuButton, SourceRef, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
 import { citedNumbers, markPassage, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
@@ -27,7 +27,7 @@ import {
 } from "../lib/copy";
 import type { AssistantTurn, UserTurn } from "../types";
 import { AssistantMark } from "./Brand";
-import { AttachmentChip, CitationChip } from "./Chips";
+import { AttachmentChip } from "./Chips";
 
 /** The user's turn: attachment chips above a bubble (the only bubble in the conversation). */
 export function UserMessage({ turn }: { turn: UserTurn }) {
@@ -361,11 +361,20 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
 
         {settled && cited.length > 0 && (
           <div className="sources">
-            <span className="label">{m.sources}</span>
-            {cited.map((n) => (
-              <CitationChip key={n} n={n} citation={turn.citations[n - 1]} filename={nameOf(turn.citations[n - 1])}
-                            active={open === n} onClick={() => toggle(n)} />
-            ))}
+            {/* one rule for sources (handover of 31 October 2026): the marker, the file and page, one link */}
+            <span className="sources-label">{m.sourcesLabel}</span>
+            <span className="sources-list">
+              {cited.map((n, i) => {
+                const c = turn.citations[n - 1], page = c.source?.page;
+                return (
+                  <span key={n} className="sources-item">
+                    {i > 0 && <span className="sources-sep" aria-hidden>·</span>}
+                    <SourceRef n={n} text={nameOf(c) + (page ? `, ${m.pageShort(page)}` : "")} name={m.sourceLabel(n, nameOf(c), page)}
+                               active={open === n} removed={!!c.removed} onPress={() => toggle(n)} />
+                  </span>
+                );
+              })}
+            </span>
             {citedItems.length > 0 && <CopyButton label={m.copySources} what={m.allCitedSources} text={allSources} />}
             {citedItems.length > 0 && <DownloadButton filename={(f) => `sources_${safeFileName(question)}.${f}`} what={m.allCitedSources}
                             text={(f) => (f === "md" ? sourcesMarkdown(question, citedItems, new Date())
