@@ -19,6 +19,7 @@
 }
 .ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
            border-radius: var(--radius-lg); padding: 28px; }
+.ui-card[data-compact] { max-width: none; padding: 12px; border-radius: var(--radius-md); background: var(--bg); }
 .ui-input { width: 100%; min-height: 44px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
             font: inherit; font-size: var(--text-body); line-height: 20px; color: var(--text); background: var(--bg); }
 .ui-input::placeholder { color: var(--text-dimmer); }
@@ -642,3 +643,17 @@
 .ui-sheet .ui-pick-option, .ui-sheet .ui-pick-all { min-height: 44px; }
 .ui-sheet-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .ui-sheet-overlay[data-entering] { animation: none; } }
+
+/* a source (SourceRef): the teal marker and the file and page, one link in ink */
+.ui-source-ref { display: inline-flex; align-items: baseline; gap: 5px; padding: 0; border: 0; background: none; font: inherit;
+                 font-size: var(--text-ui-sm); color: var(--text); cursor: pointer; text-align: left; }
+.ui-source-ref-n { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px;
+                   box-sizing: border-box; font-size: var(--text-label); font-weight: 600; line-height: 1; color: var(--teal-ink);
+                   background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
+                   border-radius: var(--radius-pill); align-self: center; }
+.ui-source-ref-text { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--text-dimmer); }
+.ui-source-ref[data-hovered] .ui-source-ref-text { text-decoration-color: currentColor; }
+.ui-source-ref[data-hovered] .ui-source-ref-n { background: oklch(from var(--teal) l c h / 0.22); }
+.ui-source-ref[data-active] .ui-source-ref-n { background: var(--teal); border-color: var(--teal); color: var(--ink); }
+.ui-source-ref[data-removed] .ui-source-ref-text { color: var(--text-dim); text-decoration: line-through; }
+.ui-source-ref[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }

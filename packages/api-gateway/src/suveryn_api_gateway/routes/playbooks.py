@@ -37,6 +37,7 @@ from ..playbooks import (
     AnswerIn,
     CancelIn,
     ConfirmIn,
+    FactIn,
     PlaybookOut,
     Run,
     RunStore,
@@ -414,6 +415,28 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     await touch_case(request, Scope.case(cid))
     return await _walk(request, run, pb, case)
+
+
+@router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts/{fact_id}", response_model=Run, responses={
+    409: {"description": "The run isn't waiting at its checkpoint"},
+})
+async def set_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, request: Request):
+    """A value from a playbook's card at the checkpoint (handover of 31 October 2026): *Adjust* or *Fill
+    in*. A new version from this person, as a correction in words is; changed, the playbook says so in
+    the thread. The same value as before says the person checked it: a version from them, no turn. The
+    run stays at the checkpoint; confirming is a separate act."""
+    case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
+    step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
+    current = {f.id: f.value for f in run.facts}
+    if fact_id not in current:
+        raise HTTPException(404, "A fact that isn't in this run.")
+    value, username = body.value.strip(), who(request)[0]
+    run = await run_in_threadpool(_runtime(request).correct, run, pb, step, {fact_id: value}, username)
+    if value != current[fact_id]:
+        await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').labels.get(fact_id, fact_id)} is now {value}.",
+                                step.id, {"kind": "changed", "fact": fact_id, "value": value})
+    await log_access(request, uuid.UUID(case.id), "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
+    return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
 
 
 async def _mapped(request: Request, labels: dict[str, str], current: dict[str, str], text: str) -> dict[str, str]:

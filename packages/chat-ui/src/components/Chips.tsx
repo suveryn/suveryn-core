@@ -4,7 +4,6 @@
  * source). The model badge is in ModelPicker.tsx.
  */
 import { Check, CircleX, FileOutput, FileText, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import type { Citation } from "../api";
 import { useT } from "../i18n";
 import { Button, FileButton, IconButton, Progress, TextButton } from "../ui";
 import { ACCEPTED_FILES } from "../lib/formats";
@@ -149,22 +148,6 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
         </Button>
       )}
     </span>
-  );
-}
-
-/** Citation chip: marks a sourced passage. teal-ink text and icon on a translucent teal wash. */
-export function CitationChip({ n, citation, filename, active, onClick }: {
-  n: number; citation: Citation; filename: string; active: boolean; onClick: () => void;
-}) {
-  const m = useT();
-  const page = citation.source?.page;
-  return (
-    <Button variant="plain" className={`chip-citation${active ? " active" : ""}${citation.removed ? " chip-removed" : ""}`} onPress={onClick}
-            aria-expanded={active} aria-label={m.sourceLabel(n, filename, page)}>
-      <span className="cite-num">{n}</span>
-      <FileText size={12} aria-hidden />
-      {filename}{page ? `, ${m.pageShort(page)}` : ""}
-    </Button>
   );
 }
 

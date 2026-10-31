@@ -228,9 +228,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .run-turn .answer > p:last-of-type { margin-bottom: 0; }
 .run-thread .turn-user .caption { font-size: var(--text-caption); }
 .run-quick { margin-top: var(--space-2); }
-.chip-facts { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; margin-top: var(--space-2); border: 1px solid var(--line);
-              border-radius: var(--radius-pill); background: var(--bg); color: var(--text); font-size: var(--text-ui-sm); cursor: pointer; }
-.chip-facts[data-hovered], .chip-facts[aria-expanded="true"] { background: var(--surface-alt); }
 /* the run's chip in the composer: teal while it runs (a system status), ink when paused; its state is in its words */
 .chip-run { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-pill);
             font-size: var(--text-ui-sm); background: oklch(from var(--teal) l c h / 0.14); color: var(--teal-ink); cursor: pointer; }
@@ -240,25 +237,37 @@ span.chip-run { cursor: default; }
 .run-summary-card { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line);
                     border-radius: var(--radius-md); background: var(--bg); }
 .run-summary-name { flex: 1; min-width: 0; }
-/* the facts panel, in the source panel's place */
+/* review in the playbook's message (handover of 31 October 2026): a card per fact that needs the person */
+.run-review { display: flex; flex-direction: column; gap: var(--space-3); }
+.run-review > p { margin: 0; }
+.run-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.run-group-title { margin: 0; font-size: var(--text-label); font-weight: var(--weight-label); letter-spacing: var(--tracking-label);
+                   text-transform: uppercase; color: var(--text-dim); }
+.fact-card { display: flex; flex-direction: column; gap: var(--space-2); }
+.fact-card-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+.fact-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fact-card-label { font-size: var(--text-ui-sm); color: var(--text-dim); }
+.fact-card-value { font-size: var(--text-body-sm); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.fact-card-quote { margin: 0; padding: 2px 0 2px var(--space-3); border-left: 3px solid var(--teal); font-size: var(--text-ui-sm);
+                   line-height: var(--leading-body-sm); color: var(--text); white-space: pre-wrap; }
+.fact-card-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+.run-review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.run-review-actions .ui-button[data-blocked] { opacity: 0.5; cursor: default; }
+.run-all-facts { color: var(--text); }
+.case-facts[aria-pressed="true"] { background: var(--surface-alt); }
+.facts-back { padding: var(--space-2) var(--space-4); background: var(--surface-alt); border-bottom: 1px solid var(--line); }
+/* the facts list, in the source panel's place: every fact, nothing edited */
 .facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .fact { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .fact:first-child { border-top: 0; padding-top: 0; }
-.fact-label { font-size: var(--text-label); font-weight: var(--weight-label); letter-spacing: var(--tracking-label); color: var(--text-dim); }
+.fact-label { font-size: var(--text-label); font-weight: var(--weight-label); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-dim); }
 .fact-row { display: flex; align-items: flex-start; gap: var(--space-2); }
 .fact-row > :first-child { flex: 1; min-width: 0; }
 .fact-value { font-size: var(--text-body-sm); line-height: var(--leading-body-sm); color: var(--text); }
 .fact-unknown { color: var(--text-dim); font-style: italic; }
-.fact-edit { display: block; width: 100%; text-align: left; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: var(--radius-sm);
-             background: transparent; font: inherit; cursor: text; }
-.fact-edit[data-hovered] { background: var(--surface-alt); }
-.fact-edit[data-focus-visible] { box-shadow: 0 0 0 3px var(--focus-glow); }
 .fact-check { color: var(--teal-ink); flex: none; margin-top: 3px; }
-.fact-source { flex: none; margin-top: 2px; }
 .fact-note { font-size: var(--text-caption); color: var(--text-dim); display: inline-flex; align-items: center; gap: var(--space-1); }
 .fact-issue { color: var(--text); }
-.facts-foot { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--line); }
-.facts-foot .caption { margin: 0; }
 .playbook-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--teal-ink);
                  padding: 2px 8px; border: 1px solid var(--teal-ink); border-radius: 999px; white-space: nowrap; }
 .playbook-chip[data-status="paused"] { color: var(--text-dim); border-color: var(--line); }
@@ -352,11 +361,10 @@ span.chip-run { cursor: default; }
 /* the marker whose source is open: filled teal, ink text, never white (§5) */
 .cite-marker.active { background: var(--teal); border-color: var(--teal); color: var(--ink); }
 .sources { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
-.chip-citation { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); font-weight: 600;
-                 color: var(--teal-ink); background: oklch(from var(--teal) l c h / 0.10); border: 1px solid oklch(from var(--teal) l c h / 0.3);
-                 border-radius: var(--radius-pill); padding: 5px 11px; cursor: pointer; }
-.chip-citation:hover { background: oklch(from var(--teal) l c h / 0.22); }
-.chip-citation.active { background: var(--teal); border-color: var(--teal); color: var(--ink); }
+.sources-label { font-size: var(--text-ui-sm); color: var(--text-dim); }
+.sources-list { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); }
+.sources-item { display: inline-flex; align-items: baseline; gap: var(--space-2); }
+.sources-sep { color: var(--text-dimmer); }
 .cite-num { font-variant-numeric: tabular-nums; }
 .source-card { margin: var(--space-3) 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--line);
                border-radius: var(--radius-md); }
