@@ -25,6 +25,7 @@ export { ComboBoxField, SearchField } from "./lists";
 export { ActionMenu, MenuButton, Select, SelectField, SplitButton, type MenuEntry, type Option } from "./menus";
 export { DocumentPicker, type PickItem } from "./picker";
 export { Slider } from "./slider";
+export { SourceRef } from "./sourceRef";
 export { DataTable, FilterSelect, FilterToggle, Pager, PinToggle, type SortDescriptor, type TableColumn } from "./table";
 export { QrCode } from "./QrCode";
 export { I18nProvider } from "react-aria-components";
