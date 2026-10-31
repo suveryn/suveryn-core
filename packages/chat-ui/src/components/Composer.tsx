@@ -6,7 +6,9 @@
  * On a narrow screen (`compact`, §2) it is one pill: the question, one "+" menu for the document, the
  * playbook and the model, and send. On the start screen, "Work in a case" chooses a case (§2, artboard 01).
  */
-import { AlertTriangle, ArrowUp, Check, ChevronDown, ClipboardList, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Square } from "lucide-react";
+import {
+  ArrowUp, Check, ChevronDown, ClipboardList, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Square, TriangleAlert
+} from "lucide-react";
 import { keepDraft, readDraft } from "../lib/draft";
 import { useRef, useState, type KeyboardEvent } from "react";
 import type { Case, ModelInfo, PlaybookInfo } from "../api";
@@ -114,7 +116,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
     id: p.slug, label: playbookWords(p, lang()).title, icon: <ClipboardList size={16} />,
     description: [playbookWords(p, lang()).summary, `v${p.version}`].filter(Boolean).join(" · "),
     meta: p.covered ? m.covered : m.notCovered, metaTone: p.covered ? "teal" as const : "warn" as const,
-    metaIcon: p.covered ? <Check size={13} aria-hidden /> : <AlertTriangle size={13} aria-hidden />,
+    metaIcon: p.covered ? <Check size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />,
   }));
   // The narrow composer's "+": the document, the case's playbooks and the model, in one menu.
   const current = models.find((x) => x.id === chosenModel) ?? defaultModel(models);

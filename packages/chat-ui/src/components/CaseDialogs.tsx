@@ -11,7 +11,7 @@
  * Deleting is for a case opened by mistake: the dialog says the documents and conversations go
  * with it, and keeping it is the focused choice.
  */
-import { AlertCircle, FolderPlus, Lock, Trash2 } from "lucide-react";
+import { CircleAlert, FolderPlus, Lock, Trash } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createCase, type Case, type KeepPeriod, type NewCase } from "../api";
 import { useT } from "../i18n";
@@ -74,7 +74,7 @@ export function NewCaseDialog({ open, onCreated, onCancel }: { open: boolean; on
         <ComboBoxField name="type" label={m.caseType} description={m.caseTypeHint} value={type} onChange={setType}
                        options={CASE_TYPES.map((id) => ({ id, label: caseTypeLabel(id, m) }))} />
         <TextField name="subject" label={m.caseSubject} description={m.caseSubjectHint} value={subject} onChange={setSubject} maxLength={500} />
-        {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -110,7 +110,7 @@ export function CloseCaseDialog({ open, kase, period, onCloseCase, onCancel }: {
     </>}>
       <p>{m.closeCaseBody}</p>
       <p>{kept ? m.closeCaseKept(kept) : m.closeCaseKeptManual}</p>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }
@@ -136,10 +136,10 @@ export function DeleteCaseDialog({ open, kase, onDelete, onCancel }: {
     <Dialog isOpen={open} onClose={onCancel} busy={busy} title={m.deleteCaseTitle(kase?.reference ?? "")} actions={<>
       {/* Keep first: the dialog focuses it */}
       <Button variant="primary" autoFocus onPress={onCancel} isDisabled={busy}>{m.keep}</Button>
-      <Button onPress={remove} isDisabled={busy}><Trash2 size={16} aria-hidden /> {busy ? m.deleting : m.deleteCase}</Button>
+      <Button onPress={remove} isDisabled={busy}><Trash size={16} aria-hidden /> {busy ? m.deleting : m.deleteCase}</Button>
     </>}>
       <p>{m.deleteCaseBody}</p>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

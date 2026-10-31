@@ -1,9 +1,10 @@
 /**
  * Avatar: a person's picture, or their initials, in the rounded square of the brand mark's outer
  * boundary (corner radius a quarter of the side, as suveryn-icon.svg: rx 5 on 20) with a fine line
- * border. An administrator wears a small shield badge over the corner. The picture is the
- * gateway's `/v1/users/{sub}/avatar`, keyed by its ETag so a new upload shows at once; when there
- * is none, or it fails to load, the initials show instead (never a broken image).
+ * border. An administrator wears a shield over the corner, an overlay icon like any other
+ * (IconBadge). The picture is the gateway's `/v1/users/{sub}/avatar`, keyed by its ETag so a new
+ * upload shows at once; when there is none, or it fails to load, the initials show instead (never a
+ * broken image).
  */
 import { Shield } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -11,20 +12,26 @@ import { cx } from "./Button";
 
 export type AvatarSize = "small" | "normal" | "large" | "huge";  // 24, 32, 48, 96 px
 
+/** What an overlay icon sits on: an icon or the brand mark (14 to 20 px), or an avatar of that size. */
+export type BadgeHost = "icon" | AvatarSize;
+
 /**
- * A small badge over the corner of an icon or a picture: the administrator's shield on an avatar,
- * the link on a conversation that is in a case (docs/design/chat-ui.md). `badge` is the small icon;
- * the children are what it sits on. Decorative: the meaning is in the parent's accessible name.
+ * An overlay icon: a small icon over the corner of another, saying one thing about it (suveryn-brand
+ * guidelines, "Overlay icons"). The administrator's shield on an avatar, the manager's folder, the
+ * shared conversation's speech bubble, the route of a playbook speaking. `badge` is the icon; the
+ * children are what it sits on, and `host` says which (its size sets the badge's). Decorative: the
+ * meaning is in the parent's accessible name.
  */
-export function IconBadge({ badge, children, className, tone = "teal" }: {
+export function IconBadge({ badge, children, className, host, tone }: {
   badge: ReactNode; children: ReactNode; className?: string;
-  /** teal: a system-level signal (in a case); accent: a person's standing (the administrator's shield). */
-  tone?: "teal" | "accent" | "neutral";
+  host: BadgeHost;
+  /** system: the system signals something (teal-ink: a playbook speaking); role: a role or ownership (ink). */
+  tone: "system" | "role";
 }) {
   return (
     <span className={cx("ui-badged", className)}>
       {children}
-      <span className="ui-badge" data-tone={tone} aria-hidden>{badge}</span>
+      <span className="ui-badge" data-host={host} data-tone={tone} aria-hidden>{badge}</span>
     </span>
   );
 }
@@ -43,7 +50,7 @@ export function avatarUrl(sub: string, etag: string | null | undefined): string 
   return etag ? `/v1/users/${encodeURIComponent(sub)}/avatar?v=${encodeURIComponent(etag)}` : null;
 }
 
-export function Avatar({ name, sub, etag, admin, size = "normal", adminLabel, className }: {
+export function Avatar({ name, sub, etag, admin, size = "normal", adminLabel, shield = true, className }: {
   name: string;
   sub?: string;
   /** The ETag of the person's picture (from the API); null or undefined: initials. */
@@ -52,6 +59,9 @@ export function Avatar({ name, sub, etag, admin, size = "normal", adminLabel, cl
   size?: AvatarSize;
   /** Text for the badge (screen readers): "Administrator". */
   adminLabel?: string;
+  /** false where another badge sits on this avatar (IconBadge): one badge at a time (chat-ui.md); the
+   * name still says "Administrator". */
+  shield?: boolean;
   className?: string;
 }) {
   const url = sub ? avatarUrl(sub, etag) : null;
@@ -65,7 +75,7 @@ export function Avatar({ name, sub, etag, admin, size = "normal", adminLabel, cl
           ? <img className="ui-avatar-picture" src={url} alt="" draggable={false} onError={() => setFailed(true)} />
           : <span className="ui-avatar-initials" aria-hidden>{initialsOf(name)}</span>}
       </span>
-      {admin && <span className="ui-badge ui-avatar-badge" data-tone="accent" aria-hidden><Shield /></span>}
+      {admin && shield && <span className="ui-badge" data-host={size} data-tone="role" aria-hidden><Shield /></span>}
     </span>
   );
 }

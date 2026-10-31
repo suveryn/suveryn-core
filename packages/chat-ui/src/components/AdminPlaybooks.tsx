@@ -3,7 +3,7 @@
  * Off, it leaves every case's composer menu and can't be started; runs already made stay. The
  * switch applies at once (PUT /v1/admin/playbooks/{slug}); a failure shows and the switch goes back.
  */
-import { AlertCircle, AlertTriangle, Check } from "lucide-react";
+import { Check, CircleAlert, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listAdminPlaybooks, setPlaybookActive, type PlaybookInfo } from "../api";
 import { lang, useT } from "../i18n";
@@ -27,7 +27,7 @@ export function AdminPlaybooks() {
   return (
     <>
       <p className="view-intro">{m.adminPlaybooksIntro}</p>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {playbooks && playbooks.length === 0 && <p className="caption">{m.playbooksEmpty}</p>}
       {playbooks && playbooks.length > 0 && (
         <ul className="item-list">
@@ -37,7 +37,7 @@ export function AdminPlaybooks() {
                 <span className="item-name">{playbookWords(p, lang()).title} <span className="item-dim">{p.version} · {p.pack}</span></span>
                 <span className="item-meta">{m.playbookFor((p.case_types ?? []).map((t) => caseTypeLabel(t, m)).join(", "))} · {p.covered
                   ? <span className="status-ok"><Check size={13} aria-hidden /> {m.covered}</span>
-                  : <span className="status-warn"><AlertTriangle size={13} aria-hidden /> {m.notCovered}</span>}</span>
+                  : <span className="status-warn"><TriangleAlert size={13} aria-hidden /> {m.notCovered}</span>}</span>
               </span>
               <Switch label={m.playbookActive} checked={p.active !== false} onChange={(v) => flip(p, v)} />
             </li>

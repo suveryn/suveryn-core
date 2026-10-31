@@ -9,7 +9,7 @@
  * writes a test file. The recovery key is made in this browser, as in the setup: only its public half goes to
  * the appliance, so the appliance can write backups and never read them. Old backups stay where they were.
  */
-import { AlertCircle, Check, CircleCheck, Download, FolderSync, HardDrive, KeyRound, Play, Printer } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, Download, FolderSync, HardDrive, KeyRound, Play, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   askBackupService, type BackupDisk, type BackupRetention, type BackupSettings, type BackupStatus,
@@ -74,7 +74,7 @@ export function BackUpNow({ status, onStarted }: { status: BackupStatus; onStart
           : started ? m.backupStarted
           : status.settings?.next_run ? nextRunText(status.settings.next_run, m) : ""}
       </span>
-      {problem && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{problem}</InlineNotice>}
+      {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
     </div>
   );
 }
@@ -253,14 +253,14 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         </>
       )}
       {(errors._ || errors.recipient || errors.retention_days || errors.hour) && (
-        <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{errors._ || errors.recipient || errors.retention_days || errors.hour}</InlineNotice>
+        <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{errors._ || errors.recipient || errors.retention_days || errors.hour}</InlineNotice>
       )}
       <div className="admin-settings-save">
         <Button variant="primary" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
         {done && <span className="caption status-ok"><Check size={12} aria-hidden /> {m.backupSettingsSaved}</span>}
         {/* Errors show on saving, at their fields; this line says so beside the button, where the press was
             (round 2, finding 6: the share's "test first" sat far above, and Save seemed to do nothing). */}
-        {firstProblem && !busy && <span className="ui-field-error" role="alert"><AlertCircle size={14} aria-hidden /> {m.backupSettingsNotSaved(firstProblem)}</span>}
+        {firstProblem && !busy && <span className="ui-field-error" role="alert"><CircleAlert size={14} aria-hidden /> {m.backupSettingsNotSaved(firstProblem)}</span>}
       </div>
     </section>
   );
@@ -364,7 +364,7 @@ export function RecoverySheet({ status, onSaved }: { status: BackupStatus; onSav
         <Checkbox name="stored-new" checked={!!newKey?.stored} onChange={(v) => setNewKey((k) => (k ? { ...k, stored: v } : k))}>
           {t.recoveryConfirm}
         </Checkbox>
-        {problem && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{problem}</InlineNotice>}
+        {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
       </Dialog>
     </section>
   );

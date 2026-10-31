@@ -6,7 +6,7 @@
  * And changing them (docs/design/admin.md, artboard 36; AdminBackupSettings.tsx): back up now, where, when,
  * how long, and the recovery sheet.
  */
-import { AlertCircle, AlertTriangle, Check, FileKey, Info } from "lucide-react";
+import { Check, CircleAlert, FileKey, Info, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getBackups, HttpError, testRecoveryKey, type BackupStatus } from "../api";
 import { locale, useT } from "../i18n";
@@ -41,7 +41,7 @@ export function AdminBackups() {
       setKeyProblem(e instanceof HttpError && e.status === 415 ? m.keyTestNotKey : (e as Error).message);
     }
   };
-  if (error) return <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{m.backupsUnreadable(error)}</InlineNotice>;
+  if (error) return <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.backupsUnreadable(error)}</InlineNotice>;
   if (!status) return null;
   const state = backupState(status);
   const reason = (step: string) => m.backupStep[step as keyof typeof m.backupStep] ?? m.backupStep.other;
@@ -50,9 +50,9 @@ export function AdminBackups() {
       <p className="view-intro">{m.adminBackupsIntro}</p>
       {status.settings && <BackUpNow status={status} onStarted={load} />}
       {state.kind === "unavailable" && <InlineNotice icon={<Info size={14} />}>{m.backupsUnavailable}</InlineNotice>}
-      {state.kind === "not_set_up" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
+      {state.kind === "not_set_up" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
       {state.kind === "never" && (state.failing
-        ? <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>{m.backupFailed(when(state.failing.at), reason(state.failing.step))}</InlineNotice>
+        ? <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.backupFailed(when(state.failing.at), reason(state.failing.step))}</InlineNotice>
         : <InlineNotice icon={<Info size={14} />}>{m.backupsNever}</InlineNotice>)}
       {(state.kind === "ok" || state.kind === "stale" || state.kind === "failing") && (() => {
         const s = state.status, ok = s.last_success!;
@@ -60,7 +60,7 @@ export function AdminBackups() {
           <>
             {state.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.backupLast(when(ok.at), sizeLabel(ok.size, locale()))}</InlineNotice>}
             {state.kind !== "ok" && (
-              <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>
+              <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>
                 {state.kind === "stale" ? m.backupStale(when(ok.at)) : m.backupFailed(when(s.last_error!.at), reason(s.last_error!.step))}
               </InlineNotice>
             )}
@@ -89,11 +89,11 @@ function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: s
   return (
     <>
       {k.kind === "testing" && <InlineNotice icon={<Info size={14} />}>{m.keyTesting}</InlineNotice>}
-      {k.kind === "never" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
+      {k.kind === "never" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
       {k.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.keyTestOk(when(k.test.at))}</InlineNotice>}
-      {k.kind === "due" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
-      {k.kind === "failed" && <InlineNotice icon={<AlertTriangle size={14} />} tone="error" alert>{m.keyTestFailed}</InlineNotice>}
-      {problem && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{problem}</InlineNotice>}
+      {k.kind === "due" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
+      {k.kind === "failed" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestFailed}</InlineNotice>}
+      {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
       {k.kind !== "testing" && (
         <FileButton accept={[".txt", ".key"]} onSelect={onTest}>
           <Button size="small" variant="secondary"><FileKey size={14} aria-hidden /> {m.keyTestButton}</Button>

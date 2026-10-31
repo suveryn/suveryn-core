@@ -35,6 +35,11 @@ TURNS = [
 BODY = {"title": "Wat is de koopprijs?", "turns": TURNS}
 
 
+def plain(turns: list[dict]) -> list[dict]:
+    """The turns as the UI sent them: without what the row adds (``seq``, ``by``, ``at``)."""
+    return [{k: v for k, v in t.items() if k not in ("seq", "by", "at")} for t in turns]
+
+
 class FakeConversations:
     """In-memory stand-in for ``ConversationStore``."""
 
@@ -130,7 +135,7 @@ class FakeConversations:
         r["shared"] = shared
         return self._summary(r)
 
-    def save(self, cid, owner, body: ConversationIn, gone=None):
+    def save(self, cid, owner, body: ConversationIn, gone=None, by=""):
         old = self.rows.get(cid)
         if old and old["owner"] != owner:
             return False
@@ -306,7 +311,7 @@ def test_store_round_trip_and_ownership(store):
     assert not store.save(cid, BOB, ConversationIn(**{**BODY, "title": "overwritten"}))
     assert store.get(cid, BOB) is None and store.summaries(BOB) == []
     got = store.get(cid, ALICE)
-    assert got.title == "Wat is de koopprijs?" and got.turns == TURNS
+    assert got.title == "Wat is de koopprijs?" and plain(got.turns) == TURNS
     assert [s.id for s in store.summaries(ALICE)] == [str(cid)]
     assert not store.delete(cid, BOB) and store.delete(cid, ALICE)
     assert store.get(cid, ALICE) is None
@@ -609,7 +614,7 @@ def test_store_renames_pins_and_moves_a_personal_conversation(store):
     moved = store.move(cid, ALICE, case)
     assert moved.case_id == str(case) and not moved.pinned and not moved.shared
     assert store.summaries(ALICE) == [] and {s.id for s in store.summaries(ALICE, case)} == {str(cid), str(in_case)}
-    assert store.get(cid, ALICE).turns == TURNS
+    assert plain(store.get(cid, ALICE).turns) == TURNS
 
 
 @needs_db
@@ -628,7 +633,7 @@ def test_store_shares_a_conversation_with_its_case_and_cleans_every_members(stor
     assert shared.shared and shared.owner == ALICE
     assert sorted((s.id, s.owner, s.shared) for s in store.summaries(BOB, case)) == sorted(
         [(str(bobs), BOB, False), (str(alices), ALICE, True)])
-    assert store.get_shared(alices).turns == TURNS and store.get(alices, BOB) is None  # readable, not his
+    assert plain(store.get_shared(alices).turns) == TURNS and store.get(alices, BOB) is None  # readable, not his
     assert store.summaries(ALICE) == [store.summaries(ALICE)[0]] and store.summaries(ALICE)[0].id == str(personal)
     assert store.set_shared(alices, ALICE, False).shared is False and store.get_shared(alices) is None
     # the case's document is cited in bob's conversation too: everyone's are cleaned
@@ -704,37 +709,82 @@ def test_a_turn_as_chat_takes_it_is_saved_with_its_words_as_text():
 @needs_db
 def test_turns_are_appended_in_order_and_two_writers_never_collide():
     """The ``turns`` table (docs/design/playbooks.md, "The thread"): rows, not a blob. Two sessions
-    appending at the same moment get consecutive numbers (the unique index refuses a duplicate and
-    the loser takes the next one); nothing is overwritten."""
+    appending at the same moment get consecutive numbers (the conversation's row is locked while the
+    next is taken); nothing is overwritten. A turn always belongs to a conversation, and goes with it."""
     import threading
 
     from suveryn_api_gateway.conversations import TurnStore
 
-    store, rid = TurnStore(URL), uuid.uuid4()
+    store, conv, rid = TurnStore(URL), uuid.uuid4(), uuid.uuid4()
+    store.create_for_run(conv, rid, ALICE, "Akte-intake", uuid.uuid4())
     try:
-        first = store.append(rid, "playbook", "playbook/x/y", "Upload the agreement.", "agreement")
+        first = store.append(conv, "playbook", "playbook/x/y", "Upload the agreement.", "agreement")
         assert (first.seq, first.role, first.step_id, first.by) == (1, "playbook", "agreement", "playbook/x/y")
         writers = [TurnStore(URL) for _ in range(4)]
         go = threading.Barrier(4)
 
         def write(s, i):
             go.wait()
-            s.append(rid, "user", f"user-{i}", f"answer {i}", "agreement", {"n": i})
+            s.append(conv, "user", f"user-{i}", f"answer {i}", "agreement", {"n": i})
 
         threads = [threading.Thread(target=write, args=(s, i)) for i, s in enumerate(writers)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        turns = store.for_run(rid)
+        turns = store.turns_of(conv)
         assert [t.seq for t in turns] == [1, 2, 3, 4, 5] and {t.by for t in turns[1:]} == {f"user-{i}" for i in range(4)}
-        assert store.count_for_run(rid) == 5 and store.for_run(rid, limit=2)[-1].seq == 2
-        assert store.for_run(uuid.uuid4()) == []
-        with pytest.raises(Exception):  # a turn belongs to a run or a conversation, never neither nor both
+        assert store.turns_of(conv, limit=2)[-1].seq == 2 and store.turns_of(uuid.uuid4()) == []
+        assert store._execute("SELECT messages FROM conversations WHERE id = %s", (conv,)).fetchone()[0] == 5
+        with pytest.raises(LookupError):
+            store.append(uuid.uuid4(), "user", "x", "y")
+        with pytest.raises(Exception):  # a turn always belongs to a conversation
             store._execute("INSERT INTO turns (seq, role, \"by\", text) VALUES (1, 'user', 'x', 'y')")
-        assert store.delete_for_runs([rid]) == 5 and store.for_run(rid) == []
+        store._execute("DELETE FROM conversations WHERE id = %s", (conv,))
+        assert store.turns_of(conv) == []
         for s in writers:
             s.close()
     finally:
-        store.delete_for_runs([rid])
+        store._execute("DELETE FROM conversations WHERE id = %s", (conv,))
         store.close()
+
+@needs_db
+def test_a_save_brings_the_rows_in_line_and_keeps_who_and_when(store):
+    """The chat UI still saves its conversation whole; each turn is a row (Filip, 30 October 2026). An
+    unchanged turn keeps its row and time, a changed one is rewritten in place, a new one appended, and
+    the ones the UI dropped (a retried question) are deleted."""
+    cid = uuid.uuid4()
+    assert store.save(cid, ALICE, ConversationIn(**BODY), by="notaris.test")
+    first = store.get(cid, ALICE).turns
+    assert [(t["seq"], t["role"], t["by"]) for t in first] == [(1, "user", "notaris.test"), (2, "assistant", "assistant")]
+    more = [*TURNS[:1], {**TURNS[1], "text": "€ 345.000 [1] (corrected)"}, {"id": "t3", "role": "user", "text": "En de koper?"}]
+    assert store.save(cid, ALICE, ConversationIn(title="x", turns=more), by="notaris.test")
+    second = store.get(cid, ALICE).turns
+    assert second[0]["at"] == first[0]["at"] and second[1]["text"].endswith("(corrected)") and second[2]["seq"] == 3
+    assert store.summaries(ALICE)[0].messages == 3
+    assert store.save(cid, ALICE, ConversationIn(title="x", turns=TURNS[:1]))
+    assert [t["seq"] for t in store.get(cid, ALICE).turns] == [1]
+    store.delete(cid, ALICE)
+    assert store.turns_of(cid) == []  # the turns go with their conversation
+
+
+@needs_db
+def test_a_playbook_runs_conversation_goes_with_its_case(store):
+    """A run's conversation is listed and read like a shared one, but the server writes it: it isn't saved
+    over, deleted, unshared or purged on its own, and "Delete history" leaves it."""
+    conv, rid, case = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    store.create_for_run(conv, rid, ALICE, "Akte-intake", case)
+    try:
+        store.append(conv, "playbook", "playbook/notarial-be/deed-intake", "Laad de compromis op.", "agreement")
+        listed = store.summaries(BOB, case)
+        assert [(s.id, s.run_id, s.shared, s.title, s.messages) for s in listed] == [(str(conv), str(rid), True, "Akte-intake", 1)]
+        assert store.get_shared(conv).turns[0]["step_id"] == "agreement"
+        assert not store.save(conv, ALICE, ConversationIn(**BODY))
+        assert not store.delete(conv, ALICE) and store.set_shared(conv, ALICE, False) is None
+        assert store.unshare_case(case) == 0 and store.delete_all(ALICE) == 0
+        store._execute("UPDATE conversations SET updated_at = now() - interval '400 days' WHERE id = %s", (conv,))
+        store.keep = "6m"
+        assert store.purge() == 0 and store.get(conv, ALICE) is not None
+    finally:
+        store.keep = "manual"
+        store._execute("DELETE FROM conversations WHERE id = %s", (conv,))

@@ -21,7 +21,11 @@
 import { listedTitle } from "../lib/conversations";
 import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "../lib/conversationActions";
 import { conversationMenu } from "./ConversationDialogs";
-import { BarChart3, ChevronDown, ChevronsUpDown, ClipboardList, Clock, FileText, Folder, FolderKey, FolderOpen, FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, MoreHorizontal, PanelLeft, Pin, PinOff, Plus, Search, Settings, Shield, Users, ScrollText, X } from "lucide-react";
+import {
+  ChartColumn, ChevronDown, ChevronsUpDown, ClipboardList, Clock, Ellipsis, FileText, Folder, FolderKey, FolderOpen,
+  FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, PanelLeft, Pin, PinOff, Route,
+  Plus, ScrollText, Search, Settings, Shield, Users, X
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
@@ -88,7 +92,7 @@ export function Sidebar(p: Props) {
   // The order of §2 and artboard 04: usage, settings, language; the administrators' items under their
   // own label; sign out.
   const accountEntries: MenuEntry[] = [
-    { id: "usage", label: m.myUsage, icon: <BarChart3 size={16} />, meta: p.tokensToday === null ? undefined : m.tokensToday(compact(p.tokensToday)) },
+    { id: "usage", label: m.myUsage, icon: <ChartColumn size={16} />, meta: p.tokensToday === null ? undefined : m.tokensToday(compact(p.tokensToday)) },
     { id: "settings", label: m.settings, icon: <Settings size={16} />, meta: m.settingsMeta },
     { id: "language", label: m.language, icon: <Languages size={16} />, meta: LANGUAGE_NAMES[lang()], submenu: langEntries, selected: `lang:${lang()}` },
     ...(p.admin ? [{ heading: m.administratorsOnly, items: [
@@ -179,11 +183,13 @@ export function Sidebar(p: Props) {
               onPress={() => p.onOpenConversation(c)} aria-current={current ? "page" : undefined} title={hint}>
         {underCase
           ? <span className="side-dot" data-current={current || undefined} aria-hidden />
-          : c.shielded ? <MessageSquareLock size={14} aria-hidden /> : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
+          : c.shielded ? <MessageSquareLock size={14} aria-hidden /> : c.run_id ? <Route size={14} aria-hidden />
+          : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
         {/* §11: a strictly confidential case's conversation, without its title */}
         <span className="side-text" data-shielded={c.shielded || undefined}
               aria-label={c.shielded && r ? m.shieldedIn(r) : undefined}>{listedTitle(c)}</span>
-        {underCase ? (shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
+        {underCase ? (c.run_id ? <Route size={13} className="side-shared" role="img" aria-label={m.playbook} />
+                      : shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
                    : r && <span className="side-meta">{r}</span>}
       </Button>
     );
@@ -196,7 +202,7 @@ export function Sidebar(p: Props) {
         <ActionMenu className="side-actions" aria-label={m.conversationMenu(title)} menuLabel={m.conversationMenu(title)}
                     entries={conversationMenu(c, p.user.sub, m)} onAction={(a) => p.onConversationAction(c, a as ConversationAction)}
                     placement="bottom end">
-          <MoreHorizontal size={16} aria-hidden />
+          <Ellipsis size={16} aria-hidden />
         </ActionMenu>
       </div>
     );
@@ -262,7 +268,7 @@ export function Sidebar(p: Props) {
                         actions={
                           <ActionMenu className="side-actions" aria-label={m.caseActions(c.reference)} menuLabel={m.caseActions(c.reference)}
                                       entries={caseActions(c)} onAction={(a) => p.onCaseAction(c, a as CaseAction)} placement="bottom end">
-                            <MoreHorizontal size={16} aria-hidden />
+                            <Ellipsis size={16} aria-hidden />
                           </ActionMenu>
                         }>
                 <div className="side-guide">

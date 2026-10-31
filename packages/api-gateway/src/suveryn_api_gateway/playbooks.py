@@ -20,8 +20,10 @@ person's answer to an ``ask`` is ``proposed`` from a person; the checkpoint writ
 assembled from the current versions; runs made before this table keep their facts in
 ``playbook_runs.facts`` and are read from there.
 
-**The thread** is in ``turns`` (``conversations.TurnStore``): the playbook's questions and the
-people's answers, one row each, appended, stamped with who and when.
+**The thread** is a conversation (``conversations``, ``run_id`` set, Filip 30 October 2026): made with
+the run, titled with the playbook, shared with the case, listed beside the case's other
+conversations. Its turns are rows in ``turns`` (``conversations.TurnStore``): the playbook's questions
+and the people's answers, appended, stamped with who and when.
 
 **Stop and cancel** (Pod check of d0f680e, question Q): a stopped run keeps its confirmed facts as the
 case's and supersedes the proposed ones; a cancelled run supersedes every current version it has,
@@ -51,11 +53,12 @@ from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactCitation, RunFact
 from suveryn_playbooks import Playbook
 
-from .conversations import TURNS_SCHEMA, Turn, TurnStore
+from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
+from .conversations import Turn, TurnStore
 
 log = logging.getLogger("suveryn.gateway")
 
-SCHEMA = TURNS_SCHEMA + """
+SCHEMA = CONVERSATIONS_SCHEMA + """
 CREATE TABLE IF NOT EXISTS playbook_runs (
     id uuid PRIMARY KEY,
     case_id uuid NOT NULL,
@@ -82,7 +85,8 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     paused_at timestamptz,
     ended_by text,
     ended_reason text,
-    starter text              -- the starter's id: who may stop or cancel (started_by is the shown name)
+    starter text,             -- the starter's id: who may stop or cancel (started_by is the shown name)
+    conversation_id uuid NOT NULL  -- the run's conversation: its thread (conversations.run_id points back)
 );
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS playbook_settings (
@@ -152,6 +156,7 @@ class RunSummary(BaseModel):
     starter: str | None = None           # the starter's Keycloak id (rights)
     title: dict[str, str] = Field(default_factory=dict)  # the playbook's title per language, for a chip anywhere (filled by the routes)
     step_kind: str | None = None         # the kind of the step the run is on (request, read, ask, checkpoint), for the chip's words
+    conversation_id: str = ""            # the run's conversation: its thread, in the case's list of conversations
 
 
 class Run(RunSummary):
@@ -197,6 +202,17 @@ class CancelIn(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class SayIn(BaseModel):
+    """Body of ``POST …/runs/{run}/say``: what a person writes in the run's conversation (Filip, 30
+    October 2026: a playbook is a conversation). At a ``request``: the documents just added
+    (``documents``, ids in the case). At an ``ask``: an answer in words, mapped to the facts asked, or
+    ``unknown`` (the quick reply "Not known yet"). At the checkpoint: a correction in words."""
+
+    text: str = Field(default="", max_length=MAX_ANSWER)
+    documents: list[str] = Field(default_factory=list, max_length=50)
+    unknown: bool = False
+
+
 class PlaybookWords(BaseModel):
     """A playbook's words in one language (``suveryn_playbooks.Wording``)."""
 
@@ -204,6 +220,7 @@ class PlaybookWords(BaseModel):
     summary: str
     labels: dict[str, str]
     questions: dict[str, str] = Field(default_factory=dict)
+    facts_title: str = ""   # the facts panel's heading ("Facts for the deed"); empty: the UI's generic one
 
 
 class StepOut(BaseModel):
@@ -268,22 +285,29 @@ class RunStore(TurnStore):
 
     COLUMNS = ("id, case_id, playbook_id, playbook_version, status, documents, started_by, started_at, finished_at,"
                " confirmed_by, confirmed_at, model, error, result_document_id, out_of_date,"
-               " step, language, paused_by, paused_at, ended_by, ended_reason, starter")
-    _N = 22  # columns above; ``instruction_like_sources`` and ``steps`` follow in ``get``
+               " step, language, paused_by, paused_at, ended_by, ended_reason, starter, conversation_id")
+    _N = 23  # columns above; ``instruction_like_sources`` and ``steps`` follow in ``get``
 
     # -- runs
 
     def create(self, case_id: uuid.UUID, playbook: Playbook, documents: list[str], started_by: str, model: str | None,
                language: str = "en", starter: str | None = None) -> Run:
-        """A new run at its first step (the runtime sets the step and status straight after).
-        ``started_by`` is the name shown; ``starter`` the id rights are checked against."""
-        run_id = uuid.uuid4()
+        """A new run at its first step (the runtime sets the step and status straight after), with its
+        conversation in the case, titled with the playbook in the run's language. ``started_by`` is the
+        name shown; ``starter`` the id rights are checked against, and the conversation's owner."""
+        run_id, conversation_id = uuid.uuid4(), uuid.uuid4()
         steps = {s.id: StepState().model_dump(mode="json") for s in playbook.steps}
-        self._execute("INSERT INTO playbook_runs (id, case_id, playbook_id, playbook_version, status, documents, started_by, model,"
-                      " steps, language, starter) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s)",
-                      (run_id, case_id, playbook.id, playbook.version, [uuid.UUID(d) for d in documents], started_by, model,
-                       json.dumps(steps), language, starter))
+        with self.transaction():
+            self.create_for_run(conversation_id, run_id, starter or started_by, playbook.wording(language).title, case_id)
+            self._execute("INSERT INTO playbook_runs (id, case_id, playbook_id, playbook_version, status, documents, started_by, model,"
+                          " steps, language, starter, conversation_id) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s, %s)",
+                          (run_id, case_id, playbook.id, playbook.version, [uuid.UUID(d) for d in documents], started_by, model,
+                           json.dumps(steps), language, starter, conversation_id))
         return self.get(run_id, case_id)  # type: ignore[return-value]
+
+    def say(self, run: RunSummary, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None) -> Turn:
+        """A turn at the end of the run's conversation."""
+        return self.append(uuid.UUID(run.conversation_id), role, by, text, step_id, meta)
 
     def active(self, case_id: uuid.UUID, playbook_id: str) -> RunSummary | None:
         """The one run of this playbook in this case that is still going (reading, waiting or paused), if any."""
@@ -309,7 +333,7 @@ class RunStore(TurnStore):
         summary = self._summary(r)
         suspicious, steps = r[self._N], r[self._N + 1]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
-                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.for_run(run_id))
+                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)))
 
     def list(self, case_id: uuid.UUID) -> list[RunSummary]:
         rows = self._execute(f"SELECT {self.COLUMNS} FROM playbook_runs WHERE case_id = %s ORDER BY started_at DESC LIMIT %s",
@@ -322,7 +346,8 @@ class RunStore(TurnStore):
                           documents=[str(d) for d in r[5]], started_by=r[6], started_at=r[7], finished_at=r[8],
                           confirmed_by=r[9], confirmed_at=r[10], model=r[11], error=r[12],
                           result_document_id=str(r[13]) if r[13] else None, out_of_date=r[14],
-                          step=r[15], language=r[16], paused_by=r[17], paused_at=r[18], ended_by=r[19], ended_reason=r[20], starter=r[21])
+                          step=r[15], language=r[16], paused_by=r[17], paused_at=r[18], ended_by=r[19], ended_reason=r[20], starter=r[21],
+                          conversation_id=str(r[22]))
 
     def set_step(self, run_id: uuid.UUID, step: str | None, status: Status, steps: dict[str, StepState],
                  model: str | None = None, suspicious: list[int] | None = None) -> bool:
@@ -381,10 +406,9 @@ class RunStore(TurnStore):
                              (case_id, uuid.UUID(document_id))).rowcount
 
     def delete_case(self, case_id: uuid.UUID) -> int:
-        """Everything the case's runs hold goes with them: turns, facts, runs."""
+        """Everything the case's runs hold goes with them: their conversations (and so their turns), facts, runs."""
         with self.transaction():
-            run_ids = [r[0] for r in self._execute("SELECT id FROM playbook_runs WHERE case_id = %s", (case_id,)).fetchall()]
-            self.delete_for_runs(run_ids)
+            self._execute("DELETE FROM conversations WHERE run_id IN (SELECT id FROM playbook_runs WHERE case_id = %s)", (case_id,))
             self._execute("DELETE FROM case_facts WHERE case_id = %s", (case_id,))
             return self._execute("DELETE FROM playbook_runs WHERE case_id = %s", (case_id,)).rowcount
 
@@ -441,7 +465,7 @@ class RunStore(TurnStore):
             if kind in ("document", "none") and not at_checkpoint and "read" not in slot:
                 slot["read"] = row                       # the model's reading: the first version
             elif kind == "person" and not at_checkpoint:
-                slot["answer"] = row                     # a person's answer to an ask: the newest
+                slot["answer"] = row                     # a person's answer to an ask, or a correction in words: the newest
             if at_checkpoint and row["status"] in ("confirmed", "not_established"):
                 slot["confirmed"] = row                  # what the checkpoint settled; a cancel supersedes it (then not shown)
         out: list[RunFact] = []
@@ -453,7 +477,9 @@ class RunStore(TurnStore):
             citations = [FactCitation(**c) for c in (read or {}).get("source", {}).get("citations", [])] if found else []
             out.append(RunFact(id=fact_id, value=value, citations=citations, issues=list((read or {}).get("issues", [])) if found else [],
                                found=found, confirmed=confirmed["value"] if confirmed else None,
-                               source="person" if answer else ("document" if found else "none")))
+                               source="person" if answer else ("document" if found else "none"),
+                               by=answer["by"] if answer else None,
+                               was=read["value"] if answer and found and read else None))
         return out
 
     def discard_proposed(self, run_id: uuid.UUID) -> int:

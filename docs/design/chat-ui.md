@@ -37,10 +37,12 @@ These apply to every screen below.
 - **Everything else is ink on neutral surfaces**:
   - avatars: ink initials on `surface-alt`, with a finer `line` border of `max(1.5px, 5%)` of the
     side;
-  - avatar badges: an ink outline;
+  - overlay icons on an avatar (the administrator's shield, the manager's folder, the owner's speech
+    bubble): ink, as suveryn-brand's *Overlay icons* sets out (tokens v3.5);
   - active filters: `surface-alt` with a darker border;
   - chips: the composer's playbook chip and model chip are ink text on `surface-alt`, never teal or
-    orange, whatever they lead to; inside the playbook menu only "Covered" is teal (a status);
+    orange, whatever they lead to; inside the playbook menu only "Covered" is teal (a status); a
+    running playbook's own chip is teal while it runs (a system status) and ink when paused;
   - the `brain` icon and the pins;
   - the current conversation's dot.
 - **Violet is the second brand colour, for two things only**: the band of a strictly confidential
@@ -143,9 +145,10 @@ applicable), the name and chevrons. It opens a `Menu`:
    "Administrators only" and shown to administrators only.
 6. *Sign out*, with the fine print "Documents and answers stay on this server".
 
-**Avatar badges.** An ink outline icon over the avatar's bottom-right corner; the manager's and the
-owner's sit on a small disc in the surface colour, the administrator's shield is only its outline, with
-no disc and no ring (Filip, 28 October):
+**Avatar badges.** Overlay icons, by suveryn-brand's rule (guidelines, *Overlay icons*, tokens v3.5;
+`IconBadge` and `.ui-badge`): one size per host from the `badge` tokens, 40 % outside the bottom-right
+corner, the icon filling its box with no disc, ring or fill, in ink for a role; on a photo, a 1 px outline
+in the surface colour. Board 55 of the design canvas shows them at every size:
 
 - `shield` for an administrator;
 - `folder` for a case's manager;
@@ -274,13 +277,14 @@ A conversation in a case has:
 
 The playbook chip opens a menu of the playbooks that fit the case type
 (`GET /v1/cases/{id}/playbooks`). Each item shows the name, one line, the version, and its coverage
-from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blocking). A playbook at
-work in the case shows as one line under the case header and in the case overview's status column
-("Deed intake · waiting for documents", `GET /v1/playbooks/runs/active`), which opens the run's
-view: a banner, the thread, the composer for the step the run waits on, the facts beside it, and
-pause, stop and cancel in a menu ([playbooks.md](playbooks.md), "The chat UI"). The run's thread is
-rows in the `turns` table, not a saved conversation; moving ordinary chat onto that table, with the
-conversion of the saved blobs, is a later, separate step.
+from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blocking). Choosing one starts
+it as a new conversation in the case (board 53): a playbook is a conversation, listed with the route
+icon in the column, in *Recent* and in the Conversations overview, opened in the conversation's place
+with the facts in a panel beside it ([playbooks.md](playbooks.md), "The chat UI"; boards 52 to 54).
+While it is live, its composer carries the run's chip instead: teal "Deed intake 1.1 · running" (a
+system status), ink when paused, with pause, cancel and stop in its menu. The case overview's status
+column still shows a live run ("Deed intake · waiting for documents", `GET /v1/playbooks/runs/active`).
+Every conversation's turns are rows in the `turns` table; a playbook's are written by the server.
 
 **Model and thinking mode.** The model chip opens one small dialog:
 

@@ -9,7 +9,8 @@
  * Administrators only: the gateway answers 403 to anyone else on every /v1/admin route.
  */
 import {
-  AlertTriangle, ArrowLeft, BarChart3, ChevronRight, ClipboardList, Folder, Gauge, HardDrive, Settings, Shield, Users,
+  ArrowLeft, ChartColumn, ChevronRight, ClipboardList, Folder, Gauge, HardDrive, Settings, Shield, TriangleAlert,
+  Users
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getBackups, type BackupStatus } from "../api";
@@ -49,13 +50,13 @@ export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
       { id: "users", label: m.adminUsers, icon: <Users size={16} aria-hidden /> },
       { id: "cases", label: m.adminCases, icon: <Folder size={16} aria-hidden /> },
       { id: "playbooks", label: m.adminPlaybooks, icon: <ClipboardList size={16} aria-hidden /> },
-      { id: "usage", label: m.adminUsage, icon: <BarChart3 size={16} aria-hidden /> },
+      { id: "usage", label: m.adminUsage, icon: <ChartColumn size={16} aria-hidden /> },
       { id: "settings", label: m.adminSettings, icon: <Settings size={16} aria-hidden /> },
     ] },
     { heading: m.adminAppliance, items: [
       { id: "status", label: m.adminStatus, icon: <Gauge size={16} aria-hidden /> },
       { id: "backups", label: m.adminBackups, icon: <HardDrive size={16} aria-hidden />,
-        mark: attention ? <AlertTriangle size={14} aria-label={m.needsAttention} /> : undefined },
+        mark: attention ? <TriangleAlert size={14} aria-label={m.needsAttention} /> : undefined },
     ] },
   ];
   const shown: AdminPage | null = page ?? (narrow ? null : "status");

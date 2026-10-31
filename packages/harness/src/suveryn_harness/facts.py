@@ -55,6 +55,8 @@ class RunFact(BaseModel):
     found: bool = True                   # False: the model said the documents don't contain it
     confirmed: str | None = None         # what the person confirmed (a correction, the value, or "")
     source: Literal["document", "person", "none"] = "document"   # where ``value`` came from: the documents, a person's answer, nowhere
+    by: str | None = None                # for a person's value: who gave it (an answer or a correction in the conversation)
+    was: str | None = None               # for a correction of a value read from the documents: the value as read
 
 
 _ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
@@ -176,3 +178,53 @@ async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]]
         if on_retry is not None:
             on_retry(attempt + 1, answer_shape(playbook, response))
     raise Unreadable
+
+
+# ------------------------------------------------------------------ answers in words (docs/design/playbooks.md, "The chat UI")
+
+MAP_TOKENS = 512
+_MAPPED = re.compile(r"^\s*[-*]?\s*`?([a-z][a-z0-9_]{0,49})`?\s*[:=]\s*(.+?)\s*$")
+_NOTHING = re.compile(r"^\s*(none|nothing|-)\s*\.?\s*$", re.IGNORECASE)
+
+MAP_INSTRUCTIONS = """A person answered in their own words about facts for a file. Say which of the facts below their
+words give a value for, and the value, copied as they wrote it (a date, an amount, a name, a number).
+
+The facts (id: label, and the value as it stands now, if any):
+{facts}
+
+The person wrote:
+<<<
+{text}
+>>>
+
+Answer with one line per fact the person gives a value for, as `id: value`, using only the ids above.
+A fact the person says is not known yet, or will follow later, is not a value: leave it out.
+If their words give no value for any of the facts, answer with the single word NONE. Nothing else."""
+
+
+def map_prompt(labels: dict[str, str], current: dict[str, str], text: str) -> str:
+    facts = "\n".join(f"- {fid}: {label}" + (f" (now: {current[fid]})" if current.get(fid) else "") for fid, label in labels.items())
+    return MAP_INSTRUCTIONS.format(facts=facts, text=text.replace(">>>", "> > >"))
+
+
+def read_mapping(answer: str, labels: dict[str, str]) -> dict[str, str]:
+    """The model's ``id: value`` lines, only for the facts asked about; anything else is ignored, so
+    an answer the model got wrong places nothing rather than something wrong."""
+    out: dict[str, str] = {}
+    for line in answer.splitlines():
+        if _NOTHING.match(line):
+            continue
+        m = _MAPPED.match(line)
+        if m and m.group(1) in labels and not _NOT_FOUND.match(m.group(2)):
+            out[m.group(1)] = m.group(2).strip().strip("`")[:MAX_VALUE]
+    return out
+
+
+async def map_answer(answer: Callable[[ChatRequest], Awaitable[ChatResponse]], labels: dict[str, str], current: dict[str, str],
+                     text: str) -> tuple[dict[str, str], ChatResponse]:
+    """A person's answer in words, mapped to the facts ``labels`` (id -> label) by one plain model call
+    (no documents): the values it gives, per fact id. What the model can't place stays out; the caller
+    then asks again in words (Filip, 31 October 2026). ``answer`` is the call (the caller binds its user)."""
+    req = ChatRequest(messages=[ChatMessage(role="user", content=map_prompt(labels, current, text))], max_tokens=MAP_TOKENS)
+    response = await answer(req)
+    return read_mapping(response.answer, labels), response

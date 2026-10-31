@@ -10,7 +10,7 @@
  * AccessLogDialog: who did what in the case, newest first (decision 15), for the manager and the
  * administrators. Names come from the member list; a user no longer a member is shown by id.
  */
-import { AlertCircle, ArrowRightLeft, Folder, ScrollText, Trash2, UserPlus } from "lucide-react";
+import { ArrowRightLeft, CircleAlert, Folder, ScrollText, Trash, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   handOver, listCaseEvents, listMembers, removeMember, searchUsers, setMember, updateCase,
@@ -124,7 +124,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
               )}
               {canManage && member.role !== "manager" && (
                 <TextButton link onPress={() => act(() => removeMember(kase.id, member.user))} isDisabled={busy}>
-                  <Trash2 size={14} aria-hidden /> {m.remove}
+                  <Trash size={14} aria-hidden /> {m.remove}
                 </TextButton>
               )}
               {canHandOver && !canManage && member.role !== "manager" && (
@@ -154,7 +154,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
           </div>
         </div>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }
@@ -224,7 +224,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
           ))}
         </ol>
       )}
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }
@@ -237,11 +237,12 @@ export function CaseFaces({ members }: { members: Member[] }) {
   const manager = members.find((x) => x.role === "manager");
   const others = members.filter((x) => x !== manager);
   const face = (x: Member) => (
-    <Avatar key={x.user} name={x.name || x.username} sub={x.user} etag={x.avatar} admin={x.admin} adminLabel={m.administrator} size="small" />
+    <Avatar key={x.user} name={x.name || x.username} sub={x.user} etag={x.avatar} admin={x.admin} adminLabel={m.administrator} size="small"
+            shield={x !== manager} />
   );
   return (
     <span className="case-faces" aria-hidden>
-      {manager && <IconBadge badge={<Folder />} tone="neutral">{face(manager)}</IconBadge>}
+      {manager && <IconBadge badge={<Folder />} host="small" tone="role">{face(manager)}</IconBadge>}
       {others.length > 0 && (
         <span className="case-faces-stack">
           {others.slice(0, 3).map(face)}

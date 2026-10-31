@@ -1,10 +1,12 @@
 /**
- * The rule in claude/ui-components.md: icons come from an explicit, reviewed list
- * (allowedIcons.ts), not from whatever a component happened to import. This fails when a file
- * imports a lucide-react icon that isn't on that list.
+ * The rule in claude/ui-components.md: icons come from one set, lucide-react, listed whole in
+ * allowedIcons.ts (`npm run icons:sync`). This fails when a file imports a lucide-react name that
+ * isn't on that list (an older alias: use lucide's own name, so one icon has one name everywhere),
+ * and when the list no longer matches the installed lucide-react.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { icons } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { ALLOWED_ICONS } from "./allowedIcons";
 
@@ -39,6 +41,10 @@ describe("icon usage (claude/ui-components.md)", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("the allowlist is every icon in the installed lucide-react (npm run icons:sync)", () => {
+    expect([...ALLOWED_ICONS]).toEqual(Object.keys(icons).sort());
   });
 
   it("the allowlist has no duplicate entries", () => {

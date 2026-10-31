@@ -4,7 +4,7 @@
  * place: the conversation (in its case), the case, or the case the document is in with the document
  * ready to ask about. Nothing here decides a right: the server already filtered the lists.
  */
-import { AlertTriangle, FileOutput, FileText, Folder, Lock, MessageSquare, MessageSquareLock, Search } from "lucide-react";
+import { FileOutput, FileText, Folder, Lock, MessageSquare, MessageSquareLock, Route, Search, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import type { Case, ConversationSummary } from "../api";
 import { useT } from "../i18n";
@@ -17,7 +17,7 @@ import { Button, SearchField } from "../ui";
 
 /** The icon that says where a document comes from, wherever it appears (docs/design/chat-ui.md §6). */
 export function OriginIcon({ kind, size = 16 }: { kind: OriginKind; size?: number }) {
-  return kind === "made" ? <FileOutput size={size} aria-hidden /> : kind === "pending" ? <AlertTriangle size={size} aria-hidden />
+  return kind === "made" ? <FileOutput size={size} aria-hidden /> : kind === "pending" ? <TriangleAlert size={size} aria-hidden />
     : <FileText size={size} aria-hidden />;
 }
 
@@ -60,7 +60,7 @@ export function SearchView({ conversations, documents, cases, current, onOpenCon
         {found.conversations.map((c) => (
           <li key={c.id} className="item">
             <Button variant="plain" className="item-open" onPress={() => onOpenConversation(c)}>
-              {c.shielded ? <MessageSquareLock size={16} aria-hidden /> : <MessageSquare size={16} aria-hidden />}
+              {c.shielded ? <MessageSquareLock size={16} aria-hidden /> : c.run_id ? <Route size={16} aria-hidden /> : <MessageSquare size={16} aria-hidden />}
               <span className="item-name" data-shielded={c.shielded || undefined}>{listedTitle(c)}</span>
               <span className="item-meta">{c.case_id && byId.get(c.case_id) ? `${byId.get(c.case_id)!.reference} · ` : ""}{dayLabel(c.updated_at)}</span>
             </Button>

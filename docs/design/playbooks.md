@@ -151,12 +151,17 @@ before this table keep their facts in `playbook_runs.facts` and can be viewed bu
 The shared facts layer the record deferred (#27) is this table; what recurs between playbooks is
 to be seen from the second one.
 
-**The thread** is the `turns` table (`conversations.py`, `TurnStore`): one row per turn, appended
-by the server, stamped with who and when, never rewritten. Not the conversations' JSONB blob: that
-is saved whole by one owner from the browser, two people answering a playbook would overwrite each
-other, and a blob says neither who wrote a line nor when. The table is written for conversations
-in general (`conversation_id` or `run_id`), so ordinary chat can move onto it in a later, separate
-step; until then only runs use it. Event-sourcing the run (deriving steps, facts and turns from one
+**The thread is a conversation** (Filip, 30 October 2026). Starting a run makes a conversation in the
+case (`conversations.run_id`; `playbook_runs.conversation_id` points back), titled with the playbook in
+the run's language, its starter its owner, shared with the case from the start: it is listed, opened
+and named like any other conversation, with the route icon. It goes with its case, not with the
+conversations' keep period, "Delete history" or its owner's account, and it can't be unshared, moved,
+saved over or deleted on its own (stop or cancel the run). Every conversation's turns, ordinary chat
+included, are rows in `turns` (`conversations.py`, `TurnStore`): one per turn, stamped with who and
+when. A playbook's thread is appended by the server and never rewritten; the chat UI still saves its
+own conversation whole, and the rows are brought in line with it (a changed turn rewritten in place,
+new ones appended, dropped ones deleted). No upgrade from the earlier blob: there are no appliances in
+production (Filip, 31 October 2026). Event-sourcing the run (deriving steps, facts and turns from one
 event log) was considered and rejected: tables a notary can read beat a log only a developer can.
 
 **A run is visible, and it can be paused, stopped or cancelled.** The case lists show a chip
@@ -176,8 +181,17 @@ never by the shown name) or the case manager's. In every case the run record sta
 deleted except with the case. **One live run per playbook per case**: a second start answers 409
 with the live run's id.
 
-The upload hook is a person's act: after uploading, they press continue and the runtime counts
-the case's uploaded documents. Nothing advances on a GET.
+The upload hook is a person's act: the documents come into the case through the composer's paperclip
+and with the person's turn, and the runtime counts the case's uploaded documents. Nothing advances on a GET.
+
+**People answer in words** (handover of 30 October 2026; Filip, 31 October). At an `ask`, the answer is
+mapped to the facts asked by one plain model call (`suveryn_harness.facts.map_answer`: the facts' ids and
+labels, the person's words, `id: value` lines back, anything else ignored); each value is a proposed
+fact from that person, and the quick reply "Not known yet" leaves them unknown. At the checkpoint, a
+correction in words is mapped the same way over every fact and becomes a new version from that person
+(`source: person`; the value as read is kept and shown as "read as"); the playbook says what changed.
+When nothing can be placed, the playbook says so and asks again in words; the facts panel's fields stay
+the precise way in. Pausing, resuming, stopping, cancelling and confirming are lines in the thread too.
 
 ## The API
 
@@ -187,6 +201,7 @@ POST   /v1/cases/{id}/playbooks/{playbook}/runs    start: {document_ids?, langua
 GET    /v1/playbooks/runs/active              the live run per case the caller may read: the chip (reader)
 GET    /v1/cases/{id}/playbooks/runs          the case's runs, newest first        (reader)
 GET    /v1/cases/{id}/playbooks/runs/{run}    one run: step, steps, facts, turns  (reader)
+POST   /v1/cases/{id}/playbooks/runs/{run}/say      {text?, documents?, unknown?}: a turn in the run's conversation  (contributor)
 POST   /v1/cases/{id}/playbooks/runs/{run}/answer   {step_id, text?, facts?, none?}: an ask's facts, or a request  (contributor)
 PUT    /v1/cases/{id}/playbooks/runs/{run}/facts    the checkpoint: {facts: [{id, confirmed}]}  (contributor)
 POST   …/runs/{run}/pause | /resume           anyone who contributes
@@ -216,17 +231,28 @@ review, 17 October 2026).
 
 ## The chat UI
 
-The run takes the conversation's place (`components/PlaybookRun.tsx`), like Usage. A banner says
-where the run is; the thread shows the playbook's questions on the assistant side and the people's
-answers with their names; the composer answers the step the run is on (add documents and continue,
-or say there is none where the step allows it; the facts asked, or go on not knowing yet; the
-checkpoint's fact-by-fact view as before, each fact beside the passage it was read from, with the
-check's warning and a field to confirm or correct); a panel beside the thread lists every fact with
-its status (read, answered by a person, confirmed, cleared, not found) and the Word download when
-done (made in the browser, as answers are); a menu holds pause/resume, stop and cancel, shown only
-to those the gateway would allow (it decides; the view only hides). The chip under the open case's
-header and in the case overview opens the run. Earlier runs are listed under the current one. Every piece of text in three languages; every
-control from `packages/chat-ui/src/ui/`.
+A playbook is a conversation (handover of 30 October 2026; the design canvas, boards 52 to 55;
+`components/RunConversation.tsx`). The composer's *Playbook* menu starts a run, always as a new
+conversation in the case; it is listed under the case, in *Recent* and in the Conversations overview
+with the route icon, and earlier runs are earlier conversations (starting again is the menu again).
+Opened, the playbook speaks as sūveryn: the brand mark with the route badge (an overlay icon, teal: the
+system speaking), the playbook's title as speaker above each series of its turns, neutrally ("never
+I, never we"). A centred line says who started which version when. The ask is one turn that says what
+was found and what wasn't, with a quick reply *Not known yet*; the checkpoint is one turn with a chip
+that opens the facts panel, which opens by itself when the run gets there. Reading shows the waiting
+dots; an error is a turn with the cross and *Try again*; done is "Confirmed by …" in teal and the
+summary as a document card with the Word download (made in the browser, as answers are).
+
+The facts sit in a panel beside the conversation, in the source panel's place (a drawer on a phone):
+the pack's title ("Facts for the deed"; `factsTitle` in `text/<lang>.json`, else "Facts") and how many
+have a value; per fact the label, the value, its citation marker (opening the passage in the panel,
+with a way back), and under it what applies: a check to do, "From …, in the conversation", "Changed in
+the conversation; read as …", or "Not known yet". At the checkpoint each value is a button that
+becomes a field (Enter keeps it, Esc doesn't), and *Confirm the facts* is the view's one primary
+button. While the run is live the composer carries the run's chip: teal "… · running" (a system
+status), ink "… · paused", a menu with pause or resume, and cancel (with a reason) and stop for the
+starter or the case manager. The line under it says what the run waits for. A reader sees the thread
+and "Read only". Every piece of text in three languages; every control from `packages/chat-ui/src/ui/`.
 
 ## The manifest (30 October 2026)
 
