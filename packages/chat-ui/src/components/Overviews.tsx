@@ -9,7 +9,7 @@
  */
 import {
   ArrowUpDown, Check, CircleX, ClipboardList, Clock, Download, Ellipsis, FileOutput, Folder, FolderKey, Funnel,
-  LoaderCircle, Lock, MessageSquare, MessageSquareLock, NotebookText, Pin, PinOff, Plus, ScrollText, Trash,
+  LoaderCircle, Lock, MessageSquare, MessageSquareLock, NotebookText, Pin, PinOff, Plus, Route, ScrollText, Trash,
   TriangleAlert, Upload, Users
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -260,7 +260,8 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
         : <PinToggle label={c.pinned ? m.unpinConversation(listedTitle(c)) : m.pinConversation(listedTitle(c))} isSelected={!!c.pinned}
                      onChange={(on) => onAction(c, on ? "pin" : "unpin")} />) },
     { id: "title", label: m.colConversation, rowHeader: true,
-      render: (c) => <span className="overview-name">{c.shielded ? <MessageSquareLock size={15} aria-hidden /> : c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
+      render: (c) => <span className="overview-name">{c.shielded ? <MessageSquareLock size={15} aria-hidden /> : c.run_id ? <Route size={15} aria-hidden />
+                                                  : c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
         <span className="overview-strong" data-shielded={c.shielded || undefined}>{listedTitle(c)}</span></span> },
     { id: "case", label: m.colCase,
       render: (c) => { const k = byId.get(c.case_id ?? ""); return k
@@ -276,7 +277,7 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
           : <Avatar name={c.owner_name || "?"} sub={c.owner ?? ""} size="small" />;
         return (
           <span className="overview-faces">
-            {c.shared ? <IconBadge badge={<MessageSquare />} host="small" tone="role">{face}</IconBadge> : face}
+            {c.shared && !c.run_id ? <IconBadge badge={<MessageSquare />} host="small" tone="role">{face}</IconBadge> : face}
             <span>{mine(c) ? m.fromYou : c.owner_name || o?.name || ""}</span>
           </span>
         );

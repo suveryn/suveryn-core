@@ -2,6 +2,7 @@
   "deed-intake": {
     "title": "Akte-intake",
     "summary": "Leest de feiten voor de akte uit de documenten",
+    "factsTitle": "Gegevens voor de akte",
     "labels": {
       "sellers": "Verkoper(s)",
       "buyers": "Koper(s)",

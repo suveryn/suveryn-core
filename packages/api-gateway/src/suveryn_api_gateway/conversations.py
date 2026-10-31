@@ -1,8 +1,9 @@
 """Saved conversations (suveryn-tracker#5): each user's chat history, kept on this server.
 
-A conversation is stored as the chat UI's list of turns (questions, answers with their citations
-and calculations, attachment names), as JSON, under the owner's Keycloak id. The gateway checks
-the shape loosely (``SavedTurn``) and bounds the size; it never reads the text.
+A conversation is a row in ``conversations`` under the owner's Keycloak id, and its turns are rows in
+``turns``, one each (questions, answers with their citations and calculations, attachment names):
+the words in ``text``, the rest of what the chat UI keeps in ``meta``. The gateway checks the shape
+loosely (``SavedTurn``) and bounds the size; it never reads the text.
 
 Cases (suveryn-tracker#10): a conversation started in a case carries its ``case_id`` and is listed
 with that case; one without is in the owner's personal space. Either way it is private to whoever
@@ -29,14 +30,18 @@ The answers themselves stay, and still state facts from the document, so the UI 
 those conversations together with the document (``using_document``). A save from a tab that still
 holds the passages is cleaned the same way before it is stored (``redact``), so they can't come back.
 
-**Turns, one row each** (``turns``, ``TurnStore``; docs/design/playbooks.md, "The thread"). A saved
-conversation is one blob the browser writes whole, which is right for one person's own chat and
-wrong for a thread several people write in: the last save wins and the others' lines are gone, and
-a blob says neither who wrote a line nor when. Playbook runs (suveryn-tracker#51) need exactly that
-thread, so their turns are rows: appended by the server, one per turn, stamped with who and when,
-never rewritten. The table is written for conversations in general (``conversation_id`` or
-``run_id``), so that ordinary chat can move onto it in a later, separate step; until then only runs
-use it, and the blob above stays as it is.
+**Turns, one row each** (``turns``; docs/design/playbooks.md, "The thread"). A thread several people
+write in can't be one blob the browser writes whole: the last save wins and the others' lines are
+gone, and a blob says neither who wrote a line nor when. So every turn is a row, stamped with who
+and when. The chat UI still saves its own conversation whole (``save``): the rows are brought in line
+with it, a changed turn rewritten in place, new ones appended, ones it dropped (a retried question)
+deleted. A playbook's thread is appended by the server (``TurnStore.append``) and never saved whole.
+
+**A playbook run is a conversation** (Filip, 30 October 2026; docs/design/playbooks.md, "The chat UI"):
+starting one makes a conversation in the case (``run_id`` set), titled with the playbook, its
+starter its owner, shared with the case from the start, so it is listed, opened and pinned like any
+other. It goes with its case: the keep period, "Delete history" and the account's deletion leave it,
+it can't be unshared, moved, saved over or deleted on its own (stop or cancel the run instead).
 
 Review notes:
 - Deletion makes rows unreachable, not unrecoverable, as for documents (docs/architecture.md §6).
@@ -49,7 +54,6 @@ import logging
 import os
 import uuid
 
-import psycopg
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
@@ -67,11 +71,31 @@ MAX_TURNS = 500
 MAX_TITLE = 200
 MAX_TURN_TEXT = 200_000  # one turn's text (``SavedTurn.text`` has the same bound)
 
-TURNS_SCHEMA = """
+# Conversations and their turns, in one schema both stores create (idempotent DDL): the playbook store
+# writes turns too, and a turn's conversation must exist first.
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS conversations (
+    id          uuid PRIMARY KEY,
+    owner       text NOT NULL,
+    title       text NOT NULL,
+    case_id     uuid,
+    shared      boolean NOT NULL DEFAULT false,
+    pinned_at   timestamptz,
+    renamed     boolean NOT NULL DEFAULT false,
+    run_id      uuid UNIQUE,               -- a playbook run's conversation (playbook_runs.conversation_id)
+    -- Kept beside the turns on every change, so lists and look-ups don't open them: how many turns,
+    -- and which documents the turns cite or attach (``cited_documents``).
+    messages    integer NOT NULL DEFAULT 0,
+    documents   text[] NOT NULL DEFAULT '{}',
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS conversations_owner_updated ON conversations (owner, updated_at DESC);
+CREATE INDEX IF NOT EXISTS conversations_case ON conversations (case_id);
+CREATE INDEX IF NOT EXISTS conversations_documents ON conversations USING gin (documents);
 CREATE TABLE IF NOT EXISTS turns (
     id               bigserial PRIMARY KEY,
-    conversation_id  uuid,
-    run_id           uuid,
+    conversation_id  uuid NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
     seq              integer NOT NULL,
     role             text NOT NULL CHECK (role IN ('user', 'assistant', 'playbook')),
     step_id          text,
@@ -79,31 +103,8 @@ CREATE TABLE IF NOT EXISTS turns (
     at               timestamptz NOT NULL DEFAULT now(),
     text             text NOT NULL,
     meta             jsonb NOT NULL DEFAULT '{}'::jsonb,
-    CHECK ((conversation_id IS NULL) <> (run_id IS NULL))
+    UNIQUE (conversation_id, seq)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS turns_run_seq ON turns (run_id, seq) WHERE run_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS turns_conversation_seq ON turns (conversation_id, seq) WHERE conversation_id IS NOT NULL;
-"""
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS conversations (
-    id          uuid PRIMARY KEY,
-    owner       text NOT NULL,
-    title       text NOT NULL,
-    turns       jsonb NOT NULL,
-    case_id     uuid,
-    shared      boolean NOT NULL DEFAULT false,
-    pinned_at   timestamptz,
-    renamed     boolean NOT NULL DEFAULT false,
-    -- Kept beside the turns on every save, so lists and look-ups don't open the turns (up to 2 MB each):
-    -- how many turns, and which documents the turns cite or attach (``cited_documents``).
-    messages    integer NOT NULL,
-    documents   text[] NOT NULL,
-    created_at  timestamptz NOT NULL DEFAULT now(),
-    updated_at  timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS conversations_owner_updated ON conversations (owner, updated_at DESC);
-CREATE INDEX IF NOT EXISTS conversations_case ON conversations (case_id);
 CREATE TABLE IF NOT EXISTS conversation_cleanups (
     document_id           uuid NOT NULL,
     owner                 text NOT NULL,
@@ -112,8 +113,9 @@ CREATE TABLE IF NOT EXISTS conversation_cleanups (
     created_at            timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (document_id, owner)
 );
-CREATE INDEX IF NOT EXISTS conversations_documents ON conversations USING gin (documents);
 """
+# What a turn's row holds itself; everything else the UI keeps on a turn goes in ``meta``.
+ROW_FIELDS = ("seq", "role", "text", "by", "at", "step_id")
 
 
 @dataclass(frozen=True)
@@ -178,6 +180,7 @@ class ConversationSummary(BaseModel):
     owner_name: str = ""   # a colleague's name, for one shared with a case (the overview's "From"); empty for the caller's own
     shielded: bool = False
     pinned: bool = False   # a personal conversation pinned by its owner (docs/design/chat-ui.md §3)
+    run_id: str | None = None  # a playbook run's conversation (its icon is the route; it goes with its case)
 
 
 class PinIn(BaseModel):
@@ -205,7 +208,8 @@ class ShareIn(BaseModel):
 
 
 class Conversation(ConversationSummary):
-    """Body of ``GET /v1/conversations/{id}``."""
+    """Body of ``GET /v1/conversations/{id}``: each turn as the UI saved it, with ``seq``, ``by`` and
+    ``at`` (and a playbook's ``step_id``) from its row."""
 
     turns: list[dict]
 
@@ -250,54 +254,76 @@ class Turn(BaseModel):
     seq: int
     role: Literal["user", "assistant", "playbook"]
     step_id: str | None = None
-    by: str                       # the username, or the playbook id for its own turns
+    by: str                       # the username, the playbook id for its own turns, "assistant" for an answer
     at: datetime
     text: str
     meta: dict = Field(default_factory=dict)
 
+    def as_saved(self) -> dict:
+        """The turn as the chat UI knows it: its own fields, then the row's."""
+        return {**self.meta, "seq": self.seq, "role": self.role, "text": self.text, "by": self.by, "at": self.at.isoformat(),
+                **({"step_id": self.step_id} if self.step_id else {})}
+
 
 class TurnStore(PgStore):
-    """The ``turns`` table: appended, never rewritten. Runs use it today (``RunStore`` inherits it
-    so one connection serves a run and its thread); conversations move onto it later."""
+    """The ``turns`` table, and the conversation rows they belong to. ``RunStore`` inherits it, so one
+    connection serves a run and its thread; ``ConversationStore`` too, for the chat UI's saves."""
 
-    schema = TURNS_SCHEMA
+    schema = SCHEMA
+    TURN = "seq, role, step_id, \"by\", at, text, meta"
 
-    def append(self, run_id: uuid.UUID, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None) -> Turn:
-        """Add a turn at the end of a run's thread. Two writers at once can pick the same ``seq``;
-        the unique index refuses the second, which tries again with the next number."""
+    @staticmethod
+    def _turn(r) -> Turn:
+        return Turn(seq=r[0], role=r[1], step_id=r[2], by=r[3], at=r[4], text=r[5], meta=r[6])
+
+    def turns_of(self, conversation_id: uuid.UUID, limit: int = MAX_TURNS) -> list[Turn]:
+        rows = self._execute(f"SELECT {self.TURN} FROM turns WHERE conversation_id = %s ORDER BY seq LIMIT %s",
+                             (conversation_id, limit)).fetchall()
+        return [self._turn(r) for r in rows]
+
+    def append(self, conversation_id: uuid.UUID, role: str, by: str, text: str, step_id: str | None = None,
+               meta: dict | None = None) -> Turn:
+        """Add a turn at the end of a conversation (a playbook's thread). The conversation's row is
+        locked while the next ``seq`` is taken, so two writers at once never pick the same one."""
         text = text[:MAX_TURN_TEXT]
-        for _ in range(5):
-            seq = self._execute("SELECT coalesce(max(seq), 0) + 1 FROM turns WHERE run_id = %s", (run_id,)).fetchone()[0]
-            try:
-                r = self._execute("INSERT INTO turns (run_id, seq, role, step_id, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-                                  " RETURNING seq, role, step_id, \"by\", at, text, meta",
-                                  (run_id, seq, role, step_id, by, text, json.dumps(meta or {}))).fetchone()
-            except psycopg.errors.UniqueViolation:
-                continue
-            return Turn(seq=r[0], role=r[1], step_id=r[2], by=r[3], at=r[4], text=r[5], meta=r[6])
-        raise RuntimeError("could not append a turn: the thread kept moving")
+        with self.transaction():
+            n = self._execute("SELECT messages FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,)).fetchone()
+            if n is None:
+                raise LookupError("no such conversation")
+            seq = self._execute("SELECT coalesce(max(seq), 0) + 1 FROM turns WHERE conversation_id = %s", (conversation_id,)).fetchone()[0]
+            r = self._execute(f"INSERT INTO turns (conversation_id, seq, role, step_id, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                              f" RETURNING {self.TURN}", (conversation_id, seq, role, step_id, by, text, json.dumps(meta or {}))).fetchone()
+            self._execute("UPDATE conversations SET messages = messages + 1, updated_at = now() WHERE id = %s", (conversation_id,))
+        return self._turn(r)
 
-    def for_run(self, run_id: uuid.UUID, limit: int = MAX_TURNS) -> list[Turn]:
-        rows = self._execute("SELECT seq, role, step_id, \"by\", at, text, meta FROM turns WHERE run_id = %s ORDER BY seq LIMIT %s",
-                             (run_id, limit)).fetchall()
-        return [Turn(seq=r[0], role=r[1], step_id=r[2], by=r[3], at=r[4], text=r[5], meta=r[6]) for r in rows]
+    def create_for_run(self, conversation_id: uuid.UUID, run_id: uuid.UUID, owner: str, title: str, case_id: uuid.UUID) -> None:
+        """A playbook run's conversation: in its case, shared with it from the start, owned by its starter."""
+        self._execute("INSERT INTO conversations (id, owner, title, case_id, shared, run_id) VALUES (%s, %s, %s, %s, true, %s)",
+                      (conversation_id, owner, title[:MAX_TITLE], case_id, run_id))
 
-    def count_for_run(self, run_id: uuid.UUID) -> int:
-        return self._execute("SELECT count(*) FROM turns WHERE run_id = %s", (run_id,)).fetchone()[0]
+    def _write_turns(self, conversation_id: uuid.UUID, turns: list[dict], by: str) -> None:
+        """Bring the conversation's rows in line with ``turns`` (the chat UI's whole list), inside the
+        caller's transaction with the conversation's row locked: a turn that changed is rewritten in
+        place (keeping who and when), a new one appended, rows past the end deleted."""
+        have = {r[0]: (r[1], r[2], r[3]) for r in self._execute(
+            "SELECT seq, role, text, meta FROM turns WHERE conversation_id = %s", (conversation_id,)).fetchall()}
+        for seq, turn in enumerate(turns, start=1):
+            role, text = turn["role"], (turn.get("text") or "")[:MAX_TURN_TEXT]
+            meta = {k: v for k, v in turn.items() if k not in ROW_FIELDS}
+            if seq not in have:
+                self._execute("INSERT INTO turns (conversation_id, seq, role, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s)",
+                              (conversation_id, seq, role, by if role == "user" else "assistant", text, json.dumps(meta)))
+            elif have[seq] != (role, text, meta):
+                self._execute("UPDATE turns SET role = %s, text = %s, meta = %s WHERE conversation_id = %s AND seq = %s",
+                              (role, text, json.dumps(meta), conversation_id, seq))
+        self._execute("DELETE FROM turns WHERE conversation_id = %s AND seq > %s", (conversation_id, len(turns)))
 
-    def delete_for_runs(self, run_ids: list[uuid.UUID]) -> int:
-        if not run_ids:
-            return 0
-        return self._execute("DELETE FROM turns WHERE run_id = ANY(%s)", (run_ids,)).rowcount
 
-
-class ConversationStore(PgStore):
+class ConversationStore(TurnStore):
     """Conversations in PostgreSQL, one owner's at a time. Creates its table on connect.
 
     Every method takes the owner: another user's conversation is treated as missing.
     """
-
-    schema = SCHEMA
 
     def __init__(self, settings: ConversationSettings):
         super().__init__(settings.database_url)
@@ -315,32 +341,32 @@ class ConversationStore(PgStore):
         """SQL condition (and its parameters) for conversations within the office's keep period."""
         if self.max_age_days is None:
             return "true", ()
-        return "updated_at > now() - make_interval(days => %s)", (self.max_age_days,)
+        return "(run_id IS NOT NULL OR updated_at > now() - make_interval(days => %s))", (self.max_age_days,)
 
     def older_than(self, days: int) -> int:
         """How many saved conversations a keep period of ``days`` would delete now (every owner's)."""
-        return self._execute("SELECT count(*) FROM conversations WHERE updated_at <= now() - make_interval(days => %s)",
+        return self._execute("SELECT count(*) FROM conversations WHERE run_id IS NULL AND updated_at <= now() - make_interval(days => %s)",
                              (days,)).fetchone()[0]
 
     def purge(self) -> int:
-        """Delete every owner's conversations older than the keep period; returns how many."""
+        """Delete every owner's conversations older than the keep period; returns how many. A playbook
+        run's goes with its case, not with this period."""
         if self.max_age_days is None:
             return 0
-        n = self._execute("DELETE FROM conversations WHERE updated_at <= now() - make_interval(days => %s)",
+        n = self._execute("DELETE FROM conversations WHERE run_id IS NULL AND updated_at <= now() - make_interval(days => %s)",
                           (self.max_age_days,)).rowcount
         if n:
             log.info("deleted %d conversations older than %d days", n, self.max_age_days)
         return n
 
     # ``messages``, not ``jsonb_array_length(turns)``: counting opened every conversation's turns for a list.
-    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, messages, pinned_at IS NOT NULL"
-    TURNS = 9  # the column after SUMMARY's, where a query adds ``turns``
+    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, messages, pinned_at IS NOT NULL, run_id"
 
     @staticmethod
     def _summary(r) -> ConversationSummary:
         return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
                                    case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7],
-                                   pinned=bool(r[8]))
+                                   pinned=bool(r[8]), run_id=str(r[9]) if r[9] else None)
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
         """The conversations in one place, most recently changed first: the owner's own in their
@@ -366,17 +392,22 @@ class ConversationStore(PgStore):
     def get(self, conversation_id: uuid.UUID, owner: str) -> Conversation | None:
         """The owner's conversation; None if it is someone else's (see ``get_shared``)."""
         fresh, params = self._fresh()
-        r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
+        r = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
                           f" WHERE id = %s AND owner = %s AND {fresh}", (conversation_id, owner, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[self.TURNS]) if r else None
+        return self._whole(r)
+
+    def _whole(self, r) -> Conversation | None:
+        if r is None:
+            return None
+        return Conversation(**self._summary(r).model_dump(), turns=[t.as_saved() for t in self.turns_of(r[0])])
 
     def get_shared(self, conversation_id: uuid.UUID) -> Conversation | None:
         """A conversation its owner shared with its case, whoever asks: the gateway checks the
         caller may read that case before returning it."""
         fresh, params = self._fresh()
-        r = self._execute(f"SELECT {self.SUMMARY}, turns FROM conversations"
+        r = self._execute(f"SELECT {self.SUMMARY} FROM conversations"
                           f" WHERE id = %s AND shared AND case_id IS NOT NULL AND {fresh}", (conversation_id, *params)).fetchone()
-        return Conversation(**self._summary(r).model_dump(), turns=r[self.TURNS]) if r else None
+        return self._whole(r)
 
     def rename(self, conversation_id: uuid.UUID, owner: str, title: str) -> ConversationSummary | None:
         """The owner's new title, kept over later saves. None if it isn't the owner's."""
@@ -403,39 +434,46 @@ class ConversationStore(PgStore):
     def unshare_case(self, case_id: uuid.UUID) -> int:
         """Stop sharing every conversation of a case (it became strictly confidential); their owners
         keep them. How many were shared."""
-        return self._execute("UPDATE conversations SET shared = false WHERE case_id = %s AND shared", (case_id,)).rowcount
+        return self._execute("UPDATE conversations SET shared = false WHERE case_id = %s AND shared AND run_id IS NULL", (case_id,)).rowcount
 
     def set_shared(self, conversation_id: uuid.UUID, owner: str, shared: bool) -> ConversationSummary | None:
         """Share the owner's conversation with its case, or stop sharing it. None if it isn't the
-        owner's or isn't in a case (a personal conversation can't be shared)."""
-        r = self._execute(f"UPDATE conversations SET shared = %s WHERE id = %s AND owner = %s AND case_id IS NOT NULL"
+        owner's or isn't in a case (a personal conversation can't be shared), or is a playbook run's."""
+        r = self._execute(f"UPDATE conversations SET shared = %s WHERE id = %s AND owner = %s AND case_id IS NOT NULL AND run_id IS NULL"
                           f" RETURNING {self.SUMMARY}", (shared, conversation_id, owner)).fetchone()
         return self._summary(r) if r else None
 
     def save(self, conversation_id: uuid.UUID, owner: str, body: ConversationIn,
-             gone: Callable[[str], bool] | None = None) -> bool:
-        """Create or replace the owner's conversation. False if the id belongs to another owner.
+             gone: Callable[[str], bool] | None = None, by: str = "") -> bool:
+        """Create or replace the owner's conversation: its row, and its turns brought in line with the
+        body's. False if the id belongs to another owner, or to a playbook run (the server writes those).
 
         ``gone`` says which cited documents no longer exist: their passages are taken out first.
+        ``by`` is the username a new question is written under.
         """
         turns = [t.model_dump() for t in body.turns]
         if gone is not None:
             redact(turns, gone)
         documents = sorted(cited_documents(turns))
         case_id = uuid.UUID(body.case_id) if body.case_id else None
-        # The case is set when the conversation is first saved and never moves with a later save.
-        row = self._execute(
-            "INSERT INTO conversations (id, owner, title, turns, case_id, messages, documents) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-            # a title the owner chose (``rename``) is kept over the one the UI derives from the first question
-            " ON CONFLICT (id) DO UPDATE SET title = CASE WHEN conversations.renamed THEN conversations.title"
-            " ELSE EXCLUDED.title END, turns = EXCLUDED.turns, messages = EXCLUDED.messages,"
-            " documents = EXCLUDED.documents, updated_at = now()"
-            " WHERE conversations.owner = EXCLUDED.owner RETURNING id",
-            (conversation_id, owner, body.title, json.dumps(turns), case_id, len(turns), documents)).fetchone()
-        return row is not None
+        with self.transaction():
+            # The case is set when the conversation is first saved and never moves with a later save.
+            row = self._execute(
+                "INSERT INTO conversations (id, owner, title, case_id, messages, documents) VALUES (%s, %s, %s, %s, %s, %s)"
+                # a title the owner chose (``rename``) is kept over the one the UI derives from the first question
+                " ON CONFLICT (id) DO UPDATE SET title = CASE WHEN conversations.renamed THEN conversations.title"
+                " ELSE EXCLUDED.title END, messages = EXCLUDED.messages, documents = EXCLUDED.documents, updated_at = now()"
+                " WHERE conversations.owner = EXCLUDED.owner AND conversations.run_id IS NULL RETURNING id",
+                (conversation_id, owner, body.title, case_id, len(turns), documents)).fetchone()
+            if row is None:
+                return False
+            self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,))
+            self._write_turns(conversation_id, turns, by or owner)
+        return True
 
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:
-        return self._execute("DELETE FROM conversations WHERE id = %s AND owner = %s",
+        """Delete one of the owner's conversations (a playbook run's goes with its case: not here)."""
+        return self._execute("DELETE FROM conversations WHERE id = %s AND owner = %s AND run_id IS NULL",
                              (conversation_id, owner)).rowcount > 0
 
     def using_document(self, owner: str, document_id: uuid.UUID,
@@ -482,11 +520,15 @@ class ConversationStore(PgStore):
             if delete_conversations:
                 n += self._execute("DELETE FROM conversations WHERE id = %s", (summary.id,)).rowcount
                 continue
-            with self.transaction():  # the row locked between reading and writing its turns
-                row = self._execute("SELECT turns FROM conversations WHERE id = %s FOR UPDATE", (summary.id,)).fetchone()
-                if row and redact(row[0], lambda d: d == str(document_id)):
-                    n += self._execute("UPDATE conversations SET turns = %s WHERE id = %s",
-                                       (json.dumps(row[0]), summary.id)).rowcount
+            with self.transaction():  # the conversation locked between reading and writing its turns
+                if self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (summary.id,)).fetchone() is None:
+                    continue
+                turns = [t.as_saved() for t in self.turns_of(uuid.UUID(summary.id))]
+                if redact(turns, lambda d: d == str(document_id)):
+                    for t in turns:
+                        self._execute("UPDATE turns SET meta = %s WHERE conversation_id = %s AND seq = %s",
+                                      (json.dumps({k: v for k, v in t.items() if k not in ROW_FIELDS}), summary.id, t["seq"]))
+                    n += 1
         return n
 
     def personal(self, owner: str) -> int:
@@ -505,8 +547,9 @@ class ConversationStore(PgStore):
                              (owner,)).rowcount
 
     def delete_all(self, owner: str) -> int:
-        """Delete every conversation of this owner (the sign-out choice "Delete history")."""
-        return self._execute("DELETE FROM conversations WHERE owner = %s", (owner,)).rowcount
+        """Delete every conversation of this owner (the sign-out choice "Delete history"); a playbook
+        run's stays with its case."""
+        return self._execute("DELETE FROM conversations WHERE owner = %s AND run_id IS NULL", (owner,)).rowcount
 
     def delete_case(self, case_id: uuid.UUID) -> int:
         """Delete every conversation in a case, whoever started it (the case is being deleted)."""

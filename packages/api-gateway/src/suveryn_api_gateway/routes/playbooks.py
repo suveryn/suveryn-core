@@ -27,7 +27,7 @@ from collections import Counter
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
-from suveryn_harness.facts import Unreadable, read_playbook
+from suveryn_harness.facts import Unreadable, map_answer, read_playbook
 from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, covered, find, for_case_type
 
 from ..cases import Case
@@ -41,6 +41,7 @@ from ..playbooks import (
     Run,
     RunStore,
     RunSummary,
+    SayIn,
     StartIn,
     StepOut,
 )
@@ -110,7 +111,7 @@ def _run_id(run_id: str) -> uuid.UUID:
 def _out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
     return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
                        facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
-                       text={lang: {"title": w.title, "summary": w.summary, "labels": w.labels, "questions": w.questions}
+                       text={lang: {"title": w.title, "summary": w.summary, "labels": w.labels, "questions": w.questions, "facts_title": w.facts_title}
                              for lang, w in p.text.items()},
                        steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
 
@@ -331,23 +332,98 @@ async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = _waiting_on(run, pb, body.step_id, ("ask", "request"))
     username = who(request)[0]
-    runtime, rid, cid = _runtime(request), uuid.UUID(run.id), uuid.UUID(case.id)
+    runtime, cid = _runtime(request), uuid.UUID(case.id)
     if step.kind == "ask":
         asked = set(await run_in_threadpool(runtime.unanswered, run, step))  # only what the playbook asked about
         given = {k: v for k, v in (body.facts or {}).items() if k in asked}
         if (body.facts or {}).keys() - asked:
             raise HTTPException(422, "A fact that isn't asked here.")
         text = body.text or "\n".join(f"{pb.wording(run.language).labels.get(k, k)}: {v}" for k, v in given.items() if v.strip())
-        await run_in_threadpool(store.append, rid, "user", username, text or "—", step.id, {"facts": sorted(given)})
+        await run_in_threadpool(store.say, run, "user", username, text or "—", step.id, {"facts": sorted(given)})
         run = await run_in_threadpool(runtime.answer_ask, run, pb, step, given, username)
     else:
         if body.none and not step.allow_none:
             raise HTTPException(422, "This step needs the document.")
-        await run_in_threadpool(store.append, rid, "user", username, body.text or ("—" if body.none else "✓"), step.id, {"none": body.none})
+        await run_in_threadpool(store.say, run, "user", username, body.text or ("—" if body.none else "✓"), step.id, {"none": body.none})
         run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none)
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     await touch_case(request, Scope.case(cid))
     return await _walk(request, run, pb, case)
+
+
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/say", response_model=Run, responses={
+    409: {"description": "The run isn't waiting on a person"},
+    503: {"description": "The model isn't available to read an answer in words"},
+})
+async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
+    """A contributor writes in the run's conversation (a playbook is a conversation, Filip 30 October
+    2026); the turn is written first, then what it means for the step the run waits on:
+
+    - a ``request``: the documents just added to the case come with it (``documents``), and the run
+      walks on once the case has what the step needs;
+    - an ``ask``: the answer in words is mapped to the facts asked by one model call
+      (``suveryn_harness.facts.map_answer``), each value placed a proposed fact from this person;
+      ``unknown`` (the quick reply) leaves them unknown. When nothing can be placed, the playbook says so
+      and asks again in words (Filip, 31 October 2026);
+    - the ``checkpoint``: a correction in words, mapped the same way over every fact, each a new
+      version from this person; the playbook says what changed. Confirming stays a separate act."""
+    case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
+    if run.status != "waiting" or not run.step:
+        raise HTTPException(409, "The run isn't waiting." if run.status != "paused" else "The run is paused.")
+    step = pb.step(run.step)
+    if step is None or step.kind not in ("request", "ask", "checkpoint"):
+        raise HTTPException(409, "This step doesn't take an answer.")
+    username, cid, runtime = who(request)[0], uuid.UUID(case.id), _runtime(request)
+    meta: dict = {}
+    if body.documents:
+        uploaded = await run_in_threadpool(_uploaded_in(request), cid)
+        if any(d not in uploaded for d in body.documents):
+            raise HTTPException(404, "Unknown document.")
+        meta["attachments"] = [{"documentId": d, "filename": uploaded[d]} for d in body.documents]
+    if body.unknown:
+        meta["unknown"] = True
+    text = body.text.strip()
+    if not text and not meta:
+        raise HTTPException(422, "Nothing was said.")
+    await run_in_threadpool(store.say, run, "user", username, text, step.id, meta)
+    words = pb.wording(run.language)
+    if step.kind == "request":
+        run = await run_in_threadpool(runtime.answer_request, run, step, username, False)
+    elif step.kind == "ask":
+        asked = await run_in_threadpool(runtime.unanswered, run, step)
+        mapped = {} if body.unknown or not text else await _mapped(request, {f: words.labels.get(f, f) for f in asked}, {}, text)
+        if not body.unknown and not mapped:
+            await run_in_threadpool(store.say, run, "playbook", pb.id, "That couldn't be placed. Which fact does it give, and what is the value?",
+                                    step.id, {"kind": "unplaced", "facts": asked})
+            return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
+        run = await run_in_threadpool(runtime.answer_ask, run, pb, step, mapped, username)
+    else:
+        current = {f.id: f.value for f in run.facts}
+        mapped = await _mapped(request, {f.id: words.labels.get(f.id, f.id) for f in run.facts}, current, text) if text else {}
+        changed = {k: v for k, v in mapped.items() if v.strip() and v.strip() != current.get(k, "")}
+        if not changed:
+            await run_in_threadpool(store.say, run, "playbook", pb.id, "That couldn't be placed. Which fact should change, and to what?",
+                                    step.id, {"kind": "unplaced"})
+            return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
+        run = await run_in_threadpool(runtime.correct, run, pb, step, changed, username)
+        for fid, value in changed.items():
+            await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').labels.get(fid, fid)} is now {value}.",
+                                    step.id, {"kind": "changed", "fact": fid, "value": value})
+        await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
+        return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
+    await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
+    await touch_case(request, Scope.case(cid))
+    return await _walk(request, run, pb, case)
+
+
+async def _mapped(request: Request, labels: dict[str, str], current: dict[str, str], text: str) -> dict[str, str]:
+    """An answer in words as values per fact (one plain model call); 503 if the model can't be asked."""
+    owner = owner_of(request)
+    try:
+        mapped, _ = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text)
+    except BackendError:
+        raise HTTPException(503, "The model isn't available to read this answer; try again in a moment.") from None
+    return mapped
 
 
 @router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts", response_model=Run, responses={
@@ -363,6 +439,7 @@ async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Reque
         raise HTTPException(422, "A fact that isn't in this run.")
     username = who(request)[0]
     run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username)
+    await run_in_threadpool(store.say, run, "playbook", username, f"Confirmed by {username}.", None, {"kind": "confirmed"})
     await log_access(request, uuid.UUID(case.id), "playbook_confirmed", {"playbook": pb.id, "run": run.id})
     await touch_case(request, Scope.case(uuid.UUID(case.id)))
     return await _walk(request, run, pb, case)
@@ -384,6 +461,7 @@ async def pause_run(case_id: str, run_id: str, request: Request):
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.pause, uuid.UUID(run.id), who(request)[0]):
         raise HTTPException(409, "Only a run that is waiting can be paused.")
+    await run_in_threadpool(store.say, run, "playbook", who(request)[0], f"Paused by {who(request)[0]}.", None, {"kind": "paused"})
     await log_access(request, uuid.UUID(case.id), "playbook_paused", {"playbook": pb.id, "run": run.id})
     return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
 
@@ -393,6 +471,7 @@ async def resume_run(case_id: str, run_id: str, request: Request):
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.resume, uuid.UUID(run.id)):
         raise HTTPException(409, "This run isn't paused.")
+    await run_in_threadpool(store.say, run, "playbook", who(request)[0], f"Resumed by {who(request)[0]}.", None, {"kind": "resumed"})
     await log_access(request, uuid.UUID(case.id), "playbook_resumed", {"playbook": pb.id, "run": run.id})
     fresh = await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
     return await _walk(request, fresh, pb, case)
@@ -409,6 +488,8 @@ async def stop_run(case_id: str, run_id: str, request: Request):
     if not await run_in_threadpool(store.end, rid, "stopped", who(request)[0]):
         raise HTTPException(409, "This run has already ended.")
     await run_in_threadpool(store.discard_proposed, rid)
+    await run_in_threadpool(store.say, run, "playbook", who(request)[0], f"Stopped by {who(request)[0]}. What was confirmed stays.", None,
+                            {"kind": "stopped"})
     await log_access(request, uuid.UUID(case.id), "playbook_stopped", {"playbook": pb.id, "run": run.id})
     return await run_in_threadpool(store.get, rid, uuid.UUID(case.id))
 
@@ -425,6 +506,8 @@ async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request
     if not await run_in_threadpool(store.end, rid, "cancelled", username, body.reason):
         raise HTTPException(409, "This run has already ended.")
     await run_in_threadpool(store.discard_all, rid)
+    await run_in_threadpool(store.say, run, "playbook", username, f"Cancelled by {username}. The facts no longer count.", None,
+                            {"kind": "cancelled", "reason": body.reason})
     if run.result_document_id:
         try:
             await run_in_threadpool(docs_or_503(request).withdraw, run.result_document_id, Scope.case(uuid.UUID(case.id)), username, body.reason)

@@ -60,7 +60,7 @@ needs_db = pytest.mark.skipif(not URL, reason="SUVERYN_TEST_DATABASE_URL not set
 def runs():
     s = RunStore(URL)
     yield s
-    s._execute("DELETE FROM turns WHERE run_id IN (SELECT id FROM playbook_runs WHERE started_by IN (%s, %s, %s, %s))", (ALICE, BOB, "notaris.test", "bob.test"))
+    s._execute("DELETE FROM conversations WHERE run_id IN (SELECT id FROM playbook_runs WHERE started_by IN (%s, %s, %s, %s))", (ALICE, BOB, "notaris.test", "bob.test"))
     s._execute("DELETE FROM case_facts WHERE run_id IN (SELECT id FROM playbook_runs WHERE started_by IN (%s, %s, %s, %s))", (ALICE, BOB, "notaris.test", "bob.test"))
     s._execute("DELETE FROM playbook_runs WHERE started_by IN (%s, %s, %s, %s)", (ALICE, BOB, "notaris.test", "bob.test"))
     s._execute("DELETE FROM playbook_settings", ())
@@ -150,8 +150,11 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert by["cadastral"]["found"] is False and by["cadastral"]["source"] == "none" and by["cadastral"]["confirmed"] is None
     asked = [t for t in run["turns"] if t["step_id"] == "missing"]
     not_found = [f["id"] for f in run["facts"] if not f["found"]]
-    assert [t["meta"]["fact"] for t in asked] == not_found and not_found[0] == "cadastral" and "Kadastrale gegevens" in asked[0]["text"]
-    assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user"] + ["playbook"] * len(not_found)
+    # one turn says what was found and what not, and asks (handover of 30 October 2026, board 52)
+    total = len(run["facts"])
+    assert [t["meta"] for t in asked] == [{"kind": "ask", "facts": not_found, "found": total - len(not_found), "total": total}]
+    assert not_found[0] == "cadastral" and "Cadastral" in asked[0]["text"]
+    assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook"]
     # the answer: a proposed fact from a person; a fact not asked is refused
     assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"price": "1"}}, headers=alice).status_code == 422
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"cadastral": "Gent 5e afd., sectie B, nr. 123"}}, headers=alice)
@@ -159,7 +162,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     by = {f["id"]: f for f in r.json()["facts"]}
     assert by["cadastral"]["value"].startswith("Gent") and by["cadastral"]["source"] == "person" and by["cadastral"]["found"] is False
     assert by["cadastral"]["confirmed"] is None  # a person answered; nobody confirmed yet
-    assert r.json()["turns"][-1]["role"] == "user" and "Gent" in r.json()["turns"][-1]["text"]
+    assert [t["role"] for t in r.json()["turns"][-2:]] == ["user", "playbook"] and "Gent" in r.json()["turns"][-2]["text"]
+    assert r.json()["turns"][-1]["meta"]["kind"] == "checkpoint"  # then the checkpoint says what to check
     # the checkpoint: a reader can't confirm; the contributor corrects the price and confirms the rest
     confirm = {"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
@@ -387,14 +391,18 @@ def test_starting_runs_shares_the_chat_rate_limit(runs):
 @needs_db
 def test_store_deletes_runs_with_the_case(runs):
     cid = uuid.uuid4()
-    run = runs.create(cid, DEED_INTAKE, [DOC], ALICE, None)
-    rid = uuid.UUID(run.id)
+    run = runs.create(cid, DEED_INTAKE, [DOC], ALICE, None, "nl", ALICE)
+    rid, conv = uuid.UUID(run.id), uuid.UUID(run.conversation_id)
     assert runs.get(rid, cid).status == "waiting" and runs.get(rid, uuid.uuid4()) is None
-    runs.append(rid, "playbook", DEED_INTAKE.id, "Upload the agreement.", "agreement")
+    # the run is a conversation in its case (Filip, 30 October 2026): titled with the playbook, shared, its starter's
+    row = runs._execute("SELECT title, case_id, shared, owner, run_id FROM conversations WHERE id = %s", (conv,)).fetchone()
+    assert row == (DEED_INTAKE.wording("nl").title, cid, True, ALICE, rid)
+    runs.say(run, "playbook", DEED_INTAKE.id, "Upload the agreement.", "agreement")
     runs.write_facts(cid, rid, "read", [dict(fact_id="price", kind="amount", value="1", status="proposed", source={"kind": "none"}, by="x")])
-    assert runs.count_for_run(rid) == 1 and len(runs.fact_rows(rid)) == 1
+    assert [t.text for t in runs.get(rid, cid).turns] == ["Upload the agreement."] and len(runs.fact_rows(rid)) == 1
     assert runs.delete_case(cid) == 1 and runs.list(cid) == []
-    assert runs.count_for_run(rid) == 0 and runs.fact_rows(rid) == []  # the thread and the facts went with the case
+    assert runs.turns_of(conv) == [] and runs.fact_rows(rid) == []  # the conversation, its turns and the facts went with the case
+    assert runs._execute("SELECT count(*) FROM conversations WHERE id = %s", (conv,)).fetchone()[0] == 0
 
 
 @needs_db
@@ -452,3 +460,67 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
             assert start(alice)[0].status_code == 202
     finally:
         release.set()
+
+
+# ------------------------------------------------------------------ a playbook is a conversation (handover of 30 October 2026)
+
+@pytest.fixture
+def talking(runs):
+    """An office whose model reads the table, and maps an answer in words to what ``replies`` holds next."""
+    import json as _json
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    replies: list[str] = []
+    reading = llm_transport([], text=TABLE).handle_request
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/chat/completions") and "answered in their own words" in _json.loads(request.content)["messages"][-1]["content"]:
+            return httpx.Response(200, json={"id": "m", "choices": [{"message": {"content": replies.pop(0)}, "finish_reason": "stop"}]})
+        return reading(request)
+
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        yield c, kc, docs, replies
+
+
+@needs_db
+def test_people_answer_and_correct_a_playbook_in_words(talking):
+    """The run is a conversation: the documents come with a turn, an answer in words is mapped to the facts
+    asked, what can't be placed is asked again in words, a correction makes a new version from that person,
+    and pausing is a line in the thread."""
+    c, kc, docs, replies = talking
+    cid, alice, bob = a_case_with_a_contributor(c, kc, role="contributor")
+    run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()
+    url = RUN.format(cid=cid, rid=run["id"])
+    assert run["conversation_id"]
+    # the request: the documents come in with the person's turn, as attachments
+    assert c.post(url + "/say", json={"documents": [DOC]}, headers=alice).status_code == 404  # not in the case yet
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    r = c.post(url + "/say", json={"text": "Hier is het compromis.", "documents": [DOC]}, headers=alice)
+    assert r.status_code == 200 and r.json()["status"] == "reading"
+    assert r.json()["turns"][-1]["meta"]["attachments"] == [{"documentId": DOC, "filename": "akte.pdf"}]
+    run = wait_for(c, url, alice, "waiting")
+    assert run["step"] == "missing" and run["turns"][-1]["meta"]["kind"] == "ask"
+    # an answer the model can't place: the playbook asks again in words, the step waits
+    replies.append("NONE")
+    run = c.post(url + "/say", json={"text": "Dat weet ik niet zo goed."}, headers=bob).json()
+    assert run["step"] == "missing" and run["turns"][-1]["meta"]["kind"] == "unplaced" and run["turns"][-2]["by"] == "bob.test"
+    # an answer it can place: a proposed fact from that person, and on to the checkpoint
+    replies.append("cadastral: Gent 5e afd., sectie B, nr. 123\nprice: 1")  # price wasn't asked: ignored
+    run = c.post(url + "/say", json={"text": "Kadaster: Gent 5e afd., sectie B, nr. 123."}, headers=bob).json()
+    facts = {f["id"]: f for f in run["facts"]}
+    assert run["step"] == "confirm" and facts["cadastral"]["value"].startswith("Gent") and facts["cadastral"]["by"] == "bob.test"
+    assert facts["price"]["value"] == "EUR 412.500,00" and facts["price"]["was"] is None
+    assert run["turns"][-1]["meta"]["kind"] == "checkpoint"
+    # a correction in words: a new version, the value as read kept as ``was``; the playbook says what changed
+    replies.append("price: EUR 415.000,00")
+    run = c.post(url + "/say", json={"text": "De prijs is EUR 415.000,00."}, headers=alice).json()
+    facts = {f["id"]: f for f in run["facts"]}
+    assert facts["price"]["value"] == "EUR 415.000,00" and facts["price"]["was"] == "EUR 412.500,00" and facts["price"]["confirmed"] is None
+    assert run["turns"][-1]["meta"] == {"kind": "changed", "fact": "price", "value": "EUR 415.000,00"} and run["step"] == "confirm"
+    # pausing is a line in the thread; a paused run takes nothing said
+    run = c.post(url + "/pause", headers=bob).json()
+    assert run["turns"][-1]["meta"] == {"kind": "paused"} and run["turns"][-1]["by"] == "bob.test"
+    assert c.post(url + "/say", json={"text": "x"}, headers=alice).status_code == 409

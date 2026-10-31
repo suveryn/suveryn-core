@@ -20,7 +20,7 @@
  *   contract) and the turn shows an error instead.
  */
 import {
-  CircleAlert, ClipboardList, Ellipsis, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
+  CircleAlert, Ellipsis, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
   RotateCw, ScrollText, Share2, Trash, Users, UsersRound
 } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
@@ -30,7 +30,7 @@ import {
   getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, type PlaybookInfo, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
+  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -42,7 +42,7 @@ import { BackupBar } from "./components/BackupBar";
 import { backupAttention, type BackupAttention } from "./lib/backups";
 import { cardNote, checkPages, readingNotes, toCheck } from "./lib/readingNotes";
 import { CaseState } from "./components/CaseState";
-import { PlaybookView, runChipText } from "./components/PlaybookRun";
+import { FactsPanel, RunThread, runChipText, stepKind, useRun } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
@@ -180,7 +180,7 @@ function Chat({ me }: { me: Me }) {
   const [conversationId, setConversationId] = useState(newConversationId);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
-  const [view, setView] = useState<"chat" | "usage" | "admin" | "playbook" | SideView>("chat");
+  const [view, setView] = useState<"chat" | "usage" | "admin" | SideView>("chat");
   const narrow = useMedia(NARROW);
   const [drawer, setDrawer] = useState(false);
   // The Conversations and Documents overviews' case filter: "all" from the column, a case's id from
@@ -228,6 +228,10 @@ function Chat({ me }: { me: Me }) {
   // The source open in the panel beside the conversation (docs/design/chat-ui.md §5): which answer, which source.
   const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
+  // A playbook run open as a conversation (docs/design/playbooks.md, "The chat UI"), and its facts panel.
+  const [openRunId, setOpenRunId] = useState<string | null>(null);
+  const [factsOpen, setFactsOpen] = useState(false);
+  const { run: openRun, setRun: setOpenRun, error: runError } = useRun(caseId, openRunId);
   const openCaseId = useRef(caseId);
   openCaseId.current = caseId;
   // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an
@@ -237,9 +241,11 @@ function Chat({ me }: { me: Me }) {
   // The open conversation as the sidebar lists it: someone else's shared one is read-only (stage 4).
   // Also from the list of everything: a colleague's conversation shared since the case's list was read
   // is opened from the overview before that list has it (Pod check of 470b9da: it opened editable).
-  const current = conversations.find((c) => c.id === conversationId) ?? allConversations.find((c) => c.id === conversationId);
+  const current = openRunId
+    ? conversations.find((c) => c.run_id === openRunId) ?? allConversations.find((c) => c.run_id === openRunId)
+    : conversations.find((c) => c.id === conversationId) ?? allConversations.find((c) => c.id === conversationId);
   const readOnly = !!current && !!current.owner && current.owner !== (me.sub ?? "");
-  const canShare = !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
+  const canShare = !openRunId && !!currentCase && !closed && !readOnly && (role === "contributor" || role === "manager") && turns.length > 0;
   const manages = role === "manager";
   const contributes = role === "contributor" || role === "manager";
   const administers = currentCase !== null && role === null && (me.admin ?? false);
@@ -639,7 +645,7 @@ function Chat({ me }: { me: Me }) {
   const sidebar = (inDrawer: boolean) => (
       <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={(me.admin ?? false) && !adminGone} collapsed={inDrawer ? false : collapsed} onCollapse={setCollapsed}
                conversations={allConversations} caseConversations={conversations} documents={allDocuments} cases={cases}
-               currentCase={currentCase} currentConversation={conversationId}
+               currentCase={currentCase} currentConversation={openRunId ? current?.id ?? "" : conversationId}
                casesNote={health === null || casesReady ? null : health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable}
                historyNote={health === null || historyReady ? null : health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable}
                documentsNote={health === null || documentsReady ? null :
@@ -764,8 +770,25 @@ function Chat({ me }: { me: Me }) {
                  onSource={openSource(source.turnId)} onClose={() => setSource(null)} />
   );
 
+  // The open run's playbook, its words, and the facts panel beside it (in the source panel's place).
+  const runPlaybook = openRun ? playbooks.find((p) => p.id === openRun.playbook_id) ?? null : null;
+  const nameOfUsername = (u: string) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; };
+  const runChanged = (r: Run) => {
+    setOpenRun(r);
+    refreshConversations();
+    if (r.status === "done") refreshDocuments();
+  };
+  const runAtCheckpoint = openRun?.status === "waiting" && stepKind(openRun, runPlaybook) === "checkpoint";
+  useEffect(() => { if (runAtCheckpoint) setFactsOpen(true); }, [runAtCheckpoint, openRunId]);
+  const factsPanel = view === "chat" && openRun && currentCase && factsOpen && openRun.facts.length > 0 && (
+    <FactsPanel key={openRun.id} run={openRun} kase={currentCase} words={playbookWords(runPlaybook, language)} canConfirm={contributes && !closed}
+                nameOf={nameOfUsername} onChanged={runChanged}
+                onClose={() => { setFactsOpen(false); document.querySelector<HTMLElement>(".chip-facts")?.focus(); }} />
+  );
+
   const newChat = () => {
     setView("chat");
+    setOpenRunId(null);
     abort.current?.abort();
     setTurns([]);
     setPending([]);
@@ -783,6 +806,7 @@ function Chat({ me }: { me: Me }) {
   // notes the opening in the case's access log.
   const goTo = (c: Case | null) => {
     setCurrentCase(c);
+    setOpenRunId(null);  // a run belongs to its case
     setDocuments([]);
     setJobs([]);
     setConversations([]);
@@ -810,7 +834,29 @@ function Chat({ me }: { me: Me }) {
     if (target !== caseId) goTo(caseById(target));
     else refreshConversations();  // the case's list may predate a colleague's sharing
     setView("chat");
+    if (c.run_id) { openPlaybookRun(c.run_id); return; }  // a playbook run is a conversation the run shows
     openConversation(c.id);
+  };
+  // A run opens in the conversation's place; its facts panel opens by itself when it waits at the checkpoint.
+  const openPlaybookRun = (runId: string) => {
+    abort.current?.abort();
+    setSource(null);
+    setFactsOpen(false);
+    setOpenRunId(runId);
+  };
+  // The composer's Playbook menu: always a new conversation in the case, titled with the playbook (handover of
+  // 30 October 2026, board 53). One live run per playbook per case: a second start opens the live one.
+  const startPlaybook = async (slug: string) => {
+    if (!currentCase) return;
+    try {
+      const run = await startRun(currentCase.id, slug, lang());
+      openPlaybookRun(run.id);
+      setOpenRun(run);
+      refreshConversations();
+    } catch (e) {
+      const live = (e as { status?: number }).status === 409 ? (await activeRuns_().catch(() => ({} as Record<string, RunSummary>)))[currentCase.id] : undefined;
+      if (live) openPlaybookRun(live.id); else setProblem((e as Error).message);
+    }
   };
   // A document from the list of everything: go to its place, with the document ready to ask about.
   const openDocument = (d: AllDocument) => {
@@ -854,6 +900,7 @@ function Chat({ me }: { me: Me }) {
   };
 
   const openConversation = async (id: string) => {
+    setOpenRunId(null);
     if (id === conversationId) { setView("chat"); return; }
     try {
       const c = await getConversation(id);
@@ -967,7 +1014,7 @@ function Chat({ me }: { me: Me }) {
 
   // ---------------------------------------------------------------- view
   return (
-    <div className="app" data-sidebar={collapsed ? "collapsed" : undefined} data-panel={sourcePanel && !narrow ? true : undefined}>
+    <div className="app" data-sidebar={collapsed ? "collapsed" : undefined} data-panel={(sourcePanel || factsPanel) && !narrow ? true : undefined}>
 {narrow
         ? <Drawer isOpen={drawer} onClose={() => setDrawer(false)} label={m.navigation}>{sidebar(true)}</Drawer>
         : sidebar(false)}
@@ -1039,11 +1086,6 @@ function Chat({ me }: { me: Me }) {
           <SearchView conversations={allConversations} documents={allDocuments} cases={cases} current={caseId}
                       onOpenConversation={openListed} onOpenDocument={openDocument} onOpenCase={openCase} onBack={() => setView("chat")} />
         </div>}
-        {view === "playbook" && currentCase && (
-          <div className="conversation">
-            <PlaybookView kase={currentCase} me={me.sub ?? undefined} nameOf={(u) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; }} canRun={contributes && !closed} documents={documents.filter((d) => originKind(d) === "source").length} onBack={() => setView("chat")} onDocumentsChanged={refreshDocuments} />
-          </div>
-        )}
         {view === "chat" && <>
         {currentCase?.confidential && <ConfidentialBand narrow={narrow} />}
         {currentCase && (
@@ -1077,13 +1119,6 @@ function Chat({ me }: { me: Me }) {
         {currentCase && closed && (
           <CaseState kase={currentCase} canReopen={manages} canKeep={manages || administers} onChanged={caseChanged} />
         )}
-        {currentCase && !administers && activeRuns[currentCase.id] && (
-          // A playbook at work in this case: one line that opens it (docs/design/playbooks.md, "A running playbook is visible").
-          <Button variant="plain" className="playbook-chip playbook-chip-head" onPress={() => setView("playbook")} data-status={activeRuns[currentCase.id].status}>
-            <ClipboardList size={14} aria-hidden /> {runChipText(activeRuns[currentCase.id], playbooks.find((p) => p.id === activeRuns[currentCase.id].playbook_id),
-                                                                  playbookWords(playbooks.find((p) => p.id === activeRuns[currentCase.id].playbook_id), language).title, m)}
-          </Button>
-        )}
         {administers ? (
           <div className="conversation">
             <div className="empty">
@@ -1091,6 +1126,15 @@ function Chat({ me }: { me: Me }) {
               <p>{m.adminCaseIntro}</p>
             </div>
           </div>
+        ) : openRunId && currentCase ? (
+          openRun ? (
+            <RunThread run={openRun} kase={currentCase} playbook={runPlaybook} words={playbookWords(runPlaybook, language)} me={me.sub ?? undefined}
+                       canAnswer={contributes && !closed} nameOf={nameOfUsername} factsOpen={factsOpen}
+                       onChanged={runChanged} onOpenFacts={() => setFactsOpen((o) => !o)} onDocumentsChanged={refreshDocuments}
+                       onRestart={runPlaybook ? () => void startPlaybook(runPlaybook.slug) : undefined} />
+          ) : (
+            <div className="conversation">{runError && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{runError}</InlineNotice>}</div>
+          )
         ) : <>
         <div className="conversation">
           {start ? (
@@ -1146,7 +1190,7 @@ function Chat({ me }: { me: Me }) {
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
-                  playbooks={administers ? [] : playbooks} onPlaybook={() => setView("playbook")}
+                  playbooks={administers ? [] : playbooks} onPlaybook={(slug) => void startPlaybook(slug)}
                   compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : undefined}
                   workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),
                                                                   onChoose: openCase, onNew: () => setNewCase(true) } : null} />
@@ -1157,6 +1201,9 @@ function Chat({ me }: { me: Me }) {
       {sourcePanel && (narrow
         ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source(source!.n)}>{sourcePanel}</Drawer>
         : sourcePanel)}
+      {factsPanel && (narrow
+        ? <Drawer isOpen side="right" onClose={() => setFactsOpen(false)} label={m.factsPanel}>{factsPanel}</Drawer>
+        : factsPanel)}
     </div>
   );
 }
