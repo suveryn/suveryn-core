@@ -14,8 +14,8 @@ model call: when it reaches a ``read`` it marks the run ``reading`` and returns 
 starts the call (``routes.playbooks._read``) and, when the answer is in, calls ``finish_read`` and
 ``advance`` again.
 
-The thread (``turns``): the runtime writes the playbook's turns, in the run's language, from the
-pack's wording; people's turns are written by the routes when they answer.
+The thread (the run's conversation, its rows in ``turns``): the runtime writes the playbook's turns,
+in the run's language, from the pack's wording; people's turns are written by the routes when they answer.
 """
 
 from __future__ import annotations
@@ -89,17 +89,13 @@ class Runtime:
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
                     self.store.set_step(rid, step.id, "waiting", states)
-                    words = playbook.wording(run.language)
-                    for fact_id in open_facts:
-                        self._say(run, playbook, step.id, words.question(step.id, fact_id), {"fact": fact_id})
+                    self._say(run, playbook, step.id, *self.ask_turn(run, playbook, open_facts))
                 return None
             if step.kind == "checkpoint":
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
                     self.store.set_step(rid, step.id, "waiting", states)
-                    question = playbook.wording(run.language).question(step.id)
-                    if question:
-                        self._say(run, playbook, step.id, question)
+                    self._say(run, playbook, step.id, *self.checkpoint_turn(run))
                 return None
             if step.kind == "produce":
                 self._produce(run, playbook, reference, step, states)
@@ -198,6 +194,41 @@ class Runtime:
         self.store.set_step(rid, step.id, "waiting", states)
         return self.store.get(rid, cid)  # type: ignore[return-value]
 
+    def correct(self, run: Run, playbook: Playbook, step: Step, corrections: dict[str, str], by: str) -> Run:
+        """Corrections in words at the checkpoint: each a proposed version from this person, replacing
+        the current one; the run stays at the checkpoint (the person still confirms)."""
+        rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
+        current = self.store.current_versions(rid)
+        kinds = {f.id: f.kind for f in playbook.facts}
+        self.store.write_facts(cid, rid, step.id, [
+            dict(fact_id=fid, kind=kinds.get(fid, "text"), value=v.strip(), status="proposed", source={"kind": "person"},
+                 by=by, replaces=current[fid]["id"] if fid in current else None)
+            for fid, v in corrections.items() if fid in current and v.strip()])
+        return self.store.get(rid, cid)  # type: ignore[return-value]
+
+    # -- what the playbook says (the UI words a turn from its ``meta``; ``text`` is the English for a log or an export)
+
+    @staticmethod
+    def counts(run: Run) -> tuple[int, int]:
+        """How many facts have a value (read from the documents, or given by a person), of how many."""
+        return sum(1 for f in run.facts if f.value), len(run.facts)
+
+    def ask_turn(self, run: Run, playbook: Playbook, open_facts: list[str]) -> tuple[str, dict]:
+        fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
+        found, total = self.counts(fresh)
+        labels = playbook.wording("en").labels
+        missing = ", ".join(labels.get(f, f) for f in open_facts)
+        return (f"{found} of {total} facts found. Not in the documents: {missing}. Do you know them?",
+                {"kind": "ask", "facts": open_facts, "found": found, "total": total})
+
+    def checkpoint_turn(self, run: Run) -> tuple[str, dict]:
+        fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
+        found, total = self.counts(fresh)
+        issues = sum(1 for f in fresh.facts if f.issues)
+        return (f"{found} of {total} facts found. They're on the right: check them and confirm."
+                + (f" {issues} not in the cited passage as written." if issues else ""),
+                {"kind": "checkpoint", "found": found, "total": total, "issues": issues})
+
     # -- products and the thread
 
     def _produce(self, run: Run, playbook: Playbook, reference: str, step: Step, states: dict[str, StepState]) -> None:
@@ -213,6 +244,6 @@ class Runtime:
         except Exception as e:  # noqa: BLE001 - the confirmation stands; the document can be made again
             log.error("playbook result not stored: %s", type(e).__name__)
 
-    def _say(self, run: Run, playbook: Playbook, step_id: str, text: str, meta: dict | None = None) -> None:
+    def _say(self, run: Run, playbook: Playbook, step_id: str | None, text: str, meta: dict | None = None) -> None:
         if text:
-            self.store.append(uuid.UUID(run.id), "playbook", playbook.id, text, step_id, meta)
+            self.store.say(run, "playbook", playbook.id, text, step_id, meta)

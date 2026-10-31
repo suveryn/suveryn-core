@@ -17,7 +17,7 @@ from ..conversations import (
     ShareIn,
     cited_documents,
 )
-from .common import Scope, case_for, history_or_503, log_access, owner_of, readable_case_ids, scope_of
+from .common import Scope, case_for, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
 router = APIRouter()
 
@@ -139,13 +139,14 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
     404: {"description": "The id belongs to another user's conversation"},
     413: {"description": f"Larger than {MAX_CONVERSATION_BYTES // (1024 * 1024)} MB"}})
 async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):
-    """Save the whole conversation under an id the client chose (a UUID), replacing an earlier save.
-    ``case_id`` puts a new conversation in that case (the caller must be able to read it); a
-    saved conversation stays where it was first saved."""
+    """Save the whole conversation under an id the client chose (a UUID): its turns' rows are brought in
+    line with the body's. ``case_id`` puts a new conversation in that case (the caller must be able to
+    read it); a saved conversation stays where it was first saved. A playbook run's conversation is
+    written by the server, never saved over: 404."""
     store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
     scope = await scope_of(request, body.case_id, "read")
     gone = await run_in_threadpool(_deleted_documents, request, body, scope)
-    if not await run_in_threadpool(store.save, cid, owner, body, gone):
+    if not await run_in_threadpool(store.save, cid, owner, body, gone, who(request)[0]):
         raise HTTPException(404, "Unknown conversation.")
     # A document deleted while this save was on its way (after the check above, before its cleaning
     # could see this save) is taken out now: its passages never stay (audit of 21 October 2026, finding 3).
@@ -177,9 +178,10 @@ def _deleted_documents(request: Request, body: ConversationIn, scope: Scope):
     return lambda d: d not in existing
 
 
-@router.delete("/v1/conversations/{conversation_id}", status_code=204)
+@router.delete("/v1/conversations/{conversation_id}", status_code=204, responses={
+    404: {"description": "Not the caller's conversation, or a playbook run's (it goes with its case)"}})
 async def delete_conversation(conversation_id: str, request: Request):
-    """Delete one of the caller's conversations."""
+    """Delete one of the caller's conversations. A playbook run's goes with its case: stop or cancel the run."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
     if not await run_in_threadpool(store.delete, cid, owner_of(request)):
         raise HTTPException(404, "Unknown conversation.")

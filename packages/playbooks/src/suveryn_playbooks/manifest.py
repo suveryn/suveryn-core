@@ -283,7 +283,8 @@ def pack_text_from_dir(pack_dir: Path, slug: str, *, where: str) -> dict[str, Wo
             raise ManifestError(f"{where}: no wording for {lang}: {f} is missing")
         try:
             entry = json.loads(f.read_text(encoding="utf-8"))[slug]
-            out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]), dict(entry.get("questions", {})))
+            out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]), dict(entry.get("questions", {})),
+                                entry.get("factsTitle", ""))
         except (KeyError, TypeError, ValueError) as e:
             raise ManifestError(f"{where}: {f}: no usable entry for {slug!r} ({e})") from None
     return out

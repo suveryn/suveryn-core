@@ -23,7 +23,7 @@ import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "..
 import { conversationMenu } from "./ConversationDialogs";
 import {
   ChartColumn, ChevronDown, ChevronsUpDown, ClipboardList, Clock, Ellipsis, FileText, Folder, FolderKey, FolderOpen,
-  FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, PanelLeft, Pin, PinOff,
+  FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, PanelLeft, Pin, PinOff, Route,
   Plus, ScrollText, Search, Settings, Shield, Users, X
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -183,11 +183,13 @@ export function Sidebar(p: Props) {
               onPress={() => p.onOpenConversation(c)} aria-current={current ? "page" : undefined} title={hint}>
         {underCase
           ? <span className="side-dot" data-current={current || undefined} aria-hidden />
-          : c.shielded ? <MessageSquareLock size={14} aria-hidden /> : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
+          : c.shielded ? <MessageSquareLock size={14} aria-hidden /> : c.run_id ? <Route size={14} aria-hidden />
+          : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
         {/* §11: a strictly confidential case's conversation, without its title */}
         <span className="side-text" data-shielded={c.shielded || undefined}
               aria-label={c.shielded && r ? m.shieldedIn(r) : undefined}>{listedTitle(c)}</span>
-        {underCase ? (shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
+        {underCase ? (c.run_id ? <Route size={13} className="side-shared" role="img" aria-label={m.playbook} />
+                      : shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
                    : r && <span className="side-meta">{r}</span>}
       </Button>
     );

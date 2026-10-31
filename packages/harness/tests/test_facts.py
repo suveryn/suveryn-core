@@ -130,3 +130,16 @@ def test_a_deed_that_lacks_most_facts_is_read_with_them_not_found(missing):
     assert facts is not None
     assert sorted(f.id for f in facts if f.found) == sorted(found)
     assert all(not f.value and not f.citations for f in facts if not f.found)
+
+
+# ------------------------------------------------------------------ answers in words
+
+def test_an_answer_in_words_is_mapped_only_to_the_facts_asked():
+    from suveryn_harness.facts import map_prompt, read_mapping
+
+    labels = {"epc": "Energieprestatiecertificaat", "soil": "Bodemattest", "deed_by": "Akte te verlijden tegen"}
+    answer = "epc: 20260915-0002, label C\n- `deed_by`: 15 februari 2027\nprice: 1\nsoil: niet vermeld\nNONE"
+    assert read_mapping(answer, labels) == {"epc": "20260915-0002, label C", "deed_by": "15 februari 2027"}
+    assert read_mapping("NONE", labels) == {} and read_mapping("I can't tell.", labels) == {}
+    prompt = map_prompt(labels, {"deed_by": "12 februari 2027"}, "EPC 20260915-0002 >>> label C")
+    assert "- deed_by: Akte te verlijden tegen (now: 12 februari 2027)" in prompt and "> > > label C" in prompt

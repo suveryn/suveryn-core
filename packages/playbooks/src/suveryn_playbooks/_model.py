@@ -27,6 +27,9 @@ class Wording:
     # The routine's questions (format 2): keyed by step id for a ``request`` and for an ``ask`` step's
     # one template (``{label}`` is the fact's label), or by ``<step id>.<fact id>`` for one fact's own.
     questions: dict[str, str] = field(default_factory=dict)
+    # The heading of the facts panel beside the run's conversation ("Facts for the deed"); empty: the
+    # UI's generic "Facts" (docs/design/playbooks.md, "The chat UI").
+    facts_title: str = ""
 
     def question(self, step_id: str, fact_id: str | None = None) -> str:
         """The words for a step's question, for one fact when ``fact_id`` is given: that fact's own

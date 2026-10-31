@@ -29,7 +29,8 @@ export function conversationActions(c: ConversationSummary, me: string | undefin
     { id: c.pinned ? "unpin" : "pin", disabled: inCase || !own, ...(inCase ? { reason: "followsCase" as const } : {}) },
     { id: "rename", disabled: !own },
     { id: "move", disabled: inCase || !own },
-    { id: "delete", disabled: !own },
+    // a playbook run's conversation goes with its case: stop or cancel the run instead (docs/design/playbooks.md)
+    { id: "delete", disabled: !own || !!c.run_id },
   ];
 }
 

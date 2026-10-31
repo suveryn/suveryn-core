@@ -2,6 +2,7 @@
   "deed-intake": {
     "title": "Intake de l'acte",
     "summary": "Lit dans les documents les faits nécessaires à l'acte",
+    "factsTitle": "Données pour l'acte",
     "labels": {
       "sellers": "Vendeur(s)",
       "buyers": "Acquéreur(s)",
