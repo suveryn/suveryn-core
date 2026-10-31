@@ -204,6 +204,7 @@ GET    /v1/cases/{id}/playbooks/runs/{run}    one run: step, steps, facts, turns
 POST   /v1/cases/{id}/playbooks/runs/{run}/say      {text?, documents?, unknown?}: a turn in the run's conversation  (contributor)
 POST   /v1/cases/{id}/playbooks/runs/{run}/answer   {step_id, text?, facts?, none?}: an ask's facts, or a request  (contributor)
 PUT    /v1/cases/{id}/playbooks/runs/{run}/facts    the checkpoint: {facts: [{id, confirmed}]}  (contributor)
+PUT    /v1/cases/{id}/playbooks/runs/{run}/facts/{fact}   a card's value {value}: a new version; the same value: checked  (contributor)
 POST   …/runs/{run}/pause | /resume           anyone who contributes
 POST   …/runs/{run}/stop | /cancel {reason}   the starter or the case manager
 ```
@@ -231,28 +232,37 @@ review, 17 October 2026).
 
 ## The chat UI
 
-A playbook is a conversation (handover of 30 October 2026; the design canvas, boards 52 to 55;
-`components/RunConversation.tsx`). The composer's *Playbook* menu starts a run, always as a new
-conversation in the case; it is listed under the case, in *Recent* and in the Conversations overview
-with the route icon, and earlier runs are earlier conversations (starting again is the menu again).
-Opened, the playbook speaks as sūveryn: the brand mark with the route badge (an overlay icon, teal: the
-system speaking), the playbook's title as speaker above each series of its turns, neutrally ("never
-I, never we"). A centred line says who started which version when. The ask is one turn that says what
-was found and what wasn't, with a quick reply *Not known yet*; the checkpoint is one turn with a chip
-that opens the facts panel, which opens by itself when the run gets there. Reading shows the waiting
-dots; an error is a turn with the cross and *Try again*; done is "Confirmed by …" in teal and the
-summary as a document card with the Word download (made in the browser, as answers are).
+A playbook is a conversation (handovers of 30 and 31 October 2026; the canvas "Sūveryn · gesprek en
+playbook, één taal"; `components/RunConversation.tsx`). The composer's *Playbook* menu starts a run,
+always as a new conversation in the case, listed under the case, in *Recent* and in the Conversations
+overview with the route icon; earlier runs are earlier conversations. The playbook speaks as sūveryn:
+the brand mark with the route badge (teal: the system speaking) and its title as speaker above each
+series of its turns. Its messages are short and name the problem, never a place on the screen. A quick
+reply (*Not known yet*) goes once the question is answered. Pausing, resuming, stopping, cancelling and
+confirming are centred lines; done is "Confirmed by …" in teal and the summary as a document card with
+its Word download.
 
-The facts sit in a panel beside the conversation, in the source panel's place (a drawer on a phone):
-the pack's title ("Facts for the deed"; `factsTitle` in `text/<lang>.json`, else "Facts") and how many
-have a value; per fact the label, the value, its citation marker (opening the passage in the panel,
-with a way back), and under it what applies: a check to do, "From …, in the conversation", "Changed in
-the conversation; read as …", or "Not known yet". At the checkpoint each value is a button that
-becomes a field (Enter keeps it, Esc doesn't), and *Confirm the facts* is the view's one primary
-button. While the run is live the composer carries the run's chip: teal "… · running" (a system
-status), ink "… · paused", a menu with pause or resume, and cancel (with a reason) and stop for the
-starter or the case manager. The line under it says what the run waits for. A reader sees the thread
-and "Read only". Every piece of text in three languages; every control from `packages/chat-ui/src/ui/`.
+**Review is in the playbook's message.** At the checkpoint its message says how many facts were found
+and how many need attention, then one card per fact that needs the person, in two groups: *Check*, a
+value the check couldn't find literally in its passage (the passage quoted with a teal rule, what isn't
+in it said in words with the triangle, and the source), and *Missing*, a fact without a value. *Adjust*
+and *Fill in* turn the value into a field in the card (Enter keeps it, Esc cancels; `PUT
+…/runs/{run}/facts/{fact}`): a changed value is a new version from that person and a line in the thread;
+the same value says the person checked it. *Confirm the facts*, the one primary button, is held back
+while anything is under *Check*, focusable, with its reason; *Missing* may stay open (Filip, 31 October:
+confirming then records it as not established and the run finishes, as before). Found and quoted facts
+get no card. *See all 13 facts* opens the list.
+
+**Every fact, in a list beside the conversation** (the source panel's place, a sheet on a phone): "All
+facts for the deed" (the pack's `factsTitle`), every fact in the pack's order with its source, "From the
+conversation, 10:06" for a value given there, "Not known yet", or the check's warning; nothing is edited
+there. A source opens in the same place with a way back to the list (at the same scroll position); from a
+card it opens on its own. The header carries the conversation's state ("Deed intake · to check": the one
+place it is said) and, while the run is live, a toggle "Facts · 12 of 13" that opens and closes the list.
+The composer carries the run's chip: teal with the playbook's title only, ink "… · paused" when paused,
+with pause, cancel (with a reason) and stop. No hint line under the composer while a run is live. A reader
+sees the thread and "Read only". Every piece of text in three languages; every control from
+`packages/chat-ui/src/ui/`.
 
 ## The manifest (30 October 2026)
 

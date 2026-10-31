@@ -321,6 +321,14 @@ reasoning, with the line that it isn't checked.
 Citation markers are `teal-ink` on a teal wash. The active one is filled teal with ink text, never
 white.
 
+**One rule for sources, in every conversation** (handover of 31 October 2026, boards 1 and 2). In the
+text, the marker after the sentence it supports. Under the text, the sources line: "Sources:" and one
+item per source, the same marker with the file and page, one link in ink, underlined
+("1 Compromis_DeSmet.pdf, p.4 · 2 Compromis_DeSmet.pdf, p.9"; `SourceRef` in `src/ui/`). Pressing the
+marker in the text or the item in the line opens the source panel on that source; the open one's marker
+is filled in both places, and its link carries `aria-current`. Its name is "Source 1: Compromis_DeSmet.pdf,
+page 4". A playbook's card and the facts list show a fact's source with the same `SourceRef`.
+
 Clicking a citation opens a 440 px panel on the right; Esc closes it. The panel holds:
 
 - the source number, the file, the page and the case;
@@ -353,7 +361,7 @@ is ready.
 
 ## 6. Saving answers, and where a document comes from
 
-**Under every finished answer** (artboards 02 and 16), after the sources line, a quiet ink `Toolbar`
+**Under every finished answer** (artboards 02 and 16), after the sources line (a list of `SourceRef` links, §5), a quiet ink `Toolbar`
 ("Answer actions") holds:
 
 - *Copy*;

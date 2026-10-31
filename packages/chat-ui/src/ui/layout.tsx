@@ -7,8 +7,9 @@ import { Check, Circle, CircleAlert, LoaderCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { cx } from "./Button";
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx("ui-card", className)}>{children}</section>;
+/** A card; `compact` for one inside a message (a playbook's card for a fact): 12 px padding, radius-md. */
+export function Card({ children, className, compact }: { children: ReactNode; className?: string; compact?: boolean }) {
+  return <section className={cx("ui-card", className)} data-compact={compact || undefined}>{children}</section>;
 }
 
 /** "Setup · Step 1 of 6" and a rail of segments, the done ones filled. The text is what screen
