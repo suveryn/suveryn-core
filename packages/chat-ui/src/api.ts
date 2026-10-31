@@ -380,6 +380,7 @@ export type ConversationSummary = {
   messages?: number;    // how many turns it has (the Conversations overview)
   owner_name?: string;  // a colleague's shared conversation: their name as the case knows it
   pinned?: boolean;     // a personal conversation its owner pinned in the sidebar (§3); one in a case follows its case
+  run_id?: string | null;  // a playbook run's conversation: opens the run; its icon is the route; it goes with its case
 };
 export type SavedConversation = ConversationSummary & { turns: Turn[] };
 
@@ -868,6 +869,8 @@ export type RunFact = {
   found: boolean;             // false: the documents don't contain it
   confirmed: string | null;   // what the person confirmed at the checkpoint, once they have
   source?: "document" | "person" | "none";  // where ``value`` came from
+  by?: string | null;         // for a person's value: who gave it, in the conversation
+  was?: string | null;        // for a correction of a value read from the documents: the value as read
 };
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
  *  docs/design/playbooks.md, "A running playbook is visible". */
@@ -886,6 +889,7 @@ export type RunSummary = {
   starter?: string | null;      // the starter's id: who may stop or cancel, with the case manager
   title?: Record<string, string>;   // the playbook's title per language (the server fills it), for a chip anywhere
   step_kind?: "request" | "read" | "ask" | "checkpoint" | "produce" | null;  // the kind of the step the run is on
+  conversation_id?: string;     // the run's conversation, in the case's list of conversations
 };
 export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
 
@@ -945,6 +949,16 @@ export async function answerRun(caseId: string, runId: string, stepId: string,
                                 answer: { text?: string; facts?: Record<string, string>; none?: boolean } = {}): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/answer`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ step_id: stepId, ...answer }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+/** Writes in the run's conversation (a playbook is a conversation): the documents just added, an answer in words (mapped to the facts
+ *  asked), ``unknown`` (the quick reply), or a correction at the checkpoint. The run walks on as far as it can. */
+export async function sayInRun(caseId: string, runId: string, said: { text?: string; documents?: string[]; unknown?: boolean }): Promise<Run> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/say`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(said),
   });
   if (!r.ok) throw await responseError(r);
   return r.json();

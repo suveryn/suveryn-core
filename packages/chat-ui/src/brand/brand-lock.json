@@ -1,6 +1,6 @@
 {
   "source": "https://github.com/suveryn/suveryn-brand.git",
-  "commit": "f9791ccded2b54cea58d4577edf2746291635b99",
+  "commit": "f7dab36f8c6c89a0e34bda26612ad98d217342a3",
   "files": {
     "public/apple-touch-icon.png": "fe24f15a220ae74df538be9f7190f86e97311e30ec5decc43f1dfc4f9b435bcc",
     "public/favicon.svg": "8a3659ab5fc1559107a1849bb8ce792c1b64da8c04aed46823fd6d33cef2dd6c",
@@ -11,6 +11,6 @@
     "src/fonts/Inter/OFL.txt": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
     "src/fonts/SpaceGrotesk/OFL.txt": "564ce565c371c5e5bbf286006565a7c9aa55a9f56e7ca58d56e05d649dd61a72",
     "src/fonts/SpaceGrotesk/SpaceGrotesk-Variable.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
-    "src/styles/tokens.css": "8b2e0fccbd8116e1d10eedc37ec5c38e6c8cc79743e91e410701148c186cfe59"
+    "src/styles/tokens.css": "44631949fa2e442fb7b0641ae8bc8368067eca8f5fa2fd9ee1e133d69bb92326"
   }
 }

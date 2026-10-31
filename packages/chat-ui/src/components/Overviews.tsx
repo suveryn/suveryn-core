@@ -8,8 +8,10 @@
  * conversation in its case, or the case a document is in with the document ready to ask about.
  */
 import {
-  AlertTriangle, ArrowUpDown, Check, Clock, Download, FileOutput, Filter, Folder, FolderKey, Loader2, Lock, MessageSquare, MessageSquareLock, MoreHorizontal,
-  NotebookText, Pin, PinOff, Plus, ScrollText, Trash2, Upload, Users, XCircle, ClipboardList } from "lucide-react";
+  ArrowUpDown, Check, CircleX, ClipboardList, Clock, Download, Ellipsis, FileOutput, Folder, FolderKey, Funnel,
+  LoaderCircle, Lock, MessageSquare, MessageSquareLock, NotebookText, Pin, PinOff, Plus, Route, ScrollText, Trash,
+  TriangleAlert, Upload, Users
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member, type RunSummary } from "../api";
 import { locale, useT } from "../i18n";
@@ -75,7 +77,7 @@ function RowMenu({ name, entries, onAction }: { name: string; entries: MenuEntry
   return (
     <ActionMenu aria-label={m.rowActions(name)} menuLabel={m.rowActions(name)} entries={entries} onAction={onAction}
                 placement="bottom end" className="overview-row-menu">
-      <MoreHorizontal size={16} aria-hidden />
+      <Ellipsis size={16} aria-hidden />
     </ActionMenu>
   );
 }
@@ -86,8 +88,9 @@ const chip = (label: string, options: Option[]) => options.map((o) => ({ ...o, l
 /** A member's face, the manager with the folder badge (docs/design/chat-ui.md §4). */
 function Face({ member, size = "small" }: { member: Pick<Member, "user" | "name" | "username" | "avatar" | "admin" | "role">; size?: "small" }) {
   const m = useT();
-  const face = <Avatar name={member.name || member.username} sub={member.user} etag={member.avatar} admin={member.admin} adminLabel={m.administrator} size={size} />;
-  return member.role === "manager" ? <IconBadge badge={<Folder />} tone="neutral">{face}</IconBadge> : face;
+  const face = <Avatar name={member.name || member.username} sub={member.user} etag={member.avatar} admin={member.admin} adminLabel={m.administrator}
+    size={size} shield={member.role !== "manager"} />;
+  return member.role === "manager" ? <IconBadge badge={<Folder />} host={size} tone="role">{face}</IconBadge> : face;
 }
 
 // ================================================================== Cases (artboard 06)
@@ -141,7 +144,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
     }
     const check = (docs.get(c.id) ?? []).filter((d) => d.status === "needs_review").length;
     return check
-      ? <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{m.statusOpenReview(check)}</span>
+      ? <span className="overview-status" data-tone="warn"><TriangleAlert size={14} aria-hidden />{m.statusOpenReview(check)}</span>
       : <span className="overview-status"><Clock size={14} aria-hidden />{m.statusOpen}</span>;
   };
   const members = (c: CaseOverview) => {
@@ -257,7 +260,8 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
         : <PinToggle label={c.pinned ? m.unpinConversation(listedTitle(c)) : m.pinConversation(listedTitle(c))} isSelected={!!c.pinned}
                      onChange={(on) => onAction(c, on ? "pin" : "unpin")} />) },
     { id: "title", label: m.colConversation, rowHeader: true,
-      render: (c) => <span className="overview-name">{c.shielded ? <MessageSquareLock size={15} aria-hidden /> : c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
+      render: (c) => <span className="overview-name">{c.shielded ? <MessageSquareLock size={15} aria-hidden /> : c.run_id ? <Route size={15} aria-hidden />
+                                                  : c.shared ? <Users size={15} aria-hidden /> : <MessageSquare size={15} aria-hidden />}
         <span className="overview-strong" data-shielded={c.shielded || undefined}>{listedTitle(c)}</span></span> },
     { id: "case", label: m.colCase,
       render: (c) => { const k = byId.get(c.case_id ?? ""); return k
@@ -268,12 +272,12 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
         const o = owner(c);
         // A colleague the case's member list doesn't name (not loaded, or no longer a member): their own
         // initials from the name the conversation carries, never the viewer's (Pod check of 5e9a539).
-        const face = o ? <Avatar name={o.name || o.username} sub={o.user} etag={o.avatar} admin={o.admin} adminLabel={m.administrator} size="small" />
-          : mine(c) ? <Avatar name={me.name || me.username} sub={me.sub ?? ""} etag={me.avatar} admin={me.admin} adminLabel={m.administrator} size="small" />
+        const face = o ? <Avatar name={o.name || o.username} sub={o.user} etag={o.avatar} admin={o.admin} adminLabel={m.administrator} size="small" shield={!c.shared} />
+          : mine(c) ? <Avatar name={me.name || me.username} sub={me.sub ?? ""} etag={me.avatar} admin={me.admin} adminLabel={m.administrator} size="small" shield={!c.shared} />
           : <Avatar name={c.owner_name || "?"} sub={c.owner ?? ""} size="small" />;
         return (
           <span className="overview-faces">
-            {c.shared ? <IconBadge badge={<MessageSquare />} tone="neutral">{face}</IconBadge> : face}
+            {c.shared && !c.run_id ? <IconBadge badge={<MessageSquare />} host="small" tone="role">{face}</IconBadge> : face}
             <span>{mine(c) ? m.fromYou : c.owner_name || o?.name || ""}</span>
           </span>
         );
@@ -369,8 +373,8 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
   const status = (r: DocRow) => {
     const k = byId.get(r.caseId ?? "");
     switch (r.status) {
-      case "processing": return <span className="overview-status overview-dim" data-tone="working"><Loader2 size={14} className="spin" aria-hidden />{m.statusProcessing}</span>;
-      case "failed": return <span className="overview-status" data-tone="warn"><XCircle size={14} aria-hidden />{m.statusFailed}</span>;
+      case "processing": return <span className="overview-status overview-dim" data-tone="working"><LoaderCircle size={14} className="spin" aria-hidden />{m.statusProcessing}</span>;
+      case "failed": return <span className="overview-status" data-tone="warn"><CircleX size={14} aria-hidden />{m.statusFailed}</span>;
       case "closed": return <span className="overview-status overview-dim"><Lock size={14} aria-hidden />
         {m.statusCaseClosed(k && !k.keep && k.keep_until ? longDate(k.keep_until) : null)}</span>;
       case "notSource": return <span className="overview-status overview-dim">{m.statusNotASource}</span>;
@@ -379,7 +383,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
         // The pages, and for a screen reader what the reading noticed (#26: words, never only the icon)
         const pages = checkPages(r.doc?.warnings);
         const notes = rowNotes(m, r.doc?.warnings);
-        return <span className="overview-status" data-tone="warn"><AlertTriangle size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}
+        return <span className="overview-status" data-tone="warn"><TriangleAlert size={14} aria-hidden />{pages.length ? m.statusReviewPages(pages.join(", ")) : m.statusReview}
           {notes.length > 0 && <span className="visually-hidden">. {notes.join(" ")}</span>}</span>;
       }
       default: return <span className="overview-status" data-tone="ok"><Check size={14} aria-hidden />{m.statusReady}</span>;
@@ -396,7 +400,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
       ...(kind === "pending" ? [{ id: "source", label: m.useAsSource, icon: <FileOutput size={16} />,
                                   isDisabled: k ? k.state === "closed" || !(k.my_role === "manager" || k.my_role === "contributor") : false }] : []),
       "-",
-      { id: "delete", label: m.delete, icon: <Trash2 size={16} />, isDisabled: !mayDelete(d) },
+      { id: "delete", label: m.delete, icon: <Trash size={16} />, isDisabled: !mayDelete(d) },
     ];
   };
   const act = (d: AllDocument, id: string) => {
@@ -448,7 +452,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
         <FilterSelect label={m.filterCase} options={caseOptions} value={where} onChange={setWhere} icon={<Folder size={14} />} clearLabel={m.clearFilter(m.filterCase)} />
         <FilterSelect label={m.colOrigin} options={originOptions} value={origin} onChange={setOrigin} clearLabel={m.clearFilter(m.colOrigin)} />
         <FilterSelect label={m.filterStatus} options={statusOptions} value={statusFilter} onChange={setStatus} clearLabel={m.clearFilter(m.filterStatus)} />
-        <FilterToggle isSelected={grouped} onChange={setGrouped} icon={<Filter size={14} />}>{m.groupByCase}</FilterToggle>
+        <FilterToggle isSelected={grouped} onChange={setGrouped} icon={<Funnel size={14} />}>{m.groupByCase}</FilterToggle>
       </div>
       {grouped && groups.length
         ? groups.map((g) => <div key={g.id ?? "personal"} className="overview-group"><h2 className="label">{g.label}</h2>{table(g.rows, g.label)}</div>)

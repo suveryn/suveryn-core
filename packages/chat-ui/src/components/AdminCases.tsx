@@ -6,7 +6,7 @@
  * manages it, so a case can be handed over before an account goes (decision 6); and what is due
  * for deletion. Nothing from inside a case: an administrator who isn't a member reads no documents.
  */
-import { AlertCircle, ArrowRightLeft, Folder, Lock, MessageSquare, Users } from "lucide-react";
+import { ArrowRightLeft, CircleAlert, Folder, Lock, MessageSquare, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getCaseSettings, handOver, listAdminCases, searchUsers,
@@ -34,12 +34,12 @@ export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       <p className="view-intro">{m.adminCasesIntro}</p>
       <SettingsFacts onOpen={onOpen} />
       {due.length > 0 && (
-        <InlineNotice icon={<AlertCircle size={14} />}>
+        <InlineNotice icon={<CircleAlert size={14} />}>
           {m.casesDue(due.length)}: {due.map((c) => c.reference).join(", ")}
         </InlineNotice>
       )}
       <h2 className="label">{m.adminCases}</h2>
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {cases && cases.length === 0 && <p className="caption">{m.noCasesYet}</p>}
       {cases && cases.length > 0 && (
         <div className="table-wrap">
@@ -124,7 +124,7 @@ function HandOverDialog({ kase, onClose, onDone }: { kase: AdminCase | null; onC
       <p>{m.handOverHint}</p>
       <ComboBoxField name="colleague" label={m.newManager} value={query} onChange={setQuery}
                      options={candidates.map((p) => ({ id: p.sub, label: labelOf(p) }))} />
-      {error && <InlineNotice icon={<AlertCircle size={14} />} tone="error" alert>{error}</InlineNotice>}
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

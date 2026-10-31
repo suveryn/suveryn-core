@@ -2,6 +2,7 @@
   "deed-intake": {
     "title": "Deed intake",
     "summary": "Reads the facts for the deed from the documents",
+    "factsTitle": "Facts for the deed",
     "labels": {
       "sellers": "Seller(s)",
       "buyers": "Buyer(s)",

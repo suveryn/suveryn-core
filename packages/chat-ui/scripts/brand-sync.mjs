@@ -55,7 +55,7 @@ writeFileSync(LOCK, JSON.stringify({ source: "https://github.com/suveryn/suveryn
 rmSync(CACHE, { recursive: true, force: true });
 console.log(`brand: ${Object.keys(files).length} files from suveryn-brand@${commit.slice(0, 7)}`);
 
-/** The light theme as CSS custom properties: colours, font families and the type scale, spacing and radius. */
+/** The light theme as CSS custom properties: colours, font families and the type scale, spacing, radius and the overlay icons. */
 function tokensCss(t, commit) {
   const colour = (v) => (typeof v === "object" ? v.light : v).replace(/^\{(.+)\}$/, "var(--$1)");
   const lines = [
@@ -86,6 +86,13 @@ function tokensCss(t, commit) {
     "",
     "  /* radius */",
     ...t.radius.tokens.map((r) => `  --${r.name}: ${r.value};`),
+    "",
+    "  /* overlay icons (tokens v3.5): one size per host, outside the corner by the offset, the icon's stroke */",
+    ...t.badge.tokens.flatMap((b) => [
+      `  --${b.name}: ${b.size};`,
+      `  --${b.name}-offset: ${b.offset};`,
+      `  --${b.name}-stroke: ${b.strokeWidth};`,
+    ]),
     "}",
     "",
   ];
