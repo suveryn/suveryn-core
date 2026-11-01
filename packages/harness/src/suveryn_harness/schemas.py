@@ -179,6 +179,11 @@ class ChatResponse(BaseModel):
     # how long it took. Empty and None for a *Fast* answer.
     reasoning: str = ""
     thought_seconds: float | None = None
+    # *Thorough* thought past its allowance without a word of answer, so the answer was asked again without
+    # thinking (VM regression 03c8f74, finding 1: wide questions came back empty after three minutes).
+    thinking_cut: bool = False
+    # The question named one of the documents ("de Franstalige volmacht"): only that one was read, by this name.
+    narrowed_to: str | None = None
 
 
 class StreamDelta(BaseModel):

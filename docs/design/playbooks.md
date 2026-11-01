@@ -260,6 +260,16 @@ while anything is under *Check*, focusable, with its reason; *Missing* may stay 
 confirming then records it as not established and the run finishes, as before). Found and quoted facts
 get no card. *See all 13 facts* opens the list.
 
+**Check by meaning** (VM regression 03c8f74, decision 1). An amount or a date is compared with its passage by
+what it means, not letter for letter: "412.500" against "412 500", "EUR 26.800" against "zesentwintigduizend
+achthonderd euro", "12/05/2014" against "le douze mai deux mille quatorze" (`suveryn_harness.values`, nl, fr
+and en). A fact of kind amount or date whose value is neither, as written ("uiterlijk vier maanden na de
+opschortende voorwaarde"), goes under *Check* with its own reason: "Not a date as written: work it out and
+check it" (`needs: not_a_date` / `not_an_amount` on the fact's source). At the checkpoint, "Bodemattest: nog
+niet bekend." in words of a fact that is unknown already is answered "Bodemattest staat al als nog niet bekend."
+(`already_unknown`), not "That couldn't be placed"; in an *ask* it leaves the facts unknown, as the quick reply
+does. A value isn't emptied in words, as it isn't on a card.
+
 **Every fact, in a list beside the conversation** (the source panel's place, a sheet on a phone): "All
 facts for the deed" (the pack's `factsTitle`), every fact in the pack's order with its source, "From the
 conversation, 10:06" for a value given there, "Not known yet", or the check's warning; nothing is edited

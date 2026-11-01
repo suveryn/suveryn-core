@@ -599,6 +599,8 @@ function Chat({ me }: { me: Me }) {
                ...(done.support_spans ? { supportSpans: done.support_spans } : {}),
                instructionLikeSources: done.instruction_like_sources ?? [],
                ...(reasoning ? { reasoning, thoughtSeconds: done.thought_seconds ?? thinkSeconds } : {}),
+               ...(done.thinking_cut ? { thinkingCut: true } : {}),
+               ...(done.narrowed_to ? { narrowedTo: done.narrowed_to } : {}),
                ...(done.finish_reason === "length" ? { truncated: true } : {}),
                status: "done", model: done.model, ...(asked.length && whole === false ? { partial: true } : {}) });
     } catch (e) {

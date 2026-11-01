@@ -788,3 +788,42 @@ def test_a_playbook_runs_conversation_goes_with_its_case(store):
     finally:
         store.keep = "manual"
         store._execute("DELETE FROM conversations WHERE id = %s", (conv,))
+
+
+def test_a_deletion_flushes_the_journal_shortly_once(setup, monkeypatch):
+    """VM regression 03c8f74, finding 3: after a deletion the WAL holding the text is let go (suveryn_rag.journal);
+    deletions close together share one flush."""
+    import time
+
+    from suveryn_api_gateway.routes import common
+
+    c, kc, _ = setup
+    flushed: list[str] = []
+    monkeypatch.setattr(common, "flush_journal", flushed.append)
+    journal = c.app.state.journal
+    journal.database_url, journal.delay = "postgresql://appliance/suveryn", 0.05
+    alice = as_user(kc, ALICE)
+    ids = [str(uuid.uuid4()) for _ in range(3)]
+    for cid in ids:
+        assert c.put(f"/v1/conversations/{cid}", json=BODY, headers=alice).status_code == 204
+    for cid in ids:
+        assert c.delete(f"/v1/conversations/{cid}", headers=alice).status_code == 204
+    for _ in range(40):
+        if journal.flushes:
+            break
+        time.sleep(0.05)
+    assert flushed == ["postgresql://appliance/suveryn"]  # once, for the three
+    assert c.delete("/v1/conversations", headers=alice).status_code == 200
+    for _ in range(40):
+        if journal.flushes == 2:
+            break
+        time.sleep(0.05)
+    assert len(flushed) == 2
+
+
+def test_without_a_database_nothing_is_flushed():
+    from suveryn_api_gateway.routes.common import JournalFlush
+
+    j = JournalFlush(database_url="")
+    j.soon()  # no running loop needed: it returns at once
+    assert j._task is None

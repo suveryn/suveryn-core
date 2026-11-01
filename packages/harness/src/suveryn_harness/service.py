@@ -23,6 +23,7 @@ from .grounding import (
 )
 from .guard import instruction_like
 from .llm import BackendError, LlamaServerClient
+from .thinking import THINKING_TOKENS
 from .schemas import (
     Calculation,
     ChatMessage,
@@ -141,21 +142,22 @@ class ChatService:
                          time.monotonic() - began)
         return support_spans(answer, citations, similarities, self.meaning)
 
-    async def _retrieve(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], bool]:
-        """The grounded request, its passages, and whether they are the documents' complete text."""
+    async def _retrieve(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], bool, str | None]:
+        """The grounded request, its passages, whether they are the documents' complete text, and the one
+        document read when the question named it (the retriever may say so as a third value)."""
         if not req.document_ids:
-            return _with_register(req), [], False
+            return _with_register(req), [], False, None
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner, req.case_id)
+        hits, complete, *named = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner, req.case_id)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
-        return req.model_copy(update={"messages": messages}), citations, complete
+        return req.model_copy(update={"messages": messages}), citations, complete, (named[0] if named else None)
 
-    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation]]:
-        prepared, citations, _ = await self._retrieve(req, owner)
-        return prepared, citations
+    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], str | None]:
+        prepared, citations, _, named = await self._retrieve(req, owner)
+        return prepared, citations, named
 
     async def _model_to_load(self, req: ChatRequest) -> str | None:
         """The model that must be loaded before this answer can start, or None if it is loaded."""
@@ -189,10 +191,11 @@ class ChatService:
 
     async def _answer(self, req: ChatRequest, owner: str) -> ChatResponse:
         """Whole answer at once, grounded only in ``owner``'s documents."""
-        prepared, citations = await self._prepare(req, owner)
+        prepared, citations, named = await self._prepare(req, owner)
         response = await self.llm.complete(prepared, user=owner, kind="chat")
         if not req.document_ids:
             return response
+        response = response.model_copy(update={"narrowed_to": named})
         calc = CalcRewriter(_source(citations))
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
@@ -211,7 +214,7 @@ class ChatService:
         """
         if req.document_ids:
             yield Status("searching")
-        prepared, citations, complete = await self._retrieve(req, owner)
+        prepared, citations, complete, named = await self._retrieve(req, owner)
         if req.document_ids:
             yield Sources(citations)
         if loading := await self._model_to_load(req):
@@ -226,22 +229,38 @@ class ChatService:
         thought: list[str] = []
         began = ended = None  # when the reasoning began, and when the answer's first word came
         finish_reason, usage = None, Usage()
-        async with aclosing(self.llm.stream(prepared, user=owner, kind="chat")) as chunks:
-            async for chunk in chunks:
-                if chunk.reasoning:
-                    if began is None:
-                        began = time.monotonic()
-                        yield Status("thinking")
-                    thought.append(chunk.reasoning)
-                    yield Thinking(chunk.reasoning)
-                if chunk.text and began is not None and ended is None:
-                    ended = time.monotonic()
-                text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
-                if text:
-                    parts.append(text)
-                    yield Delta(text)
-                finish_reason = chunk.finish_reason or finish_reason
-                usage = chunk.usage or usage
+        cut = False
+        for attempt in (prepared, prepared.model_copy(update={"thinking": False})):
+            async with aclosing(self.llm.stream(attempt, user=owner, kind="chat")) as chunks:
+                async for chunk in chunks:
+                    if chunk.reasoning:
+                        if began is None:
+                            began = time.monotonic()
+                            yield Status("thinking")
+                        thought.append(chunk.reasoning)
+                        yield Thinking(chunk.reasoning)
+                        # each streamed piece of reasoning is about a token: past the allowance with no answer yet,
+                        # stop and ask again without thinking (VM regression 03c8f74, finding 1)
+                        if not parts and len(thought) > THINKING_TOKENS:
+                            cut = True
+                            break
+                    if chunk.text and began is not None and ended is None:
+                        ended = time.monotonic()
+                    text = calc.feed(chunk.text) if calc and chunk.text else chunk.text
+                    if text:
+                        parts.append(text)
+                        yield Delta(text)
+                    finish_reason = chunk.finish_reason or finish_reason
+                    usage = chunk.usage or usage
+            # thought to the end of its length with no word of answer: the same
+            if not cut and thought and not "".join(parts).strip() and finish_reason == "length" and attempt is prepared:
+                cut = True
+            if not cut or attempt is not prepared:
+                break
+            log.info("thinking past its allowance without an answer: asked again without thinking (reasoning_chars=%d)",
+                     sum(len(x) for x in thought))
+            yield Status("writing")
+            parts, finish_reason = [], None
         if calc and (rest := calc.flush()):
             parts.append(rest)
             yield Delta(rest)
@@ -260,7 +279,7 @@ class ChatService:
                                 citation_issues=issues, support_spans=await self._support_spans(answer, citations) if calc else [],
                                 instruction_like_sources=_suspicious(citations, owner, model),
                                 finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
-                                thought_seconds=round(ended - began, 1) if began is not None else None))
+                                thought_seconds=round(ended - began, 1) if began is not None else None, thinking_cut=cut, narrowed_to=named))
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],

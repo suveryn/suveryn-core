@@ -40,7 +40,11 @@ def forget_main() -> None:
     s = RagSettings.from_env()
     store = Store(s.database_url, s.embedding_dim)  # the configured dimension; only used to create tables if missing
     try:
-        print("deleted" if store.delete_document(a.document_id) else "not found")
+        deleted = store.delete_document(a.document_id)
+        print("deleted" if deleted else "not found")
+        if deleted:
+            from .journal import flush_journal
+            flush_journal(s.database_url)  # the journal that still holds its text (journal.py)
     finally:
         store.close()
 

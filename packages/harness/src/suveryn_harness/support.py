@@ -32,6 +32,7 @@ from decimal import Decimal
 from .calc import DATE, TEXT_FIGURE, _value, source_decimal_separator
 from .marking import answer_sentences
 from .schemas import Calculation, Citation, CitationIssue
+from .values import amounts_in, dates_in, join_groups
 
 GROUP = re.compile(r"(?:\[\d{1,2}\])+")
 BOLD = re.compile(r"\*\*[^*]+\*\*")
@@ -54,7 +55,7 @@ def _fold(text: str) -> str:
 
 
 def _dates(text: str) -> set[tuple[int, int, int]]:
-    out = set()
+    out = set(dates_in(text))  # also in words: "twaalf mei tweeduizend veertien" (VM regression 03c8f74, finding 5)
     for m in DATE.finditer(text):
         d, mo, y = (int(x) for x in re.split(r"[./-]", m.group(0)))
         out.add((d, mo, y + 2000 if y < 100 else y))
@@ -65,9 +66,10 @@ def _dates(text: str) -> set[tuple[int, int, int]]:
 
 
 def _figures(text: str, sep: str) -> dict[Decimal, str]:
-    """Figures worth checking, by value, as written. Dates are taken out first."""
-    text = WRITTEN_DATE.sub(" ", DATE.sub(" ", text))
-    out = {}
+    """Figures worth checking, by value, as written: "412 500" as one figure, and amounts written out in words
+    (VM regression 03c8f74, finding 5). Dates are taken out first."""
+    out: dict[Decimal, str] = {v: str(v) for v in amounts_in(text)}
+    text = WRITTEN_DATE.sub(" ", DATE.sub(" ", join_groups(text)))
     for f in TEXT_FIGURE.findall(text):
         if not re.search(r"[.,  ]", f) and len(f) < 5:
             continue  # article numbers, counts, years: too ambiguous to check

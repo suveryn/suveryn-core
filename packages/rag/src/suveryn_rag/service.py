@@ -65,6 +65,7 @@ from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like
 from .reading import Cancelled, Progress, Unreadable, Watch
 from .store import Scope
+from .naming import named_document
 
 log = logging.getLogger("suveryn.rag")
 
@@ -778,23 +779,31 @@ class DocumentService:
         return self._with_search(lambda rag: rag.store.in_scope(ids, scope, sources_only)) == set(ids)
 
     def retrieve(self, question: str, document_ids: list[str], k: int,
-                 scope: Scope) -> tuple[list[tuple[Citation, str]], bool]:
-        """Passages to answer from, as (citation, file name), and whether they are the complete documents.
+                 scope: Scope) -> tuple[list[tuple[Citation, str]], bool, str | None]:
+        """Passages to answer from, as (citation, file name), whether they are the complete documents, and the
+        file name of the one document read when the question named it (else None).
 
         Only uploaded documents in ``scope``: if any id is elsewhere (or doesn't exist, or is
         sūveryn's own output), ``DocumentNotFound`` is raised before anything is read, so another
         scope's text never reaches the prompt. Small documents are given whole; larger ones give
-        the ``k`` best search hits (``Rag.passages``).
+        the ``k`` best search hits (``Rag.passages``). A question that names one document among them
+        ("de Franstalige volmacht") reads only that one (``naming``; Filip, 1 November 2026).
         """
         ids = [uuid.UUID(d) for d in document_ids]
 
         def scoped_passages(rag):
             if rag.store.in_scope(ids, scope, sources_only=True) != set(ids):
                 raise DocumentNotFound("unknown document")
-            return rag.passages(question, ids, k)
+            narrowed = None
+            if len(ids) > 1:
+                samples = rag.store.document_samples(ids)
+                if (named := named_document(question, samples)) is not None:
+                    narrowed = samples[named][0]
+                    return (*rag.passages(question, [uuid.UUID(named)], k), narrowed)
+            return (*rag.passages(question, ids, k), narrowed)
 
-        hits, complete = self._with_search(scoped_passages)
-        return [(h.citation, h.filename) for h in hits], complete
+        hits, complete, narrowed = self._with_search(scoped_passages)
+        return [(h.citation, h.filename) for h in hits], complete, narrowed
 
     def similarity(self, claims: list[str], sentences: list[str]) -> list[list[float]]:
         """Per claim, its cosine similarity to each sentence, by the embedding model the search uses

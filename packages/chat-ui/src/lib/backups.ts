@@ -29,14 +29,22 @@ const DAY = 24 * 3600_000;
 export type KeyTestState =
   | { kind: "testing" }
   | { kind: "never" }                                                        // no test since backups began
-  | { kind: "failed" | "ok" | "due"; test: NonNullable<BackupStatus["key_test"]> };
+  | { kind: "failed" | "ok" | "due"; test: NonNullable<BackupStatus["key_test"]> }
+  /** The file tested isn't this appliance's recovery key: says nothing about the office's key, whose state is
+   *  the last test that passed (``lastOk``), or none (VM regression 03c8f74, finding 4). */
+  | { kind: "wrong_file"; test: NonNullable<BackupStatus["key_test"]>; lastOk: string | null; due: boolean };
 
 export function keyTestState(s: BackupStatus, now: Date = new Date()): KeyTestState {
   if (s.key_testing) return { kind: "testing" };
   const t = s.key_test;
   if (!t) return { kind: "never" };
+  const old = (at: string) => now.getTime() - Date.parse(at) > KEY_TEST_DAYS * DAY;
+  if (!t.ok && t.step === "key") {
+    const lastOk = t.last_ok ?? null;
+    return { kind: "wrong_file", test: t, lastOk, due: lastOk !== null && old(lastOk) };
+  }
   if (!t.ok) return { kind: "failed", test: t };
-  return { kind: now.getTime() - Date.parse(t.at) > KEY_TEST_DAYS * DAY ? "due" : "ok", test: t };
+  return { kind: old(t.at) ? "due" : "ok", test: t };
 }
 
 /** What an administrator should be told outside the Backups page, most serious first; null: nothing.
@@ -53,7 +61,9 @@ export function backupAttention(s: BackupStatus | null, now: Date = new Date()):
   const key = keyTestState(state.status, now);
   if (key.kind === "failed") return "key_failed";
   const since = state.status.last_success?.oldest ?? state.status.last_success?.at;
-  if (key.kind === "due" || (key.kind === "never" && since && now.getTime() - Date.parse(since) > 7 * DAY)) return "key_due";
+  const untested = key.kind === "never" || (key.kind === "wrong_file" && key.lastOk === null);
+  if (key.kind === "due" || (key.kind === "wrong_file" && key.due)
+      || (untested && since && now.getTime() - Date.parse(since) > 7 * DAY)) return "key_due";
   return null;
 }
 

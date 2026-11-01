@@ -165,20 +165,34 @@ async def _collect(events):
     return [e async for e in events]
 
 
-def test_an_answer_stopped_at_the_length_limit_is_logged_by_counts_and_says_so(caplog):
-    """Pod check of a318b65: Thorough thought for three minutes and the answer came back empty, with no word why."""
-    def stopped(request: httpx.Request) -> httpx.Response:
+def _thinker(reasoning_pieces: int, finish: str = "length"):
+    """A model that, asked to think, thinks in ``reasoning_pieces`` pieces and stops with ``finish`` before a word of
+    answer; asked not to, answers "EUR 1."."""
+    def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path in ("/models", "/v1/models"):
             return httpx.Response(404 if request.url.path == "/models" else 200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
-        body = (f"data: {json.dumps({'choices': [{'delta': {'reasoning_content': 'Secret reasoning'}, 'finish_reason': None}]})}\n\n"
-                f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'length'}]})}\n\ndata: [DONE]\n\n")
+        thinking = json.loads(request.content).get("chat_template_kwargs", {}).get("enable_thinking")
+        events = ([{"reasoning_content": "Secret "}] * reasoning_pieces) if thinking else [{"content": "EUR 1."}]
+        body = "".join(f"data: {json.dumps({'choices': [{'delta': e, 'finish_reason': None}]})}\n\n" for e in events)
+        body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': finish if thinking else 'stop'}]})}\n\ndata: [DONE]\n\n"
         return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
+    return LlamaServerClient(LLMSettings(base_url="http://llm", default_model="qwen3.8-27b"), transport=httpx.MockTransport(handler))
 
-    llm = LlamaServerClient(LLMSettings(base_url="http://llm", default_model="qwen3.8-27b"), transport=httpx.MockTransport(stopped))
+
+def test_thinking_to_the_length_limit_without_an_answer_is_asked_again_without_thinking(caplog):
+    """Pod check of a318b65: Thorough thought for three minutes and the answer came back empty, with no word why.
+    VM regression 03c8f74, finding 1: it still did on wide questions. Now it is asked again without thinking,
+    and the answer says so (``thinking_cut``); the log has counts only."""
     with caplog.at_level("INFO", logger="suveryn.harness"):
-        seen = asyncio.run(_collect(ChatService(llm).answer_stream(ask(thinking=True), "alice")))
+        seen = asyncio.run(_collect(ChatService(_thinker(3)).answer_stream(ask(thinking=True), "alice")))
     done = seen[-1].response
-    assert done.finish_reason == "length" and done.answer == "" and done.reasoning == "Secret reasoning"
-    lines = [r.getMessage() for r in caplog.records if "length limit" in r.getMessage()]
-    assert lines == ["answer stopped at the length limit: thinking=True reasoning_chars=16 answer_chars=0"]
+    assert done.answer == "EUR 1." and done.thinking_cut and done.finish_reason == "stop"
+    assert any("asked again without thinking" in r.getMessage() for r in caplog.records)
     assert not any("Secret" in r.getMessage() for r in caplog.records)
+
+
+def test_thinking_past_its_allowance_is_stopped_before_the_length_limit():
+    seen = asyncio.run(_collect(ChatService(_thinker(THINKING_TOKENS + 50, finish="stop")).answer_stream(ask(thinking=True), "alice")))
+    done = seen[-1].response
+    assert done.answer == "EUR 1." and done.thinking_cut
+    assert sum(isinstance(e, Thinking) for e in seen) == THINKING_TOKENS + 1  # stopped at the allowance, not at its end

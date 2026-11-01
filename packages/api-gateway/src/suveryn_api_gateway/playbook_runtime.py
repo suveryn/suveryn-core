@@ -145,7 +145,8 @@ class Runtime:
         self.store.write_facts(cid, rid, step.id, [
             dict(fact_id=f.id, kind=kinds.get(f.id, "text"), value=f.value if f.found else "",
                  status="proposed" if f.found else "not_established",
-                 source={"kind": "document", "citations": [c.model_dump() for c in f.citations]} if f.found else {"kind": "none"},
+                 source={"kind": "document", "citations": [c.model_dump() for c in f.citations],
+                         **({"needs": f.needs} if f.needs else {})} if f.found else {"kind": "none"},
                  issues=f.issues, by=playbook.id) for f in facts if f.id in step.facts])
         states = dict(run.steps)
         states[step.id] = StepState(status="done", at=_now())

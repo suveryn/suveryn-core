@@ -24,6 +24,7 @@ from suveryn_playbooks import Playbook
 
 from .grounding import cited_numbers
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation
+from .calc import source_decimal_separator
 from .support import citation_issues
 
 MAX_VALUE = 2000        # characters of one fact's value, as read or as confirmed
@@ -59,6 +60,9 @@ class RunFact(BaseModel):
     by: str | None = None                # for a person's value: who gave it (an answer or a correction in the conversation)
     was: str | None = None               # for a correction of a value read from the documents: the value as read
     at: datetime | None = None           # for a person's value: when it was given
+    # A date or an amount the value doesn't give as one ("uiterlijk vier maanden na de ondertekening"): a person
+    # works it out and checks it (``not_a_date``, ``not_an_amount``; Filip, 1 November 2026: *Kijk na* by meaning).
+    needs: str | None = None
 
 
 _ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
@@ -108,15 +112,43 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
     for fact_id, (value, _) in rows.items():
         issues_by_fact.setdefault(fact_id, []).extend(u for u in response.unverified_figures if u in value)
     facts = []
+    sep = source_decimal_separator("\n".join(c.text for c in citations))
     for f in playbook.facts:
         value, numbers = rows.get(f.id, ("", []))
         found = bool(value) and not _NOT_FOUND.match(value)
         cited = [_cite(n, citations[n - 1], filenames) for n in numbers if 0 < n <= len(citations)]
+        issues = list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else []
+        needs = None
+        if found and f.kind in ("amount", "date"):
+            needs, issue = _by_meaning(f.kind, value, [c.text for c in cited], sep)
+            if issue and not any(i in value for i in issues):  # unless the check already named its figure or date
+                issues.append(issue)
         # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
         facts.append(RunFact(id=f.id, value=value[:MAX_VALUE] if found else "", citations=cited if found else [],
-                             issues=list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else [], found=found,
-                             source="document" if found else "none"))
+                             issues=issues, found=found, source="document" if found else "none", needs=needs))
     return facts
+
+
+def _by_meaning(kind: str, value: str, passages: list[str], sep: str) -> tuple[str | None, str | None]:
+    """A fact of kind amount or date compared by what it means, not how it is spelled (Filip, 1 November 2026):
+    "26.800 euro" against "zesentwintigduizend achthonderd euro" agrees; "28.600 euro" doesn't (an issue, the value
+    as written); a value that gives no date or amount at all ("vier maanden na de ondertekening") needs a person to
+    work it out (``needs``). Without cited passages nothing is compared."""
+    from .support import _dates, _figures
+    from .values import as_amount, as_date
+    if kind == "date":
+        d = as_date(value)
+        if d is None:
+            return "not_a_date", None
+        if passages and not any(d in _dates(p) for p in passages):
+            return None, value
+        return None, None
+    a = as_amount(value, sep)
+    if a is None:
+        return "not_an_amount", None
+    if passages and not any(a in _figures(p, sep) for p in passages):
+        return None, value
+    return None, None
 
 
 def _fold(text: str) -> str:
@@ -220,6 +252,25 @@ def read_mapping(answer: str, labels: dict[str, str]) -> dict[str, str]:
         if m and m.group(1) in labels and not _NOT_FOUND.match(m.group(2)):
             out[m.group(1)] = m.group(2).strip().strip("`")[:MAX_VALUE]
     return out
+
+
+# "Not known yet" in a person's words, nl, fr and en (folded: lower case, no accents): at the checkpoint the
+# mapping leaves such a fact out (MAP_INSTRUCTIONS), so "Bodemattest: nog niet bekend." placed nothing and got
+# "that couldn't be placed" (VM regression 03c8f74, finding 8).
+_UNKNOWN_WORDS = re.compile(
+    r"\b(nog niet (bekend|gekend|beschikbaar|ontvangen)|(nog )?onbekend|niet gekend|volg(t|en) (later|nog)|kom(t|en) later"
+    r"|pas encore (connu|connue|disponible|recu|recue)|inconnu|inconnue|suivra|a suivre"
+    r"|not (yet )?known|unknown|not available yet|to follow|will follow|tbc|tbd)\b")
+
+
+def said_unknown(text: str, labels: dict[str, str]) -> list[str]:
+    """The facts (ids) a person names by their label and says are not known yet, in the order of ``labels``:
+    "Bodemattest: nog niet bekend." -> ["soil_certificate"]. Empty when the words say nothing of the kind, or
+    name no fact."""
+    t = _fold(text)
+    if not _UNKNOWN_WORDS.search(t):
+        return []
+    return [fid for fid, label in labels.items() if label.strip() and _fold(label) in t]
 
 
 async def map_answer(answer: Callable[[ChatRequest], Awaitable[ChatResponse]], labels: dict[str, str], current: dict[str, str],
