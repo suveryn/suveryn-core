@@ -41,6 +41,16 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     expect(backupAttention({ ...base, key_test: { ...test, at: "2026-07-01T10:00:00Z" } }, now)).toBe("key_due");
   });
 
+  it("doesn't mark the key failing for one wrong file: the last test that passed stands (VM regression 03c8f74, finding 4)", () => {
+    const wrong = { at: "2026-10-22T10:00:00Z", ok: false, step: "key", last_ok: "2026-10-22T09:50:00Z" };
+    const k = keyTestState({ ...base, key_test: wrong }, now);
+    expect(k).toMatchObject({ kind: "wrong_file", lastOk: "2026-10-22T09:50:00Z", due: false });
+    expect(backupAttention({ ...base, key_test: wrong }, now)).toBeNull();  // nothing on Status
+    expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: "2026-07-01T10:00:00Z" } }, now)).toBe("key_due");
+    expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: null } }, now)).toBe("key_due");  // never passed, a month of backups
+    expect(backupAttention({ ...base, key_test: { ...wrong, step: "read", last_ok: null } }, now)).toBe("key_failed");  // the backup itself
+  });
+
   it("gives a backup's size in decimal units", () => {
     expect(sizeLabel(1_234_567_890, "en")).toBe("1.2 GB");
     expect(sizeLabel(340_000_000, "nl")).toBe("340 MB");

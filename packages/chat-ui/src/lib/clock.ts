@@ -33,11 +33,16 @@ export async function measureClock(): Promise<Measured | null> {
   return quickest(samples);
 }
 
+/** Report one measurement to the gateway. */
+export async function sendClock(m: Measured): Promise<void> {
+  await fetch("/v1/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(m) });
+}
+
 /** Measure and report; quietly nothing when that doesn't work (the clock is not the page's business). */
 export async function reportClock(): Promise<void> {
   try {
     const m = await measureClock();
-    if (m) await fetch("/v1/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(m) });
+    if (m) await sendClock(m);
   } catch {
     // offline for a moment: the next hour's report
   }

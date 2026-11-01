@@ -69,7 +69,8 @@ class KeyTest(BaseModel):
     at: str
     ok: bool
     created: str | None = None   # when the backup it opened was made
-    step: str | None = None      # where it failed
+    step: str | None = None      # where it failed; ``key``: the file isn't this appliance's recovery key
+    last_ok: str | None = None   # after a failed test: when the key last passed (VM regression 03c8f74, finding 4)
 
 
 class BackupSettings(BaseModel):
@@ -176,8 +177,9 @@ def read_key_test(when) -> KeyTest | None:
         return None
     if not isinstance(raw, dict) or not when(raw.get("at")) or not isinstance(raw.get("ok"), bool):
         return None
+    passed = raw.get("last_ok") if not raw["ok"] and isinstance(raw.get("last_ok"), dict) else {}
     return KeyTest(at=raw["at"], ok=raw["ok"], created=when(raw.get("created")),
-                   step=str(raw["step"])[:40] if raw.get("step") and not raw["ok"] else None)
+                   step=str(raw["step"])[:40] if raw.get("step") and not raw["ok"] else None, last_ok=when(passed.get("at")))
 
 
 @router.get("/v1/admin/backups", response_model=BackupStatus, responses={403: {"description": "Not an administrator"}})

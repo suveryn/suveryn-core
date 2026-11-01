@@ -27,7 +27,7 @@ from collections import Counter
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
-from suveryn_harness.facts import Unreadable, map_answer, read_playbook
+from suveryn_harness.facts import Unreadable, map_answer, read_playbook, said_unknown
 from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, covered, find, for_case_type
 
 from ..cases import Case
@@ -407,8 +407,11 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         run = await run_in_threadpool(runtime.answer_request, run, step, username, False)
     elif step.kind == "ask":
         asked = await run_in_threadpool(runtime.unanswered, run, step)
-        mapped = {} if body.unknown or not text else await _mapped(request, {f: words.labels.get(f, f) for f in asked}, {}, text)
-        if not body.unknown and not mapped:
+        labels = {f: words.labels.get(f, f) for f in asked}
+        mapped = {} if body.unknown or not text else await _mapped(request, labels, {}, text)
+        if not body.unknown and not mapped and said_unknown(text, labels):
+            pass  # "nog niet bekend" in words: as the quick reply, they stay unknown (VM regression 03c8f74, finding 8)
+        elif not body.unknown and not mapped:
             await run_in_threadpool(store.say, run, "playbook", pb.id, "That couldn't be placed. Which fact does it give, and what is the value?",
                                     step.id, {"kind": "unplaced", "facts": asked})
             return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
@@ -417,6 +420,14 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         current = {f.id: f.value for f in run.facts}
         mapped = await _mapped(request, {f.id: words.labels.get(f.id, f.id) for f in run.facts}, current, text) if text else {}
         changed = {k: v for k, v in mapped.items() if v.strip() and v.strip() != current.get(k, "")}
+        unknown = [] if changed else said_unknown(text, {f.id: words.labels.get(f.id, f.id) for f in run.facts})
+        if unknown and not any(current.get(f) for f in unknown):
+            # "Bodemattest: nog niet bekend." of a fact that is unknown already: said so, rather than "that couldn't be
+            # placed" (VM regression 03c8f74, finding 8). A value isn't emptied in words, as it isn't on a card.
+            await run_in_threadpool(store.say, run, "playbook", pb.id,
+                                    f"Already not known yet: {', '.join(pb.wording('en').labels.get(f, f) for f in unknown)}.",
+                                    step.id, {"kind": "already_unknown", "facts": unknown})
+            return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         if not changed:
             await run_in_threadpool(store.say, run, "playbook", pb.id, "That couldn't be placed. Which fact should change, and to what?",
                                     step.id, {"kind": "unplaced"})

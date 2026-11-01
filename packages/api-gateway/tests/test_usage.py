@@ -311,10 +311,12 @@ def test_the_recovery_key_is_passed_to_the_backup_service_for_a_test_and_its_res
     (tmp_path / "status.json").write_text(json.dumps({"configured": True}))
     assert c.get("/v1/admin/backups", headers=admin).json()["key_testing"] is True
     (drop / "request").unlink()
-    (tmp_path / "key-test.json").write_text(json.dumps({"at": "2026-10-26T10:00:00Z", "ok": False, "step": "decrypt",
-                                                        "message": "this isn't this appliance's recovery key"}))
+    (tmp_path / "key-test.json").write_text(json.dumps({"at": "2026-10-26T10:00:00Z", "ok": False, "step": "key",
+                                                        "message": "this isn't this appliance's recovery key",
+                                                        "last_ok": {"at": "2026-10-26T09:50:00Z", "created": "2026-10-26T03:00:00Z"}}))
     body = c.get("/v1/admin/backups", headers=admin).json()
-    assert body["key_testing"] is False and body["key_test"] == {"at": "2026-10-26T10:00:00Z", "ok": False, "created": None, "step": "decrypt"}
+    assert body["key_testing"] is False and body["key_test"] == {"at": "2026-10-26T10:00:00Z", "ok": False, "created": None, "step": "key",
+                                                                 "last_ok": "2026-10-26T09:50:00Z"}  # the right key passed before
     assert key not in json.dumps(body)
 
 

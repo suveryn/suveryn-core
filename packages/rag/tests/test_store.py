@@ -156,6 +156,26 @@ def test_best_chunks_fill_the_budget_by_relevance_in_reading_order():
         store.close()
 
 
+def test_every_document_keeps_its_closest_passage_by_meaning():
+    """VM regression 03c8f74, finding 2: a French document among Dutch ones matched a Dutch question by meaning but
+    by none of its words, and the fused ranking left it out. Each document's closest passage comes first now."""
+    store = Store(URL, DIM)
+    dutch = [Chunk(i, f"volmacht aan de voorzitter, artikel {i} " + "x" * 60, "", i + 1, i + 1, []) for i in range(20)]
+    nl = store.add_document("volmachten.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 20, 0, dutch,
+                            np.stack([(unit(0) + unit(10 + i) * 3) / np.linalg.norm(unit(0) + unit(10 + i) * 3) for i in range(20)]))
+    french = [Chunk(0, "le soussigné donne procuration à la société " + "x" * 60, "", 1, 1, [])]
+    fr = store.add_document("procuration.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 1, 0, french,
+                            np.stack([(unit(0) + unit(5) * 4) / np.linalg.norm(unit(0) + unit(5) * 4)]))  # further than every Dutch one
+    try:
+        best = store.best_chunks(unit(0), "volmacht", [nl, fr], max_chars=10**9, max_chunks=6, min_chunks=6)
+        assert fr in {c.document_id for c in best}, "the French document is read too"
+        assert len(best) == 6
+    finally:
+        store.delete_document(nl)
+        store.delete_document(fr)
+        store.close()
+
+
 def test_best_chunks_time_grows_with_the_chunks_not_their_square():
     """A whole case of 6,500 passages waited 6 minutes for its passages (VM check of adccf00): each chunk
     was looked up in the rankings by a subquery, about 13 s for these 1,200 chunks; a join instead was as

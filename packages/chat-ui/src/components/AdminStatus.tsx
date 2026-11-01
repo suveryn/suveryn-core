@@ -8,12 +8,12 @@ import {
   Brain, Check, CircleAlert, CircleX, Clock, Database, DatabaseBackup, FileText, HardDrive, Lock, RefreshCw,
   TriangleAlert
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { applianceClockAnswer, getAdminStatus, getBackups, setApplianceClock, type AdminStatus as Status, type BackupStatus,
   type StatusCheck } from "../api";
 import { locale, useT } from "../i18n";
 import { backupAttention, sizeLabel } from "../lib/backups";
-import { measureClock, type Measured } from "../lib/clock";
+import { measureClock, sendClock, type Measured } from "../lib/clock";
 import { Button, Dialog, InlineNotice, Notice, TextButton } from "../ui";
 import type { AdminPage } from "./Admin";
 
@@ -53,9 +53,21 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   const [clockOutcome, setClockOutcome] = useState<{ ok: boolean; text: string } | null>(null);
   const clockCheck = status?.checks.find((c) => c.id === "clock");
   const clockSynced = clockCheck?.synced === true;
+  // The row said "on time" from the browsers' earlier reports while this PC measured 95 s (VM regression 03c8f74,
+  // finding 6): this PC's measurement is reported (once per visit) and the checks are read again, and until the
+  // gateway counts it the row says what this PC measured, so the row and the line under it agree.
+  const reported = useRef(false);
   useEffect(() => {
-    if (clockCheck && !clockSynced) measureClock().then(setThisPc).catch(() => setThisPc(null));
-  }, [clockCheck?.offset_ms, clockSynced, clockCheck]);
+    if (!clockCheck || clockSynced) return;
+    measureClock().then((measured) => {
+      setThisPc(measured);
+      if (measured && clockCheck.ok && Math.abs(measured.offset_ms) >= CLOCK_WARN_MS && !reported.current) {
+        reported.current = true;
+        sendClock(measured).then(load).catch(() => undefined);
+      }
+    }).catch(() => setThisPc(null));
+  }, [clockCheck?.offset_ms, clockSynced, clockCheck, load]);
+  const pcOff = clockCheck ? thisPcOff(clockCheck, thisPc) : null;
 
   const attention = backupAttention(backups);
   const reading = status?.checks.find((c) => c.id === "reading");
@@ -95,7 +107,9 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                     {m.checkName[c.id]}
                     {detail(c, m) && <span className="admin-check-detail">{detail(c, m)}</span>}
                   </span>
-                  {c.ok
+                  {c.id === "clock" && pcOff !== null
+                    ? <span className="status-warn"><TriangleAlert size={14} aria-hidden /> {offLabel(pcOff, m)}</span>
+                    : c.ok
                     ? <span className="status-ok"><Check size={14} aria-hidden />{" "}
                         {c.id === "disk" ? m.statusEnough : c.id === "clock" ? m.statusOnTime : m.statusWorking}</span>
                     : <span className="status-warn">{c.id === "disk"
@@ -134,6 +148,12 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       )}
     </>
   );
+}
+
+/** This PC's difference with the appliance when the row would say "on time" from the browsers' earlier reports but
+ *  this PC measures it off (VM regression 03c8f74, finding 6); null when they agree, or a time server keeps it. */
+export function thisPcOff(c: StatusCheck, thisPc: Measured | null): number | null {
+  return c.ok && !c.synced && thisPc !== null && Math.abs(thisPc.offset_ms) >= CLOCK_WARN_MS ? thisPc.offset_ms : null;
 }
 
 function offLabel(offset: number, m: ReturnType<typeof useT>): string {

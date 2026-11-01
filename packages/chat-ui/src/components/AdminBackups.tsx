@@ -92,7 +92,12 @@ function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: s
       {k.kind === "never" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
       {k.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.keyTestOk(when(k.test.at))}</InlineNotice>}
       {k.kind === "due" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
-      {k.kind === "failed" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestFailed}</InlineNotice>}
+      {k.kind === "failed" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestBroken}</InlineNotice>}
+      {k.kind === "wrong_file" && (
+        <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>
+          {m.keyTestFailed}{k.lastOk && <> {k.due ? m.keyTestDue(when(k.lastOk)) : m.keyTestOk(when(k.lastOk))}</>}
+        </InlineNotice>
+      )}
       {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
       {k.kind !== "testing" && (
         <FileButton accept={[".txt", ".key"]} onSelect={onTest}>

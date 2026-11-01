@@ -1,7 +1,9 @@
 """What the route modules share: the caller, the scope, the stores, and the stand-ins for
 ``suveryn_rag`` when it isn't installed (the gateway runs without documents then)."""
 
+import asyncio
 import logging
+import os
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -23,8 +25,10 @@ try:  # document handling is optional (suveryn-rag is installed on the GPU machi
         SearchUnavailable,
         UploadRejected,
     )
+    from suveryn_rag.journal import flush_journal
     from suveryn_rag.store import Scope
 except ImportError:
+    flush_journal = None
     MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
     @dataclass(frozen=True)
@@ -310,6 +314,41 @@ async def touch_case(request: Request, scope: Scope) -> None:
         await run_in_threadpool(store.touch, scope.case_id)
 
 
+FLUSH_DELAY_S = 5.0  # deletions in a row (a case's documents, one by one) are flushed once
+
+
+class JournalFlush:
+    """Flushes PostgreSQL's journal a few seconds after a deletion (``suveryn_rag.journal``; VM regression
+    03c8f74, finding 3), so the deleted text doesn't stay in the WAL for hours. Deletions close together
+    share one flush; one asked for while a flush runs gets another after it. Nothing waits for it."""
+
+    def __init__(self, database_url: str | None = None, delay: float = FLUSH_DELAY_S):
+        self.database_url = os.environ.get("SUVERYN_DATABASE_URL", "") if database_url is None else database_url
+        self.delay, self._again, self._task = delay, False, None
+        self.flushes = 0
+
+    def soon(self) -> None:
+        if not self.database_url or flush_journal is None:
+            return
+        self._again = True
+        if self._task is None or self._task.done():
+            self._task = asyncio.get_running_loop().create_task(self._run())
+
+    async def _run(self) -> None:
+        while self._again:
+            self._again = False
+            await asyncio.sleep(self.delay)
+            await run_in_threadpool(flush_journal, self.database_url)
+            self.flushes += 1
+
+
+def flush_soon(app: FastAPI) -> None:
+    """After a deletion: flush the journal shortly (when the app has a database)."""
+    journal = getattr(app.state, "journal", None)
+    if journal is not None:
+        journal.soon()
+
+
 class CleanupUnavailable(RuntimeError):
     """A store that holds part of what is being deleted can't be reached now: nothing was deleted, so
     no part of it is left behind (audit of 21 October 2026, finding 3). Try again later."""
@@ -340,7 +379,9 @@ async def delete_case_everywhere(app: FastAPI, case_id: uuid.UUID) -> bool:
         await run_in_threadpool(conversations.delete_case, case_id)
     if run_store is not None:
         await run_in_threadpool(run_store.delete_case, case_id)
-    return await run_in_threadpool(case_store.delete, case_id)
+    deleted = await run_in_threadpool(case_store.delete, case_id)
+    flush_soon(app)
+    return deleted
 
 
 async def signin_status(state) -> tuple[str, str | None]:

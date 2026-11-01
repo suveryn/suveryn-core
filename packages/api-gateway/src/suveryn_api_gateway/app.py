@@ -87,7 +87,9 @@ from .routes.common import (
     Scope,
     SearchUnavailable,
     UploadRejected,
+    JournalFlush,
     delete_case_everywhere,
+    flush_soon,
     owner_of,
 )
 from .usage import UsageSettings, UsageStore
@@ -281,7 +283,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                         if store is not None:
                             settings = settings.with_overrides(await run_in_threadpool(store.overrides))
                         history.keep = settings.conversations_keep
-                        await run_in_threadpool(history.purge)
+                        if await run_in_threadpool(history.purge):
+                            flush_soon(app)
                         if n := await run_in_threadpool(history.finish_cleanups):
                             log.info("%d unfinished conversation cleaning(s) finished", n)
                     usage_store = app.state.usage.get() if app.state.usage.configured else None
@@ -327,6 +330,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     app.state.known_users = set()  # (sub, username, name) already stored for the usage table
     app.state.status = routes.status.StatusMonitor()
     app.state.clock = Clock()  # the browsers' measurements of the appliance's clock (clock.py)
+    app.state.journal = JournalFlush()  # the WAL flushed after a deletion (routes/common.py)
     settings = authenticator.settings
 
     @app.middleware("http")
