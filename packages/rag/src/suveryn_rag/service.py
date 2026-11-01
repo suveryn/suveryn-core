@@ -574,6 +574,11 @@ class DocumentService:
                     entries = z.infolist()
                     if len(entries) > MAX_ARCHIVE_ENTRIES:
                         raise UploadRejected(f"the archive holds more than {MAX_ARCHIVE_ENTRIES} files", 415)
+                    # What the archive says it unpacks to, before anything is read: a zip bomb declares its size,
+                    # and is refused here rather than accepted and its entry skipped later (VM regression
+                    # e0f2e26, finding 15). An archive that lies is still stopped by the reading below.
+                    if sum(e.file_size for e in entries) > MAX_ARCHIVE_UNPACKED:
+                        raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413)
                     wanted, skipped = self._sort_entries(entries)
                     if not wanted and not skipped:
                         raise UploadRejected("the archive is empty", 415)

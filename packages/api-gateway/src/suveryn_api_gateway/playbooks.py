@@ -171,7 +171,7 @@ class StartIn(BaseModel):
     the case's uploaded documents, at the time the read step runs) and the thread's language."""
 
     document_ids: list[str] = Field(default_factory=list, max_length=50)
-    language: str = Field(default="en", pattern=r"^[a-z]{2}$")
+    language: str | None = Field(default=None, pattern=r"^[a-z]{2}$")  # None: the caller's Accept-Language, else English
 
 
 class AnswerIn(BaseModel):
@@ -312,9 +312,10 @@ class RunStore(TurnStore):
                            json.dumps(steps), language, starter, conversation_id))
         return self.get(run_id, case_id)  # type: ignore[return-value]
 
-    def say(self, run: RunSummary, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None) -> Turn:
-        """A turn at the end of the run's conversation."""
-        return self.append(uuid.UUID(run.conversation_id), role, by, text, step_id, meta)
+    def say(self, run: RunSummary, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None,
+            once: bool = False) -> Turn:
+        """A turn at the end of the run's conversation (``once``: not if the last turn says the same)."""
+        return self.append(uuid.UUID(run.conversation_id), role, by, text, step_id, meta, once)
 
     def active(self, case_id: uuid.UUID, playbook_id: str) -> RunSummary | None:
         """The one run of this playbook in this case that is still going (reading, waiting or paused), if any."""

@@ -27,7 +27,7 @@ import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelJob, deleteDocument, documentConversations, getHealth, getJob, isArchiveUpload, listDocuments, streamChat, uploadDocument,
-  getMe, HttpError, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
+  getMe, HttpError, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
@@ -99,6 +99,7 @@ function attachmentFromJob(a: Attachment, j: Job): Attachment {
 }
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
 const HEALTH_EVERY = 10_000;
+const MODELS_EVERY = 60_000;
 
 /**
  * Sign-in gate. Signed out on arrival (first visit, after signing out): straight to Keycloak's
@@ -278,6 +279,8 @@ function Chat({ me }: { me: Me }) {
   const [reachable, setReachable] = useState(true);
   const [nextCheck, setNextCheck] = useState(0);
   const checkNow = () => setChecks((c) => c + 1);
+  const modelsReadAt = useRef(0);
+  const reachableRef = useRef(false);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -285,7 +288,12 @@ function Chat({ me }: { me: Me }) {
       if (!alive) return;
       setHealth(h);
       setReachable(h !== null);
-      try { const m = await listModels(); if (alive) setModels(m); } catch { /* the health check explains why */ }
+      // The model list once a minute, not with every health check (VM regression e0f2e26, question 6); at once
+      // when the server comes back or the list is still empty.
+      if (h !== null && (Date.now() - modelsReadAt.current > MODELS_EVERY || !reachableRef.current)) {
+        try { const m = await listModels(); if (alive) { setModels(m); modelsReadAt.current = Date.now(); } } catch { /* the health check explains why */ }
+      }
+      reachableRef.current = h !== null;
     })();
     setNextCheck(Date.now() + HEALTH_EVERY);
     const t = setTimeout(checkNow, HEALTH_EVERY);
@@ -607,10 +615,11 @@ function Chat({ me }: { me: Me }) {
                  && (now = await documentsNow()) && (next = afterDeletion(docIds, chosen.size, now))) {
         // A colleague deleted one of the case's documents since this page read the list (lib/questionDocuments.ts).
         if (next === "retry") retryWith = now;
-        else update({ text: "", status: "error", error: m.chosenDeletedMeanwhile });
+        else update({ text: "", status: "error", error: m.chosenDeletedMeanwhile, failure: "chosenDeleted" });
       } else {
         // Gateway contract: after an error, discard any partial answer.
-        update({ text: "", status: "error", error: (e as Error).message });
+        update({ text: "", status: "error", error: (e as Error).message,
+                 ...(e instanceof StreamFailure && e.code ? { failure: e.code } : {}) });
         if (e instanceof TypeError) checkNow();
       }
     } finally {
@@ -1054,8 +1063,18 @@ function Chat({ me }: { me: Me }) {
             <IconButton label={m.openMenu} onPress={() => setDrawer(true)}><Menu size={20} aria-hidden /></IconButton>
             <span className="top-bar-where">
               {currentCase && <span className="top-bar-case">{closed ? <Lock size={12} aria-hidden /> : <Folder size={12} aria-hidden />} <b>{currentCase.reference}</b> {currentCase.name}</span>}
-              <span className="top-bar-title">{view === "chat" ? (current?.title ?? (turns.length ? conversationTitle(turns) : m.newConversation)) : viewTitle}</span>
+              <span className="top-bar-title">{view === "chat" ? (openRunId && openRun
+                ? (current?.title ?? playbookWords(runPlaybook, language).title)
+                  + (runLive && runStatusWord(openRun, runPlaybook, m) ? ` · ${runStatusWord(openRun, runPlaybook, m)}` : "")
+                : current?.title ?? (turns.length ? conversationTitle(turns) : m.newConversation)) : viewTitle}</span>
             </span>
+            {/* on a phone too: the run's state above, and every fact a tap away (VM regression e0f2e26, finding 9) */}
+            {view === "chat" && openRun && runLive && openRun.facts.length > 0 && (
+              <IconButton label={`${m.factsPanel} · ${m.factsCount(...factCounts(openRun))}`} aria-pressed={runPanel?.kind === "list"}
+                          onPress={() => showRunPanel(runPanel?.kind === "list" ? null : { kind: "list" })}>
+                <FileText size={18} aria-hidden />
+              </IconButton>
+            )}
             {view === "chat" && caseMenu}
           </header>
         )}

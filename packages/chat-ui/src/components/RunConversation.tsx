@@ -151,6 +151,8 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [run.turns.length, run.status]);
   const title = words.title || playbook?.name || "";
+  // the question still standing: the step's last ask, also after "That couldn't be placed" (finding 6)
+  const openAsk = run.status === "waiting" ? [...run.turns].reverse().find((t) => t.meta.kind === "ask" && t.step_id === run.step)?.seq : undefined;
   const reviewAt = run.status === "waiting" ? [...run.turns].reverse().find((t) => t.meta.kind === "checkpoint" && t.step_id === run.step)?.seq : undefined;
   const speaker = (i: number) => {
     const before = run.turns[i - 1];
@@ -171,8 +173,13 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
                             review={t.seq === reviewAt
                               ? <Review run={run} kase={kase} words={words} canAnswer={canAnswer} panel={panel} onPanel={onPanel} onChanged={onChanged} />
                               : null}
-                            quickReply={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && i === run.turns.length - 1
-                              ? () => sayInRun(kase.id, run.id, { text: m.answerPlaceholder, unknown: true }).then(onChanged) : null} />))}
+                            quickReply={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
+                              ? { label: m.answerPlaceholder, send: () => sayInRun(kase.id, run.id, { text: m.answerPlaceholder, unknown: true }).then(onChanged) }
+                              // the request always asks; the documents may already be in the case (question 1)
+                              : canAnswer && run.status === "waiting" && t.step_id === run.step && stepKind(run, playbook) === "request"
+                                && i === run.turns.length - 1 && t.role === "playbook" && !t.meta.kind
+                              ? { label: m.runUseCaseDocuments, send: () => sayInRun(kase.id, run.id, { text: m.runUseCaseDocuments }).then(onChanged) }
+                              : null} />))}
         {run.status === "reading" && (
           <div className="turn-assistant">
             <Speaking />
@@ -208,7 +215,7 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
   turn: RunTurn; title: string; showSpeaker: boolean; words: PlaybookWords;
   /** At review: the cards, under the message's own words. */
   review: ReactNode | null;
-  quickReply: (() => Promise<void>) | null;
+  quickReply: { label: string; send: () => Promise<void> } | null;
 }) {
   const m = useT();
   const [sending, setSending] = useState(false);
@@ -229,7 +236,7 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
         {quickReply && (
           <div className="run-quick">
             <Button variant="secondary" size="small" isDisabled={sending}
-                    onPress={() => { setSending(true); quickReply().finally(() => setSending(false)); }}>{m.answerPlaceholder}</Button>
+                    onPress={() => { setSending(true); quickReply.send().finally(() => setSending(false)); }}>{quickReply.label}</Button>
           </div>
         )}
       </div>
@@ -416,6 +423,9 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string[]>([]);
+  // Documents read into the case, waiting to go with the person's turn: a line and its documents are one turn
+  // (VM regression e0f2e26, finding 2: sent apart they were two, and each moved the run on).
+  const [ready, setReady] = useState<{ id: string; filename: string }[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const live = LIVE.includes(run.status);
@@ -440,7 +450,7 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
   const upload = async (files: File[]) => {
     setError(null);
     setUploading(files.map((f) => f.name));
-    const ids: string[] = [];
+    const done: { id: string; filename: string }[] = [];
     try {
       const jobs: Job[] = [];
       for (const f of files) {
@@ -452,15 +462,19 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
           await new Promise((ok) => window.setTimeout(ok, 1000));
           job = await getJob(job.id);
         }
-        if (job.document_id && (job.status === "ready" || job.status === "needs_review")) ids.push(job.document_id);
+        if (job.document_id && (job.status === "ready" || job.status === "needs_review")) done.push({ id: job.document_id, filename: job.filename });
       }
     } catch (e) { setError((e as Error).message); }
     setUploading([]);
     onDocumentsChanged();
-    if (ids.length) await say({ text: text.trim(), documents: ids });
+    setReady((r) => [...r, ...done.filter((d) => !r.some((x) => x.id === d.id))]);
   };
   const picker = useFilePicker(ACCEPTED_FILES, true, (files) => void upload(files));
-  const send = () => { if (text.trim() && !busy) void say({ text: text.trim() }); };
+  const canSend = waiting && !busy && uploading.length === 0 && (!!text.trim() || ready.length > 0);
+  const send = () => {
+    if (!canSend) return;
+    void say({ text: text.trim(), ...(ready.length ? { documents: ready.map((d) => d.id) } : {}) }).then(() => setReady([]));
+  };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); }
   };
@@ -497,8 +511,17 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
   if (!live) return null;
   return (
     <div className="composer-wrap">
-      {uploading.length > 0 && (
-        <ul className="attachment-cards">{uploading.map((n) => <li key={n} className="chip-attachment"><Paperclip size={13} aria-hidden /> {m.uploadingFile(n)}</li>)}</ul>
+      {(uploading.length > 0 || ready.length > 0) && (
+        <ul className="attachment-cards">
+          {ready.map((d) => (
+            <li key={d.id} className="chip-attachment"><FileText size={13} aria-hidden /> {d.filename}
+              <IconButton size="small" label={m.removeFile(d.filename)} onPress={() => setReady((r) => r.filter((x) => x.id !== d.id))}>
+                <X size={12} aria-hidden />
+              </IconButton>
+            </li>
+          ))}
+          {uploading.map((n) => <li key={n} className="chip-attachment"><Paperclip size={13} aria-hidden /> {m.uploadingFile(n)}</li>)}
+        </ul>
       )}
       <div className="composer">
         <TextArea label={title} hideLabel value={text} onChange={setText} onKeyDown={onKey} isReadOnly={!waiting}
@@ -510,7 +533,7 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
           </IconButton>
           {chip}
           <span className="composer-space" />
-          <Button variant="plain" className="send-button" onPress={send} isDisabled={!waiting || busy || !text.trim()} aria-label={m.send}>
+          <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
             <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
           </Button>
         </div>
@@ -543,24 +566,42 @@ export function RunPanel({ run, words, view, onView, onClose }: {
   const scroll = useRef(0);
   const listTitle = m.pbListTitle(words.facts_title || m.factsPanel);
   const fact = view.kind === "source" ? run.facts.find((f) => f.id === view.fact) ?? null : null;
+  const heading = useRef<HTMLSpanElement>(null);
+  const cameFrom = useRef<string | null>(null);
+  // Focus follows the view (VM regression e0f2e26, finding 4: it fell to the page, and Esc did nothing): the
+  // panel when it opens, the source's heading when one opens, the row it came from on the way back.
   useEffect(() => { panel.current?.focus(); }, []);
-  useEffect(() => { if (view.kind === "list" && list.current) list.current.scrollTop = scroll.current; }, [view.kind]);
-  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (e.key !== "Escape" || (e.target as Element | null)?.closest?.("[role=dialog], [role=menu]")) return;
-    e.stopPropagation();
-    if (view.kind === "source" && view.fromList) onView({ kind: "list" }); else onClose();
-  };
+  useEffect(() => {
+    if (view.kind === "source") { heading.current?.focus(); return; }
+    if (list.current) list.current.scrollTop = scroll.current;
+    const row = cameFrom.current && panel.current?.querySelector<HTMLElement>(`[data-fact="${cameFrom.current}"] .ui-source-ref`);
+    if (row) row.focus();
+  }, [view.kind]);
+  // Esc while the panel is open, wherever the focus is (not in a dialog or a menu of its own)
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || (e.target as Element | null)?.closest?.("[role=dialog], [role=menu], [role=listbox], textarea, input")) return;
+      e.preventDefault();
+      const v = viewRef.current;
+      if (v.kind === "source" && v.fromList) onView({ kind: "list" }); else onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onView, onClose]);
   const close = useCallback(onClose, [onClose]);
-  const open = (f: RunFact) => { scroll.current = list.current?.scrollTop ?? 0; onView({ kind: "source", fact: f.id, fromList: true }); };
+  const open = (f: RunFact) => { scroll.current = list.current?.scrollTop ?? 0; cameFrom.current = f.id; onView({ kind: "source", fact: f.id, fromList: true }); };
   return (
     <aside id="run-panel" className="source-panel facts-panel" ref={panel} tabIndex={-1} aria-label={view.kind === "list" ? listTitle : words.labels[fact?.id ?? ""] ?? ""}
-           onKeyDown={onKeyDown}>
+>
       {view.kind === "source" && view.fromList && (
         <div className="facts-back"><TextButton onPress={() => onView({ kind: "list" })}><ArrowLeft size={14} aria-hidden /> {listTitle}</TextButton></div>
       )}
       <header className="source-panel-head">
         <span className="source-panel-title">
-          <span className="source-panel-file">{view.kind === "list" ? listTitle : words.labels[fact?.id ?? ""] ?? fact?.id}</span>
+          <span className="source-panel-file" ref={heading} tabIndex={view.kind === "source" ? -1 : undefined}>
+            {view.kind === "list" ? listTitle : words.labels[fact?.id ?? ""] ?? fact?.id}</span>
           {fact?.citations[0] && <span className="source-panel-where">{fact.citations[0].filename}{fact.citations[0].page ? `, ${m.pageShort(fact.citations[0].page)}` : ""}</span>}
         </span>
         <span className="composer-space" />
@@ -585,7 +626,7 @@ function FactRow({ fact, label, onSource }: { fact: RunFact; label: string; onSo
   const fromChat = fact.source === "person" && fact.was !== fact.value;
   const confirmed = fact.confirmed !== null && fact.confirmed !== "";
   return (
-    <li className="fact" data-confirmed={confirmed || undefined}>
+    <li className="fact" data-fact={fact.id} data-confirmed={confirmed || undefined}>
       <span className="fact-label">{label}</span>
       <div className="fact-row">
         {value ? <span className="fact-value">{value}</span> : <em className="fact-value fact-unknown">{m.answerPlaceholder}</em>}

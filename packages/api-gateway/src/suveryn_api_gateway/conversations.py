@@ -282,14 +282,21 @@ class TurnStore(PgStore):
         return [self._turn(r) for r in rows]
 
     def append(self, conversation_id: uuid.UUID, role: str, by: str, text: str, step_id: str | None = None,
-               meta: dict | None = None) -> Turn:
+               meta: dict | None = None, once: bool = False) -> Turn:
         """Add a turn at the end of a conversation (a playbook's thread). The conversation's row is
-        locked while the next ``seq`` is taken, so two writers at once never pick the same one."""
+        locked while the next ``seq`` is taken, so two writers at once never pick the same one. ``once``:
+        not when the last turn already says the same (role, step, text): two requests walking the run at
+        the same moment wrote the playbook's question twice (VM regression e0f2e26, finding 2)."""
         text = text[:MAX_TURN_TEXT]
         with self.transaction():
             n = self._execute("SELECT messages FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,)).fetchone()
             if n is None:
                 raise LookupError("no such conversation")
+            if once:
+                last = self._execute(f"SELECT {self.TURN} FROM turns WHERE conversation_id = %s ORDER BY seq DESC LIMIT 1",
+                                     (conversation_id,)).fetchone()
+                if last is not None and (last[1], last[2], last[5]) == (role, step_id, text):
+                    return self._turn(last)
             seq = self._execute("SELECT coalesce(max(seq), 0) + 1 FROM turns WHERE conversation_id = %s", (conversation_id,)).fetchone()[0]
             r = self._execute(f"INSERT INTO turns (conversation_id, seq, role, step_id, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s, %s)"
                               f" RETURNING {self.TURN}", (conversation_id, seq, role, step_id, by, text, json.dumps(meta or {}))).fetchone()
