@@ -522,6 +522,11 @@ def test_people_answer_and_correct_a_playbook_in_words(talking):
     facts = {f["id"]: f for f in run["facts"]}
     assert facts["price"]["value"] == "EUR 415.000,00" and facts["price"]["was"] == "EUR 412.500,00" and facts["price"]["confirmed"] is None
     assert run["turns"][-1]["meta"] == {"kind": "changed", "fact": "price", "value": "EUR 415.000,00"} and run["step"] == "confirm"
+    # "not known yet" in words, of a fact that is unknown already (VM regression 03c8f74, finding 8): said so, not "unplaced"
+    assert facts["soil"]["value"] == ""
+    replies.append("NONE")
+    run = c.post(url + "/say", json={"text": "Bodemattest: nog niet bekend."}, headers=alice).json()
+    assert run["turns"][-1]["meta"] == {"kind": "already_unknown", "facts": ["soil"]} and run["step"] == "confirm"
     # a card at the checkpoint (handover of 31 October 2026): the same value says it was checked, no turn;
     # a changed one is a version and a line; a fact that isn't in the run is refused
     turns = len(run["turns"])

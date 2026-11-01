@@ -326,8 +326,11 @@ class Store:
 
         Review note: this makes the text unreachable, not unrecoverable. PostgreSQL keeps dead
         rows in the table files until VACUUM rewrites them, and changes stay in the write-ahead
-        log for a while. Secure deletion (encryption at rest, crypto-shredding or a scheduled
-        VACUUM FULL) is an open item (docs/architecture.md §6).
+        log (the WAL) until it lets them go. The gateway (and ``suveryn-forget``) flush the WAL a few
+        seconds after a deletion (``journal.flush_journal``; VM regression 03c8f74, finding 3), so
+        that window is seconds rather than hours on the appliance. Backups keep the text until they
+        roll over. Secure deletion (encryption at rest, crypto-shredding or a scheduled VACUUM FULL)
+        is an open item (docs/architecture.md §6).
         """
         if scope is None:  # operator tools (suveryn-forget)
             where, params = "true", ()
@@ -392,20 +395,35 @@ class Store:
         keyword = "c.tsv @@ to_tsquery('simple', %(tsq)s)" if tsq else "false"
         rank = "ts_rank_cd(c.tsv, to_tsquery('simple', %(tsq)s))" if tsq else "0"
         ranked = self._conn.execute(f"""
-            SELECT id, length, distance,
+            SELECT id, length, distance, document_id,
                    CASE WHEN vector THEN row_number() OVER (PARTITION BY vector ORDER BY distance, id) END,
                    CASE WHEN keyword THEN row_number() OVER (PARTITION BY keyword ORDER BY rank DESC, id) END
-              FROM (SELECT c.id, length(c.text) AS length, c.embedding <=> %(q)s AS distance,
+              FROM (SELECT c.id, c.document_id, length(c.text) AS length, c.embedding <=> %(q)s AS distance,
                            c.text ~ %(min_words)s AS vector, {keyword} AS keyword, {rank} AS rank
                       FROM chunks c WHERE c.document_id = ANY(%(docs)s)) AS c""",
             {"q": query, "docs": document_ids, "tsq": tsq, "min_words": MIN_WORDS_FOR_VECTOR}).fetchall()
         scored = sorted(((cid, length, (1.0 / (RRF_K + vr) if vr else 0.0) + (1.0 / (RRF_K + kr) if kr else 0.0),
-                          1.0 - float(distance)) for cid, length, distance, vr, kr in ranked),
+                          1.0 - float(distance)) for cid, length, distance, _doc, vr, kr in ranked),
                         key=lambda r: (-r[2], -r[3]))
         chosen, size = {}, 0
+        # Every document's closest passage by meaning first, the closest documents first, up to a third of the
+        # passages: a French deed among Dutch ones matches a Dutch question by meaning but by none of its words,
+        # and the fused ranking left it out altogether (VM regression 03c8f74, finding 2).
+        if len(document_ids) > 1:
+            best: dict = {}
+            for cid, length, distance, doc, vr, _kr in ranked:
+                if vr and (doc not in best or distance < best[doc][2]):
+                    best[doc] = (cid, length, distance)
+            score_of = {r[0]: r[2] for r in scored}
+            for cid, length, distance in sorted(best.values(), key=lambda b: b[2])[:max(1, max_chunks // 3)]:
+                if size + length <= max_chars or not chosen:
+                    chosen[cid] = (float(score_of[cid]), 1.0 - float(distance))
+                    size += length
         for chunk_id, length, score, similarity in scored:
             if len(chosen) >= max_chunks:
                 break
+            if chunk_id in chosen:
+                continue
             if len(chosen) >= min_chunks and size + length > max_chars:
                 continue  # a smaller, lower-ranked chunk may still fit
             chosen[chunk_id] = (float(score), float(similarity))
@@ -418,6 +436,15 @@ class Store:
         order = {d: i for i, d in enumerate(document_ids)}
         rows.sort(key=lambda r: (order[r[1]], r[5] if r[5] is not None else 1 << 30, r[3]))
         return [StoredChunk(r[1], r[2], r[3], r[4], r[5], r[6], list(r[7] or []), r[8], *chosen[r[0]], r[9]) for r in rows]
+
+    def document_samples(self, document_ids: list[uuid.UUID], chars: int = 3000) -> dict[str, tuple[str, str]]:
+        """Each document's file name and the start of its text (its first passages, up to ``chars``): enough to
+        tell its kind and language (``naming``)."""
+        rows = self._conn.execute(
+            "SELECT d.id, d.filename, coalesce((SELECT string_agg(x.text, ' ') FROM (SELECT c.text FROM chunks c"
+            "  WHERE c.document_id = d.id ORDER BY c.page_start NULLS LAST, c.chunk_index LIMIT 4) x), '')"
+            "  FROM documents d WHERE d.id = ANY(%s)", (document_ids,)).fetchall()
+        return {str(r[0]): (r[1], r[2][:chars]) for r in rows}
 
     def document_chunks(self, document_ids: list[uuid.UUID], max_chars: int, max_chunks: int) -> list[StoredChunk] | None:
         """Every chunk of the documents in reading order, or None if they are larger than the limits.

@@ -41,6 +41,8 @@ export type ChatResponse = {
   finish_reason: string | null;
   reasoning?: string;              // *Thorough*: what the model thought before answering, never in ``answer``
   thought_seconds?: number | null; // and for how long
+  thinking_cut?: boolean;          // *Thorough* thought past its allowance: answered again without thinking
+  narrowed_to?: string | null;     // the question named one document: only that one was read
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -714,7 +716,7 @@ export interface BackupStatus {
   last_success: { at: string; size: number; on_target?: number | null; oldest?: string | null; disk?: string | null } | null;
   last_error: { at: string; step: string; message: string } | null;
   /** The administrator's last test of the recovery key: it opened the newest backup, every part there. */
-  key_test?: { at: string; ok: boolean; created?: string | null; step?: string | null } | null;
+  key_test?: { at: string; ok: boolean; created?: string | null; step?: string | null; last_ok?: string | null } | null;
   key_testing?: boolean;
   /** A backup is being made, since then. */
   running_since?: string | null;
@@ -879,6 +881,7 @@ export type RunFact = {
   by?: string | null;         // for a person's value: who gave it, in the conversation
   was?: string | null;        // for a correction of a value read from the documents: the value as read
   at?: string | null;         // for a person's value: when it was given
+  needs?: "not_a_date" | "not_an_amount" | null;  // the value gives no date or amount as such: a person works it out
 };
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
  *  docs/design/playbooks.md, "A running playbook is visible". */

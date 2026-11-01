@@ -229,13 +229,15 @@ def unverified_figures(answer: str, calculations: list[Calculation], source: str
     the user wrote in the question (``asked``) count as given. Shown calculations ("a + b = c") and
     citation markers are skipped. Returns the figures as the answer writes them, in order, once each.
     """
+    from .values import amounts_in, join_groups
     sep = source_decimal_separator(source)
-    known: set[Decimal] = set()
+    known: set[Decimal] = set(amounts_in(source))  # an amount the passage writes out in words is given too
     for text in (source, asked, *(c.result or "" for c in calculations)):
-        for f in TEXT_FIGURE.findall(DATE.sub(" ", text)):
+        # "412 500" in a passage is one figure, not 412 and 500 (VM regression 03c8f74, finding 5)
+        for f in TEXT_FIGURE.findall(DATE.sub(" ", join_groups(text))):
             if (v := _value(f, sep)) is not None:
                 known.add(v)
-    text = answer
+    text = join_groups(answer)
     for c in calculations:
         shown = f"{c.expression} = {c.result}" if c.result is not None else f"[calculation not possible: {c.expression}]"
         text = text.replace(shown, " ")
