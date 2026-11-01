@@ -48,6 +48,9 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
 
   // This PC against the appliance's clock, for "Set to this PC's time" (lib/clock.ts)
   const [thisPc, setThisPc] = useState<Measured | null>(null);
+  // What setting the clock came to, kept here: the part that sets it goes once the clock is right, and its
+  // notice went with it (VM regression e0f2e26, finding 3).
+  const [clockOutcome, setClockOutcome] = useState<{ ok: boolean; text: string } | null>(null);
   const clockCheck = status?.checks.find((c) => c.id === "clock");
   const clockSynced = clockCheck?.synced === true;
   useEffect(() => {
@@ -105,8 +108,10 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             </ul>
             {reading && !reading.ok && <p className="caption">{m.readStillWorks}</p>}
             {clockCheck && !clockSynced && thisPc && Math.abs(thisPc.offset_ms) >= CLOCK_WARN_MS && (
-              <SetClock offset={thisPc.offset_ms} onDone={load} />
+              <SetClock offset={thisPc.offset_ms} onDone={load} onOutcome={setClockOutcome} />
             )}
+            {clockOutcome && <InlineNotice tone={clockOutcome.ok ? "ok" : "error"} alert={!clockOutcome.ok} status={clockOutcome.ok}
+                                           icon={clockOutcome.ok ? <Check size={14} /> : <CircleAlert size={14} />}>{clockOutcome.text}</InlineNotice>}
             <p className="caption">{m.checkedAt(clock(status.checked_at))}</p>
           </>
         )}
@@ -138,11 +143,10 @@ function offLabel(offset: number, m: ReturnType<typeof useT>): string {
 
 /** "Set to this PC's time", for a difference too large to be nudged: a confirmation with both times, then the
  *  appliance's answer (it sets nothing while a time server keeps the clock, or for more than a year). */
-function SetClock({ offset, onDone }: { offset: number; onDone: () => void }) {
+function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () => void; onOutcome: (o: { ok: boolean; text: string } | null) => void }) {
   const m = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<{ ok: boolean; text: string } | null>(null);
   const hms = (ms: number) => new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const now = Date.now();
   const failed = (code: string | null) => ({ ok: false, text: m.clockSetFailed(m.clockErrors[code ?? "other"] ?? m.clockErrors.other) });
@@ -156,9 +160,9 @@ function SetClock({ offset, onDone }: { offset: number; onDone: () => void }) {
         await new Promise((r) => setTimeout(r, 1000));
         answer = await applianceClockAnswer(answer.id);
       }
-      setOutcome(answer.ok ? { ok: true, text: m.clockSetDone } : failed(answer.pending ? "other" : answer.error));
+      onOutcome(answer.ok ? { ok: true, text: m.clockSetDone } : failed(answer.pending ? "other" : answer.error));
     } catch {
-      setOutcome(failed("other"));
+      onOutcome(failed("other"));
     }
     setBusy(false);
     setOpen(false);
@@ -168,10 +172,8 @@ function SetClock({ offset, onDone }: { offset: number; onDone: () => void }) {
     <>
       <p className="caption">
         {m.clockThisPc(offLabel(offset, m))}{" "}
-        <Button size="small" onPress={() => { setOutcome(null); setOpen(true); }}><Clock size={14} aria-hidden /> {m.clockSet}</Button>
+        <Button size="small" onPress={() => { onOutcome(null); setOpen(true); }}><Clock size={14} aria-hidden /> {m.clockSet}</Button>
       </p>
-      {outcome && <InlineNotice tone={outcome.ok ? "ok" : "error"} alert={!outcome.ok} status={outcome.ok}
-                                icon={outcome.ok ? <Check size={14} /> : <CircleAlert size={14} />}>{outcome.text}</InlineNotice>}
       <Dialog isOpen={open} onClose={() => setOpen(false)} busy={busy} title={m.clockSetTitle} actions={<>
         <TextButton onPress={() => setOpen(false)} isDisabled={busy}>{m.cancel}</TextButton>
         <Button variant="primary" onPress={set} isDisabled={busy}>{busy ? m.clockSetting : m.clockSet}</Button>

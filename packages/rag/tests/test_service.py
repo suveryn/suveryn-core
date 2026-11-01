@@ -424,6 +424,17 @@ def test_a_zip_bomb_stops_at_the_limit_and_adds_nothing(tmp_path, monkeypatch):
     assert not list((tmp_path / "uploads").iterdir()) and not docs.pending_jobs("user-a")
 
 
+def test_an_archive_that_says_it_unpacks_too_large_is_refused_before_reading(tmp_path, monkeypatch):
+    """VM regression e0f2e26, finding 15: one entry declaring gigabytes was accepted (202) and only then skipped."""
+    monkeypatch.setattr(service, "MAX_ARCHIVE_UNPACKED", 4 * 1024 * 1024)
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    bomb = zipped({"a.pdf": b"%PDF-1.7" + b"\0" * (5 * 1024 * 1024)})
+    monkeypatch.setattr(service.DocumentService, "_check_entry", staticmethod(lambda *a: pytest.fail("read before refusing")))
+    with pytest.raises(UploadRejected, match="unpacks to more than 4 MB") as e:
+        docs.accept_archive(bomb, "bom.zip", "user-a")
+    assert e.value.status == 413 and not list((tmp_path / "uploads").iterdir())
+
+
 def test_an_entry_larger_than_an_upload_or_damaged_is_left_out(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "MAX_UPLOAD_BYTES", 1024 * 1024)
     docs = DocumentService(RagSettings(work_dir=tmp_path))

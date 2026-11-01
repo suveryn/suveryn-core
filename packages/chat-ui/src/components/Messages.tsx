@@ -29,6 +29,13 @@ import type { AssistantTurn, UserTurn } from "../types";
 import { AssistantMark } from "./Brand";
 import { AttachmentChip } from "./Chips";
 
+/** Why an answer failed, in the reader's language now: from its code when it has one, else the words kept. */
+export function failureWords(turn: Pick<AssistantTurn, "failure" | "error">, m: ReturnType<typeof useT>): string {
+  const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments, document: m.streamErrorDocument,
+                                          server: m.streamErrorServer, chosenDeleted: m.chosenDeletedMeanwhile };
+  return (turn.failure && known[turn.failure]) || turn.error || "";
+}
+
 /** The user's turn: attachment chips above a bubble (the only bubble in the conversation). */
 export function UserMessage({ turn }: { turn: UserTurn }) {
   const m = useT();
@@ -319,7 +326,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
           <p className="answer-failed">
             <CircleAlert size={14} aria-hidden />
-            <span>{turn.cutOff ? m.answerCutOff : m.answerFailed(turn.error ?? "")}</span>
+            <span>{turn.cutOff ? m.answerCutOff : m.answerFailed(failureWords(turn, m))}</span>
             {onRegenerate && <Button size="small" onPress={onRegenerate} title={m.regenerateWhat}>{m.regenerate}</Button>}
           </p>
         </div>
