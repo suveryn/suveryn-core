@@ -128,6 +128,11 @@ let signedOutHandler: () => void = () => {};
 export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
 
 /** A refused request: its sentence for the person, and the status, for a page that acts on it. */
+/** A streamed answer that failed: the words as of now, and the code, so a saved turn is worded again when shown. */
+export class StreamFailure extends Error {
+  constructor(message: string, readonly code: string | null) { super(message); }
+}
+
 export class HttpError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
@@ -340,6 +345,7 @@ export async function streamChat(
   if (!r.ok || !r.body) throw await responseError(r);
   let done: ChatResponse | null = null;
   let failure: string | null = null;
+  let failureCode: string | null = null;
   const parser = createSSEParser(({ event, data }) => {
     const payload = JSON.parse(data);
     if (event === "status") onStatus?.(payload as StreamStatus);
@@ -353,6 +359,7 @@ export async function streamChat(
       const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments,
                                                document: m.streamErrorDocument, server: m.streamErrorServer };
       failure = known[payload.code as string] ?? payload.message ?? m.streamErrorServer;
+      failureCode = payload.code in known ? payload.code : null;
     }
   });
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -361,7 +368,7 @@ export async function streamChat(
     if (finished) break;
     parser.feed(value);
   }
-  if (failure) throw new Error(failure);
+  if (failure) throw new StreamFailure(failure, failureCode);
   if (!done) throw new Error(t().streamCutOff);
   return done;
 }
