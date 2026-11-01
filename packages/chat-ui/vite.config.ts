@@ -91,7 +91,20 @@ export default defineConfig({
     assetsInlineLimit: 0,
     // Two entries: the chat (index.html) and the appliance's first-boot web setup (setup.html), which
     // shares the component library and nothing else: no sign-in, no chat code (suveryn-tracker#37, #44).
-    rollupOptions: { input: { chat: resolve(import.meta.dirname, "index.html"), setup: resolve(import.meta.dirname, "setup.html") } },
+    rolldownOptions: {
+      input: { chat: resolve(import.meta.dirname, "index.html"), setup: resolve(import.meta.dirname, "setup.html") },
+      // The libraries both entries share in two files rather than one of 740 kB, which the build warned about
+      // (VM regression 03c8f74, finding 9): React, and React Aria with what it is built on. Each is cached on its
+      // own, and changes far less often than the app.
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 2 },
+            { name: "aria", test: /node_modules[\\/](react-aria|react-aria-components|react-stately|@react-aria|@react-stately|@react-types|@internationalized)[\\/]/, priority: 1 },
+          ],
+        },
+      },
+    },
   },
   test: { environment: "node" },
 });

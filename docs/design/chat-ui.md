@@ -511,6 +511,12 @@ narrow screen's pill): *Ask about: all documents* ▾.
   its documents again."
 - When the chosen documents are too large to be read whole, the answer says so above its text: "Too
   large to read in full: the passages that best match your question were read."
+- A question that names one document by its kind and maybe its language ("de Franstalige volmacht", "the
+  shareholders' agreement", "les statuts") reads only that one, when exactly one in the choice fits by its file
+  name (and its own language); the answer says so under its text: "Your question names a document: only R2
+  (FR).pdf was read." When several fit, or none, every document is searched as before (`suveryn_rag.naming`;
+  VM regression 03c8f74, decision 2). Searching across a case also keeps each document's closest passage by
+  meaning (a third of the passages at most), so a French document answers a Dutch question (finding 2).
 - Playbooks always read the whole case; *Ask about* doesn't limit them.
 - Asking again counts as a new message, in token usage and in the case's access log.
 
@@ -1004,6 +1010,11 @@ The strings of *Administration* are in [admin.md](admin.md).
     out even when split over chunks. The stream sends a `thinking` status, then `thinking` events,
     then the answer; `done` carries `reasoning` and `thought_seconds`. The reasoning is never in the
     answer, its checks, Copy or the downloads, and never goes back to the model with a later question.
+  - When the thinking runs past its 4,096 tokens without an answer (or the answer comes back empty because
+    the thinking used the budget), the stream stops it and asks again without thinking; the answer then
+    says "Thorough thought for too long without an answer, so this one was written without thinking. Ask more
+    narrowly to have it thought through." (`done.thinking_cut`; VM regression 03c8f74, finding 1: two wide
+    questions came back empty after three minutes).
   - The chip opens one small dialog (`ChipDialog`, new in `ui/`): the models when there are several,
     and *Fast* / *Thorough* (`Segmented`, which can now disable one option and carry a line under it).
     With a model that can't think, *Thorough* is disabled with the reason. On a narrow screen the "+"

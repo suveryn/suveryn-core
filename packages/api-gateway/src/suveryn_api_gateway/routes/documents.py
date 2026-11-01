@@ -16,6 +16,7 @@ from .status import disk_low
 from .common import (
     UploadRejected,
     docs_or_503,
+    flush_soon,
     history_or_none,
     log_access,
     owner_of,
@@ -163,6 +164,7 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
             await run_in_threadpool(store.cleanup_done, owner, did)
         raise HTTPException(404, "Unknown document.")
     await log_access(request, scope.case_id, "document_deleted", {"document": document_id})
+    flush_soon(request.app)  # once the conversations are cleaned too: a deletion close by shares the flush
     if scope.case_id is not None and (runs := request.app.state.runs.get()) is not None:
         await run_in_threadpool(runs.mark_out_of_date, scope.case_id, document_id)  # a run that read it (docs/design/playbooks.md)
     if store is not None:

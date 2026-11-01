@@ -25,7 +25,11 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 
 **Status** (30): plain words, no product names.
 
-- *Needs attention*, only when something does, each with the button that fixes it.
+- *Needs attention*, only when something does, each with the button that fixes it. A key test with a file
+  that isn't this appliance's recovery key says so on *Backups* only ("This key doesn't open the backup. Try
+  another file."), with when the right key last passed; the key's state stays that last passing test, so one
+  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.step: key`, `last_ok`;
+  VM regression 03c8f74, finding 4). A test that fails on the backup itself still does.
 - *Is everything working?*: answering questions (the model), reading documents, signing in
   (Keycloak), keeping your data (the database), disk space. A teal check with "Working", or an ink cross
   with "Not working since 09:12" and what still works (39). Signing in asks Keycloak each time, not a copy read at
@@ -42,7 +46,9 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   PC's time*, after a confirmation that shows both times ("Appliance 13:36:09 · this PC 13:37:44") and asks
   whether the PC is right (moved forward, closed cases whose keep period has then passed are deleted within
   the hour). "Clock set." is announced to a screen reader (`role="status"`), "Not set: …" as an alert. Not
-  while a time server keeps the clock. How: the gateway's README, *The clock*.
+  while a time server keeps the clock. How: the gateway's README, *The clock*. When the browsers' earlier
+  reports say "On time" but this PC measures it off, the row says what this PC measured, and this PC's
+  measurement is reported and the checks read again (VM regression 03c8f74, finding 6).
 - An overview: version, last backup, users against the agreement, support.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.

@@ -301,6 +301,8 @@ const en = {
 
   // answers
   answerFailed: (why: string) => `The answer failed: ${why}. Ask again.`,
+  narrowedTo: (file: string) => `Your question names a document: only ${file} was read.`,
+  thinkingCut: "Thorough thought for too long without an answer, so this one was written without thinking. Ask more narrowly to have it thought through.",
   streamErrorModel: "the model can't be reached right now",
   streamErrorDocuments: "the documents can't be searched right now",
   streamErrorDocument: "a chosen document no longer exists",
@@ -502,6 +504,7 @@ const en = {
   runChanged: (label: string, value: string) => `Changed: ${label} is now ${value}.`,
   runUnplacedAsk: "That couldn't be placed. Which fact does it give, and what is the value?",
   runUnplacedChange: "That couldn't be placed. Which fact should change, and to what?",
+  runAlreadyUnknown: (facts: string) => `${facts}: already not known yet.`,
   factCheckThis: "Not in the cited passage as written. Check it.",
   changeValue: (label: string, value: string) => `${label}, ${value}, change`,
   factsCount: (found: number, total: number) => `${found} of ${total}`,
@@ -528,6 +531,8 @@ const en = {
   pbAdjust: "Adjust",
   pbFill: "Fill in",
   pbNotInPassage: (items: string) => `Not in the cited passage as written: ${items}.`,
+  pbNotADate: "Not a date as written: work it out and check it.",
+  pbNotAnAmount: "Not an amount as written: work it out and check it.",
   pbFieldHint: "Enter keeps it, Esc cancels.",
   pbFromChat: (time: string) => `From the conversation, ${time}`,
   pbConfirmBlockedOne: (label: string) => `You can confirm once ${label} is checked.`,
@@ -790,6 +795,7 @@ const en = {
   keyTestNever: "The recovery key hasn't been tested yet.",
   keyTestDue: (when: string) => `Last tested on ${when}. Test again.`,
   keyTestFailed: "This key doesn't open the backup. Try another file.",
+  keyTestBroken: "The test didn't succeed: the newest backup couldn't be checked. Try again, or ask support.",
   keyTestNotKey: "That isn't a sūveryn recovery key file.",
   backupAttention: { not_set_up: "Backups aren't set up.", stale: "There has been no backup for more than two days.", failing: "Last night's backup failed.", key_failed: "The last test of the recovery key failed.", key_due: "Test the recovery key: the appliance can't check it by itself." },
   backupAttentionOpen: "Open Backups",

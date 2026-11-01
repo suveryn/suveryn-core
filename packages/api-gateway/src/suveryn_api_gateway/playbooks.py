@@ -487,6 +487,7 @@ class RunStore(TurnStore):
                                found=found, confirmed=confirmed["value"] if confirmed else None,
                                source="person" if answer else ("document" if found else "none"),
                                by=answer["by"] if answer else None, at=answer["at"] if answer else None,
+                               needs=(read or {}).get("source", {}).get("needs") if found and not answer else None,
                                was=read["value"] if answer and found and read else None))
         return out
 

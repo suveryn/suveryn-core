@@ -17,7 +17,7 @@ from ..conversations import (
     ShareIn,
     cited_documents,
 )
-from .common import Scope, case_for, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
+from .common import Scope, case_for, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
 router = APIRouter()
 
@@ -185,6 +185,7 @@ async def delete_conversation(conversation_id: str, request: Request):
     store, cid = history_or_503(request), _conversation_id(conversation_id)
     if not await run_in_threadpool(store.delete, cid, owner_of(request)):
         raise HTTPException(404, "Unknown conversation.")
+    flush_soon(request.app)
     return Response(status_code=204)
 
 
@@ -192,7 +193,9 @@ async def delete_conversation(conversation_id: str, request: Request):
 async def delete_all_conversations(request: Request):
     """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
     store = history_or_503(request)
-    return {"deleted": await run_in_threadpool(store.delete_all, owner_of(request))}
+    deleted = await run_in_threadpool(store.delete_all, owner_of(request))
+    flush_soon(request.app)
+    return {"deleted": deleted}
 
 
 async def confidential_cases(request: Request, conversations: list[ConversationSummary]) -> set[str]:

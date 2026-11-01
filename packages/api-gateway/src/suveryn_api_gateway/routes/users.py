@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from ..accounts import Account, AccountEvent, AccountRefused, Accounts, AccountsUnavailable, RightsRefused
 from ..auth import AuthError, AuthUnavailable
-from .common import Scope, admin_or_403, case_settings, cases_or_503, docs_or_503, history_or_503, owner_of
+from .common import Scope, admin_or_403, case_settings, cases_or_503, docs_or_503, flush_soon, history_or_503, owner_of
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter()
@@ -290,4 +290,5 @@ async def delete_user(sub: str, request: Request):
                                        "of its own space may be gone. Delete it again to finish.", "reason": "unfinished"},
                             status_code=503)
     request.app.state.auth.drop_user(sub)
+    flush_soon(request.app)
     log.info("account %s deleted by an administrator", sub)

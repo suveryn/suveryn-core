@@ -9,7 +9,7 @@
  * in the panel beside the conversation, nothing edited there. Sources look the same as under an answer.
  *
  * The run's turns are rows the server writes (``turns``); the playbook's own lines carry a ``meta.kind``
- * the thread words in the interface language (``ask``, ``checkpoint``, ``changed``, ``unplaced``, and the
+ * the thread words in the interface language (``ask``, ``checkpoint``, ``changed``, ``unplaced``, ``already_unknown``, and the
  * events ``paused``, ``resumed``, ``stopped``, ``cancelled``, ``confirmed``), the pack's questions are
  * shown as written. Pause, cancel and stop are on the run's chip in the composer, shown only to those the
  * gateway would allow (it decides; the chip hides what would fail).
@@ -84,7 +84,7 @@ const dayAndTime = (iso: string) => {
 /** The facts a review card is for (handover of 31 October 2026): *Check*, a value the check couldn't find
  *  literally in its passage and nobody has checked since; *Missing*, a fact without a value. */
 export function reviewGroups(run: Pick<Run, "facts">): { check: RunFact[]; missing: RunFact[] } {
-  return { check: run.facts.filter((f) => f.value && f.issues.length > 0 && f.source !== "person"),
+  return { check: run.facts.filter((f) => f.value && (f.issues.length > 0 || !!f.needs) && f.source !== "person"),
            missing: run.facts.filter((f) => !f.value) };
 }
 
@@ -95,6 +95,13 @@ export function runStatusWord(run: Pick<RunSummary, "status" | "step" | "step_ki
   if (run.status !== "waiting") return "";
   const kind = stepKind(run, playbook);
   return kind === "checkpoint" ? m.pbStatusReview : kind === "request" ? m.pbStatusWaitsDocs : kind === "ask" ? m.pbStatusWaitsAnswers : "";
+}
+
+/** Why a fact is under *Check*, in words: a value that gives no date or amount as such, or what the passage doesn't say. */
+function checkReason(f: RunFact, m: Words): string {
+  if (f.needs === "not_a_date") return m.pbNotADate;
+  if (f.needs === "not_an_amount") return m.pbNotAnAmount;
+  return m.pbNotInPassage(f.issues.join(", "));
 }
 
 /** A fact's first source as SourceRef shows it. */
@@ -225,6 +232,7 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
     : meta.kind === "checkpoint" ? (review ? null : m.pbReviewIntroNone(meta.found ?? 0, meta.total ?? 0))
     : meta.kind === "changed" ? m.runChanged(label(meta.fact ?? ""), meta.value ?? "")
     : meta.kind === "unplaced" ? (meta.facts ? m.runUnplacedAsk : m.runUnplacedChange)
+    : meta.kind === "already_unknown" ? m.runAlreadyUnknown((meta.facts ?? []).map(label).join(", "))
     : turn.text;
   return (
     <div className="turn-assistant run-turn">
@@ -340,7 +348,7 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
       {group === "check" && quote && <blockquote className="fact-card-quote">{quote}</blockquote>}
       {group === "check" && (
         <div className="fact-card-foot">
-          <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {m.pbNotInPassage(fact.issues.join(", "))}</span>
+          <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {checkReason(fact, m)}</span>
           {src && <SourceRef n={src.n} text={src.text} name={src.name} active={active} onPress={onSource} />}
         </div>
       )}
@@ -634,7 +642,8 @@ function FactRow({ fact, label, onSource }: { fact: RunFact; label: string; onSo
       </div>
       {fromChat && fact.at ? <span className="fact-note">{m.pbFromChat(time(fact.at))}</span>
         : src ? <span className="fact-note"><SourceRef n={src.n} text={src.text} name={src.name} onPress={onSource} /></span> : null}
-      {fact.issues.length > 0 && fact.source !== "person" && <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {m.factCheckThis}</span>}
+      {(fact.issues.length > 0 || fact.needs) && fact.source !== "person" && (
+        <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {fact.needs ? checkReason(fact, m) : m.factCheckThis}</span>)}
     </li>
   );
 }

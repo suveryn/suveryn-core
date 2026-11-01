@@ -269,6 +269,18 @@ function ThoughtFor({ reasoning, seconds }: { reasoning: string; seconds?: numbe
   );
 }
 
+/** What an answer says about how it was made (VM regression 03c8f74): written without thinking after *Thorough*
+ *  thought too long (finding 1), and the one document read when the question named it (decision 2). */
+export function AnswerNotes({ turn }: { turn: Pick<AssistantTurn, "thinkingCut" | "narrowedTo"> }) {
+  const m = useT();
+  return (
+    <>
+      {turn.thinkingCut && <InlineNotice icon={<CircleAlert size={14} />}>{m.thinkingCut}</InlineNotice>}
+      {turn.narrowedTo && <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.narrowedTo(turn.narrowedTo)}</span></p>}
+    </>
+  );
+}
+
 export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource, onRegenerate = null }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
   /** The case the conversation is in (null: personal), named in the export mark. */
@@ -341,6 +353,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
       <div className="answer" aria-live={turn.status === "streaming" || turn.status === "stopped" ? "polite" : undefined}>
         {/* Thorough (§5): what the model thought, collapsed, once the answer has begun */}
         {turn.reasoning && (turn.text || settled) && <ThoughtFor reasoning={turn.reasoning} seconds={turn.thoughtSeconds} />}
+        {settled && <AnswerNotes turn={turn} />}
         {/* Which documents the answer rests on, before it (docs/design/chat-ui.md §5): in a case, a fact
             from the wrong deed shows at a glance (Pod check of 470b9da). */}
         {settled && basis.length > 0 && (

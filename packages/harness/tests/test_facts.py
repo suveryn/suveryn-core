@@ -143,3 +143,39 @@ def test_an_answer_in_words_is_mapped_only_to_the_facts_asked():
     assert read_mapping("NONE", labels) == {} and read_mapping("I can't tell.", labels) == {}
     prompt = map_prompt(labels, {"deed_by": "12 februari 2027"}, "EPC 20260915-0002 >>> label C")
     assert "- deed_by: Akte te verlijden tegen (now: 12 februari 2027)" in prompt and "> > > label C" in prompt
+
+
+# ------------------------------------------------------------------ by meaning (Filip, 1 November 2026; VM regression 03c8f74)
+
+def test_an_amount_or_a_date_is_compared_by_what_it_means():
+    from suveryn_harness.facts import _by_meaning
+
+    words = "Het voorschot bedraagt zesentwintigduizend achthonderd euro, te betalen bij ondertekening op twaalf mei tweeduizend veertien."
+    assert _by_meaning("amount", "EUR 26.800,00", [words], ",") == (None, None)            # the same amount, in figures
+    assert _by_meaning("amount", "EUR 28.600,00", [words], ",") == (None, "EUR 28.600,00")  # a different one: to check
+    assert _by_meaning("date", "12/05/2014", [words], ",") == (None, None)
+    assert _by_meaning("date", "uiterlijk vier maanden na de ondertekening", [words], ",") == ("not_a_date", None)
+    assert _by_meaning("amount", "tien procent van de koopprijs", [words], ",") == ("not_an_amount", None)
+    assert _by_meaning("amount", "412.500,00 EUR", ["De prijs bedraagt 412 500,00 EUR."], ",") == (None, None)  # a space between thousands
+
+
+def test_the_check_reads_spaced_figures_and_dates_in_words():
+    from suveryn_harness.calc import unverified_figures
+    from suveryn_harness.support import _dates
+
+    assert unverified_figures("De hypotheek bedraagt 1.250.000 EUR.", [], "een hypotheek van 1 250 000,00 EUR") == []
+    assert (12, 5, 2014) in _dates("verleden op twaalf mei tweeduizend veertien")
+    assert (12, 5, 2014) in _dates("le douze mai deux mille quatorze")
+
+
+def test_not_known_yet_in_words_names_the_facts():
+    """VM regression 03c8f74, finding 8: "Bodemattest: nog niet bekend." at the checkpoint placed nothing."""
+    from suveryn_harness.facts import said_unknown
+
+    labels = {"soil": "Bodemattest", "epc": "EPC-certificaat", "price": "Prijs"}
+    assert said_unknown("Bodemattest: nog niet bekend.", labels) == ["soil"]
+    assert said_unknown("Het EPC-certificaat en het bodemattest volgen later.", labels) == ["soil", "epc"]
+    assert said_unknown("Attestation du sol : pas encore connue.", {"soil": "Attestation du sol"}) == ["soil"]
+    assert said_unknown("Soil certificate: to follow", {"soil": "Soil certificate"}) == ["soil"]
+    assert said_unknown("Bodemattest: BA-2026-114, geen verontreiniging.", labels) == []  # a value, not unknown
+    assert said_unknown("Dat is nog niet bekend.", labels) == []                           # names no fact

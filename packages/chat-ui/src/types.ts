@@ -58,6 +58,10 @@ export type AssistantTurn = {
   /** What the model thought before answering, and for how long: "Thought for 14 s" above the answer. */
   reasoning?: string;
   thoughtSeconds?: number;
+  /** *Thorough* thought past its allowance without an answer: this answer was written without thinking. */
+  thinkingCut?: boolean;
+  /** The question named one of the documents ("de Franstalige volmacht"): only that one was read. */
+  narrowedTo?: string;
   /** The model stopped at its length limit (``finish_reason`` "length"): the answer is cut off, or, after
    *  thinking, never began (Pod check of a318b65: an empty *Thorough* answer with no word why). */
   truncated?: boolean;
