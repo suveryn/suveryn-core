@@ -106,9 +106,13 @@ class Runtime:
     # -- what each step needs
 
     def _request_satisfied(self, run: Run, step: Step, states: dict[str, StepState]) -> bool:
-        if states.get(step.id, StepState()).status == "skipped":
+        """A request is met once a person has answered it (with documents, or pointing to those already in the
+        case) and the case has what it needs. It always asks first: a document left in the case was read as
+        the agreement without anyone saying so (VM regression e0f2e26, question 1; Filip, 1 November 2026)."""
+        state = states.get(step.id, StepState())
+        if state.status == "skipped":
             return True
-        return len(self.uploaded(uuid.UUID(run.case_id))) >= step.min
+        return state.by is not None and len(self.uploaded(uuid.UUID(run.case_id))) >= step.min
 
     def unanswered(self, run: Run, step: Step) -> list[str]:
         """The facts an ``ask`` step still has to ask about: not in the documents, and no person has answered."""
@@ -171,7 +175,9 @@ class Runtime:
         states = dict(run.steps)
         if none and step.allow_none:
             states[step.id] = StepState(status="skipped", by=by, at=_now())
-            self.store.set_step(rid, step.id, "waiting", states)
+        else:
+            states[step.id] = StepState(status="active", by=by, at=_now())  # answered: met once the documents are there
+        self.store.set_step(rid, step.id, "waiting", states)
         return self.store.get(rid, cid)  # type: ignore[return-value]
 
     def confirm(self, run: Run, playbook: Playbook, step: Step, confirmed: dict[str, str], by: str) -> Run:
@@ -235,7 +241,9 @@ class Runtime:
         fresh = self.store.get(rid, cid)
         if fresh is None:
             return
-        name = f"{playbook.name} {reference} ({run.playbook_version}).txt"  # the run's version, never the installed one
+        # in the run's language, the run's version (never the installed one): "Akte-intake 2026/0417 (1.1)"
+        # (VM regression e0f2e26, finding 8: it was the English name with ".txt")
+        name = f"{playbook.wording(run.language).title} {reference} ({run.playbook_version})"
         try:
             document_id = self.documents.store_text(name, summary_text(playbook, reference, fresh, run.language), Scope.case(cid), "playbook",
                                                     {"playbook": playbook.id, "version": run.playbook_version, "run": run.id})
@@ -245,4 +253,4 @@ class Runtime:
 
     def _say(self, run: Run, playbook: Playbook, step_id: str | None, text: str, meta: dict | None = None) -> None:
         if text:
-            self.store.say(run, "playbook", playbook.id, text, step_id, meta)
+            self.store.say(run, "playbook", playbook.id, text, step_id, meta, once=True)

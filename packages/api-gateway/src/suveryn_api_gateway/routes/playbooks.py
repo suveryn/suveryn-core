@@ -237,11 +237,23 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     uploaded = await run_in_threadpool(_uploaded_in(request), cid)
     if any(d not in uploaded for d in body.document_ids):
         raise HTTPException(404, "Unknown document.")
-    run = await run_in_threadpool(store.create, cid, pb, body.document_ids, who(request)[0], None, body.language, owner_of(request))
+    language = body.language or _accepted_language(request)
+    run = await run_in_threadpool(store.create, cid, pb, body.document_ids, who(request)[0], None, language, owner_of(request))
     await log_access(request, cid, "playbook_started", {"playbook": pb.id, "version": pb.version, "run": run.id,
                                                         "documents": body.document_ids})
     await touch_case(request, Scope.case(cid))
     return await _walk(request, run, pb, case)
+
+
+def _accepted_language(request: Request) -> str:
+    """The thread's language when the caller names none (the interface always does): the first of the
+    product's languages in Accept-Language, else English (VM regression e0f2e26, finding 11)."""
+    from suveryn_playbooks import LANGUAGES
+    for part in request.headers.get("accept-language", "").split(","):
+        lang = part.split(";")[0].strip().lower()[:2]
+        if lang in LANGUAGES:
+            return lang
+    return "en"
 
 
 async def _walk(request: Request, run: Run, pb: Playbook, case: Case) -> Run:
@@ -389,6 +401,9 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     await run_in_threadpool(store.say, run, "user", username, text, step.id, meta)
     words = pb.wording(run.language)
     if step.kind == "request":
+        if body.documents:  # the documents that came with the turn are what the read reads, with any named before
+            await run_in_threadpool(store.set_documents, uuid.UUID(run.id), list(dict.fromkeys([*run.documents, *body.documents])))
+            run = await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         run = await run_in_threadpool(runtime.answer_request, run, step, username, False)
     elif step.kind == "ask":
         asked = await run_in_threadpool(runtime.unanswered, run, step)

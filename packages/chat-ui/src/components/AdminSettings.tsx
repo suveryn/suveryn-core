@@ -76,6 +76,8 @@ export function AdminSettings() {
     } catch (e) {
       setConfirming(null);
       setError(m.settingsFailed((e as Error).message));
+      // two-step is the office's whole sign-in: refused, the switch shows the setting as it stands (finding 13)
+      if (settings) setTwoStep(settings.two_step);
     } finally { setBusy(false); }
   };
   const save = async () => {

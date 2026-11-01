@@ -177,7 +177,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the summary is a document in the case with origin playbook, named after the playbook, the case and the run's version,
     # in the run's language; its text is what 1.0 wrote for the same confirmed facts
     name, text = docs.stored_text
-    assert name == "Deed intake 2026/0417 (1.1).txt" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.1")
+    assert name == "Akte-intake 2026/0417 (1.1)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.1")
     assert "Prijs: EUR 412.000,00 (akte.pdf p. 2)" in text and "Kadastrale gegevens: Gent 5e afd., sectie B, nr. 123" in text
     assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.1", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
@@ -435,16 +435,18 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
             alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
             n = iter(range(100))
 
-            def start(who):  # a case per run (one live run of a playbook per case); its document is in, so the start reads at once
+            def start(who):  # a case per run (one live run of a playbook per case); its document is in, and the
+                # request answered (it always asks first), so the read starts
                 cid = c.post("/v1/cases", json={**NEW, "reference": f"2026/{next(n)}"}, headers=alice).json()["id"]
                 c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
                 docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "uploaded")
-                return c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=who), cid
+                run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=who).json()
+                return c.post(RUN.format(cid=cid, rid=run["id"]) + "/answer", json={"step_id": "agreement"}, headers=who), cid
 
             codes = [start(alice)[0].status_code for _ in range(3)]
-            assert codes == [202, 202, 429]  # two of hers at once
+            assert codes == [200, 200, 429]  # two of hers at once
             r, cid = start(bob)
-            assert r.status_code == 202  # someone else's first: three in all
+            assert r.status_code == 200  # someone else's first: three in all
             rid = r.json()["id"]
             r, busy_cid = start(bob)
             assert r.status_code == 429 and "too many playbook runs" in r.json()["detail"]  # the appliance's three
@@ -457,7 +459,7 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
                     break
                 time.sleep(0.05)
             assert not route.slots_of(app).taken
-            assert start(alice)[0].status_code == 202
+            assert start(alice)[0].status_code == 200
     finally:
         release.set()
 
@@ -534,3 +536,28 @@ def test_people_answer_and_correct_a_playbook_in_words(talking):
     run = c.post(url + "/pause", headers=bob).json()
     assert run["turns"][-1]["meta"] == {"kind": "paused"} and run["turns"][-1]["by"] == "bob.test"
     assert c.post(url + "/say", json={"text": "x"}, headers=alice).status_code == 409
+
+
+@needs_db
+def test_the_request_asks_even_when_the_case_has_documents_and_the_question_is_written_once(office):
+    """VM regression e0f2e26: a document left in the case was read as the agreement without a word (question 1:
+    the request always asks first); two answers at the same moment wrote the playbook's question twice (finding
+    2); a start without a language takes the caller's (finding 11)."""
+    c, kc, _, docs, _ = office
+    cid, alice, bob = a_case_with_a_contributor(c, kc, role="contributor")
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers={**alice, "Accept-Language": "fr-BE,fr;q=0.9"}).json()
+    assert run["status"] == "waiting" and run["step"] == "agreement" and run["language"] == "fr"
+    url = RUN.format(cid=cid, rid=run["id"])
+    assert c.post(url + "/answer", json={"step_id": "agreement", "text": "Celui du dossier."}, headers=alice).json()["status"] == "reading"
+    run = wait_for(c, url, alice, "waiting")
+    asks = [t for t in run["turns"] if t["meta"].get("kind") == "ask"]
+    assert len(asks) == 1
+    from suveryn_api_gateway.playbooks import RunStore
+    store = RunStore(URL)
+    try:
+        again = store.say(store.get(uuid.UUID(run["id"]), uuid.UUID(cid)), "playbook", asks[0]["by"], asks[0]["text"], asks[0]["step_id"],
+                          asks[0]["meta"], once=True)
+        assert again.seq == asks[0]["seq"]  # the same line again: not written
+    finally:
+        store.close()

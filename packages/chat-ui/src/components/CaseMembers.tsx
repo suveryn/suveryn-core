@@ -13,10 +13,11 @@
 import { ArrowRightLeft, CircleAlert, Folder, ScrollText, Trash, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  handOver, listCaseEvents, listMembers, removeMember, searchUsers, setMember, updateCase,
+  casePlaybooks, handOver, listCaseEvents, listMembers, removeMember, searchUsers, setMember, updateCase,
   type Case, type CaseEvent, type Member, type Person,
 } from "../api";
-import { locale, useT } from "../i18n";
+import { lang, locale, useT } from "../i18n";
+import { playbookWords } from "../lib/playbooks";
 import { dayLabel } from "../lib/conversations";
 import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, Switch, TextButton } from "../ui";
 
@@ -160,7 +161,8 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
 }
 
 /** What an access-log action means, in the interface language. */
-export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>): string {
+export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>, nameOf: (user: string) => string = () => "",
+                           playbookTitle: (id: string) => string = () => ""): string {
   const d = e.detail as Record<string, string | string[]>;
   switch (e.action) {
     case "created": return m.eventCreated;
@@ -177,13 +179,14 @@ export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>): string {
     case "member_added": return m.eventMemberAdded(roleLabel(String(d.role ?? ""), m));
     case "role_changed": return m.eventRoleChanged(roleLabel(String(d.role ?? ""), m));
     case "member_removed": return m.eventMemberRemoved;
-    case "handed_over": return m.eventHandedOver;
+    // to whom, and which playbook (VM regression e0f2e26, finding 12)
+    case "handed_over": return nameOf(String(d.manager ?? "")) ? m.eventHandedOverTo(nameOf(String(d.manager))) : m.eventHandedOver;
     case "closed": return m.eventClosed;
     case "reopened": return m.eventReopened;
     case "keep_changed": return m.eventKeepChanged;
     case "conversation_shared": return m.eventConversationShared;
     case "conversation_unshared": return m.eventConversationUnshared;
-    case "playbook_started": return m.eventPlaybookStarted;
+    case "playbook_started": return playbookTitle(String(d.playbook ?? "")) ? m.eventPlaybookStartedNamed(playbookTitle(String(d.playbook))) : m.eventPlaybookStarted;
     case "playbook_answered": return m.eventPlaybookAnswered;
     case "playbook_confirmed": return m.eventPlaybookConfirmed;
     case "playbook_paused": return m.eventPlaybookPaused;
@@ -198,6 +201,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
   const m = useT();
   const [events, setEvents] = useState<CaseEvent[] | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [titles, setTitles] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -205,6 +209,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
     setEvents(null);
     listCaseEvents(kase.id).then(setEvents).catch((e: Error) => setError(e.message));
     listMembers(kase.id).then((ms) => setNames(new Map(ms.map((x) => [x.user, x.name || x.username])))).catch(() => {});
+    casePlaybooks(kase.id).then((ps) => setTitles(new Map(ps.map((p) => [p.id, playbookWords(p, lang()).title])))).catch(() => {});
   }, [open, kase.id]);
   return (
     <Dialog isOpen={open} onClose={onClose} title={m.accessLogTitle(kase.reference)} actions={<>
@@ -219,7 +224,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
             <li key={e.id} className="event">
               <span className="event-when">{dayLabel(e.at)} {new Date(e.at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })}</span>
               <span className="event-who">{e.name || names.get(e.user) || e.user}</span>
-              <span className="event-what"><ScrollText size={12} aria-hidden /> {eventLabel(e, m)}</span>
+              <span className="event-what"><ScrollText size={12} aria-hidden /> {eventLabel(e, m, (u) => names.get(u) ?? "", (id) => titles.get(id) ?? "")}</span>
             </li>
           ))}
         </ol>

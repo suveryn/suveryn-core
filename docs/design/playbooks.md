@@ -182,7 +182,13 @@ deleted except with the case. **One live run per playbook per case**: a second s
 with the live run's id.
 
 The upload hook is a person's act: the documents come into the case through the composer's paperclip
-and with the person's turn, and the runtime counts the case's uploaded documents. Nothing advances on a GET.
+and with the person's turn (a line and its documents are one turn), and the runtime counts the case's
+uploaded documents. **A request always asks first**, even when the case already holds documents: it is met
+once a person has answered it, with documents or with *Use the documents already in the case*, and the
+case has what it needs; documents that came with the turn are what the read reads (VM regression e0f2e26: a
+deed left in the case was read as the agreement without a word; Filip, 1 November 2026). The playbook never
+writes the same line twice in a row (two answers at the same moment wrote its question twice). Nothing
+advances on a GET.
 
 **People answer in words** (handover of 30 October 2026; Filip, 31 October). At an `ask`, the answer is
 mapped to the facts asked by one plain model call (`suveryn_harness.facts.map_answer`: the facts' ids and
@@ -197,7 +203,7 @@ the precise way in. Pausing, resuming, stopping, cancelling and confirming are l
 
 ```
 GET    /v1/cases/{id}/playbooks              which playbooks fit this case's type, with covered and steps
-POST   /v1/cases/{id}/playbooks/{playbook}/runs    start: {document_ids?, language}; 409 while one is live  (contributor)
+POST   /v1/cases/{id}/playbooks/{playbook}/runs    start: {document_ids?, language?}; no language: the caller's Accept-Language; 409 while one is live  (contributor)
 GET    /v1/playbooks/runs/active              the live run per case the caller may read: the chip (reader)
 GET    /v1/cases/{id}/playbooks/runs          the case's runs, newest first        (reader)
 GET    /v1/cases/{id}/playbooks/runs/{run}    one run: step, steps, facts, turns  (reader)
@@ -225,7 +231,8 @@ call that no longer exists. A case closed while a run waits keeps the run; the U
 the case to go on. Every act is in the case's access log: `playbook_started`, `playbook_answered`,
 `playbook_confirmed`, `playbook_paused`, `playbook_resumed`, `playbook_stopped`, `playbook_cancelled`.
 
-**Provenance in the result.** The summary document and its name carry the run's `playbook_id` and
+**Provenance in the result.** The summary document is named with the playbook's title in the run's
+language, the case's reference and the run's version ("Akte-intake 2026/0417 (1.1)"). It and its name carry the run's `playbook_id` and
 `playbook_version`, never the playbook as installed at confirmation time: a run started under 1.0
 and confirmed after an upgrade to 1.1 says 1.0, because 1.0 is what read the documents (outside
 review, 17 October 2026).
