@@ -30,6 +30,10 @@ dev = [
     "reportlab>=4.0",
     "pdf2image>=1.17",
 ]
+# The end-to-end scenarios (e2e/README.md): `uv sync --all-packages --group e2e`, then `uv run playwright install chromium`.
+e2e = [
+    "playwright>=1.55",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/harness/tests", "packages/api-gateway/tests", "packages/rag/tests", "packages/playbooks/tests"]

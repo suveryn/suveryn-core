@@ -1,0 +1,80 @@
+name: End to end
+
+# The walk-through and the lifecycle scenarios (e2e/README.md): the gateway, the chat UI, Keycloak and PostgreSQL
+# together, a stand-in model server, a browser. What a VM regression round did by hand, on every pull request.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    name: Walk-through and lifecycle (browser, real services, stand-in model)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: System packages for the document reader
+        # OCRmyPDF with Dutch, French and English Tesseract, Ghostscript and Poppler: what the appliance's
+        # provisioning installs for suveryn-rag's extraction.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils postgresql-client
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - run: uv python install 3.12
+      - run: uv sync --all-packages --dev --group e2e
+
+      - name: Browser for Playwright
+        run: uv run playwright install --with-deps chromium
+
+      - name: Model files for the reader and the embedder (cached)
+        # bge-m3 and Docling's layout models come from Hugging Face on first use; cached between runs by the
+        # names in the settings, so a run downloads them once.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-bge-m3-docling-${{ hashFiles('uv.lock') }}
+          restore-keys: hf-${{ runner.os }}-bge-m3-docling-
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: packages/chat-ui/package-lock.json
+      - name: Build the chat UI
+        working-directory: packages/chat-ui
+        run: npm ci && npm run build
+
+      - name: Start the stack
+        env:
+          E2E_SERVICES: docker
+        run: uv run python e2e/stack.py up
+
+      - name: Scenarios
+        env:
+          E2E_SERVICES: docker
+        run: uv run pytest e2e/tests -p no:cacheprovider -v
+
+      - name: Logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-run
+          path: |
+            e2e/.run/*.log
+            e2e/.run/shots/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the stack
+        if: always()
+        env:
+          E2E_SERVICES: docker
+        run: uv run python e2e/stack.py down
