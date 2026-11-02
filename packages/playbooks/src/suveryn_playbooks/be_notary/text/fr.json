@@ -22,5 +22,31 @@
       "agreement": "Chargez le compromis signé et ce que les parties ont transmis (l'acte antérieur, les certificats). Puis continuez.",
       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore."
     }
+  },
+  "company-formation": {
+    "title": "Constitution de société",
+    "summary": "Lit les faits pour l'acte constitutif d'une SRL dans les documents des fondateurs",
+    "factsTitle": "Données pour l'acte constitutif",
+    "labels": {
+      "founders": "Fondateur(s)",
+      "company_name": "Dénomination",
+      "seat": "Siège",
+      "object": "Objet",
+      "contribution": "Apport en numéraire",
+      "bank_certificate": "Attestation bancaire",
+      "contribution_in_kind": "Apport en nature",
+      "shares": "Actions",
+      "directors": "Administrateur(s)",
+      "representation": "Représentation",
+      "fiscal_year": "Exercice social",
+      "general_meeting": "Assemblée générale annuelle",
+      "plan_date": "Plan financier daté du",
+      "financial_plan": "Plan financier"
+    },
+    "questions": {
+      "documents": "Chargez ce que les fondateurs ont transmis : documents d'identité, plan financier, attestation bancaire et preuve du siège. Puis continuez.",
+      "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+      "missing.contribution_in_kind": "Les documents ne mentionnent aucun apport autre qu'en numéraire. Y en a-t-il un ? Décrivez-le et sa valeur, ou laissez vide s'il n'y en a pas."
+    }
   }
 }

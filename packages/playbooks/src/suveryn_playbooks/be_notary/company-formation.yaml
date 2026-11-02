@@ -1,0 +1,80 @@
+# Company formation: the incorporation of a Belgian BV (docs/design/playbooks.md).
+#
+# The facts the deed of incorporation needs, read from what the founders sent (identity documents,
+# the financial plan, the bank certificate, proof of the registered office, the founders' own notes)
+# and checked by a person at the checkpoint. Fourteen facts: every fact is a line of the deed the
+# notary has to check. One contribution and one fact per party for now: the format has no lists of
+# records yet (writing-a-playbook.md, "What is not in the format yet"); a deed with several founders
+# names them all in one fact, as written.
+#
+# The routine (format 2): ask for the founders' documents, read them, ask about what was not found,
+# the checkpoint, the summary. The words per language are in text/<lang>.json beside this file; the
+# table the model fills in is the runtime's, appended by the loader.
+#
+# 1.0 (November 2026): the first version.
+
+manifest: 2
+id: playbook/be-notary/company-formation
+pack: pack/be-notary
+version: "1.0"
+name: Company formation
+case_types: [company-formation]
+
+facts:
+  - id: founders
+    ask: "the founder or founders: full names as written, and for a company its name and registration number"
+  - id: company_name
+    ask: the name of the company as it will appear in the deed, and any trade name it will use
+  - id: seat
+    ask: "the registered office: the full address"
+  - id: object
+    ask: "the object of the company: the main activities it will carry out, as the founders describe them"
+  - id: contribution
+    ask: the total contribution in money by the founders
+    kind: amount
+  - id: bank_certificate
+    ask: "the bank certificate for the contribution in money: the bank, the blocked account and the certificate's date"
+  - id: contribution_in_kind
+    ask: any contribution other than money (goods, rights, work), what it is and the value given to it, or that there is none
+  - id: shares
+    ask: the number of shares issued and how they are divided among the founders
+  - id: directors
+    ask: "the director or directors appointed in the deed: full names as written, and whether the mandate is paid or unpaid"
+  - id: representation
+    ask: "how the company is represented towards third parties: one director alone, two directors jointly, or another rule"
+  - id: fiscal_year
+    ask: the closing date of the financial year, and the closing date of the first financial year if it is longer or shorter than a year
+  - id: general_meeting
+    ask: the day and hour of the annual general meeting
+  - id: plan_date
+    ask: the date of the financial plan handed to the notary
+    kind: date
+  - id: financial_plan
+    ask: "the financial plan: who drafted it, the external expert named in it if any, and the period it covers"
+
+instructions: >-
+  You are preparing the incorporation of a Belgian private limited company (BV/SRL) for a notarial
+  deed. Read the excerpts and fill in the table below: one row per fact, in this order, with the
+  fact's id in the first column exactly as given, the value in the second column, copied as the
+  documents write it (names, amounts, dates, addresses, references), and in the third column the
+  excerpt numbers the value comes from, as [n]. A fact the excerpts do not contain gets an empty
+  second column and an empty third column: never guess, never fill in from general knowledge, and
+  never supply a value the law would suggest. Answer with the table only, no text before or after
+  it, in the language of the documents.
+
+steps:
+  - id: documents         # what the founders sent: identity documents, the financial plan, the bank certificate, proof of the seat
+    kind: request
+    min: 1
+  - id: read
+    kind: read
+    facts: all
+  - id: missing           # one question per fact the documents did not contain
+    kind: ask
+    facts: all
+  - id: confirm
+    kind: checkpoint
+    by: anyone_in_case
+  - id: summary
+    kind: produce
+    template: summary

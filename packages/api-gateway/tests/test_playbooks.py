@@ -302,7 +302,8 @@ def test_an_admin_switches_a_playbook_off_and_it_leaves_every_case(office):
     # the admin's list: every installed playbook, active unless switched off
     assert c.get("/v1/admin/playbooks", headers=alice).status_code == 403
     listed = c.get("/v1/admin/playbooks", headers=admin).json()
-    assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [("playbook/be-notary/deed-intake", True, ["sale"])]
+    assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [
+        ("playbook/be-notary/company-formation", True, ["company-formation"]), ("playbook/be-notary/deed-intake", True, ["sale"])]
     assert c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=alice).status_code == 403
     assert c.put("/v1/admin/playbooks/nope", json={"active": False}, headers=admin).status_code == 404
     r = c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=admin)

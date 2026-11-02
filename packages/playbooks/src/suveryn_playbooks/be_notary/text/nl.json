@@ -22,5 +22,31 @@
       "agreement": "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet."
     }
+  },
+  "company-formation": {
+    "title": "Oprichting vennootschap",
+    "summary": "Leest de feiten voor de oprichtingsakte van een BV uit de documenten van de oprichters",
+    "factsTitle": "Gegevens voor de oprichtingsakte",
+    "labels": {
+      "founders": "Oprichter(s)",
+      "company_name": "Naam van de vennootschap",
+      "seat": "Zetel",
+      "object": "Voorwerp",
+      "contribution": "Inbreng in geld",
+      "bank_certificate": "Bankattest",
+      "contribution_in_kind": "Inbreng in natura",
+      "shares": "Aandelen",
+      "directors": "Bestuurder(s)",
+      "representation": "Vertegenwoordiging",
+      "fiscal_year": "Boekjaar",
+      "general_meeting": "Jaarvergadering",
+      "plan_date": "Financieel plan van",
+      "financial_plan": "Financieel plan"
+    },
+    "questions": {
+      "documents": "Laad op wat de oprichters bezorgden: identiteitsdocumenten, het financieel plan, het bankattest en het bewijs van de zetel. Ga daarna verder.",
+      "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+      "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is."
+    }
   }
 }

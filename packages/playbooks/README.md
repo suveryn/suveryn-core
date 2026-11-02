@@ -8,6 +8,7 @@ here: the gateway runs them (`suveryn_api_gateway.playbooks`). Design:
 | Playbook | Id | Pack | Version |
 |---|---|---|---|
 | Deed intake (sale): asks for the agreement, reads the documents, asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/deed-intake` | `pack/be-notary` | 1.1 |
+| Company formation (company-formation): asks for what the founders sent, reads it for the fourteen facts of the deed of incorporation of a BV, asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/company-formation` | `pack/be-notary` | 1.0 |
 
 The identifiers are the ones the platform note chose; they end up in the registry, the licence and
 the invoice, so they never change. `covered(playbook_id)` is the one place the licence check will
@@ -36,6 +37,7 @@ What is here:
 | `src/suveryn_playbooks/_model.py` | `Playbook`, `Fact`, `Step` and `Wording`: a playbook as the product sees it |
 | `src/suveryn_playbooks/manifest.py` | The manifest formats 1 and 2 (`Manifest`, validated strictly; `validate_steps` for the graph), `parse`, `load`, the table scaffold and the JSON Schema |
 | `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.1: its thirteen facts, the instructions the model gets, the case type it fits and its five steps |
+| `src/suveryn_playbooks/be_notary/company-formation.yaml` | Company formation 1.0: the fourteen facts of a BV's deed of incorporation, the instructions, the case type and its five steps |
 | `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary, fact labels and questions in English, Dutch and French |
 | `schema/playbook-manifest.schema.json` | The format as JSON Schema, generated from `manifest.py` |
 | `tests/test_content.py` | The identities, the case types, and that every playbook has its words and its questions in each language |
