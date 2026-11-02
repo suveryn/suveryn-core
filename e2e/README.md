@@ -18,6 +18,7 @@ CI does this on `ubuntu-latest` with Docker for PostgreSQL and Keycloak, the rea
 
 ```bash
 uv sync --all-packages --dev --group e2e && uv run playwright install chromium
+SUVERYN_RAG_DEVICE=cpu uv run suveryn-fetch-models   # once: the gateway never downloads models itself
 (cd packages/chat-ui && npm ci && npm run build)
 
 # PostgreSQL and Keycloak as containers (Docker present):

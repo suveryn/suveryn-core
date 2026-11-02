@@ -263,8 +263,22 @@ def gateway_ready() -> bool:
 
 def gateway_start() -> None:
     spawn("gateway", ["uv", "run", "suveryn-gateway"], gateway_env())
-    # the reader loads Docling and the embedder loads bge-m3 at start; on a CI runner without a model cache, minutes
-    wait_for("gateway", gateway_ready, 900, 5)
+    # the reader loads Docling and the embedder loads bge-m3 at start, from the cache suveryn-fetch-models filled
+    # (the gateway never downloads: suveryn_rag.offline); on a CI runner's CPU this takes a few minutes
+    try:
+        wait_for("gateway", gateway_ready, 600, 5)
+    except SystemExit:
+        tail("gateway")
+        raise
+
+
+def tail(name: str, lines: int = 40) -> None:
+    """The end of a service's log, without the health polls, so a failed start says why in the CI log."""
+    log = RUN / f"{name}.log"
+    if log.exists():
+        kept = [line for line in log.read_text(errors="replace").splitlines() if "GET /health" not in line]
+        print(f"--- {name}.log, last {min(lines, len(kept))} lines ---")
+        print("\n".join(kept[-lines:]))
 
 
 def stub_start() -> None:

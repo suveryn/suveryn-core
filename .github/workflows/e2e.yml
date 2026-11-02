@@ -35,13 +35,19 @@ jobs:
         run: uv run playwright install --with-deps chromium
 
       - name: Model files for the reader and the embedder (cached)
-        # bge-m3 and Docling's layout models come from Hugging Face on first use; cached between runs by the
-        # names in the settings, so a run downloads them once.
+        # bge-m3 and Docling's layout models, fetched below; cached between runs so a run downloads them once.
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
           key: hf-${{ runner.os }}-bge-m3-docling-${{ hashFiles('uv.lock') }}
           restore-keys: hf-${{ runner.os }}-bge-m3-docling-
+
+      - name: Fetch the models, as an appliance does at set-up
+        # The gateway never downloads at runtime (suveryn_rag.offline): without this the reader and the
+        # embedder find an empty cache and document handling fails to start. On a warm cache this is seconds.
+        env:
+          SUVERYN_RAG_DEVICE: cpu
+        run: uv run suveryn-fetch-models
 
       - uses: actions/setup-node@v5
         with:
