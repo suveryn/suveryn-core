@@ -24,8 +24,6 @@ def restored():
     for name in reversed(stopped):
         service("start", name)
     wait_until(lambda: health_part("documents") == "ready" and health_part("auth") == "ready", 120, what="the stack back")
-    if "postgres" in stopped:
-        kc_token()  # flushes Keycloak's dead pooled connections, so the next scenario starts clean (see the xfail below)
 
 
 def stop(restored: list[str], name: str) -> None:
@@ -60,12 +58,11 @@ def test_postgresql_restarts_and_nobody_is_signed_out(page, deed, restored):
     upload(page, deed)
 
 
-@pytest.mark.xfail(strict=False, reason="Found by this suite, 2 November 2026: after PostgreSQL restarts, Keycloak's pooled "
-                   "connections are dead and the first sign-in often (not always: its pool validates idle connections now "
-                   "and then) shows Keycloak's 'internal server error' page; the pool recovers after that failure. The "
-                   "appliance should validate connections on use or the gateway should retry the token call. Tracker issue "
-                   "to follow; make this strict and then remove it with the fix.")
 def test_a_sign_in_right_after_postgresql_restarts_works_first_time(page, restored):
+    """Found by this suite on 2 November 2026: with its pool's connections dead after a PostgreSQL restart,
+    Keycloak's first request failed (its 'internal server error' page on the first sign-in; 3 of 4 trials) until
+    its pool had thrown the dead ones out. Fixed by checking a pooled connection before use
+    (``quarkus.datasource.jdbc.validate-on-borrow``, set by the stack as the appliance sets it)."""
     kc_token()  # Keycloak holds a used connection in its pool when the database goes
     stop(restored, "postgres")
     wait_until(lambda: health_part("history") == "failed", 30, what="/health noticing the database")
