@@ -76,3 +76,16 @@ def test_years_are_checked_against_the_cited_passage():
     assert check("Opgericht in 1990 [1].") == [(1, "1990", [])]  # in no passage: nothing else reports years
     assert check("Zie artikel 2021 [1].") == [(1, "2021", [])]  # four digits in the year range are taken as years
     assert check("Op 12/03/1996 [2].") == []  # a full date is checked as a date, not again as a year
+
+
+def test_a_date_in_the_older_notarial_form_is_read_as_a_date():
+    """VM regression 9c97d76, finding 3: a passage writing the date as older deeds do ("drie en twintig maart
+    negentienhonderd zes en negentig") flagged the right answer in figures."""
+    sources = [passage("Verleden te Gent, op drie en twintig maart negentienhonderd zes en negentig."),
+               passage("Fait à Bruxelles, le vingt-trois mars mil neuf cent nonante-six."),
+               passage("Gedaan op de vijf en twintigste juni tweeduizend en drie.")]
+    check = lambda a: [(i.n, i.item) for i in citation_issues(a, sources, [])]  # noqa: E731
+    assert check("De akte werd verleden op 23/03/1996 [1].") == []
+    assert check("L'acte date du 23 mars 1996 [2].") == []
+    assert check("Ondertekend op 25 juni 2003 [3].") == []
+    assert check("De akte werd verleden op 24/03/1996 [1].") != []  # a wrong day is still flagged

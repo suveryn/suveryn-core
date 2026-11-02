@@ -336,10 +336,12 @@ class JournalFlush:
 
     async def _run(self) -> None:
         while self._again:
-            self._again = False
             await asyncio.sleep(self.delay)
-            await run_in_threadpool(flush_journal, self.database_url)
+            self._again = False  # after the wait: a deletion during it shares this flush (VM regression 9c97d76, finding 4)
+            done = await run_in_threadpool(flush_journal, self.database_url)
             self.flushes += 1
+            if done:
+                log.info("journal flushed after a deletion")
 
 
 def flush_soon(app: FastAPI) -> None:

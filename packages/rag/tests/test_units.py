@@ -8,7 +8,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 pytest.importorskip("suveryn_rag")
-from suveryn_rag.chunking import chunk_pages, location_label
+from suveryn_rag.chunking import Chunk, chunk_pages, in_reading_order, location_label
 from suveryn_rag.workspace import private_workdir
 
 
@@ -179,3 +179,12 @@ def test_characters_read_with_the_wrong_encoding_are_put_right():
     assert misdecoding("Dara Ó Briain, Óscar, één café, CÔTE, cœur, Straße") is None
     assert misdecoding("ŽŽ α β γ δ ε ζ η θ") is None
     assert repair_characters("Werkher\ufffe\nvatting", None) == "Werkher-\nvatting"  # PDFium's line-break hyphen
+
+
+def test_chunks_are_numbered_in_reading_order():
+    """VM regression 9c97d76, finding 10: text recovered on page 1 was stored last, with the highest index."""
+    made = [Chunk(0, "p2", "p2", 2, 2, []), Chunk(1, "p3", "p3", 3, 3, []), Chunk(2, "sheet", "sheet", None, None, []),
+            Chunk(3, "p1 recovered", "p1 recovered", 1, 1, [], "text_layer_recovered"),
+            Chunk(4, "p2 recovered", "p2 recovered", 2, 2, [], "text_recovered")]
+    ordered = in_reading_order(made)
+    assert [(c.index, c.text) for c in ordered] == [(0, "p1 recovered"), (1, "p2"), (2, "p2 recovered"), (3, "p3"), (4, "sheet")]

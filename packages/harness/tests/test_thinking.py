@@ -171,8 +171,13 @@ def _thinker(reasoning_pieces: int, finish: str = "length"):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path in ("/models", "/v1/models"):
             return httpx.Response(404 if request.url.path == "/models" else 200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
-        thinking = json.loads(request.content).get("chat_template_kwargs", {}).get("enable_thinking")
+        payload = json.loads(request.content)
+        thinking = payload.get("chat_template_kwargs", {}).get("enable_thinking")
         events = ([{"reasoning_content": "Secret "}] * reasoning_pieces) if thinking else [{"content": "EUR 1."}]
+        if not payload["stream"]:  # the whole answer at once (VM regression 9c97d76, finding 1)
+            message = {"content": "".join(e.get("content", "") for e in events),
+                       "reasoning_content": "".join(e.get("reasoning_content", "") for e in events)}
+            return httpx.Response(200, json={"choices": [{"message": message, "finish_reason": finish if thinking else "stop"}], "usage": {}})
         body = "".join(f"data: {json.dumps({'choices': [{'delta': e, 'finish_reason': None}]})}\n\n" for e in events)
         body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': finish if thinking else 'stop'}]})}\n\ndata: [DONE]\n\n"
         return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
@@ -196,3 +201,15 @@ def test_thinking_past_its_allowance_is_stopped_before_the_length_limit():
     done = seen[-1].response
     assert done.answer == "EUR 1." and done.thinking_cut
     assert sum(isinstance(e, Thinking) for e in seen) == THINKING_TOKENS + 1  # stopped at the allowance, not at its end
+
+
+def test_without_streaming_thinking_without_an_answer_is_asked_again_too(caplog):
+    """VM regression 9c97d76, findings 1 and 9: ``POST /v1/chat`` without streaming still came back empty after three
+    minutes, and ``thought_seconds`` was empty."""
+    with caplog.at_level("INFO", logger="suveryn.harness"):
+        done = asyncio.run(ChatService(_thinker(3)).answer(ask(thinking=True), "alice"))
+    assert done.answer == "EUR 1." and done.thinking_cut and done.reasoning
+    assert done.thought_seconds is not None
+    assert any("asked again without thinking" in r.getMessage() for r in caplog.records)
+    plain = asyncio.run(ChatService(_thinker(0)).answer(ask(thinking=False), "alice"))
+    assert plain.answer == "EUR 1." and not plain.thinking_cut and plain.thought_seconds is None

@@ -251,7 +251,7 @@ its Word download.
 
 **Review is in the playbook's message.** At the checkpoint its message says how many facts were found
 and how many need attention, then one card per fact that needs the person, in two groups: *Check*, a
-value the check couldn't find literally in its passage (the passage quoted with a teal rule, what isn't
+value the check couldn't find literally in its passage (the sentence of the passage the value comes from quoted with a teal rule, "…" where the passage goes on, the whole passage behind the source link (VM regression 9c97d76, finding 7); what isn't
 in it said in words with the triangle, and the source), and *Missing*, a fact without a value. *Adjust*
 and *Fill in* turn the value into a field in the card (Enter keeps it, Esc cancels; `PUT
 …/runs/{run}/facts/{fact}`): a changed value is a new version from that person and a line in the thread;
