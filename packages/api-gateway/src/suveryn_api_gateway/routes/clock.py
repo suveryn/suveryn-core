@@ -67,7 +67,9 @@ async def set_clock(body: Measured, request: Request):
     if rid is None:
         raise HTTPException(409, "The appliance is still busy with the last change to its clock.")
     request.app.state.clock.reports.clear()  # what was measured before no longer holds
-    clock_module.log.warning("clock: an administrator set the appliance's clock by %+.1f s", -body.offset_ms / 1000)
+    # asked, not done: the helper may refuse (a time server took over meanwhile); its answer is logged when it comes
+    # (VM regression 9c97d76, finding 5: the journal said the clock was set when it never moved)
+    clock_module.log.warning("clock: an administrator asked to set the appliance's clock by %+.1f s", -body.offset_ms / 1000)
     return SetAnswer(id=rid, pending=True)
 
 
@@ -81,5 +83,13 @@ async def set_clock_answer(rid: str, request: Request):
     if raw is None:
         return SetAnswer(id=rid, pending=True)
     moved = raw.get("moved_ms")
+    answered: set = request.app.state.__dict__.setdefault("clock_answers_logged", set())
+    if rid not in answered:
+        answered.add(rid)
+        if raw.get("ok"):
+            clock_module.log.warning("clock: the appliance's clock was set (moved by %+.1f s)",
+                                     (moved if type(moved) is int else 0) / 1000)
+        else:
+            clock_module.log.warning("clock: the appliance did not set its clock (%s)", str(raw.get("error") or "no reason")[:40])
     return SetAnswer(id=rid, ok=bool(raw.get("ok")), error=str(raw["error"])[:40] if raw.get("error") else None,
                      moved_ms=moved if type(moved) is int else None)

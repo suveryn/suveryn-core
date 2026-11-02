@@ -14,6 +14,7 @@
  * shown as written. Pause, cancel and stop are on the run's chip in the composer, shown only to those the
  * gateway would allow (it decides; the chip hides what would fail).
  */
+import { quoteFor } from "../lib/quote";
 import {
   ArrowLeft, ArrowUp, Check, ChevronDown, CircleAlert, CircleX, Download, FileText, Paperclip, Pause, Play, Route, Square, TriangleAlert, X,
 } from "lucide-react";
@@ -328,7 +329,7 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditing(false); }
   };
   const src = sourceText(fact, m);
-  const quote = fact.citations[0]?.text;
+  const quote = fact.citations[0]?.text ? quoteFor(fact.citations[0].text, fact.value) : undefined;
   return (
     <Card compact className="fact-card">
       <div className="fact-card-head">
