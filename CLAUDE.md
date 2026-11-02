@@ -32,4 +32,6 @@ uv sync --all-packages --dev && uv run pytest -q          # Python (ruff: uvx ru
 cd packages/chat-ui && npm ci && npm run typecheck && npm test && npm run build
 ```
 
+The end-to-end suite ([e2e/README.md](e2e/README.md)) runs on every PR in CI; locally, `uv run python e2e/stack.py up` then `uv run pytest e2e/tests`. A change to a screen or a flow that a scenario walks through changes the scenario in the same PR.
+
 Before asking for a merge, walk the review checklist in [architecture.md §8](docs/architecture.md). The appliance pins this repository by commit; after a merge, the pin moves in its own PR there.

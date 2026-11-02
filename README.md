@@ -49,6 +49,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
    ```bash
    uv run pytest
    ```
+   The whole stack in a browser, with a stand-in model server, is [`e2e/`](e2e/README.md); CI runs it on every pull request.
 5. For sign-in, run a development Keycloak as described in [packages/api-gateway/keycloak](packages/api-gateway/keycloak/README.md), or set `SUVERYN_AUTH=off` to work without it on your own machine.
 6. Run the chat UI (see [packages/chat-ui](packages/chat-ui/README.md)):
    ```bash
