@@ -34,10 +34,10 @@ _UNITS_EN = {"zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "s
              "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
              "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
 _SCALES = {"honderd": 100, "cent": 100, "cents": 100, "hundred": 100,
-           "duizend": 1000, "mille": 1000, "thousand": 1000,
+           "duizend": 1000, "mille": 1000, "mil": 1000, "thousand": 1000,
            "miljoen": 10**6, "million": 10**6, "millions": 10**6, "miljard": 10**9, "milliard": 10**9, "milliards": 10**9, "billion": 10**9}
 _JOIN = {"en": "en", "et": "et", "and": "and"}
-_ORDINALS = {"eerste": 1, "premier": 1, "1er": 1, "first": 1}
+_ORDINALS = {"eerste": 1, "premier": 1, "1er": 1, "first": 1, "derde": 3, "troisieme": 3}
 _SMALL = {**_UNITS_NL, **_UNITS_FR, **_UNITS_EN}
 # The pieces one Dutch word is built of ("zesentwintigduizend"), longest first so "zeventien" wins over "zeven".
 _MORPHEMES = sorted([*_UNITS_NL, *_SCALES, "en", "ën"], key=len, reverse=True)
@@ -153,7 +153,28 @@ def _day(token: str) -> int | None:
     if m:
         return int(m.group(1))
     n = number([f])
+    if n is None:  # an ordinal in words: "drieëntwintigste", "tweede"
+        stem = re.sub(r"(ste|de)$", "", f)
+        n = number([stem]) if stem != f else None
     return n if n is not None and 1 <= n <= 31 else None
+
+
+def _day_before(tokens: list[str], i: int) -> int | None:
+    """The day written before the month at ``i``: one token ("12", "twaalf", "drieëntwintigste"), or several number
+    words: the older notarial form "drie en twintig", "vijf en twintigste", French "vingt-trois" (split at the hyphen)
+    (VM regression 9c97d76, finding 3). The longest run of up to four words that reads as 1 to 31."""
+    for k in (4, 3, 2):
+        if i < k:
+            continue
+        words = [fold(w) for w in tokens[i - k:i]]
+        if words[-1] not in _JOIN and _pieces(words[-1]) is None:
+            words[-1] = re.sub(r"(ste|de)$", "", words[-1])  # an ordinal's last word
+        if words[0] in _JOIN or words[-1] in _JOIN or not all(w in _JOIN or _pieces(w) is not None for w in words):
+            continue
+        n = number(words)
+        if n is not None and 1 <= n <= 31:
+            return n
+    return _day(tokens[i - 1])
 
 
 def dates_in(text: str) -> set[tuple[int, int, int]]:
@@ -165,7 +186,7 @@ def dates_in(text: str) -> set[tuple[int, int, int]]:
         month = MONTHS.get(fold(t).rstrip("."))
         if month is None or i == 0:
             continue
-        day = _day(tokens[i - 1])
+        day = _day_before(tokens, i)
         if day is None:
             continue
         year = None

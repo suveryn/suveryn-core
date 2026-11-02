@@ -827,3 +827,27 @@ def test_without_a_database_nothing_is_flushed():
     j = JournalFlush(database_url="")
     j.soon()  # no running loop needed: it returns at once
     assert j._task is None
+
+
+def test_deletions_during_the_wait_share_one_flush(monkeypatch, caplog):
+    """VM regression 9c97d76, finding 4: five deletions in 2.6 s flushed twice: the flag was cleared before the wait,
+    so a deletion during it asked for a second flush. And each flush is now a line in the journal."""
+    import asyncio
+
+    from suveryn_api_gateway.routes import common
+
+    flushed: list[str] = []
+    monkeypatch.setattr(common, "flush_journal", lambda url: flushed.append(url) or True)
+
+    async def five_deletions():
+        j = common.JournalFlush(database_url="postgresql://appliance/suveryn", delay=0.2)
+        for _ in range(5):
+            j.soon()
+            await asyncio.sleep(0.03)  # all within the wait
+        await j._task
+        return j
+
+    with caplog.at_level("INFO", logger="suveryn.gateway"):
+        j = asyncio.run(five_deletions())
+    assert flushed == ["postgresql://appliance/suveryn"] and j.flushes == 1
+    assert sum("journal flushed after a deletion" in r.getMessage() for r in caplog.records) == 1

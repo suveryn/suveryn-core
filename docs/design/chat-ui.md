@@ -1013,7 +1013,9 @@ The strings of *Administration* are in [admin.md](admin.md).
   - When the thinking runs past its 4,096 tokens without an answer (or the answer comes back empty because
     the thinking used the budget), the stream stops it and asks again without thinking; the answer then
     says "Thorough thought for too long without an answer, so this one was written without thinking. Ask more
-    narrowly to have it thought through." (`done.thinking_cut`; VM regression 03c8f74, finding 1: two wide
+    narrowly to have it thought through." (`done.thinking_cut`; the whole answer at once, `POST /v1/chat` without
+    streaming, does the same once the thinking came back without an answer, and gives `thought_seconds` as the
+    thinking's share of the call: VM regression 9c97d76, findings 1 and 9; VM regression 03c8f74, finding 1: two wide
     questions came back empty after three minutes).
   - The chip opens one small dialog (`ChipDialog`, new in `ui/`): the models when there are several,
     and *Fast* / *Thorough* (`Segmented`, which can now disable one option and carry a line under it).

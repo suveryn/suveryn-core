@@ -85,7 +85,8 @@ def test_signed_in_browsers_measure_and_report(setup, appliance):  # noqa: F811
     assert c.post("/v1/clock", json={"offset_ms": 400 * 24 * 3600 * 1000, "rtt_ms": 30}, headers=as_user(kc, BOB)).status_code == 422
 
 
-def test_an_administrator_sets_the_clock_to_their_pcs_time(setup, appliance, monkeypatch):  # noqa: F811
+def test_an_administrator_sets_the_clock_to_their_pcs_time(setup, appliance, monkeypatch, caplog):  # noqa: F811
+    caplog.set_level("WARNING")
     c, kc, _ = setup
     admin, body = as_user(kc, ALICE, admin=True), {"offset_ms": -95_000, "rtt_ms": 40}
     assert c.post("/v1/admin/clock", json=body, headers=as_user(kc, BOB)).status_code == 403
@@ -98,6 +99,11 @@ def test_an_administrator_sets_the_clock_to_their_pcs_time(setup, appliance, mon
     clock.RESULT.write_text(json.dumps({"id": rid, "kind": "set", "ok": True, "moved_ms": 95_000}))
     assert c.get(f"/v1/admin/clock/{rid}", headers=admin).json() == {"id": rid, "pending": False, "ok": True, "error": None,
                                                                      "moved_ms": 95_000}
+    c.get(f"/v1/admin/clock/{rid}", headers=admin)
+    # VM regression 9c97d76, finding 5: "asked" at the request, and the appliance's answer once, not "set" before it acted
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("clock:")]
+    assert lines == ["clock: an administrator asked to set the appliance's clock by +95.0 s",
+                     "clock: the appliance's clock was set (moved by +95.0 s)"]
     (appliance / "request.json").unlink()
     assert c.post("/v1/admin/clock", json={**body, "rtt_ms": 3000}, headers=admin).status_code == 422
     monkeypatch.setattr(clock, "time_server_keeps_it", lambda: True)

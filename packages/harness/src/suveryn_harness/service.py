@@ -192,7 +192,24 @@ class ChatService:
     async def _answer(self, req: ChatRequest, owner: str) -> ChatResponse:
         """Whole answer at once, grounded only in ``owner``'s documents."""
         prepared, citations, named = await self._prepare(req, owner)
+        began = time.monotonic()
         response = await self.llm.complete(prepared, user=owner, kind="chat")
+        took = time.monotonic() - began
+        cut = False
+        if prepared.thinking and response.reasoning and not response.answer.strip():
+            # Thought to the end of its budget with no word of answer: asked again without thinking, as the stream
+            # does (VM regression 9c97d76, finding 1: the non-streamed path still returned nothing).
+            log.info("thinking past its allowance without an answer: asked again without thinking (reasoning_chars=%d)",
+                     len(response.reasoning))
+            reasoning = response.reasoning
+            response = await self.llm.complete(prepared.model_copy(update={"thinking": False}), user=owner, kind="chat")
+            response, cut = response.model_copy(update={"reasoning": reasoning}), True
+        if response.reasoning:
+            # A whole answer at once has no moment when the thinking ended: its share of the call's time, by the
+            # length of what was written (finding 9: ``thought_seconds`` was empty without streaming).
+            share = 1.0 if cut else len(response.reasoning) / max(1, len(response.reasoning) + len(response.answer))
+            response = response.model_copy(update={"thought_seconds": round(took * share, 1)})
+        response = response.model_copy(update={"thinking_cut": cut})
         if not req.document_ids:
             return response
         response = response.model_copy(update={"narrowed_to": named})

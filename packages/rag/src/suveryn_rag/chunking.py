@@ -30,6 +30,14 @@ class Chunk:
     place: str | None = None  # a spreadsheet passage's cells, e.g. "Prices!A2:D31" (formats)
 
 
+def in_reading_order(chunks: list[Chunk]) -> list[Chunk]:
+    """The chunks by first page (pageless ones last), in the order they were made within a page, numbered again."""
+    ordered = sorted(chunks, key=lambda c: (c.page_start is None, c.page_start or 0, c.index))
+    for i, c in enumerate(ordered):
+        c.index = i
+    return ordered
+
+
 @dataclass
 class ChunkResult:
     """Chunks plus the integrity warnings raised while making them."""
@@ -78,9 +86,10 @@ class Chunker:
         """Chunk a Docling document; guarantee that no body text or real content is silently lost.
 
         ``page_texts`` is the PDF text layer per page (``Extraction.page_texts``), used as the
-        independent reference for the page coverage check. Recovered text is appended as extra
-        chunks after the regular ones, so chunk order is not strictly reading order;
-        ``Store.document_chunks`` restores reading order by page.
+        independent reference for the page coverage check. Recovered text is made as extra chunks
+        after the regular ones; at the end every chunk is numbered again in reading order (by first page,
+        then as made), so a chunk's index is its place in the document (``in_reading_order``; VM regression
+        9c97d76, finding 10: page 1's recovered text had the highest index).
         """
         from docling_core.types.doc import ContentLayer
 
@@ -135,4 +144,4 @@ class Chunker:
 
         # 4. Page coverage: anything still missing after recovery means the document needs review.
         warnings += page_coverage(page_texts, stored(), dropped)
-        return ChunkResult(chunks, warnings)
+        return ChunkResult(in_reading_order(chunks), warnings)
