@@ -154,10 +154,15 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert by["price"]["value"] == "EUR 412.500,00" and by["price"]["citations"][0]["filename"] == "akte.pdf" and by["price"]["source"] == "document"
     assert by["cadastral"]["found"] is False and by["cadastral"]["source"] == "none" and by["cadastral"]["confirmed"] is None
     asked = [t for t in run["turns"] if t["step_id"] == "missing"]
-    not_found = [f["id"] for f in run["facts"] if not f["found"]]
-    # one turn says what was found and what not, and asks (handover of 30 October 2026, board 52)
-    total = len(run["facts"])
-    assert [t["meta"] for t in asked] == [{"kind": "ask", "facts": not_found, "found": total - len(not_found), "total": total}]
+    # the ask is about the plain facts the documents lacked; a field empty inside a list's entry (a seller's address) is
+    # not asked, it is corrected at the checkpoint, as a founder's is in company formation
+    not_found = [f["id"] for f in run["facts"] if not f["found"] and "[" not in f["id"]]
+    assert not_found == ["cadastral", "title", "epc", "soil"]
+    # one turn says what was found and what not, and asks (handover of 30 October 2026, board 52); the counts are over
+    # every line, the entries' values included (1.3: 21 lines, 11 of them read)
+    total, found = len(run["facts"]), sum(1 for f in run["facts"] if f["found"])
+    assert (total, found) == (21, 11)
+    assert [t["meta"] for t in asked] == [{"kind": "ask", "facts": not_found, "found": found, "total": total}]
     assert not_found[0] == "cadastral" and "Cadastral" in asked[0]["text"]
     assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook"]
     # the answer: a proposed fact from a person; a fact not asked is refused
@@ -372,7 +377,7 @@ def test_an_unreadable_answer_is_asked_for_once_more_with_a_stricter_reminder(ru
         c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
         assert len(captured) == 2 and "could not be read" in captured[1]["messages"][-1]["content"]
-        assert captured[1]["max_tokens"] == 6144 and len(run["facts"]) == 13  # READ_TOKENS: the JSON with room for a list
+        assert captured[1]["max_tokens"] == 6144 and len(run["facts"]) == 21  # READ_TOKENS: the JSON with room for a list; 1.3's lines
 
 
 @needs_db
