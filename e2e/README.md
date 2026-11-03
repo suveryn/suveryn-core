@@ -18,6 +18,7 @@ CI does this on `ubuntu-latest` with Docker for PostgreSQL and Keycloak, the rea
 
 ```bash
 uv sync --all-packages --dev --group e2e && uv run playwright install chromium
+SUVERYN_RAG_DEVICE=cpu uv run suveryn-fetch-models   # once: the gateway never downloads models itself
 (cd packages/chat-ui && npm ci && npm run build)
 
 # PostgreSQL and Keycloak as containers (Docker present):
@@ -39,7 +40,7 @@ The stack listens on `http://localhost:5173`; sign in as `notaris.test` (an admi
 - Find elements by role and accessible name, as a screen reader would: the names are the UI's own strings, so a scenario fails when the UI's words change, which is right. A regular expression as a name can't contain `/`.
 - A case reference is unique in the office: make one per run (`E2E/<stamp>`), and leave the stack as you found it (an account switched off is switched back on; `stack_up` re-enables the two accounts at the start of a run).
 - Nothing confidential, ever: the fictional trap deed (`packages/rag/tests/trap_deed.py`), the two test accounts, fixed test secrets. Screenshots are uploaded as CI artifacts.
-- A finding is a finding: a scenario that shows a defect is kept as it should pass, marked `xfail` with the reason and the tracker issue, and the marker goes with the fix. Two came out of writing the suite: Keycloak's first request after a PostgreSQL restart fails on dead pooled connections, and the member search's suggestions don't open when the directory answers after the last keystroke.
+- A finding is a finding: a scenario that shows a defect is kept as it should pass, marked `xfail` with the reason and the tracker issue, and the marker goes with the fix. Two came out of writing the suite: Keycloak's first request after a PostgreSQL restart failed on dead pooled connections (fixed in the appliance's Keycloak configuration, `validate-on-borrow`, which the stack sets the same way; the scenario now passes), and the member search's suggestions don't open when the directory answers after the last keystroke (open).
 
 ## What it doesn't cover
 

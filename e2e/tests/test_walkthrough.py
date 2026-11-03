@@ -68,7 +68,7 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     members.get_by_role("button", name="Add", exact=True).click()
     expect(members.get_by_text("Koen Collega")).to_be_visible()
     members.get_by_role("button", name="Close").click()
-    expect(page.get_by_role("button", name=re.compile("^Members: Nora Notaris \(case manager\), Koen Collega"))).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile(r"^Members: Nora Notaris \(case manager\), Koen Collega"))).to_be_visible()
     # the deed goes into the case, and the playbook runs as a conversation
     upload(page, deed, into_case=True)
     page.get_by_role("button", name="Apply a playbook to this case").click()

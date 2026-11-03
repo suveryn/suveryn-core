@@ -126,14 +126,16 @@ def keycloak_start() -> None:
     import_dir = RUN / "keycloak-import"
     import_dir.mkdir(parents=True, exist_ok=True)
     (import_dir / "suveryn-realm.json").write_text(json.dumps(prepared_realm(), indent=2), encoding="utf-8")
-    env = {"KC_BOOTSTRAP_ADMIN_USERNAME": KC_ADMIN[0], "KC_BOOTSTRAP_ADMIN_PASSWORD": KC_ADMIN[1]}
+    env = {"KC_BOOTSTRAP_ADMIN_USERNAME": KC_ADMIN[0], "KC_BOOTSTRAP_ADMIN_PASSWORD": KC_ADMIN[1],
+           # As the appliance's Keycloak (suveryn-appliance keycloak/quarkus.properties): a pooled connection is
+           # checked before use, so the first request after PostgreSQL restarts doesn't fail on a dead one.
+           "QUARKUS_DATASOURCE_JDBC_VALIDATE_ON_BORROW": "true"}
     if MODE == "docker":
         if sh("docker", "ps", "-aq", "-f", "name=^e2e-keycloak$").stdout.strip():
             sh("docker", "start", "e2e-keycloak")
         else:
             sh("docker", "run", "-d", "--name", "e2e-keycloak", "--network", "host",
-               "-e", f"KC_BOOTSTRAP_ADMIN_USERNAME={env['KC_BOOTSTRAP_ADMIN_USERNAME']}",
-               "-e", f"KC_BOOTSTRAP_ADMIN_PASSWORD={env['KC_BOOTSTRAP_ADMIN_PASSWORD']}",
+               *[a for k, v in env.items() for a in ("-e", f"{k}={v}")],
                "-v", f"{import_dir}:/opt/keycloak/data/import:ro", KC_IMAGE, *keycloak_args())
     else:
         home = Path(os.environ.get("E2E_KEYCLOAK_HOME", "")).expanduser()
@@ -261,8 +263,22 @@ def gateway_ready() -> bool:
 
 def gateway_start() -> None:
     spawn("gateway", ["uv", "run", "suveryn-gateway"], gateway_env())
-    # the reader loads Docling and the embedder loads bge-m3 at start; on a CI runner without a model cache, minutes
-    wait_for("gateway", gateway_ready, 900, 5)
+    # the reader loads Docling and the embedder loads bge-m3 at start, from the cache suveryn-fetch-models filled
+    # (the gateway never downloads: suveryn_rag.offline); on a CI runner's CPU this takes a few minutes
+    try:
+        wait_for("gateway", gateway_ready, 600, 5)
+    except SystemExit:
+        tail("gateway")
+        raise
+
+
+def tail(name: str, lines: int = 40) -> None:
+    """The end of a service's log, without the health polls, so a failed start says why in the CI log."""
+    log = RUN / f"{name}.log"
+    if log.exists():
+        kept = [line for line in log.read_text(errors="replace").splitlines() if "GET /health" not in line]
+        print(f"--- {name}.log, last {min(lines, len(kept))} lines ---")
+        print("\n".join(kept[-lines:]))
 
 
 def stub_start() -> None:

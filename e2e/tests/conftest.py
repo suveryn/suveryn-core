@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect
 
 HERE = Path(__file__).resolve().parent
@@ -121,9 +122,16 @@ def account_menu(page):
 
 def upload(page, pdf: Path, into_case: bool = False) -> None:
     """Add a document from the composer and wait until it is read (the card says so)."""
-    page.locator("input[type=file]").first.set_input_files(str(pdf))
     card = page.get_by_text(pdf.name).first
-    card.wait_for()
+    for attempt in range(2):
+        page.locator("input[type=file]").first.set_input_files(str(pdf))
+        try:
+            card.wait_for(timeout=15_000)
+            break
+        except PlaywrightTimeoutError:
+            if attempt:
+                raise
+            page.wait_for_timeout(1000)  # the first upload of a run on a cold page: choose the file once more
     page.get_by_text(re.compile(r"^(Read\.|Ready)"), exact=False).first.wait_for(timeout=SLOW)
 
 
