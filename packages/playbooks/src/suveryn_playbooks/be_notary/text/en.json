@@ -57,6 +57,12 @@
       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
       "missing.founders": "The documents name no founders. Who are they? Give each founder's name, shares and contribution, or leave empty if you don't know yet.",
       "missing.contribution_in_kind": "The documents mention no contribution other than money. Is there one? Describe it and its value, or leave empty if there is none."
+    },
+    "checks": {
+      "shares_add_up": "The founders' shares add up to the shares issued",
+      "contributions_add_up": "The founders' contributions add up to the contribution in money",
+      "bank_certifies_the_contribution": "The bank certifies the contribution in money",
+      "a_founder": "There is at least one founder"
     }
   }
 }

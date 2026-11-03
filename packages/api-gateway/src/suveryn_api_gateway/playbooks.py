@@ -93,10 +93,14 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     manifest jsonb,
     -- Which documents answered which named request (request step id -> document ids): what a read
     -- aimed at that request reads (docs/design/playbooks.md, "Documents by name").
-    requested jsonb NOT NULL DEFAULT '{}'::jsonb
+    requested jsonb NOT NULL DEFAULT '{}'::jsonb,
+    -- The check steps' results (step id -> status, both sides, what is missing), as last computed by
+    -- the server on the run's values (docs/design/playbooks.md, "Checks"). Never a block.
+    checks jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS manifest jsonb;
 ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS requested jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS checks jsonb NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS playbook_settings (
     playbook_id text PRIMARY KEY,
@@ -168,10 +172,23 @@ class RunSummary(BaseModel):
     conversation_id: str = ""            # the run's conversation: its thread, in the case's list of conversations
 
 
+class CheckOut(BaseModel):
+    """One check step's result as last computed (``suveryn_harness.checks``): the rule holds, fails (both
+    sides as computed, for the notary) or is open (values it needs are missing or can't be read)."""
+
+    status: Literal["holds", "fails", "open"]
+    rule: str
+    left: str = ""
+    right: str = ""
+    missing: list[str] = Field(default_factory=list)
+
+
 class Run(RunSummary):
     facts: list[RunFact] = Field(default_factory=list)
     # Per named request (step id), the documents that answered it (ids in the case): what a read aimed at it reads.
     requested: dict[str, list[str]] = Field(default_factory=dict)
+    # Per check step (step id), its result on the run's values as they stand; recomputed when a value changes.
+    checks: dict[str, CheckOut] = Field(default_factory=dict)
     # The playbook the run started under, as the UI needs it (labels, steps, lists), from the run's own
     # record; None for a run made before manifests were pinned: the UI then uses the installed one.
     playbook: PlaybookOut | None = None
@@ -242,6 +259,7 @@ class PlaybookWords(BaseModel):
     summary: str
     labels: dict[str, str]
     questions: dict[str, str] = Field(default_factory=dict)
+    checks: dict[str, str] = Field(default_factory=dict)   # a sentence per check step: what holds when it holds
     facts_title: str = ""   # the facts panel's heading ("Facts for the deed"); empty: the UI's generic one
 
 
@@ -285,7 +303,8 @@ def playbook_out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset())
                        facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
                        lists={f.id: [x.id for x in f.fields] for f in p.facts if f.kind == "list"},
                        kinds={**{f.id: f.leaf_kind for f in p.facts}, **{f"{f.id}.{x.id}": x.kind for f in p.facts for x in f.fields}},
-                       text={lang: PlaybookWords(title=w.title, summary=w.summary, labels=w.labels, questions=w.questions, facts_title=w.facts_title)
+                       text={lang: PlaybookWords(title=w.title, summary=w.summary, labels=w.labels, questions=w.questions, checks=w.checks,
+                                                 facts_title=w.facts_title)
                              for lang, w in p.text.items()},
                        steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
 
@@ -304,7 +323,23 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
         value = f.confirmed if f.confirmed is not None else f.value
         sources = ", ".join(f"{c.filename}{f' p. {c.page}' if c.page else ''}" for c in f.citations)
         lines.append(f"{words.label(f.id)}: {value or '—'}" + (f" ({sources})" if sources and value else ""))
+    # the checks, as last computed on the confirmed values: what each says, and whether it holds
+    for step in playbook.steps:
+        c = run.checks.get(step.id)
+        if step.kind != "check" or c is None:
+            continue
+        said = words.checks.get(step.id, step.rule)
+        word = {"holds": CHECK_WORDS[language if language in CHECK_WORDS else "en"][0], "fails": CHECK_WORDS[language if language in CHECK_WORDS else "en"][1],
+                "open": CHECK_WORDS[language if language in CHECK_WORDS else "en"][2]}[c.status]
+        detail = f" ({c.left} / {c.right})" if c.status == "fails" else ""
+        lines.append(f"{said}: {word}{detail}")
     return "\n\n".join(lines)
+
+
+# The three words of a check's result in the summary, per language (docs/translations.md: the interface's
+# languages, one list); the chat UI has the same three in its own files.
+CHECK_WORDS = {"en": ("holds", "does not hold", "not checked"), "nl": ("klopt", "klopt niet", "niet nagekeken"),
+               "fr": ("exact", "inexact", "non vérifié")}
 
 
 # ------------------------------------------------------------------------- the store
@@ -364,15 +399,20 @@ class RunStore(TurnStore):
         return {str(r[1]): self._summary(r) for r in rows}
 
     def get(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Run | None:
-        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps, manifest, requested FROM playbook_runs"
+        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps, manifest, requested, checks FROM playbook_runs"
                           " WHERE id = %s AND case_id = %s", (run_id, case_id)).fetchone()
         if r is None:
             return None
         summary = self._summary(r)
-        suspicious, steps, manifest, requested = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3]
+        suspicious, steps, manifest, requested, checks = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3], r[self._N + 4]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
                    steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
-                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None, requested=requested or {})
+                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None, requested=requested or {},
+                   checks={k: CheckOut(**v) for k, v in (checks or {}).items()})
+
+    def set_checks(self, run_id: uuid.UUID, checks: dict[str, dict]) -> None:
+        """The check steps' results, as last computed."""
+        self._execute("UPDATE playbook_runs SET checks = %s WHERE id = %s", (json.dumps(checks), run_id))
 
     def playbook_of(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Playbook | None:
         """The playbook the run started under, from its own record (docs/design/playbooks.md, "The data

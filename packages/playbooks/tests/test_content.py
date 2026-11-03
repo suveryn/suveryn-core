@@ -31,6 +31,8 @@ def test_identity_is_the_platforms():
                 assert all(p.text[lang].question(step.id).strip() for lang in LANGUAGES), step.id
             if step.kind == "ask":
                 assert all(p.text[lang].question(step.id, f).strip() != p.text[lang].labels[f] for lang in LANGUAGES for f in step.facts), step.id
+            if step.kind == "check":  # a sentence saying what holds when it holds, in every language
+                assert all(p.text[lang].checks.get(step.id, "").strip() for lang in LANGUAGES), step.id
 
 
 def test_deed_intake_fits_a_sale_and_is_covered():

@@ -119,6 +119,7 @@ class StepSpec(BaseModel):
     allow_none: bool | None = Field(default=None, description="request: a person may answer that there is no such document")
     expects: str | None = Field(default=None, pattern=_FACT_ID.pattern, description="request: a name for what is asked, so a read can aim at it")
     documents: tuple[str, ...] | None = Field(default=None, description="read: the names (expects) of the requests whose documents it reads; absent: every document")
+    rule: str | None = Field(default=None, min_length=1, max_length=200, description="check: one comparison, <term> <operator> <term> (rules.py)")
     by: Literal["anyone_in_case"] | None = Field(default=None, description="checkpoint: who may pass it")
     template: Literal["summary"] | None = Field(default=None, description="produce: the product (only the summary today)")
 
@@ -128,15 +129,18 @@ class StepSpec(BaseModel):
         "ask": frozenset({"facts"}),
         "checkpoint": frozenset({"by"}),
         "produce": frozenset({"template"}),
+        "check": frozenset({"rule"}),
     }
 
     def check_fields(self) -> None:
-        given = {k for k in ("facts", "min", "allow_none", "by", "template", "expects", "documents") if getattr(self, k) is not None}
+        given = {k for k in ("facts", "min", "allow_none", "by", "template", "expects", "documents", "rule") if getattr(self, k) is not None}
         wrong = given - self._ALLOWED[self.kind]
         if wrong:
             raise ValueError(f"step {self.id!r} ({self.kind}): {', '.join(sorted(wrong))} does not apply to this kind")
         if self.kind in ("read", "ask") and self.facts is None:
             raise ValueError(f"step {self.id!r} ({self.kind}): facts is required (a list of fact ids, or \"all\")")
+        if self.kind == "check" and not self.rule:
+            raise ValueError(f"step {self.id!r} (check): rule is required")
 
 
 class Manifest(BaseModel):
@@ -184,7 +188,9 @@ class Manifest(BaseModel):
             for f in self.facts:
                 if f.kind in FORMAT_3_KINDS:
                     raise ValueError(f"fact {f.id!r}: kind {f.kind} needs manifest: 3")
-        validate_steps(self.resolved_steps(), {f.id for f in self.facts})
+        steps = self.resolved_steps()
+        validate_steps(steps, {f.id for f in self.facts})
+        validate_rules(steps, tuple(_fact(f) for f in self.facts))
 
     def resolved_steps(self) -> tuple[Step, ...]:
         """The steps as the runtime sees them: defaults filled in, "all" expanded, ``needs`` defaulting
@@ -197,7 +203,7 @@ class Manifest(BaseModel):
             needs = sp.needs if sp.needs is not None else ((previous,) if previous else ())
             out.append(Step(id=sp.id, kind=sp.kind, needs=tuple(needs), facts=facts, min=sp.min or 1,
                             allow_none=bool(sp.allow_none), by=sp.by or "anyone_in_case", template=sp.template or "summary",
-                            expects=sp.expects or "", documents=tuple(sp.documents or ())))
+                            expects=sp.expects or "", documents=tuple(sp.documents or ()), rule=sp.rule or ""))
             previous = sp.id
         return tuple(out)
 
@@ -293,6 +299,31 @@ def answer_scaffold(facts: tuple[Fact, ...]) -> str:
     return "\n".join(lines)
 
 
+def validate_rules(steps: tuple[Step, ...], facts: tuple[Fact, ...]) -> None:
+    """Every check's rule parses against the facts, and reads facts a read step before it reads."""
+    from .rules import parse_rule
+    by_id = {s.id: s for s in steps}
+    for s in steps:
+        if s.kind != "check":
+            continue
+        scratch = Playbook(id="playbook/x/x", pack="pack/x", version="1.0", name="x", case_types=("x",), facts=facts, instructions="x")
+        try:
+            rule = parse_rule(s.rule, scratch)
+        except ValueError as e:
+            raise ValueError(f"step {s.id!r} (check): {e}") from None
+        earlier: set[str] = set()
+        todo = list(s.needs)
+        while todo:
+            n = todo.pop()
+            if n not in earlier and n in by_id:
+                earlier.add(n)
+                todo.extend(by_id[n].needs)
+        read = {f for e in earlier if by_id[e].kind == "read" for f in by_id[e].facts}
+        missing = [f for f in rule.facts if f not in read]
+        if missing:
+            raise ValueError(f"step {s.id!r} (check): compares {', '.join(missing)} before any read step it needs reads them")
+
+
 def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:
     """The graph rules. ``ValueError`` names the step."""
     ids = [s.id for s in steps]
@@ -308,6 +339,8 @@ def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:
         for f in s.facts:
             if f not in fact_ids:
                 raise ValueError(f"step {s.id!r}: fact {f!r} is not one of the playbook's facts")
+        if s.kind == "check" and not any(by_id[n].kind in ("read", "ask", "check") for n in s.needs if n in by_id):
+            raise ValueError(f"step {s.id!r} (check): comes after no read or ask step")
     # no cycles: every step reachable in dependency order
     done: set[str] = set()
     remaining = list(steps)
@@ -407,7 +440,7 @@ def pack_text_from_dir(pack_dir: Path, slug: str, *, where: str) -> dict[str, Wo
         try:
             entry = json.loads(f.read_text(encoding="utf-8"))[slug]
             out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]), dict(entry.get("questions", {})),
-                                entry.get("factsTitle", ""))
+                                dict(entry.get("checks", {})), entry.get("factsTitle", ""))
         except (KeyError, TypeError, ValueError) as e:
             raise ManifestError(f"{where}: {f}: no usable entry for {slug!r} ({e})") from None
     return out

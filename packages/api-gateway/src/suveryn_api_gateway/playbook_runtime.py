@@ -24,8 +24,10 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from suveryn_harness.checks import evaluate
 from suveryn_harness.facts import RunFact
 from suveryn_playbooks import Playbook, Step, entry, root
+from suveryn_playbooks.rules import parse_rule
 from suveryn_rag.store import Scope
 
 from .playbooks import Run, RunStore, StepState, summary_text
@@ -105,7 +107,12 @@ class Runtime:
                     self.store.set_step(rid, step.id, "waiting", states)
                     self._say(run, playbook, step.id, *self.checkpoint_turn(run))
                 return None
+            if step.kind == "check":
+                self.recheck(run, playbook)
+                states[step.id] = StepState(status="done", at=_now())
+                continue
             if step.kind == "produce":
+                self.recheck(run, playbook)  # on the values as confirmed
                 self._produce(run, playbook, reference, step, states)
                 states[step.id] = StepState(status="done", at=_now())
                 continue
@@ -153,6 +160,25 @@ class Runtime:
                     out[path] = words.label(path)
             else:
                 out[fid] = words.label(fid)
+        return out
+
+    # -- the checks (format 3, "Checks"): computed by the server on the values as they stand, never a block
+
+    def recheck(self, run: Run, playbook: Playbook) -> dict[str, dict]:
+        """Every check step's rule, evaluated on the run's current values (the newest version of each fact
+        that has one: read, answered or confirmed); stored on the run and returned. Called when a check
+        step is reached and whenever a value changes, so the checkpoint shows the state of things now."""
+        rid = uuid.UUID(run.id)
+        current = self.store.current_versions(rid)
+        values = {fid: v["value"] for fid, v in current.items() if v["status"] in ("proposed", "confirmed")}
+        out: dict[str, dict] = {}
+        for step in playbook.steps:
+            if step.kind != "check":
+                continue
+            r = evaluate(parse_rule(step.rule, playbook), values)
+            out[step.id] = {"status": r.status, "rule": step.rule, "left": r.left, "right": r.right, "missing": list(r.missing)}
+        if out:
+            self.store.set_checks(rid, out)
         return out
 
     # -- people's answers and the model's
@@ -208,7 +234,7 @@ class Runtime:
         states = dict(run.steps)
         states[step.id] = StepState(status="done", by=by, at=_now())
         self.store.set_step(rid, step.id, "waiting", states)
-        return self.store.get(rid, cid)  # type: ignore[return-value]
+        return self.store.get(rid, cid)  # type: ignore[return-value]  # the checks follow in ``advance``
 
     def answer_request(self, run: Run, step: Step, by: str, none: bool, documents: list[str] | None = None) -> Run:
         """A person says the documents are in (the runtime counts them) or, when allowed, that there is none.
@@ -269,6 +295,7 @@ class Runtime:
                 for fid, v in corrections.items() if v.strip() and (fid in current or (playbook.leaf(fid) is not None and fid != root(fid)))]
         self.store.write_facts(cid, rid, step.id, rows)
         self._settle_lists(playbook, current, [r["fact_id"] for r in rows if r["fact_id"] not in current])
+        self.recheck(run, playbook)  # a corrected value may settle a check, or fail one
         return self.store.get(rid, cid)  # type: ignore[return-value]
 
     def _settle_lists(self, playbook: Playbook, current: dict[str, dict], written: list[str]) -> None:
@@ -298,8 +325,9 @@ class Runtime:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
         found, total = self.counts(fresh)
         issues = sum(1 for f in fresh.facts if f.issues)
-        return (f"{found} of {total} facts found." + (f" {issues} need checking." if issues else ""),
-                {"kind": "checkpoint", "found": found, "total": total, "issues": issues})
+        failing = sum(1 for c in fresh.checks.values() if c.status == "fails")
+        return (f"{found} of {total} facts found." + (f" {issues} need checking." if issues else "") + (f" {failing} check(s) do not hold." if failing else ""),
+                {"kind": "checkpoint", "found": found, "total": total, "issues": issues, "failing": failing})
 
     # -- products and the thread
 

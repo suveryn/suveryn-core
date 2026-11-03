@@ -640,6 +640,13 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         # the ask: the seat, in words; the rest stays unknown
         r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"seat": "Sint-Jansvest 18/1, 9000 Gent"}}, headers=alice)
         assert r.status_code == 200 and r.json()["step"] == "confirm"
+        # the checks ran on the way to the checkpoint: computed by the server on the values as they stand
+        checks = r.json()["checks"]
+        assert checks["a_founder"]["status"] == "holds" and checks["bank_certifies_the_contribution"] == {
+            "status": "holds", "rule": "certified_amount == contribution", "left": "412500", "right": "412500", "missing": []}
+        assert checks["contributions_add_up"]["status"] == "holds"              # one founder, 412.500 = 412.500
+        assert checks["shares_add_up"] == {"status": "open", "rule": "sum(founders.shares) == shares", "left": "600", "right": "", "missing": ["shares"]}
+        assert r.json()["turns"][-1]["meta"]["failing"] == 0
         # at the checkpoint a person adds a second founder, value by value, on a path the read never made
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].name", json={"value": "Anna Peeters"}, headers=alice)
         assert r.status_code == 200
@@ -647,6 +654,11 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.status_code == 200
         by = {f["id"]: f for f in r.json()["facts"]}
         assert by["founders[2].name"]["source"] == "person" and by["founders[2].shares"]["value"] == "400"
+        # a value given at the checkpoint recomputes the checks: the shares issued, filled in, settles one and fails none
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/shares", json={"value": "1.000"}, headers=alice)
+        assert r.json()["checks"]["shares_add_up"] == {"status": "holds", "rule": "sum(founders.shares) == shares", "left": "1000", "right": "1000", "missing": []}
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].contribution", json={"value": "EUR 10.000,00"}, headers=alice)
+        assert r.json()["checks"]["contributions_add_up"]["status"] == "fails" and r.json()["checks"]["contributions_add_up"]["left"] == "422500"
         assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
@@ -657,7 +669,10 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         by = {f["id"]: f for f in r.json()["facts"]}
         assert by["founders[1].shares"]["confirmed"] == "650" and by["founders[2].name"]["confirmed"] == "Anna Peeters"
         assert by["founders[3].name"]["confirmed"] == "Tom Janssens"
+        assert r.json()["checks"]["shares_add_up"]["status"] == "fails"   # 650 + 400 against 1000, on the confirmed values; confirmed all the same
         name, text = docs.stored_text
+        assert "De aandelen van de oprichters tellen op tot de uitgegeven aandelen: klopt niet (1050 / 1000)" in text
+        assert "De bank attesteert de inbreng in geld: klopt" in text and "Er is minstens één oprichter: klopt" in text
         assert name == "Oprichting vennootschap 2026/0417 (1.0)"
         assert "Oprichter(s) 1 · Naam: Filip Tack (akte.pdf p. 2)" in text and "Oprichter(s) 1 · Aandelen: 650" in text
         assert "Oprichter(s) 1 · Adres: Kerkstraat 12, Gent" in text and "Geattesteerd bedrag: EUR 412.500,00" in text

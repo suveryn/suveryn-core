@@ -17,11 +17,15 @@
 # the founders carry their identity (register number, birth, address: decided 3 November, read and kept
 # like any fact); the bank certificate may be absent (a contribution in kind), and then its read is
 # skipped and the ask step asks. The instructions ask for the JSON object the loader describes.
+# 1.2 (November 2026): the checks (format 3, "Checks"), computed by the server on the values as they
+# stand and shown at the checkpoint, never a block: the founders' shares add up to the shares issued,
+# their contributions to the contribution in money, the bank certifies that amount, there is at least
+# one founder.
 
 manifest: 3
 id: playbook/be-notary/company-formation
 pack: pack/be-notary
-version: "1.1"
+version: "1.2"
 name: Company formation
 case_types: [company-formation]
 
@@ -114,6 +118,18 @@ steps:
   - id: missing           # one question per fact the documents did not contain
     kind: ask
     facts: all
+  - id: shares_add_up     # the checks: what the notary would add up by hand; a failed one is a point to look at
+    kind: check
+    rule: sum(founders.shares) == shares
+  - id: contributions_add_up
+    kind: check
+    rule: sum(founders.contribution) == contribution
+  - id: bank_certifies_the_contribution
+    kind: check
+    rule: certified_amount == contribution
+  - id: a_founder
+    kind: check
+    rule: "count(founders) >= 1"
   - id: confirm
     kind: checkpoint
     by: anyone_in_case

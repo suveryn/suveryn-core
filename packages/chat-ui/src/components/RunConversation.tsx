@@ -184,7 +184,7 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
             ? <PersonTurn key={t.seq} turn={t} nameOf={nameOf} />
             : <PlaybookTurn key={t.seq} turn={t} title={title} showSpeaker={speaker(i)} words={words}
                             review={t.seq === reviewAt
-                              ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} canAnswer={canAnswer} panel={panel} onPanel={onPanel} onChanged={onChanged} />
+                              ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} steps={playbook?.steps ?? []} canAnswer={canAnswer} panel={panel} onPanel={onPanel} onChanged={onChanged} />
                               : null}
                             quickReply={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
                               ? { label: m.answerPlaceholder, send: () => sayInRun(kase.id, run.id, { text: m.answerPlaceholder, unknown: true }).then(onChanged) }
@@ -261,10 +261,12 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
 /** The review message's work (handover of 31 October 2026, boards 3 and 4): what was found, one card per
  *  fact that needs the person, *Confirm the facts* (held back while anything is under *Check*), and a link
  *  to every fact. */
-function Review({ run, kase, words, lists, canAnswer, panel, onPanel, onChanged }: {
+function Review({ run, kase, words, lists, steps, canAnswer, panel, onPanel, onChanged }: {
   run: Run; kase: Case; words: PlaybookWords; canAnswer: boolean; panel: RunPanelView | null;
   /** Format 3: the playbook's list facts and their entries' fields, so an entry can be added here. */
   lists: Record<string, string[]>;
+  /** The routine's steps, for the order of the checks. */
+  steps: { id: string; kind: string }[];
   onPanel: (view: RunPanelView | null) => void; onChanged: (run: Run) => void;
 }) {
   const m = useT();
@@ -306,9 +308,28 @@ function Review({ run, kase, words, lists, canAnswer, panel, onPanel, onChanged 
               onSave={(v) => save(f, v)} onSource={() => onPanel({ kind: "source", fact: f.id, fromList: false })} />
   );
   const more = Object.keys(lists).filter((list) => nextEntry(run.facts, list) > 1);  // lists with entries: one more can be added
+  // the checks (format 3), in the routine's order: what each says and whether it holds now; a failed one is a point for the notary, never a block
+  const checks = steps.filter((s) => s.kind === "check" && run.checks?.[s.id]).map((s) => ({ id: s.id, ...run.checks![s.id] }));
   return (
     <div className="run-review">
       <p>{n ? m.pbReviewIntro(found, total, n) : m.pbReviewIntroNone(found, total)}</p>
+      {checks.length > 0 && (
+        <section className="run-group" aria-label={m.pbGroupChecks}>
+          <h3 className="run-group-title">{m.pbGroupChecks}</h3>
+          <ul className="run-checks">
+            {checks.map((c) => (
+              <li key={c.id} className="run-check" data-status={c.status}>
+                {c.status === "holds" ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
+                <span>
+                  <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
+                  <span className="fact-note"> {c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
+                    : m.pbCheckOpen(c.missing.map((p) => factLabel(words, p)).join(", "))}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {check.length > 0 && <section className="run-group" aria-label={m.pbGroupCheck}><h3 className="run-group-title">{m.pbGroupCheck}</h3>{check.map((f) => card(f, "check"))}</section>}
       {missing.length > 0 && <section className="run-group" aria-label={m.pbGroupMissing}><h3 className="run-group-title">{m.pbGroupMissing}</h3>{missing.map((f) => card(f, "missing"))}</section>}
       {canAnswer && more.length > 0 && (

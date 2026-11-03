@@ -143,6 +143,7 @@ The routine is in the manifest (format 2, below): steps of five kinds, each sayi
 | `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
+| `check` | Evaluates one rule on the values as they stand (`suveryn_harness.checks`); the result is shown at the checkpoint and in the summary, never a block | Nothing |
 | `produce` | Writes the summary into the case, origin `playbook` | Nothing |
 
 The runtime (`suveryn_api_gateway/playbook_runtime.py`) walks the graph: `next_step` is the first
@@ -367,9 +368,7 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
 - **Deed intake 1.2** is deed intake with the JSON answer: the facts and the words are 1.0's, the
   instructions say "the object" where they said "the table". **Company formation 1.0** is the first
   playbook with a list: the founders, each with name, shares (number) and contribution (amount).
-- Later, on the typed values this lays down: `check` steps (the founders' contributions add up to
-  the total; computed by the server, the rule the harness already has for `[[calc]]`), shown as a
-  warning at the checkpoint, never a block.
+- `check` steps on these typed values: below, "Checks".
 
 ### Documents by name (3 November 2026)
 
@@ -398,6 +397,33 @@ plan, then the bank certificate (`allow_none`, for a contribution in kind), each
 there is none; that is the next version's job. The founders now carry their identity (register
 number, date and place of birth, address), read and kept like any fact, decided 3 November; the data
 lifecycle page says so.
+
+### Checks (3 November 2026)
+
+What a notary adds up by hand: the founders' shares against the shares issued, their contributions
+against the contribution in money, the bank's certificate against that amount. Item 4 of the
+foundation brief, on the typed values format 3 laid down.
+
+- A `check` step states one `rule`, a comparison a notary can read: `sum(founders.shares) == shares`,
+  `certified_amount == contribution`, `count(founders) >= 1`, `plan_date <= deed_date`. A term is a
+  fact, the sum of a list's field, the count of a list's entries, or a number; both sides are of one
+  kind (amount, number or date). Nothing else: no arithmetic, no and/or, no text
+  (`suveryn_playbooks.rules`). The loader refuses a rule that doesn't parse, that compares kinds, or
+  that reads facts no read step before it reads, with the step named. A manifest grows into a
+  programming language the day a notary can't read a line and know what it does; the rule language is
+  kept at one comparison for that reason.
+- The server computes, by kind, the way the check by meaning reads a value ("twintigduizend euro"
+  counts as 20,000; "1.000 aandelen" as 1,000, in the values' own decimal style): the model never does
+  arithmetic (`suveryn_harness.checks.evaluate`). A result holds, fails (both sides as computed, for the
+  notary) or is open (a value is missing or gives no amount, number or date as written: a person works
+  it out first, and the result names what is needed).
+- Results live on the run (`playbook_runs.checks`) and are recomputed whenever a value changes: when
+  the check step is reached, after an answer, after a correction at the checkpoint, and once more on
+  the confirmed values before the summary. The checkpoint shows them as a *Checks* group, one line
+  each, with the pack's sentence for the check (`text/<lang>.json`, `checks.<step id>`) and the result;
+  a failed check is a point for the notary and never holds *Confirm* back. The summary ends with them.
+- Company formation 1.2 has four: shares add up, contributions add up, the bank certifies the
+  contribution, at least one founder.
 
 ## What is deferred, on purpose
 

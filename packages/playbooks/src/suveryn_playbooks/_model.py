@@ -11,7 +11,7 @@ from typing import Literal
 # each a record of plain-valued fields or one plain value; its leaves are the entries' values.
 LeafKind = Literal["text", "amount", "date", "number"]
 FactKind = Literal["text", "amount", "date", "number", "list"]
-StepKind = Literal["request", "read", "ask", "checkpoint", "produce"]
+StepKind = Literal["request", "read", "ask", "checkpoint", "produce", "check"]
 
 # The product's interface languages, in this order: the server's one list (docs/translations.md).
 # The gateway uses it for the sign-in page's language; the chat UI has the same list in
@@ -31,6 +31,9 @@ class Wording:
     # The routine's questions (format 2): keyed by step id for a ``request`` and for an ``ask`` step's
     # one template (``{label}`` is the fact's label), or by ``<step id>.<fact id>`` for one fact's own.
     questions: dict[str, str] = field(default_factory=dict)
+    # A sentence per check step (format 3): what the check says when it holds ("The founders' shares add up
+    # to the shares issued"); shown with its result at the checkpoint and in the summary.
+    checks: dict[str, str] = field(default_factory=dict)
     # The heading of the facts panel beside the run's conversation ("Facts for the deed"); empty: the
     # UI's generic "Facts" (docs/design/playbooks.md, "The chat UI").
     facts_title: str = ""
@@ -97,6 +100,7 @@ class Step:
     min: int = 1                       # request: how many uploaded documents the case needs before the step is done
     allow_none: bool = False           # request: a person may say there is no such document
     expects: str = ""                  # request: a name for what is asked (``bank_certificate``), so a read can aim at it
+    rule: str = ""                     # check: the comparison, as written (``rules.parse_rule`` reads it)
     documents: tuple[str, ...] = ()    # read: the names (``expects``) of the requests whose documents it reads; empty: every document
     by: str = "anyone_in_case"         # checkpoint: who may pass it
     template: str = "summary"          # produce: which product

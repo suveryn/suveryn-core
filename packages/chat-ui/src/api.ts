@@ -861,7 +861,7 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 /** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
 /** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
 /** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/chat-ui.md). */
-export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce"; needs: string[]; facts: string[] };
+export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce" | "check"; needs: string[]; facts: string[] };
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
                              case_types?: string[]; active?: boolean;
                              /** Format 3: per list fact, its entries' field ids ([] for a list of plain values), so the view can offer an entry to add. */
@@ -869,11 +869,13 @@ export type PlaybookInfo = { id: string; slug: string; pack: string; version: st
                              /** Per fact and field (`founders.shares`): text, amount, date or number. */
                              kinds?: Record<string, string>;
                              /** Per language: its title, one line on what it does, its fact labels and the routine's questions (the playbook carries them). */
-                             text?: Record<string, { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string> }>;
+                             text?: Record<string, { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string>;
+                                                     checks?: Record<string, string> }>;
                              /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
                              steps?: PlaybookStep[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
 export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
+export type RunCheck = { status: "holds" | "fails" | "open"; rule: string; left: string; right: string; missing: string[] };
 export type RunFact = {
   id: string;
   value: string;              // as read: the model's, from the documents, or a person's answer to the playbook's question ("" when neither)
@@ -911,6 +913,8 @@ export type Run = RunSummary & {
   playbook?: PlaybookInfo | null;
   /** Per named request (step id), the documents that answered it. */
   requested?: Record<string, string[]>;
+  /** Per check step (step id), its result on the values as they stand: the rule holds, fails (both sides as computed) or is open. */
+  checks?: Record<string, RunCheck>;
   facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
 
 export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {

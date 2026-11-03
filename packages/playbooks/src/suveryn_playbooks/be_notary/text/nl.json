@@ -57,6 +57,12 @@
       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
       "missing.founders": "De documenten noemen geen oprichters. Wie zijn het? Geef per oprichter de naam, de aandelen en de inbreng, of laat leeg als u het nog niet weet.",
       "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is."
+    },
+    "checks": {
+      "shares_add_up": "De aandelen van de oprichters tellen op tot de uitgegeven aandelen",
+      "contributions_add_up": "De inbrengen van de oprichters tellen op tot de inbreng in geld",
+      "bank_certifies_the_contribution": "De bank attesteert de inbreng in geld",
+      "a_founder": "Er is minstens één oprichter"
     }
   }
 }

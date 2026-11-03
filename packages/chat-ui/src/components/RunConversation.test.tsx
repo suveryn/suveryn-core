@@ -181,6 +181,26 @@ describe("lists (format 3)", () => {
     expect(html).not.toContain(">Fill in<");
   });
 
+  it("shows the checks with their result, and never holds Confirm back for one", () => {
+    const checked: Run = {
+      ...run, facts: run.facts.filter((f) => f.id !== "founders[1].shares"),
+      checks: { shares_add_up: { status: "fails", rule: "sum(founders.shares) == shares", left: "1050", right: "1000", missing: [] },
+                a_founder: { status: "holds", rule: "count(founders) >= 1", left: "1", right: "1", missing: [] },
+                plan_before_deed: { status: "open", rule: "plan_date <= deed_date", left: "", right: "", missing: ["founders[2].name"] } },
+    };
+    const playbook: PlaybookInfo = { ...FORMATION, steps: [...FORMATION.steps!, { id: "shares_add_up", kind: "check", needs: [], facts: [] },
+                                              { id: "a_founder", kind: "check", needs: [], facts: [] }, { id: "plan_before_deed", kind: "check", needs: [], facts: [] }],
+                       text: { en: { ...FORMATION.text!.en, checks: { shares_add_up: "The founders' shares add up to the shares issued" } } } };
+    const html = renderToStaticMarkup(
+      <RunThread run={checked} kase={KASE} playbook={playbook} words={{ ...fwords, checks: playbook.text!.en.checks }} me="u-ines" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html).toContain("The founders&#x27; shares add up to the shares issued");
+    expect(html).toContain("Does not hold: 1050 against 1000.");
+    expect(html).toContain("count(founders) &gt;= 1");   // no sentence in the words: the rule as written
+    expect(html).toContain("Not checked yet: Founder(s) 2 · Name is needed.");
+    expect(html).not.toContain("data-blocked");   // a failed check is a point for the notary, never a block
+  });
+
   it("lists the entries, not the list's none, in the panel", () => {
     const html = renderToStaticMarkup(<RunPanel run={run} words={fwords} view={{ kind: "list" }} onView={noop} onClose={noop} />);
     expect(html).toContain("Founder(s) 1 · Name");

@@ -3,6 +3,7 @@ it says so, and that deed intake as a manifest is the deed intake that was code.
 
 import dataclasses
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -309,3 +310,53 @@ def test_a_wrong_named_document_is_refused_and_the_error_names_the_step(old, new
     assert old in NAMED, old
     with pytest.raises(ManifestError, match=said):
         parse(NAMED.replace(old, new), where="x.yaml")
+
+
+# ------------------------------------------------------------------ checks
+
+CHECKED = LISTS.replace("""  - {id: confirm, kind: checkpoint}
+""", """  - {id: shares_add_up, kind: check, rule: sum(founders.contribution) == price}
+  - {id: a_founder, kind: check, rule: "count(founders) >= 1"}
+  - {id: confirm, kind: checkpoint}
+""")
+
+
+def test_a_check_states_one_comparison_a_notary_can_read():
+    from suveryn_playbooks.rules import Rule, Term, parse_rule
+    p = parse(CHECKED).to_playbook(WORDS)
+    by = {s.id: s for s in p.steps}
+    assert by["shares_add_up"].kind == "check" and by["shares_add_up"].rule == "sum(founders.contribution) == price"
+    assert by["confirm"].needs == ("a_founder",)
+    r = parse_rule(by["shares_add_up"].rule, p)
+    assert r == Rule(Term("sum", "founders", "contribution"), "==", Term("fact", "price"), "amount") and r.facts == ("founders", "price")
+    assert str(parse_rule("count(founders) >= 1", p)) == "count(founders) >= 1" and parse_rule("count(founders) >= 1", p).value_kind == "number"
+    assert parse_rule("shares != 0.5", p).right == Term("literal", literal="0.5")
+    from suveryn_playbooks import from_record, to_record
+    assert from_record(to_record(p)) == p
+
+
+@pytest.mark.parametrize(
+    "rule, said",
+    [
+        ("sum(founders.contribution) = price", "expected <term> <operator> <term>"),
+        ("sum(founders.contribution) == sellers", "'sellers' is text; a check compares amounts, numbers or dates"),
+        ("sum(founders.contribution) == shares", "compares amount with number"),
+        ("sum(founders.name) == 3", "founders.name is text; a sum is of amounts or numbers"),
+        ("sum(price.x) == 3", "'price' is not a list"),
+        ("count(founders) == colour", "'colour' is not one of the playbook's facts"),
+        ("3 == 4", "compares two numbers and no fact"),
+        ("price + 1 == 2", "a fact id, sum(<list>.<field>), count(<list>) or a number"),
+    ],
+    ids=["one-equals", "text-fact", "mixed-kinds", "sum-of-text", "sum-of-a-scalar", "unknown-fact", "two-literals", "arithmetic"])
+def test_a_wrong_rule_is_refused_and_the_error_names_the_step(rule, said):
+    with pytest.raises(ManifestError, match="step 'shares_add_up' \\(check\\): .*" + re.escape(said)):
+        parse(CHECKED.replace("rule: sum(founders.contribution) == price", f"rule: {rule!r}"), where="x.yaml")
+
+
+def test_a_check_comes_after_the_reads_that_supply_its_facts():
+    with pytest.raises(ManifestError, match="compares price before any read step it needs reads them"):
+        parse(CHECKED.replace("  - {id: read, kind: read, facts: all}\n", "  - {id: read, kind: read, facts: [founders]}\n"), where="x.yaml")
+    early = CHECKED.replace("  - {id: shares_add_up, kind: check, rule: sum(founders.contribution) == price}\n", "").replace(
+        "steps:\n", "steps:\n  - {id: shares_add_up, kind: check, rule: sum(founders.contribution) == price}\n")
+    with pytest.raises(ManifestError, match="step 'shares_add_up' \\(check\\): comes after no read or ask step"):
+        parse(early, where="x.yaml")

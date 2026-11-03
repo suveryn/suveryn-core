@@ -115,7 +115,8 @@
             "read",
             "ask",
             "checkpoint",
-            "produce"
+            "produce",
+            "check"
           ],
           "title": "Kind",
           "type": "string"
@@ -213,6 +214,21 @@
           "default": null,
           "description": "read: the names (expects) of the requests whose documents it reads; absent: every document",
           "title": "Documents"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "check: one comparison, <term> <operator> <term> (rules.py)",
+          "title": "Rule"
         },
         "by": {
           "anyOf": [
