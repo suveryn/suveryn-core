@@ -674,12 +674,12 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.status_code == 200
         by = {f["id"]: f for f in r.json()["facts"]}
         assert by["founders[2].name"]["source"] == "person" and by["founders[2].shares"]["value"] == "400"
+        assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
         # a value given at the checkpoint recomputes the checks: the shares issued, filled in, settles one and fails none
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/shares", json={"value": "1.000"}, headers=alice)
         assert r.json()["checks"]["shares_add_up"] == {"status": "holds", "rule": "sum(founders.shares) == shares", "left": "1000", "right": "1000", "missing": []}
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].contribution", json={"value": "EUR 10.000,00"}, headers=alice)
         assert r.json()["checks"]["contributions_add_up"]["status"] == "fails" and r.json()["checks"]["contributions_add_up"]["left"] == "422500"
-        assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice).status_code == 422  # not an option
