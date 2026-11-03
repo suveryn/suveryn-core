@@ -1,0 +1,118 @@
+# A fictional formation playbook for core's tests (docs/design/playbooks.md, "Where playbooks live").
+#
+# Core keeps one public reference playbook, deed intake; the certified company-formation playbook
+# lives in the private suveryn-packs repository. This file exercises what that one uses of the
+# format, with fewer facts: a list of founders, a choice that branches the routine, documents by
+# name, checks, the case manager at the checkpoint. The tests under packages/api-gateway load it
+# through SUVERYN_PACKS_DIR (the repository's conftest.py), as an appliance loads an installed pack.
+
+manifest: 3
+id: playbook/be-test/company-formation
+pack: pack/be-test
+version: "1.0"
+name: Formation test
+case_types: [company-formation]
+
+facts:
+  - id: founders
+    ask: the founders, one entry per founder
+    kind: list
+    of:
+      - id: name
+        ask: the founder's full name as written
+      - id: address
+        ask: the founder's address as written
+      - id: shares
+        ask: the number of shares this founder takes
+        kind: number
+      - id: contribution
+        ask: this founder's contribution in money
+        kind: amount
+  - id: company_name
+    ask: the name of the company
+  - id: seat
+    ask: the registered office
+  - id: contribution_kind
+    ask: "how the founders contribute: cash, in_kind or mixed"
+    kind: choice
+    options: [cash, in_kind, mixed]
+  - id: contribution
+    ask: the total contribution in money
+    kind: amount
+  - id: shares
+    ask: the total number of shares issued
+    kind: number
+  - id: bank_certificate
+    ask: the bank certificate of the blocked account
+  - id: certified_amount
+    ask: the amount the bank certifies
+    kind: amount
+  - id: contribution_in_kind
+    ask: what is contributed in kind
+  - id: auditor
+    ask: the auditor who reported on the contribution in kind
+
+instructions: >-
+  Read the excerpts and give every fact below as the documents write it, with the numbers of the
+  excerpts the value comes from. A fact the excerpts do not contain is null. Answer in the language
+  of the documents.
+
+steps:
+  - id: identity
+    kind: request
+    expects: identity_documents
+  - id: founders_read
+    kind: read
+    documents: [identity_documents]
+    facts: [founders]
+  - id: plan
+    kind: request
+    expects: financial_plan
+  - id: plan_read
+    kind: read
+    documents: [financial_plan]
+    facts: [company_name, seat, contribution_kind, contribution, shares]
+  - id: kind_known
+    kind: ask
+    facts: [contribution_kind]
+  - id: bank
+    kind: request
+    expects: bank_certificate
+    when: contribution_kind != in_kind
+  - id: bank_read
+    kind: read
+    documents: [bank_certificate]
+    facts: [bank_certificate, certified_amount]
+    when: contribution_kind != in_kind
+  - id: reports
+    kind: request
+    expects: contribution_reports
+    when: contribution_kind != cash
+  - id: reports_read
+    kind: read
+    documents: [contribution_reports]
+    facts: [contribution_in_kind, auditor]
+    when: contribution_kind != cash
+  - id: missing
+    kind: ask
+    facts: all
+  - id: shares_add_up
+    kind: check
+    rule: sum(founders.shares) == shares
+  - id: contributions_add_up
+    kind: check
+    rule: sum(founders.contribution) == contribution
+    when: contribution_kind != in_kind
+  - id: bank_certifies_the_contribution
+    kind: check
+    rule: certified_amount == contribution
+    when: contribution_kind != in_kind
+  - id: a_founder
+    kind: check
+    rule: "count(founders) >= 1"
+  - id: confirm
+    kind: checkpoint
+    by: manager
+  - id: summary
+    kind: produce
+    template: summary

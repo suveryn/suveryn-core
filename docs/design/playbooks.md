@@ -462,6 +462,30 @@ the manager of the case is who confirms. The gateway refuses the confirm from an
 review still shows every card to a contributor, with *Adjust* and *Fill in*, and says who confirms in
 place of the button. Company formation 1.4 says `by: manager`; deed intake stays `anyone_in_case`.
 
+### Where playbooks live (3 November 2026)
+
+Decided 30 October, recorded in the handbook's decisions: **core keeps one public reference
+playbook**, deed intake, as the worked example, the test fixture and what an office copies; the
+certified content a licensee pays for (`pack/be-notary`: company formation first, the packs after it)
+lives in the private `suveryn-packs` repository, one folder per pack, and reaches an appliance as a
+signed bundle by the same path as the models; certified partners keep theirs in their own
+repositories and submit them for certification; an office's own playbooks live in no repository,
+uploaded by the administrator and kept on the encrypted disk only. The reason: a public AGPL
+repository can't stop updating for a licensee whose licence lapsed, and that is what protects the
+revenue (the commercial model decision).
+
+In code: `suveryn_playbooks.packs` loads a packs directory beside the official playbooks
+(`SUVERYN_PACKS_DIR`; one folder per pack named as its id, `be-notary/` for `pack/be-notary`, the
+manifests and the pack's `text/` in it), with the same validation, and refuses an id the official
+playbooks or another pack already have; `python -m suveryn_playbooks <dir>` checks a directory, and
+the packs repository's CI runs it against core. On the appliance the directory is where a pack bundle
+lands (the bundle itself: not built; a directory the provisioning fills is enough for a pilot). Core's
+own tests run on a fictional test pack (`packages/playbooks/tests/fixtures/packs/be-test`, installed
+by the repository's `conftest.py`) that uses what company formation uses of the format with fewer
+facts, so the mechanism is tested without the paid content in the public repository. Company
+formation 1.4 moved to `suveryn-packs` with this; `covered()` treats a pack's playbooks as the
+official ones until the licence manifest exists.
+
 ## What is deferred, on purpose
 
 - Which facts recur between playbooks (#27): `case_facts` is the record; its shared vocabulary is

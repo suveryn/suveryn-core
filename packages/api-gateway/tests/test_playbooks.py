@@ -306,8 +306,9 @@ def test_an_admin_switches_a_playbook_off_and_it_leaves_every_case(office):
     # the admin's list: every installed playbook, active unless switched off
     assert c.get("/v1/admin/playbooks", headers=alice).status_code == 403
     listed = c.get("/v1/admin/playbooks", headers=admin).json()
+    # the official playbook, then the installed pack's (the fictional test pack, conftest.py: SUVERYN_PACKS_DIR)
     assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [
-        ("playbook/be-notary/company-formation", True, ["company-formation"]), ("playbook/be-notary/deed-intake", True, ["sale"])]
+        ("playbook/be-notary/deed-intake", True, ["sale"]), ("playbook/be-test/company-formation", True, ["company-formation"])]
     assert c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=alice).status_code == 403
     assert c.put("/v1/admin/playbooks/nope", json={"active": False}, headers=admin).status_code == 404
     r = c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=admin)
@@ -625,8 +626,8 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         alice = as_user(kc, ALICE)
         cid = c.post("/v1/cases", json={**NEW, "type": "company-formation", "name": "Oprichting Suveryn Labs"}, headers=alice).json()["id"]
         fits = c.get(f"/v1/cases/{cid}/playbooks", headers=alice).json()
-        assert [p["id"] for p in fits] == ["playbook/be-notary/company-formation"]
-        assert fits[0]["lists"] == {"founders": ["name", "register_number", "born", "address", "shares", "contribution"]}
+        assert [p["id"] for p in fits] == ["playbook/be-test/company-formation"]  # the installed pack's (conftest.py)
+        assert fits[0]["lists"] == {"founders": ["name", "address", "shares", "contribution"]}
         assert fits[0]["kinds"]["founders.shares"] == "number" and fits[0]["kinds"]["certified_amount"] == "amount"
         assert fits[0]["choices"] == {"contribution_kind": ["cash", "in_kind", "mixed"]} and fits[0]["kinds"]["contribution_kind"] == "choice"
         assert fits[0]["text"]["nl"]["labels"]["contribution_kind.in_kind"] == "In natura" and fits[0]["text"]["nl"]["steps"]["bank"] == "Bankattest"
@@ -636,9 +637,8 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert run["step"] == "missing"
         # three reads, each aimed at its request's document and asking for its own facts only; the reports' read never ran
         shapes = [b["response_format"]["json_schema"]["schema"]["properties"] for b in captured if "response_format" in b]
-        assert [sorted(s) for s in shapes] == [["founders"], sorted(["company_name", "seat", "object", "contribution_kind", "contribution", "shares",
-                                                                      "directors", "representation", "fiscal_year", "general_meeting", "plan_date",
-                                                                      "financial_plan"]), ["bank_certificate", "certified_amount"]]
+        assert [sorted(s) for s in shapes] == [["founders"], sorted(["company_name", "seat", "contribution_kind", "contribution", "shares"]),
+                                              ["bank_certificate", "certified_amount"]]
         assert shapes[0]["founders"]["type"] == "array" and run["requested"] == {"identity": [DOC], "plan": [DOC], "bank": [DOC]}
         assert shapes[1]["contribution_kind"]["properties"]["value"] == {"enum": ["cash", "in_kind", "mixed", None]}
         # the choice, answered in words, is its option; the in-kind branch was skipped and the thread says why
@@ -706,7 +706,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         name, text = docs.stored_text
         assert "De aandelen van de oprichters tellen op tot de uitgegeven aandelen: klopt niet (1050 / 1000)" in text
         assert "De bank attesteert de inbreng in geld: klopt" in text and "Er is minstens één oprichter: klopt" in text
-        assert name == "Oprichting vennootschap 2026/0417 (1.0)"
+        assert name == "Oprichting (test) 2026/0417 (1.0)"
         assert "Oprichter(s) 1 · Naam: Filip Tack (akte.pdf p. 2)" in text and "Oprichter(s) 1 · Aandelen: 650" in text
         assert "Oprichter(s) 1 · Adres: Kerkstraat 12, Gent" in text and "Geattesteerd bedrag: EUR 412.500,00" in text
         assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text

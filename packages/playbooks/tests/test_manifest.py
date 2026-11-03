@@ -411,3 +411,35 @@ def test_a_wrong_choice_or_condition_is_refused_and_the_error_names_it(old, new,
     assert old in BRANCHED, old
     with pytest.raises(ManifestError, match=re.escape(said)):
         parse(BRANCHED.replace(old, new), where="x.yaml")
+
+
+# ------------------------------------------------------------------ packs from a directory
+
+def test_a_packs_directory_loads_beside_the_official_playbooks_and_refuses_a_second_id(tmp_path):
+    """An appliance's installed packs (``packs.load_dir``, ``SUVERYN_PACKS_DIR``): one folder per pack, named as
+    the pack's id; the fictional test pack is what core's own tests run on (conftest.py)."""
+    from suveryn_playbooks import PLAYBOOKS, by_slug, from_record, to_record
+    from suveryn_playbooks.packs import load_dir, main
+    test_pack = by_slug("company-formation")
+    assert test_pack is not None and test_pack.pack == "pack/be-test" and test_pack.step("confirm").by == "manager"
+    assert len([p for p in PLAYBOOKS if p.pack == "pack/be-notary"]) == 1  # core keeps one public reference playbook
+    assert from_record(to_record(test_pack)) == test_pack
+    # a directory of one pack, written as the test pack is, loads; wrong folder names and repeated ids don't
+    pack = tmp_path / "be-example"
+    (pack / "text").mkdir(parents=True)
+    (pack / "example.yaml").write_text(MINIMAL.replace("id: playbook/be-notary/example", "id: playbook/be-example/example")
+                                       .replace("pack: pack/be-notary", "pack: pack/be-example"), encoding="utf-8")
+    for lang in ("en", "nl", "fr"):
+        (pack / "text" / f"{lang}.json").write_text(json.dumps({"example": {"title": "Example", "summary": "x", "labels": {"price": "P", "sellers": "S"}}}), encoding="utf-8")
+    (tmp_path / ".hidden").mkdir()
+    (tmp_path / "empty").mkdir()
+    assert [p.id for p in load_dir(tmp_path)] == ["playbook/be-example/example"]
+    with pytest.raises(ManifestError, match="pack 'pack/be-example' in folder 'be-other'; a pack's folder is named as its id"):
+        load_dir((lambda d: (pack.rename(d), tmp_path)[1])(tmp_path / "be-other"))
+    (tmp_path / "be-other").rename(pack)
+    with pytest.raises(ManifestError, match="is already one of the official playbooks"):
+        load_dir(tmp_path, (parse(MINIMAL.replace("id: playbook/be-notary/example", "id: playbook/be-example/example")
+                                  .replace("pack: pack/be-notary", "pack: pack/be-example")).to_playbook(WORDS),))
+    with pytest.raises(ManifestError, match="not a directory of packs"):
+        load_dir(tmp_path / "nowhere")
+    assert main([str(tmp_path)], ()) == 0 and main([str(tmp_path / "nowhere")], ()) == 1 and main([], ()) == 2

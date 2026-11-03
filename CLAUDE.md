@@ -1,6 +1,6 @@
 # suveryn-core
 
-The engine of sūveryn: private AI for work that can't leave the premises. This repository holds the harness around the model, the API gateway, document ingestion and retrieval, the chat UI, and the official playbooks. AGPL-3.0-or-later. The runtime services (PostgreSQL, Keycloak, llama-server) are installed by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance), not here.
+The engine of sūveryn: private AI for work that can't leave the premises. This repository holds the harness around the model, the API gateway, document ingestion and retrieval, the chat UI, and the official playbooks (deed intake, the one public reference playbook; the certified packs are in the private suveryn-packs repository and load from `SUVERYN_PACKS_DIR`). AGPL-3.0-or-later. The runtime services (PostgreSQL, Keycloak, llama-server) are installed by [suveryn-appliance](https://github.com/suveryn/suveryn-appliance), not here.
 
 Start with the private [suveryn-handbook](https://github.com/suveryn/suveryn-handbook/blob/main/context/development-context.md#start-here), its *Start here*: the design principles, the project's words, and how a change reaches `main`. Its synthesis says what sūveryn is, what is decided and what is open. Then:
 

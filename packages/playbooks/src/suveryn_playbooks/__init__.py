@@ -7,12 +7,14 @@ record, every document a playbook produces, and later the registry and the licen
 chosen once and never change. The version is separate from the id: a change that changes results
 is a new minor version, a change that makes an old run unreadable a new major one.
 
-Every playbook is a **manifest file** (``manifest.py``): ``<pack>/<name>.yaml`` in this package,
-with the pack's wording in ``<pack>/text/<lang>.json`` beside it. ``PLAYBOOKS`` is every manifest
-found in the official packs at import; the product's objects are the ``Playbook`` dataclasses the
-loader makes, and nothing outside ``manifest.py`` reads YAML. A manifest that doesn't load is an
-error at import, not a playbook that silently differs: an official pack ships only manifests that
-load, and the test suite loads them all.
+Every playbook is a **manifest file** (``manifest.py``): ``<pack>/<name>.yaml`` in this package for
+the official ones (deed intake, the one public reference playbook), or in the packs directory an
+appliance has installed (``packs.py``, ``SUVERYN_PACKS_DIR``: the certified content from the private
+``suveryn-packs`` repository, company formation first), with the pack's wording in
+``<pack>/text/<lang>.json`` beside it. ``PLAYBOOKS`` is every manifest found in both at import; the
+product's objects are the ``Playbook`` dataclasses the loader makes, and nothing outside
+``manifest.py`` reads YAML. A manifest that doesn't load is an error at import, not a playbook that
+silently differs: an official pack ships only manifests that load, and the test suite loads them all.
 
 ``covered(playbook_id)`` is the single place the licence check lands: whether the playbook is
 certified and listed in the appliance's manifest (development context §8, suveryn-tracker#35). A
@@ -45,7 +47,15 @@ def _official() -> tuple[Playbook, ...]:
     return tuple(out)
 
 
-PLAYBOOKS: tuple[Playbook, ...] = _official()
+def _installed() -> tuple[Playbook, ...]:
+    """The official playbooks, then the packs the environment names (``packs.load_dir``)."""
+    from .packs import configured, load_dir
+    official = _official()
+    packs_dir = configured()
+    return official + (load_dir(packs_dir, official) if packs_dir is not None else ())
+
+
+PLAYBOOKS: tuple[Playbook, ...] = _installed()
 
 
 def covered(playbook_id: str) -> bool:
