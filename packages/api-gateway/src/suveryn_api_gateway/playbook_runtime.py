@@ -63,7 +63,9 @@ class Runtime:
 
     def advance(self, run: Run, playbook: Playbook, reference: str) -> Step | None:
         """Do what can be done without anyone, until the run waits or ends. Returns the ``read``
-        step when the model must be asked (the run is then ``reading``); else None."""
+        step when the model must be asked (the run is then ``reading``); else None. A wait is announced
+        in the thread before the run is set to ``waiting``: a poll that sees the run waiting sees what
+        it waits for (the question, the ask, the checkpoint), never a run waiting on nothing yet."""
         states = dict(run.steps)
         rid = uuid.UUID(run.id)
         while True:
@@ -83,8 +85,8 @@ class Runtime:
                     continue
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
-                    self.store.set_step(rid, step.id, "waiting", states)
                     self._say(run, playbook, step.id, playbook.wording(run.language).question(step.id))
+                    self.store.set_step(rid, step.id, "waiting", states)
                 return None
             if step.kind == "read":
                 if step.documents and not self.documents_to_read(run, step):
@@ -105,14 +107,14 @@ class Runtime:
                     continue
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
-                    self.store.set_step(rid, step.id, "waiting", states)
                     self._say(run, playbook, step.id, *self.ask_turn(run, playbook, open_facts))
+                    self.store.set_step(rid, step.id, "waiting", states)
                 return None
             if step.kind == "checkpoint":
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
-                    self.store.set_step(rid, step.id, "waiting", states)
                     self._say(run, playbook, step.id, *self.checkpoint_turn(run))
+                    self.store.set_step(rid, step.id, "waiting", states)
                 return None
             if step.kind == "check":
                 self.recheck(run, playbook)
