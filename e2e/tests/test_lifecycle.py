@@ -93,12 +93,21 @@ def test_the_model_server_is_away_and_the_answer_says_so(page, deed, restored):
     upload(page, deed)
     stop(restored, "stub")
     wait_until(lambda: health_part("backend") in ("unreachable", "error", "failed"), 30, what="/health noticing the model server")
-    text = ask(page, "Wat is de koopprijs?", timeout=60_000)
-    # a failed answer is said in the interface's language with its reason, never the server's text (f83be07, finding 14)
-    assert re.search(r"The answer failed: the model can't be reached", text), text[-400:]
-    assert "Traceback" not in text and "ConnectError" not in text
+    # Two right outcomes, depending on how soon the UI hears the model is gone (it asks once a minute): the
+    # composer disabled with its notice, or a question sent and answered with the failure in words, never the
+    # server's own text (f83be07, finding 14).
+    send = page.get_by_role("button", name="Send message")
+    page.get_by_role("textbox", name=re.compile("^Your question")).fill("Wat is de koopprijs?")
+    if send.is_enabled():
+        text = ask(page, "Wat is de koopprijs?", timeout=60_000)
+        assert re.search(r"The answer failed: the model can't be reached|isn't available right now", text), text[-400:]
+        assert "Traceback" not in text and "ConnectError" not in text
+    else:
+        expect(page.get_by_text("The model isn't available right now.")).to_be_visible()
     start(restored, "stub")
     wait_until(lambda: health_part("backend") == "ok", 30, what="the model server back")
+    page.get_by_role("textbox", name=re.compile("^Your question")).fill("Wat is de koopprijs?")
+    expect(send).to_be_enabled(timeout=90_000)  # the UI hears the model is back within its minute
     text = ask(page, "Wat is de koopprijs?")
     assert "EUR 1.275.000,00" in text
 
