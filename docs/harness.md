@@ -41,7 +41,7 @@ The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/s
 The person chooses the documents; in a case where none are chosen, the case's sources are used (the chat UI's `lib/questionDocuments.ts`). Narrowing those to the documents a question seems to be about was tried and dropped: on real documents it kept the wrong one too often (docs/design/chat-ui.md, after the Pod check of 470b9da). The harness asks for their
 text through one interface, `Retriever`; finding the text is the job of `packages/rag`:
 
-- small documents (together up to about 48,000 characters) are given **whole**, in reading order, so
+- small documents (together within the whole-document budget, `WHOLE_DOCUMENT_CHARS`; [architecture.md](architecture.md) says why that size) are given **whole**, in reading order, so
   a general question ("what is this deed about?") sees everything;
 - larger ones give their **best-matching passages** up to the same budget, at least six, also in
   reading order.

@@ -142,9 +142,7 @@ The sidebar shows the signed-in user's own token count for today (*1.2k tokens t
 English (UK), Dutch and French (suveryn-tracker#8). Every string the interface shows is in a table per language in [`src/i18n/`](src/i18n/): [`en.ts`](src/i18n/en.ts) defines the keys, and [`nl.ts`](src/i18n/nl.ts) and [`fr.ts`](src/i18n/fr.ts) must have all of them. TypeScript checks that, so a missing translation fails the build, and a test checks that no text is empty. Components use `useT()`; plain functions use `t()`. No i18n library is used.
 
 - **Which language:** the one chosen in the language menu (sidebar foot, the sign-in screen when shown, and Keycloak's own menu on its login page; remembered in this browser), else the browser's preferred language when it is one of the three, else English. `<html lang>` follows it. Keycloak's login page opens in the same language (`/auth/login?lang=nl` → `ui_locales=nl`).
-- **Dutch is formal** (*u/uw*); a test fails on *je/jij/jouw*. **French** uses *vous*.
-- **sūveryn** stays lower case except at the start of a sentence (also tested).
-- **The tagline** stays in English in every language, as on the website and the login page.
+- **Copy rules** are the brand's [Wording and spelling](https://github.com/suveryn/suveryn-brand/blob/main/guidelines/brand-guidelines.md#wording-and-spelling); `i18n.test.ts` checks the ones a test can (formal Dutch, the name's lower case, no em dashes, nothing empty).
 - **Dates** follow the language (`en-GB`, `nl-BE`, `fr-BE`), also in downloaded sources.
 - **What stays English:** most messages that come from the server (a calculation's error, a model server's error) and model names. The errors people meet most (too many requests, too large, not found, no permission, unavailable, an invalid request) are shown in the interface language by HTTP status (`httpErrorText` in `api.ts`). Answers are in the language of the question, whatever the interface language.
 

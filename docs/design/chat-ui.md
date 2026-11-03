@@ -62,9 +62,6 @@ These apply to every screen below.
   no red and no yellow. They never block, unless the action is impossible.
 - **Copy** follows the brand voice (suveryn-brand, "Tone of voice", "Wording and spelling") and
   reuses the strings already in `i18n/*.ts` as they are.
-  - "sūveryn" is lower case, also mid-sentence. It takes a capital S only where the name opens a
-    sentence or a label; `i18n.test.ts` checks this.
-  - Dutch is formal (u and uw, never je, jij, jouw or jullie); this is also checked.
   - Copy is sober and exact. It says what happens, with no "we", no exclamation marks and no hype:
     "Retrying in 8 seconds.", not "We're trying to reconnect".
   - **Short.** One sentence where one will do, and often none. Say the outcome, not the mechanism.
