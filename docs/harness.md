@@ -12,7 +12,7 @@ apart from the few pieces listed under [Outside the package](#outside-the-packag
 storage, no rights and no screens, so it can be read on its own. This page follows one question
 through it.
 
-```
+```text
 question + earlier turns + chosen documents
    │
    ▼
@@ -38,7 +38,7 @@ The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/s
 
 ## 1. Passages
 
-The person chooses the documents; in a case where none are chosen, the case's sources are used (the chat UI's `lib/questionDocuments.ts`). Narrowing those to the documents a question seems to be about was tried and dropped: on real documents it kept the wrong one too often (docs/design/chat-ui.md, after the Pod check of 470b9da). The harness asks for their
+The person chooses the documents; in a case where none are chosen, the case's sources are used (the chat UI's `lib/questionDocuments.ts`). Narrowing those to the documents a question seems to be about was tried and dropped: on real documents it kept the wrong one too often (docs/design/chat-ui.md). The harness asks for their
 text through one interface, `Retriever`; finding the text is the job of `packages/rag`:
 
 - small documents (together within the whole-document budget, `WHOLE_DOCUMENT_CHARS`; [architecture.md](architecture.md) says why that size) are given **whole**, in reading order, so
