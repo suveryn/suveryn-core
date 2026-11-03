@@ -533,6 +533,13 @@ const en = {
   pbNotInPassage: (items: string) => `Not in the cited passage as written: ${items}.`,
   pbNotADate: "Not a date as written: work it out and check it.",
   pbNotAnAmount: "Not an amount as written: work it out and check it.",
+  pbNotANumber: "Not a number as written: work it out and check it.",
+  // lists (format 3): a list the documents name no entries of, and one more entry for a list that has some
+  pbNoEntries: "None in the documents",
+  pbAddEntry: "Add",
+  pbEntries: (n: number) => n === 1 ? "1 entry" : `${n} entries`,
+  pbKeepEntry: "Keep",
+  pbGroupMore: "More",
   pbFieldHint: "Enter keeps it, Esc cancels.",
   pbFromChat: (time: string) => `From the conversation, ${time}`,
   pbConfirmBlockedOne: (label: string) => `You can confirm once ${label} is checked.`,

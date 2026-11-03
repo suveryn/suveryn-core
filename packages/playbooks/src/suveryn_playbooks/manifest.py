@@ -22,8 +22,14 @@ What the manifest does *not* carry, on purpose:
 - Products beyond the summary, model roles, conditions. Those join with later formats; a manifest
   names its format version so an old file is read as what it is.
 
-One format loads: ``manifest: 2``, identity, facts, instructions and ``steps``, the routine itself
-(format 1, without steps, was retired before any was published; review pass 8): ``request`` a
+Two formats load: ``manifest: 2``, identity, facts, instructions and ``steps``, the routine itself
+(format 1, without steps, was retired before any was published; review pass 8), and ``manifest: 3``,
+format 2 plus two kinds of fact: ``number`` (a figure without currency) and ``list`` (several entries,
+each a record of plain-valued ``of`` fields, or one plain value of kind ``of``; see ``paths``). A
+format-2 file loads unchanged; a format-2 file that uses a format-3 kind is refused with the fact
+named, so a file says what it needs. A ``read`` step's answer is JSON of the facts' shape
+(``read_schema``), which the model server holds the model to by grammar; the loader appends that shape
+in words to the instructions (``answer_scaffold``). ``request`` a
 document, ``read`` facts from the documents, ``ask`` about the facts not found, a ``checkpoint`` where
 a person confirms, ``produce`` the summary. Each step says what it ``needs`` (by default the step
 before it). The questions a ``request`` or ``ask`` step puts to people are the pack's wording
@@ -44,9 +50,11 @@ from typing import Any, ClassVar, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from ._model import Fact, FactKind, Playbook, Step, StepKind, Wording
+from ._model import Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
+from .paths import MAX_ENTRIES
 
-MANIFEST_VERSIONS = (2,)
+MANIFEST_VERSIONS = (2, 3)
+FORMAT_3_KINDS = ("number", "list")
 _STEP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 
 _ID = re.compile(r"^playbook/[a-z0-9-]+/[a-z0-9-]+$")
@@ -60,12 +68,42 @@ class ManifestError(ValueError):
     """A manifest that can't be loaded: the message names the file and what is wrong with it."""
 
 
+class FieldSpec(BaseModel):
+    """One field of a list's entries (format 3): a plain-valued fact inside the record."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(pattern=_FACT_ID.pattern, description="Stable within the list; labelled as <list id>.<field id>")
+    ask: str = Field(min_length=1, max_length=500, description="What the field is, in the words the model gets (English)")
+    kind: LeafKind = Field(default="text", description="text, amount, date or number: decides which checks apply")
+
+
 class FactSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str = Field(pattern=_FACT_ID.pattern, description="Stable id; the UI's labels and the run's facts key on it")
     ask: str = Field(min_length=1, max_length=500, description="What the fact is, in the words the model gets (English)")
-    kind: FactKind = Field(default="text", description="text, amount or date: decides which checks apply")
+    kind: FactKind = Field(default="text", description="text, amount, date or number: decides which checks apply; list (format 3): several entries")
+    of: tuple[FieldSpec, ...] | LeafKind | None = Field(default=None, description="list only: the entries' fields (a record each), or the kind of each entry's one value")
+
+    @field_validator("of")
+    @classmethod
+    def _of(cls, v):
+        if isinstance(v, tuple):
+            if not v:
+                raise ValueError("a list of records needs at least one field")
+            if len(v) > 20:
+                raise ValueError("at most 20 fields per entry")
+            ids = [f.id for f in v]
+            if len(set(ids)) != len(ids):
+                raise ValueError("field " + ", ".join(sorted({i for i in ids if ids.count(i) > 1})) + " is listed twice")
+        return v
+
+    def check_kind(self) -> None:
+        if self.kind == "list" and self.of is None:
+            raise ValueError(f"fact {self.id!r}: kind list needs 'of' (the entries' fields, or the kind of each entry's value)")
+        if self.kind != "list" and self.of is not None:
+            raise ValueError(f"fact {self.id!r}: 'of' only applies to kind list")
 
 
 class StepSpec(BaseModel):
@@ -104,7 +142,7 @@ class Manifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    manifest: Literal[2] = Field(description="The manifest format's version: 2 (facts, instructions and steps)")
+    manifest: Literal[2, 3] = Field(description="The manifest format's version: 2 (facts, instructions and steps) or 3 (number and list facts too)")
     id: str = Field(pattern=_ID.pattern, description="playbook/<pack>/<name>; never changes once published")
     pack: str = Field(pattern=_PACK.pattern, description="pack/<profession-jurisdiction>")
     version: str = Field(pattern=_VERSION.pattern, description="major.minor, separate from the id")
@@ -132,6 +170,7 @@ class Manifest(BaseModel):
             if f.id in seen:
                 raise ValueError(f"fact {f.id!r} is listed twice")
             seen.add(f.id)
+            f.check_kind()
         return v
 
     def check_consistent(self) -> None:
@@ -139,6 +178,10 @@ class Manifest(BaseModel):
         pack = self.pack.removeprefix("pack/")
         if not self.id.startswith(f"playbook/{pack}/"):
             raise ValueError(f"id {self.id!r} does not belong to pack {self.pack!r}")
+        if self.manifest < 3:
+            for f in self.facts:
+                if f.kind in FORMAT_3_KINDS:
+                    raise ValueError(f"fact {f.id!r}: kind {f.kind} needs manifest: 3")
         validate_steps(self.resolved_steps(), {f.id for f in self.facts})
 
     def resolved_steps(self) -> tuple[Step, ...]:
@@ -160,7 +203,7 @@ class Manifest(BaseModel):
         return self.id.rsplit("/", 1)[1]
 
     def to_playbook(self, text: dict[str, Wording]) -> Playbook:
-        facts = tuple(Fact(f.id, f.ask, f.kind) for f in self.facts)
+        facts = tuple(_fact(f) for f in self.facts)
         return Playbook(
             id=self.id,
             pack=self.pack,
@@ -168,21 +211,83 @@ class Manifest(BaseModel):
             name=self.name,
             case_types=self.case_types,
             facts=facts,
-            instructions=self.instructions.rstrip("\n") + "\n\n" + table_scaffold(facts),
+            instructions=self.instructions.rstrip("\n") + "\n\n" + answer_scaffold(facts),
             text=text,
             steps=self.resolved_steps(),
             format=self.manifest,
         )
 
 
-TABLE_HEADER = "| id | value | source |\n|---|---|---|\n"
+def _fact(f: FactSpec) -> Fact:
+    if f.kind != "list":
+        return Fact(f.id, f.ask, f.kind)
+    if isinstance(f.of, tuple):
+        return Fact(f.id, f.ask, "list", fields=tuple(Fact(x.id, x.ask, x.kind) for x in f.of))
+    return Fact(f.id, f.ask, "list", item_kind=f.of or "text")
 
 
-def table_scaffold(facts: tuple[Fact, ...]) -> str:
-    """The table the model fills in: the header and an empty row per fact, in the playbook's order.
-    The harness reads the answer by these rows (``suveryn_harness.facts``); a manifest never writes
-    them itself."""
-    return TABLE_HEADER + "".join(f"| {f.id} | | |\n" for f in facts)
+# ------------------------------------------------------------------ the answer's shape
+
+# One value as the model gives it: as written in the documents (or null: not there), and the excerpts it
+# comes from. Strings always; the harness reads them by kind.
+LEAF_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"value": {"type": ["string", "null"], "maxLength": 2000},
+                   "sources": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 99}, "maxItems": 8}},
+    "required": ["value", "sources"],
+    "additionalProperties": False,
+}
+
+
+def _fact_schema(f: Fact) -> dict[str, Any]:
+    if f.kind != "list":
+        return LEAF_SCHEMA
+    if f.fields:
+        item: dict[str, Any] = {"type": "object", "properties": {x.id: LEAF_SCHEMA for x in f.fields},
+                                "required": [x.id for x in f.fields], "additionalProperties": False}
+    else:
+        item = LEAF_SCHEMA
+    return {"type": "array", "items": item, "maxItems": MAX_ENTRIES}
+
+
+def read_schema(facts: tuple[Fact, ...]) -> dict[str, Any]:
+    """The JSON Schema of a read step's answer, the shape the model server holds the model to: one key
+    per fact, in the playbook's order; a plain fact is ``{"value": "as written" | null, "sources": [n, …]}``;
+    a list is an array of entries, each a record of its fields' values, or one value. A manifest never
+    writes this itself; the harness reads the answer by it (``suveryn_harness.facts``)."""
+    return {"type": "object", "properties": {f.id: _fact_schema(f) for f in facts},
+            "required": [f.id for f in facts], "additionalProperties": False}
+
+
+def _leaf_words(f: Fact) -> str:
+    return f'{{"value": <{f.ask}; copied as written, or null>, "sources": [<excerpt numbers>]}}'
+
+
+def answer_scaffold(facts: tuple[Fact, ...]) -> str:
+    """The answer's shape in words, appended to the instructions so the model sees what is asked of
+    it: one line per fact, a list with one entry spelled out. What the server enforces is ``read_schema``."""
+    lines = ["Answer with one JSON object of exactly this shape and nothing else:", "{"]
+    for i, f in enumerate(facts):
+        comma = "," if i < len(facts) - 1 else ""
+        if f.kind != "list":
+            lines.append(f'  "{f.id}": {_leaf_words(f)}{comma}')
+        elif f.fields:
+            lines.append(f'  "{f.id}": [')
+            lines.append("    {")
+            for j, x in enumerate(f.fields):
+                lines.append(f'      "{x.id}": {_leaf_words(x)}{"," if j < len(f.fields) - 1 else ""}')
+            lines.append("    }")
+            lines.append(f"  ]{comma}")
+        else:
+            lines.append(f'  "{f.id}": [ {_leaf_words(f)} ]{comma}')
+    lines.append("}")
+    lists = [f for f in facts if f.kind == "list"]
+    if lists:
+        lines.append("A list (" + ", ".join(f.id for f in lists) + ") has one entry per item the documents name, in the order "
+                     "the documents give them, and is [] when they name none.")
+    lines.append('A fact the excerpts do not contain gets "value": null and "sources": []. Every value is a string copied '
+                 "as the documents write it; never a number or a date in another form.")
+    return "\n".join(lines)
 
 
 def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:

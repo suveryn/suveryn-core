@@ -11,9 +11,10 @@ misspelled names it had read correctly
 (https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md).
 """
 
-from typing import Literal
+import json
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 Role = Literal["system", "user", "assistant"]
 
@@ -29,6 +30,9 @@ class ChatMessage(BaseModel):
 
     role: Role
     content: str = Field(max_length=100_000)  # ~25k tokens: more than fits the model's context anyway
+
+
+MAX_SCHEMA_CHARS = 60_000
 
 
 class ChatRequest(BaseModel):
@@ -56,6 +60,17 @@ class ChatRequest(BaseModel):
     # Think before answering (*Thorough*, docs/design/chat-ui.md §5): slower, for a model that can
     # (``ModelInfo.thinks``); ignored for one that can't. False: *Fast*, the appliance's default.
     thinking: bool = False
+    # The shape the answer must have, as JSON Schema (a playbook's read step, ``suveryn_playbooks.read_schema``):
+    # the model server holds the model to it by grammar, so the answer parses by construction. None: free text.
+    # Bounded: a schema is a grammar the server compiles per request.
+    json_schema: dict[str, Any] | None = None
+
+    @field_validator("json_schema")
+    @classmethod
+    def _schema_size(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        if v is not None and len(json.dumps(v)) > MAX_SCHEMA_CHARS:
+            raise ValueError(f"json_schema is too large: at most {MAX_SCHEMA_CHARS:,} characters")
+        return v
 
     @model_validator(mode="after")
     def _ends_with_question(self) -> "ChatRequest":

@@ -25,7 +25,7 @@ import uuid
 from datetime import datetime, timezone
 
 from suveryn_harness.facts import RunFact
-from suveryn_playbooks import Playbook, Step
+from suveryn_playbooks import Playbook, Step, entry, root
 from suveryn_rag.store import Scope
 
 from .playbooks import Run, RunStore, StepState, summary_text
@@ -122,8 +122,24 @@ class Runtime:
             v = current.get(fact_id)
             if v is None:
                 continue  # never read: nothing to ask about (the read step decides what exists)
-            if v["status"] == "not_established" and v["source"].get("kind") == "none":
+            if v["status"] == "not_established" and v["source"].get("kind") == "none" and not has_entries(current, fact_id):
                 out.append(fact_id)
+        return out
+
+    @staticmethod
+    def askable(playbook: Playbook, open_facts: list[str], language: str) -> dict[str, str]:
+        """What a person's answer in words may be placed on, with its label: each open fact; for a list the
+        documents named nothing of, its first entry's values (``founders[1].name``), so an answer that names a
+        founder lands as an entry, never as the list's one value."""
+        words = playbook.wording(language)
+        out: dict[str, str] = {}
+        for fid in open_facts:
+            f = playbook.fact(fid)
+            if f is not None and f.kind == "list":
+                for path in entry_paths(playbook, fid, 1):
+                    out[path] = words.label(path)
+            else:
+                out[fid] = words.label(fid)
         return out
 
     # -- people's answers and the model's
@@ -141,13 +157,12 @@ class Runtime:
         """The model answered: its reading becomes the facts' first versions (proposed, or
         not_established), the step is done. None if the run ended meanwhile."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
-        kinds = {f.id: f.kind for f in playbook.facts}
         self.store.write_facts(cid, rid, step.id, [
-            dict(fact_id=f.id, kind=kinds.get(f.id, "text"), value=f.value if f.found else "",
+            dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value if f.found else "",
                  status="proposed" if f.found else "not_established",
                  source={"kind": "document", "citations": [c.model_dump() for c in f.citations],
                          **({"needs": f.needs} if f.needs else {})} if f.found else {"kind": "none"},
-                 issues=f.issues, by=playbook.id) for f in facts if f.id in step.facts])
+                 issues=f.issues, by=playbook.id) for f in facts if root(f.id) in step.facts])
         states = dict(run.steps)
         states[step.id] = StepState(status="done", at=_now())
         # still ``reading`` until ``advance`` has found the next wait: a poll between the two must not see a half-moved run
@@ -160,11 +175,11 @@ class Runtime:
         (replacing the not-established reading); the step is done either way."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
-        kinds = {f.id: f.kind for f in playbook.facts}
-        rows = [dict(fact_id=fid, kind=kinds.get(fid, "text"), value=v.strip(), status="proposed", source={"kind": "person"},
+        rows = [dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=v.strip(), status="proposed", source={"kind": "person"},
                      by=by, replaces=current[fid]["id"] if fid in current else None)
-                for fid, v in answers.items() if fid in step.facts and v and v.strip()]
+                for fid, v in answers.items() if root(fid) in step.facts and playbook.leaf(fid) is not None and v and v.strip()]
         self.store.write_facts(cid, rid, step.id, rows)
+        self._settle_lists(playbook, current, [r["fact_id"] for r in rows])
         states = dict(run.steps)
         states[step.id] = StepState(status="done", by=by, at=_now())
         self.store.set_step(rid, step.id, "waiting", states)
@@ -186,15 +201,23 @@ class Runtime:
         person, replacing the current one. Facts not named keep their value as read."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
-        kinds = {f.id: f.kind for f in playbook.facts}
         rows = []
+        known = {f.id for f in run.facts}
+        # entries a person added at the checkpoint (``founders[3].name``): facts the read never made, confirmed now
+        added = [fid for fid, v in confirmed.items() if fid not in known and playbook.leaf(fid) is not None and fid != root(fid) and v.strip()]
         for f in run.facts:
+            if f.id == root(f.id) and (has_entries(current, f.id) or any(root(a) == f.id for a in added)):
+                continue  # a list with entries: the entries are confirmed, not the list's "none"
             value = confirmed.get(f.id, f.value).strip()
-            rows.append(dict(fact_id=f.id, kind=kinds.get(f.id, "text"), value=value,
+            rows.append(dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=value,
                              status="confirmed" if value else "not_established",
                              source={"kind": "person", "checkpoint": True}, by=by,
                              replaces=current[f.id]["id"] if f.id in current else None))
+        for fid in added:
+            rows.append(dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=confirmed[fid].strip(), status="confirmed",
+                             source={"kind": "person", "checkpoint": True}, by=by, replaces=None))
         self.store.write_facts(cid, rid, step.id, rows)
+        self._settle_lists(playbook, current, added)
         self.store.set_confirmed(rid, by)
         states = dict(run.steps)
         states[step.id] = StepState(status="done", by=by, at=_now())
@@ -206,25 +229,33 @@ class Runtime:
         the current one; the run stays at the checkpoint (the person still confirms)."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
-        kinds = {f.id: f.kind for f in playbook.facts}
-        self.store.write_facts(cid, rid, step.id, [
-            dict(fact_id=fid, kind=kinds.get(fid, "text"), value=v.strip(), status="proposed", source={"kind": "person"},
-                 by=by, replaces=current[fid]["id"] if fid in current else None)
-            for fid, v in corrections.items() if fid in current and v.strip()])
+        rows = [dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=v.strip(), status="proposed", source={"kind": "person"},
+                     by=by, replaces=current[fid]["id"] if fid in current else None)
+                for fid, v in corrections.items() if v.strip() and (fid in current or (playbook.leaf(fid) is not None and fid != root(fid)))]
+        self.store.write_facts(cid, rid, step.id, rows)
+        self._settle_lists(playbook, current, [r["fact_id"] for r in rows if r["fact_id"] not in current])
         return self.store.get(rid, cid)  # type: ignore[return-value]
+
+    def _settle_lists(self, playbook: Playbook, current: dict[str, dict], written: list[str]) -> None:
+        """A list the documents named nothing of (its own not-found version) gets entries from a person: that
+        "none" is superseded, so the list is no longer open and the summary shows the entries."""
+        roots = {root(fid) for fid in written if fid != root(fid)}
+        self.store.supersede([current[r]["id"] for r in roots if r in current and current[r]["status"] == "not_established"])
 
     # -- what the playbook says (the UI words a turn from its ``meta``; ``text`` is the English for a log or an export)
 
     @staticmethod
     def counts(run: Run) -> tuple[int, int]:
-        """How many facts have a value (read from the documents, or given by a person), of how many."""
-        return sum(1 for f in run.facts if f.value), len(run.facts)
+        """How many facts have a value (read from the documents, or given by a person), of how many. A
+        list with entries counts by its entries, not by its own "none"."""
+        shown = shown_facts(run.facts)
+        return sum(1 for f in shown if f.value), len(shown)
 
     def ask_turn(self, run: Run, playbook: Playbook, open_facts: list[str]) -> tuple[str, dict]:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
         found, total = self.counts(fresh)
-        labels = playbook.wording("en").labels
-        missing = ", ".join(labels.get(f, f) for f in open_facts)
+        words = playbook.wording("en")
+        missing = ", ".join(words.label(f) for f in open_facts)
         return (f"{found} of {total} facts found. Not in the documents: {missing}. Do you know them?",
                 {"kind": "ask", "facts": open_facts, "found": found, "total": total})
 
@@ -255,3 +286,25 @@ class Runtime:
     def _say(self, run: Run, playbook: Playbook, step_id: str | None, text: str, meta: dict | None = None) -> None:
         if text:
             self.store.say(run, "playbook", playbook.id, text, step_id, meta, once=True)
+
+
+# ------------------------------------------------------------------ lists (format 3, suveryn_playbooks.paths)
+
+def has_entries(current: dict[str, dict], list_id: str) -> bool:
+    """Whether any entry of the list has a current version (``founders[1].name`` for ``founders``)."""
+    return any(root(fid) == list_id and fid != list_id for fid in current)
+
+
+def entry_paths(playbook: Playbook, list_id: str, index: int) -> list[str]:
+    """The paths of one entry's values: its fields', or the one value of a list of plain values."""
+    f = playbook.fact(list_id)
+    if f is None or f.kind != "list":
+        return []
+    return [entry(list_id, index, x.id) for x in f.fields] if f.fields else [entry(list_id, index)]
+
+
+def shown_facts(facts: list[RunFact]) -> list[RunFact]:
+    """The facts as a person sees them: a list's own "the documents name none" is left out once the list has
+    entries (from the read, or added by a person)."""
+    with_entries = {root(f.id) for f in facts if f.id != root(f.id)}
+    return [f for f in facts if f.id not in with_entries]

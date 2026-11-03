@@ -22,7 +22,7 @@ Deed intake does that reading and leaves the writing-down to be checked:
    list of facts: the parties, the property, the price and what was paid, the dates, the
    conditions, the certificates. Every fact must cite the passage it comes from; the server
    checks each cited figure, date and name against that passage with the same rule-based check
-   as a chat answer (`suveryn_harness.support`; the table is read by `suveryn_harness.facts`), and a fact the model couldn't find is left empty,
+   as a chat answer (`suveryn_harness.support`; the answer is read by `suveryn_harness.facts`), and a fact the model couldn't find is left empty,
    never guessed.
 3. The **checkpoint**: the facts are shown next to their passages, one by one, each with its
    source page and the check's verdict. The notary confirms, corrects or clears each one. Nothing
@@ -216,12 +216,13 @@ POST   …/runs/{run}/stop | /cancel {reason}   the starter or the case manager
 The playbook path segment is the id's last part (`deed-intake`); the full id is in the response.
 A start walks the run to its first wait and answers with it; a run in status `reading` is polled.
 The model call is one grounded request, like a chat question but with the playbook's own
-instructions and no history: the facts as a Markdown table the model fills, each cell citing [n].
-The gateway parses the table, keeps the citations per fact and runs the check. A row names its
-fact by id or by its label in any of the playbook's languages (a small model translates), never by
-position: a skipped row would shift every later fact onto the wrong label without anyone noticing.
-An answer that isn't the table is asked for once more with a stricter reminder; then the run fails
-with `error: unreadable_answer` and can be started again. Starting a run, or answering the request
+instructions and no history: the facts as a JSON object of the facts' shape (format 3, below), each
+value with the excerpt numbers it comes from. The request carries that shape as a JSON Schema and
+llama-server holds the model to it by grammar, so the answer has every fact as a key by
+construction; a fact is never taken by position. The harness reads the object, keeps the citations
+per value and runs the check. An answer that still isn't the object (a server without grammar
+support, a model that ignored it) is asked for once more with a stricter reminder; then the run
+fails with `error: unreadable_answer` and can be started again. Starting a run, or answering the request
 its read waits on, counts against the caller's chat rate limit (it is a model call). A run still
 `reading` when the gateway stops is failed as `interrupted` at the next start, and the hourly
 sweep fails one that has been reading for over thirty minutes, so nobody waits on a spinner for a
@@ -293,8 +294,9 @@ in full to a reviewer. Everything the platform note promised about packs needs t
 
 The manifest says the identity, `case_types`, the `facts` (id, what to ask, kind), the `instructions`
 prose and, since format 2, the routine (below); `manifest:` names the format's own version. The
-table the model fills in is appended by the loader: it is the harness's contract with the model,
-not content, and an author never writes it. The wording per language stays in the pack's
+shape of the answer the model gives is appended to the instructions by the loader, and the JSON
+Schema the server enforces is derived from the facts (`read_schema`): both are the harness's
+contract with the model, not content, and an author never writes them. The wording per language stays in the pack's
 `text/<lang>.json` beside the manifest. Unknown keys are errors, and every error names the file
 and the field: the people writing these by hand are administrators, not developers, and a misspelt
 key silently ignored is a playbook that quietly does something else. The JSON Schema for editors
@@ -311,6 +313,52 @@ wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's
 words them. Later formats bring `check`, `propose`, conditions, products beyond the summary and a
 model role per step. Open: whether an office's own manifest may carry its wording inline (one file
 to upload) rather than in a pack's text files.
+
+### Format 3: lists and numbers (3 November 2026)
+
+A fact was one line. A deed's parties are not: three founders, each with a name, a number of shares
+and a contribution, don't fit a line, and the first company-formation playbook had to cram them
+into one fact "as written". The founder asked for the generic fix rather than a second parser, and
+format 3 is it: **a playbook's facts describe a shape, and the whole pipeline works on that shape.**
+
+- **Two kinds more.** `number`: a figure without currency (a count, a share, a percentage), checked
+  by meaning against its passage like an amount, short figures included ("3 aandelen"), which the
+  chat's figure check skips as ambiguous and a playbook asked for on purpose. `list`: several
+  entries, each a record of plain-valued fields (`of:` a list of facts) or one plain value (`of:` a
+  kind). A list holds records or values, never lists: a deed has "several parties, each with a few
+  details" and no deeper, and a file an office can still write by hand stays one level deep. A
+  format-2 file loads unchanged; a format-2 file that uses either kind is refused with the fact named.
+- **One mould for the model.** The loader derives a JSON Schema from the facts (`read_schema`): per
+  value `{"value": "as written" | null, "sources": [n, …]}`, a list an array of entries. The request
+  carries it (`ChatRequest.json_schema`) and llama-server compiles it to a grammar
+  (`response_format`), so the answer parses by construction: no row-name folding, no table retry
+  path; the one retry left is for a server without grammar support. Values are always strings copied
+  from the documents; the harness reads them by kind, so "copied as written" and the check by meaning
+  survive unchanged. Thinking is off for a read (the request's default), so the grammar binds the
+  answer, not reasoning. **To verify on the pod before the pin moves:** Qwen3.8 under a grammar on a
+  real deed, and the time a grammar adds per read.
+- **Paths, so nothing downstream changes shape.** A list's values are named by path:
+  `founders[1].name`, `founders[2].contribution`, `conditions[1]` (`suveryn_playbooks.paths`). A path
+  is a string, so `case_facts.fact_id`, a person's answer, a correction, the confirm body, the summary's
+  line, the UI's label all take it as they took `price`; only what a path means is new. One row per
+  version, superseded pointers, the record: as before. The list's own id names the list as a whole:
+  the read writes it as one not-found fact when the documents name no entries, so an `ask` step can
+  ask about the list; the first entry a person gives supersedes that "none" (`_settle_lists`). A list
+  with entries is shown by its entries, never by its id (`shown_facts`).
+- **People add entries.** At an `ask`, an answer in words is mapped onto the first entry's values
+  (`askable`); at the checkpoint, onto every value the run has plus one entry beyond the last
+  (`_checkpoint_labels`), so "a third founder, Anna Peeters" adds one. On a card: a list the documents
+  named none of shows *Add* instead of *Fill in*, with one field per value of the entry; a list with
+  entries offers one more under *More*. Each value given is a version from that person, as a
+  correction is; `PUT …/facts/{fact}` takes a new path into a list as new ground. Removing an entry
+  is clearing its values. The labels: the list's, the entry's number, the field's
+  (`labels["founders.name"]`): "Oprichter(s) 2 · Aandelen".
+- **Deed intake 1.2** is deed intake with the JSON answer: the facts and the words are 1.0's, the
+  instructions say "the object" where they said "the table". **Company formation 1.0** is the first
+  playbook with a list: the founders, each with name, shares (number) and contribution (amount).
+- Later, on the typed values this lays down: `check` steps (the founders' contributions add up to
+  the total; computed by the server, the rule the harness already has for `[[calc]]`), shown as a
+  warning at the checkpoint, never a block.
 
 ## What is deferred, on purpose
 

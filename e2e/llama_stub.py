@@ -4,13 +4,14 @@ It speaks what ``suveryn_harness.llm.LlamaServerClient`` expects of a llama-serv
 ``/models`` (two presets, one loaded), ``/v1/models``, and ``POST /v1/chat/completions`` as one answer or as
 server-sent events with ``timings`` and a final ``usage``. No model runs: the answer is made from the prompt
 itself, so the stack is deterministic and needs no GPU, and still exercises everything around the model: the
-grounded prompt, citations checked against their passages, the facts table a playbook reads, thinking.
+grounded prompt, citations checked against their passages, the facts a playbook reads, thinking.
 
 How it answers (``answer_for``):
 
-- A playbook's read (the question holds the facts table ``| id | value | source |``): the table, one row per fact
-  id, each value a sentence of an excerpt that mentions the fact's keyword (``KEYWORDS``), citing that excerpt;
-  a fact without a keyword in any excerpt is left empty, as the instructions ask, so the routine asks a person.
+- A playbook's read (the request carries the facts' JSON Schema, ``response_format``; the question spells the
+  shape): the JSON object, one key per fact, each value a sentence of an excerpt that mentions the fact's keyword
+  (``KEYWORDS``), citing that excerpt; a fact without a keyword in any excerpt is null, as the instructions ask, so
+  the routine asks a person; a list is [] (the stub names no entries).
 - A grounded question: the first sentence of the excerpt that shares most words with the question, cited; with
   no excerpts, a sentence saying the documents don't say.
 - Thinking asked for (``chat_template_kwargs.enable_thinking``): a short ``reasoning_content`` before the answer.
@@ -61,7 +62,7 @@ KEYWORDS = {
     "occupancy": ["huurder"],
 }
 
-_TABLE = re.compile(r"^\|\s*([a-z_][a-z0-9_]*)\s*\|\s*\|\s*\|\s*$", re.MULTILINE)
+_SHAPE = re.compile(r'^  "([a-z_][a-z0-9_]*)": (\{"value": <|\[)', re.MULTILINE)   # the answer's shape, as the loader spells it
 _EXCERPT = re.compile(r"^\[(\d{1,2})\] \((.*?)\)\n(.*?)(?=\n\n\[\d{1,2}\] \(|\n\n\(The excerpts above|\Z)", re.MULTILINE | re.DOTALL)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z(\[])|\n+")  # a full stop inside "1.275.000,00" is not an end
 _WORD = re.compile(r"\w{4,}", re.UNICODE)
@@ -85,19 +86,23 @@ def sentence_with(text: str, keyword: str) -> str | None:
     return None
 
 
-def facts_table(fact_ids: list[str], passages: list[tuple[int, str]]) -> str:
-    rows = ["| id | value | source |", "|---|---|---|"]
-    for fact in fact_ids:
-        value = source = ""
+def facts_json(facts: list[tuple[str, bool]], passages: list[tuple[int, str]]) -> str:
+    """The answer in the facts' shape: ``(id, is_list)`` per fact, in order."""
+    out: dict = {}
+    for fact, is_list in facts:
+        if is_list:
+            out[fact] = []
+            continue
+        value, source = None, []
         for keyword in KEYWORDS.get(fact, []):
             for n, text in passages:
                 if (s := sentence_with(text, keyword)) is not None:
-                    value, source = s, f"[{n}]"
+                    value, source = s, [n]
                     break
             if value:
                 break
-        rows.append(f"| {fact} | {value} | {source} |")
-    return "\n".join(rows)
+        out[fact] = {"value": value, "sources": source}
+    return json.dumps(out, ensure_ascii=False)
 
 
 def grounded_answer(question: str, passages: list[tuple[int, str]]) -> str:
@@ -117,9 +122,9 @@ def answer_for(messages: list[dict]) -> tuple[str, str]:
     prompt = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
     passages = excerpts(prompt)
     question = prompt.rsplit("QUESTION:", 1)[-1].strip()
-    fact_ids = _TABLE.findall(question)
-    if fact_ids:
-        return "Reading the excerpts for each fact in turn.", facts_table(fact_ids, passages)
+    facts = [(fid, opener == "[") for fid, opener in _SHAPE.findall(question)]
+    if facts:
+        return "Reading the excerpts for each fact in turn.", facts_json(facts, passages)
     return "Looking for the excerpt that answers the question.", grounded_answer(question, passages)
 
 

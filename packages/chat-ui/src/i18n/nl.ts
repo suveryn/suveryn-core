@@ -507,6 +507,13 @@ const nl: Messages = {
   pbNotInPassage: (items) => `Staat zo niet in de aangehaalde passage: ${items}.`,
   pbNotADate: "Geen datum zoals geschreven: reken ze uit en kijk na.",
   pbNotAnAmount: "Geen bedrag zoals geschreven: reken het uit en kijk na.",
+  pbNotANumber: "Geen getal zoals geschreven: reken het uit en kijk na.",
+  // lijsten (formaat 3): een lijst waarvan de documenten geen items noemen, en nog een item voor een lijst die er heeft
+  pbNoEntries: "Geen in de documenten",
+  pbAddEntry: "Toevoegen",
+  pbEntries: (n: number) => n === 1 ? "1 item" : `${n} items`,
+  pbKeepEntry: "Bewaren",
+  pbGroupMore: "Meer",
   pbFieldHint: "Enter bewaart, Esc annuleert.",
   pbFromChat: (time) => `Uit het gesprek, ${time}`,
   pbConfirmBlockedOne: (label) => `Bevestigen kan zodra ${label} nagekeken is.`,

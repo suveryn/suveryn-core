@@ -1,12 +1,17 @@
 """Reading a playbook's facts from the model (suveryn-tracker#51, docs/design/playbooks.md).
 
 A playbook run is one grounded model call (``service.ChatService.answer``) with the playbook's own
-instructions instead of a question, and no history. The answer must be a Markdown table, one row per
-fact, each cell citing the excerpts it comes from as [n]. This module asks for it (``read_playbook``:
-once more with a stricter reminder when the answer isn't the table) and reads it (``read_facts``):
-each fact's value, the passages it cites, and the same checks as a chat answer (``support``,
-``calc.unverified_figures``). Storing runs and the checkpoint where a person confirms every fact are
-the gateway's (``suveryn_api_gateway.playbooks``).
+instructions instead of a question, and no history. The answer is JSON of the facts' shape
+(``suveryn_playbooks.read_schema``: per value, what the documents write and the excerpts it comes from
+as numbers), which the model server holds the model to by grammar. This module asks for it
+(``read_playbook``: once more with a stricter reminder when the answer still can't be read, as when the
+server has no grammar support) and reads it (``read_facts``): every value, plain or inside a list's
+entries, becomes one ``RunFact`` named by its path (``founders[2].contribution``), with the passages it
+cites and the same checks as a chat answer (``support``, ``calc.unverified_figures``), plus the check by
+kind: an amount, a date or a number compared by meaning with its cited passage. A list the documents
+name no entries of is one not-found fact under the list's own id, so an ask step can ask about it.
+Storing runs and the checkpoint where a person confirms every fact are the gateway's
+(``suveryn_api_gateway.playbooks``).
 
 Nothing is logged here: the answer and the passages are document text.
 """
@@ -20,22 +25,24 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from suveryn_playbooks import Playbook
+from suveryn_playbooks import Playbook, entry, read_schema
+from suveryn_playbooks.paths import MAX_ENTRIES
 
-from .grounding import cited_numbers
+
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation
-from .calc import source_decimal_separator
+from .calc import source_decimal_separator, unverified_figures
 from .support import citation_issues
+from .values import as_amount, as_date, as_number, numbers_in
 
 MAX_VALUE = 2000        # characters of one fact's value, as read or as confirmed
-READ_TOKENS = 4096      # the table: thirteen rows with their citations, with room for a verbose conditions row
-STRICTER = ("\n\nYour previous answer could not be read as the table. Answer with the table only: the header row, "
-            "then exactly one row per fact id, in the order given, with the id copied exactly as written in the "
-            "first column. No text before or after the table.")
+READ_TOKENS = 6144      # the JSON: a dozen values with their sources, with room for a list of parties
+STRICTER = ("\n\nYour previous answer could not be read as the JSON object described. Answer with that JSON object only: "
+            "every fact id as a key, exactly as written, each with \"value\" and \"sources\"; a list as an array of entries. "
+            "No text, no code fence, nothing before or after the object.")
 
 
 class Unreadable(Exception):
-    """The model's answer wasn't the table, also when asked a second time."""
+    """The model's answer wasn't the JSON object asked for, also when asked a second time."""
 
 
 class FactCitation(BaseModel):
@@ -60,87 +67,129 @@ class RunFact(BaseModel):
     by: str | None = None                # for a person's value: who gave it (an answer or a correction in the conversation)
     was: str | None = None               # for a correction of a value read from the documents: the value as read
     at: datetime | None = None           # for a person's value: when it was given
-    # A date or an amount the value doesn't give as one ("uiterlijk vier maanden na de ondertekening"): a person
-    # works it out and checks it (``not_a_date``, ``not_an_amount``; decision, 1 November 2026: *Kijk na* by meaning).
+    # A date, an amount or a number the value doesn't give as one ("uiterlijk vier maanden na de ondertekening"): a
+    # person works it out and checks it (``not_a_date``, ``not_an_amount``, ``not_a_number``; decision, 1 November
+    # 2026: *Kijk na* by meaning).
     needs: str | None = None
 
 
-_ROW = re.compile(r"^\s*\|?\s*([^|]+?)\s*\|(.*?)\|(.*?)\|?\s*$")
 _MARKER = re.compile(r"\[(\d{1,2})\]")
-# The table's separator line: every cell dashes, with colons for alignment. Not a row whose value is
-# empty or "-": that is a fact the documents don't contain (VM check of 1a5cfea).
-_SEPARATOR = re.compile(r"^\s*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?$")
+_FENCE = re.compile(r"^```[a-zA-Z]*\s*|\s*```$")
 _NOT_FOUND = re.compile(r"^\s*(-|—|n/?a|none|niet (gevonden|vermeld)|non (trouvé|mentionné)|not (found|mentioned|stated))\s*\.?\s*$", re.IGNORECASE)
 
 
-def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, str]) -> list[RunFact] | None:
-    """The facts in the model's table, in the playbook's order, with their cited passages and the
-    check's findings; None if the answer isn't the table (``error: unreadable_answer``).
+def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, str],
+               fact_ids: set[str] | None = None) -> list[RunFact] | None:
+    """The facts in the model's answer, one ``RunFact`` per value in the playbook's order (a list's
+    entries in the order given, each field a fact of its own, named by path); None if the answer
+    isn't the JSON object asked for (``error: unreadable_answer``). ``fact_ids``: the read step's
+    facts; None for all.
 
-    The check reuses the chat's, both halves: ``citation_issues`` (a figure, date or name that is in
-    a passage but not the cited one) works on the whole answer and reports by marker occurrence, so
-    markers are counted here in the same order to map them to facts; ``unverified_figures`` (a figure
-    in no passage at all: made up or worked out) is matched to the fact whose value writes it, a
-    substring match that can attach a figure to two facts that both write it (tolerable: both get
-    the warning, and a person looks at both).
-
-    The first column names the fact: its id as given, or, since a small model sometimes translates
-    or paraphrases, its label in any of the playbook's languages (review 2026-10-17). Rows are never
-    taken by position: a skipped row would shift every fact after it onto the wrong label, silently,
-    which is worse than a run that fails and is started again."""
-    citations = response.citations
-    rows: dict[str, tuple[str, list[int]]] = {}
-    marker_facts: list[str] = []  # which fact the i-th valid marker (in text order) belongs to
-    names = _fact_names(playbook)
-    for line in response.answer.splitlines():
-        m = _ROW.match(line)
-        if not m or m.group(1) in ("id",) or _SEPARATOR.match(line):
-            continue
-        fact_id, value, source = names.get(_fold(m.group(1))), m.group(2).strip(), m.group(3)
-        if fact_id is None or fact_id in rows:
-            continue
-        # markers in the value cell count first (text order), then the source cell
-        numbers = cited_numbers(value, len(citations)) + cited_numbers(source, len(citations))
-        marker_facts += [fact_id] * (len(_valid(value, len(citations))) + len(_valid(source, len(citations))))
-        rows[fact_id] = (_MARKER.sub("", value).strip(" *_"), list(dict.fromkeys(numbers)))
-    if len(rows) < max(1, len(playbook.facts) // 2):
+    Each value's checks: ``citation_issues`` on the value with its sources as markers (a figure, date or
+    name that is in a passage but not the cited one); ``unverified_figures`` (a figure in no passage at
+    all: made up or worked out); and the check by kind (``_by_meaning``). A value the model writes as
+    "not found" in words, or empty, is not found. Sources the model names that don't exist are
+    dropped; a value with no valid source is kept, uncited, for the person to see."""
+    data = _json_object(response.answer)
+    if data is None:
         return None
-    issues_by_fact: dict[str, list[str]] = {}
-    for issue in citation_issues(response.answer, citations, response.calculations):
-        if issue.marker < len(marker_facts):
-            issues_by_fact.setdefault(marker_facts[issue.marker], []).append(issue.item)
-    for fact_id, (value, _) in rows.items():
-        issues_by_fact.setdefault(fact_id, []).extend(u for u in response.unverified_figures if u in value)
-    facts = []
-    sep = source_decimal_separator("\n".join(c.text for c in citations))
-    for f in playbook.facts:
-        value, numbers = rows.get(f.id, ("", []))
-        found = bool(value) and not _NOT_FOUND.match(value)
-        cited = [_cite(n, citations[n - 1], filenames) for n in numbers if 0 < n <= len(citations)]
-        issues = list(dict.fromkeys(issues_by_fact.get(f.id, []))) if found else []
-        needs = None
-        if found and f.kind in ("amount", "date"):
-            needs, issue = _by_meaning(f.kind, value, [c.text for c in cited], sep)
-            if issue and not any(i in value for i in issues):  # unless the check already named its figure or date
-                issues.append(issue)
-        # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
-        facts.append(RunFact(id=f.id, value=value[:MAX_VALUE] if found else "", citations=cited if found else [],
-                             issues=issues, found=found, source="document" if found else "none", needs=needs))
-    return facts
+    facts = [f for f in playbook.facts if fact_ids is None or f.id in fact_ids]
+    if sum(1 for f in facts if f.id in data) < max(1, len(facts) // 2):
+        return None  # a JSON object, but not the one asked for
+    citations = response.citations
+    source = "\n".join(c.text for c in citations)
+    sep = source_decimal_separator(source)
+    out: list[RunFact] = []
+    for f in facts:
+        raw = data.get(f.id)
+        if f.kind != "list":
+            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, sep))
+            continue
+        entries = raw if isinstance(raw, list) else []
+        if not entries:
+            out.append(RunFact(id=f.id, found=False, source="none"))  # the list as a whole: the documents name none
+            continue
+        for i, item in enumerate(entries[:MAX_ENTRIES], 1):
+            if f.fields:
+                record = item if isinstance(item, dict) else {}
+                for x in f.fields:
+                    out.append(_leaf(entry(f.id, i, x.id), x.kind, record.get(x.id), citations, filenames, source, sep))
+            else:
+                out.append(_leaf(entry(f.id, i), f.item_kind, item, citations, filenames, source, sep))
+    return out
+
+
+def _json_object(answer: str) -> dict | None:
+    """The one JSON object in the answer: as is, or inside a code fence, or the outermost braces of
+    text around it (a server without grammar support lets the model add words)."""
+    import json
+    text = answer.strip()
+    for candidate in (text, _FENCE.sub("", text).strip()):
+        try:
+            d = json.loads(candidate)
+            if isinstance(d, dict):
+                return d
+        except ValueError:
+            pass
+    a, b = text.find("{"), text.rfind("}")
+    if 0 <= a < b:
+        try:
+            d = json.loads(text[a:b + 1])
+            return d if isinstance(d, dict) else None
+        except ValueError:
+            return None
+    return None
+
+
+def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filenames: dict[str, str], source: str, sep: str) -> RunFact:
+    """One value as the model gave it -> the fact, cited and checked."""
+    if isinstance(raw, dict):
+        value, sources = raw.get("value"), raw.get("sources")
+    else:
+        value, sources = raw, []  # a bare value: tolerated, uncited
+    value = str(value).strip() if value is not None and not isinstance(value, (dict, list)) else ""
+    numbers = [int(n) for n in (sources if isinstance(sources, list) else []) if isinstance(n, int) and 0 < n <= len(citations)]
+    numbers += _valid(value, len(citations))  # markers the model wrote in the value count too
+    numbers = list(dict.fromkeys(numbers))
+    value = _MARKER.sub("", value).strip(" *_")
+    if not value or _NOT_FOUND.match(value):
+        return RunFact(id=path, found=False, source="none")
+    cited = [_cite(n, citations[n - 1], filenames) for n in numbers]
+    issues: list[str] = []
+    if cited:
+        claim = value + " " + "".join(f"[{n}]" for n in numbers)
+        issues = [i.item for i in citation_issues(claim, citations, [])]
+    issues += [u for u in unverified_figures(value, [], source) if u not in issues]
+    needs = None
+    if kind in ("amount", "date", "number"):
+        needs, issue = _by_meaning(kind, value, [c.text for c in cited], sep)
+        if issue and not any(i in value for i in issues):  # unless the check already named its figure or date
+            issues.append(issue)
+    # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
+    return RunFact(id=path, value=value[:MAX_VALUE], citations=cited, issues=list(dict.fromkeys(issues)), found=True,
+                   source="document", needs=needs)
 
 
 def _by_meaning(kind: str, value: str, passages: list[str], sep: str) -> tuple[str | None, str | None]:
-    """A fact of kind amount or date compared by what it means, not how it is spelled (decision, 1 November 2026):
-    "26.800 euro" against "zesentwintigduizend achthonderd euro" agrees; "28.600 euro" doesn't (an issue, the value
-    as written); a value that gives no date or amount at all ("vier maanden na de ondertekening") needs a person to
-    work it out (``needs``). Without cited passages nothing is compared."""
+    """A fact of kind amount, date or number compared by what it means, not how it is spelled (decision,
+    1 November 2026): "26.800 euro" against "zesentwintigduizend achthonderd euro" agrees; "28.600 euro"
+    doesn't (an issue, the value as written); a value that gives no date, amount or number at all ("vier
+    maanden na de ondertekening") needs a person to work it out (``needs``). Without cited passages
+    nothing is compared. A number is any figure, short ones included ("3 aandelen"), which the chat's
+    figure check skips as too ambiguous; here the playbook asked for a count."""
     from .support import _dates, _figures
-    from .values import as_amount, as_date
     if kind == "date":
         d = as_date(value)
         if d is None:
             return "not_a_date", None
         if passages and not any(d in _dates(p) for p in passages):
+            return None, value
+        return None, None
+    if kind == "number":
+        n = as_number(value, sep)
+        if n is None:
+            return "not_a_number", None
+        if passages and not any(n in numbers_in(p, sep) for p in passages):
             return None, value
         return None, None
     a = as_amount(value, sep)
@@ -157,17 +206,6 @@ def _fold(text: str) -> str:
     return re.sub(r"[\s_*`'\"()-]+", " ", text).strip()
 
 
-def _fact_names(playbook: Playbook) -> dict[str, str]:
-    """Every way the first column may name a fact (id, label in each language, id with spaces) -> id."""
-    names = {}
-    for f in playbook.facts:
-        names[_fold(f.id)] = f.id
-        for words in playbook.text.values():
-            if f.id in words.labels:
-                names[_fold(words.labels[f.id])] = f.id
-    return names
-
-
 def _valid(text: str, available: int) -> list[int]:
     return [int(n) for n in _MARKER.findall(text) if 0 < int(n) <= available]
 
@@ -180,35 +218,37 @@ def _cite(n: int, c: Citation, filenames: dict[str, str]) -> FactCitation:
 
 def answer_shape(playbook: Playbook, response: ChatResponse) -> dict[str, int | str | None]:
     """What an answer that couldn't be read looked like, in counts only (it is document text): its
-    length and lines, how many lines were table rows and how many of those named a fact, how many cells
-    the rows had, and why the model stopped. Enough to tell a missing table from a renamed or
-    reshaped one (VM check 2: every deed intake run was unreadable)."""
-    names = _fact_names(playbook)
-    lines = response.answer.splitlines()
-    rows = [m for line in lines if (m := _ROW.match(line))]
-    cells = sorted({line.count("|") for line in lines if line.lstrip().startswith("|")})
-    return {"chars": len(response.answer), "lines": len(lines), "table_rows": len(rows),
-            "named_rows": sum(1 for m in rows if _fold(m.group(1)) in names),
-            "pipes_per_row": ",".join(map(str, cells[:5])) or "0",
+    length and lines, whether it parsed as JSON and how many of the playbook's facts it had as keys,
+    and why the model stopped. Enough to tell a missing object from a reshaped one, and a server
+    without grammar support from a model that ignored the shape."""
+    d = _json_object(response.answer)
+    return {"chars": len(response.answer), "lines": len(response.answer.splitlines()),
+            "json": d is not None, "keys": len(d) if d else 0,
+            "named_keys": sum(1 for f in playbook.facts if d and f.id in d),
             "finish": response.finish_reason, "reasoning_chars": len(response.reasoning or "")}
 
 
 async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]], playbook: Playbook, filenames: dict[str, str],
-                        case_id: str | None,
-                        on_retry: Callable[[int, dict], None] | None = None) -> tuple[list[RunFact], ChatResponse]:
-    """Ask the model for the playbook's table over the documents ``filenames`` (id -> file name) and
-    read it. An answer that isn't the table is asked for once more, with a stricter reminder (review
-    2026-10-17: a small model's most likely failure, and a retry is cheaper than a person's); then
-    ``Unreadable``. ``answer`` is the grounded call (the caller binds its user); its errors pass
-    through. ``on_retry(attempt, shape)`` is told when an answer couldn't be read, with its shape
-    (``answer_shape``: counts only)."""
-    for attempt, instructions in enumerate((playbook.instructions, playbook.instructions + STRICTER)):
+                        case_id: str | None, on_retry: Callable[[int, dict], None] | None = None,
+                        fact_ids: set[str] | None = None) -> tuple[list[RunFact], ChatResponse]:
+    """Ask the model for the playbook's facts over the documents ``filenames`` (id -> file name) and
+    read them. The request carries the answer's schema (``read_schema``), which the server enforces;
+    an answer that still can't be read (no grammar support, or an object that isn't the one asked for)
+    is asked for once more, with a stricter reminder (review 2026-10-17: a retry is cheaper than a
+    person's); then ``Unreadable``. ``answer`` is the grounded call (the caller binds its user); its
+    errors pass through. ``on_retry(attempt, shape)`` is told when an answer couldn't be read, with its
+    shape (``answer_shape``: counts only). ``fact_ids``: the read step's facts; None for all."""
+    facts = tuple(f for f in playbook.facts if fact_ids is None or f.id in fact_ids)
+    schema = read_schema(facts)
+    only = "" if fact_ids is None or len(facts) == len(playbook.facts) else \
+        "\n\nThis time only these facts, as keys: " + ", ".join(f.id for f in facts) + "."
+    for attempt, instructions in enumerate((playbook.instructions + only, playbook.instructions + only + STRICTER)):
         req = ChatRequest(messages=[ChatMessage(role="user", content=instructions)], document_ids=list(filenames),
-                          case_id=case_id, max_tokens=READ_TOKENS)
+                          case_id=case_id, max_tokens=READ_TOKENS, json_schema=schema)
         response = await answer(req)
-        facts = read_facts(playbook, response, filenames)
-        if facts is not None:
-            return facts, response
+        facts_read = read_facts(playbook, response, filenames, fact_ids)
+        if facts_read is not None:
+            return facts_read, response
         if on_retry is not None:
             on_retry(attempt + 1, answer_shape(playbook, response))
     raise Unreadable
@@ -217,7 +257,7 @@ async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]]
 # ------------------------------------------------------------------ answers in words (docs/design/playbooks.md, "The chat UI")
 
 MAP_TOKENS = 512
-_MAPPED = re.compile(r"^\s*[-*]?\s*`?([a-z][a-z0-9_]{0,49})`?\s*[:=]\s*(.+?)\s*$")
+_MAPPED = re.compile(r"^\s*[-*]?\s*`?([a-z][a-z0-9_]{0,49}(?:\[\d{1,2}\](?:\.[a-z][a-z0-9_]{0,49})?)?)`?\s*[:=]\s*(.+?)\s*$")
 _NOTHING = re.compile(r"^\s*(none|nothing|-)\s*\.?\s*$", re.IGNORECASE)
 
 MAP_INSTRUCTIONS = """A person answered in their own words about facts for a file. Say which of the facts below their

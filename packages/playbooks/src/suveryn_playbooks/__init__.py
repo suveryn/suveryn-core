@@ -25,8 +25,9 @@ from __future__ import annotations
 from importlib.resources import files
 from pathlib import Path
 
-from ._model import LANGUAGES, Fact, FactKind, Playbook, Step, StepKind, Wording
-from .manifest import ManifestError, load
+from ._model import LANGUAGES, Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
+from .manifest import ManifestError, load, read_schema
+from .paths import entry, is_path, root, split
 
 OFFICIAL_PACKS = ("be_notary",)   # package directories holding official manifests, in catalogue order
 
@@ -70,5 +71,6 @@ def for_case_type(case_type: str) -> list[Playbook]:
 DEED_INTAKE: Playbook = find("playbook/be-notary/deed-intake")  # type: ignore[assignment]  # the first playbook; tests and docs name it
 assert DEED_INTAKE is not None, "the official pack be_notary must contain deed-intake.yaml"
 
-__all__ = ["DEED_INTAKE", "LANGUAGES", "OFFICIAL_PACKS", "PLAYBOOKS", "Fact", "FactKind", "ManifestError", "Playbook",
-           "Step", "StepKind", "Wording", "by_slug", "covered", "find", "for_case_type", "load"]
+__all__ = ["DEED_INTAKE", "LANGUAGES", "OFFICIAL_PACKS", "PLAYBOOKS", "Fact", "FactKind", "LeafKind", "ManifestError", "Playbook",
+           "Step", "StepKind", "Wording", "by_slug", "covered", "entry", "find", "for_case_type", "is_path", "load", "read_schema",
+           "root", "split"]

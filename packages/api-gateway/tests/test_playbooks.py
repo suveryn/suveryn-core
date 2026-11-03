@@ -7,6 +7,7 @@ database is test_playbook_runtime.py."""
 
 import os
 import sys
+import json
 import time
 import uuid
 from pathlib import Path
@@ -27,10 +28,12 @@ from test_cases import ALICE, BOB, NEW, FakeCases, FakeDirectory, admin_headers
 from test_conversations import FakeConversations, as_user
 from test_documents import DOC, FakeDocuments, llm_transport
 
-# The model's table for deed intake and its passages: the harness's own test fixtures (reading the table is the harness's).
+# The model's answer for deed intake (the facts' JSON) and its passages: the harness's own test fixtures (reading it is the harness's).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "harness" / "tests"))
+from test_facts import ANSWER, response
 from test_facts import DOC as TABLE_DOC
-from test_facts import TABLE, response
+
+TABLE = json.dumps(ANSWER, ensure_ascii=False)
 
 
 def test_summary_text_uses_the_confirmed_values_and_the_language():
@@ -111,7 +114,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
     # which playbooks fit: a sale gets deed intake 1.1, covered, with its routine and its words in every language
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.1")]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.2")]
     assert [s["kind"] for s in fits[0]["steps"]] == ["request", "read", "ask", "checkpoint", "produce"]
     assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["labels"]["price"] == "Price"
     assert "{label}" in fits[0]["text"]["nl"]["questions"]["missing"]
@@ -122,7 +125,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert r.status_code == 202
     run = r.json()
     rid = run["id"]
-    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.1")
+    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.2")
     assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["read"]["status"] == "pending"
     assert [(t["role"], t["step_id"], t["by"]) for t in run["turns"]] == [("playbook", "agreement", "playbook/be-notary/deed-intake")]
     assert run["turns"][0]["text"].startswith("Laad de ondertekende verkoopovereenkomst op")
@@ -141,7 +144,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis staat erin."}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "reading" and r.json()["step"] == "read" and r.json()["documents"] == [DOC]
-    assert "| sellers | | |" in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
+    assert '"sellers": {"value": <' in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
+    assert captured[-1]["response_format"]["json_schema"]["schema"]["required"][0] == "sellers"  # and the shape the server enforces
     # the model answered; the cadastral data wasn't in the documents, so the playbook asks for it, in Dutch, and waits
     run = wait_for(c, RUN.format(cid=cid, rid=rid), bob, "waiting")
     assert run["step"] == "missing" and run["steps"]["read"]["status"] == "done" and run["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
@@ -177,9 +181,9 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the summary is a document in the case with origin playbook, named after the playbook, the case and the run's version,
     # in the run's language; its text is what 1.0 wrote for the same confirmed facts
     name, text = docs.stored_text
-    assert name == "Akte-intake 2026/0417 (1.1)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.1")
+    assert name == "Akte-intake 2026/0417 (1.2)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.2")
     assert "Prijs: EUR 412.000,00 (akte.pdf p. 2)" in text and "Kadastrale gegevens: Gent 5e afd., sectie B, nr. 123" in text
-    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.1", "run": rid}
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.2", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice).status_code == 409
     assert cid not in c.get("/v1/playbooks/runs/active", headers=alice).json()  # done: no chip
@@ -567,3 +571,108 @@ def test_the_request_asks_even_when_the_case_has_documents_and_the_question_is_w
         assert again.seq == asks[0]["seq"]  # the same line again: not written
     finally:
         store.close()
+
+
+FORMATION_ANSWER = json.dumps({
+    "company_name": {"value": "Suveryn Labs BV", "sources": [1]}, "seat": {"value": None, "sources": []},
+    "object": {"value": None, "sources": []}, "contribution": {"value": "EUR 412.500,00", "sources": [1]},
+    "bank_certificate": {"value": None, "sources": []}, "contribution_in_kind": {"value": None, "sources": []},
+    "shares": {"value": None, "sources": []}, "directors": {"value": None, "sources": []}, "representation": {"value": None, "sources": []},
+    "fiscal_year": {"value": None, "sources": []}, "general_meeting": {"value": None, "sources": []},
+    "plan_date": {"value": None, "sources": []}, "financial_plan": {"value": None, "sources": []},
+    "founders": [{"name": {"value": "Filip Tack", "sources": [1]}, "shares": {"value": "600", "sources": [1]},
+                  "contribution": {"value": "EUR 412.500,00", "sources": [1]}}],
+})
+
+
+@needs_db
+def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
+    """Format 3 (docs/design/playbooks.md, "Lists"): the founders come back as entries named by path, each value
+    checked by kind; a person adds a second founder at the checkpoint; the summary shows the entries."""
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    captured: list = []
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport(captured, text=FORMATION_ANSWER))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json={**NEW, "type": "company-formation", "name": "Oprichting Suveryn Labs"}, headers=alice).json()["id"]
+        fits = c.get(f"/v1/cases/{cid}/playbooks", headers=alice).json()
+        assert [p["id"] for p in fits] == ["playbook/be-notary/company-formation"]
+        assert fits[0]["lists"] == {"founders": ["name", "shares", "contribution"]} and fits[0]["kinds"]["founders.shares"] == "number"
+        assert fits[0]["text"]["nl"]["labels"]["founders.contribution"] == "Inbreng"
+        rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "documents"}, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "reading"
+        assert captured[-1]["response_format"]["json_schema"]["schema"]["properties"]["founders"]["type"] == "array"
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        assert run["step"] == "missing"
+        by = {f["id"]: f for f in run["facts"]}
+        # the entries, by path; the number of shares isn't in the cited passage: *Check*
+        assert by["founders[1].name"]["value"] == "Filip Tack" and by["founders[1].name"]["source"] == "document"
+        assert by["founders[1].shares"]["issues"] == ["600"] and by["founders[1].contribution"]["issues"] == []
+        assert "founders" not in by  # a list with entries has no "none" of its own
+        asked = [t for t in run["turns"] if t["step_id"] == "missing"][0]
+        assert "founders" not in asked["meta"]["facts"] and "seat" in asked["meta"]["facts"]
+        # the ask: the seat, in words; the rest stays unknown
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"seat": "Sint-Jansvest 18/1, 9000 Gent"}}, headers=alice)
+        assert r.status_code == 200 and r.json()["step"] == "confirm"
+        # at the checkpoint a person adds a second founder, value by value, on a path the read never made
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].name", json={"value": "Anna Peeters"}, headers=alice)
+        assert r.status_code == 200
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].shares", json={"value": "400"}, headers=alice)
+        assert r.status_code == 200
+        by = {f["id"]: f for f in r.json()["facts"]}
+        assert by["founders[2].name"]["source"] == "person" and by["founders[2].shares"]["value"] == "400"
+        assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
+        # confirm: the entries, a third founder given straight in the confirm body, the shares corrected
+        confirm = {"facts": [{"id": "founders[1].shares", "confirmed": "650"}, {"id": "founders[3].name", "confirmed": "Tom Janssens"}]}
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "done"
+        by = {f["id"]: f for f in r.json()["facts"]}
+        assert by["founders[1].shares"]["confirmed"] == "650" and by["founders[2].name"]["confirmed"] == "Anna Peeters"
+        assert by["founders[3].name"]["confirmed"] == "Tom Janssens"
+        name, text = docs.stored_text
+        assert name == "Oprichting vennootschap 2026/0417 (1.0)"
+        assert "Oprichter(s) 1 · Naam: Filip Tack (akte.pdf p. 2)" in text and "Oprichter(s) 1 · Aandelen: 650" in text
+        assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text
+        assert "Oprichter(s): " not in text  # the list's own line is its entries
+        assert "Zetel: Sint-Jansvest 18/1, 9000 Gent" in text
+
+
+@needs_db
+def test_a_list_the_documents_name_nothing_of_is_asked_about_and_an_answer_becomes_its_first_entry(runs):
+    """The read's "none" for the list is one open fact; a person's answer in a form lands on the first entry's
+    values and settles the list (``_settle_lists``)."""
+    nobody = json.loads(FORMATION_ANSWER)
+    nobody["founders"] = []
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=json.dumps(nobody)))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json={**NEW, "type": "company-formation"}, headers=alice).json()["id"]
+        rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "en"}, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "documents"}, headers=alice)
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        by = {f["id"]: f for f in run["facts"]}
+        assert by["founders"]["found"] is False and not any(k.startswith("founders[") for k in by)
+        asked = [t for t in run["turns"] if t["step_id"] == "missing"][0]
+        assert "founders" in asked["meta"]["facts"]
+        # the form answers for the first founder; the list's "none" is settled
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"founders[1].name": "Filip Tack", "founders[1].shares": "1000"}}, headers=alice)
+        assert r.status_code == 200 and r.json()["step"] == "confirm"
+        rows = c.app.state.runs.get().fact_rows(uuid.UUID(rid))
+        assert [(r_["fact_id"], r_["status"]) for r_ in rows if r_["fact_id"].startswith("founders")] == [
+            ("founders", "superseded"), ("founders[1].name", "proposed"), ("founders[1].shares", "proposed")]
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "founders[1].name", "confirmed": "Filip Tack"}]}, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "done"
+        _, text = docs.stored_text
+        assert "Founder(s) 1 · Name: Filip Tack" in text and "Founder(s): " not in text

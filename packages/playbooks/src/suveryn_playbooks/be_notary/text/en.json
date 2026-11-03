@@ -29,13 +29,16 @@
     "factsTitle": "Facts for the deed of incorporation",
     "labels": {
       "founders": "Founder(s)",
+      "founders.name": "Name",
+      "founders.shares": "Shares",
+      "founders.contribution": "Contribution",
       "company_name": "Company name",
       "seat": "Registered office",
       "object": "Object",
       "contribution": "Contribution in money",
       "bank_certificate": "Bank certificate",
       "contribution_in_kind": "Contribution in kind",
-      "shares": "Shares",
+      "shares": "Shares issued",
       "directors": "Director(s)",
       "representation": "Representation",
       "fiscal_year": "Financial year",
@@ -46,7 +49,8 @@
     "questions": {
       "documents": "Upload what the founders sent: identity documents, the financial plan, the bank certificate and proof of the registered office. Then continue.",
       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
-      "missing.contribution_in_kind": "The documents mention no contribution other than money. Is there one? Describe it and its value, or leave empty if there is none."
+      "missing.contribution_in_kind": "The documents mention no contribution other than money. Is there one? Describe it and its value, or leave empty if there is none.",
+      "missing.founders": "The documents name no founders. Who are they? Give each founder's name, shares and contribution, or leave empty if you don't know yet."
     }
   }
 }

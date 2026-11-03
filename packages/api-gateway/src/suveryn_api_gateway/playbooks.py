@@ -187,7 +187,7 @@ class AnswerIn(BaseModel):
 
 
 class ConfirmedFact(BaseModel):
-    id: str = Field(min_length=1, max_length=50)
+    id: str = Field(min_length=1, max_length=120)   # a fact id, or a path into a list (``founders[2].name``)
     confirmed: str = Field(max_length=MAX_VALUE)
 
 
@@ -195,7 +195,7 @@ class ConfirmIn(BaseModel):
     """Body of ``PUT …/runs/{run}/facts``: every fact's confirmed value (a correction, the value as
     read, or empty). The summary is written in the run's language, the thread's."""
 
-    facts: list[ConfirmedFact] = Field(min_length=1, max_length=100)
+    facts: list[ConfirmedFact] = Field(min_length=1, max_length=1000)
 
 
 class CancelIn(BaseModel):
@@ -248,6 +248,9 @@ class PlaybookOut(BaseModel):
     name: str
     covered: bool   # certified and in the appliance's manifest; false: runs with a warning, never blocked (§8)
     facts: list[str]
+    # format 3: per list fact, its entries' field ids ([] for a list of plain values), so the UI can offer an entry to add
+    lists: dict[str, list[str]] = Field(default_factory=dict)
+    kinds: dict[str, str] = Field(default_factory=dict)   # per fact and field (``founders.shares``): text, amount, date, number
     case_types: list[str] = Field(default_factory=list)
     text: dict[str, PlaybookWords] = Field(default_factory=dict)  # per language: what the UI shows (docs/translations.md)
     active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/admin.md)
@@ -267,13 +270,13 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
     Provenance: the id and version written are the **run's** (what read the documents), never the
     playbook as installed now: a run started under 1.0 and confirmed after an upgrade says 1.0
     (review 2026-10-17). ``playbook`` only supplies the labels."""
+    from .playbook_runtime import shown_facts
     words = playbook.wording(language)
-    labels = words.labels
     lines = [f"{words.title} {reference}", f"{run.playbook_id} {run.playbook_version}"]
-    for f in run.facts:
+    for f in shown_facts(run.facts):
         value = f.confirmed if f.confirmed is not None else f.value
         sources = ", ".join(f"{c.filename}{f' p. {c.page}' if c.page else ''}" for c in f.citations)
-        lines.append(f"{labels.get(f.id, f.id)}: {value or '—'}" + (f" ({sources})" if sources and value else ""))
+        lines.append(f"{words.label(f.id)}: {value or '—'}" + (f" ({sources})" if sources and value else ""))
     return "\n\n".join(lines)
 
 
@@ -442,6 +445,11 @@ class RunStore(TurnStore):
                               " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                               (uuid.uuid4(), case_id, run_id, step_id, row["fact_id"], row["kind"], row.get("value", "")[:MAX_VALUE],
                                row["status"], json.dumps(row["source"]), json.dumps(row.get("issues", [])), row["by"], row.get("replaces")))
+
+    def supersede(self, ids: list) -> None:
+        """Mark versions superseded without a replacement: a list's "none" once a person adds entries."""
+        for i in ids:
+            self._execute("UPDATE case_facts SET status = 'superseded' WHERE id = %s AND status <> 'superseded'", (i,))
 
     def fact_rows(self, run_id: uuid.UUID) -> list[dict]:
         """Every version a run wrote, oldest first."""

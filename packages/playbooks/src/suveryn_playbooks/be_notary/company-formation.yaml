@@ -2,18 +2,18 @@
 #
 # The facts the deed of incorporation needs, read from what the founders sent (identity documents,
 # the financial plan, the bank certificate, proof of the registered office, the founders' own notes)
-# and checked by a person at the checkpoint. Fourteen facts: every fact is a line of the deed the
-# notary has to check. One contribution and one fact per party for now: the format has no lists of
-# records yet (writing-a-playbook.md, "What is not in the format yet"); a deed with several founders
-# names them all in one fact, as written.
+# and checked by a person at the checkpoint. Fourteen facts, one of them a list: the founders, one
+# entry each with their name, their shares and their contribution (format 3), so a deed with three
+# founders is three entries the notary checks one by one, and the number of shares is a number the
+# check compares with the passage. Every fact is a line of the deed the notary has to check.
 #
 # The routine (format 2): ask for the founders' documents, read them, ask about what was not found,
 # the checkpoint, the summary. The words per language are in text/<lang>.json beside this file; the
-# table the model fills in is the runtime's, appended by the loader.
+# answer's shape the model is held to is the runtime's, appended by the loader.
 #
 # 1.0 (November 2026): the first version.
 
-manifest: 2
+manifest: 3
 id: playbook/be-notary/company-formation
 pack: pack/be-notary
 version: "1.0"
@@ -22,7 +22,17 @@ case_types: [company-formation]
 
 facts:
   - id: founders
-    ask: "the founder or founders: full names as written, and for a company its name and registration number"
+    ask: the founders, one entry per founder (a person or a company)
+    kind: list
+    of:
+      - id: name
+        ask: "the founder's full name as written, or for a company its name and registration number"
+      - id: shares
+        ask: the number of shares this founder takes
+        kind: number
+      - id: contribution
+        ask: this founder's contribution in money
+        kind: amount
   - id: company_name
     ask: the name of the company as it will appear in the deed, and any trade name it will use
   - id: seat
@@ -37,7 +47,8 @@ facts:
   - id: contribution_in_kind
     ask: any contribution other than money (goods, rights, work), what it is and the value given to it, or that there is none
   - id: shares
-    ask: the number of shares issued and how they are divided among the founders
+    ask: the total number of shares issued
+    kind: number
   - id: directors
     ask: "the director or directors appointed in the deed: full names as written, and whether the mandate is paid or unpaid"
   - id: representation

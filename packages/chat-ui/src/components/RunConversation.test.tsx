@@ -145,3 +145,47 @@ describe("the chip on a case and the breadcrumb", () => {
     expect(factCounts(RUN)).toEqual([2, 3]);
   });
 });
+
+describe("lists (format 3)", () => {
+  const FORMATION: PlaybookInfo = {
+    ...PLAYBOOK, id: "playbook/be-notary/company-formation", slug: "company-formation", facts: ["company_name", "founders", "conditions"],
+    lists: { founders: ["name", "shares"], conditions: [] },
+    text: { en: { title: "Company formation", summary: "", labels: { company_name: "Company name", founders: "Founder(s)", "founders.name": "Name",
+                                                                       "founders.shares": "Shares", conditions: "Conditions" } } },
+  };
+  const fwords = { ...FORMATION.text!.en, facts_title: "" };
+  const run: Run = {
+    ...RUN, playbook_id: FORMATION.id, turns: [RUN.turns[4]],
+    facts: [
+      { id: "company_name", value: "Suveryn Labs BV", citations: [], issues: [], found: true, confirmed: null, source: "document" },
+      { id: "founders", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" },   // the read's "none", later superseded by entries
+      { id: "founders[1].name", value: "Filip Tack", citations: [], issues: [], found: true, confirmed: null, source: "document" },
+      { id: "founders[1].shares", value: "650", citations: [{ n: 1, document_id: "d1", filename: "ontwerp.pdf", page: 1, location: null, text: "600 aandelen" }],
+        issues: ["650"], found: true, confirmed: null, source: "document" },
+      { id: "conditions", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" },
+    ],
+  };
+
+  it("labels an entry's values by the list, the entry's number and the field, and hides a list behind its entries", () => {
+    const { check, missing } = reviewGroups(run);
+    expect(check.map((f) => f.id)).toEqual(["founders[1].shares"]);
+    expect(missing.map((f) => f.id)).toEqual(["conditions"]);   // not "founders": it has an entry
+    expect(factCounts(run)).toEqual([3, 4]);
+    const html = renderToStaticMarkup(
+      <RunThread run={run} kase={KASE} playbook={FORMATION} words={fwords} me="u-ines" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html).toContain("Founder(s) 1 · Shares");
+    expect(html).toContain("Conditions</span><em class=\"fact-unknown\">None in the documents</em>");  // a list with no entries: an entry to add, not a value to fill in
+    expect(html.match(/fact-card-entry/g)?.length).toBe(2);   // and one more founder can be added
+    expect(html).toContain("Founder(s)</span><span class=\"fact-card-value\">1 entry</span>");
+    expect(html).not.toContain(">Fill in<");
+  });
+
+  it("lists the entries, not the list's none, in the panel", () => {
+    const html = renderToStaticMarkup(<RunPanel run={run} words={fwords} view={{ kind: "list" }} onView={noop} onClose={noop} />);
+    expect(html).toContain("Founder(s) 1 · Name");
+    expect(html).toContain("Founder(s) 1 · Shares");
+    expect(html).not.toContain("data-fact=\"founders\"");
+    expect(html).toContain("data-fact=\"conditions\"");
+  });
+});

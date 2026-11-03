@@ -29,13 +29,16 @@
     "factsTitle": "Gegevens voor de oprichtingsakte",
     "labels": {
       "founders": "Oprichter(s)",
+      "founders.name": "Naam",
+      "founders.shares": "Aandelen",
+      "founders.contribution": "Inbreng",
       "company_name": "Naam van de vennootschap",
       "seat": "Zetel",
       "object": "Voorwerp",
       "contribution": "Inbreng in geld",
       "bank_certificate": "Bankattest",
       "contribution_in_kind": "Inbreng in natura",
-      "shares": "Aandelen",
+      "shares": "Uitgegeven aandelen",
       "directors": "Bestuurder(s)",
       "representation": "Vertegenwoordiging",
       "fiscal_year": "Boekjaar",
@@ -46,7 +49,8 @@
     "questions": {
       "documents": "Laad op wat de oprichters bezorgden: identiteitsdocumenten, het financieel plan, het bankattest en het bewijs van de zetel. Ga daarna verder.",
       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
-      "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is."
+      "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is.",
+      "missing.founders": "De documenten noemen geen oprichters. Wie zijn het? Geef per oprichter de naam, de aandelen en de inbreng, of laat leeg als u het nog niet weet."
     }
   }
 }

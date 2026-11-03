@@ -179,6 +179,11 @@ class LlamaServerClient:
         if can_think(req.model or self.settings.default_model):
             # Per request, over the preset's own setting: *Thorough* thinks, *Fast* doesn't.
             payload["chat_template_kwargs"] = {"enable_thinking": thinking}
+        if req.json_schema is not None:
+            # Grammar-constrained decoding (llama-server: ``response_format`` as OpenAI spells it, the schema
+            # compiled to a grammar per request): the answer has the schema's shape by construction. A
+            # playbook's read step uses it; a chat answer never does.
+            payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": req.json_schema}}
         if stream:
             payload["stream_options"] = {"include_usage": True}
             # llama-server: token counts on every chunk, so an answer stopped halfway still counts

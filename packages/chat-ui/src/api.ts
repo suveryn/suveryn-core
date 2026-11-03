@@ -864,6 +864,10 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce"; needs: string[]; facts: string[] };
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
                              case_types?: string[]; active?: boolean;
+                             /** Format 3: per list fact, its entries' field ids ([] for a list of plain values), so the view can offer an entry to add. */
+                             lists?: Record<string, string[]>;
+                             /** Per fact and field (`founders.shares`): text, amount, date or number. */
+                             kinds?: Record<string, string>;
                              /** Per language: its title, one line on what it does, its fact labels and the routine's questions (the playbook carries them). */
                              text?: Record<string, { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string> }>;
                              /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
@@ -881,7 +885,7 @@ export type RunFact = {
   by?: string | null;         // for a person's value: who gave it, in the conversation
   was?: string | null;        // for a correction of a value read from the documents: the value as read
   at?: string | null;         // for a person's value: when it was given
-  needs?: "not_a_date" | "not_an_amount" | null;  // the value gives no date or amount as such: a person works it out
+  needs?: "not_a_date" | "not_an_amount" | "not_a_number" | null;  // the value gives no date or amount as such: a person works it out
 };
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
  *  docs/design/playbooks.md, "A running playbook is visible". */

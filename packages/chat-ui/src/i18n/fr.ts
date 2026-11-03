@@ -509,6 +509,13 @@ const fr: Messages = {
   pbNotInPassage: (items) => `Ne figure pas ainsi dans le passage cité : ${items}.`,
   pbNotADate: "Pas une date telle qu'écrite : calculez-la et vérifiez.",
   pbNotAnAmount: "Pas un montant tel qu'écrit : calculez-le et vérifiez.",
+  pbNotANumber: "Pas un nombre tel qu'écrit : calculez-le et vérifiez.",
+  // listes (format 3) : une liste dont les documents ne nomment aucune entrée, et une entrée de plus pour une liste qui en a
+  pbNoEntries: "Aucune dans les documents",
+  pbAddEntry: "Ajouter",
+  pbEntries: (n: number) => n === 1 ? "1 entrée" : `${n} entrées`,
+  pbKeepEntry: "Conserver",
+  pbGroupMore: "Plus",
   pbFieldHint: "Entrée garde la valeur, Échap annule.",
   pbFromChat: (time) => `De la conversation, ${time}`,
   pbConfirmBlockedOne: (label) => `Vous pourrez confirmer une fois ${label} vérifié.`,

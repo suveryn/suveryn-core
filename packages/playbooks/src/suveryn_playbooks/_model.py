@@ -6,7 +6,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-FactKind = Literal["text", "amount", "date"]
+# What one value is: ``text``, an ``amount`` (money), a ``date`` or a ``number`` (a count, a share, a
+# percentage: a figure without currency). ``list`` (format 3) is a fact that holds several entries,
+# each a record of plain-valued fields or one plain value; its leaves are the entries' values.
+LeafKind = Literal["text", "amount", "date", "number"]
+FactKind = Literal["text", "amount", "date", "number", "list"]
 StepKind = Literal["request", "read", "ask", "checkpoint", "produce"]
 
 # The product's interface languages, in this order: the server's one list (docs/translations.md).
@@ -31,6 +35,22 @@ class Wording:
     # UI's generic "Facts" (docs/design/playbooks.md, "The chat UI").
     facts_title: str = ""
 
+    def label(self, path: str) -> str:
+        """The words for a fact or one of a list's leaves: ``price`` -> "Price"; ``founders[2].name`` ->
+        "Founder(s) 2 · Name" (the list's label, the entry's number, the field's label from
+        ``labels["founders.name"]``); ``conditions[1]`` -> "Conditions 1". An unknown id is shown as is."""
+        from .paths import split
+        root, index, field_id = split(path)
+        if root is None:
+            return self.labels.get(path, path)
+        head = self.labels.get(root, root)
+        if index is None:
+            return head
+        head = f"{head} {index}"
+        if field_id is None:
+            return head
+        return f"{head} · {self.labels.get(f'{root}.{field_id}', field_id)}"
+
     def question(self, step_id: str, fact_id: str | None = None) -> str:
         """The words for a step's question, for one fact when ``fact_id`` is given: that fact's own
         text if the pack has one, else the step's template with the fact's label filled in."""
@@ -38,7 +58,7 @@ class Wording:
             own = self.questions.get(f"{step_id}.{fact_id}")
             if own:
                 return own
-            return self.questions.get(step_id, "{label}").replace("{label}", self.labels.get(fact_id, fact_id))
+            return self.questions.get(step_id, "{label}").replace("{label}", self.label(fact_id))
         return self.questions.get(step_id, "")
 
 
@@ -50,6 +70,19 @@ class Fact:
     id: str
     ask: str
     kind: FactKind = "text"
+    # A list's entries (format 3): records of these fields (each a plain-valued Fact), or, with no fields,
+    # one plain value of ``item_kind`` per entry. A list's leaves are addressed by path: ``founders[1].name``,
+    # ``conditions[2]`` (``paths``); its own id names the list as a whole.
+    fields: tuple[Fact, ...] = ()
+    item_kind: LeafKind = "text"
+
+    @property
+    def leaf_kind(self) -> LeafKind:
+        """The kind of one value of this fact: its own, or an entry's for a list of plain values."""
+        return self.item_kind if self.kind == "list" else self.kind  # type: ignore[return-value]
+
+    def field(self, field_id: str) -> Fact | None:
+        return next((f for f in self.fields if f.id == field_id), None)
 
 
 @dataclass(frozen=True)
@@ -82,6 +115,31 @@ class Playbook:
 
     def step(self, step_id: str) -> Step | None:
         return next((s for s in self.steps if s.id == step_id), None)
+
+    def fact(self, fact_id: str) -> Fact | None:
+        return next((f for f in self.facts if f.id == fact_id), None)
+
+    def leaf(self, path: str) -> Fact | None:
+        """The fact a path names a value of: the fact itself (``price``; a list's whole, ``founders``), a
+        list's field (``founders[1].name`` -> the ``name`` field) or a list of plain values' entry
+        (``conditions[2]`` -> the list, whose ``item_kind`` is the value's). None: no such fact, field or shape."""
+        from .paths import split
+        root, index, field_id = split(path)
+        f = self.fact(root) if root else None
+        if f is None:
+            return None
+        if index is None:
+            return f if field_id is None else None
+        if f.kind != "list":
+            return None
+        if field_id is None:
+            return f if not f.fields else None
+        return f.field(field_id) if f.fields else None
+
+    def leaf_kind(self, path: str) -> LeafKind:
+        """The kind of the value a path names; ``text`` for a path that names nothing."""
+        f = self.leaf(path)
+        return f.leaf_kind if f is not None else "text"
 
     def wording(self, language: str) -> Wording:
         """The words in ``language``, else in English."""
