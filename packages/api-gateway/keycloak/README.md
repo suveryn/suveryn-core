@@ -11,7 +11,7 @@ The gateway signs people in with Keycloak over OpenID Connect (see [`auth.py`](.
 
 | Identity method | In the dev realm | How an admin changes it |
 |---|---|---|
-| **Local accounts** (Keycloak's own users, username + password) | On. The baseline every installation has. No self-registration: an administrator adds accounts in the chat, under Administration › Users, with a temporary password. Keycloak's console is needed only for the realm's own settings. Password policy: 12+ characters, not the username or email. Brute-force protection on (5 failures, then increasing waits) | — |
+| **Local accounts** (Keycloak's own users, username + password) | On. The baseline every installation has. No self-registration: an administrator adds accounts in the chat, under Administration › Users, with a temporary password. Keycloak's console is needed only for the realm's own settings. Password policy: 12+ characters, not the username or email. Brute-force protection on (5 failures, then increasing waits) | none |
 | **LDAP / Active Directory federation** | Not configured, so a plain local-accounts setup works on its own | *User federation → Add LDAP provider*: connection URL, users DN, bind DN and credential, *Edit mode: READ_ONLY*. Directory users then sign in with their directory password; local accounts keep working |
 | **TOTP** (FreeOTP, Google Authenticator, …; works offline) | Off by default; required for everyone when an administrator turns it on in Administration › Settings (decision, 29 October 2026). Then the gateway makes the realm's browser flow require it (its "Browser - Conditional 2FA" sub-flow and the OTP form `REQUIRED`, so Keycloak asks for a code at every sign-in and someone without an app, or who removed theirs, sets one up first; decision, 30 October 2026), gives every account without an authenticator app the required action `CONFIGURE_TOTP`, and each new account added in Users gets it with `UPDATE_PASSWORD`; turned off again, the flow is as Keycloak makes it (`CONDITIONAL`, `ALTERNATIVE`), `CONFIGURE_TOTP` is taken away and set-up apps stay. Resetting an account's two-step sign-in removes its authenticator app, and adds `CONFIGURE_TOTP` again only while the office requires it. Anyone may set an app up from their account at any time. In the realm itself "Configure OTP" is enabled but not a default action, so an account made another way (`kcadm.sh`, the console) is asked for a code only once it has set one up | For everyone, including accounts made in the console: *Authentication → Required actions → Configure OTP → Set as default action* |
 | **Social or online identity providers** (Google, Microsoft personal accounts, itsme, …) | **None, by design.** Not supported at any tier or network mode: they need a live third party and undercut the on-premise promise | Don't add any under *Identity providers*. The realm file has an empty `identityProviders` list, and a test (`test_auth.py`) keeps it that way |
@@ -90,7 +90,7 @@ uv run suveryn-gateway
 ssh -N -L 8000:127.0.0.1:8000 -L 8180:127.0.0.1:8180 root@<gpu-host> -p <ssh-port>
 ```
 
-Open **http://localhost:5173** (not `127.0.0.1`: the session cookie and the registered redirect URI use `localhost`).
+Open **<http://localhost:5173>** (not `127.0.0.1`: the session cookie and the registered redirect URI use `localhost`).
 
 ## Check it
 

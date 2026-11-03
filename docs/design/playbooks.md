@@ -6,8 +6,8 @@ definition changed (the project's orchestration note): a playbook is a conversat
 written as a manifest, and the manifest and the runtime came first, proven on deed intake. This
 note says what deed intake is, what it leaves behind in the case, how the routine, the facts'
 record and the thread work ("The routine"), and the few things that were settled early because
-they would be expensive to retrofit. It replaces the earlier bot-written tickets (#27 facts layer,
-#28 runner, #29 templates) as the plan.
+they would be expensive to retrofit. It replaces the earlier bot-written tickets (#27 facts layer, #28
+runner, #29 templates) as the plan.
 
 ## What deed intake does
 
@@ -94,7 +94,7 @@ confirmed facts and who confirmed them are the record.
 
 ## The data model
 
-```
+```text
 playbook_runs   id, case_id, playbook_id, playbook_version, status, documents uuid[],
                 started_by, started_at, finished_at, confirmed_by, confirmed_at,
                 facts jsonb, model, error, result_document_id, out_of_date bool
@@ -104,7 +104,7 @@ playbook_runs   id, case_id, playbook_id, playbook_version, status, documents uu
 or `failed` (with `error`: a kind, never text). `facts` is a list, one entry per field, in the
 playbook's order:
 
-```
+```text
 { id, value, citations: [{n, document_id, filename, page, location, text}],
   issues: [item, ...],            the check: figures, dates or names not in the cited passage
   confirmed: null | string,       what the person confirmed (the value, a correction, or "")
@@ -175,8 +175,7 @@ waits (anyone who contributes; a run that is reading is paused when it next wait
 early and keeps what was achieved: confirmed facts stay the case's, proposed ones are dropped
 (superseded), a product so far stays; **cancel** says the run should not have happened: every
 version the run established, read, answered or confirmed, becomes `superseded` (kept in the record,
-no longer the case's), and the product is marked `withdrawn` in its provenance, never deleted (the
-Pod check of d0f680e asked whether cancel should also drop what was only read, as stop does: yes). Stop and cancel are the starter's (by id,
+no longer the case's), and the product is marked `withdrawn` in its provenance, never deleted; cancel, unlike stop, also supersedes what was only read. Stop and cancel are the starter's (by id,
 never by the shown name) or the case manager's. In every case the run record stays; nothing is
 deleted except with the case. **One live run per playbook per case**: a second start answers 409
 with the live run's id.
@@ -185,8 +184,7 @@ The upload hook is a person's act: the documents come into the case through the 
 and with the person's turn (a line and its documents are one turn), and the runtime counts the case's
 uploaded documents. **A request always asks first**, even when the case already holds documents: it is met
 once a person has answered it, with documents or with *Use the documents already in the case*, and the
-case has what it needs; documents that came with the turn are what the read reads (VM regression e0f2e26: a
-deed left in the case was read as the agreement without a word; decision, 1 November 2026). The playbook never
+case has what it needs; documents that came with the turn are what the read reads, so a deed already in the case is never read as the agreement without a word. The playbook never
 writes the same line twice in a row (two answers at the same moment wrote its question twice). Nothing
 advances on a GET.
 
@@ -201,7 +199,7 @@ the precise way in. Pausing, resuming, stopping, cancelling and confirming are l
 
 ## The API
 
-```
+```text
 GET    /v1/cases/{id}/playbooks              which playbooks fit this case's type, with covered and steps
 POST   /v1/cases/{id}/playbooks/{playbook}/runs    start: {document_ids?, language?}; no language: the caller's Accept-Language; 409 while one is live  (contributor)
 GET    /v1/playbooks/runs/active              the live run per case the caller may read: the chip (reader)
@@ -251,7 +249,7 @@ its Word download.
 
 **Review is in the playbook's message.** At the checkpoint its message says how many facts were found
 and how many need attention, then one card per fact that needs the person, in two groups: *Check*, a
-value the check couldn't find literally in its passage (the sentence of the passage the value comes from quoted with a teal rule, "…" where the passage goes on, the whole passage behind the source link (VM regression 9c97d76, finding 7); what isn't
+value the check couldn't find literally in its passage (the sentence of the passage the value comes from quoted with a teal rule, "…" where the passage goes on, the whole passage behind the source link; what isn't
 in it said in words with the triangle, and the source), and *Missing*, a fact without a value. *Adjust*
 and *Fill in* turn the value into a field in the card (Enter keeps it, Esc cancels; `PUT
 …/runs/{run}/facts/{fact}`): a changed value is a new version from that person and a line in the thread;
@@ -260,7 +258,7 @@ while anything is under *Check*, focusable, with its reason; *Missing* may stay 
 confirming then records it as not established and the run finishes, as before). Found and quoted facts
 get no card. *See all 13 facts* opens the list.
 
-**Check by meaning** (VM regression 03c8f74, decision 1). An amount or a date is compared with its passage by
+**Check by meaning**. An amount or a date is compared with its passage by
 what it means, not letter for letter: "412.500" against "412 500", "EUR 26.800" against "zesentwintigduizend
 achthonderd euro", "12/05/2014" against "le douze mai deux mille quatorze" (`suveryn_harness.values`, nl, fr
 and en). A fact of kind amount or date whose value is neither, as written ("uiterlijk vier maanden na de
@@ -307,7 +305,7 @@ with `needs` (default: the step before). The graph is validated: ids once, needs
 a checkpoint before any produce, an ask only about facts a read before it reads, the fields of one
 kind refused on another; every error names the step. Format 1, the same without `steps` (read as the
 implicit routine read, checkpoint, produce), was retired before any was published: one format to
-document and test, as nothing written in it exists (external review, pass 8). The questions a `request` or `ask` step puts to people are the pack's
+document and test, as nothing written in it exists. The questions a `request` or `ask` step puts to people are the pack's
 wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's template, or by
 `step.fact` for one fact's own words), reviewed and translated like the labels; the model never
 words them. Later formats bring `check`, `propose`, conditions, products beyond the summary and a

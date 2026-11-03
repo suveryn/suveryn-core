@@ -132,7 +132,7 @@ declaration is part of what the registry signs.
 They end up in the registry, the licence, the appliance's checks and the invoice, so they are
 chosen once. The version is separate from the id, so an entitlement can cover "deed intake, any 1.x".
 
-```
+```text
 pack/be-notary                        a profession pack: profession and jurisdiction
 playbook/be-notary/deed-intake        a playbook inside it
 connector/<vendor>-<product>          a connector; the egress declaration travels with it

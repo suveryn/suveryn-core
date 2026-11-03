@@ -28,12 +28,11 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 - *Needs attention*, only when something does, each with the button that fixes it. A key test with a file
   that isn't this appliance's recovery key says so on *Backups* only ("This key doesn't open the backup. Try
   another file."), with when the right key last passed; the key's state stays that last passing test, so one
-  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.step: key`, `last_ok`;
-  VM regression 03c8f74, finding 4). A test that fails on the backup itself still does.
+  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.step: key`, `last_ok`). A test that fails on the backup itself still does.
 - *Is everything working?*: answering questions (the model), reading documents, signing in
   (Keycloak), keeping your data (the database), disk space. A teal check with "Working", or an ink cross
   with "Not working since 09:12" and what still works (39). Signing in asks Keycloak each time, not a copy read at
-  start (round 2, finding 3), in two steps: does it answer (its discovery document), and can it sign
+  start, in two steps: does it answer (its discovery document), and can it sign
   someone in, which needs its database (the number of accounts, read with the directory's service
   account; Keycloak serves its discovery document while its database is down, and then every sign-in
   fails). Each answer counts 15 s. A stopped Keycloak or its stopped database shows within the minute,
@@ -48,7 +47,7 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   the hour). "Clock set." is announced to a screen reader (`role="status"`), "Not set: …" as an alert. Not
   while a time server keeps the clock. How: the gateway's README, *The clock*. When the browsers' earlier
   reports say "On time" but this PC measures it off, the row says what this PC measured, and this PC's
-  measurement is reported and the checks read again (VM regression 03c8f74, finding 6).
+  measurement is reported and the checks read again.
 - An overview: version, last backup, users against the agreement, support.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.
@@ -103,13 +102,11 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   - events: `GET /events` and `GET /admin-events`.
   The gateway enforces "always one administrator" and the case hand-over before switching off. The check
   and the change that could leave no administrator (rights removed, an account switched off) happen one at
-  a time in the gateway, so two administrators removing each other at once leave one (external review,
-  pass 7). Keycloak judges every call by the caller's rights as they are now, so an administrator whose
+  a time in the gateway, so two administrators removing each other at once leave one. Keycloak judges every call by the caller's rights as they are now, so an administrator whose
   rights another removed meanwhile is refused even though their session still says administrator; the
   gateway asks the directory's service account whether they still hold the role, and says "Your
   administrator rights were removed meanwhile" (403, reason `rights_removed`) rather than the sentence
-  for a role that lacks a permission, which asks them to contact support (VM check of 29 October,
-  round 3, finding 2; round 4, finding 5). This
+  for a role that lacks a permission, which asks them to contact support. This
   replaces a separate *Activity* page. Nothing from inside a case.
 
 **Settings** (35): what the office decides, in one place. Who sees a case, how long closed
@@ -191,176 +188,9 @@ its reference and name. Counts, never content.
 follows, and one way out; empty states as one sentence and the action that fixes it. Dark: 40 and
 41 (dialogs on `surface-alt` with a `line` ring in the dark theme).
 
-## Strings (artboard 43)
+## Strings
 
-English, Dutch and French. The setup's strings are reused as they are and not repeated: `usbDisk`, `networkShare`, `keepFor`, `keepHint`, `recoveryKey`, `keyFingerprint`, `dropManifest`, `manifestHint`, `nextCheckIn`, `noManifest`, `laterTitle`, `applianceId`, `testConnection`.
-
-| English | Dutch | French |
-|---|---|---|
-| **Menu** | | |
-| Office | Kantoor | Cabinet |
-| Appliance | Appliance | Appliance |
-| Users | Gebruikers | Utilisateurs |
-| Settings | Instellingen | Paramètres |
-| Status | Status | État |
-| Updates and models | Updates en modellen | Mises à jour et modèles |
-| Network | Netwerk | Réseau |
-| Licence | Licentie | Licence |
-| Licence and support | Licentie en ondersteuning | Licence et assistance |
-| Needs attention | Vraagt aandacht | À vérifier |
-| Update available | Update beschikbaar | Mise à jour disponible |
-| **Status** | | |
-| Is everything working? | Werkt alles? | Tout fonctionne ? |
-| Overview | Overzicht | Vue d'ensemble |
-| Answering questions | Vragen beantwoorden | Réponses aux questions |
-| Reading documents | Documenten lezen | Lecture des documents |
-| Signing in | Aanmelden | Connexion |
-| Keeping your data | Gegevens bewaren | Conservation des données |
-| Disk space | Schijfruimte | Espace disque |
-| Clock | Klok | Horloge |
-| On time | Juist | À l'heure |
-| {n} s ahead / behind | {n} s voor / achter | {n} s d'avance / de retard |
-| Set to this PC's time | Gelijkzetten met deze pc | Régler sur l'heure de ce PC |
-| via a time server | via een tijdserver | via un serveur de temps |
-| via the browsers | via de browsers | via les navigateurs |
-| Set the clock? | Klok gelijkzetten? | Régler l'horloge ? |
-| Appliance {appliance} · this PC {pc} | Appliance {appliance} · deze pc {pc} | Appliance {appliance} · ce PC {pc} |
-| Is this PC's time right? Closed cases whose keep period has then passed are deleted within the hour. | Staat deze pc juist? Gesloten dossiers waarvan de termijn dan voorbij is, worden binnen het uur verwijderd. | L'heure de ce PC est-elle juste ? Les dossiers clôturés dont le délai est alors dépassé sont supprimés dans l'heure. |
-| Clock set. | Klok gelijkgezet. | Horloge réglée. |
-| Not set: {why}. | Niet gelijkgezet: {why}. | Non réglée : {why}. |
-| this system may not set its clock (the appliance's `not_allowed`) | dit systeem mag zijn klok niet zetten | ce système n'a pas le droit de régler son horloge |
-| Working | Werkt | Fonctionne |
-| Enough | Genoeg | Suffisant |
-| Not working since {time} | Werkt niet sinds {time} | En panne depuis {time} |
-| {n} in progress | {n} bezig | {n} en cours |
-| {n} waiting | {n} in de wachtrij | {n} en attente |
-| {n} signed in | {n} aangemeld | {n} connectés |
-| {free} free of {total} | {free} vrij van {total} | {free} libres sur {total} |
-| Checked at {time}. | Gecontroleerd om {time}. | Vérifié à {time}. |
-| Questions about documents already read still work. | Vragen over gelezen documenten werken gewoon. | Les questions sur les documents déjà lus fonctionnent. |
-| Status unavailable. | Status niet beschikbaar. | État indisponible. |
-| Trying again in a minute. | Nieuwe poging over een minuut. | Nouvel essai dans une minute. |
-| Try again | Opnieuw proberen | Réessayer |
-| **Users** | | |
-| Add user | Gebruiker toevoegen | Ajouter un utilisateur |
-| Search by name or e-mail | Zoek op naam of e-mail | Rechercher par nom ou e-mail |
-| {n} of {max} users | {n} van {max} gebruikers | {n} utilisateurs sur {max} |
-| Administrator | Administrator | Administrateur |
-| Last signed in | Laatst aangemeld | Dernière connexion |
-| Account | Account | Compte |
-| On | Aan | Activé |
-| Off | Uit | Désactivé |
-| never | nog nooit | jamais |
-| Make administrator | Administrator maken | Nommer administrateur |
-| Remove administrator rights | Administratorrechten intrekken | Retirer les droits d'administrateur |
-| Remove rights | Rechten intrekken | Retirer les droits |
-| Reset password | Wachtwoord opnieuw instellen | Réinitialiser le mot de passe |
-| Reset two-step sign-in | Tweestapsaanmelding opnieuw instellen | Réinitialiser la connexion en deux étapes |
-| Sign out everywhere | Overal afmelden | Déconnecter partout |
-| Switch account off… | Account uitschakelen… | Désactiver le compte… |
-| Switch account on | Account inschakelen | Activer le compte |
-| Can open Administration. | Kan Beheer openen. | Peut ouvrir l'administration. |
-| You get a temporary password to pass on. | U krijgt een tijdelijk wachtwoord om door te geven. | Vous recevez un mot de passe temporaire à transmettre. |
-| Pass this on to {name} | Geef dit door aan {name} | Transmettez ceci à {name} |
-| Temporary password | Tijdelijk wachtwoord | Mot de passe temporaire |
-| You see it only once. | U ziet het maar één keer. | Vous ne le voyez qu'une fois. |
-| Switch {name} off? | {name} uitschakelen? | Désactiver {name} ? |
-| Choose who takes over their {n} cases. | Kies wie haar {n} dossiers overneemt. | Choisissez qui reprend ses {n} dossiers. |
-| Choose someone | Kies iemand | Choisir quelqu'un |
-| Their conversations and documents stay. | Haar gesprekken en documenten blijven. | Ses conversations et documents restent. |
-| Hand over and switch off | Overdragen en uitschakelen | Transférer et désactiver |
-| They can no longer open Administration. | Hij kan Beheer dan niet meer openen. | Il ne pourra plus ouvrir l'administration. |
-| Administration closes for you. | Beheer sluit dan voor u. | L'administration se ferme pour vous. |
-| Not possible: you are the only administrator. | Kan niet: u bent de enige administrator. | Impossible : vous êtes le seul administrateur. |
-| Not possible for your own account. | Kan niet voor uw eigen account. | Impossible pour votre propre compte. |
-| Their current password stops working. You get a temporary password to pass on. | Haar huidige wachtwoord vervalt. U krijgt een tijdelijk wachtwoord om door te geven. | Son mot de passe actuel ne fonctionne plus. Vous recevez un mot de passe temporaire à transmettre. |
-| They set it up again at their next sign-in. | Bij de volgende aanmelding stelt ze die opnieuw in. | Elle la reconfigure à sa prochaine connexion. |
-| On all their devices. They can sign in again straight away. | Op al haar toestellen. Ze kan zich meteen weer aanmelden. | Sur tous ses appareils. Elle peut se reconnecter aussitôt. |
-| This will be user {n}; your agreement covers {max}. | Dit wordt de {n}e gebruiker; uw overeenkomst telt er {max}. | Ce sera le {n}e utilisateur ; votre contrat en prévoit {max}. |
-| Accounts that are off don't count. | Uitgeschakelde accounts tellen niet mee. | Les comptes désactivés ne comptent pas. |
-| Sign-ins and changes | Aanmeldingen en wijzigingen | Connexions et modifications |
-| Kept 180 days. | Bewaard 180 dagen. | Conservé 180 jours. |
-| Users couldn't be loaded. | Gebruikers niet geladen. | Utilisateurs non chargés. |
-| You are the only user. | U bent de enige gebruiker. | Vous êtes le seul utilisateur. |
-| **Settings** | | |
-| Who sees a case | Wie ziet een dossier | Qui voit un dossier |
-| New cases | Nieuwe dossiers | Nouveaux dossiers |
-| All cases | Alle dossiers | Tous les dossiers |
-| Strictly confidential cases stay with their members. | Strikt vertrouwelijke dossiers blijven alleen voor de leden. | Les dossiers strictement confidentiels restent réservés à leurs membres. |
-| Members only | Alleen de leden | Les membres uniquement |
-| Everyone in the office | Iedereen op het kantoor | Tout le cabinet |
-| Can be changed per case. | Per dossier aan te passen. | Modifiable par dossier. |
-| {n} cases become visible to everyone in the office. | {n} dossiers worden zichtbaar voor iedereen op het kantoor. | {n} dossiers deviennent visibles pour tout le cabinet. |
-| Keep a closed case | Een gesloten dossier bewaren | Conserver un dossier clôturé |
-| Then it is deleted with everything in it. | Daarna wordt het met alle inhoud verwijderd. | Il est ensuite supprimé avec tout son contenu. |
-| Keep conversations | Gesprekken bewaren | Conserver les conversations |
-| From the last change. | Vanaf de laatste wijziging. | À partir de la dernière modification. |
-| Until someone deletes it | Tot iemand het verwijdert | Jusqu'à sa suppression |
-| Indicative cost | Indicatieve kost | Coût indicatif |
-| For the comparison on Usage. | Voor de vergelijking op Verbruik. | Pour la comparaison dans Utilisation. |
-| Change in Settings | Wijzigen in Instellingen | Modifier dans Paramètres |
-| Applies to | Geldt voor | S'applique à |
-| {n} cases become visible to their members only. | {n} dossiers worden alleen nog zichtbaar voor de leden. | {n} dossiers ne sont plus visibles que par leurs membres. |
-| {n} saved conversations will be deleted. | {n} bewaarde gesprekken worden verwijderd. | {n} conversations enregistrées seront supprimées. |
-| Save the settings? | Instellingen opslaan? | Enregistrer les paramètres ? |
-| Settings couldn't be loaded. | Instellingen niet geladen. | Paramètres non chargés. |
-| **Backups** | | |
-| Back up now | Nu een back-up maken | Sauvegarder maintenant |
-| Where the backups are | Waar de back-ups staan | Emplacement des sauvegardes |
-| Next: tonight at 02:00. | Volgende: vannacht om 02:00. | Prochaine : cette nuit à 02:00. |
-| Every day at | Elke dag om | Chaque jour à |
-| Retention | Bewaartermijn | Durée de conservation |
-| Address | Adres | Adresse |
-| Reachable | Bereikbaar | Accessible |
-| Older backups stay on the USB disk. | Oude back-ups blijven op de USB-schijf. | Les anciennes sauvegardes restent sur le disque USB. |
-| Print the recovery sheet | Herstelblad afdrukken | Imprimer la fiche de récupération |
-| Make a new recovery key… | Nieuwe herstelsleutel maken… | Créer une nouvelle clé de récupération… |
-| The recovery key is not on this sheet. It is the .txt file from the installation. | De herstelsleutel staat niet op dit blad. Het is het .txt-bestand van de installatie. | La clé de récupération ne figure pas sur cette fiche. C'est le fichier .txt de l'installation. |
-| Key kept at: | Sleutel bewaard op: | Clé conservée à : |
-| Set up backups | Back-ups instellen | Configurer les sauvegardes |
-| If the disk fails, you lose everything. | Bij een defecte schijf bent u alles kwijt. | Si le disque tombe en panne, vous perdez tout. |
-| **Licence** | | |
-| Differs from your agreement | Wijkt af van uw overeenkomst | S'écarte de votre contrat |
-| {n} users; the agreement covers {max}. | {n} gebruikers, de overeenkomst telt er {max}. | {n} utilisateurs ; le contrat en prévoit {max}. |
-| Switch an account off or ask your partner for more. | Schakel een account uit of vraag uw partner om meer. | Désactivez un compte ou demandez-en plus à votre partenaire. |
-| The check-in of {date} hasn't happened. | De check-in van {date} is niet gebeurd. | Le check-in du {date} n'a pas eu lieu. |
-| Scan the QR code below. | Scan de QR-code hieronder. | Scannez le code QR ci-dessous. |
-| Go to Users | Naar Gebruikers | Vers Utilisateurs |
-| Nothing is blocked. | Er wordt niets geblokkeerd. | Rien n'est bloqué. |
-| Agreement | Overeenkomst | Contrat |
-| Edition | Editie | Édition |
-| Valid until | Geldig tot | Valable jusqu'au |
-| Scan with your phone. Upload the manifest you get back below. | Scan met uw telefoon. Laad het manifest dat u terugkrijgt hieronder op. | Scannez avec votre téléphone. Déposez ci-dessous le manifeste reçu. |
-| Copy ID and fingerprint | ID en vingerafdruk kopiëren | Copier l'identifiant et l'empreinte |
-| After 14 days everyone sees a notice. | Na 14 dagen ziet iedereen een melding. | Après 14 jours, tout le monde voit un avis. |
-| This manifest belongs to another appliance. | Dit manifest hoort bij een andere appliance. | Ce manifeste appartient à une autre appliance. |
-| **Updates** | | |
-| Installed | Geïnstalleerd | Installée |
-| Ready to install | Klaar om te installeren | Prête à installer |
-| Downloading | Wordt gedownload | Téléchargement en cours |
-| On the USB stick | Op de USB-stick | Sur la clé USB |
-| Signature checked | Handtekening gecontroleerd | Signature vérifiée |
-| What happens | Wat er gebeurt | Ce qui se passe |
-| Install now… | Nu installeren… | Installer maintenant… |
-| Install | Installeren | Installer |
-| Choose a quiet moment. | Kies een rustig moment. | Choisissez un moment calme. |
-| A backup first. If it fails, nothing happens. | Eerst een back-up. Mislukt die, dan gebeurt er niets. | D'abord une sauvegarde. Si elle échoue, rien ne se passe. |
-| Everyone is signed out for about 15 minutes. | Iedereen wordt ongeveer 15 minuten afgemeld. | Tout le monde est déconnecté pendant environ 15 minutes. |
-| The appliance restarts. Your data stays. | De appliance herstart. Uw gegevens blijven. | L'appliance redémarre. Vos données restent. |
-| If {version} doesn't start properly, {previous} comes back by itself. | Start {version} niet goed, dan keert {previous} vanzelf terug. | Si {version} ne démarre pas correctement, {previous} revient d'elle-même. |
-| Plug the USB stick with the update into the appliance. | Steek de USB-stick met de update in de appliance. | Branchez la clé USB contenant la mise à jour sur l'appliance. |
-| Invalid signature. Nothing was installed. | Handtekening ongeldig. Er is niets geïnstalleerd. | Signature invalide. Rien n'a été installé. |
-| Ask your partner for a new stick. | Vraag uw partner om een nieuwe stick. | Demandez une nouvelle clé à votre partenaire. |
-| Signed in now: {names}. | Nu aangemeld: {names}. | Connectés maintenant : {names}. |
-| After the restart this page reloads by itself. | Na de herstart laadt deze pagina vanzelf opnieuw. | Après le redémarrage, cette page se recharge d'elle-même. |
-| sūveryn is being updated. You can sign in again around {time}. | sūveryn wordt bijgewerkt. Aanmelden kan weer rond {time}. | sūveryn est en cours de mise à jour. Reconnexion possible vers {time}. |
-| Updated to {version} at {time}. | Bijgewerkt naar {version} om {time}. | Mise à jour vers {version} à {time}. |
-| {version} didn't start properly; {previous} is running again. | {version} startte niet goed; {previous} draait weer. | {version} n'a pas démarré correctement ; {previous} fonctionne de nouveau. |
-| {check} didn't work. Nothing was lost. | {check} werkte niet. Er is niets verloren. | {check} ne fonctionnait pas. Rien n'a été perdu. |
-| Not installed: the backup failed. | Niet geïnstalleerd: de back-up mislukte. | Non installée : la sauvegarde a échoué. |
-| Support ended on {date}. You can still install. | Ondersteuning verlopen op {date}. Installeren kan toch. | Assistance expirée le {date}. Vous pouvez tout de même installer. |
-| From a USB stick. The signature is checked first. | Van een USB-stick. De handtekening wordt eerst gecontroleerd. | Depuis une clé USB. La signature est vérifiée d'abord. |
-| Load model bundle | Modelbundel laden | Charger un paquet de modèles |
+The strings are in `packages/chat-ui/src/i18n/` (`en.ts`, `nl.ts`, `fr.ts`), the one source. Copy for pages not built yet (*Licence*, *Network*, *Updates and models*) is on artboard 43 of the design canvas, not repeated here.
 
 ## Decided (28 October)
 
@@ -381,7 +211,7 @@ English, Dutch and French. The setup's strings are reused as they are and not re
 - The update durations (20 and 15 minutes) stay estimates for #40 to confirm, and the place on
   suveryn.com where an appliance learns of a new version isn't designed yet.
 
-## Built so far
+## As built
 
 - The side menu (and the narrow list): *Users*, *Cases*, *Playbooks*, *Usage* and *Settings* for the
   office, *Status* and *Backups* for the appliance; *Updates and models*, *Network* and *Licence* join as
@@ -406,9 +236,7 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   other way to hold "as it was"); "All cases" also opens cases a manager restricted, as drawn, with a line
   in each access log; closing to the members needs no choice (it applies to every case that follows the
   default) but is confirmed with its count too; a shorter period for closed cases deletes nothing at once
-  (it applies to cases closed from then on, cases.md), so only conversations are counted. New strings:
-  "Applies to", "Save the settings?", the counts of cases closed and conversations deleted, and "Settings
-  couldn't be loaded.".
+  (it applies to cases closed from then on, cases.md), so only conversations are counted.
 
 - *Backups*, editable: *Back up now* with when the next one runs, where (the USB disk, or a share whose
   *Test connection* now signs in and writes a test file: the setup's only saw whether the server answered),
@@ -418,18 +246,4 @@ English, Dutch and French. The setup's strings are reused as they are and not re
   is read-only, the hour is in the backup settings and the timer runs hourly. Differences: the sheet shows
   the appliance's address, not its ID (that comes with the manifest, #41), and the key's fingerprint is
   its public half shortened, as on the key file's "public key" line; the existing status and the key test
-  stay as they were, so a failure still shows in the notice at the top. New strings: "Started.", "Backing
-  up since…", "Next: today/tomorrow at…", "Leave empty to keep the saved password.", "Saved. The next
-  backup uses these settings.", the backup service not answering, the new key's dialog, the sheet's
-  labels and restore steps, the share test's "login" and "write" refusals, and its success ("Connected:
-  signed in, and a test file written and removed.": the setup's own says signing in is checked at the
-  first backup, which is no longer so here).
-
-## History
-
-- **27 October**: designed from the build chat's brief: a side menu, *Users*, *Settings*, editable
-  *Backups*, *Licence and support*, *Updates and models*, *Status*, with their states, dark and
-  narrow versions and the strings in three languages (artboards 30 to 43).
-- **28 October**: review with the founder: shorter copy throughout, the backup schedule on *Backups*,
-  *Who sees a case* for new or all cases, the last-administrator menu with its row, teal for system
-  statuses and orange text actions, one notice box; split from `sidebar.md` into this file.
+  stay as they were, so a failure still shows in the notice at the top. The share test signs in and writes and removes a test file; the setup's own only checks that the server answers.

@@ -90,7 +90,7 @@ Suggestion: put the shared base rules (focus colours, field and button sizes, ca
 
 ## VoiceOver check (about 10 minutes, on a Mac)
 
-Open the setup in Safari: `npm run dev` in `packages/chat-ui`, then http://localhost:5173/setup.html (example network settings), or the preview link from the spike. Turn VoiceOver on with Cmd+F5. Move with Tab, and read with VO+Right Arrow (VO is Control+Option).
+Open the setup in Safari: `npm run dev` in `packages/chat-ui`, then <http://localhost:5173/setup.html> (example network settings), or the preview link from the spike. Turn VoiceOver on with Cmd+F5. Move with Tab, and read with VO+Right Arrow (VO is Control+Option).
 
 1. **Language menu**: Tab to it. Expect "English, Language, pop-up button" (or "menu button"). Press VO+Space, then Down Arrow: "Nederlands". Enter: the page is in Dutch and VoiceOver now reads Dutch text with a Dutch voice.
 2. **Internet access**: Tab. Expect "Connected, radio button, selected, 1 of 2", then its description once (not twice). Down Arrow: "Air-gapped … 2 of 2"; the outgoing options disappear. Up Arrow back.

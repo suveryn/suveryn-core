@@ -6,7 +6,7 @@ How sūveryn's browser code (`packages/chat-ui`: the chat and the appliance's we
 
 The appliance's nginx sends this header with the UI and the gateway's answers (suveryn-appliance [`reverse-proxy/suveryn-csp.conf`](https://github.com/suveryn/suveryn-appliance/blob/main/reverse-proxy/suveryn-csp.conf)):
 
-```
+```text
 default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self';
 connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self';
 frame-ancestors 'none'

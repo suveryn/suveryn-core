@@ -2,7 +2,7 @@
 
 Website: [suveryn.com](https://www.suveryn.com)
 
-Engine, chat, RAG, MCP host, API gateway — plus bundled official connectors
+Engine, chat, RAG, MCP host, API gateway, plus bundled official connectors
 and playbooks, and the [models manifest](models/manifest.json) (metadata only; weights are never
 committed here).
 
@@ -15,7 +15,6 @@ Related repositories: [suveryn-docs](https://github.com/suveryn/suveryn-docs) (i
 ## Packages
 
 For reviewers: [docs/architecture.md](docs/architecture.md) describes the data flow, where confidential data lives, the invariants the code must keep, design decisions with their evidence, known limitations and a review checklist.
-
 
 | Package | Status |
 |---|---|

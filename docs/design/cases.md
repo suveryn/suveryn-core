@@ -53,7 +53,7 @@ short free text and, where the type defines them, a few named fields the playboo
 
 ## The data model
 
-```
+```text
 cases             id, reference, name, type, subject jsonb, access (default|restricted),
                   state (open|closed), opened_at, closed_at, keep_until, keep (bool), confidential (bool),
                   manager (Keycloak sub), created_by, created_at, updated_at

@@ -52,6 +52,7 @@ Real deeds showed that text can disappear between the PDF and the stored chunks.
 Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings` (page, kind, detail). `suveryn-ingest` prints both.
 
 **Text repair** (`integrity.misdecoding`, `repair_characters`): characters a PDF font encodes in another character set are put right for the whole document, only when it clearly shows them.
+
 - Mac Roman read as Windows-1252 gives "ŽŽn" for "één" and "ÒwoordÓ" for "“woord”".
 - UTF-8 read as Windows-1252 gives "Ã©" for "é".
 
@@ -139,7 +140,7 @@ The database and end-to-end tests are skipped without `SUVERYN_TEST_DATABASE_URL
 
 The worker logs one line per document read (suveryn-tracker#58), with no file name and no text:
 
-```
+```text
 document read: job 3f9c… pdf pages=38 ocr_pages=38 ocr=24.10 layout=9.52 chunk=0.41 embed=1.83 store=0.62 waited=0.04 total=37.01
 ```
 
