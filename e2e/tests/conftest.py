@@ -75,13 +75,38 @@ def browser(playwright, stack_up):
 def context(browser, request):
     ctx = browser.new_context(locale="en-GB", viewport={"width": 1440, "height": 950}, base_url=PUBLIC_URL)
     ctx.set_default_timeout(20_000)
+    seen = watch(ctx)
     yield ctx
     for i, page in enumerate(ctx.pages):
         try:
             page.screenshot(path=SHOTS / f"{request.node.name}-{i}.png", full_page=True)
         except Exception:  # noqa: BLE001 - a closed page has no screenshot
             pass
+    if seen:
+        (SHOTS / f"{request.node.name}.log").write_text("\n".join(seen) + "\n")
     ctx.close()
+
+
+def watch(ctx) -> list[str]:
+    """What the browser saw, next to the screenshots: where each page went, what it logged, and which
+    requests failed or never came back. A blank screenshot alone doesn't say whether the page's script
+    ran (PR #156: the sign-in page stayed white and the gateway never heard from it)."""
+    seen: list[str] = []
+    start = time.monotonic()
+
+    def note(text: str) -> None:
+        seen.append(f"{time.monotonic() - start:6.1f}s {text}")
+
+    def on_page(page) -> None:
+        page.on("framenavigated", lambda f: note(f"at {f.url}") if f == page.main_frame else None)
+        page.on("console", lambda m: note(f"console {m.type}: {m.text}"))
+        page.on("pageerror", lambda e: note(f"script error: {e}"))
+        page.on("request", lambda r: note(f"asked {r.method} {r.url}"))
+        page.on("requestfinished", lambda r: note(f"answered {r.url}"))
+        page.on("requestfailed", lambda r: note(f"failed {r.method} {r.url}: {r.failure}"))
+
+    ctx.on("page", on_page)
+    return seen
 
 
 @pytest.fixture

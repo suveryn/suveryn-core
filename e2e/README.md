@@ -30,7 +30,7 @@ uv run pytest e2e/tests -v
 uv run python e2e/stack.py down
 ```
 
-The stack listens on `http://localhost:5173`; sign in as `notaris.test` (an administrator) or `collega.test` (`stack.py`, `ACCOUNTS`) to look at it yourself. `stack.py status` says what is up; `.run/<service>.log` says why something isn't. A failing scenario leaves a full-page screenshot in `.run/shots/`; CI uploads those and the logs as the `e2e-run` artifact.
+The stack listens on `http://localhost:5173`; sign in as `notaris.test` (an administrator) or `collega.test` (`stack.py`, `ACCOUNTS`) to look at it yourself. `stack.py status` says what is up; `.run/<service>.log` says why something isn't. Every scenario leaves a full-page screenshot in `.run/shots/`, and a `.log` beside it with what the browser saw (where each page went, its console, every request and whether it was answered); CI uploads those and the logs as the `e2e-run` artifact.
 
 **Light mode** (`E2E_LIGHT=1`): without Hugging Face the real reader and embedder can't load their models. The light reader and embedder in `light/` stand in; scenarios then run on a born-digital PDF's text only, and retrieval is crude. Good enough to develop a scenario; not what CI runs, so run the suite on CI before trusting a change.
 
