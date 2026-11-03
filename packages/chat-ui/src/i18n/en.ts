@@ -529,6 +529,7 @@ const en = {
   pbGroupCheck: "Check",
   pbGroupMissing: "Missing",
   pbGroupChecks: "Checks",
+  pbManagerConfirms: "The case manager confirms the facts.",
   runStepNotNeeded: (step: string, fact: string, option: string) => `${step}: not needed, ${fact} is ${option}.`,
   runStepUnknown: (step: string, fact: string) => `${step}: skipped, ${fact} is not known.`,
   pbCheckHolds: "Holds.",

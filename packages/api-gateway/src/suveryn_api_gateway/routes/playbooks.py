@@ -492,12 +492,15 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
     409: {"description": "The run isn't waiting at its checkpoint"},
 })
 async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Request):
-    """The checkpoint (a contributor's right): every fact's confirmed value, a correction or empty.
-    The run then walks on: the summary is stored in the case as a document with origin ``playbook``."""
+    """The checkpoint (a contributor's right; the case manager's when the step says ``by: manager``): every
+    fact's confirmed value, a correction or empty, and entries added to a list. The run then walks on: the
+    summary is stored in the case as a document with origin ``playbook``."""
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
+    if step.by == "manager" and owner_of(request) != case.manager:
+        raise HTTPException(403, "The case manager confirms this playbook's facts.")  # the case's roles, no other (decided 3 November 2026)
     known = {f.id for f in run.facts}
-    if any(f.id not in known for f in body.facts):
+    if any(f.id not in known and not (pb.leaf(f.id) is not None and f.id != root(f.id)) for f in body.facts):
         raise HTTPException(422, "A fact that isn't in this run.")
     username = who(request)[0]
     run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username)

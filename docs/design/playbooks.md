@@ -453,6 +453,15 @@ of the foundation brief.
   notary can read top to bottom and know what runs is the point; the day a condition needs more it
   needs a decision, not a longer line.
 
+### Who confirms (3 November 2026)
+
+A checkpoint's `by` is `anyone_in_case` (anyone who contributes) or `manager`: the case's manager,
+who in a notarial office is the notary, while a clerk prepares and corrects. Item 6 of the foundation
+brief, decided 3 November: **the case's roles, no other**; no notary role is added to accounts, and
+the manager of the case is who confirms. The gateway refuses the confirm from anyone else (403); the
+review still shows every card to a contributor, with *Adjust* and *Fill in*, and says who confirms in
+place of the button. Company formation 1.4 says `by: manager`; deed intake stays `anyone_in_case`.
+
 ## What is deferred, on purpose
 
 - Which facts recur between playbooks (#27): `case_facts` is the record; its shared vocabulary is

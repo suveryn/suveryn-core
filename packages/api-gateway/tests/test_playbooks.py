@@ -690,8 +690,13 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert set(r.json()["checks"]) == {"shares_add_up", "a_founder"}  # in kind: the two money checks have no result
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "cash"}, headers=alice)
         assert r.status_code == 200 and len(r.json()["checks"]) == 4
-        # confirm: the entries, a third founder given straight in the confirm body, the shares corrected
+        # confirm: the entries, a third founder given straight in the confirm body, the shares corrected; the case manager
+        # confirms (by: manager), a contributor is refused even though they may correct
         confirm = {"facts": [{"id": "founders[1].shares", "confirmed": "650"}, {"id": "founders[3].name", "confirmed": "Tom Janssens"}]}
+        bob = as_bob(kc)
+        c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/seat", json={"value": "Sint-Jansvest 18, Gent"}, headers=bob).status_code == 200
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
         assert r.status_code == 200 and r.json()["status"] == "done"
         by = {f["id"]: f for f in r.json()["facts"]}
@@ -706,7 +711,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert "Oprichter(s) 1 · Adres: Kerkstraat 12, Gent" in text and "Geattesteerd bedrag: EUR 412.500,00" in text
         assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text
         assert "Oprichter(s): " not in text  # the list's own line is its entries
-        assert "Zetel: Sint-Jansvest 18/1, 9000 Gent" in text
+        assert "Zetel: Sint-Jansvest 18, Gent" in text  # the clerk's correction, confirmed by the manager
 
 
 @needs_db

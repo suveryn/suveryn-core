@@ -503,6 +503,7 @@ const nl: Messages = {
   pbGroupCheck: "Kijk na",
   pbGroupMissing: "Ontbreekt",
   pbGroupChecks: "Controles",
+  pbManagerConfirms: "De dossierbeheerder bevestigt de gegevens.",
   runStepNotNeeded: (step: string, fact: string, option: string) => `${step}: niet nodig, ${fact} is ${option}.`,
   runStepUnknown: (step: string, fact: string) => `${step}: overgeslagen, ${fact} is niet bekend.`,
   pbCheckHolds: "Klopt.",

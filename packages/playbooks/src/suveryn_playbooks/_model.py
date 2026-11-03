@@ -117,7 +117,7 @@ class Step:
     rule: str = ""                     # check: the comparison, as written (``rules.parse_rule`` reads it)
     when: str = ""                     # any step: runs only when a choice fact has (or hasn't) an option (``conditions.parse_when``); else skipped
     documents: tuple[str, ...] = ()    # read: the names (``expects``) of the requests whose documents it reads; empty: every document
-    by: str = "anyone_in_case"         # checkpoint: who may pass it
+    by: str = "anyone_in_case"         # checkpoint: who may pass it: anyone_in_case, or manager (the case's manager, the notary; the case's roles, no other)
     template: str = "summary"          # produce: which product
 
 

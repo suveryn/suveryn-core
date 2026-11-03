@@ -191,7 +191,7 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
                                     send: () => answerRun(kase.id, run.id, run.step ?? "", { text: `${factLabel(words, f)}: ${optionLabel(words, f, o)}`, facts: { [f]: o } }).then(onChanged) })) }))
                               : []}
                             review={t.seq === reviewAt
-                              ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} steps={playbook?.steps ?? []} canAnswer={canAnswer} panel={panel} onPanel={onPanel} onChanged={onChanged} />
+                              ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} steps={playbook?.steps ?? []} canAnswer={canAnswer} me={me} panel={panel} onPanel={onPanel} onChanged={onChanged} />
                               : null}
                             quickReply={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
                               ? { label: m.answerPlaceholder, send: () => sayInRun(kase.id, run.id, { text: m.answerPlaceholder, unknown: true }).then(onChanged) }
@@ -281,12 +281,12 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, cho
 /** The review message's work (handover of 31 October 2026, boards 3 and 4): what was found, one card per
  *  fact that needs the person, *Confirm the facts* (held back while anything is under *Check*), and a link
  *  to every fact. */
-function Review({ run, kase, words, lists, steps, canAnswer, panel, onPanel, onChanged }: {
-  run: Run; kase: Case; words: PlaybookWords; canAnswer: boolean; panel: RunPanelView | null;
+function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel, onChanged }: {
+  run: Run; kase: Case; words: PlaybookWords; canAnswer: boolean; me?: string; panel: RunPanelView | null;
   /** Format 3: the playbook's list facts and their entries' fields, so an entry can be added here. */
   lists: Record<string, string[]>;
   /** The routine's steps, for the order of the checks. */
-  steps: { id: string; kind: string }[];
+  steps: { id: string; kind: string; by?: string }[];
   onPanel: (view: RunPanelView | null) => void; onChanged: (run: Run) => void;
 }) {
   const m = useT();
@@ -319,6 +319,9 @@ function Review({ run, kase, words, lists, steps, canAnswer, panel, onPanel, onC
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const blocked = check.length > 0;
+  // who confirms: anyone who contributes, or, when the checkpoint says so, the case manager (the notary); others prepare and correct
+  const managerOnly = steps.find((s) => s.id === run.step)?.by === "manager";
+  const canConfirm = canAnswer && (!managerOnly || kase.manager === me);
   const n = check.length + missing.length;
   const card = (f: RunFact, group: "check" | "missing") => f.id in lists ? (
     <AddEntryCard key={f.id} list={f.id} fields={lists[f.id]} count={0} words={words} canAnswer={canAnswer} onAdd={(v) => add(f.id, v)} />
@@ -359,7 +362,8 @@ function Review({ run, kase, words, lists, steps, canAnswer, panel, onPanel, onC
       )}
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       <div className="run-review-actions">
-        {canAnswer && (
+        {canAnswer && !canConfirm && <span className="caption run-confirm-note">{m.pbManagerConfirms}</span>}
+        {canConfirm && (
           <>
             {/* disabled but focusable, with its reason (React Aria keeps a disabled button out of the tab order; this one says why) */}
             <Button variant="primary" onPress={() => { if (!blocked) void confirm(); }} isDisabled={busy}

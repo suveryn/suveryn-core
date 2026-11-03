@@ -221,6 +221,20 @@ describe("lists (format 3)", () => {
     expect(html).toContain("reports: skipped, Contribution is not known.");
   });
 
+  it("leaves confirming to the case manager when the checkpoint says so; others still see the cards", () => {
+    const playbook: PlaybookInfo = { ...FORMATION, steps: FORMATION.steps!.map((s) => s.id === "confirm" ? { ...s, by: "manager" as const } : s) };
+    const asClerk = renderToStaticMarkup(
+      <RunThread run={run} kase={KASE} playbook={playbook} words={fwords} me="u-bob" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(asClerk).toContain("The case manager confirms the facts.");
+    expect(asClerk).not.toContain("Confirm the facts");
+    expect(asClerk).toContain(">Adjust<");   // a clerk prepares and corrects
+    const asManager = renderToStaticMarkup(
+      <RunThread run={run} kase={KASE} playbook={playbook} words={fwords} me="u-ines" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(asManager).toContain("Confirm the facts");
+  });
+
   it("lists the entries, not the list's none, in the panel", () => {
     const html = renderToStaticMarkup(<RunPanel run={run} words={fwords} view={{ kind: "list" }} onView={noop} onClose={noop} />);
     expect(html).toContain("Founder(s) 1 · Name");

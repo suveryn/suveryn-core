@@ -8,7 +8,7 @@ here: the gateway runs them (`suveryn_api_gateway.playbooks`). Design:
 | Playbook | Id | Pack | Version |
 |---|---|---|---|
 | Deed intake (sale): asks for the agreement, reads the documents, asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/deed-intake` | `pack/be-notary` | 1.2 |
-| Company formation (company-formation): asks for the identity documents, the financial plan and the bank certificate by name, reads each for its own facts (fifteen for the deed of incorporation of a BV; the founders a list, each with name, identity, shares and contribution), asks about what it couldn't find, the contribution's kind (cash, in kind, mixed) read or asked and deciding which documents, reads and checks follow, four checks, a person confirms, the summary | `playbook/be-notary/company-formation` | `pack/be-notary` | 1.3 |
+| Company formation (company-formation): asks for the identity documents, the financial plan and the bank certificate by name, reads each for its own facts (fifteen for the deed of incorporation of a BV; the founders a list, each with name, identity, shares and contribution), asks about what it couldn't find, the contribution's kind (cash, in kind, mixed) read or asked and deciding which documents, reads and checks follow, four checks, the case manager confirms, the summary | `playbook/be-notary/company-formation` | `pack/be-notary` | 1.4 |
 
 The identifiers are the ones the platform note chose; they end up in the registry, the licence and
 the invoice, so they never change. `covered(playbook_id)` is the one place the licence check will
@@ -46,7 +46,7 @@ What is here:
 | `src/suveryn_playbooks/record.py` | A playbook as a record and back: what a run keeps (``playbook_runs.manifest``) |
 | `src/suveryn_playbooks/rules.py` | A check's rule: one comparison, parsed and checked against the facts; the harness evaluates it |
 | `src/suveryn_playbooks/conditions.py` | A step's `when`: one condition on a choice fact; the runtime evaluates it when the step is reached |
-| `src/suveryn_playbooks/be_notary/company-formation.yaml` | Company formation 1.3: the eighteen facts of a BV's deed of incorporation, the founders a list, the contribution's kind a choice, four requests by name each with its read, two of each on a branch, the asks, four checks, the checkpoint, the summary |
+| `src/suveryn_playbooks/be_notary/company-formation.yaml` | Company formation 1.4: the eighteen facts of a BV's deed of incorporation, the founders a list, the contribution's kind a choice, four requests by name each with its read, two of each on a branch, the asks, four checks, the checkpoint the case manager passes, the summary |
 | `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary, fact labels and questions in English, Dutch and French |
 | `schema/playbook-manifest.schema.json` | The format as JSON Schema, generated from `manifest.py` |
 | `tests/test_content.py` | The identities, the case types, and that every playbook has its words and its questions in each language |

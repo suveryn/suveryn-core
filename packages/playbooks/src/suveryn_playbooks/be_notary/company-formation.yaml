@@ -25,11 +25,13 @@
 # read from the plan or asked. The bank certificate is asked for and read, and the bank's check runs,
 # only when there is money; the auditor's and founders' reports are asked for and read only when there
 # is a contribution in kind; a skipped step says why in the thread.
+# 1.4 (November 2026): the case manager confirms (by: manager): a clerk prepares and corrects, the notary,
+# who manages the case, passes the checkpoint. The case's roles, no other (decided 3 November).
 
 manifest: 3
 id: playbook/be-notary/company-formation
 pack: pack/be-notary
-version: "1.3"
+version: "1.4"
 name: Company formation
 case_types: [company-formation]
 
@@ -161,7 +163,7 @@ steps:
     rule: "count(founders) >= 1"
   - id: confirm
     kind: checkpoint
-    by: anyone_in_case
+    by: manager           # the notary manages the case; a clerk prepares and corrects, the notary confirms
   - id: summary
     kind: produce
     template: summary

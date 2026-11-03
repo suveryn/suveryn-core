@@ -861,7 +861,9 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 /** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
 /** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
 /** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/chat-ui.md). */
-export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce" | "check"; needs: string[]; facts: string[] };
+export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce" | "check"; needs: string[]; facts: string[];
+                             /** checkpoint: who may pass it: anyone who contributes to the case, or its manager (the notary) only. */
+                             by?: "anyone_in_case" | "manager" };
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
                              case_types?: string[]; active?: boolean;
                              /** Format 3: per list fact, its entries' field ids ([] for a list of plain values), so the view can offer an entry to add. */

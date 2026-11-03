@@ -148,7 +148,7 @@ class StepSpec(BaseModel):
     documents: tuple[str, ...] | None = Field(default=None, description="read: the names (expects) of the requests whose documents it reads; absent: every document")
     rule: str | None = Field(default=None, min_length=1, max_length=200, description="check: one comparison, <term> <operator> <term> (rules.py)")
     when: str | None = Field(default=None, min_length=1, max_length=120, description="any step: runs only when <choice fact> == or != <option> (conditions.py); else skipped")
-    by: Literal["anyone_in_case"] | None = Field(default=None, description="checkpoint: who may pass it")
+    by: Literal["anyone_in_case", "manager"] | None = Field(default=None, description="checkpoint: who may pass it: anyone who contributes to the case, or its manager (the notary) only")
     template: Literal["summary"] | None = Field(default=None, description="produce: the product (only the summary today)")
 
     _ALLOWED: ClassVar[dict[str, frozenset[str]]] = {

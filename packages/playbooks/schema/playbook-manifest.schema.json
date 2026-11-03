@@ -267,7 +267,10 @@
         "by": {
           "anyOf": [
             {
-              "const": "anyone_in_case",
+              "enum": [
+                "anyone_in_case",
+                "manager"
+              ],
               "type": "string"
             },
             {
@@ -275,7 +278,7 @@
             }
           ],
           "default": null,
-          "description": "checkpoint: who may pass it",
+          "description": "checkpoint: who may pass it: anyone who contributes to the case, or its manager (the notary) only",
           "title": "By"
         },
         "template": {

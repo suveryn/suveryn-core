@@ -505,6 +505,7 @@ const fr: Messages = {
   pbGroupCheck: "À vérifier",
   pbGroupMissing: "Manquant",
   pbGroupChecks: "Contrôles",
+  pbManagerConfirms: "Le gestionnaire du dossier confirme les données.",
   runStepNotNeeded: (step: string, fact: string, option: string) => `${step} : inutile, ${fact} est ${option}.`,
   runStepUnknown: (step: string, fact: string) => `${step} : ignoré, ${fact} n'est pas connu.`,
   pbCheckHolds: "Exact.",

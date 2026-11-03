@@ -270,6 +270,7 @@ class StepOut(BaseModel):
     kind: str
     needs: list[str]
     facts: list[str] = Field(default_factory=list)
+    by: str = "anyone_in_case"   # checkpoint: who may pass it (anyone_in_case, manager), so the UI can say who confirms
 
 
 class PlaybookOut(BaseModel):
@@ -310,7 +311,7 @@ def playbook_out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset())
                        text={lang: PlaybookWords(title=w.title, summary=w.summary, labels=w.labels, questions=w.questions, checks=w.checks,
                                                  steps=w.steps, facts_title=w.facts_title)
                              for lang, w in p.text.items()},
-                       steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
+                       steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts), by=s.by) for s in p.steps])
 
 
 def summary_text(playbook: Playbook, reference: str, run: Run, language: str) -> str:
