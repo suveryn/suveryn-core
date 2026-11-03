@@ -7,7 +7,7 @@ here: the gateway runs them (`suveryn_api_gateway.playbooks`). Design:
 
 | Playbook | Id | Pack | Version |
 |---|---|---|---|
-| Deed intake (sale): asks for the agreement, reads the documents, asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/deed-intake` | `pack/be-notary` | 1.2 |
+| Deed intake (sale): asks for the agreement, reads the documents (the parties and the conditions as lists), asks about what it couldn't find, five checks, a person confirms, the summary | `playbook/be-notary/deed-intake` | `pack/be-notary` | 1.3 |
 
 Deed intake is the one public reference playbook. The certified content (`pack/be-notary`: company
 formation, the deed of incorporation of a BV, first) lives in the private `suveryn-packs` repository
@@ -49,7 +49,7 @@ What is here:
 | `src/suveryn_playbooks/_model.py` | `Playbook`, `Fact`, `Step` and `Wording`: a playbook as the product sees it |
 | `src/suveryn_playbooks/manifest.py` | The manifest formats 1 and 2 (`Manifest`, validated strictly; `validate_steps` for the graph), `parse`, `load`, the table scaffold and the JSON Schema |
 | `src/suveryn_playbooks/paths.py` | Paths into a list's values (`founders[2].name`): split, root, entry |
-| `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.2: its thirteen facts, the instructions the model gets, the case type it fits and its five steps |
+| `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.3: its thirteen facts (three of them lists), the instructions the model gets, the case type it fits and its ten steps |
 | `src/suveryn_playbooks/record.py` | A playbook as a record and back: what a run keeps (``playbook_runs.manifest``) |
 | `src/suveryn_playbooks/rules.py` | A check's rule: one comparison, parsed and checked against the facts; the harness evaluates it |
 | `src/suveryn_playbooks/conditions.py` | A step's `when`: one condition on a choice fact; the runtime evaluates it when the step is reached |
@@ -57,4 +57,4 @@ What is here:
 | `schema/playbook-manifest.schema.json` | The format as JSON Schema, generated from `manifest.py` |
 | `tests/fixtures/packs/be-test/` | The fictional test pack: a formation playbook with fewer facts, for the tests of lists, choices, documents by name, checks and the manager's checkpoint |
 | `tests/test_content.py` | The identities, the case types, and that every playbook has its words and its questions in each language |
-| `tests/test_manifest.py` | The loader: deed intake 1.2 reads what 1.0 did (`fixtures/`), the steps and their graph, format 3's lists, numbers and paths, what is refused and how it says so, the schema in sync |
+| `tests/test_manifest.py` | The loader: deed intake 1.3 reads what 1.0 did (`fixtures/`), the steps and their graph, format 3's lists, numbers and paths, what is refused and how it says so, the schema in sync |

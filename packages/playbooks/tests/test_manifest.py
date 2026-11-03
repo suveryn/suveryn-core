@@ -36,26 +36,34 @@ steps:
 WORDS = {lang: Wording("Example", "An example", {"price": "Price", "sellers": "Sellers"}) for lang in ("en", "nl", "fr")}
 
 
-def test_deed_intake_1_2_reads_what_1_0_read():
+def test_deed_intake_1_3_reads_what_1_0_read():
     """The snapshot is ``DEED_INTAKE`` 1.0 as main built it in Python (669e5c6). 1.1 added the routine
-    (format 2); 1.2 asks for the answer as JSON of the facts' shape instead of a table (format 3). The
-    facts and their wording are 1.0's, byte for byte, so a run made under 1.0 reads the same facts; the
-    instructions keep 1.0's rules (as written, never guess, the documents' language) and differ only in
-    the answer's shape. What is new is the version, the steps and the questions."""
+    (format 2); 1.2 asks for the answer as JSON of the facts' shape instead of a table (format 3); 1.3 makes
+    the parties and the conditions lists and adds checks. The thirteen facts are 1.0's by id and order, and
+    every 1.0 label is kept byte for byte, so a run made under 1.0 reads the same facts and a notary sees
+    the same words; the three lists' entries have words of their own. The instructions keep 1.0's rules
+    (as written, never guess, the documents' language) and differ only in the answer's shape."""
     old = json.loads((FIXTURES / "deed-intake-1.0.json").read_text(encoding="utf-8"))
     new = json.loads(json.dumps(dataclasses.asdict(DEED_INTAKE)))  # tuples to lists, as the snapshot has them
-    assert new["version"] == "1.2" and old["version"] == "1.0" and new["format"] == 3
+    assert new["version"] == "1.3" and old["version"] == "1.0" and new["format"] == 3
     for k in ("id", "pack", "name", "case_types"):
         assert new[k] == old[k], k
-    assert [{k: f[k] for k in ("id", "ask", "kind")} for f in new["facts"]] == old["facts"]
-    assert all(f["fields"] == [] and f["item_kind"] == "text" for f in new["facts"])
+    assert [f["id"] for f in new["facts"]] == [f["id"] for f in old["facts"]]
+    lists = {"sellers", "buyers", "conditions"}
+    assert [{k: f[k] for k in ("id", "ask", "kind")} for f in new["facts"] if f["id"] not in lists] == \
+        [f for f in old["facts"] if f["id"] not in lists]
+    assert all(f["kind"] == "list" and f["fields"] for f in new["facts"] if f["id"] in lists)
     for words in ("as the documents write it", "never guess, never fill in from general knowledge", "language of the documents"):
         assert words in old["instructions"] and words in new["instructions"], words
     assert "table" in old["instructions"] and "table" not in new["instructions"].split("Answer with one JSON")[0]
     assert new["instructions"].endswith(answer_scaffold(DEED_INTAKE.facts))
     for lang, words in old["text"].items():
-        assert {k: new["text"][lang][k] for k in ("title", "summary", "labels")} == words, lang
+        assert {k: new["text"][lang][k] for k in ("title", "summary")} == {k: words[k] for k in ("title", "summary")}, lang
+        assert {k: v for k, v in new["text"][lang]["labels"].items() if "." not in k} == words["labels"], lang
+        assert set(new["text"][lang]["checks"]) == {"a_seller", "a_buyer", "deposit_within_price", "deed_after_agreement", "conditions_before_deed"}
     assert [(s["id"], s["kind"]) for s in new["steps"]] == [("agreement", "request"), ("read", "read"), ("missing", "ask"),
+                                                            ("a_seller", "check"), ("a_buyer", "check"), ("deposit_within_price", "check"),
+                                                            ("deed_after_agreement", "check"), ("conditions_before_deed", "check"),
                                                             ("confirm", "checkpoint"), ("summary", "produce")]
 
 
@@ -331,6 +339,21 @@ def test_a_check_states_one_comparison_a_notary_can_read():
     assert r == Rule(Term("sum", "founders", "contribution"), "==", Term("fact", "price"), "amount") and r.facts == ("founders", "price")
     assert str(parse_rule("count(founders) >= 1", p)) == "count(founders) >= 1" and parse_rule("count(founders) >= 1", p).value_kind == "number"
     assert parse_rule("shares != 0.5", p).right == Term("literal", literal="0.5")
+    # deed intake 1.3: the latest of a list's dates against a date (the conditions' terms before the deed)
+    dated = CHECKED.replace("  - {id: conditions, ask: the conditions, kind: list, of: text}\n", """  - {id: deed_date, ask: the deed's date, kind: date}
+  - id: conditions
+    ask: the conditions
+    kind: list
+    of:
+      - {id: condition, ask: the condition}
+      - {id: term, ask: the term, kind: date}
+""")
+    q = parse(dated).to_playbook(WORDS)
+    r = parse_rule("latest(conditions.term) <= deed_date", q)
+    assert r == Rule(Term("latest", "conditions", "term"), "<=", Term("fact", "deed_date"), "date") and str(r) == "latest(conditions.term) <= deed_date"
+    assert parse_rule("earliest(conditions.term) > deed_date", q).left.kind == "earliest"
+    with pytest.raises(ValueError, match="a date compares only with a date fact, or the latest or earliest"):
+        parse_rule("latest(conditions.term) <= 3", q)
     from suveryn_playbooks import from_record, to_record
     assert from_record(to_record(p)) == p
 
@@ -343,11 +366,14 @@ def test_a_check_states_one_comparison_a_notary_can_read():
         ("sum(founders.contribution) == shares", "compares amount with number"),
         ("sum(founders.name) == 3", "founders.name is text; a sum is of amounts or numbers"),
         ("sum(price.x) == 3", "'price' is not a list"),
+        ("latest(founders.name) <= price", "founders.name is text; latest is of dates"),
+        ("latest(founders.contribution) == 1", "founders.contribution is amount; latest is of dates"),
         ("count(founders) == colour", "'colour' is not one of the playbook's facts"),
         ("3 == 4", "compares two numbers and no fact"),
         ("price + 1 == 2", "a fact id, sum(<list>.<field>), count(<list>) or a number"),
     ],
-    ids=["one-equals", "text-fact", "mixed-kinds", "sum-of-text", "sum-of-a-scalar", "unknown-fact", "two-literals", "arithmetic"])
+    ids=["one-equals", "text-fact", "mixed-kinds", "sum-of-text", "sum-of-a-scalar", "latest-of-text", "latest-of-amounts",
+         "unknown-fact", "two-literals", "arithmetic"])
 def test_a_wrong_rule_is_refused_and_the_error_names_the_step(rule, said):
     with pytest.raises(ManifestError, match="step 'shares_add_up' \\(check\\): .*" + re.escape(said)):
         parse(CHECKED.replace("rule: sum(founders.contribution) == price", f"rule: {rule!r}"), where="x.yaml")

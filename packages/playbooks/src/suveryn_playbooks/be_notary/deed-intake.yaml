@@ -2,28 +2,50 @@
 #
 # The facts a notarial deed of sale needs, read from the case's uploaded documents (the private sale
 # agreement, the earlier title deed, the certificates) and checked by a person at the checkpoint.
-# Thirteen facts, no more: every fact is a line the notary has to check.
+# Every fact is a line the notary has to check; the parties and the conditions are lists, one entry
+# each, so a second seller is a second entry and not a longer sentence.
 #
-# The routine (format 2): ask for the agreement, read the documents, ask about what was not found,
+# The routine: ask for the agreement, read the documents, ask about what was not found, the checks,
 # the checkpoint, the summary. The questions' words and the labels per language are in
-# text/<lang>.json beside this file; the table the model fills in is the runtime's, appended by the loader.
+# text/<lang>.json beside this file; the shape the model fills in is the runtime's, appended by the loader.
 #
 # 1.1 (October 2026): the routine. The facts, the instructions and the summary are 1.0's.
 # 1.2 (November 2026): the answer is JSON of the facts' shape (format 3), held to by the model server;
 # the facts and the words are 1.0's, the instructions say "the object" where they said "the table".
+# 1.3 (November 2026): the sellers, the buyers and the suspensive conditions are lists (a party's name,
+# address and register number; a condition and its term), and five checks the server computes for the
+# checkpoint: a seller and a buyer, the advance within the price, the deed after the agreement, every
+# condition's term before the deed. The questions and the labels of 1.0 are unchanged; the lists' fields
+# and the checks have words of their own.
 
 manifest: 3
 id: playbook/be-notary/deed-intake
 pack: pack/be-notary
-version: "1.2"
+version: "1.3"
 name: Deed intake
 case_types: [sale]
 
 facts:
   - id: sellers
-    ask: the selling party or parties, as named in the agreement (full names as written)
+    ask: the selling party or parties, one entry per seller, as named in the agreement
+    kind: list
+    of:
+      - id: name
+        ask: the seller's full name as written (a company's name as written)
+      - id: address
+        ask: the seller's address as written
+      - id: register
+        ask: the seller's national register number (a company's enterprise number), as written
   - id: buyers
-    ask: the buying party or parties (full names as written)
+    ask: the buying party or parties, one entry per buyer
+    kind: list
+    of:
+      - id: name
+        ask: the buyer's full name as written (a company's name as written)
+      - id: address
+        ask: the buyer's address as written
+      - id: register
+        ask: the buyer's national register number (a company's enterprise number), as written
   - id: property
     ask: "the property sold: its address and description"
   - id: cadastral
@@ -41,7 +63,14 @@ facts:
     ask: the date by which the notarial deed must be signed
     kind: date
   - id: conditions
-    ask: the suspensive conditions (financing, permits, other), each with its term
+    ask: the suspensive conditions (financing, permits, other), one entry per condition
+    kind: list
+    of:
+      - id: condition
+        ask: the condition as written
+      - id: term
+        ask: the date by which the condition must be met, as the agreement writes it
+        kind: date
   - id: title
     ask: "the seller's title: the earlier deed, its date and the notary who passed it"
   - id: epc
@@ -67,6 +96,21 @@ steps:
   - id: missing            # one question per fact the documents did not contain
     kind: ask
     facts: all
+  - id: a_seller
+    kind: check
+    rule: "count(sellers) >= 1"
+  - id: a_buyer
+    kind: check
+    rule: "count(buyers) >= 1"
+  - id: deposit_within_price
+    kind: check
+    rule: deposit <= price
+  - id: deed_after_agreement
+    kind: check
+    rule: agreement_date < deed_deadline
+  - id: conditions_before_deed
+    kind: check
+    rule: latest(conditions.term) <= deed_deadline
   - id: confirm
     kind: checkpoint
     by: anyone_in_case

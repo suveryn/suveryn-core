@@ -19,18 +19,23 @@ def leaf(value, *sources):
     return {"value": value, "sources": list(sources)}
 
 
+def party(name, *sources):
+    return {"name": leaf(name, *sources), "address": leaf(None), "register": leaf(None)}
+
+
 ANSWER = {
-    "sellers": leaf("Jan Peeters en Marie Claes", 1), "buyers": leaf("Tom Janssens", 1),
+    "sellers": [party("Jan Peeters", 1), party("Marie Claes", 1)], "buyers": [party("Tom Janssens", 1)],
     "property": leaf("Woning, Kerkstraat 12, 9000 Gent", 1), "cadastral": leaf(None),
     "price": leaf("EUR 412.500,00", 1), "deposit": leaf("EUR 41.250,00 aan de notaris", 2),
     "agreement_date": leaf("3 oktober 2026", 1), "deed_deadline": leaf("15 januari 2027", 1),
-    "conditions": leaf("Financiering, 30 dagen", 1), "title": leaf(None), "epc": leaf(""),
+    "conditions": [{"condition": leaf("Financiering", 1), "term": leaf("2 november 2026", 1)}], "title": leaf(None), "epc": leaf(""),
     "soil": leaf("niet gevonden"), "occupancy": leaf("Vrij van gebruik", 1),
 }
+LEAVES = [f.id for f in DEED_INTAKE.facts if f.kind != "list"]
 PASSAGES = [
     Citation(text="Verkopers: Jan Peeters en Marie Claes. Koper: Tom Janssens. Woning, Kerkstraat 12, 9000 Gent. "
                   "De koopprijs bedraagt EUR 412.500,00. Getekend te Gent op 3 oktober 2026. De akte wordt verleden "
-                  "uiterlijk op 15 januari 2027. Opschortende voorwaarde: financiering, 30 dagen. Vrij van gebruik.",
+                  "uiterlijk op 15 januari 2027. Opschortende voorwaarde: financiering, tegen 2 november 2026. Vrij van gebruik.",
              source=SourceRef(document_id=DOC, page=1, location="p. 1")),
     Citation(text="Een voorschot van EUR 41.250,00 wordt betaald aan de notaris.", source=SourceRef(document_id=DOC, page=2, location="p. 2")),
 ]
@@ -55,8 +60,13 @@ def with_value(fact, value, *sources):
 
 def test_read_facts_keeps_each_facts_passages_and_runs_the_check():
     facts = read_facts(DEED_INTAKE, response(), {DOC: "compromis.pdf"})
-    assert facts is not None and [f.id for f in facts] == [f.id for f in DEED_INTAKE.facts]
+    assert facts is not None and [f.id for f in facts] == [
+        "sellers[1].name", "sellers[1].address", "sellers[1].register", "sellers[2].name", "sellers[2].address", "sellers[2].register",
+        "buyers[1].name", "buyers[1].address", "buyers[1].register", "property", "cadastral", "price", "deposit", "agreement_date",
+        "deed_deadline", "conditions[1].condition", "conditions[1].term", "title", "epc", "soil", "occupancy"]
     by = {f.id: f for f in facts}
+    assert by["sellers[2].name"].value == "Marie Claes" and not by["sellers[2].register"].found
+    assert by["conditions[1].term"].value == "2 november 2026" and by["conditions[1].term"].issues == []
     assert by["price"].value == "EUR 412.500,00" and by["price"].found and by["price"].issues == []
     assert [(c.n, c.page, c.filename) for c in by["price"].citations] == [(1, 1, "compromis.pdf")]
     assert by["deposit"].citations[0].n == 2 and "voorschot" in by["deposit"].citations[0].text
@@ -74,7 +84,7 @@ def test_read_facts_flags_a_figure_the_passage_doesnt_contain():
     swapped = with_value("price", "EUR 41.250,00", 1)  # in a passage, not the cited one
     facts = {f.id: f for f in read_facts(DEED_INTAKE, response(swapped), {DOC: "compromis.pdf"})}
     assert facts["price"].issues == ["41.250,00"] and facts["deposit"].issues == []
-    assert facts["sellers"].issues == []  # other values are untouched by a wrong figure elsewhere
+    assert facts["sellers[1].name"].issues == []  # other values are untouched by a wrong figure elsewhere
 
 
 def test_sources_the_model_names_wrongly_are_dropped_and_markers_in_the_value_count():
@@ -132,18 +142,20 @@ def test_an_unreadable_answers_shape_is_counts_only():
     shape = answer_shape(DEED_INTAKE, response(reshaped))
     assert shape["json"] and shape["keys"] == 1 and shape["named_keys"] == 0
     assert not any("Peeters" in str(v) or "EUR" in str(v) for v in shape.values())
-    assert answer_shape(DEED_INTAKE, response())["named_keys"] == len(DEED_INTAKE.facts)
+    assert answer_shape(DEED_INTAKE, response())["named_keys"] == len(DEED_INTAKE.facts)  # a list is one key
 
 
 @pytest.mark.parametrize("missing", [None, "", "-", "—", "niet gevonden"])
 def test_a_deed_that_lacks_most_facts_is_read_with_them_not_found(missing):
     """A thin deed: most values null or "not found" in words; every one is read as not found, never as a value."""
-    found = {"sellers": "Jan Peeters", "buyers": "Tom Janssens", "property": "Kerkstraat 1, Gent", "price": "EUR 412.500,00"}
-    answer = {f.id: (leaf(found[f.id], 1) if f.id in found else leaf(missing)) for f in DEED_INTAKE.facts}
+    found = {"property": "Kerkstraat 1, Gent", "price": "EUR 412.500,00"}
+    answer = {f.id: ([] if f.kind == "list" else leaf(found[f.id], 1) if f.id in found else leaf(missing)) for f in DEED_INTAKE.facts}
+    answer["sellers"] = [party("Jan Peeters", 1)]
     facts = read_facts(DEED_INTAKE, response(answer), {})
     assert facts is not None
-    assert sorted(f.id for f in facts if f.found) == sorted(found)
+    assert sorted(f.id for f in facts if f.found) == sorted([*found, "sellers[1].name"])
     assert all(not f.value and not f.citations for f in facts if not f.found)
+    assert {f.id for f in facts if f.id in ("buyers", "conditions")} == {"buyers", "conditions"}  # the empty lists: one not-found fact each
 
 
 # ------------------------------------------------------------------ lists and numbers (format 3)

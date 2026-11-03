@@ -114,8 +114,9 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
     # which playbooks fit: a sale gets deed intake 1.1, covered, with its routine and its words in every language
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.2")]
-    assert [s["kind"] for s in fits[0]["steps"]] == ["request", "read", "ask", "checkpoint", "produce"]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.3")]
+    assert [s["kind"] for s in fits[0]["steps"]] == ["request", "read", "ask", *["check"] * 5, "checkpoint", "produce"]
+    assert fits[0]["lists"]["sellers"] == ["name", "address", "register"] and fits[0]["kinds"]["conditions.term"] == "date"
     assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["labels"]["price"] == "Price"
     assert "{label}" in fits[0]["text"]["nl"]["questions"]["missing"]
     # a reader can't start; a contributor can, in Dutch; the case has no documents, so the playbook asks for them
@@ -125,7 +126,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert r.status_code == 202
     run = r.json()
     rid = run["id"]
-    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.2")
+    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.3")
     assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["read"]["status"] == "pending"
     assert [(t["role"], t["step_id"], t["by"]) for t in run["turns"]] == [("playbook", "agreement", "playbook/be-notary/deed-intake")]
     assert run["turns"][0]["text"].startswith("Laad de ondertekende verkoopovereenkomst op")
@@ -144,7 +145,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis staat erin."}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "reading" and r.json()["step"] == "read" and r.json()["documents"] == [DOC]
-    assert '"sellers": {"value": <' in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
+    assert '"sellers": [\n    {\n      "name": {"value": <' in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
     assert captured[-1]["response_format"]["json_schema"]["schema"]["required"][0] == "sellers"  # and the shape the server enforces
     # the model answered; the cadastral data wasn't in the documents, so the playbook asks for it, in Dutch, and waits
     run = wait_for(c, RUN.format(cid=cid, rid=rid), bob, "waiting")
@@ -168,6 +169,13 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert by["cadastral"]["confirmed"] is None  # a person answered; nobody confirmed yet
     assert [t["role"] for t in r.json()["turns"][-2:]] == ["user", "playbook"] and "Gent" in r.json()["turns"][-2]["text"]
     assert r.json()["turns"][-1]["meta"]["kind"] == "checkpoint"  # then the checkpoint says what to check
+    # the five checks of 1.3 ran on the way: two sellers, one buyer, the advance within the price, the deed after the
+    # agreement, the one condition's term before the deed
+    assert {k: v["status"] for k, v in r.json()["checks"].items()} == {
+        "a_seller": "holds", "a_buyer": "holds", "deposit_within_price": "holds", "deed_after_agreement": "holds", "conditions_before_deed": "holds"}
+    assert r.json()["checks"]["conditions_before_deed"] == {"status": "holds", "rule": "latest(conditions.term) <= deed_deadline",
+                                                            "left": "2026-11-02", "right": "2027-01-15", "missing": []}
+    assert r.json()["checks"]["deposit_within_price"]["left"] == "41250"
     # the checkpoint: a reader can't confirm; the contributor corrects the price and confirms the rest
     confirm = {"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
@@ -176,14 +184,19 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert r.status_code == 200 and r.json()["status"] == "done" and r.json()["step"] is None and r.json()["confirmed_by"] == "notaris.test"
     by = {f["id"]: f for f in r.json()["facts"]}
     assert by["price"]["confirmed"] == "EUR 412.000,00" and by["price"]["value"] == "EUR 412.500,00"
-    assert by["sellers"]["confirmed"] == "Jan Peeters en Marie Claes" and by["cadastral"]["confirmed"].startswith("Gent")
+    assert by["sellers[1].name"]["confirmed"] == "Jan Peeters" and by["sellers[2].name"]["confirmed"] == "Marie Claes"
+    assert by["cadastral"]["confirmed"].startswith("Gent") and "sellers" not in by  # a list with entries has no line of its own
     assert r.json()["steps"]["summary"]["status"] == "done" and r.json()["finished_at"]
     # the summary is a document in the case with origin playbook, named after the playbook, the case and the run's version,
     # in the run's language; its text is what 1.0 wrote for the same confirmed facts
     name, text = docs.stored_text
-    assert name == "Akte-intake 2026/0417 (1.2)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.2")
+    assert name == "Akte-intake 2026/0417 (1.3)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.3")
     assert "Prijs: EUR 412.000,00 (akte.pdf p. 2)" in text and "Kadastrale gegevens: Gent 5e afd., sectie B, nr. 123" in text
-    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.2", "run": rid}
+    assert "Verkoper(s) 1 · Naam: Jan Peeters" in text and "Verkoper(s) 2 · Naam: Marie Claes" in text and "Koper(s) 1 · Naam: Tom Janssens" in text
+    assert "Opschortende voorwaarden 1 · Te vervullen tegen: 2 november 2026" in text
+    assert "Het voorschot of de waarborg ligt binnen de prijs: klopt" in text  # the price as confirmed: 41.250 within 412.000
+    assert "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte: klopt" in text
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.3", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice).status_code == 409
     assert cid not in c.get("/v1/playbooks/runs/active", headers=alice).json()  # done: no chip
@@ -764,8 +777,8 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
-    assert run["playbook"]["version"] == "1.2" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
-    assert run["playbook"]["lists"] == {} and run["playbook"]["kinds"]["price"] == "amount"
+    assert run["playbook"]["version"] == "1.3" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
+    assert run["playbook"]["lists"]["conditions"] == ["condition", "term"] and run["playbook"]["kinds"]["price"] == "amount"
     # "the next release" renames a label and bumps the version; the run doesn't follow it
     store = c.app.state.runs.get()
     record = store._execute("SELECT manifest FROM playbook_runs WHERE id = %s", (uuid.UUID(rid),)).fetchone()[0]
@@ -773,7 +786,7 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     store._execute("UPDATE playbook_runs SET manifest = %s WHERE id = %s", (json.dumps(record), uuid.UUID(rid)))
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
     assert run["playbook"]["version"] == "0.9" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Koopsom"
-    assert run["playbook_version"] == "1.2"  # what was recorded at the start stays the run's version
+    assert run["playbook_version"] == "1.3"  # what was recorded at the start stays the run's version
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")

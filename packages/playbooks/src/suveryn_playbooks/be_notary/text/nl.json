@@ -5,7 +5,13 @@
     "factsTitle": "Gegevens voor de akte",
     "labels": {
       "sellers": "Verkoper(s)",
+      "sellers.name": "Naam",
+      "sellers.address": "Adres",
+      "sellers.register": "Rijksregister- of ondernemingsnummer",
       "buyers": "Koper(s)",
+      "buyers.name": "Naam",
+      "buyers.address": "Adres",
+      "buyers.register": "Rijksregister- of ondernemingsnummer",
       "property": "Goed",
       "cadastral": "Kadastrale gegevens",
       "price": "Prijs",
@@ -13,6 +19,8 @@
       "agreement_date": "Compromis getekend op",
       "deed_deadline": "Akte te verlijden tegen",
       "conditions": "Opschortende voorwaarden",
+      "conditions.condition": "Voorwaarde",
+      "conditions.term": "Te vervullen tegen",
       "title": "Eigendomstitel",
       "epc": "Energieprestatiecertificaat",
       "soil": "Bodemattest",
@@ -21,6 +29,13 @@
     "questions": {
       "agreement": "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet."
+    },
+    "checks": {
+      "a_seller": "Er is minstens één verkoper",
+      "a_buyer": "Er is minstens één koper",
+      "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs",
+      "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
+      "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte"
     }
   }
 }

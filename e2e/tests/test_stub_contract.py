@@ -103,6 +103,14 @@ def test_facts_json_has_a_value_per_fact_and_leaves_unknown_facts_null():
     assert "Verkoper Zandvoorde" in facts["sellers"]["value"] and facts["sellers"]["sources"] == [1]
     assert "EUR 1.275.000,00" in facts["price"]["value"]
     assert facts["deposit"] == {"value": None, "sources": []} and facts["founders"] == []
+    # deed intake 1.3: a list of parties gets one entry when a field's keyword is in the passages, with the other fields null
+    listed = shape.replace('"sellers": {"value": <the sellers; copied as written, or null>, "sources": [<excerpt numbers>]}',
+                           '"sellers": [\n    {\n      "name": {"value": <the name; copied as written, or null>, "sources": [<excerpt numbers>]},\n'
+                           '      "address": {"value": <the address; copied as written, or null>, "sources": [<excerpt numbers>]}\n    }\n  ]')
+    _, answer = llama_stub.answer_for([{"role": "user", "content": EXCERPTS + "QUESTION: Answer with one JSON object of exactly this shape and nothing else:\n" + listed}])
+    facts = json.loads(answer)
+    assert len(facts["sellers"]) == 1 and "Verkoper Zandvoorde" in facts["sellers"][0]["name"]["value"]
+    assert facts["sellers"][0]["address"] == {"value": None, "sources": []} and facts["founders"] == []
 
 
 def test_router_mode_lists_two_models():

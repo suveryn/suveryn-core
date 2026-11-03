@@ -5,7 +5,13 @@
     "factsTitle": "Données pour l'acte",
     "labels": {
       "sellers": "Vendeur(s)",
+      "sellers.name": "Nom",
+      "sellers.address": "Adresse",
+      "sellers.register": "Numéro de registre national ou d'entreprise",
       "buyers": "Acquéreur(s)",
+      "buyers.name": "Nom",
+      "buyers.address": "Adresse",
+      "buyers.register": "Numéro de registre national ou d'entreprise",
       "property": "Bien",
       "cadastral": "Données cadastrales",
       "price": "Prix",
@@ -13,6 +19,8 @@
       "agreement_date": "Compromis signé le",
       "deed_deadline": "Acte à passer pour le",
       "conditions": "Conditions suspensives",
+      "conditions.condition": "Condition",
+      "conditions.term": "À réaliser pour le",
       "title": "Titre de propriété",
       "epc": "Certificat PEB",
       "soil": "Attestation du sol",
@@ -21,6 +29,13 @@
     "questions": {
       "agreement": "Chargez le compromis signé et ce que les parties ont transmis (l'acte antérieur, les certificats). Puis continuez.",
       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore."
+    },
+    "checks": {
+      "a_seller": "Il y a au moins un vendeur",
+      "a_buyer": "Il y a au moins un acquéreur",
+      "deposit_within_price": "L'acompte ou la garantie reste dans le prix",
+      "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
+      "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte"
     }
   }
 }

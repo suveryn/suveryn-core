@@ -25,6 +25,12 @@ facts:
       - {id: name, ask: the name}
       - {id: shares, ask: the shares, kind: number}
       - {id: contribution, ask: the contribution, kind: amount}
+  - id: conditions
+    ask: the conditions
+    kind: list
+    of:
+      - {id: condition, ask: the condition}
+      - {id: term, ask: the term, kind: date}
 instructions: Read.
 steps:
   - {id: read, kind: read, facts: all}
@@ -65,3 +71,19 @@ def test_the_decimal_style_is_read_from_the_values():
     english = {"contribution": "EUR 50,000.00", "founders[1].contribution": "EUR 30,000.00", "founders[2].contribution": "EUR 20,000.00"}
     r = check("sum(founders.contribution) == contribution", english)
     assert (r.status, r.left) == ("holds", "50000")
+
+
+def test_the_latest_and_the_earliest_of_a_lists_dates():
+    """Deed intake 1.3: every condition's term before the deed, in one line."""
+    terms = {**VALUES, "conditions[1].condition": "financiering", "conditions[1].term": "2 november 2026",
+             "conditions[2].condition": "vergunning", "conditions[2].term": "10/11/2026"}
+    r = check("latest(conditions.term) <= deed_date", terms)
+    assert (r.status, r.left, r.right) == ("holds", "2026-11-10", "2026-11-15")
+    assert check("earliest(conditions.term) > plan_date", terms).status == "holds"
+    assert check("latest(conditions.term) <= plan_date", terms).status == "fails"
+    # a term that isn't a date yet: open, naming it
+    r = check("latest(conditions.term) <= deed_date", {**terms, "conditions[2].term": "30 dagen na ondertekening"})
+    assert r.status == "open" and r.missing == ("conditions[2].term",)
+    # no conditions at all: nothing can fall after the deed, the check holds
+    r = check("latest(conditions.term) <= deed_date", VALUES)
+    assert (r.status, r.left, r.right) == ("holds", "", "2026-11-15")
