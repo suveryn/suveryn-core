@@ -359,7 +359,7 @@ def test_an_unreadable_answer_is_asked_for_once_more_with_a_stricter_reminder(ru
         c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
         assert len(captured) == 2 and "could not be read" in captured[1]["messages"][-1]["content"]
-        assert captured[1]["max_tokens"] == 4096 and len(run["facts"]) == 13
+        assert captured[1]["max_tokens"] == 6144 and len(run["facts"]) == 13  # READ_TOKENS: the JSON with room for a list
 
 
 @needs_db

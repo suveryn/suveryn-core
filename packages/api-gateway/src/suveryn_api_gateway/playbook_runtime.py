@@ -200,9 +200,12 @@ class Runtime:
         f = playbook.leaf(fact_id)
         if f is None or f.kind != "choice":
             return value.strip()
-        labels = {o: playbook.wording(language).option(fact_id, o) for o in f.options}
-        labels_en = {o: playbook.wording("en").option(fact_id, o) for o in f.options}
-        return option_of(value.strip(), f.options, {**labels_en, **labels}) or ""
+        for lang in (language, *playbook.text):  # the run's language first, then every language the pack has
+            labels = {o: playbook.wording(lang).option(fact_id, o) for o in f.options}
+            found = option_of(value.strip(), f.options, labels)
+            if found:
+                return found
+        return ""
 
     # -- the checks (format 3, "Checks"): computed by the server on the values as they stand, never a block
 
