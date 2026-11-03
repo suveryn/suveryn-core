@@ -38,8 +38,14 @@
       "company_name": "Naam van de vennootschap",
       "seat": "Zetel",
       "object": "Voorwerp",
+      "contribution_kind": "Inbreng",
+      "contribution_kind.cash": "In geld",
+      "contribution_kind.in_kind": "In natura",
+      "contribution_kind.mixed": "In geld en in natura",
       "contribution": "Inbreng in geld",
       "contribution_in_kind": "Inbreng in natura",
+      "in_kind_value": "Waarde in natura",
+      "auditor": "Verslag bedrijfsrevisor",
       "shares": "Uitgegeven aandelen",
       "directors": "Bestuurder(s)",
       "representation": "Vertegenwoordiging",
@@ -53,16 +59,28 @@
     "questions": {
       "identity": "Laad de identiteitsdocumenten van de oprichters op (of het uittreksel van een vennootschap). Ga daarna verder.",
       "plan": "Laad het financieel plan op en wat de oprichters beslisten: naam, zetel, voorwerp, aandelen, bestuurders. Ga daarna verder.",
+      "kind_known": "De documenten zeggen niet hoe de oprichters inbrengen. In geld, in natura, of beide?",
       "bank": "Laad het bankattest van de geblokkeerde rekening op. Is de inbreng in natura, zeg dan dat er geen is.",
+      "reports": "Laad het verslag van de bedrijfsrevisor en het verslag van de oprichters over de inbreng in natura op. Ga daarna verder.",
       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
       "missing.founders": "De documenten noemen geen oprichters. Wie zijn het? Geef per oprichter de naam, de aandelen en de inbreng, of laat leeg als u het nog niet weet.",
-      "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is."
+      "missing.contribution_kind": "De documenten zeggen niet hoe de oprichters inbrengen. In geld, in natura, of beide?"
     },
     "checks": {
       "shares_add_up": "De aandelen van de oprichters tellen op tot de uitgegeven aandelen",
       "contributions_add_up": "De inbrengen van de oprichters tellen op tot de inbreng in geld",
       "bank_certifies_the_contribution": "De bank attesteert de inbreng in geld",
       "a_founder": "Er is minstens één oprichter"
+    },
+    "steps": {
+      "identity": "Identiteitsdocumenten",
+      "plan": "Financieel plan",
+      "bank": "Bankattest",
+      "bank_read": "Lezen van het bankattest",
+      "reports": "Verslagen over de inbreng in natura",
+      "reports_read": "Lezen van de verslagen",
+      "contributions_add_up": "Inbrengen tellen op",
+      "bank_certifies_the_contribution": "De controle van de bank"
     }
   }
 }

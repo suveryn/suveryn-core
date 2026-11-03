@@ -144,6 +144,8 @@ The routine is in the manifest (format 2, below): steps of five kinds, each sayi
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
 | `check` | Evaluates one rule on the values as they stand (`suveryn_harness.checks`); the result is shown at the checkpoint and in the summary, never a block | Nothing |
+
+Any step may carry `when` (a condition on a choice fact, "Choices" below): a step whose condition doesn't hold is skipped, and the thread says why.
 | `produce` | Writes the summary into the case, origin `playbook` | Nothing |
 
 The runtime (`suveryn_api_gateway/playbook_runtime.py`) walks the graph: `next_step` is the first
@@ -424,6 +426,32 @@ foundation brief, on the typed values format 3 laid down.
   a failed check is a point for the notary and never holds *Confirm* back. The summary ends with them.
 - Company formation 1.2 has four: shares add up, contributions add up, the bank certifies the
   contribution, at least one founder.
+
+### Choices, and steps that turn on them (3 November 2026)
+
+Cash or in kind decides which documents are asked for, which reads run and which checks apply. Item 5
+of the foundation brief.
+
+- A `choice` fact has `options` (two to twelve ids: `cash`, `in_kind`, `mixed`), each with its words in
+  the pack's labels (`contribution_kind.cash`). The model reads it when the documents say it, held to
+  the options by the schema (an enum); otherwise an `ask` step asks, and the thread offers the options
+  as buttons; an answer in words is mapped to an option by its id or its words in the run's language.
+  A choice is a fact of its own, never a list's field. It is not a value a check compares.
+- Any step may carry `when`: `contribution_kind != in_kind`, one condition on one choice, `==` or `!=`,
+  and nothing more (`suveryn_playbooks.conditions`); the loader refuses anything else, and a `when`
+  on a choice no read or ask step before it settles. When the step is reached and the condition
+  doesn't hold, or the choice isn't known by then, the step is skipped (`StepState.because`: the
+  condition and the value) and the playbook says so in the thread, in the pack's name for the step
+  (`steps.<id>` in the words file) and the option's words: "Bank certificate: not needed, Contribution
+  is In kind." A skipped read makes no facts, so nothing asks about them; a skipped check has no
+  result; a skipped request records no documents.
+- Company formation 1.3: the contribution's kind is read from the plan or asked before the branches;
+  the bank certificate and its read, the contributions' check and the bank's check run when there is
+  money; the auditor's and founders' reports and their read run when something is contributed in
+  kind; the ask step after the branches asks only about facts a read made.
+- Kept out, on purpose: and/or, conditions on anything but a choice, jumps back, loops. A routine a
+  notary can read top to bottom and know what runs is the point; the day a condition needs more it
+  needs a decision, not a longer line.
 
 ## What is deferred, on purpose
 

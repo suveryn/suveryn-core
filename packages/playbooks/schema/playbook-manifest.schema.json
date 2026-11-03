@@ -18,12 +18,13 @@
         },
         "kind": {
           "default": "text",
-          "description": "text, amount, date or number: decides which checks apply; list (format 3): several entries",
+          "description": "text, amount, date or number: decides which checks apply; choice (format 3): one of options; list (format 3): several entries",
           "enum": [
             "text",
             "amount",
             "date",
             "number",
+            "choice",
             "list"
           ],
           "title": "Kind",
@@ -42,7 +43,8 @@
                 "text",
                 "amount",
                 "date",
-                "number"
+                "number",
+                "choice"
               ],
               "type": "string"
             },
@@ -53,6 +55,22 @@
           "default": null,
           "description": "list only: the entries' fields (a record each), or the kind of each entry's one value",
           "title": "Of"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "choice only: the option ids (cash, in_kind), two to twelve",
+          "title": "Options"
         }
       },
       "required": [
@@ -86,7 +104,8 @@
             "text",
             "amount",
             "date",
-            "number"
+            "number",
+            "choice"
           ],
           "title": "Kind",
           "type": "string"
@@ -229,6 +248,21 @@
           "default": null,
           "description": "check: one comparison, <term> <operator> <term> (rules.py)",
           "title": "Rule"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "any step: runs only when <choice fact> == or != <option> (conditions.py); else skipped",
+          "title": "When"
         },
         "by": {
           "anyOf": [

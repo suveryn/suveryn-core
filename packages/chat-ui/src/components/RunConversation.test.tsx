@@ -201,6 +201,26 @@ describe("lists (format 3)", () => {
     expect(html).not.toContain("data-blocked");   // a failed check is a point for the notary, never a block
   });
 
+  it("offers a choice's options as buttons when the playbook asks, and says why a step was skipped", () => {
+    const playbook: PlaybookInfo = { ...FORMATION, facts: [...FORMATION.facts, "contribution_kind"], choices: { contribution_kind: ["cash", "in_kind"] },
+      text: { en: { ...FORMATION.text!.en, labels: { ...FORMATION.text!.en.labels, contribution_kind: "Contribution", "contribution_kind.cash": "In cash", "contribution_kind.in_kind": "In kind" },
+                    steps: { bank: "Bank certificate" } } } };
+    const words = { ...playbook.text!.en, facts_title: "" };
+    const asking: Run = { ...run, step: "kind_known", turns: [
+      { seq: 1, role: "playbook", step_id: "kind_known", by: FORMATION.id, at: SUMMARY.started_at, text: "0 of 1 facts found.", meta: { kind: "ask", facts: ["contribution_kind"], found: 0, total: 1 } },
+      { seq: 2, role: "playbook", step_id: "bank", by: FORMATION.id, at: SUMMARY.started_at, text: "Bank certificate: not needed.", meta: { kind: "skipped_step", step: "bank", fact: "contribution_kind", value: "in_kind", when: "contribution_kind != in_kind" } },
+      { seq: 3, role: "playbook", step_id: "reports", by: FORMATION.id, at: SUMMARY.started_at, text: "x", meta: { kind: "skipped_step", step: "reports", fact: "contribution_kind", value: "", when: "contribution_kind != cash" } },
+    ] };
+    const html = renderToStaticMarkup(
+      <RunThread run={asking} kase={KASE} playbook={playbook} words={words} me="u-ines" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html).toContain("aria-label=\"Contribution\"");
+    expect(html).toContain(">In cash</button>");
+    expect(html).toContain(">In kind</button>");
+    expect(html).toContain("Bank certificate: not needed, Contribution is In kind.");
+    expect(html).toContain("reports: skipped, Contribution is not known.");
+  });
+
   it("lists the entries, not the list's none, in the panel", () => {
     const html = renderToStaticMarkup(<RunPanel run={run} words={fwords} view={{ kind: "list" }} onView={noop} onClose={noop} />);
     expect(html).toContain("Founder(s) 1 · Name");

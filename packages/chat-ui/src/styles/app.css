@@ -228,6 +228,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .run-turn .answer > p:last-of-type { margin-bottom: 0; }
 .run-thread .turn-user .caption { font-size: var(--text-caption); }
 .run-quick { margin-top: var(--space-2); }
+.run-choice { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 /* the run's chip in the composer: teal while it runs (a system status), ink when paused; its state is in its words */
 .chip-run { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-pill);
             font-size: var(--text-ui-sm); background: oklch(from var(--teal) l c h / 0.14); color: var(--teal-ink); cursor: pointer; }

@@ -25,9 +25,9 @@ def from_record(record: dict[str, Any]) -> Playbook:
     steps = tuple(Step(id=s["id"], kind=s["kind"], needs=tuple(s.get("needs", ())), facts=tuple(s.get("facts", ())),
                        min=s.get("min", 1), allow_none=s.get("allow_none", False), by=s.get("by", "anyone_in_case"),
                        template=s.get("template", "summary"), expects=s.get("expects", ""),
-                       documents=tuple(s.get("documents", ())), rule=s.get("rule", "")) for s in record.get("steps", ()))
+                       documents=tuple(s.get("documents", ())), rule=s.get("rule", ""), when=s.get("when", "")) for s in record.get("steps", ()))
     text = {lang: Wording(w["title"], w["summary"], dict(w["labels"]), dict(w.get("questions", {})), dict(w.get("checks", {})),
-                          w.get("facts_title", ""))
+                          dict(w.get("steps", {})), w.get("facts_title", ""))
             for lang, w in record.get("text", {}).items()}
     return Playbook(id=record["id"], pack=record["pack"], version=record["version"], name=record["name"],
                     case_types=tuple(record["case_types"]), facts=facts, instructions=record["instructions"], text=text,
@@ -36,7 +36,7 @@ def from_record(record: dict[str, Any]) -> Playbook:
 
 def _fact(f: dict[str, Any]) -> Fact:
     return Fact(id=f["id"], ask=f["ask"], kind=f.get("kind", "text"), fields=tuple(_fact(x) for x in f.get("fields", ())),
-                item_kind=f.get("item_kind", "text"))
+                item_kind=f.get("item_kind", "text"), options=tuple(f.get("options", ())))
 
 
 def _plain(v: Any) -> Any:

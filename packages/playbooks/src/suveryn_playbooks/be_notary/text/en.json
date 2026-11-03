@@ -38,8 +38,14 @@
       "company_name": "Company name",
       "seat": "Registered office",
       "object": "Object",
+      "contribution_kind": "Contribution",
+      "contribution_kind.cash": "In cash",
+      "contribution_kind.in_kind": "In kind",
+      "contribution_kind.mixed": "Cash and in kind",
       "contribution": "Contribution in money",
       "contribution_in_kind": "Contribution in kind",
+      "in_kind_value": "Value in kind",
+      "auditor": "Auditor's report",
       "shares": "Shares issued",
       "directors": "Director(s)",
       "representation": "Representation",
@@ -53,16 +59,28 @@
     "questions": {
       "identity": "Upload the founders' identity documents (or a company's extract from the register). Then continue.",
       "plan": "Upload the financial plan and what the founders decided: name, seat, object, shares, directors. Then continue.",
+      "kind_known": "The documents don't say how the founders contribute. In cash, in kind, or both?",
       "bank": "Upload the bank certificate of the blocked account. If the contribution is in kind, say there is none.",
+      "reports": "Upload the auditor's report and the founders' report on the contribution in kind. Then continue.",
       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
       "missing.founders": "The documents name no founders. Who are they? Give each founder's name, shares and contribution, or leave empty if you don't know yet.",
-      "missing.contribution_in_kind": "The documents mention no contribution other than money. Is there one? Describe it and its value, or leave empty if there is none."
+      "missing.contribution_kind": "The documents don't say how the founders contribute. In cash, in kind, or both?"
     },
     "checks": {
       "shares_add_up": "The founders' shares add up to the shares issued",
       "contributions_add_up": "The founders' contributions add up to the contribution in money",
       "bank_certifies_the_contribution": "The bank certifies the contribution in money",
       "a_founder": "There is at least one founder"
+    },
+    "steps": {
+      "identity": "Identity documents",
+      "plan": "Financial plan",
+      "bank": "Bank certificate",
+      "bank_read": "Reading the bank certificate",
+      "reports": "Reports on the contribution in kind",
+      "reports_read": "Reading the reports",
+      "contributions_add_up": "Contributions add up",
+      "bank_certifies_the_contribution": "The bank's check"
     }
   }
 }

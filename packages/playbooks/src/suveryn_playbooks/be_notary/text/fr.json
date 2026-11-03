@@ -38,8 +38,14 @@
       "company_name": "Dénomination",
       "seat": "Siège",
       "object": "Objet",
+      "contribution_kind": "Apport",
+      "contribution_kind.cash": "En numéraire",
+      "contribution_kind.in_kind": "En nature",
+      "contribution_kind.mixed": "En numéraire et en nature",
       "contribution": "Apport en numéraire",
       "contribution_in_kind": "Apport en nature",
+      "in_kind_value": "Valeur en nature",
+      "auditor": "Rapport du réviseur",
       "shares": "Actions émises",
       "directors": "Administrateur(s)",
       "representation": "Représentation",
@@ -53,16 +59,28 @@
     "questions": {
       "identity": "Chargez les documents d'identité des fondateurs (ou l'extrait d'une société). Puis continuez.",
       "plan": "Chargez le plan financier et ce que les fondateurs ont décidé : dénomination, siège, objet, actions, administrateurs. Puis continuez.",
+      "kind_known": "Les documents ne disent pas comment les fondateurs apportent. En numéraire, en nature, ou les deux ?",
       "bank": "Chargez l'attestation bancaire du compte bloqué. Si l'apport est en nature, indiquez qu'il n'y en a pas.",
+      "reports": "Chargez le rapport du réviseur d'entreprises et le rapport des fondateurs sur l'apport en nature. Puis continuez.",
       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
       "missing.founders": "Les documents ne nomment aucun fondateur. Qui sont-ils ? Donnez pour chaque fondateur le nom, les actions et l'apport, ou laissez vide si vous ne le savez pas encore.",
-      "missing.contribution_in_kind": "Les documents ne mentionnent aucun apport autre qu'en numéraire. Y en a-t-il un ? Décrivez-le et sa valeur, ou laissez vide s'il n'y en a pas."
+      "missing.contribution_kind": "Les documents ne disent pas comment les fondateurs apportent. En numéraire, en nature, ou les deux ?"
     },
     "checks": {
       "shares_add_up": "Les actions des fondateurs totalisent les actions émises",
       "contributions_add_up": "Les apports des fondateurs totalisent l'apport en numéraire",
       "bank_certifies_the_contribution": "La banque atteste l'apport en numéraire",
       "a_founder": "Il y a au moins un fondateur"
+    },
+    "steps": {
+      "identity": "Documents d'identité",
+      "plan": "Plan financier",
+      "bank": "Attestation bancaire",
+      "bank_read": "Lecture de l'attestation bancaire",
+      "reports": "Rapports sur l'apport en nature",
+      "reports_read": "Lecture des rapports",
+      "contributions_add_up": "Les apports totalisent",
+      "bank_certifies_the_contribution": "Le contrôle de la banque"
     }
   }
 }

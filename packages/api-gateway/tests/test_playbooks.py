@@ -580,6 +580,7 @@ FORMATION_ANSWER = json.dumps({
     "shares": {"value": None, "sources": []}, "directors": {"value": None, "sources": []}, "representation": {"value": None, "sources": []},
     "fiscal_year": {"value": None, "sources": []}, "general_meeting": {"value": None, "sources": []},
     "plan_date": {"value": None, "sources": []}, "financial_plan": {"value": None, "sources": []},
+    "contribution_kind": {"value": None, "sources": []}, "in_kind_value": {"value": None, "sources": []}, "auditor": {"value": None, "sources": []},
     "bank_certificate": {"value": None, "sources": []}, "certified_amount": {"value": "EUR 412.500,00", "sources": [1]},
     "founders": [{"name": {"value": "Filip Tack", "sources": [1]}, "register_number": {"value": None, "sources": []},
                   "born": {"value": None, "sources": []}, "address": {"value": "Kerkstraat 12, Gent", "sources": [1]},
@@ -587,9 +588,10 @@ FORMATION_ANSWER = json.dumps({
 })
 
 
-def through_the_requests(c, cid, rid, alice, docs, bank=True):
-    """Company formation 1.1 asks for three documents by name; one uploaded document answers each (named
-    explicitly, so the same one may answer all three), and the bank certificate may be said to be absent."""
+def through_the_requests(c, cid, rid, alice, docs, kind="In cash"):
+    """Company formation 1.3 asks for the identity documents and the financial plan by name, asks how the
+    founders contribute (the stub's plan doesn't say), then for the bank certificate (money) or the reports
+    (in kind); one uploaded document answers each request, named explicitly."""
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     for step in ("identity", "plan"):
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
@@ -597,8 +599,14 @@ def through_the_requests(c, cid, rid, alice, docs, bank=True):
         r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": step, "documents": [DOC]}, headers=alice)
         assert r.status_code == 200 and r.json()["status"] == "reading", r.json()
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
-    assert run["step"] == "bank"
-    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "bank", "documents": [DOC]} if bank else {"step_id": "bank", "none": True}, headers=alice)
+    assert run["step"] == "kind_known" and run["turns"][-1]["meta"]["facts"] == ["contribution_kind"]
+    # the choice, in the pack's words for an option (the UI's buttons send the id; words are mapped too)
+    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "kind_known", "facts": {"contribution_kind": kind}}, headers=alice)
+    assert r.status_code == 200
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    step = "bank" if kind != "In kind" else "reports"
+    assert run["step"] == step, (run["step"], [t["text"] for t in run["turns"][-3:]])
+    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": step, "documents": [DOC]}, headers=alice)
     assert r.status_code == 200
     return wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
 
@@ -620,16 +628,27 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert [p["id"] for p in fits] == ["playbook/be-notary/company-formation"]
         assert fits[0]["lists"] == {"founders": ["name", "register_number", "born", "address", "shares", "contribution"]}
         assert fits[0]["kinds"]["founders.shares"] == "number" and fits[0]["kinds"]["certified_amount"] == "amount"
+        assert fits[0]["choices"] == {"contribution_kind": ["cash", "in_kind", "mixed"]} and fits[0]["kinds"]["contribution_kind"] == "choice"
+        assert fits[0]["text"]["nl"]["labels"]["contribution_kind.in_kind"] == "In natura" and fits[0]["text"]["nl"]["steps"]["bank"] == "Bankattest"
         assert fits[0]["text"]["nl"]["labels"]["founders.contribution"] == "Inbreng"
         rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "nl"}, headers=alice).json()["id"]
         run = through_the_requests(c, cid, rid, alice, docs)
         assert run["step"] == "missing"
-        # three reads, each aimed at its request's document and asking for its own facts only
+        # three reads, each aimed at its request's document and asking for its own facts only; the reports' read never ran
         shapes = [b["response_format"]["json_schema"]["schema"]["properties"] for b in captured if "response_format" in b]
-        assert [sorted(s) for s in shapes] == [["founders"], sorted(["company_name", "seat", "object", "contribution", "contribution_in_kind", "shares",
+        assert [sorted(s) for s in shapes] == [["founders"], sorted(["company_name", "seat", "object", "contribution_kind", "contribution", "shares",
                                                                       "directors", "representation", "fiscal_year", "general_meeting", "plan_date",
                                                                       "financial_plan"]), ["bank_certificate", "certified_amount"]]
         assert shapes[0]["founders"]["type"] == "array" and run["requested"] == {"identity": [DOC], "plan": [DOC], "bank": [DOC]}
+        assert shapes[1]["contribution_kind"]["properties"]["value"] == {"enum": ["cash", "in_kind", "mixed", None]}
+        # the choice, answered in words, is its option; the in-kind branch was skipped and the thread says why
+        by = {f["id"]: f for f in run["facts"]}
+        assert by["contribution_kind"]["value"] == "cash" and by["contribution_kind"]["source"] == "person"
+        assert run["steps"]["reports"] == {**run["steps"]["reports"], "status": "skipped", "because": "contribution_kind != cash; cash"}
+        assert run["steps"]["reports_read"]["status"] == "skipped" and "contribution_in_kind" not in by and "auditor" not in by
+        skipped = [t for t in run["turns"] if t["meta"].get("kind") == "skipped_step"]
+        assert [(t["meta"]["step"], t["meta"]["value"]) for t in skipped] == [("reports", "cash"), ("reports_read", "cash")]
+        assert skipped[0]["text"] == "Reports on the contribution in kind: not needed, Contribution is In cash."
         by = {f["id"]: f for f in run["facts"]}
         # the entries, by path; the number of shares isn't in the cited passage: *Check*
         assert by["founders[1].name"]["value"] == "Filip Tack" and by["founders[1].name"]["source"] == "document"
@@ -642,6 +661,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.status_code == 200 and r.json()["step"] == "confirm"
         # the checks ran on the way to the checkpoint: computed by the server on the values as they stand
         checks = r.json()["checks"]
+        assert set(checks) == {"shares_add_up", "contributions_add_up", "bank_certifies_the_contribution", "a_founder"}  # the money branch: every check
         assert checks["a_founder"]["status"] == "holds" and checks["bank_certifies_the_contribution"] == {
             "status": "holds", "rule": "certified_amount == contribution", "left": "412500", "right": "412500", "missing": []}
         assert checks["contributions_add_up"]["status"] == "holds"              # one founder, 412.500 = 412.500
@@ -662,6 +682,14 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice).status_code == 422  # not an option
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "Cash and in kind"}, headers=alice)
+        assert r.status_code == 200 and {f["id"]: f for f in r.json()["facts"]}["contribution_kind"]["value"] == "mixed"
+        assert len(r.json()["checks"]) == 4  # mixed: there is money too, so the bank's check and the contributions' stay on
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "In kind"}, headers=alice)
+        assert set(r.json()["checks"]) == {"shares_add_up", "a_founder"}  # in kind: the two money checks have no result
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "cash"}, headers=alice)
+        assert r.status_code == 200 and len(r.json()["checks"]) == 4
         # confirm: the entries, a third founder given straight in the confirm body, the shares corrected
         confirm = {"facts": [{"id": "founders[1].shares", "confirmed": "650"}, {"id": "founders[3].name", "confirmed": "Tom Janssens"}]}
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
@@ -696,13 +724,16 @@ def test_a_list_the_documents_name_nothing_of_is_asked_about_and_an_answer_becom
         alice = as_user(kc, ALICE)
         cid = c.post("/v1/cases", json={**NEW, "type": "company-formation"}, headers=alice).json()["id"]
         rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "en"}, headers=alice).json()["id"]
-        run = through_the_requests(c, cid, rid, alice, docs, bank=False)
+        run = through_the_requests(c, cid, rid, alice, docs, kind="In kind")
         by = {f["id"]: f for f in run["facts"]}
         assert by["founders"]["found"] is False and not any(k.startswith("founders[") for k in by)
-        # no bank certificate: its read was skipped without a model call, its facts are not established and asked about
-        assert run["steps"]["bank"]["status"] == "skipped" and run["steps"]["bank_read"]["status"] == "done"
-        assert by["bank_certificate"]["found"] is False and by["certified_amount"]["source"] == "none"
-        assert "bank_certificate" in [t for t in run["turns"] if t["step_id"] == "missing"][0]["meta"]["facts"]
+        # in kind: the bank certificate is neither asked for nor read, its facts don't exist in the run, and the thread says why
+        assert run["steps"]["bank"]["because"] == "contribution_kind != in_kind; in_kind" and run["steps"]["bank_read"]["status"] == "skipped"
+        assert "bank_certificate" not in by and "certified_amount" not in by
+        assert "bank_certificate" not in [t for t in run["turns"] if t["step_id"] == "missing"][0]["meta"]["facts"]
+        assert run["steps"]["reports"]["status"] == "active" or run["steps"]["reports"]["status"] == "done"
+        assert "auditor" in by  # the reports' read ran (the stub answers null for what it doesn't know)
+        assert "bank_certifies_the_contribution" not in run["checks"] and "contributions_add_up" not in run["checks"]
         asked = [t for t in run["turns"] if t["step_id"] == "missing"][0]
         assert "founders" in asked["meta"]["facts"]
         # the form answers for the first founder; the list's "none" is settled

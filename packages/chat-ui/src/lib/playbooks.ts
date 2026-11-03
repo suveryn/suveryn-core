@@ -7,7 +7,10 @@ import type { PlaybookInfo } from "../api";
 import type { Lang } from "../i18n/languages";
 
 export type PlaybookWords = { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string>;
-                              checks?: Record<string, string>; facts_title?: string };
+                              checks?: Record<string, string>; steps?: Record<string, string>; facts_title?: string };
+
+/** A choice's option in words: `labels["contribution_kind.cash"]`, else the option id. */
+export const optionLabel = (words: Pick<PlaybookWords, "labels">, fact: string, option: string) => words.labels[`${fact}.${option}`] ?? option;
 
 export function playbookWords(p: Pick<PlaybookInfo, "name" | "text"> | null | undefined, lang: Lang): PlaybookWords {
   return p?.text?.[lang] ?? p?.text?.en ?? { title: p?.name ?? "", summary: "", labels: {} };

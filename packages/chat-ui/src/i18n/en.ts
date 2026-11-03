@@ -529,6 +529,8 @@ const en = {
   pbGroupCheck: "Check",
   pbGroupMissing: "Missing",
   pbGroupChecks: "Checks",
+  runStepNotNeeded: (step: string, fact: string, option: string) => `${step}: not needed, ${fact} is ${option}.`,
+  runStepUnknown: (step: string, fact: string) => `${step}: skipped, ${fact} is not known.`,
   pbCheckHolds: "Holds.",
   pbCheckFails: (left: string, right: string) => `Does not hold: ${left} against ${right}.`,
   pbCheckOpen: (needs: string) => `Not checked yet: ${needs} is needed.`,

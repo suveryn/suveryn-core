@@ -103,7 +103,7 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
     for f in facts:
         raw = data.get(f.id)
         if f.kind != "list":
-            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, sep))
+            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, sep, f.options))
             continue
         entries = raw if isinstance(raw, list) else []
         if not entries:
@@ -141,8 +141,10 @@ def _json_object(answer: str) -> dict | None:
     return None
 
 
-def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filenames: dict[str, str], source: str, sep: str) -> RunFact:
-    """One value as the model gave it -> the fact, cited and checked."""
+def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filenames: dict[str, str], source: str, sep: str,
+          options: tuple[str, ...] = ()) -> RunFact:
+    """One value as the model gave it -> the fact, cited and checked. A choice is one of its options, as the
+    schema holds the model to; anything else (a server without grammar support) is not found."""
     if isinstance(raw, dict):
         value, sources = raw.get("value"), raw.get("sources")
     else:
@@ -154,6 +156,11 @@ def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filename
     value = _MARKER.sub("", value).strip(" *_")
     if not value or _NOT_FOUND.match(value):
         return RunFact(id=path, found=False, source="none")
+    if kind == "choice":
+        value = _option(value, options)
+        if value is None:
+            return RunFact(id=path, found=False, source="none")
+        return RunFact(id=path, value=value, citations=[_cite(n, citations[n - 1], filenames) for n in numbers], found=True, source="document")
     cited = [_cite(n, citations[n - 1], filenames) for n in numbers]
     issues: list[str] = []
     if cited:
@@ -198,6 +205,21 @@ def _by_meaning(kind: str, value: str, passages: list[str], sep: str) -> tuple[s
     if passages and not any(a in _figures(p, sep) for p in passages):
         return None, value
     return None, None
+
+
+def _option(value: str, options: tuple[str, ...]) -> str | None:
+    """The option a value names: its id, as written or folded ("In kind" -> in_kind); None for anything else."""
+    folded = _fold(value).replace(" ", "_")
+    return next((o for o in options if o == value or o == folded), None)
+
+
+def option_of(value: str, options: tuple[str, ...], labels: dict[str, str] | None = None) -> str | None:
+    """A person's answer as an option: the id, or the option's label in the given words (folded)."""
+    found = _option(value, options)
+    if found or not labels:
+        return found
+    want = _fold(value)
+    return next((o for o, label in labels.items() if _fold(label) == want), None)
 
 
 def _fold(text: str) -> str:

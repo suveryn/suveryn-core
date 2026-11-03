@@ -304,3 +304,18 @@ def test_not_known_yet_in_words_names_the_facts():
     assert said_unknown("Soil certificate: to follow", {"soil": "Soil certificate"}) == ["soil"]
     assert said_unknown("Bodemattest: BA-2026-114, geen verontreiniging.", labels) == []  # a value, not unknown
     assert said_unknown("Dat is nog niet bekend.", labels) == []                           # names no fact
+
+
+def test_a_choice_is_read_as_one_of_its_options_or_not_at_all():
+    from suveryn_harness.facts import option_of
+    manifest = FORMATION.replace("  - id: conditions\n", "  - id: contribution_kind\n    ask: how the contribution is made\n    kind: choice\n    options: [cash, in_kind, mixed]\n  - id: conditions\n")
+    p = parse(manifest, where="formation.yaml").to_playbook({l: Wording("F", "f", {**WORDS["en"].labels, "contribution_kind": "Contribution"}) for l in ("en", "nl", "fr")})
+    base = {"company_name": leaf(None), "contribution": leaf(None), "shares": leaf(None), "founders": [], "conditions": []}
+    for given, expected in (("in_kind", "in_kind"), ("In kind", "in_kind"), ("cash", "cash"), ("gold bars", None), (None, None)):
+        by = {f.id: f for f in read_facts(p, response({**base, "contribution_kind": leaf(given, 1)}, FORMATION_PASSAGES), {})}
+        assert (by["contribution_kind"].value or None) == expected and by["contribution_kind"].found == (expected is not None), given
+    assert read_schema(p.facts)["properties"]["contribution_kind"]["properties"]["value"] == {"enum": ["cash", "in_kind", "mixed", None]}
+    assert "one of cash, in_kind, mixed, or null" in p.instructions
+    labels = {"cash": "In geld", "in_kind": "In natura", "mixed": "Gemengd"}
+    assert option_of("in natura", ("cash", "in_kind", "mixed"), labels) == "in_kind" and option_of("cash", ("cash",), labels) == "cash"
+    assert option_of("goud", ("cash", "in_kind"), labels) is None

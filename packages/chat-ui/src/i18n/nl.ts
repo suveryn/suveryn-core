@@ -503,6 +503,8 @@ const nl: Messages = {
   pbGroupCheck: "Kijk na",
   pbGroupMissing: "Ontbreekt",
   pbGroupChecks: "Controles",
+  runStepNotNeeded: (step: string, fact: string, option: string) => `${step}: niet nodig, ${fact} is ${option}.`,
+  runStepUnknown: (step: string, fact: string) => `${step}: overgeslagen, ${fact} is niet bekend.`,
   pbCheckHolds: "Klopt.",
   pbCheckFails: (left: string, right: string) => `Klopt niet: ${left} tegenover ${right}.`,
   pbCheckOpen: (needs: string) => `Nog niet nagekeken: ${needs} ontbreekt.`,

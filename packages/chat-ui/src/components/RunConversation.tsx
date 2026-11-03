@@ -21,12 +21,12 @@ import {
 import { useId } from "react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  confirmRun, getJob, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
+  answerRun, confirmRun, getJob, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
   type Case, type Citation, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
 } from "../api";
 import { useWatermark } from "../lib/watermark";
 import { locale, useT } from "../i18n";
-import { entryPath, factLabel, nextEntry, shownFacts, type PlaybookWords } from "../lib/playbooks";
+import { entryPath, factLabel, nextEntry, optionLabel, shownFacts, type PlaybookWords } from "../lib/playbooks";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { exportRef } from "../lib/marks";
 import {
@@ -183,6 +183,13 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
           : t.role === "user"
             ? <PersonTurn key={t.seq} turn={t} nameOf={nameOf} />
             : <PlaybookTurn key={t.seq} turn={t} title={title} showSpeaker={speaker(i)} words={words}
+                            // a choice the playbook asks about: its options as buttons (format 3, "Choices")
+                            choices={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
+                              ? ((t.meta.facts as string[] | undefined) ?? []).filter((f) => playbook?.choices?.[f]).map((f) => ({
+                                  fact: f, label: factLabel(words, f),
+                                  options: playbook!.choices![f].map((o) => ({ id: o, label: optionLabel(words, f, o),
+                                    send: () => answerRun(kase.id, run.id, run.step ?? "", { text: `${factLabel(words, f)}: ${optionLabel(words, f, o)}`, facts: { [f]: o } }).then(onChanged) })) }))
+                              : []}
                             review={t.seq === reviewAt
                               ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} steps={playbook?.steps ?? []} canAnswer={canAnswer} panel={panel} onPanel={onPanel} onChanged={onChanged} />
                               : null}
@@ -224,17 +231,22 @@ function Speaking() {
   return <IconBadge badge={<Route />} host="icon" tone="system"><AssistantMark /></IconBadge>;
 }
 
-function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
+function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, choices = [] }: {
   turn: RunTurn; title: string; showSpeaker: boolean; words: PlaybookWords;
   /** At review: the cards, under the message's own words. */
   review: ReactNode | null;
   quickReply: { label: string; send: () => Promise<void> } | null;
+  /** At an ask about a choice: the fact's options as buttons. */
+  choices?: { fact: string; label: string; options: { id: string; label: string; send: () => Promise<void> }[] }[];
 }) {
   const m = useT();
   const [sending, setSending] = useState(false);
-  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string };
+  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string; step?: string; when?: string };
   const label = (id: string) => factLabel(words, id);
   const text = meta.kind === "ask" ? m.runAskTurn(meta.found ?? 0, meta.total ?? 0, (meta.facts ?? []).map(label).join(", "))
+    : meta.kind === "skipped_step" ? (meta.value
+        ? m.runStepNotNeeded(words.steps?.[meta.step ?? ""] ?? meta.step ?? "", label(meta.fact ?? ""), optionLabel(words, meta.fact ?? "", meta.value))
+        : m.runStepUnknown(words.steps?.[meta.step ?? ""] ?? meta.step ?? "", label(meta.fact ?? "")))
     : meta.kind === "checkpoint" ? (review ? null : m.pbReviewIntroNone(meta.found ?? 0, meta.total ?? 0))
     : meta.kind === "changed" ? m.runChanged(label(meta.fact ?? ""), meta.value ?? "")
     : meta.kind === "unplaced" ? (meta.facts ? m.runUnplacedAsk : m.runUnplacedChange)
@@ -247,6 +259,14 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
         {showSpeaker && <p className="run-speaker">{title}</p>}
         {text && <p>{text}</p>}
         {review}
+        {choices.map((c) => (
+          <div key={c.fact} className="run-quick run-choice" role="group" aria-label={c.label}>
+            {c.options.map((o) => (
+              <Button key={o.id} variant="secondary" size="small" isDisabled={sending}
+                      onPress={() => { setSending(true); o.send().finally(() => setSending(false)); }}>{o.label}</Button>
+            ))}
+          </div>
+        ))}
         {quickReply && (
           <div className="run-quick">
             <Button variant="secondary" size="small" isDisabled={sending}

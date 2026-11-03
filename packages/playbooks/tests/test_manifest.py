@@ -153,7 +153,7 @@ def test_load_reads_the_packs_wording_beside_the_file():
         ("case_types: [sale]", "case_types: [sale, sale]", "listed twice"),
         ("case_types: [sale]", "case_types: [Sale]", "lower-case letters"),
         ("  - id: sellers\n    ask: who sells\n", "  - id: price\n    ask: again\n", "fact 'price' is listed twice"),
-        ("    kind: amount\n", "    kind: money\n", "kind: Input should be 'text', 'amount', 'date', 'number' or 'list'"),
+        ("    kind: amount\n", "    kind: money\n", "kind: Input should be 'text', 'amount', 'date', 'number', 'choice' or 'list'"),
         ("name: Example\n", "name: Example\ncolour: blue\n", "colour: Extra inputs are not permitted"),
         ("instructions: Read the excerpts and fill in the table.\n", "", "instructions: Field required"),
         ("    ask: the price\n", '    ask: ""\n', "ask: String should have at least 1 character"),
@@ -236,7 +236,7 @@ def test_wording_labels_a_lists_leaves_from_the_lists_and_the_fields_labels():
         ("kind: number}", "kind: number, of: text}", "'of' only applies to kind list"),
         ("      - {id: contribution, ask: the contribution, kind: amount}\n", "      - {id: name, ask: again}\n", "field name is listed twice"),
         ("kind: list, of: text}", "kind: list, of: colour}", "of"),
-        ("      - {id: contribution, ask: the contribution, kind: amount}\n", "      - {id: contribution, ask: the contribution, kind: list}\n", "kind: Input should be 'text', 'amount', 'date' or 'number'"),
+        ("      - {id: contribution, ask: the contribution, kind: amount}\n", "      - {id: contribution, ask: the contribution, kind: list}\n", "kind: Input should be 'text', 'amount', 'date', 'number' or 'choice'"),
     ],
     ids=["format-2-no-lists", "list-without-of", "of-on-a-number", "field-twice", "of-unknown-kind", "no-list-in-a-list"])
 def test_a_wrong_list_is_refused_and_the_error_names_the_fact(old, new, said):
@@ -360,3 +360,54 @@ def test_a_check_comes_after_the_reads_that_supply_its_facts():
         "steps:\n", "steps:\n  - {id: shares_add_up, kind: check, rule: sum(founders.contribution) == price}\n")
     with pytest.raises(ManifestError, match="step 'shares_add_up' \\(check\\): comes after no read or ask step"):
         parse(early, where="x.yaml")
+
+
+# ------------------------------------------------------------------ choices and when
+
+BRANCHED = LISTS.replace("""  - {id: conditions, ask: the conditions, kind: list, of: text}
+""", """  - {id: conditions, ask: the conditions, kind: list, of: text}
+  - {id: contribution_kind, ask: how the founders contribute, kind: choice, options: [cash, in_kind]}
+""").replace("""  - {id: confirm, kind: checkpoint}
+""", """  - {id: bank, kind: request, expects: bank_certificate, when: contribution_kind != in_kind}
+  - {id: bank_read, kind: read, facts: [price], documents: [bank_certificate], when: contribution_kind != in_kind}
+  - {id: paid, kind: check, rule: "price >= 1", when: contribution_kind == cash}
+  - {id: confirm, kind: checkpoint}
+""").replace("  - {id: read, kind: read, facts: all}\n", "  - {id: read, kind: read, facts: [sellers, shares, founders, conditions, contribution_kind]}\n")
+
+
+def test_a_choice_is_one_of_its_options_and_a_step_may_turn_on_it():
+    from suveryn_playbooks.conditions import When, parse_when
+    p = parse(BRANCHED).to_playbook(WORDS)
+    f = p.fact("contribution_kind")
+    assert f.kind == "choice" and f.options == ("cash", "in_kind") and f.leaf_kind == "choice"
+    by = {s.id: s for s in p.steps}
+    assert by["bank"].when == "contribution_kind != in_kind" and by["paid"].when == "contribution_kind == cash" and by["confirm"].when == ""
+    w = parse_when(by["bank"].when, p)
+    assert w == When("contribution_kind", "!=", "in_kind") and str(w) == "contribution_kind != in_kind"
+    assert w.holds("cash") is True and w.holds("in_kind") is False and w.holds("") is None
+    assert parse_when("contribution_kind == cash", p).holds("in_kind") is False
+    assert read_schema(p.facts)["properties"]["contribution_kind"]["properties"]["value"] == {"enum": ["cash", "in_kind", None]}
+    from suveryn_playbooks import from_record, to_record
+    assert from_record(to_record(p)) == p
+    w2 = Wording("F", "f", {"contribution_kind": "Contribution", "contribution_kind.cash": "In cash"}, steps={"bank": "Bank certificate"})
+    assert w2.option("contribution_kind", "cash") == "In cash" and w2.option("contribution_kind", "in_kind") == "in_kind"
+    assert w2.step("bank") == "Bank certificate" and w2.step("read") == "read"
+
+
+@pytest.mark.parametrize(
+    "old, new, said",
+    [
+        ("when: contribution_kind != in_kind}\n  - {id: bank_read", "when: contribution_kind is in_kind}\n  - {id: bank_read", "expected <choice fact> == <option>"),
+        ("when: contribution_kind == cash}", "when: contribution_kind == gold}", "'gold' is not one of contribution_kind's options (cash, in_kind)"),
+        ("when: contribution_kind == cash}", "when: shares == cash}", "'shares' is number; a condition turns on a choice"),
+        ("when: contribution_kind == cash}", "when: colour == cash}", "'colour' is not one of the playbook's facts"),
+        ("kind: choice, options: [cash, in_kind]}", "kind: choice}", "kind choice needs 'options'"),
+        ("kind: choice, options: [cash, in_kind]}", "kind: choice, options: [cash]}", "a choice has two to twelve options"),
+        ("kind: number}", "kind: number, options: [a, b]}", "'options' only applies to kind choice"),
+        ("facts: [sellers, shares, founders, conditions, contribution_kind]", "facts: [sellers, shares, founders, conditions]", "step 'bank': when turns on 'contribution_kind' before any read or ask step it needs settles it"),
+    ],
+    ids=["not-a-condition", "unknown-option", "not-a-choice", "unknown-fact", "choice-without-options", "one-option", "options-on-a-number", "choice-not-settled"])
+def test_a_wrong_choice_or_condition_is_refused_and_the_error_names_it(old, new, said):
+    assert old in BRANCHED, old
+    with pytest.raises(ManifestError, match=re.escape(said)):
+        parse(BRANCHED.replace(old, new), where="x.yaml")

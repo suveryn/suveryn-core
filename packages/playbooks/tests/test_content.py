@@ -22,7 +22,8 @@ def test_identity_is_the_platforms():
         for lang in LANGUAGES:  # every language has the title, the line and a label for every fact
             words = p.text[lang]
             assert words.title.strip() and words.summary.strip(), lang
-            wanted = {f.id for f in p.facts} | {f"{f.id}.{x.id}" for f in p.facts for x in f.fields}
+            wanted = ({f.id for f in p.facts} | {f"{f.id}.{x.id}" for f in p.facts for x in f.fields}
+                      | {f"{f.id}.{o}" for f in p.facts for o in f.options})  # a choice's options have words too
             assert set(words.labels) == wanted and all(v.strip() for v in words.labels.values()), lang
         assert all(f'"{f.id}": ' in p.instructions for f in p.facts)  # the answer's shape names every fact
         # the routine's questions are the pack's words too: every request and ask step has them in every language

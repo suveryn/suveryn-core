@@ -99,7 +99,7 @@ def _kind_of(term: Term, playbook: Playbook) -> LeafKind | None:
     if f is None:
         raise ValueError(f"term {term}: {term.fact!r} is not one of the playbook's facts")
     if term.kind == "fact":
-        if f.kind == "list" or f.kind == "text":
+        if f.kind not in ("amount", "number", "date"):
             raise ValueError(f"term {term}: {term.fact!r} is {f.kind}; a check compares amounts, numbers or dates")
         return f.kind  # type: ignore[return-value]
     if f.kind != "list":

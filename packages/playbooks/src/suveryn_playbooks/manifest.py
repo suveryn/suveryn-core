@@ -54,7 +54,7 @@ from ._model import Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
 from .paths import MAX_ENTRIES
 
 MANIFEST_VERSIONS = (2, 3)
-FORMAT_3_KINDS = ("number", "list")
+FORMAT_3_KINDS = ("number", "list", "choice")
 _STEP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 
 _ID = re.compile(r"^playbook/[a-z0-9-]+/[a-z0-9-]+$")
@@ -77,18 +77,41 @@ class FieldSpec(BaseModel):
     ask: str = Field(min_length=1, max_length=500, description="What the field is, in the words the model gets (English)")
     kind: LeafKind = Field(default="text", description="text, amount, date or number: decides which checks apply")
 
+    @field_validator("kind")
+    @classmethod
+    def _no_choice(cls, v):
+        if v == "choice":
+            raise ValueError("a choice is a fact of its own, not a field of a list")
+        return v
+
 
 class FactSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str = Field(pattern=_FACT_ID.pattern, description="Stable id; the UI's labels and the run's facts key on it")
     ask: str = Field(min_length=1, max_length=500, description="What the fact is, in the words the model gets (English)")
-    kind: FactKind = Field(default="text", description="text, amount, date or number: decides which checks apply; list (format 3): several entries")
+    kind: FactKind = Field(default="text", description="text, amount, date or number: decides which checks apply; choice (format 3): one of options; list (format 3): several entries")
     of: tuple[FieldSpec, ...] | LeafKind | None = Field(default=None, description="list only: the entries' fields (a record each), or the kind of each entry's one value")
+    options: tuple[str, ...] | None = Field(default=None, description="choice only: the option ids (cash, in_kind), two to twelve")
+
+    @field_validator("options")
+    @classmethod
+    def _options(cls, v):
+        if v is not None:
+            if not 2 <= len(v) <= 12:
+                raise ValueError("a choice has two to twelve options")
+            for o in v:
+                if not _FACT_ID.match(o):
+                    raise ValueError(f"option {o!r}: lower-case letters, digits and underscores")
+            if len(set(v)) != len(v):
+                raise ValueError("an option is listed twice")
+        return v
 
     @field_validator("of")
     @classmethod
     def _of(cls, v):
+        if v == "choice":
+            raise ValueError("a choice is a fact of its own, not a list's entries")
         if isinstance(v, tuple):
             if not v:
                 raise ValueError("a list of records needs at least one field")
@@ -104,6 +127,10 @@ class FactSpec(BaseModel):
             raise ValueError(f"fact {self.id!r}: kind list needs 'of' (the entries' fields, or the kind of each entry's value)")
         if self.kind != "list" and self.of is not None:
             raise ValueError(f"fact {self.id!r}: 'of' only applies to kind list")
+        if self.kind == "choice" and self.options is None:
+            raise ValueError(f"fact {self.id!r}: kind choice needs 'options'")
+        if self.kind != "choice" and self.options is not None:
+            raise ValueError(f"fact {self.id!r}: 'options' only applies to kind choice")
 
 
 class StepSpec(BaseModel):
@@ -120,6 +147,7 @@ class StepSpec(BaseModel):
     expects: str | None = Field(default=None, pattern=_FACT_ID.pattern, description="request: a name for what is asked, so a read can aim at it")
     documents: tuple[str, ...] | None = Field(default=None, description="read: the names (expects) of the requests whose documents it reads; absent: every document")
     rule: str | None = Field(default=None, min_length=1, max_length=200, description="check: one comparison, <term> <operator> <term> (rules.py)")
+    when: str | None = Field(default=None, min_length=1, max_length=120, description="any step: runs only when <choice fact> == or != <option> (conditions.py); else skipped")
     by: Literal["anyone_in_case"] | None = Field(default=None, description="checkpoint: who may pass it")
     template: Literal["summary"] | None = Field(default=None, description="produce: the product (only the summary today)")
 
@@ -191,6 +219,7 @@ class Manifest(BaseModel):
         steps = self.resolved_steps()
         validate_steps(steps, {f.id for f in self.facts})
         validate_rules(steps, tuple(_fact(f) for f in self.facts))
+        validate_conditions(steps, tuple(_fact(f) for f in self.facts))
 
     def resolved_steps(self) -> tuple[Step, ...]:
         """The steps as the runtime sees them: defaults filled in, "all" expanded, ``needs`` defaulting
@@ -203,7 +232,7 @@ class Manifest(BaseModel):
             needs = sp.needs if sp.needs is not None else ((previous,) if previous else ())
             out.append(Step(id=sp.id, kind=sp.kind, needs=tuple(needs), facts=facts, min=sp.min or 1,
                             allow_none=bool(sp.allow_none), by=sp.by or "anyone_in_case", template=sp.template or "summary",
-                            expects=sp.expects or "", documents=tuple(sp.documents or ()), rule=sp.rule or ""))
+                            expects=sp.expects or "", documents=tuple(sp.documents or ()), rule=sp.rule or "", when=sp.when or ""))
             previous = sp.id
         return tuple(out)
 
@@ -228,6 +257,8 @@ class Manifest(BaseModel):
 
 
 def _fact(f: FactSpec) -> Fact:
+    if f.kind == "choice":
+        return Fact(f.id, f.ask, "choice", options=tuple(f.options or ()))
     if f.kind != "list":
         return Fact(f.id, f.ask, f.kind)
     if isinstance(f.of, tuple):
@@ -248,11 +279,18 @@ LEAF_SCHEMA: dict[str, Any] = {
 }
 
 
+def _leaf_schema(f: Fact) -> dict[str, Any]:
+    """A plain value's schema; a choice is held to its options (or null)."""
+    if f.kind != "choice" and f.item_kind != "choice":
+        return LEAF_SCHEMA
+    return {**LEAF_SCHEMA, "properties": {**LEAF_SCHEMA["properties"], "value": {"enum": [*f.options, None]}}}
+
+
 def _fact_schema(f: Fact) -> dict[str, Any]:
     if f.kind != "list":
-        return LEAF_SCHEMA
+        return _leaf_schema(f)
     if f.fields:
-        item: dict[str, Any] = {"type": "object", "properties": {x.id: LEAF_SCHEMA for x in f.fields},
+        item: dict[str, Any] = {"type": "object", "properties": {x.id: _leaf_schema(x) for x in f.fields},
                                 "required": [x.id for x in f.fields], "additionalProperties": False}
     else:
         item = LEAF_SCHEMA
@@ -269,6 +307,8 @@ def read_schema(facts: tuple[Fact, ...]) -> dict[str, Any]:
 
 
 def _leaf_words(f: Fact) -> str:
+    if f.kind == "choice":
+        return f'{{"value": <{f.ask}: one of {", ".join(f.options)}, or null>, "sources": [<excerpt numbers>]}}'
     return f'{{"value": <{f.ask}; copied as written, or null>, "sources": [<excerpt numbers>]}}'
 
 
@@ -297,6 +337,31 @@ def answer_scaffold(facts: tuple[Fact, ...]) -> str:
     lines.append('A fact the excerpts do not contain gets "value": null and "sources": []. Every value is a string copied '
                  "as the documents write it; never a number or a date in another form.")
     return "\n".join(lines)
+
+
+def validate_conditions(steps: tuple[Step, ...], facts: tuple[Fact, ...]) -> None:
+    """Every step's ``when`` names a choice fact and one of its options, and that choice is read or asked by
+    a step before it, so it can be known when the step is reached."""
+    from .conditions import parse_when
+    by_id = {s.id: s for s in steps}
+    scratch = Playbook(id="playbook/x/x", pack="pack/x", version="1.0", name="x", case_types=("x",), facts=facts, instructions="x")
+    for s in steps:
+        if not s.when:
+            continue
+        try:
+            w = parse_when(s.when, scratch)
+        except ValueError as e:
+            raise ValueError(f"step {s.id!r}: {e}") from None
+        earlier: set[str] = set()
+        todo = list(s.needs)
+        while todo:
+            n = todo.pop()
+            if n not in earlier and n in by_id:
+                earlier.add(n)
+                todo.extend(by_id[n].needs)
+        known = {f for e in earlier if by_id[e].kind in ("read", "ask") for f in by_id[e].facts}
+        if w.fact not in known:
+            raise ValueError(f"step {s.id!r}: when turns on {w.fact!r} before any read or ask step it needs settles it")
 
 
 def validate_rules(steps: tuple[Step, ...], facts: tuple[Fact, ...]) -> None:
@@ -440,7 +505,7 @@ def pack_text_from_dir(pack_dir: Path, slug: str, *, where: str) -> dict[str, Wo
         try:
             entry = json.loads(f.read_text(encoding="utf-8"))[slug]
             out[lang] = Wording(entry["title"], entry["summary"], dict(entry["labels"]), dict(entry.get("questions", {})),
-                                dict(entry.get("checks", {})), entry.get("factsTitle", ""))
+                                dict(entry.get("checks", {})), dict(entry.get("steps", {})), entry.get("factsTitle", ""))
         except (KeyError, TypeError, ValueError) as e:
             raise ManifestError(f"{where}: {f}: no usable entry for {slug!r} ({e})") from None
     return out

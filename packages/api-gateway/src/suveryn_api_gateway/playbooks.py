@@ -142,6 +142,7 @@ class StepState(BaseModel):
     status: StepStatus = "pending"
     by: str | None = None
     at: datetime | None = None
+    because: str | None = None   # skipped by its ``when``: the condition as written, and the choice's value ("contribution_kind == cash; in_kind")
 
 
 class RunSummary(BaseModel):
@@ -260,6 +261,7 @@ class PlaybookWords(BaseModel):
     labels: dict[str, str]
     questions: dict[str, str] = Field(default_factory=dict)
     checks: dict[str, str] = Field(default_factory=dict)   # a sentence per check step: what holds when it holds
+    steps: dict[str, str] = Field(default_factory=dict)    # a name per step, for the line that says it was skipped
     facts_title: str = ""   # the facts panel's heading ("Facts for the deed"); empty: the UI's generic one
 
 
@@ -283,7 +285,8 @@ class PlaybookOut(BaseModel):
     facts: list[str]
     # format 3: per list fact, its entries' field ids ([] for a list of plain values), so the UI can offer an entry to add
     lists: dict[str, list[str]] = Field(default_factory=dict)
-    kinds: dict[str, str] = Field(default_factory=dict)   # per fact and field (``founders.shares``): text, amount, date, number
+    kinds: dict[str, str] = Field(default_factory=dict)   # per fact and field (``founders.shares``): text, amount, date, number, choice
+    choices: dict[str, list[str]] = Field(default_factory=dict)   # per choice fact, its options, so the UI can offer them
     case_types: list[str] = Field(default_factory=list)
     text: dict[str, PlaybookWords] = Field(default_factory=dict)  # per language: what the UI shows (docs/translations.md)
     active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/admin.md)
@@ -302,9 +305,10 @@ def playbook_out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset())
     return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
                        facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
                        lists={f.id: [x.id for x in f.fields] for f in p.facts if f.kind == "list"},
+                       choices={f.id: list(f.options) for f in p.facts if f.kind == "choice"},
                        kinds={**{f.id: f.leaf_kind for f in p.facts}, **{f"{f.id}.{x.id}": x.kind for f in p.facts for x in f.fields}},
                        text={lang: PlaybookWords(title=w.title, summary=w.summary, labels=w.labels, questions=w.questions, checks=w.checks,
-                                                 facts_title=w.facts_title)
+                                                 steps=w.steps, facts_title=w.facts_title)
                              for lang, w in p.text.items()},
                        steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
 
@@ -327,7 +331,7 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
     for step in playbook.steps:
         c = run.checks.get(step.id)
         if step.kind != "check" or c is None:
-            continue
+            continue  # a check skipped by its when has no result and no line
         said = words.checks.get(step.id, step.rule)
         word = {"holds": CHECK_WORDS[language if language in CHECK_WORDS else "en"][0], "fails": CHECK_WORDS[language if language in CHECK_WORDS else "en"][1],
                 "open": CHECK_WORDS[language if language in CHECK_WORDS else "en"][2]}[c.status]

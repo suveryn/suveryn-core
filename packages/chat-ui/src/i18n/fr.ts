@@ -505,6 +505,8 @@ const fr: Messages = {
   pbGroupCheck: "À vérifier",
   pbGroupMissing: "Manquant",
   pbGroupChecks: "Contrôles",
+  runStepNotNeeded: (step: string, fact: string, option: string) => `${step} : inutile, ${fact} est ${option}.`,
+  runStepUnknown: (step: string, fact: string) => `${step} : ignoré, ${fact} n'est pas connu.`,
   pbCheckHolds: "Exact.",
   pbCheckFails: (left: string, right: string) => `Inexact : ${left} contre ${right}.`,
   pbCheckOpen: (needs: string) => `Pas encore vérifié : ${needs} manque.`,

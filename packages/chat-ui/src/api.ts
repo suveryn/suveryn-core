@@ -866,11 +866,13 @@ export type PlaybookInfo = { id: string; slug: string; pack: string; version: st
                              case_types?: string[]; active?: boolean;
                              /** Format 3: per list fact, its entries' field ids ([] for a list of plain values), so the view can offer an entry to add. */
                              lists?: Record<string, string[]>;
-                             /** Per fact and field (`founders.shares`): text, amount, date or number. */
+                             /** Per fact and field (`founders.shares`): text, amount, date, number or choice. */
                              kinds?: Record<string, string>;
+                             /** Per choice fact, its options, so the view can offer them when the playbook asks. */
+                             choices?: Record<string, string[]>;
                              /** Per language: its title, one line on what it does, its fact labels and the routine's questions (the playbook carries them). */
                              text?: Record<string, { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string>;
-                                                     checks?: Record<string, string> }>;
+                                                     checks?: Record<string, string>; steps?: Record<string, string> }>;
                              /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
                              steps?: PlaybookStep[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */

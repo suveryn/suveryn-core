@@ -21,11 +21,15 @@
 # stand and shown at the checkpoint, never a block: the founders' shares add up to the shares issued,
 # their contributions to the contribution in money, the bank certifies that amount, there is at least
 # one founder.
+# 1.3 (November 2026): the contribution's kind is a choice (format 3, "Choices"): cash, in kind or mixed,
+# read from the plan or asked. The bank certificate is asked for and read, and the bank's check runs,
+# only when there is money; the auditor's and founders' reports are asked for and read only when there
+# is a contribution in kind; a skipped step says why in the thread.
 
 manifest: 3
 id: playbook/be-notary/company-formation
 pack: pack/be-notary
-version: "1.2"
+version: "1.3"
 name: Company formation
 case_types: [company-formation]
 
@@ -54,11 +58,20 @@ facts:
     ask: "the registered office: the full address"
   - id: object
     ask: "the object of the company: the main activities it will carry out, as the founders describe them"
+  - id: contribution_kind
+    ask: "how the founders contribute: cash (money only), in_kind (goods, rights or work only) or mixed (both)"
+    kind: choice
+    options: [cash, in_kind, mixed]
   - id: contribution
     ask: the total contribution in money by the founders
     kind: amount
   - id: contribution_in_kind
-    ask: any contribution other than money (goods, rights, work), what it is and the value given to it, or that there is none
+    ask: "the contribution in kind: what is contributed (goods, rights, work) and by whom"
+  - id: in_kind_value
+    ask: the value given to the contribution in kind in the founders' report
+    kind: amount
+  - id: auditor
+    ask: "the auditor (bedrijfsrevisor) who reported on the contribution in kind: name and the date of the report"
   - id: shares
     ask: the total number of shares issued
     kind: number
@@ -104,17 +117,31 @@ steps:
   - id: plan_read
     kind: read
     documents: [financial_plan]
-    facts: [company_name, seat, object, contribution, contribution_in_kind, shares, directors, representation,
+    facts: [company_name, seat, object, contribution_kind, contribution, shares, directors, representation,
             fiscal_year, general_meeting, plan_date, financial_plan]
-  - id: bank              # the bank's certificate of the blocked account; none when the contribution is in kind
+  - id: kind_known        # the plan may not say how the founders contribute: ask before the branches
+    kind: ask
+    facts: [contribution_kind]
+  - id: bank              # the bank's certificate of the blocked account: only when there is money
     kind: request
     expects: bank_certificate
     min: 1
-    allow_none: true
+    when: contribution_kind != in_kind
   - id: bank_read
     kind: read
     documents: [bank_certificate]
     facts: [bank_certificate, certified_amount]
+    when: contribution_kind != in_kind
+  - id: reports           # the auditor's and the founders' reports: only when something is contributed in kind
+    kind: request
+    expects: contribution_reports
+    min: 1
+    when: contribution_kind != cash
+  - id: reports_read
+    kind: read
+    documents: [contribution_reports]
+    facts: [contribution_in_kind, in_kind_value, auditor]
+    when: contribution_kind != cash
   - id: missing           # one question per fact the documents did not contain
     kind: ask
     facts: all
@@ -124,9 +151,11 @@ steps:
   - id: contributions_add_up
     kind: check
     rule: sum(founders.contribution) == contribution
+    when: contribution_kind != in_kind
   - id: bank_certifies_the_contribution
     kind: check
     rule: certified_amount == contribution
+    when: contribution_kind != in_kind
   - id: a_founder
     kind: check
     rule: "count(founders) >= 1"

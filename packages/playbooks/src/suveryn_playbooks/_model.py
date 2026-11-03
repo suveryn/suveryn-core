@@ -9,8 +9,10 @@ from typing import Literal
 # What one value is: ``text``, an ``amount`` (money), a ``date`` or a ``number`` (a count, a share, a
 # percentage: a figure without currency). ``list`` (format 3) is a fact that holds several entries,
 # each a record of plain-valued fields or one plain value; its leaves are the entries' values.
-LeafKind = Literal["text", "amount", "date", "number"]
-FactKind = Literal["text", "amount", "date", "number", "list"]
+# ``choice`` (format 3, "Choices"): one of a few named options (``Fact.options``), read by the model
+# when the documents say it and otherwise asked; what a step's ``when`` turns on.
+LeafKind = Literal["text", "amount", "date", "number", "choice"]
+FactKind = Literal["text", "amount", "date", "number", "choice", "list"]
 StepKind = Literal["request", "read", "ask", "checkpoint", "produce", "check"]
 
 # The product's interface languages, in this order: the server's one list (docs/translations.md).
@@ -34,6 +36,9 @@ class Wording:
     # A sentence per check step (format 3): what the check says when it holds ("The founders' shares add up
     # to the shares issued"); shown with its result at the checkpoint and in the summary.
     checks: dict[str, str] = field(default_factory=dict)
+    # A name per step, for the line that says a step was skipped ("Bank certificate: not needed, …"); a step
+    # without one is named by its id.
+    steps: dict[str, str] = field(default_factory=dict)
     # The heading of the facts panel beside the run's conversation ("Facts for the deed"); empty: the
     # UI's generic "Facts" (docs/design/playbooks.md, "The chat UI").
     facts_title: str = ""
@@ -53,6 +58,13 @@ class Wording:
         if field_id is None:
             return head
         return f"{head} · {self.labels.get(f'{root}.{field_id}', field_id)}"
+
+    def option(self, fact_id: str, option: str) -> str:
+        """The words for a choice's option: ``labels["contribution_kind.cash"]``, else the option id."""
+        return self.labels.get(f"{fact_id}.{option}", option)
+
+    def step(self, step_id: str) -> str:
+        return self.steps.get(step_id, step_id)
 
     def question(self, step_id: str, fact_id: str | None = None) -> str:
         """The words for a step's question, for one fact when ``fact_id`` is given: that fact's own
@@ -78,6 +90,8 @@ class Fact:
     # ``conditions[2]`` (``paths``); its own id names the list as a whole.
     fields: tuple[Fact, ...] = ()
     item_kind: LeafKind = "text"
+    # choice: the option ids (``cash``, ``in_kind``); their words per language are ``labels["<fact>.<option>"]``
+    options: tuple[str, ...] = ()
 
     @property
     def leaf_kind(self) -> LeafKind:
@@ -101,6 +115,7 @@ class Step:
     allow_none: bool = False           # request: a person may say there is no such document
     expects: str = ""                  # request: a name for what is asked (``bank_certificate``), so a read can aim at it
     rule: str = ""                     # check: the comparison, as written (``rules.parse_rule`` reads it)
+    when: str = ""                     # any step: runs only when a choice fact has (or hasn't) an option (``conditions.parse_when``); else skipped
     documents: tuple[str, ...] = ()    # read: the names (``expects``) of the requests whose documents it reads; empty: every document
     by: str = "anyone_in_case"         # checkpoint: who may pass it
     template: str = "summary"          # produce: which product

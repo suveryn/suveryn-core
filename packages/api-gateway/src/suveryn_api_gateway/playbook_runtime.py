@@ -25,8 +25,9 @@ import uuid
 from datetime import datetime, timezone
 
 from suveryn_harness.checks import evaluate
-from suveryn_harness.facts import RunFact
+from suveryn_harness.facts import RunFact, option_of
 from suveryn_playbooks import Playbook, Step, entry, root
+from suveryn_playbooks.conditions import parse_when
 from suveryn_playbooks.rules import parse_rule
 from suveryn_rag.store import Scope
 
@@ -70,6 +71,12 @@ class Runtime:
             if step is None:
                 self.store.set_step(rid, None, "done", states)
                 return None
+            if step.when:
+                because = self.skipped_because(run, playbook, step)
+                if because is not None:
+                    states[step.id] = StepState(status="skipped", at=_now(), because=because)
+                    self._say(run, playbook, step.id, *self.skipped_turn(run, playbook, step, because))
+                    continue
             if step.kind == "request":
                 if self._request_satisfied(run, step, states):
                     states[step.id] = StepState(status="done", at=_now())
@@ -162,6 +169,41 @@ class Runtime:
                 out[fid] = words.label(fid)
         return out
 
+    # -- conditions (format 3, "Choices"): a step runs when its choice has the option it names; else it is skipped and says why
+
+    def choice_value(self, run: Run, fact_id: str) -> str:
+        """A choice fact's value as it stands (read, answered or confirmed), or empty."""
+        v = self.store.current_versions(uuid.UUID(run.id)).get(fact_id)
+        return v["value"] if v and v["status"] in ("proposed", "confirmed") else ""
+
+    def skipped_because(self, run: Run, playbook: Playbook, step: Step) -> str | None:
+        """Why the step is skipped, or None when it runs: its ``when`` doesn't hold for the choice's value, or
+        the choice isn't known (the steps that could settle it are done, so nothing will)."""
+        w = parse_when(step.when, playbook)
+        value = self.choice_value(run, w.fact)
+        holds = w.holds(value)
+        if holds:
+            return None
+        return f"{w}; {value or '?'}"
+
+    def skipped_turn(self, run: Run, playbook: Playbook, step: Step, because: str) -> tuple[str, dict]:
+        w = parse_when(step.when, playbook)
+        value = because.rsplit("; ", 1)[-1]
+        words = playbook.wording("en")
+        said = (f"{words.step(step.id)}: not needed, {words.label(w.fact)} is {words.option(w.fact, value)}." if value != "?"
+                else f"{words.step(step.id)}: skipped, {words.label(w.fact)} is not known.")
+        return said, {"kind": "skipped_step", "step": step.id, "fact": w.fact, "value": "" if value == "?" else value, "when": str(w)}
+
+    def normalise(self, playbook: Playbook, fact_id: str, value: str, language: str) -> str:
+        """A person's value for a choice as its option id, from the id or the option's words in the run's
+        language or English; anything else is no value. Other kinds pass as written."""
+        f = playbook.leaf(fact_id)
+        if f is None or f.kind != "choice":
+            return value.strip()
+        labels = {o: playbook.wording(language).option(fact_id, o) for o in f.options}
+        labels_en = {o: playbook.wording("en").option(fact_id, o) for o in f.options}
+        return option_of(value.strip(), f.options, {**labels_en, **labels}) or ""
+
     # -- the checks (format 3, "Checks"): computed by the server on the values as they stand, never a block
 
     def recheck(self, run: Run, playbook: Playbook) -> dict[str, dict]:
@@ -175,10 +217,12 @@ class Runtime:
         for step in playbook.steps:
             if step.kind != "check":
                 continue
+            if step.when and parse_when(step.when, playbook).holds(values.get(parse_when(step.when, playbook).fact, "")) is not True:
+                continue  # a check whose condition doesn't hold (or isn't known) has no result
             r = evaluate(parse_rule(step.rule, playbook), values)
             out[step.id] = {"status": r.status, "rule": step.rule, "left": r.left, "right": r.right, "missing": list(r.missing)}
-        if out:
-            self.store.set_checks(rid, out)
+        if any(s.kind == "check" for s in playbook.steps):
+            self.store.set_checks(rid, out)  # a check whose condition no longer holds loses its result
         return out
 
     # -- people's answers and the model's
@@ -226,9 +270,10 @@ class Runtime:
         (replacing the not-established reading); the step is done either way."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
-        rows = [dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=v.strip(), status="proposed", source={"kind": "person"},
+        answers = {fid: self.normalise(playbook, fid, v, run.language) for fid, v in answers.items() if v}
+        rows = [dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=v, status="proposed", source={"kind": "person"},
                      by=by, replaces=current[fid]["id"] if fid in current else None)
-                for fid, v in answers.items() if root(fid) in step.facts and playbook.leaf(fid) is not None and v and v.strip()]
+                for fid, v in answers.items() if root(fid) in step.facts and playbook.leaf(fid) is not None and v]
         self.store.write_facts(cid, rid, step.id, rows)
         self._settle_lists(playbook, current, [r["fact_id"] for r in rows])
         states = dict(run.steps)
@@ -263,6 +308,7 @@ class Runtime:
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
         rows = []
+        confirmed = {fid: self.normalise(playbook, fid, v, run.language) for fid, v in confirmed.items()}
         known = {f.id for f in run.facts}
         # entries a person added at the checkpoint (``founders[3].name``): facts the read never made, confirmed now
         added = [fid for fid, v in confirmed.items() if fid not in known and playbook.leaf(fid) is not None and fid != root(fid) and v.strip()]
@@ -290,9 +336,10 @@ class Runtime:
         the current one; the run stays at the checkpoint (the person still confirms)."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
-        rows = [dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=v.strip(), status="proposed", source={"kind": "person"},
+        corrections = {fid: self.normalise(playbook, fid, v, run.language) for fid, v in corrections.items()}
+        rows = [dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=v, status="proposed", source={"kind": "person"},
                      by=by, replaces=current[fid]["id"] if fid in current else None)
-                for fid, v in corrections.items() if v.strip() and (fid in current or (playbook.leaf(fid) is not None and fid != root(fid)))]
+                for fid, v in corrections.items() if v and (fid in current or (playbook.leaf(fid) is not None and fid != root(fid)))]
         self.store.write_facts(cid, rid, step.id, rows)
         self._settle_lists(playbook, current, [r["fact_id"] for r in rows if r["fact_id"] not in current])
         self.recheck(run, playbook)  # a corrected value may settle a check, or fail one

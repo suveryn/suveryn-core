@@ -452,8 +452,11 @@ async def set_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, reques
     current = {f.id: f.value for f in run.facts}
     if fact_id not in current and not (pb.leaf(fact_id) is not None and fact_id != root(fact_id)):
         raise HTTPException(404, "A fact that isn't in this run.")  # a path into a list is new ground: an entry a person adds
-    value, username = body.value.strip(), who(request)[0]
-    run = await run_in_threadpool(_runtime(request).correct, run, pb, step, {fact_id: value}, username)
+    runtime = _runtime(request)
+    value, username = runtime.normalise(pb, fact_id, body.value, run.language), who(request)[0]
+    if not value:
+        raise HTTPException(422, "Not one of the options.")  # a choice takes an option id or its words
+    run = await run_in_threadpool(runtime.correct, run, pb, step, {fact_id: value}, username)
     if value != current.get(fact_id, ""):
         await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').label(fact_id)} is now {value}.",
                                 step.id, {"kind": "changed", "fact": fact_id, "value": value})
