@@ -255,5 +255,9 @@ Reviewers: check changes against these.
 - [ ] Does anything new reach the network at runtime (including model or tokenizer loads)? Keycloak is the only service the gateway may call besides llama-server and PostgreSQL.
 - [ ] Is every new place where document text is stored or written (cache, temp file, download) listed in §3?
 - [ ] Are new thresholds and constants explained (why this value, measured on what)?
+- [ ] Does a change that writes several rows, files or stores either finish whole or leave nothing (one transaction, or a step that can be repeated)?
+- [ ] Can every new failure reach the reader as a sentence in their language, never an empty answer or a blank screen?
+- [ ] Does new code come with its tests, and a fix with the test that would have found it?
+- [ ] Is a new control reachable and usable by keyboard, with a visible focus and an accessible name?
 - [ ] Were brand files changed only through `npm run brand:sync`?
 - [ ] Were dependencies changed? Then check `uv.lock`/`package-lock.json` sources stay on PyPI/npm, run `uvx pip-audit` and `npm audit`, and check new licences are AGPL-compatible.
