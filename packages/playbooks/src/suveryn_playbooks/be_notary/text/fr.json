@@ -30,13 +30,15 @@
     "labels": {
       "founders": "Fondateur(s)",
       "founders.name": "Nom",
+      "founders.register_number": "Numéro de registre",
+      "founders.born": "Né(e)",
+      "founders.address": "Adresse",
       "founders.shares": "Actions",
       "founders.contribution": "Apport",
       "company_name": "Dénomination",
       "seat": "Siège",
       "object": "Objet",
       "contribution": "Apport en numéraire",
-      "bank_certificate": "Attestation bancaire",
       "contribution_in_kind": "Apport en nature",
       "shares": "Actions émises",
       "directors": "Administrateur(s)",
@@ -44,13 +46,17 @@
       "fiscal_year": "Exercice social",
       "general_meeting": "Assemblée générale annuelle",
       "plan_date": "Plan financier daté du",
-      "financial_plan": "Plan financier"
+      "financial_plan": "Plan financier",
+      "bank_certificate": "Attestation bancaire",
+      "certified_amount": "Montant attesté"
     },
     "questions": {
-      "documents": "Chargez ce que les fondateurs ont transmis : documents d'identité, plan financier, attestation bancaire et preuve du siège. Puis continuez.",
+      "identity": "Chargez les documents d'identité des fondateurs (ou l'extrait d'une société). Puis continuez.",
+      "plan": "Chargez le plan financier et ce que les fondateurs ont décidé : dénomination, siège, objet, actions, administrateurs. Puis continuez.",
+      "bank": "Chargez l'attestation bancaire du compte bloqué. Si l'apport est en nature, indiquez qu'il n'y en a pas.",
       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
-      "missing.contribution_in_kind": "Les documents ne mentionnent aucun apport autre qu'en numéraire. Y en a-t-il un ? Décrivez-le et sa valeur, ou laissez vide s'il n'y en a pas.",
-      "missing.founders": "Les documents ne nomment aucun fondateur. Qui sont-ils ? Donnez pour chaque fondateur le nom, les actions et l'apport, ou laissez vide si vous ne le savez pas encore."
+      "missing.founders": "Les documents ne nomment aucun fondateur. Qui sont-ils ? Donnez pour chaque fondateur le nom, les actions et l'apport, ou laissez vide si vous ne le savez pas encore.",
+      "missing.contribution_in_kind": "Les documents ne mentionnent aucun apport autre qu'en numéraire. Y en a-t-il un ? Décrivez-le et sa valeur, ou laissez vide s'il n'y en a pas."
     }
   }
 }

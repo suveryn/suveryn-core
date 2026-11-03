@@ -24,7 +24,8 @@ def from_record(record: dict[str, Any]) -> Playbook:
     facts = tuple(_fact(f) for f in record["facts"])
     steps = tuple(Step(id=s["id"], kind=s["kind"], needs=tuple(s.get("needs", ())), facts=tuple(s.get("facts", ())),
                        min=s.get("min", 1), allow_none=s.get("allow_none", False), by=s.get("by", "anyone_in_case"),
-                       template=s.get("template", "summary")) for s in record.get("steps", ()))
+                       template=s.get("template", "summary"), expects=s.get("expects", ""),
+                       documents=tuple(s.get("documents", ()))) for s in record.get("steps", ()))
     text = {lang: Wording(w["title"], w["summary"], dict(w["labels"]), dict(w.get("questions", {})), w.get("facts_title", ""))
             for lang, w in record.get("text", {}).items()}
     return Playbook(id=record["id"], pack=record["pack"], version=record["version"], name=record["name"],

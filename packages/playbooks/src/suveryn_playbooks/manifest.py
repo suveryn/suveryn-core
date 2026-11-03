@@ -117,19 +117,21 @@ class StepSpec(BaseModel):
     facts: tuple[str, ...] | Literal["all"] | None = Field(default=None, description="read, ask: which facts; \"all\" for every fact")
     min: int | None = Field(default=None, ge=1, le=50, description="request: uploaded documents needed (default 1)")
     allow_none: bool | None = Field(default=None, description="request: a person may answer that there is no such document")
+    expects: str | None = Field(default=None, pattern=_FACT_ID.pattern, description="request: a name for what is asked, so a read can aim at it")
+    documents: tuple[str, ...] | None = Field(default=None, description="read: the names (expects) of the requests whose documents it reads; absent: every document")
     by: Literal["anyone_in_case"] | None = Field(default=None, description="checkpoint: who may pass it")
     template: Literal["summary"] | None = Field(default=None, description="produce: the product (only the summary today)")
 
     _ALLOWED: ClassVar[dict[str, frozenset[str]]] = {
-        "request": frozenset({"min", "allow_none"}),
-        "read": frozenset({"facts"}),
+        "request": frozenset({"min", "allow_none", "expects"}),
+        "read": frozenset({"facts", "documents"}),
         "ask": frozenset({"facts"}),
         "checkpoint": frozenset({"by"}),
         "produce": frozenset({"template"}),
     }
 
     def check_fields(self) -> None:
-        given = {k for k in ("facts", "min", "allow_none", "by", "template") if getattr(self, k) is not None}
+        given = {k for k in ("facts", "min", "allow_none", "by", "template", "expects", "documents") if getattr(self, k) is not None}
         wrong = given - self._ALLOWED[self.kind]
         if wrong:
             raise ValueError(f"step {self.id!r} ({self.kind}): {', '.join(sorted(wrong))} does not apply to this kind")
@@ -194,7 +196,8 @@ class Manifest(BaseModel):
             facts = tuple(f.id for f in self.facts) if sp.facts == "all" else tuple(sp.facts or ())
             needs = sp.needs if sp.needs is not None else ((previous,) if previous else ())
             out.append(Step(id=sp.id, kind=sp.kind, needs=tuple(needs), facts=facts, min=sp.min or 1,
-                            allow_none=bool(sp.allow_none), by=sp.by or "anyone_in_case", template=sp.template or "summary"))
+                            allow_none=bool(sp.allow_none), by=sp.by or "anyone_in_case", template=sp.template or "summary",
+                            expects=sp.expects or "", documents=tuple(sp.documents or ())))
             previous = sp.id
         return tuple(out)
 
@@ -328,6 +331,16 @@ def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:
     checkpoints = [s for s in steps if s.kind == "checkpoint"]
     if not checkpoints:
         raise ValueError("steps: a routine needs a checkpoint where a person confirms the facts")
+    expects = [s.expects for s in steps if s.kind == "request" and s.expects]
+    if len(set(expects)) != len(expects):
+        raise ValueError("steps: " + ", ".join(sorted({e for e in expects if expects.count(e) > 1})) + " is expected by two requests")
+    read_by: dict[str, str] = {}
+    for s in steps:
+        if s.kind == "read":
+            for f in s.facts:
+                if f in read_by:
+                    raise ValueError(f"step {s.id!r} (read): fact {f!r} is already read by step {read_by[f]!r}; a fact is read once")
+                read_by[f] = s.id
     for s in steps:
         earlier = before(s)
         if s.kind == "produce" and not any(by_id[e].kind == "checkpoint" for e in earlier):
@@ -339,6 +352,11 @@ def validate_steps(steps: tuple[Step, ...], fact_ids: set[str]) -> None:
                 raise ValueError(f"step {s.id!r} (ask): asks about {', '.join(missing)} before any read step it needs reads them")
         if s.kind == "checkpoint" and not any(by_id[e].kind in ("read", "ask") for e in earlier):
             raise ValueError(f"step {s.id!r} (checkpoint): nothing to confirm; it needs a read or ask step")
+        if s.kind == "read" and s.documents:
+            asked = {by_id[e].expects for e in earlier if by_id[e].kind == "request" and by_id[e].expects}
+            unknown = [d for d in s.documents if d not in asked]
+            if unknown:
+                raise ValueError(f"step {s.id!r} (read): reads {', '.join(unknown)}, which no request step it needs expects")
 
 
 def parse(source: str, *, where: str = "<manifest>") -> Manifest:

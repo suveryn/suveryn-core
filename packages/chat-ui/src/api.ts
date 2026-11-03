@@ -909,6 +909,8 @@ export type RunSummary = {
 export type Run = RunSummary & {
   /** The playbook the run started under, from its own record (a run keeps its manifest); null for a run made before that: use the installed one. */
   playbook?: PlaybookInfo | null;
+  /** Per named request (step id), the documents that answered it. */
+  requested?: Record<string, string[]>;
   facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
 
 export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {

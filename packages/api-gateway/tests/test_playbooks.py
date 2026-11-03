@@ -576,13 +576,31 @@ def test_the_request_asks_even_when_the_case_has_documents_and_the_question_is_w
 FORMATION_ANSWER = json.dumps({
     "company_name": {"value": "Suveryn Labs BV", "sources": [1]}, "seat": {"value": None, "sources": []},
     "object": {"value": None, "sources": []}, "contribution": {"value": "EUR 412.500,00", "sources": [1]},
-    "bank_certificate": {"value": None, "sources": []}, "contribution_in_kind": {"value": None, "sources": []},
+    "contribution_in_kind": {"value": None, "sources": []},
     "shares": {"value": None, "sources": []}, "directors": {"value": None, "sources": []}, "representation": {"value": None, "sources": []},
     "fiscal_year": {"value": None, "sources": []}, "general_meeting": {"value": None, "sources": []},
     "plan_date": {"value": None, "sources": []}, "financial_plan": {"value": None, "sources": []},
-    "founders": [{"name": {"value": "Filip Tack", "sources": [1]}, "shares": {"value": "600", "sources": [1]},
-                  "contribution": {"value": "EUR 412.500,00", "sources": [1]}}],
+    "bank_certificate": {"value": None, "sources": []}, "certified_amount": {"value": "EUR 412.500,00", "sources": [1]},
+    "founders": [{"name": {"value": "Filip Tack", "sources": [1]}, "register_number": {"value": None, "sources": []},
+                  "born": {"value": None, "sources": []}, "address": {"value": "Kerkstraat 12, Gent", "sources": [1]},
+                  "shares": {"value": "600", "sources": [1]}, "contribution": {"value": "EUR 412.500,00", "sources": [1]}}],
 })
+
+
+def through_the_requests(c, cid, rid, alice, docs, bank=True):
+    """Company formation 1.1 asks for three documents by name; one uploaded document answers each (named
+    explicitly, so the same one may answer all three), and the bank certificate may be said to be absent."""
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    for step in ("identity", "plan"):
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        assert run["step"] == step, run["step"]
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": step, "documents": [DOC]}, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "reading", r.json()
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    assert run["step"] == "bank"
+    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "bank", "documents": [DOC]} if bank else {"step_id": "bank", "none": True}, headers=alice)
+    assert r.status_code == 200
+    return wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
 
 
 @needs_db
@@ -600,15 +618,18 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         cid = c.post("/v1/cases", json={**NEW, "type": "company-formation", "name": "Oprichting Suveryn Labs"}, headers=alice).json()["id"]
         fits = c.get(f"/v1/cases/{cid}/playbooks", headers=alice).json()
         assert [p["id"] for p in fits] == ["playbook/be-notary/company-formation"]
-        assert fits[0]["lists"] == {"founders": ["name", "shares", "contribution"]} and fits[0]["kinds"]["founders.shares"] == "number"
+        assert fits[0]["lists"] == {"founders": ["name", "register_number", "born", "address", "shares", "contribution"]}
+        assert fits[0]["kinds"]["founders.shares"] == "number" and fits[0]["kinds"]["certified_amount"] == "amount"
         assert fits[0]["text"]["nl"]["labels"]["founders.contribution"] == "Inbreng"
         rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "nl"}, headers=alice).json()["id"]
-        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
-        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "documents"}, headers=alice)
-        assert r.status_code == 200 and r.json()["status"] == "reading"
-        assert captured[-1]["response_format"]["json_schema"]["schema"]["properties"]["founders"]["type"] == "array"
-        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        run = through_the_requests(c, cid, rid, alice, docs)
         assert run["step"] == "missing"
+        # three reads, each aimed at its request's document and asking for its own facts only
+        shapes = [b["response_format"]["json_schema"]["schema"]["properties"] for b in captured if "response_format" in b]
+        assert [sorted(s) for s in shapes] == [["founders"], sorted(["company_name", "seat", "object", "contribution", "contribution_in_kind", "shares",
+                                                                      "directors", "representation", "fiscal_year", "general_meeting", "plan_date",
+                                                                      "financial_plan"]), ["bank_certificate", "certified_amount"]]
+        assert shapes[0]["founders"]["type"] == "array" and run["requested"] == {"identity": [DOC], "plan": [DOC], "bank": [DOC]}
         by = {f["id"]: f for f in run["facts"]}
         # the entries, by path; the number of shares isn't in the cited passage: *Check*
         assert by["founders[1].name"]["value"] == "Filip Tack" and by["founders[1].name"]["source"] == "document"
@@ -639,6 +660,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         name, text = docs.stored_text
         assert name == "Oprichting vennootschap 2026/0417 (1.0)"
         assert "Oprichter(s) 1 · Naam: Filip Tack (akte.pdf p. 2)" in text and "Oprichter(s) 1 · Aandelen: 650" in text
+        assert "Oprichter(s) 1 · Adres: Kerkstraat 12, Gent" in text and "Geattesteerd bedrag: EUR 412.500,00" in text
         assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text
         assert "Oprichter(s): " not in text  # the list's own line is its entries
         assert "Zetel: Sint-Jansvest 18/1, 9000 Gent" in text
@@ -659,11 +681,13 @@ def test_a_list_the_documents_name_nothing_of_is_asked_about_and_an_answer_becom
         alice = as_user(kc, ALICE)
         cid = c.post("/v1/cases", json={**NEW, "type": "company-formation"}, headers=alice).json()["id"]
         rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "en"}, headers=alice).json()["id"]
-        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
-        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "documents"}, headers=alice)
-        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        run = through_the_requests(c, cid, rid, alice, docs, bank=False)
         by = {f["id"]: f for f in run["facts"]}
         assert by["founders"]["found"] is False and not any(k.startswith("founders[") for k in by)
+        # no bank certificate: its read was skipped without a model call, its facts are not established and asked about
+        assert run["steps"]["bank"]["status"] == "skipped" and run["steps"]["bank_read"]["status"] == "done"
+        assert by["bank_certificate"]["found"] is False and by["certified_amount"]["source"] == "none"
+        assert "bank_certificate" in [t for t in run["turns"] if t["step_id"] == "missing"][0]["meta"]["facts"]
         asked = [t for t in run["turns"] if t["step_id"] == "missing"][0]
         assert "founders" in asked["meta"]["facts"]
         # the form answers for the first founder; the list's "none" is settled

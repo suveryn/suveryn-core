@@ -273,3 +273,39 @@ def test_a_playbook_survives_the_record_a_run_keeps():
         assert from_record(record) == p, p.id
     with pytest.raises(KeyError):
         from_record({"id": "playbook/be-notary/x"})
+
+
+# ------------------------------------------------------------------ documents by name
+
+NAMED = MINIMAL.replace("""  - {id: read, kind: read, facts: all}
+""", """  - {id: agreement, kind: request, expects: agreement}
+  - {id: title, kind: request, expects: title_deed, allow_none: true}
+  - {id: read, kind: read, facts: [price], documents: [agreement]}
+  - {id: read_title, kind: read, facts: [sellers], documents: [title_deed]}
+""")
+
+
+def test_a_request_may_be_named_and_a_read_aimed_at_it():
+    assert "expects: agreement" in NAMED, MINIMAL
+    p = parse(NAMED).to_playbook(WORDS)
+    by = {s.id: s for s in p.steps}
+    assert by["agreement"].expects == "agreement" and by["title"].expects == "title_deed" and by["title"].allow_none
+    assert by["read"].documents == ("agreement",) and by["read_title"].documents == ("title_deed",) and by["read_title"].needs == ("read",)
+    assert parse(MINIMAL).to_playbook(WORDS).step("read").documents == ()  # unnamed: every document, as before
+    from suveryn_playbooks import from_record, to_record
+    assert from_record(to_record(p)) == p
+
+
+@pytest.mark.parametrize(
+    "old, new, said",
+    [
+        ("expects: title_deed, allow_none: true}", "expects: agreement, allow_none: true}", "agreement is expected by two requests"),
+        ("documents: [title_deed]}", "documents: [bank]}", "reads bank, which no request step it needs expects"),
+        ("facts: [sellers], documents: [title_deed]}", "facts: [price], documents: [title_deed]}", "fact 'price' is already read by step 'read'; a fact is read once"),
+        ("{id: read, kind: read, facts: [price], documents: [agreement]}", "{id: read, kind: read, facts: [price], expects: agreement}", "expects does not apply to this kind"),
+    ],
+    ids=["expected-twice", "unknown-document", "fact-read-twice", "expects-on-a-read"])
+def test_a_wrong_named_document_is_refused_and_the_error_names_the_step(old, new, said):
+    assert old in NAMED, old
+    with pytest.raises(ManifestError, match=said):
+        parse(NAMED.replace(old, new), where="x.yaml")

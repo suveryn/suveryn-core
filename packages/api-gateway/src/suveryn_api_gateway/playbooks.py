@@ -90,9 +90,13 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     -- The manifest the run started under, as a record (suveryn_playbooks.record): its facts, steps,
     -- instructions and words. A run reads its own, whatever is installed later; NULL for runs made
     -- before this column, which read the installed manifest.
-    manifest jsonb
+    manifest jsonb,
+    -- Which documents answered which named request (request step id -> document ids): what a read
+    -- aimed at that request reads (docs/design/playbooks.md, "Documents by name").
+    requested jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS manifest jsonb;
+ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS requested jsonb NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS playbook_settings (
     playbook_id text PRIMARY KEY,
@@ -166,6 +170,8 @@ class RunSummary(BaseModel):
 
 class Run(RunSummary):
     facts: list[RunFact] = Field(default_factory=list)
+    # Per named request (step id), the documents that answered it (ids in the case): what a read aimed at it reads.
+    requested: dict[str, list[str]] = Field(default_factory=dict)
     # The playbook the run started under, as the UI needs it (labels, steps, lists), from the run's own
     # record; None for a run made before manifests were pinned: the UI then uses the installed one.
     playbook: PlaybookOut | None = None
@@ -192,6 +198,7 @@ class AnswerIn(BaseModel):
     text: str = Field(default="", max_length=MAX_ANSWER)
     facts: dict[str, str] | None = None
     none: bool = False
+    documents: list[str] = Field(default_factory=list, max_length=50)   # request: the documents that answer it (ids in the case)
 
 
 class ConfirmedFact(BaseModel):
@@ -357,15 +364,15 @@ class RunStore(TurnStore):
         return {str(r[1]): self._summary(r) for r in rows}
 
     def get(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Run | None:
-        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps, manifest FROM playbook_runs WHERE id = %s AND case_id = %s",
-                          (run_id, case_id)).fetchone()
+        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps, manifest, requested FROM playbook_runs"
+                          " WHERE id = %s AND case_id = %s", (run_id, case_id)).fetchone()
         if r is None:
             return None
         summary = self._summary(r)
-        suspicious, steps, manifest = r[self._N], r[self._N + 1], r[self._N + 2]
+        suspicious, steps, manifest, requested = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
                    steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
-                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None)
+                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None, requested=requested or {})
 
     def playbook_of(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Playbook | None:
         """The playbook the run started under, from its own record (docs/design/playbooks.md, "The data
@@ -402,8 +409,16 @@ class RunStore(TurnStore):
         return self._execute("SELECT 1 FROM playbook_runs WHERE id = %s AND status = %s", (run_id, status)).fetchone() is not None
 
     def set_documents(self, run_id: uuid.UUID, documents: list[str]) -> None:
-        """Which documents the read step read (chosen at the start, or every upload when it runs)."""
-        self._execute("UPDATE playbook_runs SET documents = %s WHERE id = %s", ([uuid.UUID(d) for d in documents], run_id))
+        """Which documents the run's reads read (chosen at the start, every upload when a read runs, or the
+        documents of the requests a read is aimed at): the union over the reads, kept for the out-of-date mark."""
+        self._execute("UPDATE playbook_runs SET documents = COALESCE((SELECT array_agg(DISTINCT d) FROM unnest(documents || %s::uuid[]) AS d), '{}')"
+                      " WHERE id = %s", ([uuid.UUID(d) for d in documents], run_id))
+
+    def assign_documents(self, run_id: uuid.UUID, step_id: str, documents: list[str]) -> None:
+        """The documents that answered a named request, added to what it has."""
+        self._execute("UPDATE playbook_runs SET requested = jsonb_set(requested, ARRAY[%s], "
+                      "(SELECT to_jsonb(array_agg(DISTINCT d)) FROM jsonb_array_elements_text(COALESCE(requested -> %s, '[]'::jsonb) || %s::jsonb) AS d))"
+                      " WHERE id = %s", (step_id, step_id, json.dumps(documents), run_id))
 
     def fail(self, run_id: uuid.UUID, error: str) -> None:
         """The run couldn't go on; ``error`` is a kind, never text."""

@@ -78,6 +78,14 @@ class Runtime:
                     self._say(run, playbook, step.id, playbook.wording(run.language).question(step.id))
                 return None
             if step.kind == "read":
+                if step.documents and not self.documents_to_read(run, step):
+                    # aimed at requests that were skipped (no such document): nothing to read, its facts are not
+                    # established without a model call, and an ask step may still ask about them
+                    self.store.write_facts(uuid.UUID(run.case_id), rid, step.id, [
+                        dict(fact_id=f, kind=playbook.leaf_kind(f), value="", status="not_established", source={"kind": "none"},
+                             by=playbook.id) for f in step.facts])
+                    states[step.id] = StepState(status="done", at=_now())
+                    continue
                 states[step.id] = StepState(status="active", at=_now())
                 self.store.set_step(rid, step.id, "reading", states)
                 return step
@@ -112,7 +120,12 @@ class Runtime:
         state = states.get(step.id, StepState())
         if state.status == "skipped":
             return True
-        return state.by is not None and len(self.uploaded(uuid.UUID(run.case_id))) >= step.min
+        if state.by is None:
+            return False
+        if step.expects:  # a named request: the documents that answered it, still in the case
+            uploaded = self.uploaded(uuid.UUID(run.case_id))
+            return sum(1 for d in run.requested.get(step.id, []) if d in uploaded) >= step.min
+        return len(self.uploaded(uuid.UUID(run.case_id))) >= step.min
 
     def unanswered(self, run: Run, step: Step) -> list[str]:
         """The facts an ``ask`` step still has to ask about: not in the documents, and no person has answered."""
@@ -144,13 +157,25 @@ class Runtime:
 
     # -- people's answers and the model's
 
-    def documents_to_read(self, run: Run) -> dict[str, str]:
-        """What the read step reads: the documents chosen at the start if any, else every uploaded
-        document in the case now (id -> file name). Empty: nothing to read."""
+    def documents_to_read(self, run: Run, step: Step | None = None) -> dict[str, str]:
+        """What a read step reads (id -> file name): aimed at named requests (``documents``), the documents
+        that answered those requests; else the documents chosen at the start if any, else every uploaded
+        document in the case now. Empty: nothing to read."""
         uploaded = self.uploaded(uuid.UUID(run.case_id))
+        if step is not None and step.documents:
+            playbook_requests = {s.expects: s.id for s in self._playbook_steps(run) if s.kind == "request" and s.expects}
+            ids = [d for name in step.documents for d in run.requested.get(playbook_requests.get(name, ""), [])]
+            return {d: uploaded[d] for d in dict.fromkeys(ids) if d in uploaded}
         if run.documents:
             return {d: uploaded[d] for d in run.documents if d in uploaded}
         return dict(uploaded)
+
+    def _playbook_steps(self, run: Run) -> tuple[Step, ...]:
+        pb = self.store.playbook_of(uuid.UUID(run.id), uuid.UUID(run.case_id))
+        if pb is None:
+            from suveryn_playbooks import find
+            pb = find(run.playbook_id)
+        return pb.steps if pb else ()
 
     def finish_read(self, run: Run, playbook: Playbook, step: Step, facts: list[RunFact], model: str | None,
                     suspicious: list[int]) -> Run | None:
@@ -185,14 +210,24 @@ class Runtime:
         self.store.set_step(rid, step.id, "waiting", states)
         return self.store.get(rid, cid)  # type: ignore[return-value]
 
-    def answer_request(self, run: Run, step: Step, by: str, none: bool) -> Run:
-        """A person says the documents are in (the runtime counts them) or, when allowed, that there is none."""
+    def answer_request(self, run: Run, step: Step, by: str, none: bool, documents: list[str] | None = None) -> Run:
+        """A person says the documents are in (the runtime counts them) or, when allowed, that there is none.
+        A named request (``expects``) records which documents answered it: those that came with the turn, or,
+        when none did, the case's uploaded documents no other request has yet."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         states = dict(run.steps)
         if none and step.allow_none:
             states[step.id] = StepState(status="skipped", by=by, at=_now())
         else:
             states[step.id] = StepState(status="active", by=by, at=_now())  # answered: met once the documents are there
+            if step.expects:
+                uploaded = self.uploaded(cid)
+                given = [d for d in (documents or []) if d in uploaded]
+                if not given:
+                    taken = {d for ds in run.requested.values() for d in ds}
+                    given = [d for d in uploaded if d not in taken]
+                if given:
+                    self.store.assign_documents(rid, step.id, given)
         self.store.set_step(rid, step.id, "waiting", states)
         return self.store.get(rid, cid)  # type: ignore[return-value]
 

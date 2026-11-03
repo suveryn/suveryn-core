@@ -96,6 +96,8 @@ class Step:
     facts: tuple[str, ...] = ()        # read, ask: the fact ids concerned (the manifest's "all" is expanded)
     min: int = 1                       # request: how many uploaded documents the case needs before the step is done
     allow_none: bool = False           # request: a person may say there is no such document
+    expects: str = ""                  # request: a name for what is asked (``bank_certificate``), so a read can aim at it
+    documents: tuple[str, ...] = ()    # read: the names (``expects``) of the requests whose documents it reads; empty: every document
     by: str = "anyone_in_case"         # checkpoint: who may pass it
     template: str = "summary"          # produce: which product
 

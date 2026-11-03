@@ -263,7 +263,7 @@ async def _walk(request: Request, run: Run, pb: Playbook, case: Case) -> Run:
 
 async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, case: Case) -> None:
     rid, owner = uuid.UUID(run.id), owner_of(request)
-    filenames = await run_in_threadpool(runtime.documents_to_read, run)
+    filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
     if not filenames:
         await run_in_threadpool(store.fail, rid, "document_missing")
         return
@@ -354,7 +354,7 @@ async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request
         if body.none and not step.allow_none:
             raise HTTPException(422, "This step needs the document.")
         await run_in_threadpool(store.say, run, "user", username, body.text or ("—" if body.none else "✓"), step.id, {"none": body.none})
-        run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none)
+        run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none, body.documents)
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     await touch_case(request, Scope.case(cid))
     return await _walk(request, run, pb, case)
@@ -399,7 +399,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         if body.documents:  # the documents that came with the turn are what the read reads, with any named before
             await run_in_threadpool(store.set_documents, uuid.UUID(run.id), list(dict.fromkeys([*run.documents, *body.documents])))
             run = await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
-        run = await run_in_threadpool(runtime.answer_request, run, step, username, False)
+        run = await run_in_threadpool(runtime.answer_request, run, step, username, False, body.documents)
     elif step.kind == "ask":
         asked = await run_in_threadpool(runtime.unanswered, run, step)
         labels = runtime.askable(pb, asked, run.language)  # a list the documents named none of: its first entry's values

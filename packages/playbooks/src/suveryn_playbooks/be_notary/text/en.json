@@ -30,13 +30,15 @@
     "labels": {
       "founders": "Founder(s)",
       "founders.name": "Name",
+      "founders.register_number": "Register number",
+      "founders.born": "Born",
+      "founders.address": "Address",
       "founders.shares": "Shares",
       "founders.contribution": "Contribution",
       "company_name": "Company name",
       "seat": "Registered office",
       "object": "Object",
       "contribution": "Contribution in money",
-      "bank_certificate": "Bank certificate",
       "contribution_in_kind": "Contribution in kind",
       "shares": "Shares issued",
       "directors": "Director(s)",
@@ -44,13 +46,17 @@
       "fiscal_year": "Financial year",
       "general_meeting": "Annual general meeting",
       "plan_date": "Financial plan dated",
-      "financial_plan": "Financial plan"
+      "financial_plan": "Financial plan",
+      "bank_certificate": "Bank certificate",
+      "certified_amount": "Certified amount"
     },
     "questions": {
-      "documents": "Upload what the founders sent: identity documents, the financial plan, the bank certificate and proof of the registered office. Then continue.",
+      "identity": "Upload the founders' identity documents (or a company's extract from the register). Then continue.",
+      "plan": "Upload the financial plan and what the founders decided: name, seat, object, shares, directors. Then continue.",
+      "bank": "Upload the bank certificate of the blocked account. If the contribution is in kind, say there is none.",
       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
-      "missing.contribution_in_kind": "The documents mention no contribution other than money. Is there one? Describe it and its value, or leave empty if there is none.",
-      "missing.founders": "The documents name no founders. Who are they? Give each founder's name, shares and contribution, or leave empty if you don't know yet."
+      "missing.founders": "The documents name no founders. Who are they? Give each founder's name, shares and contribution, or leave empty if you don't know yet.",
+      "missing.contribution_in_kind": "The documents mention no contribution other than money. Is there one? Describe it and its value, or leave empty if there is none."
     }
   }
 }

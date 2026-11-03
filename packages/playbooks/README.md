@@ -8,7 +8,7 @@ here: the gateway runs them (`suveryn_api_gateway.playbooks`). Design:
 | Playbook | Id | Pack | Version |
 |---|---|---|---|
 | Deed intake (sale): asks for the agreement, reads the documents, asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/deed-intake` | `pack/be-notary` | 1.2 |
-| Company formation (company-formation): asks for what the founders sent, reads it for the fourteen facts of the deed of incorporation of a BV (the founders a list, each with name, shares and contribution), asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/company-formation` | `pack/be-notary` | 1.0 |
+| Company formation (company-formation): asks for the identity documents, the financial plan and the bank certificate by name, reads each for its own facts (fifteen for the deed of incorporation of a BV; the founders a list, each with name, identity, shares and contribution), asks about what it couldn't find, a person confirms, the summary | `playbook/be-notary/company-formation` | `pack/be-notary` | 1.1 |
 
 The identifiers are the ones the platform note chose; they end up in the registry, the licence and
 the invoice, so they never change. `covered(playbook_id)` is the one place the licence check will
@@ -19,7 +19,8 @@ official playbook is covered.
 A manifest is a YAML file with the identity, the case types it fits, its facts (id, what to ask,
 kind: text, amount, date or number; a `list` of entries, each a record of `of` fields or one value of
 kind `of`), the instructions the model gets and the routine's `steps` (`request`, `read`, `ask`,
-`checkpoint`, `produce`, each with `needs`); `manifest: 2` or `3` (3: number and list). The shape of
+`checkpoint`, `produce`, each with `needs`; a request may be named with `expects` and a read aimed at
+named requests with `documents`); `manifest: 2` or `3` (3: number and list). The shape of
 the model's answer is the runtime's: the loader derives its JSON Schema from the facts (`read_schema`,
 which the model server enforces by grammar) and appends it in words to the instructions. A list's
 values are named by path (`founders[2].name`, `paths.py`); the wording per language is the pack's, in
@@ -41,7 +42,8 @@ What is here:
 | `src/suveryn_playbooks/manifest.py` | The manifest formats 1 and 2 (`Manifest`, validated strictly; `validate_steps` for the graph), `parse`, `load`, the table scaffold and the JSON Schema |
 | `src/suveryn_playbooks/paths.py` | Paths into a list's values (`founders[2].name`): split, root, entry |
 | `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.2: its thirteen facts, the instructions the model gets, the case type it fits and its five steps |
-| `src/suveryn_playbooks/be_notary/company-formation.yaml` | Company formation 1.0: the fourteen facts of a BV's deed of incorporation, the founders a list, the instructions, the case type and its five steps |
+| `src/suveryn_playbooks/record.py` | A playbook as a record and back: what a run keeps (``playbook_runs.manifest``) |
+| `src/suveryn_playbooks/be_notary/company-formation.yaml` | Company formation 1.1: the fifteen facts of a BV's deed of incorporation, the founders a list, three requests by name each with its read, the ask, the checkpoint, the summary |
 | `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary, fact labels and questions in English, Dutch and French |
 | `schema/playbook-manifest.schema.json` | The format as JSON Schema, generated from `manifest.py` |
 | `tests/test_content.py` | The identities, the case types, and that every playbook has its words and its questions in each language |

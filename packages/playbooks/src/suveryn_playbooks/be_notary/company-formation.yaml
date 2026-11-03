@@ -11,12 +11,17 @@
 # the checkpoint, the summary. The words per language are in text/<lang>.json beside this file; the
 # answer's shape the model is held to is the runtime's, appended by the loader.
 #
-# 1.0 (November 2026): the first version.
+# 1.0 (November 2026): the first version: one request, one read.
+# 1.1 (November 2026): the documents by name (format 3, "Documents by name"): the identity documents, the
+# financial plan and the bank certificate are asked for as such, and each read is aimed at its own;
+# the founders carry their identity (register number, birth, address: decided 3 November, read and kept
+# like any fact); the bank certificate may be absent (a contribution in kind), and then its read is
+# skipped and the ask step asks. The instructions ask for the JSON object the loader describes.
 
 manifest: 3
 id: playbook/be-notary/company-formation
 pack: pack/be-notary
-version: "1.0"
+version: "1.1"
 name: Company formation
 case_types: [company-formation]
 
@@ -26,7 +31,13 @@ facts:
     kind: list
     of:
       - id: name
-        ask: "the founder's full name as written, or for a company its name and registration number"
+        ask: "the founder's full name as written, or for a company its name"
+      - id: register_number
+        ask: "the founder's national register number, or for a company its enterprise number"
+      - id: born
+        ask: "the founder's date and place of birth; for a company its legal form and registered office"
+      - id: address
+        ask: the founder's address as written on the identity document or the company's extract
       - id: shares
         ask: the number of shares this founder takes
         kind: number
@@ -42,8 +53,6 @@ facts:
   - id: contribution
     ask: the total contribution in money by the founders
     kind: amount
-  - id: bank_certificate
-    ask: "the bank certificate for the contribution in money: the bank, the blocked account and the certificate's date"
   - id: contribution_in_kind
     ask: any contribution other than money (goods, rights, work), what it is and the value given to it, or that there is none
   - id: shares
@@ -62,24 +71,46 @@ facts:
     kind: date
   - id: financial_plan
     ask: "the financial plan: who drafted it, the external expert named in it if any, and the period it covers"
+  - id: bank_certificate
+    ask: "the bank certificate for the contribution in money: the bank, the blocked account, the amount and the certificate's date"
+  - id: certified_amount
+    ask: the amount the bank certifies as paid into the blocked account
+    kind: amount
 
 instructions: >-
   You are preparing the incorporation of a Belgian private limited company (BV/SRL) for a notarial
-  deed. Read the excerpts and fill in the table below: one row per fact, in this order, with the
-  fact's id in the first column exactly as given, the value in the second column, copied as the
-  documents write it (names, amounts, dates, addresses, references), and in the third column the
-  excerpt numbers the value comes from, as [n]. A fact the excerpts do not contain gets an empty
-  second column and an empty third column: never guess, never fill in from general knowledge, and
-  never supply a value the law would suggest. Answer with the table only, no text before or after
-  it, in the language of the documents.
+  deed. Read the excerpts and give every fact below as the documents write it (names, amounts,
+  dates, addresses, references), with the numbers of the excerpts the value comes from. A fact the
+  excerpts do not contain is null: never guess, never fill in from general knowledge, and never
+  supply a value the law would suggest. Answer in the language of the documents.
 
 steps:
-  - id: documents         # what the founders sent: identity documents, the financial plan, the bank certificate, proof of the seat
+  - id: identity          # the founders' identity documents, or a company's extract from the register
     kind: request
+    expects: identity_documents
     min: 1
-  - id: read
+  - id: founders_read
     kind: read
-    facts: all
+    documents: [identity_documents]
+    facts: [founders]
+  - id: plan              # the financial plan and what the founders decided (name, seat, object, shares, directors)
+    kind: request
+    expects: financial_plan
+    min: 1
+  - id: plan_read
+    kind: read
+    documents: [financial_plan]
+    facts: [company_name, seat, object, contribution, contribution_in_kind, shares, directors, representation,
+            fiscal_year, general_meeting, plan_date, financial_plan]
+  - id: bank              # the bank's certificate of the blocked account; none when the contribution is in kind
+    kind: request
+    expects: bank_certificate
+    min: 1
+    allow_none: true
+  - id: bank_read
+    kind: read
+    documents: [bank_certificate]
+    facts: [bank_certificate, certified_amount]
   - id: missing           # one question per fact the documents did not contain
     kind: ask
     facts: all

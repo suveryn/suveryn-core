@@ -184,6 +184,36 @@
           "description": "request: a person may answer that there is no such document",
           "title": "Allow None"
         },
+        "expects": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,49}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "request: a name for what is asked, so a read can aim at it",
+          "title": "Expects"
+        },
+        "documents": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "read: the names (expects) of the requests whose documents it reads; absent: every document",
+          "title": "Documents"
+        },
         "by": {
           "anyOf": [
             {

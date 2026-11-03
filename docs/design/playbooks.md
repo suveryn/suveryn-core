@@ -139,8 +139,8 @@ The routine is in the manifest (format 2, below): steps of five kinds, each sayi
 
 | Kind | What the runtime does | Waits for |
 |---|---|---|
-| `request` | Puts the pack's question for documents in the thread | `min` uploaded documents in the case, or a person saying there is none (`allow_none`) |
-| `read` | The grounded model call over the case's uploaded documents for the step's facts, as before | The model |
+| `request` | Puts the pack's question for documents in the thread; named (`expects`), it records which documents answered it | `min` uploaded documents in the case (for a named request: documents that answered it), or a person saying there is none (`allow_none`) |
+| `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
 | `produce` | Writes the summary into the case, origin `playbook` | Nothing |
@@ -370,6 +370,34 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
 - Later, on the typed values this lays down: `check` steps (the founders' contributions add up to
   the total; computed by the server, the rule the harness already has for `[[calc]]`), shown as a
   warning at the checkpoint, never a block.
+
+### Documents by name (3 November 2026)
+
+One request for "what the founders sent" and one read over everything is an intake; a routine a
+clerk recognises asks for the bank certificate, reads it, asks for the financial plan, reads that.
+Item 3 of the foundation brief, still format 3 (two optional keys; a file without them reads as
+before):
+
+- A `request` may say what it asks for: `expects: bank_certificate`, a name unique among the
+  routine's requests. When a person answers it, the run records which documents answered: those that
+  came with the turn (`SayIn.documents`, `AnswerIn.documents`), or, when none did, the case's uploaded
+  documents no other request has yet (`playbook_runs.requested`, request step id → document ids).
+  `min` counts those, as long as they are still in the case.
+- A `read` may be aimed: `documents: [bank_certificate, financial_plan]`, names of requests among the
+  steps it needs; it reads the documents that answered them and nothing else, with its own
+  `json_schema` over its own facts. Unaimed, it reads as before. A read aimed only at requests that
+  were skipped (there is no such document) makes no model call: its facts are written not
+  established, the step is done, and an `ask` step asks about them. A fact is read by one read step;
+  the loader refuses a second.
+- `Run.documents` becomes the union of what the run's reads read, for the out-of-date mark; a run
+  keeps `requested` with its record.
+
+Company formation 1.1 is the first routine written this way: identity documents, then the financial
+plan, then the bank certificate (`allow_none`, for a contribution in kind), each with its read. Until
+`when` exists (item 5), the ask step still asks for the bank certificate's facts after a person said
+there is none; that is the next version's job. The founders now carry their identity (register
+number, date and place of birth, address), read and kept like any fact, decided 3 November; the data
+lifecycle page says so.
 
 ## What is deferred, on purpose
 

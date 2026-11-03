@@ -30,13 +30,15 @@
     "labels": {
       "founders": "Oprichter(s)",
       "founders.name": "Naam",
+      "founders.register_number": "Rijksregisternummer",
+      "founders.born": "Geboren",
+      "founders.address": "Adres",
       "founders.shares": "Aandelen",
       "founders.contribution": "Inbreng",
       "company_name": "Naam van de vennootschap",
       "seat": "Zetel",
       "object": "Voorwerp",
       "contribution": "Inbreng in geld",
-      "bank_certificate": "Bankattest",
       "contribution_in_kind": "Inbreng in natura",
       "shares": "Uitgegeven aandelen",
       "directors": "Bestuurder(s)",
@@ -44,13 +46,17 @@
       "fiscal_year": "Boekjaar",
       "general_meeting": "Jaarvergadering",
       "plan_date": "Financieel plan van",
-      "financial_plan": "Financieel plan"
+      "financial_plan": "Financieel plan",
+      "bank_certificate": "Bankattest",
+      "certified_amount": "Geattesteerd bedrag"
     },
     "questions": {
-      "documents": "Laad op wat de oprichters bezorgden: identiteitsdocumenten, het financieel plan, het bankattest en het bewijs van de zetel. Ga daarna verder.",
+      "identity": "Laad de identiteitsdocumenten van de oprichters op (of het uittreksel van een vennootschap). Ga daarna verder.",
+      "plan": "Laad het financieel plan op en wat de oprichters beslisten: naam, zetel, voorwerp, aandelen, bestuurders. Ga daarna verder.",
+      "bank": "Laad het bankattest van de geblokkeerde rekening op. Is de inbreng in natura, zeg dan dat er geen is.",
       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
-      "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is.",
-      "missing.founders": "De documenten noemen geen oprichters. Wie zijn het? Geef per oprichter de naam, de aandelen en de inbreng, of laat leeg als u het nog niet weet."
+      "missing.founders": "De documenten noemen geen oprichters. Wie zijn het? Geef per oprichter de naam, de aandelen en de inbreng, of laat leeg als u het nog niet weet.",
+      "missing.contribution_in_kind": "De documenten vermelden geen andere inbreng dan geld. Is er een? Beschrijf ze en haar waarde, of laat leeg als er geen is."
     }
   }
 }
