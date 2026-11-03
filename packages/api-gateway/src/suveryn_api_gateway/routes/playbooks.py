@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
 from suveryn_harness.facts import Unreadable, map_answer, read_playbook, said_unknown
-from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, covered, find, for_case_type
+from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, find, for_case_type, root
 
 from ..cases import Case
 from ..playbook_runtime import Runtime
@@ -44,7 +44,7 @@ from ..playbooks import (
     RunSummary,
     SayIn,
     StartIn,
-    StepOut,
+    playbook_out,
 )
 from .common import (
     DocumentNotFound,
@@ -109,12 +109,7 @@ def _run_id(run_id: str) -> uuid.UUID:
         raise HTTPException(422, f"Not a run id: {run_id!r}") from None
 
 
-def _out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
-    return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
-                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
-                       text={lang: {"title": w.title, "summary": w.summary, "labels": w.labels, "questions": w.questions, "facts_title": w.facts_title}
-                             for lang, w in p.text.items()},
-                       steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
+_out = playbook_out  # a playbook as the UI needs it (``suveryn_api_gateway.playbooks``)
 
 
 async def _inactive(request: Request) -> set[str]:
@@ -144,7 +139,7 @@ def _runtime(request: Request) -> Runtime:
 def _named(run):
     """A run with its playbook's title per language and the kind of its step, so a chip anywhere can
     say "Akte-intake · wacht op documenten" without knowing the playbooks (Pod check of d0f680e, finding 1)."""
-    pb = find(run.playbook_id)
+    pb = find(run.playbook_id)  # the installed one: titles and step kinds for a chip; a run's own is on ``Run.playbook``
     if pb is None:
         return run
     step = pb.step(run.step) if run.step else None
@@ -268,7 +263,7 @@ async def _walk(request: Request, run: Run, pb: Playbook, case: Case) -> Run:
 
 async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, case: Case) -> None:
     rid, owner = uuid.UUID(run.id), owner_of(request)
-    filenames = await run_in_threadpool(runtime.documents_to_read, run)
+    filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
     if not filenames:
         await run_in_threadpool(store.fail, rid, "document_missing")
         return
@@ -291,8 +286,9 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
     run_id = uuid.UUID(run.id)
     try:
         facts, response = await read_playbook(lambda req: app.state.chat.answer(req, owner), pb, filenames, run.case_id,
-                                              on_retry=lambda n, shape: log.info("playbook run %s: answer %d not readable as the table: %s",
-                                                                                 run.id, n, " ".join(f"{k}={v}" for k, v in shape.items())))
+                                              on_retry=lambda n, shape: log.info("playbook run %s: answer %d not readable as the facts: %s",
+                                                                                 run.id, n, " ".join(f"{k}={v}" for k, v in shape.items())),
+                                              fact_ids=set(step.facts))
     except (BackendError, DocumentsUnavailable, DocumentNotFound, Unreadable) as e:
         await run_in_threadpool(store.fail, run_id, {BackendError: "model_unavailable", DocumentsUnavailable: "documents_unavailable",
                                                      DocumentNotFound: "document_missing", Unreadable: "unreadable_answer"}[type(e)])
@@ -320,9 +316,9 @@ async def _live_run(request: Request, case_id: str, run_id: str, action: str) ->
     run = await run_in_threadpool(store.get, _run_id(run_id), uuid.UUID(case.id))
     if run is None:
         raise HTTPException(404, "Unknown run.")
-    pb = find(run.playbook_id)
+    pb = await run_in_threadpool(store.playbook_of, _run_id(run_id), uuid.UUID(case.id)) or find(run.playbook_id)
     if pb is None:
-        raise HTTPException(409, "This run's playbook is no longer installed.")
+        raise HTTPException(409, "This run's playbook is no longer installed.")  # an old run, made before manifests were pinned
     return case, store, run, pb
 
 
@@ -348,17 +344,17 @@ async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request
     runtime, cid = _runtime(request), uuid.UUID(case.id)
     if step.kind == "ask":
         asked = set(await run_in_threadpool(runtime.unanswered, run, step))  # only what the playbook asked about
-        given = {k: v for k, v in (body.facts or {}).items() if k in asked}
-        if (body.facts or {}).keys() - asked:
+        given = {k: v for k, v in (body.facts or {}).items() if k in asked or (root(k) in asked and pb.leaf(k) is not None)}
+        if (body.facts or {}).keys() - given.keys():
             raise HTTPException(422, "A fact that isn't asked here.")
-        text = body.text or "\n".join(f"{pb.wording(run.language).labels.get(k, k)}: {v}" for k, v in given.items() if v.strip())
+        text = body.text or "\n".join(f"{pb.wording(run.language).label(k)}: {v}" for k, v in given.items() if v.strip())
         await run_in_threadpool(store.say, run, "user", username, text or "—", step.id, {"facts": sorted(given)})
         run = await run_in_threadpool(runtime.answer_ask, run, pb, step, given, username)
     else:
         if body.none and not step.allow_none:
             raise HTTPException(422, "This step needs the document.")
         await run_in_threadpool(store.say, run, "user", username, body.text or ("—" if body.none else "✓"), step.id, {"none": body.none})
-        run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none)
+        run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none, body.documents)
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     await touch_case(request, Scope.case(cid))
     return await _walk(request, run, pb, case)
@@ -399,15 +395,14 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     if not text and not meta:
         raise HTTPException(422, "Nothing was said.")
     await run_in_threadpool(store.say, run, "user", username, text, step.id, meta)
-    words = pb.wording(run.language)
     if step.kind == "request":
         if body.documents:  # the documents that came with the turn are what the read reads, with any named before
             await run_in_threadpool(store.set_documents, uuid.UUID(run.id), list(dict.fromkeys([*run.documents, *body.documents])))
             run = await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
-        run = await run_in_threadpool(runtime.answer_request, run, step, username, False)
+        run = await run_in_threadpool(runtime.answer_request, run, step, username, False, body.documents)
     elif step.kind == "ask":
         asked = await run_in_threadpool(runtime.unanswered, run, step)
-        labels = {f: words.labels.get(f, f) for f in asked}
+        labels = runtime.askable(pb, asked, run.language)  # a list the documents named none of: its first entry's values
         mapped = {} if body.unknown or not text else await _mapped(request, labels, {}, text)
         if not body.unknown and not mapped and said_unknown(text, labels):
             pass  # "nog niet bekend" in words: as the quick reply, they stay unknown (VM regression 03c8f74, finding 8)
@@ -418,14 +413,15 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         run = await run_in_threadpool(runtime.answer_ask, run, pb, step, mapped, username)
     else:
         current = {f.id: f.value for f in run.facts}
-        mapped = await _mapped(request, {f.id: words.labels.get(f.id, f.id) for f in run.facts}, current, text) if text else {}
+        labels = _checkpoint_labels(pb, run)
+        mapped = await _mapped(request, labels, current, text) if text else {}
         changed = {k: v for k, v in mapped.items() if v.strip() and v.strip() != current.get(k, "")}
-        unknown = [] if changed else said_unknown(text, {f.id: words.labels.get(f.id, f.id) for f in run.facts})
+        unknown = [] if changed else said_unknown(text, labels)
         if unknown and not any(current.get(f) for f in unknown):
             # "Bodemattest: nog niet bekend." of a fact that is unknown already: said so, rather than "that couldn't be
             # placed" (VM regression 03c8f74, finding 8). A value isn't emptied in words, as it isn't on a card.
             await run_in_threadpool(store.say, run, "playbook", pb.id,
-                                    f"Already not known yet: {', '.join(pb.wording('en').labels.get(f, f) for f in unknown)}.",
+                                    f"Already not known yet: {', '.join(pb.wording('en').label(f) for f in unknown)}.",
                                     step.id, {"kind": "already_unknown", "facts": unknown})
             return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         if not changed:
@@ -434,7 +430,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
             return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         run = await run_in_threadpool(runtime.correct, run, pb, step, changed, username)
         for fid, value in changed.items():
-            await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').labels.get(fid, fid)} is now {value}.",
+            await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').label(fid)} is now {value}.",
                                     step.id, {"kind": "changed", "fact": fid, "value": value})
         await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
         return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
@@ -454,15 +450,32 @@ async def set_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, reques
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
     current = {f.id: f.value for f in run.facts}
-    if fact_id not in current:
-        raise HTTPException(404, "A fact that isn't in this run.")
-    value, username = body.value.strip(), who(request)[0]
-    run = await run_in_threadpool(_runtime(request).correct, run, pb, step, {fact_id: value}, username)
-    if value != current[fact_id]:
-        await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').labels.get(fact_id, fact_id)} is now {value}.",
+    if fact_id not in current and not (pb.leaf(fact_id) is not None and fact_id != root(fact_id)):
+        raise HTTPException(404, "A fact that isn't in this run.")  # a path into a list is new ground: an entry a person adds
+    runtime = _runtime(request)
+    value, username = runtime.normalise(pb, fact_id, body.value, run.language), who(request)[0]
+    if not value:
+        raise HTTPException(422, "Not one of the options.")  # a choice takes an option id or its words
+    run = await run_in_threadpool(runtime.correct, run, pb, step, {fact_id: value}, username)
+    if value != current.get(fact_id, ""):
+        await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').label(fact_id)} is now {value}.",
                                 step.id, {"kind": "changed", "fact": fact_id, "value": value})
     await log_access(request, uuid.UUID(case.id), "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
+
+
+def _checkpoint_labels(pb: Playbook, run: Run) -> dict[str, str]:
+    """What a correction in words at the checkpoint may land on: every fact the run has (a list's entries by
+    path), and, for a list, one entry beyond the last, so "a third founder, Anna Peeters" adds one."""
+    from ..playbook_runtime import entry_paths, shown_facts
+    words = pb.wording(run.language)
+    out = {f.id: words.label(f.id) for f in shown_facts(run.facts)}
+    for f in pb.facts:
+        if f.kind == "list":
+            last = max((int(fid[len(f.id) + 1:].split("]")[0]) for fid in out if fid.startswith(f"{f.id}[")), default=0)
+            for path in entry_paths(pb, f.id, last + 1):
+                out[path] = words.label(path)
+    return out
 
 
 async def _mapped(request: Request, labels: dict[str, str], current: dict[str, str], text: str) -> dict[str, str]:
@@ -479,12 +492,15 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
     409: {"description": "The run isn't waiting at its checkpoint"},
 })
 async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Request):
-    """The checkpoint (a contributor's right): every fact's confirmed value, a correction or empty.
-    The run then walks on: the summary is stored in the case as a document with origin ``playbook``."""
+    """The checkpoint (a contributor's right; the case manager's when the step says ``by: manager``): every
+    fact's confirmed value, a correction or empty, and entries added to a list. The run then walks on: the
+    summary is stored in the case as a document with origin ``playbook``."""
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
+    if step.by == "manager" and owner_of(request) != case.manager:
+        raise HTTPException(403, "The case manager confirms this playbook's facts.")  # the case's roles, no other (decided 3 November 2026)
     known = {f.id for f in run.facts}
-    if any(f.id not in known for f in body.facts):
+    if any(f.id not in known and not (pb.leaf(f.id) is not None and f.id != root(f.id)) for f in body.facts):
         raise HTTPException(422, "A fact that isn't in this run.")
     username = who(request)[0]
     run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username)

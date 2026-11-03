@@ -21,12 +21,12 @@ import {
 import { useId } from "react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  confirmRun, getJob, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
+  answerRun, confirmRun, getJob, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
   type Case, type Citation, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
 } from "../api";
 import { useWatermark } from "../lib/watermark";
 import { locale, useT } from "../i18n";
-import type { PlaybookWords } from "../lib/playbooks";
+import { entryPath, factLabel, nextEntry, optionLabel, shownFacts, type PlaybookWords } from "../lib/playbooks";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { exportRef } from "../lib/marks";
 import {
@@ -85,8 +85,9 @@ const dayAndTime = (iso: string) => {
 /** The facts a review card is for (handover of 31 October 2026): *Check*, a value the check couldn't find
  *  literally in its passage and nobody has checked since; *Missing*, a fact without a value. */
 export function reviewGroups(run: Pick<Run, "facts">): { check: RunFact[]; missing: RunFact[] } {
-  return { check: run.facts.filter((f) => f.value && (f.issues.length > 0 || !!f.needs) && f.source !== "person"),
-           missing: run.facts.filter((f) => !f.value) };
+  const facts = shownFacts(run.facts);
+  return { check: facts.filter((f) => f.value && (f.issues.length > 0 || !!f.needs) && f.source !== "person"),
+           missing: facts.filter((f) => !f.value) };
 }
 
 /** The run's state in the breadcrumb, while it is live: the one place it is said. */
@@ -102,6 +103,7 @@ export function runStatusWord(run: Pick<RunSummary, "status" | "step" | "step_ki
 function checkReason(f: RunFact, m: Words): string {
   if (f.needs === "not_a_date") return m.pbNotADate;
   if (f.needs === "not_an_amount") return m.pbNotAnAmount;
+  if (f.needs === "not_a_number") return m.pbNotANumber;
   return m.pbNotInPassage(f.issues.join(", "));
 }
 
@@ -115,7 +117,10 @@ function sourceText(f: RunFact, m: Words): { n: number; text: string; name: stri
 export type RunPanelView = { kind: "list" } | { kind: "source"; fact: string; fromList: boolean };
 
 /** How many facts have a value, of how many. */
-export const factCounts = (run: Pick<Run, "facts">) => [run.facts.filter((f) => (f.confirmed ?? f.value)).length, run.facts.length] as const;
+export const factCounts = (run: Pick<Run, "facts">) => {
+  const facts = shownFacts(run.facts);
+  return [facts.filter((f) => (f.confirmed ?? f.value)).length, facts.length] as const;
+};
 
 // ------------------------------------------------------------------ the run, kept fresh
 
@@ -178,8 +183,15 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
           : t.role === "user"
             ? <PersonTurn key={t.seq} turn={t} nameOf={nameOf} />
             : <PlaybookTurn key={t.seq} turn={t} title={title} showSpeaker={speaker(i)} words={words}
+                            // a choice the playbook asks about: its options as buttons (format 3, "Choices")
+                            choices={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
+                              ? ((t.meta.facts as string[] | undefined) ?? []).filter((f) => playbook?.choices?.[f]).map((f) => ({
+                                  fact: f, label: factLabel(words, f),
+                                  options: playbook!.choices![f].map((o) => ({ id: o, label: optionLabel(words, f, o),
+                                    send: () => answerRun(kase.id, run.id, run.step ?? "", { text: `${factLabel(words, f)}: ${optionLabel(words, f, o)}`, facts: { [f]: o } }).then(onChanged) })) }))
+                              : []}
                             review={t.seq === reviewAt
-                              ? <Review run={run} kase={kase} words={words} canAnswer={canAnswer} panel={panel} onPanel={onPanel} onChanged={onChanged} />
+                              ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} steps={playbook?.steps ?? []} canAnswer={canAnswer} me={me} panel={panel} onPanel={onPanel} onChanged={onChanged} />
                               : null}
                             quickReply={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
                               ? { label: m.answerPlaceholder, send: () => sayInRun(kase.id, run.id, { text: m.answerPlaceholder, unknown: true }).then(onChanged) }
@@ -219,17 +231,22 @@ function Speaking() {
   return <IconBadge badge={<Route />} host="icon" tone="system"><AssistantMark /></IconBadge>;
 }
 
-function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
+function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, choices = [] }: {
   turn: RunTurn; title: string; showSpeaker: boolean; words: PlaybookWords;
   /** At review: the cards, under the message's own words. */
   review: ReactNode | null;
   quickReply: { label: string; send: () => Promise<void> } | null;
+  /** At an ask about a choice: the fact's options as buttons. */
+  choices?: { fact: string; label: string; options: { id: string; label: string; send: () => Promise<void> }[] }[];
 }) {
   const m = useT();
   const [sending, setSending] = useState(false);
-  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string };
-  const label = (id: string) => words.labels[id] ?? id;
+  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string; step?: string; when?: string };
+  const label = (id: string) => factLabel(words, id);
   const text = meta.kind === "ask" ? m.runAskTurn(meta.found ?? 0, meta.total ?? 0, (meta.facts ?? []).map(label).join(", "))
+    : meta.kind === "skipped_step" ? (meta.value
+        ? m.runStepNotNeeded(words.steps?.[meta.step ?? ""] ?? meta.step ?? "", label(meta.fact ?? ""), optionLabel(words, meta.fact ?? "", meta.value))
+        : m.runStepUnknown(words.steps?.[meta.step ?? ""] ?? meta.step ?? "", label(meta.fact ?? "")))
     : meta.kind === "checkpoint" ? (review ? null : m.pbReviewIntroNone(meta.found ?? 0, meta.total ?? 0))
     : meta.kind === "changed" ? m.runChanged(label(meta.fact ?? ""), meta.value ?? "")
     : meta.kind === "unplaced" ? (meta.facts ? m.runUnplacedAsk : m.runUnplacedChange)
@@ -242,6 +259,14 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
         {showSpeaker && <p className="run-speaker">{title}</p>}
         {text && <p>{text}</p>}
         {review}
+        {choices.map((c) => (
+          <div key={c.fact} className="run-quick run-choice" role="group" aria-label={c.label}>
+            {c.options.map((o) => (
+              <Button key={o.id} variant="secondary" size="small" isDisabled={sending}
+                      onPress={() => { setSending(true); o.send().finally(() => setSending(false)); }}>{o.label}</Button>
+            ))}
+          </div>
+        ))}
         {quickReply && (
           <div className="run-quick">
             <Button variant="secondary" size="small" isDisabled={sending}
@@ -256,8 +281,12 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply }: {
 /** The review message's work (handover of 31 October 2026, boards 3 and 4): what was found, one card per
  *  fact that needs the person, *Confirm the facts* (held back while anything is under *Check*), and a link
  *  to every fact. */
-function Review({ run, kase, words, canAnswer, panel, onPanel, onChanged }: {
-  run: Run; kase: Case; words: PlaybookWords; canAnswer: boolean; panel: RunPanelView | null;
+function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel, onChanged }: {
+  run: Run; kase: Case; words: PlaybookWords; canAnswer: boolean; me?: string; panel: RunPanelView | null;
+  /** Format 3: the playbook's list facts and their entries' fields, so an entry can be added here. */
+  lists: Record<string, string[]>;
+  /** The routine's steps, for the order of the checks. */
+  steps: { id: string; kind: string; by?: string }[];
   onPanel: (view: RunPanelView | null) => void; onChanged: (run: Run) => void;
 }) {
   const m = useT();
@@ -266,32 +295,75 @@ function Review({ run, kase, words, canAnswer, panel, onPanel, onChanged }: {
   const [error, setError] = useState<string | null>(null);
   const { check, missing } = reviewGroups(run);
   const [found, total] = factCounts(run);
-  const label = (f: RunFact) => words.labels[f.id] ?? f.id;
+  const label = (f: RunFact) => factLabel(words, f.id);
   const save = async (f: RunFact, value: string) => {
     setError(null);
     try { onChanged(await setRunFact(kase.id, run.id, f.id, value)); } catch (e) { setError((e as Error).message); }
   };
+  // an entry a person adds to a list (format 3): one version per value given, as a correction is
+  const add = async (list: string, values: Record<string, string>) => {
+    setError(null);
+    const index = nextEntry(run.facts, list);
+    try {
+      let fresh = run;
+      for (const [field, value] of Object.entries(values)) {
+        if (value.trim()) fresh = await setRunFact(kase.id, run.id, entryPath(list, index, field || null), value.trim());
+      }
+      onChanged(fresh);
+    } catch (e) { setError((e as Error).message); }
+  };
   const confirm = async () => {
     setBusy(true);
     setError(null);
-    try { onChanged(await confirmRun(kase.id, run.id, run.facts.map((f) => ({ id: f.id, confirmed: f.value })))); }
+    try { onChanged(await confirmRun(kase.id, run.id, shownFacts(run.facts).map((f) => ({ id: f.id, confirmed: f.value })))); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const blocked = check.length > 0;
+  // who confirms: anyone who contributes, or, when the checkpoint says so, the case manager (the notary); others prepare and correct
+  const managerOnly = steps.find((s) => s.id === run.step)?.by === "manager";
+  const canConfirm = canAnswer && (!managerOnly || kase.manager === me);
   const n = check.length + missing.length;
-  const card = (f: RunFact, group: "check" | "missing") => (
+  const card = (f: RunFact, group: "check" | "missing") => f.id in lists ? (
+    <AddEntryCard key={f.id} list={f.id} fields={lists[f.id]} count={0} words={words} canAnswer={canAnswer} onAdd={(v) => add(f.id, v)} />
+  ) : (
     <FactCard key={f.id} fact={f} label={label(f)} group={group} canAnswer={canAnswer}
               active={panel?.kind === "source" && panel.fact === f.id}
               onSave={(v) => save(f, v)} onSource={() => onPanel({ kind: "source", fact: f.id, fromList: false })} />
   );
+  const more = Object.keys(lists).filter((list) => nextEntry(run.facts, list) > 1);  // lists with entries: one more can be added
+  // the checks (format 3), in the routine's order: what each says and whether it holds now; a failed one is a point for the notary, never a block
+  const checks = steps.filter((s) => s.kind === "check" && run.checks?.[s.id]).map((s) => ({ id: s.id, ...run.checks![s.id] }));
   return (
     <div className="run-review">
       <p>{n ? m.pbReviewIntro(found, total, n) : m.pbReviewIntroNone(found, total)}</p>
+      {checks.length > 0 && (
+        <section className="run-group" aria-label={m.pbGroupChecks}>
+          <h3 className="run-group-title">{m.pbGroupChecks}</h3>
+          <ul className="run-checks">
+            {checks.map((c) => (
+              <li key={c.id} className="run-check" data-status={c.status}>
+                {c.status === "holds" ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
+                <span>
+                  <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
+                  <span className="fact-note"> {c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
+                    : m.pbCheckOpen(c.missing.map((p) => factLabel(words, p)).join(", "))}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {check.length > 0 && <section className="run-group" aria-label={m.pbGroupCheck}><h3 className="run-group-title">{m.pbGroupCheck}</h3>{check.map((f) => card(f, "check"))}</section>}
       {missing.length > 0 && <section className="run-group" aria-label={m.pbGroupMissing}><h3 className="run-group-title">{m.pbGroupMissing}</h3>{missing.map((f) => card(f, "missing"))}</section>}
+      {canAnswer && more.length > 0 && (
+        <section className="run-group" aria-label={m.pbGroupMore}>
+          {more.map((list) => <AddEntryCard key={list} list={list} fields={lists[list]} count={nextEntry(run.facts, list) - 1} words={words} canAnswer={canAnswer} onAdd={(v) => add(list, v)} />)}
+        </section>
+      )}
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       <div className="run-review-actions">
-        {canAnswer && (
+        {canAnswer && !canConfirm && <span className="caption run-confirm-note">{m.pbManagerConfirms}</span>}
+        {canConfirm && (
           <>
             {/* disabled but focusable, with its reason (React Aria keeps a disabled button out of the tab order; this one says why) */}
             <Button variant="primary" onPress={() => { if (!blocked) void confirm(); }} isDisabled={busy}
@@ -357,6 +429,51 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
   );
 }
 
+/** A list the documents named no entries of, or one more entry for a list that has some (format 3): *Add* opens one
+ *  field per value of the entry (a record's fields, or the one value), *Keep* saves what was filled in. */
+function AddEntryCard({ list, fields, count, words, canAnswer, onAdd }: {
+  list: string; fields: string[]; count: number; words: PlaybookWords; canAnswer: boolean; onAdd: (values: Record<string, string>) => Promise<void>;
+}) {
+  const m = useT();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const keys = fields.length ? fields : [""];
+  const fieldLabel = (field: string) => field ? (words.labels[`${list}.${field}`] ?? field) : (words.labels[list] ?? list);
+  const keep = () => {
+    if (!Object.values(draft).some((v) => v.trim())) { setOpen(false); return; }
+    setSaving(true);
+    onAdd(draft).finally(() => { setSaving(false); setOpen(false); setDraft({}); });
+  };
+  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); keep(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); setDraft({}); }
+  };
+  return (
+    <Card compact className="fact-card fact-card-entry">
+      <div className="fact-card-head">
+        <div className="fact-card-main">
+          <span className="fact-card-label">{words.labels[list] ?? list}</span>
+          {!open && (count ? <span className="fact-card-value">{m.pbEntries(count)}</span> : <em className="fact-unknown">{m.pbNoEntries}</em>)}
+        </div>
+        {canAnswer && !open && <Button variant="quiet" size="small" onPress={() => setOpen(true)}>{m.pbAddEntry}</Button>}
+      </div>
+      {open && (
+        <div className="fact-card-entry-fields" title={m.pbFieldHint}>
+          {keys.map((field) => (
+            <TextArea key={field} label={fieldLabel(field)} value={draft[field] ?? ""} onChange={(v) => setDraft({ ...draft, [field]: v })}
+                      onKeyDown={onKey} rows={1} className="playbook-fact-field" isReadOnly={saving} />
+          ))}
+          <div className="run-quick">
+            <Button variant="secondary" size="small" onPress={keep} isDisabled={saving}>{saving ? m.saving : m.pbKeepEntry}</Button>
+            <Button variant="quiet" size="small" onPress={() => { setOpen(false); setDraft({}); }} isDisabled={saving}>{m.cancel}</Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function PersonTurn({ turn, nameOf }: { turn: RunTurn; nameOf: (u: string) => string }) {
   const attachments = (turn.meta.attachments as { documentId: string; filename: string }[] | undefined) ?? [];
   return (
@@ -394,7 +511,7 @@ function SummaryTurn({ run, kase, words, nameOf, title }: { run: Run; kase: Case
     const blob = await intakeToWord({
       title: `${title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
       confirmedOn: m.confirmedBy(run.confirmed_by ? nameOf(run.confirmed_by) : "", new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })),
-      facts: run.facts.map((f) => ({ label: words.labels[f.id] ?? f.id, value: f.confirmed ?? f.value,
+      facts: shownFacts(run.facts).map((f) => ({ label: factLabel(words, f.id), value: f.confirmed ?? f.value,
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
       // sūveryn's mark (lib/marks.ts): uploaded again, this file asks before it becomes a source
@@ -602,7 +719,7 @@ export function RunPanel({ run, words, view, onView, onClose }: {
   const close = useCallback(onClose, [onClose]);
   const open = (f: RunFact) => { scroll.current = list.current?.scrollTop ?? 0; cameFrom.current = f.id; onView({ kind: "source", fact: f.id, fromList: true }); };
   return (
-    <aside id="run-panel" className="source-panel facts-panel" ref={panel} tabIndex={-1} aria-label={view.kind === "list" ? listTitle : words.labels[fact?.id ?? ""] ?? ""}
+    <aside id="run-panel" className="source-panel facts-panel" ref={panel} tabIndex={-1} aria-label={view.kind === "list" ? listTitle : fact ? factLabel(words, fact.id) : ""}
 >
       {view.kind === "source" && view.fromList && (
         <div className="facts-back"><TextButton onPress={() => onView({ kind: "list" })}><ArrowLeft size={14} aria-hidden /> {listTitle}</TextButton></div>
@@ -610,7 +727,7 @@ export function RunPanel({ run, words, view, onView, onClose }: {
       <header className="source-panel-head">
         <span className="source-panel-title">
           <span className="source-panel-file" ref={heading} tabIndex={view.kind === "source" ? -1 : undefined}>
-            {view.kind === "list" ? listTitle : words.labels[fact?.id ?? ""] ?? fact?.id}</span>
+            {view.kind === "list" ? listTitle : fact ? factLabel(words, fact.id) : ""}</span>
           {fact?.citations[0] && <span className="source-panel-where">{fact.citations[0].filename}{fact.citations[0].page ? `, ${m.pageShort(fact.citations[0].page)}` : ""}</span>}
         </span>
         <span className="composer-space" />
@@ -619,7 +736,7 @@ export function RunPanel({ run, words, view, onView, onClose }: {
       <div className="source-panel-body" ref={list}>
         {view.kind === "list" ? (
           <ol className="facts">
-            {run.facts.map((f) => <FactRow key={f.id} fact={f} label={words.labels[f.id] ?? f.id} onSource={() => open(f)} />)}
+            {shownFacts(run.facts).map((f) => <FactRow key={f.id} fact={f} label={factLabel(words, f.id)} onSource={() => open(f)} />)}
           </ol>
         ) : fact?.citations[0] ? <Passage fact={fact} /> : null}
       </div>

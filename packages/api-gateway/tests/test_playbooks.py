@@ -7,6 +7,7 @@ database is test_playbook_runtime.py."""
 
 import os
 import sys
+import json
 import time
 import uuid
 from pathlib import Path
@@ -27,10 +28,12 @@ from test_cases import ALICE, BOB, NEW, FakeCases, FakeDirectory, admin_headers
 from test_conversations import FakeConversations, as_user
 from test_documents import DOC, FakeDocuments, llm_transport
 
-# The model's table for deed intake and its passages: the harness's own test fixtures (reading the table is the harness's).
+# The model's answer for deed intake (the facts' JSON) and its passages: the harness's own test fixtures (reading it is the harness's).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "harness" / "tests"))
+from test_facts import ANSWER, response
 from test_facts import DOC as TABLE_DOC
-from test_facts import TABLE, response
+
+TABLE = json.dumps(ANSWER, ensure_ascii=False)
 
 
 def test_summary_text_uses_the_confirmed_values_and_the_language():
@@ -111,7 +114,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
     # which playbooks fit: a sale gets deed intake 1.1, covered, with its routine and its words in every language
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.1")]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.2")]
     assert [s["kind"] for s in fits[0]["steps"]] == ["request", "read", "ask", "checkpoint", "produce"]
     assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["labels"]["price"] == "Price"
     assert "{label}" in fits[0]["text"]["nl"]["questions"]["missing"]
@@ -122,7 +125,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert r.status_code == 202
     run = r.json()
     rid = run["id"]
-    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.1")
+    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.2")
     assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["read"]["status"] == "pending"
     assert [(t["role"], t["step_id"], t["by"]) for t in run["turns"]] == [("playbook", "agreement", "playbook/be-notary/deed-intake")]
     assert run["turns"][0]["text"].startswith("Laad de ondertekende verkoopovereenkomst op")
@@ -141,7 +144,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis staat erin."}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "reading" and r.json()["step"] == "read" and r.json()["documents"] == [DOC]
-    assert "| sellers | | |" in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
+    assert '"sellers": {"value": <' in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
+    assert captured[-1]["response_format"]["json_schema"]["schema"]["required"][0] == "sellers"  # and the shape the server enforces
     # the model answered; the cadastral data wasn't in the documents, so the playbook asks for it, in Dutch, and waits
     run = wait_for(c, RUN.format(cid=cid, rid=rid), bob, "waiting")
     assert run["step"] == "missing" and run["steps"]["read"]["status"] == "done" and run["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
@@ -177,9 +181,9 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the summary is a document in the case with origin playbook, named after the playbook, the case and the run's version,
     # in the run's language; its text is what 1.0 wrote for the same confirmed facts
     name, text = docs.stored_text
-    assert name == "Akte-intake 2026/0417 (1.1)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.1")
+    assert name == "Akte-intake 2026/0417 (1.2)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.2")
     assert "Prijs: EUR 412.000,00 (akte.pdf p. 2)" in text and "Kadastrale gegevens: Gent 5e afd., sectie B, nr. 123" in text
-    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.1", "run": rid}
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.2", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice).status_code == 409
     assert cid not in c.get("/v1/playbooks/runs/active", headers=alice).json()  # done: no chip
@@ -302,7 +306,9 @@ def test_an_admin_switches_a_playbook_off_and_it_leaves_every_case(office):
     # the admin's list: every installed playbook, active unless switched off
     assert c.get("/v1/admin/playbooks", headers=alice).status_code == 403
     listed = c.get("/v1/admin/playbooks", headers=admin).json()
-    assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [("playbook/be-notary/deed-intake", True, ["sale"])]
+    # the official playbook, then the installed pack's (the fictional test pack, conftest.py: SUVERYN_PACKS_DIR)
+    assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [
+        ("playbook/be-notary/deed-intake", True, ["sale"]), ("playbook/be-test/company-formation", True, ["company-formation"])]
     assert c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=alice).status_code == 403
     assert c.put("/v1/admin/playbooks/nope", json={"active": False}, headers=admin).status_code == 404
     r = c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=admin)
@@ -353,7 +359,7 @@ def test_an_unreadable_answer_is_asked_for_once_more_with_a_stricter_reminder(ru
         c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
         assert len(captured) == 2 and "could not be read" in captured[1]["messages"][-1]["content"]
-        assert captured[1]["max_tokens"] == 4096 and len(run["facts"]) == 13
+        assert captured[1]["max_tokens"] == 6144 and len(run["facts"]) == 13  # READ_TOKENS: the JSON with room for a list
 
 
 @needs_db
@@ -566,3 +572,217 @@ def test_the_request_asks_even_when_the_case_has_documents_and_the_question_is_w
         assert again.seq == asks[0]["seq"]  # the same line again: not written
     finally:
         store.close()
+
+
+FORMATION_ANSWER = json.dumps({
+    "company_name": {"value": "Suveryn Labs BV", "sources": [1]}, "seat": {"value": None, "sources": []},
+    "object": {"value": None, "sources": []}, "contribution": {"value": "EUR 412.500,00", "sources": [1]},
+    "contribution_in_kind": {"value": None, "sources": []},
+    "shares": {"value": None, "sources": []}, "directors": {"value": None, "sources": []}, "representation": {"value": None, "sources": []},
+    "fiscal_year": {"value": None, "sources": []}, "general_meeting": {"value": None, "sources": []},
+    "plan_date": {"value": None, "sources": []}, "financial_plan": {"value": None, "sources": []},
+    "contribution_kind": {"value": None, "sources": []}, "in_kind_value": {"value": None, "sources": []}, "auditor": {"value": None, "sources": []},
+    "bank_certificate": {"value": None, "sources": []}, "certified_amount": {"value": "EUR 412.500,00", "sources": [1]},
+    "founders": [{"name": {"value": "Filip Tack", "sources": [1]}, "register_number": {"value": None, "sources": []},
+                  "born": {"value": None, "sources": []}, "address": {"value": "Kerkstraat 12, Gent", "sources": [1]},
+                  "shares": {"value": "600", "sources": [1]}, "contribution": {"value": "EUR 412.500,00", "sources": [1]}}],
+})
+
+
+def through_the_requests(c, cid, rid, alice, docs, kind="In cash"):
+    """Company formation 1.3 asks for the identity documents and the financial plan by name, asks how the
+    founders contribute (the stub's plan doesn't say), then for the bank certificate (money) or the reports
+    (in kind); one uploaded document answers each request, named explicitly."""
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    for step in ("identity", "plan"):
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        assert run["step"] == step, run["step"]
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": step, "documents": [DOC]}, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "reading", r.json()
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    assert run["step"] == "kind_known" and run["turns"][-1]["meta"]["facts"] == ["contribution_kind"]
+    # the choice, in the pack's words for an option (the UI's buttons send the id; words are mapped too)
+    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "kind_known", "facts": {"contribution_kind": kind}}, headers=alice)
+    assert r.status_code == 200
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    step = "bank" if kind != "In kind" else "reports"
+    assert run["step"] == step, (run["step"], [t["text"] for t in run["turns"][-3:]])
+    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": step, "documents": [DOC]}, headers=alice)
+    assert r.status_code == 200
+    return wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+
+
+@needs_db
+def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
+    """Format 3 (docs/design/playbooks.md, "Lists"): the founders come back as entries named by path, each value
+    checked by kind; a person adds a second founder at the checkpoint; the summary shows the entries."""
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    captured: list = []
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport(captured, text=FORMATION_ANSWER))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json={**NEW, "type": "company-formation", "name": "Oprichting Suveryn Labs"}, headers=alice).json()["id"]
+        fits = c.get(f"/v1/cases/{cid}/playbooks", headers=alice).json()
+        assert [p["id"] for p in fits] == ["playbook/be-test/company-formation"]  # the installed pack's (conftest.py)
+        assert fits[0]["lists"] == {"founders": ["name", "address", "shares", "contribution"]}
+        assert fits[0]["kinds"]["founders.shares"] == "number" and fits[0]["kinds"]["certified_amount"] == "amount"
+        assert fits[0]["choices"] == {"contribution_kind": ["cash", "in_kind", "mixed"]} and fits[0]["kinds"]["contribution_kind"] == "choice"
+        assert fits[0]["text"]["nl"]["labels"]["contribution_kind.in_kind"] == "In natura" and fits[0]["text"]["nl"]["steps"]["bank"] == "Bankattest"
+        assert fits[0]["text"]["nl"]["labels"]["founders.contribution"] == "Inbreng"
+        rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        run = through_the_requests(c, cid, rid, alice, docs)
+        assert run["step"] == "missing"
+        # three reads, each aimed at its request's document and asking for its own facts only; the reports' read never ran
+        shapes = [b["response_format"]["json_schema"]["schema"]["properties"] for b in captured if "response_format" in b]
+        assert [sorted(s) for s in shapes] == [["founders"], sorted(["company_name", "seat", "contribution_kind", "contribution", "shares"]),
+                                              ["bank_certificate", "certified_amount"]]
+        assert shapes[0]["founders"]["type"] == "array" and run["requested"] == {"identity": [DOC], "plan": [DOC], "bank": [DOC]}
+        assert shapes[1]["contribution_kind"]["properties"]["value"] == {"enum": ["cash", "in_kind", "mixed", None]}
+        # the choice, answered in words, is its option; the in-kind branch was skipped and the thread says why
+        by = {f["id"]: f for f in run["facts"]}
+        assert by["contribution_kind"]["value"] == "cash" and by["contribution_kind"]["source"] == "person"
+        assert run["steps"]["reports"] == {**run["steps"]["reports"], "status": "skipped", "because": "contribution_kind != cash; cash"}
+        assert run["steps"]["reports_read"]["status"] == "skipped" and "contribution_in_kind" not in by and "auditor" not in by
+        skipped = [t for t in run["turns"] if t["meta"].get("kind") == "skipped_step"]
+        assert [(t["meta"]["step"], t["meta"]["value"]) for t in skipped] == [("reports", "cash"), ("reports_read", "cash")]
+        assert skipped[0]["text"] == "Reports on the contribution in kind: not needed, Contribution is In cash."
+        by = {f["id"]: f for f in run["facts"]}
+        # the entries, by path; the number of shares isn't in the cited passage: *Check*
+        assert by["founders[1].name"]["value"] == "Filip Tack" and by["founders[1].name"]["source"] == "document"
+        assert by["founders[1].shares"]["issues"] == ["600"] and by["founders[1].contribution"]["issues"] == []
+        assert "founders" not in by  # a list with entries has no "none" of its own
+        asked = [t for t in run["turns"] if t["step_id"] == "missing"][0]
+        assert "founders" not in asked["meta"]["facts"] and "seat" in asked["meta"]["facts"]
+        # the ask: the seat, in words; the rest stays unknown
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"seat": "Sint-Jansvest 18/1, 9000 Gent"}}, headers=alice)
+        assert r.status_code == 200 and r.json()["step"] == "confirm"
+        # the checks ran on the way to the checkpoint: computed by the server on the values as they stand
+        checks = r.json()["checks"]
+        assert set(checks) == {"shares_add_up", "contributions_add_up", "bank_certifies_the_contribution", "a_founder"}  # the money branch: every check
+        assert checks["a_founder"]["status"] == "holds" and checks["bank_certifies_the_contribution"] == {
+            "status": "holds", "rule": "certified_amount == contribution", "left": "412500", "right": "412500", "missing": []}
+        assert checks["contributions_add_up"]["status"] == "holds"              # one founder, 412.500 = 412.500
+        assert checks["shares_add_up"] == {"status": "open", "rule": "sum(founders.shares) == shares", "left": "600", "right": "", "missing": ["shares"]}
+        assert r.json()["turns"][-1]["meta"]["failing"] == 0
+        # at the checkpoint a person adds a second founder, value by value, on a path the read never made
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].name", json={"value": "Anna Peeters"}, headers=alice)
+        assert r.status_code == 200
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].shares", json={"value": "400"}, headers=alice)
+        assert r.status_code == 200
+        by = {f["id"]: f for f in r.json()["facts"]}
+        assert by["founders[2].name"]["source"] == "person" and by["founders[2].shares"]["value"] == "400"
+        assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
+        # a value given at the checkpoint recomputes the checks: the shares issued, filled in, settles one and fails none
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/shares", json={"value": "1.000"}, headers=alice)
+        assert r.json()["checks"]["shares_add_up"] == {"status": "holds", "rule": "sum(founders.shares) == shares", "left": "1000", "right": "1000", "missing": []}
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].contribution", json={"value": "EUR 10.000,00"}, headers=alice)
+        assert r.json()["checks"]["contributions_add_up"]["status"] == "fails" and r.json()["checks"]["contributions_add_up"]["left"] == "422500"
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice).status_code == 422  # not an option
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "Cash and in kind"}, headers=alice)
+        assert r.status_code == 200 and {f["id"]: f for f in r.json()["facts"]}["contribution_kind"]["value"] == "mixed"
+        assert len(r.json()["checks"]) == 4  # mixed: there is money too, so the bank's check and the contributions' stay on
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "In kind"}, headers=alice)
+        assert set(r.json()["checks"]) == {"shares_add_up", "a_founder"}  # in kind: the two money checks have no result
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "cash"}, headers=alice)
+        assert r.status_code == 200 and len(r.json()["checks"]) == 4
+        # confirm: the entries, a third founder given straight in the confirm body, the shares corrected; the case manager
+        # confirms (by: manager), a contributor is refused even though they may correct
+        confirm = {"facts": [{"id": "founders[1].shares", "confirmed": "650"}, {"id": "founders[3].name", "confirmed": "Tom Janssens"},
+                             {"id": "founders[3].shares", "confirmed": "50"}]}
+        bob = as_bob(kc)
+        c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/seat", json={"value": "Sint-Jansvest 18, Gent"}, headers=bob).status_code == 200
+        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "done"
+        by = {f["id"]: f for f in r.json()["facts"]}
+        assert by["founders[1].shares"]["confirmed"] == "650" and by["founders[2].name"]["confirmed"] == "Anna Peeters"
+        assert by["founders[3].name"]["confirmed"] == "Tom Janssens"
+        assert r.json()["checks"]["shares_add_up"]["status"] == "fails"   # 650 + 400 + 50 against 1000, on the confirmed values; confirmed all the same
+        name, text = docs.stored_text
+        assert "De aandelen van de oprichters tellen op tot de uitgegeven aandelen: klopt niet (1100 / 1000)" in text
+        assert "De bank attesteert de inbreng in geld: klopt" in text and "Er is minstens één oprichter: klopt" in text
+        assert name == "Oprichting (test) 2026/0417 (1.0)"
+        assert "Oprichter(s) 1 · Naam: Filip Tack (akte.pdf p. 2)" in text and "Oprichter(s) 1 · Aandelen: 650" in text
+        assert "Oprichter(s) 1 · Adres: Kerkstraat 12, Gent" in text and "Geattesteerd bedrag: EUR 412.500,00" in text
+        assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text and "Oprichter(s) 3 · Aandelen: 50" in text
+        assert "Oprichter(s): " not in text  # the list's own line is its entries
+        assert "Zetel: Sint-Jansvest 18, Gent" in text  # the clerk's correction, confirmed by the manager
+
+
+@needs_db
+def test_a_list_the_documents_name_nothing_of_is_asked_about_and_an_answer_becomes_its_first_entry(runs):
+    """The read's "none" for the list is one open fact; a person's answer in a form lands on the first entry's
+    values and settles the list (``_settle_lists``)."""
+    nobody = json.loads(FORMATION_ANSWER)
+    nobody["founders"] = []
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=json.dumps(nobody)))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json={**NEW, "type": "company-formation"}, headers=alice).json()["id"]
+        rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "en"}, headers=alice).json()["id"]
+        run = through_the_requests(c, cid, rid, alice, docs, kind="In kind")
+        by = {f["id"]: f for f in run["facts"]}
+        assert by["founders"]["found"] is False and not any(k.startswith("founders[") for k in by)
+        # in kind: the bank certificate is neither asked for nor read, its facts don't exist in the run, and the thread says why
+        assert run["steps"]["bank"]["because"] == "contribution_kind != in_kind; in_kind" and run["steps"]["bank_read"]["status"] == "skipped"
+        assert "bank_certificate" not in by and "certified_amount" not in by
+        assert "bank_certificate" not in [t for t in run["turns"] if t["step_id"] == "missing"][0]["meta"]["facts"]
+        assert run["steps"]["reports"]["status"] == "active" or run["steps"]["reports"]["status"] == "done"
+        assert "auditor" in by  # the reports' read ran (the stub answers null for what it doesn't know)
+        assert "bank_certifies_the_contribution" not in run["checks"] and "contributions_add_up" not in run["checks"]
+        asked = [t for t in run["turns"] if t["step_id"] == "missing"][0]
+        assert "founders" in asked["meta"]["facts"]
+        # the form answers for the first founder; the list's "none" is settled
+        r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"founders[1].name": "Filip Tack", "founders[1].shares": "1000"}}, headers=alice)
+        assert r.status_code == 200 and r.json()["step"] == "confirm"
+        rows = c.app.state.runs.get().fact_rows(uuid.UUID(rid))
+        assert [(r_["fact_id"], r_["status"]) for r_ in rows if r_["fact_id"].startswith("founders")] == [
+            ("founders", "superseded"), ("founders[1].name", "proposed"), ("founders[1].shares", "proposed")]
+        r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "founders[1].name", "confirmed": "Filip Tack"}]}, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "done"
+        _, text = docs.stored_text
+        assert "Founder(s) 1 · Name: Filip Tack" in text and "Founder(s): " not in text
+
+
+@needs_db
+def test_a_run_keeps_the_manifest_it_started_under(office):
+    """A run is pinned to its manifest (docs/design/playbooks.md, "The data model"): what it shows, asks and
+    produces comes from the record it made at the start, whatever is installed later. Simulated by editing
+    the record in the database as an upgrade would change the installed file."""
+    c, kc, _, docs, _ = office
+    alice = as_user(kc, ALICE)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
+    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
+    assert run["playbook"]["version"] == "1.2" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
+    assert run["playbook"]["lists"] == {} and run["playbook"]["kinds"]["price"] == "amount"
+    # "the next release" renames a label and bumps the version; the run doesn't follow it
+    store = c.app.state.runs.get()
+    record = store._execute("SELECT manifest FROM playbook_runs WHERE id = %s", (uuid.UUID(rid),)).fetchone()[0]
+    record["version"], record["text"]["nl"]["labels"]["price"] = "0.9", "Koopsom"
+    store._execute("UPDATE playbook_runs SET manifest = %s WHERE id = %s", (json.dumps(record), uuid.UUID(rid)))
+    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
+    assert run["playbook"]["version"] == "0.9" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Koopsom"
+    assert run["playbook_version"] == "1.2"  # what was recorded at the start stays the run's version
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {}}, headers=alice)
+    r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}, headers=alice)
+    assert r.status_code == 200 and r.json()["status"] == "done"
+    _, text = docs.stored_text
+    assert "Koopsom: EUR 412.000,00" in text and "Prijs:" not in text  # the summary uses the run's own words
+    # a run from before manifests were pinned reads the installed one
+    store._execute("UPDATE playbook_runs SET manifest = NULL WHERE id = %s", (uuid.UUID(rid),))
+    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
+    assert run["playbook"] is None

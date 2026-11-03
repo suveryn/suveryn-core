@@ -9,11 +9,13 @@
 # text/<lang>.json beside this file; the table the model fills in is the runtime's, appended by the loader.
 #
 # 1.1 (October 2026): the routine. The facts, the instructions and the summary are 1.0's.
+# 1.2 (November 2026): the answer is JSON of the facts' shape (format 3), held to by the model server;
+# the facts and the words are 1.0's, the instructions say "the object" where they said "the table".
 
-manifest: 2
+manifest: 3
 id: playbook/be-notary/deed-intake
 pack: pack/be-notary
-version: "1.1"
+version: "1.2"
 name: Deed intake
 case_types: [sale]
 
@@ -50,13 +52,10 @@ facts:
     ask: "the occupancy at delivery: free, let or occupied, and by whom"
 
 instructions: >-
-  You are preparing the intake of a sale for a notarial deed. Read the excerpts and fill in the
-  table below: one row per fact, in this order, with the fact's id in the first column exactly as
-  given, the value in the second column, copied as the documents write it (names, amounts, dates,
-  references), and in the third column the excerpt numbers the value comes from, as [n]. A fact
-  the excerpts do not contain gets an empty second column and an empty third column: never guess,
-  never fill in from general knowledge. Answer with the table only, no text before or after it,
-  in the language of the documents.
+  You are preparing the intake of a sale for a notarial deed. Read the excerpts and give every fact
+  below as the documents write it (names, amounts, dates, references), with the numbers of the
+  excerpts the value comes from. A fact the excerpts do not contain is null: never guess, never fill
+  in from general knowledge. Answer in the language of the documents.
 
 steps:
   - id: agreement          # the signed sale agreement and what the parties sent

@@ -7,11 +7,13 @@ the contract fails here, before the end-to-end stack is started. No network, no 
 """
 
 import asyncio
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
+
 import pytest
 from suveryn_harness.config import LLMSettings
 from suveryn_harness.llm import BackendError, LlamaServerClient
@@ -89,15 +91,18 @@ async def _test_error_hook_is_a_backend_error():
         await client().complete(request("e2e:error"))
 
 
-def test_facts_table_has_a_row_per_fact_and_leaves_unknown_facts_empty():
-    table = "| id | value | source |\n|---|---|---|\n| sellers | | |\n| price | | |\n| deposit | | |\n"
-    prompt = EXCERPTS + "QUESTION: Fill in the table below.\n\n" + table
+def test_facts_json_has_a_value_per_fact_and_leaves_unknown_facts_null():
+    shape = ('{\n  "sellers": {"value": <the sellers; copied as written, or null>, "sources": [<excerpt numbers>]},\n'
+             '  "price": {"value": <the price; copied as written, or null>, "sources": [<excerpt numbers>]},\n'
+             '  "deposit": {"value": <the deposit; copied as written, or null>, "sources": [<excerpt numbers>]},\n'
+             '  "founders": [\n    {\n      "name": {"value": <the name; copied as written, or null>, "sources": [<excerpt numbers>]}\n    }\n  ]\n}')
+    prompt = EXCERPTS + "QUESTION: Answer with one JSON object of exactly this shape and nothing else:\n" + shape
     _, answer = llama_stub.answer_for([{"role": "user", "content": prompt}])
-    rows = [line for line in answer.splitlines() if line.startswith("| ") and not line.startswith("| id")]
-    assert [r.split("|")[1].strip() for r in rows] == ["sellers", "price", "deposit"]
-    assert "Verkoper Zandvoorde" in rows[0] and rows[0].rstrip().endswith("[1] |")
-    assert "EUR 1.275.000,00" in rows[1]
-    assert rows[2].replace(" ", "") == "|deposit|||"
+    facts = json.loads(answer)
+    assert list(facts) == ["sellers", "price", "deposit", "founders"]
+    assert "Verkoper Zandvoorde" in facts["sellers"]["value"] and facts["sellers"]["sources"] == [1]
+    assert "EUR 1.275.000,00" in facts["price"]["value"]
+    assert facts["deposit"] == {"value": None, "sources": []} and facts["founders"] == []
 
 
 def test_router_mode_lists_two_models():

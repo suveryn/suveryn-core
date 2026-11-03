@@ -22,7 +22,7 @@ Deed intake does that reading and leaves the writing-down to be checked:
    list of facts: the parties, the property, the price and what was paid, the dates, the
    conditions, the certificates. Every fact must cite the passage it comes from; the server
    checks each cited figure, date and name against that passage with the same rule-based check
-   as a chat answer (`suveryn_harness.support`; the table is read by `suveryn_harness.facts`), and a fact the model couldn't find is left empty,
+   as a chat answer (`suveryn_harness.support`; the answer is read by `suveryn_harness.facts`), and a fact the model couldn't find is left empty,
    never guessed.
 3. The **checkpoint**: the facts are shown next to their passages, one by one, each with its
    source page and the check's verdict. The notary confirms, corrects or clears each one. Nothing
@@ -115,6 +115,17 @@ A run holds everything it needs to be shown later, including the cited passages'
 document can be deleted after the run: the run then shows the passage as it was read, marked as
 coming from a deleted document, the same way a saved conversation does (suveryn-tracker#12).
 
+**A run keeps the manifest it started under** (3 November 2026, `playbook_runs.manifest`). At the
+start the loaded playbook is written into the run as a record (`suveryn_playbooks.record`: facts,
+steps, instructions, words), and from then on everything about that run reads its own record: the
+runtime's steps, the harness's read, the labels in the thread and the summary, `Run.playbook` for the
+UI. An upgrade of the installed manifest changes nothing in a run that is under way, and a run
+finished under 1.0 is still shown with 1.0's words after 1.2 is installed: with format 3 a new
+version can add or rename a list's fields, and a run's paths must mean what they meant. A run made
+before this column (`manifest` NULL) reads the installed manifest, as before. The installed one still
+supplies what a chip needs across many runs (titles, the kind of a step), where a query per run would
+be too much for too little.
+
 ## The routine (30 October 2026)
 
 A playbook is a **conversation with a routine** (the project's orchestration note). When it is
@@ -128,10 +139,13 @@ The routine is in the manifest (format 2, below): steps of five kinds, each sayi
 
 | Kind | What the runtime does | Waits for |
 |---|---|---|
-| `request` | Puts the pack's question for documents in the thread | `min` uploaded documents in the case, or a person saying there is none (`allow_none`) |
-| `read` | The grounded model call over the case's uploaded documents for the step's facts, as before | The model |
+| `request` | Puts the pack's question for documents in the thread; named (`expects`), it records which documents answered it | `min` uploaded documents in the case (for a named request: documents that answered it), or a person saying there is none (`allow_none`) |
+| `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
+| `check` | Evaluates one rule on the values as they stand (`suveryn_harness.checks`); the result is shown at the checkpoint and in the summary, never a block | Nothing |
+
+Any step may carry `when` (a condition on a choice fact, "Choices" below): a step whose condition doesn't hold is skipped, and the thread says why.
 | `produce` | Writes the summary into the case, origin `playbook` | Nothing |
 
 The runtime (`suveryn_api_gateway/playbook_runtime.py`) walks the graph: `next_step` is the first
@@ -216,12 +230,13 @@ POST   …/runs/{run}/stop | /cancel {reason}   the starter or the case manager
 The playbook path segment is the id's last part (`deed-intake`); the full id is in the response.
 A start walks the run to its first wait and answers with it; a run in status `reading` is polled.
 The model call is one grounded request, like a chat question but with the playbook's own
-instructions and no history: the facts as a Markdown table the model fills, each cell citing [n].
-The gateway parses the table, keeps the citations per fact and runs the check. A row names its
-fact by id or by its label in any of the playbook's languages (a small model translates), never by
-position: a skipped row would shift every later fact onto the wrong label without anyone noticing.
-An answer that isn't the table is asked for once more with a stricter reminder; then the run fails
-with `error: unreadable_answer` and can be started again. Starting a run, or answering the request
+instructions and no history: the facts as a JSON object of the facts' shape (format 3, below), each
+value with the excerpt numbers it comes from. The request carries that shape as a JSON Schema and
+llama-server holds the model to it by grammar, so the answer has every fact as a key by
+construction; a fact is never taken by position. The harness reads the object, keeps the citations
+per value and runs the check. An answer that still isn't the object (a server without grammar
+support, a model that ignored it) is asked for once more with a stricter reminder; then the run
+fails with `error: unreadable_answer` and can be started again. Starting a run, or answering the request
 its read waits on, counts against the caller's chat rate limit (it is a model call). A run still
 `reading` when the gateway stops is failed as `interrupted` at the next start, and the hourly
 sweep fails one that has been reading for over thirty minutes, so nobody waits on a spinner for a
@@ -293,8 +308,9 @@ in full to a reviewer. Everything the platform note promised about packs needs t
 
 The manifest says the identity, `case_types`, the `facts` (id, what to ask, kind), the `instructions`
 prose and, since format 2, the routine (below); `manifest:` names the format's own version. The
-table the model fills in is appended by the loader: it is the harness's contract with the model,
-not content, and an author never writes it. The wording per language stays in the pack's
+shape of the answer the model gives is appended to the instructions by the loader, and the JSON
+Schema the server enforces is derived from the facts (`read_schema`): both are the harness's
+contract with the model, not content, and an author never writes them. The wording per language stays in the pack's
 `text/<lang>.json` beside the manifest. Unknown keys are errors, and every error names the file
 and the field: the people writing these by hand are administrators, not developers, and a misspelt
 key silently ignored is a playbook that quietly does something else. The JSON Schema for editors
@@ -311,6 +327,164 @@ wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's
 words them. Later formats bring `check`, `propose`, conditions, products beyond the summary and a
 model role per step. Open: whether an office's own manifest may carry its wording inline (one file
 to upload) rather than in a pack's text files.
+
+### Format 3: lists and numbers (3 November 2026)
+
+A fact was one line. A deed's parties are not: three founders, each with a name, a number of shares
+and a contribution, don't fit a line, and the first company-formation playbook had to cram them
+into one fact "as written". The founder asked for the generic fix rather than a second parser, and
+format 3 is it: **a playbook's facts describe a shape, and the whole pipeline works on that shape.**
+
+- **Two kinds more.** `number`: a figure without currency (a count, a share, a percentage), checked
+  by meaning against its passage like an amount, short figures included ("3 aandelen"), which the
+  chat's figure check skips as ambiguous and a playbook asked for on purpose. `list`: several
+  entries, each a record of plain-valued fields (`of:` a list of facts) or one plain value (`of:` a
+  kind). A list holds records or values, never lists: a deed has "several parties, each with a few
+  details" and no deeper, and a file an office can still write by hand stays one level deep. A
+  format-2 file loads unchanged; a format-2 file that uses either kind is refused with the fact named.
+- **One mould for the model.** The loader derives a JSON Schema from the facts (`read_schema`): per
+  value `{"value": "as written" | null, "sources": [n, …]}`, a list an array of entries. The request
+  carries it (`ChatRequest.json_schema`) and llama-server compiles it to a grammar
+  (`response_format`), so the answer parses by construction: no row-name folding, no table retry
+  path; the one retry left is for a server without grammar support. Values are always strings copied
+  from the documents; the harness reads them by kind, so "copied as written" and the check by meaning
+  survive unchanged. Thinking is off for a read (the request's default), so the grammar binds the
+  answer, not reasoning. **To verify on the pod before the pin moves:** Qwen3.8 under a grammar on a
+  real deed, and the time a grammar adds per read.
+- **Paths, so nothing downstream changes shape.** A list's values are named by path:
+  `founders[1].name`, `founders[2].contribution`, `conditions[1]` (`suveryn_playbooks.paths`). A path
+  is a string, so `case_facts.fact_id`, a person's answer, a correction, the confirm body, the summary's
+  line, the UI's label all take it as they took `price`; only what a path means is new. One row per
+  version, superseded pointers, the record: as before. The list's own id names the list as a whole:
+  the read writes it as one not-found fact when the documents name no entries, so an `ask` step can
+  ask about the list; the first entry a person gives supersedes that "none" (`_settle_lists`). A list
+  with entries is shown by its entries, never by its id (`shown_facts`).
+- **People add entries.** At an `ask`, an answer in words is mapped onto the first entry's values
+  (`askable`); at the checkpoint, onto every value the run has plus one entry beyond the last
+  (`_checkpoint_labels`), so "a third founder, Anna Peeters" adds one. On a card: a list the documents
+  named none of shows *Add* instead of *Fill in*, with one field per value of the entry; a list with
+  entries offers one more under *More*. Each value given is a version from that person, as a
+  correction is; `PUT …/facts/{fact}` takes a new path into a list as new ground. Removing an entry
+  is clearing its values. The labels: the list's, the entry's number, the field's
+  (`labels["founders.name"]`): "Oprichter(s) 2 · Aandelen".
+- **Deed intake 1.2** is deed intake with the JSON answer: the facts and the words are 1.0's, the
+  instructions say "the object" where they said "the table". **Company formation 1.0** is the first
+  playbook with a list: the founders, each with name, shares (number) and contribution (amount).
+- `check` steps on these typed values: below, "Checks".
+
+### Documents by name (3 November 2026)
+
+One request for "what the founders sent" and one read over everything is an intake; a routine a
+clerk recognises asks for the bank certificate, reads it, asks for the financial plan, reads that.
+Item 3 of the foundation brief, still format 3 (two optional keys; a file without them reads as
+before):
+
+- A `request` may say what it asks for: `expects: bank_certificate`, a name unique among the
+  routine's requests. When a person answers it, the run records which documents answered: those that
+  came with the turn (`SayIn.documents`, `AnswerIn.documents`), or, when none did, the case's uploaded
+  documents no other request has yet (`playbook_runs.requested`, request step id → document ids).
+  `min` counts those, as long as they are still in the case.
+- A `read` may be aimed: `documents: [bank_certificate, financial_plan]`, names of requests among the
+  steps it needs; it reads the documents that answered them and nothing else, with its own
+  `json_schema` over its own facts. Unaimed, it reads as before. A read aimed only at requests that
+  were skipped (there is no such document) makes no model call: its facts are written not
+  established, the step is done, and an `ask` step asks about them. A fact is read by one read step;
+  the loader refuses a second.
+- `Run.documents` becomes the union of what the run's reads read, for the out-of-date mark; a run
+  keeps `requested` with its record.
+
+Company formation 1.1 is the first routine written this way: identity documents, then the financial
+plan, then the bank certificate (`allow_none`, for a contribution in kind), each with its read. Until
+`when` exists (item 5), the ask step still asks for the bank certificate's facts after a person said
+there is none; that is the next version's job. The founders now carry their identity (register
+number, date and place of birth, address), read and kept like any fact, decided 3 November; the data
+lifecycle page says so.
+
+### Checks (3 November 2026)
+
+What a notary adds up by hand: the founders' shares against the shares issued, their contributions
+against the contribution in money, the bank's certificate against that amount. Item 4 of the
+foundation brief, on the typed values format 3 laid down.
+
+- A `check` step states one `rule`, a comparison a notary can read: `sum(founders.shares) == shares`,
+  `certified_amount == contribution`, `count(founders) >= 1`, `plan_date <= deed_date`. A term is a
+  fact, the sum of a list's field, the count of a list's entries, or a number; both sides are of one
+  kind (amount, number or date). Nothing else: no arithmetic, no and/or, no text
+  (`suveryn_playbooks.rules`). The loader refuses a rule that doesn't parse, that compares kinds, or
+  that reads facts no read step before it reads, with the step named. A manifest grows into a
+  programming language the day a notary can't read a line and know what it does; the rule language is
+  kept at one comparison for that reason.
+- The server computes, by kind, the way the check by meaning reads a value ("twintigduizend euro"
+  counts as 20,000; "1.000 aandelen" as 1,000, in the values' own decimal style): the model never does
+  arithmetic (`suveryn_harness.checks.evaluate`). A result holds, fails (both sides as computed, for the
+  notary) or is open (a value is missing or gives no amount, number or date as written: a person works
+  it out first, and the result names what is needed).
+- Results live on the run (`playbook_runs.checks`) and are recomputed whenever a value changes: when
+  the check step is reached, after an answer, after a correction at the checkpoint, and once more on
+  the confirmed values before the summary. The checkpoint shows them as a *Checks* group, one line
+  each, with the pack's sentence for the check (`text/<lang>.json`, `checks.<step id>`) and the result;
+  a failed check is a point for the notary and never holds *Confirm* back. The summary ends with them.
+- Company formation 1.2 has four: shares add up, contributions add up, the bank certifies the
+  contribution, at least one founder.
+
+### Choices, and steps that turn on them (3 November 2026)
+
+Cash or in kind decides which documents are asked for, which reads run and which checks apply. Item 5
+of the foundation brief.
+
+- A `choice` fact has `options` (two to twelve ids: `cash`, `in_kind`, `mixed`), each with its words in
+  the pack's labels (`contribution_kind.cash`). The model reads it when the documents say it, held to
+  the options by the schema (an enum); otherwise an `ask` step asks, and the thread offers the options
+  as buttons; an answer in words is mapped to an option by its id or its words in the run's language.
+  A choice is a fact of its own, never a list's field. It is not a value a check compares.
+- Any step may carry `when`: `contribution_kind != in_kind`, one condition on one choice, `==` or `!=`,
+  and nothing more (`suveryn_playbooks.conditions`); the loader refuses anything else, and a `when`
+  on a choice no read or ask step before it settles. When the step is reached and the condition
+  doesn't hold, or the choice isn't known by then, the step is skipped (`StepState.because`: the
+  condition and the value) and the playbook says so in the thread, in the pack's name for the step
+  (`steps.<id>` in the words file) and the option's words: "Bank certificate: not needed, Contribution
+  is In kind." A skipped read makes no facts, so nothing asks about them; a skipped check has no
+  result; a skipped request records no documents.
+- Company formation 1.3: the contribution's kind is read from the plan or asked before the branches;
+  the bank certificate and its read, the contributions' check and the bank's check run when there is
+  money; the auditor's and founders' reports and their read run when something is contributed in
+  kind; the ask step after the branches asks only about facts a read made.
+- Kept out, on purpose: and/or, conditions on anything but a choice, jumps back, loops. A routine a
+  notary can read top to bottom and know what runs is the point; the day a condition needs more it
+  needs a decision, not a longer line.
+
+### Who confirms (3 November 2026)
+
+A checkpoint's `by` is `anyone_in_case` (anyone who contributes) or `manager`: the case's manager,
+who in a notarial office is the notary, while a clerk prepares and corrects. Item 6 of the foundation
+brief, decided 3 November: **the case's roles, no other**; no notary role is added to accounts, and
+the manager of the case is who confirms. The gateway refuses the confirm from anyone else (403); the
+review still shows every card to a contributor, with *Adjust* and *Fill in*, and says who confirms in
+place of the button. Company formation 1.4 says `by: manager`; deed intake stays `anyone_in_case`.
+
+### Where playbooks live (3 November 2026)
+
+Decided 30 October, recorded in the handbook's decisions: **core keeps one public reference
+playbook**, deed intake, as the worked example, the test fixture and what an office copies; the
+certified content a licensee pays for (`pack/be-notary`: company formation first, the packs after it)
+lives in the private `suveryn-packs` repository, one folder per pack, and reaches an appliance as a
+signed bundle by the same path as the models; certified partners keep theirs in their own
+repositories and submit them for certification; an office's own playbooks live in no repository,
+uploaded by the administrator and kept on the encrypted disk only. The reason: a public AGPL
+repository can't stop updating for a licensee whose licence lapsed, and that is what protects the
+revenue (the commercial model decision).
+
+In code: `suveryn_playbooks.packs` loads a packs directory beside the official playbooks
+(`SUVERYN_PACKS_DIR`; one folder per pack named as its id, `be-notary/` for `pack/be-notary`, the
+manifests and the pack's `text/` in it), with the same validation, and refuses an id the official
+playbooks or another pack already have; `python -m suveryn_playbooks <dir>` checks a directory, and
+the packs repository's CI runs it against core. On the appliance the directory is where a pack bundle
+lands (the bundle itself: not built; a directory the provisioning fills is enough for a pilot). Core's
+own tests run on a fictional test pack (`packages/playbooks/tests/fixtures/packs/be-test`, installed
+by the repository's `conftest.py`) that uses what company formation uses of the format with fewer
+facts, so the mechanism is tested without the paid content in the public repository. Company
+formation 1.4 moved to `suveryn-packs` with this; `covered()` treats a pack's playbooks as the
+official ones until the licence manifest exists.
 
 ## What is deferred, on purpose
 

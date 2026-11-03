@@ -22,14 +22,18 @@ def test_identity_is_the_platforms():
         for lang in LANGUAGES:  # every language has the title, the line and a label for every fact
             words = p.text[lang]
             assert words.title.strip() and words.summary.strip(), lang
-            assert set(words.labels) == {f.id for f in p.facts} and all(v.strip() for v in words.labels.values()), lang
-        assert all(f"| {f.id} | | |" in p.instructions for f in p.facts)
+            wanted = ({f.id for f in p.facts} | {f"{f.id}.{x.id}" for f in p.facts for x in f.fields}
+                      | {f"{f.id}.{o}" for f in p.facts for o in f.options})  # a choice's options have words too
+            assert set(words.labels) == wanted and all(v.strip() for v in words.labels.values()), lang
+        assert all(f'"{f.id}": ' in p.instructions for f in p.facts)  # the answer's shape names every fact
         # the routine's questions are the pack's words too: every request and ask step has them in every language
         for step in p.steps:
             if step.kind == "request":
                 assert all(p.text[lang].question(step.id).strip() for lang in LANGUAGES), step.id
             if step.kind == "ask":
                 assert all(p.text[lang].question(step.id, f).strip() != p.text[lang].labels[f] for lang in LANGUAGES for f in step.facts), step.id
+            if step.kind == "check":  # a sentence saying what holds when it holds, in every language
+                assert all(p.text[lang].checks.get(step.id, "").strip() for lang in LANGUAGES), step.id
 
 
 def test_deed_intake_fits_a_sale_and_is_covered():
@@ -37,7 +41,7 @@ def test_deed_intake_fits_a_sale_and_is_covered():
     assert p is not None and p.id == "playbook/be-notary/deed-intake" and p.pack == "pack/be-notary"
     assert for_case_type("sale") == [p] and for_case_type("estate") == []
     assert find(p.id) is p and covered(p.id) and not covered("playbook/be-notary/nothing")
-    assert len(p.facts) == 13 and p.version == "1.1" and [s.kind for s in p.steps] == ["request", "read", "ask", "checkpoint", "produce"]
+    assert len(p.facts) == 13 and p.version == "1.2" and [s.kind for s in p.steps] == ["request", "read", "ask", "checkpoint", "produce"]
 
 
 def test_the_languages_are_the_interfaces():

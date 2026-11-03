@@ -219,6 +219,29 @@ def as_amount(value: str, sep: str = ",") -> Decimal | None:
     return min(words) if words else None
 
 
+def as_number(value: str, sep: str = ",") -> Decimal | None:
+    """One fact's number (a count, a share, a percentage: a figure without currency): the first figure,
+    however short ("3 aandelen" -> 3), read in the sources' decimal style, or the number in words."""
+    from .calc import TEXT_FIGURE, _value
+    for f in TEXT_FIGURE.findall(join_groups(value)):
+        if (v := _value(f, sep)) is not None:
+            return v
+    words = amounts_in(value)
+    return min(words) if words else None
+
+
+def numbers_in(text: str, sep: str = ",") -> set[Decimal]:
+    """Every figure in a passage, short ones included, and the numbers written in words: what a ``number``
+    fact's value is checked against (``as_number``); ``support._figures`` leaves short figures out on purpose,
+    which is right for a chat answer and wrong for a count the playbook asked for."""
+    from .calc import TEXT_FIGURE, _value
+    out: set[Decimal] = set(amounts_in(text))
+    for f in TEXT_FIGURE.findall(join_groups(text)):
+        if (v := _value(f, sep)) is not None:
+            out.add(v)
+    return out
+
+
 def as_date(value: str) -> tuple[int, int, int] | None:
     """One fact's date: numeric (12/05/2014) or written (12 mei 2014, in words too)."""
     from .calc import DATE

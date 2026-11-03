@@ -18,11 +18,94 @@
         },
         "kind": {
           "default": "text",
-          "description": "text, amount or date: decides which checks apply",
+          "description": "text, amount, date or number: decides which checks apply; choice (format 3): one of options; list (format 3): several entries",
           "enum": [
             "text",
             "amount",
-            "date"
+            "date",
+            "number",
+            "choice",
+            "list"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "of": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/FieldSpec"
+              },
+              "type": "array"
+            },
+            {
+              "enum": [
+                "text",
+                "amount",
+                "date",
+                "number",
+                "choice"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "list only: the entries' fields (a record each), or the kind of each entry's one value",
+          "title": "Of"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "choice only: the option ids (cash, in_kind), two to twelve",
+          "title": "Options"
+        }
+      },
+      "required": [
+        "id",
+        "ask"
+      ],
+      "title": "FactSpec",
+      "type": "object"
+    },
+    "FieldSpec": {
+      "additionalProperties": false,
+      "description": "One field of a list's entries (format 3): a plain-valued fact inside the record.",
+      "properties": {
+        "id": {
+          "description": "Stable within the list; labelled as <list id>.<field id>",
+          "pattern": "^[a-z][a-z0-9_]{0,49}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "ask": {
+          "description": "What the field is, in the words the model gets (English)",
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Ask",
+          "type": "string"
+        },
+        "kind": {
+          "default": "text",
+          "description": "text, amount, date or number: decides which checks apply",
+          "enum": [
+            "text",
+            "amount",
+            "date",
+            "number",
+            "choice"
           ],
           "title": "Kind",
           "type": "string"
@@ -32,7 +115,7 @@
         "id",
         "ask"
       ],
-      "title": "FactSpec",
+      "title": "FieldSpec",
       "type": "object"
     },
     "StepSpec": {
@@ -51,7 +134,8 @@
             "read",
             "ask",
             "checkpoint",
-            "produce"
+            "produce",
+            "check"
           ],
           "title": "Kind",
           "type": "string"
@@ -120,10 +204,10 @@
           "description": "request: a person may answer that there is no such document",
           "title": "Allow None"
         },
-        "by": {
+        "expects": {
           "anyOf": [
             {
-              "const": "anyone_in_case",
+              "pattern": "^[a-z][a-z0-9_]{0,49}$",
               "type": "string"
             },
             {
@@ -131,7 +215,70 @@
             }
           ],
           "default": null,
-          "description": "checkpoint: who may pass it",
+          "description": "request: a name for what is asked, so a read can aim at it",
+          "title": "Expects"
+        },
+        "documents": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "read: the names (expects) of the requests whose documents it reads; absent: every document",
+          "title": "Documents"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "check: one comparison, <term> <operator> <term> (rules.py)",
+          "title": "Rule"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "any step: runs only when <choice fact> == or != <option> (conditions.py); else skipped",
+          "title": "When"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "enum": [
+                "anyone_in_case",
+                "manager"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "checkpoint: who may pass it: anyone who contributes to the case, or its manager (the notary) only",
           "title": "By"
         },
         "template": {
@@ -161,8 +308,11 @@
   "description": "A playbook as a file: identity, case types, facts, instructions and, in format 2, the routine's steps.",
   "properties": {
     "manifest": {
-      "const": 2,
-      "description": "The manifest format's version: 2 (facts, instructions and steps)",
+      "description": "The manifest format's version: 2 (facts, instructions and steps) or 3 (number and list facts too)",
+      "enum": [
+        2,
+        3
+      ],
       "title": "Manifest",
       "type": "integer"
     },

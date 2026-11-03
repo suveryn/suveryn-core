@@ -783,7 +783,8 @@ function Chat({ me }: { me: Me }) {
   );
 
   // The open run's playbook, its words, and the facts panel beside it (in the source panel's place).
-  const runPlaybook = openRun ? playbooks.find((p) => p.id === openRun.playbook_id) ?? null : null;
+  // the run's own playbook (the manifest it started under) before the installed one, which may be newer
+  const runPlaybook = openRun ? openRun.playbook ?? playbooks.find((p) => p.id === openRun.playbook_id) ?? null : null;
   const nameOfUsername = (u: string) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; };
   const runChanged = (r: Run) => {
     setOpenRun(r);

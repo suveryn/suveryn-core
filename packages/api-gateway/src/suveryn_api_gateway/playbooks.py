@@ -51,7 +51,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactCitation, RunFact
-from suveryn_playbooks import Playbook
+from suveryn_playbooks import Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
 from .conversations import Turn, TurnStore
@@ -86,8 +86,21 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     ended_by text,
     ended_reason text,
     starter text,             -- the starter's id: who may stop or cancel (started_by is the shown name)
-    conversation_id uuid NOT NULL  -- the run's conversation: its thread (conversations.run_id points back)
+    conversation_id uuid NOT NULL,  -- the run's conversation: its thread (conversations.run_id points back)
+    -- The manifest the run started under, as a record (suveryn_playbooks.record): its facts, steps,
+    -- instructions and words. A run reads its own, whatever is installed later; NULL for runs made
+    -- before this column, which read the installed manifest.
+    manifest jsonb,
+    -- Which documents answered which named request (request step id -> document ids): what a read
+    -- aimed at that request reads (docs/design/playbooks.md, "Documents by name").
+    requested jsonb NOT NULL DEFAULT '{}'::jsonb,
+    -- The check steps' results (step id -> status, both sides, what is missing), as last computed by
+    -- the server on the run's values (docs/design/playbooks.md, "Checks"). Never a block.
+    checks jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS manifest jsonb;
+ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS requested jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS checks jsonb NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS playbook_settings (
     playbook_id text PRIMARY KEY,
@@ -129,6 +142,7 @@ class StepState(BaseModel):
     status: StepStatus = "pending"
     by: str | None = None
     at: datetime | None = None
+    because: str | None = None   # skipped by its ``when``: the condition as written, and the choice's value ("contribution_kind == cash; in_kind")
 
 
 class RunSummary(BaseModel):
@@ -159,8 +173,26 @@ class RunSummary(BaseModel):
     conversation_id: str = ""            # the run's conversation: its thread, in the case's list of conversations
 
 
+class CheckOut(BaseModel):
+    """One check step's result as last computed (``suveryn_harness.checks``): the rule holds, fails (both
+    sides as computed, for the notary) or is open (values it needs are missing or can't be read)."""
+
+    status: Literal["holds", "fails", "open"]
+    rule: str
+    left: str = ""
+    right: str = ""
+    missing: list[str] = Field(default_factory=list)
+
+
 class Run(RunSummary):
     facts: list[RunFact] = Field(default_factory=list)
+    # Per named request (step id), the documents that answered it (ids in the case): what a read aimed at it reads.
+    requested: dict[str, list[str]] = Field(default_factory=dict)
+    # Per check step (step id), its result on the run's values as they stand; recomputed when a value changes.
+    checks: dict[str, CheckOut] = Field(default_factory=dict)
+    # The playbook the run started under, as the UI needs it (labels, steps, lists), from the run's own
+    # record; None for a run made before manifests were pinned: the UI then uses the installed one.
+    playbook: PlaybookOut | None = None
     instruction_like_sources: list[int] = Field(default_factory=list)
     steps: dict[str, StepState] = Field(default_factory=dict)
     turns: list[Turn] = Field(default_factory=list)
@@ -184,10 +216,11 @@ class AnswerIn(BaseModel):
     text: str = Field(default="", max_length=MAX_ANSWER)
     facts: dict[str, str] | None = None
     none: bool = False
+    documents: list[str] = Field(default_factory=list, max_length=50)   # request: the documents that answer it (ids in the case)
 
 
 class ConfirmedFact(BaseModel):
-    id: str = Field(min_length=1, max_length=50)
+    id: str = Field(min_length=1, max_length=120)   # a fact id, or a path into a list (``founders[2].name``)
     confirmed: str = Field(max_length=MAX_VALUE)
 
 
@@ -195,7 +228,7 @@ class ConfirmIn(BaseModel):
     """Body of ``PUT …/runs/{run}/facts``: every fact's confirmed value (a correction, the value as
     read, or empty). The summary is written in the run's language, the thread's."""
 
-    facts: list[ConfirmedFact] = Field(min_length=1, max_length=100)
+    facts: list[ConfirmedFact] = Field(min_length=1, max_length=1000)
 
 
 class CancelIn(BaseModel):
@@ -227,6 +260,8 @@ class PlaybookWords(BaseModel):
     summary: str
     labels: dict[str, str]
     questions: dict[str, str] = Field(default_factory=dict)
+    checks: dict[str, str] = Field(default_factory=dict)   # a sentence per check step: what holds when it holds
+    steps: dict[str, str] = Field(default_factory=dict)    # a name per step, for the line that says it was skipped
     facts_title: str = ""   # the facts panel's heading ("Facts for the deed"); empty: the UI's generic one
 
 
@@ -235,6 +270,7 @@ class StepOut(BaseModel):
     kind: str
     needs: list[str]
     facts: list[str] = Field(default_factory=list)
+    by: str = "anyone_in_case"   # checkpoint: who may pass it (anyone_in_case, manager), so the UI can say who confirms
 
 
 class PlaybookOut(BaseModel):
@@ -248,6 +284,10 @@ class PlaybookOut(BaseModel):
     name: str
     covered: bool   # certified and in the appliance's manifest; false: runs with a warning, never blocked (§8)
     facts: list[str]
+    # format 3: per list fact, its entries' field ids ([] for a list of plain values), so the UI can offer an entry to add
+    lists: dict[str, list[str]] = Field(default_factory=dict)
+    kinds: dict[str, str] = Field(default_factory=dict)   # per fact and field (``founders.shares``): text, amount, date, number, choice
+    choices: dict[str, list[str]] = Field(default_factory=dict)   # per choice fact, its options, so the UI can offer them
     case_types: list[str] = Field(default_factory=list)
     text: dict[str, PlaybookWords] = Field(default_factory=dict)  # per language: what the UI shows (docs/translations.md)
     active: bool = True   # an administrator switched it off: it leaves the composer's menu (docs/design/admin.md)
@@ -260,6 +300,20 @@ class ActiveIn(BaseModel):
     active: bool
 
 
+def playbook_out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
+    """A playbook as the UI needs it: identity, words per language, steps, and for format 3 its lists
+    and the kind of every value."""
+    return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
+                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
+                       lists={f.id: [x.id for x in f.fields] for f in p.facts if f.kind == "list"},
+                       choices={f.id: list(f.options) for f in p.facts if f.kind == "choice"},
+                       kinds={**{f.id: f.leaf_kind for f in p.facts}, **{f"{f.id}.{x.id}": x.kind for f in p.facts for x in f.fields}},
+                       text={lang: PlaybookWords(title=w.title, summary=w.summary, labels=w.labels, questions=w.questions, checks=w.checks,
+                                                 steps=w.steps, facts_title=w.facts_title)
+                             for lang, w in p.text.items()},
+                       steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts), by=s.by) for s in p.steps])
+
+
 def summary_text(playbook: Playbook, reference: str, run: Run, language: str) -> str:
     """The confirmed facts as the result document's text: a heading, one paragraph per fact, the
     sources. Stored in the case with origin ``playbook`` and offered as a Word download by the UI.
@@ -267,14 +321,30 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
     Provenance: the id and version written are the **run's** (what read the documents), never the
     playbook as installed now: a run started under 1.0 and confirmed after an upgrade says 1.0
     (review 2026-10-17). ``playbook`` only supplies the labels."""
+    from .playbook_runtime import shown_facts
     words = playbook.wording(language)
-    labels = words.labels
     lines = [f"{words.title} {reference}", f"{run.playbook_id} {run.playbook_version}"]
-    for f in run.facts:
+    for f in shown_facts(run.facts):
         value = f.confirmed if f.confirmed is not None else f.value
         sources = ", ".join(f"{c.filename}{f' p. {c.page}' if c.page else ''}" for c in f.citations)
-        lines.append(f"{labels.get(f.id, f.id)}: {value or '—'}" + (f" ({sources})" if sources and value else ""))
+        lines.append(f"{words.label(f.id)}: {value or '—'}" + (f" ({sources})" if sources and value else ""))
+    # the checks, as last computed on the confirmed values: what each says, and whether it holds
+    for step in playbook.steps:
+        c = run.checks.get(step.id)
+        if step.kind != "check" or c is None:
+            continue  # a check skipped by its when has no result and no line
+        said = words.checks.get(step.id, step.rule)
+        word = {"holds": CHECK_WORDS[language if language in CHECK_WORDS else "en"][0], "fails": CHECK_WORDS[language if language in CHECK_WORDS else "en"][1],
+                "open": CHECK_WORDS[language if language in CHECK_WORDS else "en"][2]}[c.status]
+        detail = f" ({c.left} / {c.right})" if c.status == "fails" else ""
+        lines.append(f"{said}: {word}{detail}")
     return "\n\n".join(lines)
+
+
+# The three words of a check's result in the summary, per language (docs/translations.md: the interface's
+# languages, one list); the chat UI has the same three in its own files.
+CHECK_WORDS = {"en": ("holds", "does not hold", "not checked"), "nl": ("klopt", "klopt niet", "niet nagekeken"),
+               "fr": ("exact", "inexact", "non vérifié")}
 
 
 # ------------------------------------------------------------------------- the store
@@ -307,9 +377,9 @@ class RunStore(TurnStore):
         with self.transaction():
             self.create_for_run(conversation_id, run_id, starter or started_by, playbook.wording(language).title, case_id)
             self._execute("INSERT INTO playbook_runs (id, case_id, playbook_id, playbook_version, status, documents, started_by, model,"
-                          " steps, language, starter, conversation_id) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s, %s)",
+                          " steps, language, starter, conversation_id, manifest) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s, %s, %s)",
                           (run_id, case_id, playbook.id, playbook.version, [uuid.UUID(d) for d in documents], started_by, model,
-                           json.dumps(steps), language, starter, conversation_id))
+                           json.dumps(steps), language, starter, conversation_id, json.dumps(to_record(playbook))))
         return self.get(run_id, case_id)  # type: ignore[return-value]
 
     def say(self, run: RunSummary, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None,
@@ -334,14 +404,27 @@ class RunStore(TurnStore):
         return {str(r[1]): self._summary(r) for r in rows}
 
     def get(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Run | None:
-        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps FROM playbook_runs WHERE id = %s AND case_id = %s",
-                          (run_id, case_id)).fetchone()
+        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps, manifest, requested, checks FROM playbook_runs"
+                          " WHERE id = %s AND case_id = %s", (run_id, case_id)).fetchone()
         if r is None:
             return None
         summary = self._summary(r)
-        suspicious, steps = r[self._N], r[self._N + 1]
+        suspicious, steps, manifest, requested, checks = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3], r[self._N + 4]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
-                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)))
+                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
+                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None, requested=requested or {},
+                   checks={k: CheckOut(**v) for k, v in (checks or {}).items()})
+
+    def set_checks(self, run_id: uuid.UUID, checks: dict[str, dict]) -> None:
+        """The check steps' results, as last computed."""
+        self._execute("UPDATE playbook_runs SET checks = %s WHERE id = %s", (json.dumps(checks), run_id))
+
+    def playbook_of(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Playbook | None:
+        """The playbook the run started under, from its own record (docs/design/playbooks.md, "The data
+        model"): what the runtime walks and the harness reads, whatever is installed now. None for a run
+        made before manifests were pinned; the caller then uses the installed one."""
+        r = self._execute("SELECT manifest FROM playbook_runs WHERE id = %s AND case_id = %s", (run_id, case_id)).fetchone()
+        return from_record(r[0]) if r and r[0] else None
 
     def list(self, case_id: uuid.UUID) -> list[RunSummary]:
         rows = self._execute(f"SELECT {self.COLUMNS} FROM playbook_runs WHERE case_id = %s ORDER BY started_at DESC LIMIT %s",
@@ -371,8 +454,16 @@ class RunStore(TurnStore):
         return self._execute("SELECT 1 FROM playbook_runs WHERE id = %s AND status = %s", (run_id, status)).fetchone() is not None
 
     def set_documents(self, run_id: uuid.UUID, documents: list[str]) -> None:
-        """Which documents the read step read (chosen at the start, or every upload when it runs)."""
-        self._execute("UPDATE playbook_runs SET documents = %s WHERE id = %s", ([uuid.UUID(d) for d in documents], run_id))
+        """Which documents the run's reads read (chosen at the start, every upload when a read runs, or the
+        documents of the requests a read is aimed at): the union over the reads, kept for the out-of-date mark."""
+        self._execute("UPDATE playbook_runs SET documents = COALESCE((SELECT array_agg(DISTINCT d) FROM unnest(documents || %s::uuid[]) AS d), '{}')"
+                      " WHERE id = %s", ([uuid.UUID(d) for d in documents], run_id))
+
+    def assign_documents(self, run_id: uuid.UUID, step_id: str, documents: list[str]) -> None:
+        """The documents that answered a named request, added to what it has."""
+        self._execute("UPDATE playbook_runs SET requested = jsonb_set(requested, ARRAY[%s], "
+                      "(SELECT to_jsonb(array_agg(DISTINCT d)) FROM jsonb_array_elements_text(COALESCE(requested -> %s, '[]'::jsonb) || %s::jsonb) AS d))"
+                      " WHERE id = %s", (step_id, step_id, json.dumps(documents), run_id))
 
     def fail(self, run_id: uuid.UUID, error: str) -> None:
         """The run couldn't go on; ``error`` is a kind, never text."""
@@ -442,6 +533,11 @@ class RunStore(TurnStore):
                               " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                               (uuid.uuid4(), case_id, run_id, step_id, row["fact_id"], row["kind"], row.get("value", "")[:MAX_VALUE],
                                row["status"], json.dumps(row["source"]), json.dumps(row.get("issues", [])), row["by"], row.get("replaces")))
+
+    def supersede(self, ids: list) -> None:
+        """Mark versions superseded without a replacement: a list's "none" once a person adds entries."""
+        for i in ids:
+            self._execute("UPDATE case_facts SET status = 'superseded' WHERE id = %s AND status <> 'superseded'", (i,))
 
     def fact_rows(self, run_id: uuid.UUID) -> list[dict]:
         """Every version a run wrote, oldest first."""
