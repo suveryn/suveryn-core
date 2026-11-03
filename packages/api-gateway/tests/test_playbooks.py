@@ -692,7 +692,8 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.status_code == 200 and len(r.json()["checks"]) == 4
         # confirm: the entries, a third founder given straight in the confirm body, the shares corrected; the case manager
         # confirms (by: manager), a contributor is refused even though they may correct
-        confirm = {"facts": [{"id": "founders[1].shares", "confirmed": "650"}, {"id": "founders[3].name", "confirmed": "Tom Janssens"}]}
+        confirm = {"facts": [{"id": "founders[1].shares", "confirmed": "650"}, {"id": "founders[3].name", "confirmed": "Tom Janssens"},
+                             {"id": "founders[3].shares", "confirmed": "50"}]}
         bob = as_bob(kc)
         c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/seat", json={"value": "Sint-Jansvest 18, Gent"}, headers=bob).status_code == 200
@@ -702,14 +703,14 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         by = {f["id"]: f for f in r.json()["facts"]}
         assert by["founders[1].shares"]["confirmed"] == "650" and by["founders[2].name"]["confirmed"] == "Anna Peeters"
         assert by["founders[3].name"]["confirmed"] == "Tom Janssens"
-        assert r.json()["checks"]["shares_add_up"]["status"] == "fails"   # 650 + 400 against 1000, on the confirmed values; confirmed all the same
+        assert r.json()["checks"]["shares_add_up"]["status"] == "fails"   # 650 + 400 + 50 against 1000, on the confirmed values; confirmed all the same
         name, text = docs.stored_text
-        assert "De aandelen van de oprichters tellen op tot de uitgegeven aandelen: klopt niet (1050 / 1000)" in text
+        assert "De aandelen van de oprichters tellen op tot de uitgegeven aandelen: klopt niet (1100 / 1000)" in text
         assert "De bank attesteert de inbreng in geld: klopt" in text and "Er is minstens één oprichter: klopt" in text
         assert name == "Oprichting (test) 2026/0417 (1.0)"
         assert "Oprichter(s) 1 · Naam: Filip Tack (akte.pdf p. 2)" in text and "Oprichter(s) 1 · Aandelen: 650" in text
         assert "Oprichter(s) 1 · Adres: Kerkstraat 12, Gent" in text and "Geattesteerd bedrag: EUR 412.500,00" in text
-        assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text
+        assert "Oprichter(s) 2 · Naam: Anna Peeters" in text and "Oprichter(s) 3 · Naam: Tom Janssens" in text and "Oprichter(s) 3 · Aandelen: 50" in text
         assert "Oprichter(s): " not in text  # the list's own line is its entries
         assert "Zetel: Sint-Jansvest 18, Gent" in text  # the clerk's correction, confirmed by the manager
 
