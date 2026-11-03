@@ -906,7 +906,10 @@ export type RunSummary = {
   step_kind?: "request" | "read" | "ask" | "checkpoint" | "produce" | null;  // the kind of the step the run is on
   conversation_id?: string;     // the run's conversation, in the case's list of conversations
 };
-export type Run = RunSummary & { facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
+export type Run = RunSummary & {
+  /** The playbook the run started under, from its own record (a run keeps its manifest); null for a run made before that: use the installed one. */
+  playbook?: PlaybookInfo | null;
+  facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
 
 export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks`);

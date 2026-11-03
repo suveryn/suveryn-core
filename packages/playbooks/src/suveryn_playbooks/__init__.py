@@ -28,6 +28,7 @@ from pathlib import Path
 from ._model import LANGUAGES, Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
 from .manifest import ManifestError, load, read_schema
 from .paths import entry, is_path, root, split
+from .record import from_record, to_record
 
 OFFICIAL_PACKS = ("be_notary",)   # package directories holding official manifests, in catalogue order
 
@@ -72,5 +73,5 @@ DEED_INTAKE: Playbook = find("playbook/be-notary/deed-intake")  # type: ignore[a
 assert DEED_INTAKE is not None, "the official pack be_notary must contain deed-intake.yaml"
 
 __all__ = ["DEED_INTAKE", "LANGUAGES", "OFFICIAL_PACKS", "PLAYBOOKS", "Fact", "FactKind", "LeafKind", "ManifestError", "Playbook",
-           "Step", "StepKind", "Wording", "by_slug", "covered", "entry", "find", "for_case_type", "is_path", "load", "read_schema",
-           "root", "split"]
+           "Step", "StepKind", "Wording", "by_slug", "covered", "entry", "find", "for_case_type", "from_record", "is_path", "load",
+           "read_schema", "root", "split", "to_record"]

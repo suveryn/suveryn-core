@@ -676,3 +676,37 @@ def test_a_list_the_documents_name_nothing_of_is_asked_about_and_an_answer_becom
         assert r.status_code == 200 and r.json()["status"] == "done"
         _, text = docs.stored_text
         assert "Founder(s) 1 · Name: Filip Tack" in text and "Founder(s): " not in text
+
+
+@needs_db
+def test_a_run_keeps_the_manifest_it_started_under(office):
+    """A run is pinned to its manifest (docs/design/playbooks.md, "The data model"): what it shows, asks and
+    produces comes from the record it made at the start, whatever is installed later. Simulated by editing
+    the record in the database as an upgrade would change the installed file."""
+    c, kc, _, docs, _ = office
+    alice = as_user(kc, ALICE)
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
+    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
+    assert run["playbook"]["version"] == "1.2" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
+    assert run["playbook"]["lists"] == {} and run["playbook"]["kinds"]["price"] == "amount"
+    # "the next release" renames a label and bumps the version; the run doesn't follow it
+    store = c.app.state.runs.get()
+    record = store._execute("SELECT manifest FROM playbook_runs WHERE id = %s", (uuid.UUID(rid),)).fetchone()[0]
+    record["version"], record["text"]["nl"]["labels"]["price"] = "0.9", "Koopsom"
+    store._execute("UPDATE playbook_runs SET manifest = %s WHERE id = %s", (json.dumps(record), uuid.UUID(rid)))
+    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
+    assert run["playbook"]["version"] == "0.9" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Koopsom"
+    assert run["playbook_version"] == "1.2"  # what was recorded at the start stays the run's version
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {}}, headers=alice)
+    r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}, headers=alice)
+    assert r.status_code == 200 and r.json()["status"] == "done"
+    _, text = docs.stored_text
+    assert "Koopsom: EUR 412.000,00" in text and "Prijs:" not in text  # the summary uses the run's own words
+    # a run from before manifests were pinned reads the installed one
+    store._execute("UPDATE playbook_runs SET manifest = NULL WHERE id = %s", (uuid.UUID(rid),))
+    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
+    assert run["playbook"] is None

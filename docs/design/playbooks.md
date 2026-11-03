@@ -115,6 +115,17 @@ A run holds everything it needs to be shown later, including the cited passages'
 document can be deleted after the run: the run then shows the passage as it was read, marked as
 coming from a deleted document, the same way a saved conversation does (suveryn-tracker#12).
 
+**A run keeps the manifest it started under** (3 November 2026, `playbook_runs.manifest`). At the
+start the loaded playbook is written into the run as a record (`suveryn_playbooks.record`: facts,
+steps, instructions, words), and from then on everything about that run reads its own record: the
+runtime's steps, the harness's read, the labels in the thread and the summary, `Run.playbook` for the
+UI. An upgrade of the installed manifest changes nothing in a run that is under way, and a run
+finished under 1.0 is still shown with 1.0's words after 1.2 is installed: with format 3 a new
+version can add or rename a list's fields, and a run's paths must mean what they meant. A run made
+before this column (`manifest` NULL) reads the installed manifest, as before. The installed one still
+supplies what a chip needs across many runs (titles, the kind of a step), where a query per run would
+be too much for too little.
+
 ## The routine (30 October 2026)
 
 A playbook is a **conversation with a routine** (the project's orchestration note). When it is

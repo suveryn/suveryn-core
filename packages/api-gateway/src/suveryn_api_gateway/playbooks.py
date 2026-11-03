@@ -51,7 +51,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactCitation, RunFact
-from suveryn_playbooks import Playbook
+from suveryn_playbooks import Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
 from .conversations import Turn, TurnStore
@@ -86,8 +86,13 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     ended_by text,
     ended_reason text,
     starter text,             -- the starter's id: who may stop or cancel (started_by is the shown name)
-    conversation_id uuid NOT NULL  -- the run's conversation: its thread (conversations.run_id points back)
+    conversation_id uuid NOT NULL,  -- the run's conversation: its thread (conversations.run_id points back)
+    -- The manifest the run started under, as a record (suveryn_playbooks.record): its facts, steps,
+    -- instructions and words. A run reads its own, whatever is installed later; NULL for runs made
+    -- before this column, which read the installed manifest.
+    manifest jsonb
 );
+ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS manifest jsonb;
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS playbook_settings (
     playbook_id text PRIMARY KEY,
@@ -161,6 +166,9 @@ class RunSummary(BaseModel):
 
 class Run(RunSummary):
     facts: list[RunFact] = Field(default_factory=list)
+    # The playbook the run started under, as the UI needs it (labels, steps, lists), from the run's own
+    # record; None for a run made before manifests were pinned: the UI then uses the installed one.
+    playbook: PlaybookOut | None = None
     instruction_like_sources: list[int] = Field(default_factory=list)
     steps: dict[str, StepState] = Field(default_factory=dict)
     turns: list[Turn] = Field(default_factory=list)
@@ -263,6 +271,18 @@ class ActiveIn(BaseModel):
     active: bool
 
 
+def playbook_out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
+    """A playbook as the UI needs it: identity, words per language, steps, and for format 3 its lists
+    and the kind of every value."""
+    return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
+                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
+                       lists={f.id: [x.id for x in f.fields] for f in p.facts if f.kind == "list"},
+                       kinds={**{f.id: f.leaf_kind for f in p.facts}, **{f"{f.id}.{x.id}": x.kind for f in p.facts for x in f.fields}},
+                       text={lang: PlaybookWords(title=w.title, summary=w.summary, labels=w.labels, questions=w.questions, facts_title=w.facts_title)
+                             for lang, w in p.text.items()},
+                       steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
+
+
 def summary_text(playbook: Playbook, reference: str, run: Run, language: str) -> str:
     """The confirmed facts as the result document's text: a heading, one paragraph per fact, the
     sources. Stored in the case with origin ``playbook`` and offered as a Word download by the UI.
@@ -310,9 +330,9 @@ class RunStore(TurnStore):
         with self.transaction():
             self.create_for_run(conversation_id, run_id, starter or started_by, playbook.wording(language).title, case_id)
             self._execute("INSERT INTO playbook_runs (id, case_id, playbook_id, playbook_version, status, documents, started_by, model,"
-                          " steps, language, starter, conversation_id) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s, %s)",
+                          " steps, language, starter, conversation_id, manifest) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s, %s, %s)",
                           (run_id, case_id, playbook.id, playbook.version, [uuid.UUID(d) for d in documents], started_by, model,
-                           json.dumps(steps), language, starter, conversation_id))
+                           json.dumps(steps), language, starter, conversation_id, json.dumps(to_record(playbook))))
         return self.get(run_id, case_id)  # type: ignore[return-value]
 
     def say(self, run: RunSummary, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None,
@@ -337,14 +357,22 @@ class RunStore(TurnStore):
         return {str(r[1]): self._summary(r) for r in rows}
 
     def get(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Run | None:
-        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps FROM playbook_runs WHERE id = %s AND case_id = %s",
+        r = self._execute(f"SELECT {self.COLUMNS}, instruction_like_sources, steps, manifest FROM playbook_runs WHERE id = %s AND case_id = %s",
                           (run_id, case_id)).fetchone()
         if r is None:
             return None
         summary = self._summary(r)
-        suspicious, steps = r[self._N], r[self._N + 1]
+        suspicious, steps, manifest = r[self._N], r[self._N + 1], r[self._N + 2]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
-                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)))
+                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
+                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None)
+
+    def playbook_of(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Playbook | None:
+        """The playbook the run started under, from its own record (docs/design/playbooks.md, "The data
+        model"): what the runtime walks and the harness reads, whatever is installed now. None for a run
+        made before manifests were pinned; the caller then uses the installed one."""
+        r = self._execute("SELECT manifest FROM playbook_runs WHERE id = %s AND case_id = %s", (run_id, case_id)).fetchone()
+        return from_record(r[0]) if r and r[0] else None
 
     def list(self, case_id: uuid.UUID) -> list[RunSummary]:
         rows = self._execute(f"SELECT {self.COLUMNS} FROM playbook_runs WHERE case_id = %s ORDER BY started_at DESC LIMIT %s",

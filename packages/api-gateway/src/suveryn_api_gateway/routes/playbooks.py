@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
 from suveryn_harness.facts import Unreadable, map_answer, read_playbook, said_unknown
-from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, covered, find, for_case_type, root
+from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, find, for_case_type, root
 
 from ..cases import Case
 from ..playbook_runtime import Runtime
@@ -44,7 +44,7 @@ from ..playbooks import (
     RunSummary,
     SayIn,
     StartIn,
-    StepOut,
+    playbook_out,
 )
 from .common import (
     DocumentNotFound,
@@ -109,14 +109,7 @@ def _run_id(run_id: str) -> uuid.UUID:
         raise HTTPException(422, f"Not a run id: {run_id!r}") from None
 
 
-def _out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
-    return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
-                       facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
-                       lists={f.id: [x.id for x in f.fields] for f in p.facts if f.kind == "list"},
-                       kinds={**{f.id: f.leaf_kind for f in p.facts}, **{f"{f.id}.{x.id}": x.kind for f in p.facts for x in f.fields}},
-                       text={lang: {"title": w.title, "summary": w.summary, "labels": w.labels, "questions": w.questions, "facts_title": w.facts_title}
-                             for lang, w in p.text.items()},
-                       steps=[StepOut(id=s.id, kind=s.kind, needs=list(s.needs), facts=list(s.facts)) for s in p.steps])
+_out = playbook_out  # a playbook as the UI needs it (``suveryn_api_gateway.playbooks``)
 
 
 async def _inactive(request: Request) -> set[str]:
@@ -146,7 +139,7 @@ def _runtime(request: Request) -> Runtime:
 def _named(run):
     """A run with its playbook's title per language and the kind of its step, so a chip anywhere can
     say "Akte-intake · wacht op documenten" without knowing the playbooks (Pod check of d0f680e, finding 1)."""
-    pb = find(run.playbook_id)
+    pb = find(run.playbook_id)  # the installed one: titles and step kinds for a chip; a run's own is on ``Run.playbook``
     if pb is None:
         return run
     step = pb.step(run.step) if run.step else None
@@ -323,9 +316,9 @@ async def _live_run(request: Request, case_id: str, run_id: str, action: str) ->
     run = await run_in_threadpool(store.get, _run_id(run_id), uuid.UUID(case.id))
     if run is None:
         raise HTTPException(404, "Unknown run.")
-    pb = find(run.playbook_id)
+    pb = await run_in_threadpool(store.playbook_of, _run_id(run_id), uuid.UUID(case.id)) or find(run.playbook_id)
     if pb is None:
-        raise HTTPException(409, "This run's playbook is no longer installed.")
+        raise HTTPException(409, "This run's playbook is no longer installed.")  # an old run, made before manifests were pinned
     return case, store, run, pb
 
 

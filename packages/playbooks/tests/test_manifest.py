@@ -260,3 +260,16 @@ def test_the_published_schema_is_the_models():
     without the other fails here (regenerate: ``python -m suveryn_playbooks.manifest``)."""
     published = json.loads((Path(__file__).parents[1] / "schema" / "playbook-manifest.schema.json").read_text(encoding="utf-8"))
     assert published == json_schema()
+
+
+def test_a_playbook_survives_the_record_a_run_keeps():
+    """A run keeps the manifest it started under (docs/design/playbooks.md): the loaded playbook written
+    out as plain data and read back is the same playbook, lists and words included."""
+    import json
+
+    from suveryn_playbooks import PLAYBOOKS, from_record, to_record
+    for p in (*PLAYBOOKS, parse(LISTS).to_playbook(WORDS)):
+        record = json.loads(json.dumps(to_record(p)))  # as the database hands it back
+        assert from_record(record) == p, p.id
+    with pytest.raises(KeyError):
+        from_record({"id": "playbook/be-notary/x"})
