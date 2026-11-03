@@ -53,16 +53,20 @@ MODELS = [
 # A fact's keyword in the documents the stack uploads (the fictional trap deed is Dutch); matched case-insensitively
 # against each excerpt's sentences. Facts without a keyword here, or whose keyword no excerpt has, are "not found".
 KEYWORDS = {
-    "sellers": ["verkoper"],
+    "sellers": ["verkoper"],              # a plain fact (a manifest that keeps the parties as text)
+    "sellers.name": ["verkoper"],         # a list's field (deed intake 1.3): one entry, with that field
     "buyers": ["koper "],
+    "buyers.name": ["koper "],
     "property": ["bedrijfspand", "het verkochte"],
     "cadastral": ["kadastraal"],
     "price": ["koopprijs bedraagt"],
     "conditions": ["ontbindende voorwaarde"],
+    "conditions.condition": ["ontbindende voorwaarde"],
     "occupancy": ["huurder"],
 }
 
 _SHAPE = re.compile(r'^  "([a-z_][a-z0-9_]*)": (\{"value": <|\[)', re.MULTILINE)   # the answer's shape, as the loader spells it
+_FIELD = re.compile(r'^      "([a-z_][a-z0-9_]*)": \{"value": <', re.MULTILINE)      # a list entry's fields, six spaces in
 _EXCERPT = re.compile(r"^\[(\d{1,2})\] \((.*?)\)\n(.*?)(?=\n\n\[\d{1,2}\] \(|\n\n\(The excerpts above|\Z)", re.MULTILINE | re.DOTALL)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z(\[])|\n+")  # a full stop inside "1.275.000,00" is not an end
 _WORD = re.compile(r"\w{4,}", re.UNICODE)
@@ -86,23 +90,42 @@ def sentence_with(text: str, keyword: str) -> str | None:
     return None
 
 
-def facts_json(facts: list[tuple[str, bool]], passages: list[tuple[int, str]]) -> str:
-    """The answer in the facts' shape: ``(id, is_list)`` per fact, in order."""
+def leaf_for(key: str, passages: list[tuple[int, str]]) -> dict:
+    """``{"value", "sources"}`` for a fact or a list's field: the first sentence with one of its keywords."""
+    for keyword in KEYWORDS.get(key, []):
+        for n, text in passages:
+            if (s := sentence_with(text, keyword)) is not None:
+                return {"value": s, "sources": [n]}
+    return {"value": None, "sources": []}
+
+
+def facts_json(facts: list[tuple[str, list[str] | None]], passages: list[tuple[int, str]]) -> str:
+    """The answer in the facts' shape: ``(id, fields)`` per fact, in order; ``fields`` is None for a plain fact,
+    the entry's field ids for a list of entries, ``[]`` for a list of plain values. A list gets one entry when
+    any of its fields has a keyword in the passages, else it is empty."""
     out: dict = {}
-    for fact, is_list in facts:
-        if is_list:
+    for fact, fields in facts:
+        if fields is None:
+            out[fact] = leaf_for(fact, passages)
+        elif fields:
+            entry = {f: leaf_for(f"{fact}.{f}", passages) for f in fields}
+            out[fact] = [entry] if any(v["value"] for v in entry.values()) else []
+        else:
             out[fact] = []
-            continue
-        value, source = None, []
-        for keyword in KEYWORDS.get(fact, []):
-            for n, text in passages:
-                if (s := sentence_with(text, keyword)) is not None:
-                    value, source = s, [n]
-                    break
-            if value:
-                break
-        out[fact] = {"value": value, "sources": source}
     return json.dumps(out, ensure_ascii=False)
+
+
+def shape_of(question: str) -> list[tuple[str, list[str] | None]]:
+    """The facts the answer's shape names, each with its entry's fields when it is a list."""
+    out: list[tuple[str, list[str] | None]] = []
+    starts = list(_SHAPE.finditer(question))
+    for i, m in enumerate(starts):
+        if m.group(2) != "[":
+            out.append((m.group(1), None))
+            continue
+        end = starts[i + 1].start() if i + 1 < len(starts) else len(question)
+        out.append((m.group(1), _FIELD.findall(question[m.end():end])))
+    return out
 
 
 def grounded_answer(question: str, passages: list[tuple[int, str]]) -> str:
@@ -122,7 +145,7 @@ def answer_for(messages: list[dict]) -> tuple[str, str]:
     prompt = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
     passages = excerpts(prompt)
     question = prompt.rsplit("QUESTION:", 1)[-1].strip()
-    facts = [(fid, opener == "[") for fid, opener in _SHAPE.findall(question)]
+    facts = shape_of(question)
     if facts:
         return "Reading the excerpts for each fact in turn.", facts_json(facts, passages)
     return "Looking for the excerpt that answers the question.", grounded_answer(question, passages)

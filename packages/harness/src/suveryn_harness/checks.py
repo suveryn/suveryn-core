@@ -18,6 +18,9 @@ from .calc import source_decimal_separator
 from .values import as_amount, as_date, as_number
 
 
+EMPTY = object()  # the latest or earliest of a list with no entries
+
+
 @dataclass(frozen=True)
 class CheckResult:
     status: str                 # "holds", "fails", "open"
@@ -36,6 +39,8 @@ def evaluate(rule: Rule, values: dict[str, str], sep: str | None = None) -> Chec
     missing = (*lm, *rm)
     if missing or left is None or right is None:
         return CheckResult("open", _show(left), _show(right), missing)
+    if left is EMPTY or right is EMPTY:  # "every term falls before the deed" with no term at all: holds
+        return CheckResult("holds", _show(left), _show(right))
     holds = {"==": left == right, "!=": left != right, "<": left < right, "<=": left <= right, ">": left > right, ">=": left >= right}[rule.op]
     return CheckResult("holds" if holds else "fails", _show(left), _show(right))
 
@@ -51,15 +56,21 @@ def _value(term: Term, kind: str, values: dict[str, str], sep: str):
     entries = sorted({split(p)[1] for p in paths if split(p)[1] is not None})  # type: ignore[misc]
     if term.kind == "count":
         return Decimal(len(entries)), ()
-    total, missing = Decimal(0), []
+    found, missing = [], []
     for i in entries:
         path = entry(term.fact, i, term.field)
         v = _typed(values.get(path, ""), kind, sep)
         if v is None:
             missing.append(path)
         else:
-            total += v
-    return (total if not missing else None), tuple(missing)
+            found.append(v)
+    if missing:
+        return None, tuple(missing)
+    if term.kind == "sum":
+        return sum(found, Decimal(0)), ()
+    if not found:
+        return EMPTY, ()  # latest or earliest of no entries: nothing to compare, the check holds (evaluate)
+    return (max(found) if term.kind == "latest" else min(found)), ()
 
 
 def _typed(value: str, kind: str, sep: str):
@@ -74,7 +85,7 @@ def _typed(value: str, kind: str, sep: str):
 
 
 def _show(v) -> str:
-    if v is None:
+    if v is None or v is EMPTY:
         return ""
     if isinstance(v, tuple):
         return f"{v[0]:04d}-{v[1]:02d}-{v[2]:02d}"

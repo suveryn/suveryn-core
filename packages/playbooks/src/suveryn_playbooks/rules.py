@@ -7,13 +7,16 @@ which knows how to read an amount, a number or a date from a value as written.
     certified_amount == contribution
     count(founders) >= 1
     plan_date <= deed_date
+    latest(conditions.term) <= deed_deadline
 
 A rule is ``term operator term``. A term names a fact (``contribution``), the sum of a list's field
-(``sum(founders.contribution)``), the number of a list's entries (``count(founders)``) or a plain number
-(``1``, ``100``, ``0.5``). Operators: ``==``, ``!=``, ``<``, ``<=``, ``>``, ``>=``. Both sides must be of one kind
-(amount, number or date); a sum is of its field's kind, a count is a number, a literal is a number.
-Nothing else: no arithmetic, no and/or, no text. The format grows into a programming language the day
-a notary can't read a line and know what it does.
+(``sum(founders.contribution)``), the number of a list's entries (``count(founders)``), the latest or the
+earliest date in a list's field (``latest(conditions.term)``, ``earliest(...)``: so "every term falls
+before the deed" is one line; a list with no entries makes the check hold) or a plain number (``1``,
+``100``, ``0.5``). Operators: ``==``, ``!=``, ``<``, ``<=``, ``>``, ``>=``. Both sides must be of one kind
+(amount, number or date); a sum is of its field's kind, a count is a number, a latest or earliest is a
+date, a literal is a number. Nothing else: no arithmetic, no and/or, no text. The format grows into a
+programming language the day a notary can't read a line and know what it does.
 """
 from __future__ import annotations
 
@@ -23,21 +26,21 @@ from dataclasses import dataclass
 from ._model import LeafKind, Playbook
 
 OPERATORS = ("==", "!=", "<=", ">=", "<", ">")
-_TERM = re.compile(r"^(?:(sum)\(([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)\)|(count)\(([a-z][a-z0-9_]*)\)|([a-z][a-z0-9_]*)|(\d+(?:\.\d+)?))$")
+_TERM = re.compile(r"^(?:(sum|latest|earliest)\(([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)\)|(count)\(([a-z][a-z0-9_]*)\)|([a-z][a-z0-9_]*)|(\d+(?:\.\d+)?))$")
 _RULE = re.compile(r"^\s*(.+?)\s*(==|!=|<=|>=|<|>)\s*(.+?)\s*$")
 
 
 @dataclass(frozen=True)
 class Term:
     """One side of a rule."""
-    kind: str                 # "fact", "sum", "count", "literal"
-    fact: str = ""            # the fact id, or the list id for sum and count
-    field: str = ""           # sum: the field
+    kind: str                 # "fact", "sum", "latest", "earliest", "count", "literal"
+    fact: str = ""            # the fact id, or the list id for sum, latest, earliest and count
+    field: str = ""           # sum, latest, earliest: the field
     literal: str = ""         # literal: the number as written
 
     def __str__(self) -> str:
-        if self.kind == "sum":
-            return f"sum({self.fact}.{self.field})"
+        if self.kind in ("sum", "latest", "earliest"):
+            return f"{self.kind}({self.fact}.{self.field})"
         if self.kind == "count":
             return f"count({self.fact})"
         return self.fact if self.kind == "fact" else self.literal
@@ -74,7 +77,7 @@ def parse_rule(text: str, playbook: Playbook) -> Rule:
         raise ValueError(f"rule {text!r}: compares {named[0]} with {named[1]}; both sides must be of one kind")
     kind = named[0]
     if kind == "date" and any(t.kind in ("literal", "sum", "count") for t in (left, right)):
-        raise ValueError(f"rule {text!r}: a date compares only with a date fact")
+        raise ValueError(f"rule {text!r}: a date compares only with a date fact, or the latest or earliest of a list's dates")
     return Rule(left, m.group(2), right, kind)
 
 
@@ -83,7 +86,7 @@ def _term(text: str) -> Term:
     if not m:
         raise ValueError(f"term {text!r}: a fact id, sum(<list>.<field>), count(<list>) or a number")
     if m.group(1):
-        return Term("sum", m.group(2), m.group(3))
+        return Term(m.group(1), m.group(2), m.group(3))
     if m.group(4):
         return Term("count", m.group(5))
     if m.group(6):
@@ -109,6 +112,10 @@ def _kind_of(term: Term, playbook: Playbook) -> LeafKind | None:
     x = f.field(term.field)
     if x is None:
         raise ValueError(f"term {term}: {term.fact!r} has no field {term.field!r}")
+    if term.kind in ("latest", "earliest"):
+        if x.kind != "date":
+            raise ValueError(f"term {term}: {term.fact}.{term.field} is {x.kind}; {term.kind} is of dates")
+        return "date"
     if x.kind not in ("amount", "number"):
         raise ValueError(f"term {term}: {term.fact}.{term.field} is {x.kind}; a sum is of amounts or numbers")
     return x.kind

@@ -36,15 +36,15 @@ languages is the chat UI's):
 
 | Id | What | Kind |
 |---|---|---|
-| `sellers` | The selling party or parties, as named in the agreement | text |
-| `buyers` | The buying party or parties | text |
+| `sellers` | The selling party or parties, one entry per seller: name, address, register number (1.3; text in 1.0) | list |
+| `buyers` | The buying party or parties, one entry per buyer: name, address, register number (1.3; text in 1.0) | list |
 | `property` | The property: address and description | text |
 | `cadastral` | The cadastral identification (division, section, number) | text |
 | `price` | The sale price | amount |
 | `deposit` | The advance or guarantee paid at signing, and to whom | amount |
 | `agreement_date` | The date the private agreement was signed | date |
 | `deed_deadline` | The date by which the notarial deed must be signed | date |
-| `conditions` | Suspensive conditions (financing, permits), with their terms | text |
+| `conditions` | Suspensive conditions (financing, permits), one entry per condition: the condition and its term, a date (1.3; text in 1.0) | list |
 | `title` | The seller's title: the earlier deed, its date and notary | text |
 | `epc` | The energy performance certificate: reference and result | text |
 | `soil` | The soil certificate: reference and conclusion | text |
@@ -52,6 +52,10 @@ languages is the chat UI's):
 
 Thirteen facts. Not more, because every fact is a line the notary has to check, and the three
 playbooks together are supposed to show what a fact is before a facts layer is designed around it.
+Since 1.3 three of them are lists, so a second seller is a second entry and not a longer sentence,
+and five checks run for the checkpoint: a seller and a buyer, the advance within the price, the deed's
+deadline after the agreement, every condition's term before that deadline
+(`latest(conditions.term) <= deed_deadline`). The questions and the labels of 1.0 are unchanged.
 
 ## What is settled now, and why
 
@@ -370,6 +374,8 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
 - **Deed intake 1.2** is deed intake with the JSON answer: the facts and the words are 1.0's, the
   instructions say "the object" where they said "the table". **Company formation 1.0** is the first
   playbook with a list: the founders, each with name, shares (number) and contribution (amount).
+  **Deed intake 1.3** (4 November 2026) makes the parties and the conditions lists and adds checks,
+  keeping 1.0's thirteen ids, questions and labels: a run made under 1.0 reads the same facts.
 - `check` steps on these typed values: below, "Checks".
 
 ### Documents by name (3 November 2026)
@@ -407,9 +413,11 @@ against the contribution in money, the bank's certificate against that amount. I
 foundation brief, on the typed values format 3 laid down.
 
 - A `check` step states one `rule`, a comparison a notary can read: `sum(founders.shares) == shares`,
-  `certified_amount == contribution`, `count(founders) >= 1`, `plan_date <= deed_date`. A term is a
-  fact, the sum of a list's field, the count of a list's entries, or a number; both sides are of one
-  kind (amount, number or date). Nothing else: no arithmetic, no and/or, no text
+  `certified_amount == contribution`, `count(founders) >= 1`, `plan_date <= deed_date`,
+  `latest(conditions.term) <= deed_deadline`. A term is a fact, the sum of a list's field, the count of
+  a list's entries, the latest or the earliest date in a list's field (deed intake 1.3: "every term
+  falls before the deed" in one line; with no entries the check holds), or a number; both sides are of
+  one kind (amount, number or date). Nothing else: no arithmetic, no and/or, no text
   (`suveryn_playbooks.rules`). The loader refuses a rule that doesn't parse, that compares kinds, or
   that reads facts no read step before it reads, with the step named. A manifest grows into a
   programming language the day a notary can't read a line and know what it does; the rule language is
@@ -425,7 +433,8 @@ foundation brief, on the typed values format 3 laid down.
   each, with the pack's sentence for the check (`text/<lang>.json`, `checks.<step id>`) and the result;
   a failed check is a point for the notary and never holds *Confirm* back. The summary ends with them.
 - Company formation 1.2 has four: shares add up, contributions add up, the bank certifies the
-  contribution, at least one founder.
+  contribution, at least one founder. Deed intake 1.3 has five: a seller, a buyer, the advance within
+  the price, the deed after the agreement, every condition's term before the deed.
 
 ### Choices, and steps that turn on them (3 November 2026)
 

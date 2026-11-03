@@ -75,9 +75,11 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     page.get_by_role("menuitem", name=re.compile("^Deed intake")).click()
     page.get_by_text("Nora Notaris started Deed intake").wait_for()
     page.get_by_role("button", name="Use the documents already in the case").click()
-    page.get_by_text(re.compile(r"\d+ of 13 facts found\. Not in the documents:")).wait_for(timeout=120_000)
+    # 1.3: the parties and the conditions are lists; the stub reads one entry each from the trap deed, so the count is
+    # the ten plain facts plus the entries' values (three per party, two per condition): 18
+    page.get_by_text(re.compile(r"\d+ of 18 facts found\. Not in the documents:")).wait_for(timeout=120_000)
     # the facts the documents lack are asked; "Not known yet" answers each question until the review
-    for _ in range(13):
+    for _ in range(18):
         button = page.get_by_role("button", name="Not known yet")
         if not button.count():
             break
@@ -86,8 +88,9 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     review = page.get_by_text(re.compile(r"\d+ need your attention:"))
     review.wait_for()
     expect(page.get_by_text("Energy certificate").first).to_be_visible()  # a fact the trap deed never mentions
-    page.get_by_role("button", name="See all 13 facts").click()
+    page.get_by_role("button", name="See all 18 facts").click()
     expect(page.get_by_text("EUR 1.275.000,00").first).to_be_visible()   # the price, read from the deed
+    expect(page.get_by_text(re.compile("Seller\\(s\\) 1 · Name")).first).to_be_visible()  # a list's entry, by path
     page.keyboard.press("Escape")
     page.get_by_role("button", name="Confirm the facts").click()
     page.get_by_text(re.compile("Confirmed by Nora Notaris")).wait_for()
@@ -100,7 +103,7 @@ def test_the_colleague_reads_the_case_and_its_summary(page, deed):
     open_case(page, CASE)
     page.get_by_role("button", name=f"2 documents in case {CASE}").click()
     # the summary is in the case's documents, made by the playbook, never a source
-    expect(page.get_by_text(f"Deed intake {CASE} (1.2)")).to_be_visible()
+    expect(page.get_by_text(f"Deed intake {CASE} (1.3)")).to_be_visible()
     expect(page.get_by_text("Not a source", exact=True)).to_be_visible()
     expect(page.get_by_text("akte-testdorp.pdf")).to_be_visible()
 
@@ -115,7 +118,7 @@ def test_administration_pages_open_and_status_is_sound(page):
     assert page.locator("main").inner_text().count("Working") >= 4
     expect(page.get_by_text("e2e", exact=True)).to_be_visible()  # SUVERYN_VERSION, in the overview
     administration(page, "Playbooks")
-    expect(page.get_by_text(re.compile("Deed intake 1.2")).first).to_be_visible()
+    expect(page.get_by_text(re.compile("Deed intake 1.3")).first).to_be_visible()
 
 
 def test_an_account_switched_off_loses_its_session_at_once(page, browser):
