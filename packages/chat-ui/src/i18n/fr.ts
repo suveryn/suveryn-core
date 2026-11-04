@@ -99,6 +99,7 @@ const fr: Messages = {
   caseTypeEstate: "Succession",
   caseTypeGift: "Donation",
   caseTypeMarriage: "Contrat de mariage",
+  caseTypeCareMandate: "Mandat de protection",
   caseTypeHint: "Choisissez-en un, ou tapez le vôtre.",
   caseSubject: "Objet",
   caseSubjectHint: "Par exemple un bien ou un numéro de demande.",

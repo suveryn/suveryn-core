@@ -17,13 +17,13 @@ import { createCase, type Case, type KeepPeriod, type NewCase } from "../api";
 import { useT } from "../i18n";
 import { Button, ComboBoxField, Dialog, Form, InlineNotice, TextButton, TextField } from "../ui";
 
-export const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract"] as const;
+export const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract", "care-mandate"] as const;
 
 /** The type's label in the interface language; an unknown type (another sector's) is shown as is. */
 export function caseTypeLabel(type: string, m: ReturnType<typeof useT>): string {
   const labels: Record<string, string> = {
     "sale": m.caseTypeSale, "company-formation": m.caseTypeCompany, "estate": m.caseTypeEstate, "gift": m.caseTypeGift,
-    "marriage-contract": m.caseTypeMarriage,
+    "marriage-contract": m.caseTypeMarriage, "care-mandate": m.caseTypeCareMandate,
   };
   return labels[type] ?? type;
 }
