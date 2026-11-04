@@ -44,7 +44,7 @@ Membership adds rights; it never takes them away.
 ## Case types and what a case is about
 
 The **type** says what kind of file it is and decides which playbooks fit: for notaries, sale,
-company formation, estate, gift, marriage contract; other sectors bring their own list. Types are
+company formation, estate, gift, marriage contract, care mandate (4 November 2026, for the pack's care-mandate playbook); other sectors bring their own list. Types are
 data, not code: a short list per appliance, with sūveryn's own per sector.
 
 With the type comes a **subject**: what the case is about, in the type's terms. A property for a

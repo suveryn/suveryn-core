@@ -109,6 +109,7 @@ const en = {
   caseTypeEstate: "Estate",
   caseTypeGift: "Gift",
   caseTypeMarriage: "Marriage contract",
+  caseTypeCareMandate: "Care mandate",
   caseTypeHint: "Choose one, or type your own.",
   caseSubject: "Subject",
   caseSubjectHint: "For example a property or an application number.",

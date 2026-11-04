@@ -97,6 +97,7 @@ const nl: Messages = {
   caseTypeEstate: "Nalatenschap",
   caseTypeGift: "Schenking",
   caseTypeMarriage: "Huwelijkscontract",
+  caseTypeCareMandate: "Zorgvolmacht",
   caseTypeHint: "Kies er een, of typ uw eigen.",
   caseSubject: "Onderwerp",
   caseSubjectHint: "Bijvoorbeeld een pand of een aanvraagnummer.",
