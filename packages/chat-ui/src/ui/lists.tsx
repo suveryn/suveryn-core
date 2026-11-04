@@ -4,12 +4,16 @@
  * - ComboBoxField: a text field with suggestions, for a value that is usually one of a short list
  *   but may be the user's own (a case type: the notarial list, or another sector's word). Typing
  *   filters the suggestions; arrow keys move, Enter chooses, Escape closes; a typed value stays.
+ *   Suggestions that arrive after the last keystroke (a directory searched as you type) open the
+ *   list too: React Aria opens it only on a keystroke, with the suggestions in hand at that moment.
  * - SearchField: a search box with a clear button (Escape clears too), to filter a list.
  */
 import { Check, ChevronDown, CircleAlert, Search, X } from "lucide-react";
+import { useContext, useEffect, useRef } from "react";
 import {
   Button as AriaButton,
   ComboBox,
+  ComboBoxStateContext,
   FieldError,
   Input,
   Label,
@@ -40,6 +44,7 @@ export function ComboBoxField({ name, label, description, options, value, onChan
       <FieldError className="ui-field-error">
         {({ validationErrors }) => <><CircleAlert size={16} aria-hidden /><span>{validationErrors.join(" ")}</span></>}
       </FieldError>
+      <OpenOnLateSuggestions options={options} />
       <Popover className="ui-popover" placement="bottom start" offset={6}>
         <ListBox className="ui-listbox">
           {options.map((o) => (
@@ -51,6 +56,28 @@ export function ComboBoxField({ name, label, description, options, value, onChan
       </Popover>
     </ComboBox>
   );
+}
+
+/** Whether new suggestions should open the list: they are new, the person is in the field and has typed
+ *  something they haven't chosen yet, and the list is closed. (Whether any suggestion matches what was
+ *  typed, React Aria decides when asked to open.) */
+export function opensOnArrival(s: { before: string; after: string; focused: boolean; open: boolean; typed: string; chosen: boolean }): boolean {
+  return s.after !== s.before && s.after !== "" && s.focused && !s.open && s.typed.trim() !== "" && !s.chosen;
+}
+
+/** Opens the list when the suggestions change after the last keystroke (the member search's directory
+ *  answering ~300 ms later; found by the end-to-end walk-through). */
+function OpenOnLateSuggestions({ options }: { options: Option[] }) {
+  const state = useContext(ComboBoxStateContext);
+  const ids = options.map((o) => o.id).join("\n");
+  const before = useRef(ids);
+  useEffect(() => {
+    const was = before.current;
+    before.current = ids;
+    if (state && opensOnArrival({ before: was, after: ids, focused: state.isFocused, open: state.isOpen,
+                                  typed: state.inputValue, chosen: state.selectedKey != null })) state.open(null, "input");
+  }, [ids, state]);
+  return null;
 }
 
 export function SearchField({ label, value, onChange, placeholder, className, autoFocus }: {

@@ -57,13 +57,9 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     members = dialog(page)
     expect(members.get_by_text("manager", exact=True)).to_be_visible()
     field = members.get_by_role("combobox", name="Add a colleague")
+    # typed faster than the directory answers (about 300 ms): the suggestions open when they arrive, no key needed
+    # (found writing this suite; the kit's ComboBoxField opens on late suggestions)
     field.fill("Koen")
-    # The list opens on a keystroke, with the suggestions in hand at that moment; a name typed faster than the
-    # directory answers (about 300 ms) shows none until the next key (found writing this test; tracker issue
-    # to follow). The arrow key opens it, as a person would.
-    page.wait_for_timeout(1000)
-    if not page.get_by_role("option").count():
-        field.press("ArrowDown")
     page.get_by_role("option", name=re.compile("Koen Collega")).click()
     members.get_by_role("button", name="Add", exact=True).click()
     expect(members.get_by_text("Koen Collega")).to_be_visible()
