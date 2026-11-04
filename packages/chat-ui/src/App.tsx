@@ -62,7 +62,8 @@ import { today } from "./lib/usage";
 import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
-import { afterDeletion, questionDocuments } from "./lib/questionDocuments";
+import { afterDeletion } from "./lib/questionDocuments";
+import { answerPatch, canRegenerate, conversationDocuments, failureKind, questionFor } from "./lib/ask";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
 import { lang, locale, t, useLang, useT } from "./i18n";
@@ -409,13 +410,7 @@ function Chat({ me }: { me: Me }) {
   // ---------------------------------------------------------------- derived
   // Documents used so far in this conversation, leaving out any deleted since (a reopened conversation
   // may name documents that are gone; asking about them would fail).
-  const conversationDocs = useMemo(() => {
-    const exists = new Set(documents.map((d) => d.id));
-    const ids = new Set<string>();
-    for (const t of turns) if (t.role === "user") for (const a of t.attachments)
-      if (isReady(a) && a.documentId && (!documentsReady || exists.has(a.documentId))) ids.add(a.documentId);
-    return ids;
-  }, [turns, documents, documentsReady]);
+  const conversationDocs = useMemo(() => conversationDocuments(turns, documents, documentsReady), [turns, documents, documentsReady]);
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
 
   const disabledReason =
@@ -532,19 +527,12 @@ function Chat({ me }: { me: Me }) {
 
   // ``fresh``: the case's documents just read again, for the one retry after a colleague deleted one.
   const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[]) => {
-    // What is read goes with the question; a document still being read, or one that failed, stays in
-    // the composer: the first counts for the next question once it is ready (§5).
-    const attachments = again ?? pending.filter((a) => !staysInComposer(a));
-    // In a case: the Ask about choice, with this question's uploads (they are chosen once read).
-    const asked = caseId ? [...(againAbout ?? about)] : [];
-    if (caseId) for (const a of attachments) if (isReady(a) && a.documentId && !asked.some((x) => x.documentId === a.documentId))
-      asked.push({ documentId: a.documentId, filename: a.filename });
+    // What goes with it, what it asks about, and the documents it is answered from (lib/ask.ts).
+    const { attachments, asked, chosen, documentIds } = questionFor({ pending, again, againAbout, about, inCase: !!caseId, conversationDocs,
+                                                                     documents: caseId ? fresh ?? documents : null });
+    const docIds = new Set(documentIds);
     const user: UserTurn = { id: nextId(), role: "user", text, attachments, ...(asked.length ? { about: asked } : {}) };
-    const chosen = new Set(caseId ? asked.map((x) => x.documentId) : conversationDocs);
-    for (const a of attachments) if (isReady(a) && a.documentId) chosen.add(a.documentId);
     setAboutGone(false);
-    // In a case with nothing attached, the case's sources (lib/questionDocuments.ts).
-    const docIds = new Set(questionDocuments(chosen, caseId ? fresh ?? documents : null));
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0,
                                    ...(thinking ? { thinking: true } : {}) };
     const history: WireMessage[] = conversationHistory(turns);
@@ -579,28 +567,19 @@ function Chat({ me }: { me: Me }) {
         thought += piece;
         update({ reasoning: thought });
       } });
-      const reasoning = done.reasoning || thought;
-      update({ text: done.answer, citations: done.citations, calculations: done.calculations ?? [],
-               unverifiedFigures: done.unverified_figures ?? [], citationIssues: done.citation_issues ?? [],
-               ...(done.support_spans ? { supportSpans: done.support_spans } : {}),
-               instructionLikeSources: done.instruction_like_sources ?? [],
-               ...(reasoning ? { reasoning, thoughtSeconds: done.thought_seconds ?? thinkSeconds } : {}),
-               ...(done.thinking_cut ? { thinkingCut: true } : {}),
-               ...(done.narrowed_to ? { narrowedTo: done.narrowed_to } : {}),
-               ...(done.finish_reason === "length" ? { truncated: true } : {}),
-               status: "done", model: done.model, ...(asked.length && whole === false ? { partial: true } : {}) });
+      update(answerPatch(done, { thought, thinkSeconds, partial: asked.length > 0 && whole === false }));
     } catch (e) {
-      if (stopped.current) {
+      const kind = failureKind(e, { stopped: stopped.current, streamed, inCase: !!caseId, retried: !!fresh, cutOffMessage: m.streamCutOff });
+      if (kind === "stopped") {
         // Stopped (docs/design/chat-ui.md §5): what was written stays, with the passages its markers
         // point to, marked unchecked; the server has stopped the model.
         update({ text: streamed, citations: sources, status: "stopped", step: undefined, ...thoughtSoFar() });
-      } else if (streamed && (e instanceof TypeError || (e as Error).message === m.streamCutOff)) {
+      } else if (kind === "cutOff") {
         // The connection dropped mid-answer (§5, artboard 09): what arrived stays, unchecked, with
         // *Regenerate*; the server is checked at once, so the bar says whether it can be reached.
         update({ text: streamed, citations: sources, status: "error", cutOff: true, error: m.answerCutOff, step: undefined, ...thoughtSoFar() });
         checkNow();
-      } else if (e instanceof HttpError && e.status === 404 && caseId && !fresh && !streamed
-                 && (now = await documentsNow()) && (next = afterDeletion(docIds, chosen.size, now))) {
+      } else if (kind === "maybeDeleted" && (now = await documentsNow()) && (next = afterDeletion(docIds, chosen.size, now))) {
         // A colleague deleted one of the case's documents since this page read the list (lib/questionDocuments.ts).
         if (next === "retry") retryWith = now;
         else update({ text: "", status: "error", error: m.chosenDeletedMeanwhile, failure: "chosenDeleted" });
@@ -622,9 +601,7 @@ function Chat({ me }: { me: Me }) {
   };
 
   // Regenerate: the last question again, with the documents it had, in place of its failed answer.
-  const last = turns[turns.length - 1];
-  const canRegenerate = !busy && !disabledReason && last?.role === "assistant" && last.status === "error"
-    && turns[turns.length - 2]?.role === "user";
+  const regenerable = canRegenerate(turns, busy, !!disabledReason);
   const regenerate = () => {
     const question = turns[turns.length - 2] as UserTurn;
     setTurns((ts) => ts.slice(0, -2));
@@ -1188,7 +1165,7 @@ function Chat({ me }: { me: Me }) {
             turns.map((t, i) => (t.role === "user" ? <UserMessage key={t.id} turn={t} /> :
               <AssistantMessage key={t.id} turn={t} filenames={filenames} caseRef={currentCase?.reference ?? null}
                                 source={source?.turnId === t.id ? source : null} onSource={openSource(t.id)}
-                                onRegenerate={canRegenerate && t.id === last?.id ? regenerate : null}
+                                onRegenerate={regenerable && t.id === turns[turns.length - 1]?.id ? regenerate : null}
                                 question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""}
                                 save={saveControls(t, turns[i - 1]?.role === "user" ? turns[i - 1].text : "")} />))
           )}
