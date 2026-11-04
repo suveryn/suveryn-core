@@ -554,7 +554,7 @@ class RunStore(TurnStore):
                 out[row["fact_id"]] = row
         return out
 
-    def facts_for_run(self, run_id: uuid.UUID, checkpoint_steps: set[str] | None = None) -> list[RunFact]:
+    def facts_for_run(self, run_id: uuid.UUID) -> list[RunFact]:
         """``Run.facts`` as the UI knows them, from the versions: the value as read (the model's, or a
         person's answer to an ask), its citations and issues, whether the documents contained it, and
         what a checkpoint confirmed. Order: as first written (the playbook's)."""
