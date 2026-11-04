@@ -12,7 +12,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from conftest import ask, health_part, service, sign_in, upload, wait_until
+from conftest import ask, database_back, health_part, service, sign_in, upload, wait_until
 from stack import kc_token
 
 
@@ -46,7 +46,7 @@ def test_postgresql_restarts_and_nobody_is_signed_out(page, deed, restored):
     assert r.status == 503, r.status
     assert "database" in r.json().get("detail", "").lower() or r.json().get("reason") == "database"
     start(restored, "postgres")
-    wait_until(lambda: health_part("history") == "ready" and health_part("documents") == "ready", 90, what="the stores reconnecting")
+    wait_until(lambda: database_back() and health_part("documents") == "ready", 90, what="the stores reconnecting")
     # the same session, no new sign-in: the stores reconnected by themselves (Pod check of f0ff96c)
     assert page.request.get("/auth/me").ok
     assert page.request.get("/v1/documents").ok
@@ -67,7 +67,7 @@ def test_a_sign_in_right_after_postgresql_restarts_works_first_time(page, restor
     stop(restored, "postgres")
     wait_until(lambda: health_part("history") == "failed", 30, what="/health noticing the database")
     start(restored, "postgres")
-    wait_until(lambda: health_part("history") == "ready", 90, what="the stores reconnecting")
+    wait_until(database_back, 90, what="the stores reconnecting")
     page.context.set_default_timeout(8_000)
     sign_in(page)
 
