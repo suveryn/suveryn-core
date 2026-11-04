@@ -9,9 +9,9 @@
  * waited for it (audit of 4 November 2026, finding 2). Now such a job is ``lost``: the card says the page
  * lost track of the upload and to add it again if it isn't in the documents, which are refreshed.
  */
-import { getJob, HttpError, type Job } from "../api";
+import { getJob, HttpError, type ArchiveUpload, type Job, type StoredDocument } from "../api";
 import type { Messages } from "../i18n";
-import type { Attachment } from "../types";
+import { isReady, type Attachment, type Chosen, type Turn } from "../types";
 import { cardNote, checkPages, readingNotes, toCheck } from "./readingNotes";
 
 /** The reader's code for an upload the server no longer knows (``failureText``). */
@@ -61,4 +61,52 @@ export function afterCheck(m: Messages, a: Attachment, checked: Map<string, Chec
   if (c === undefined) return a;
   if (c === "lost") return { ...a, status: "failed", errorCode: LOST_TRACK, reading: null };
   return attachmentFromJob(m, a, c);
+}
+
+// ------------------------------------------------------------------------- the composer's cards
+// What App.tsx decides about an upload's card, apart from React so it can be tested (audit of 4 November 2026,
+// App.tsx in slices; lib/ask.ts and lib/documentActions.ts came first).
+
+/** The uploads to ask about this round: those still with the server, in the composer and in the conversation. */
+export function uploadsToCheck(pending: Attachment[], turns: Turn[]): Attachment[] {
+  return [...pending, ...turns.flatMap((t) => (t.role === "user" ? t.attachments : []))].filter(stillReading);
+}
+
+/** Whether a round of checks changed the documents: a job finished (read, failed, cancelled) or was lost. */
+export function documentsChanged(checked: Map<string, Checked>): boolean {
+  return [...checked.values()].some((c) => c === "lost" || !["queued", "processing"].includes(c.status));
+}
+
+/** An archive's card becomes a card per document in it, and one per file left out, saying why. */
+export function archiveCards(m: Messages, upload: ArchiveUpload, key: () => string): Attachment[] {
+  return [
+    ...upload.jobs.map((j) => attachmentFromJob(m, { key: key(), filename: j.filename, status: "queued", jobId: j.id }, j)),
+    ...upload.skipped.map((s): Attachment => ({ key: key(), filename: s.name, status: "failed", notAdded: true,
+                                               error: m.archiveSkipped(upload.archive, s.reason) })),
+  ];
+}
+
+/** A stored document attached again: read already, put on "To check" if its reading noticed anything. */
+export function cardForStored(d: StoredDocument, key: string): Attachment {
+  return { key, filename: d.filename, documentId: d.id, reviewPages: checkPages(d.warnings), pages: d.pages || undefined,
+           status: d.status === "needs_review" || toCheck(readingNotes(d.warnings)) ? "needs_review" : "ready" };
+}
+
+/** The card's ×: what else it does. A document still on its way stops its upload; one waiting or being read
+ *  cancels its job; one read only leaves this question (and, in a case, the Ask about choice). */
+export function removal(a: Attachment): { stop: "upload" | "job" | null; unchoose: string | null } {
+  const stop = a.status === "uploading" ? "upload" : (a.status === "queued" || a.status === "processing") && a.jobId ? "job" : null;
+  return { stop, unchoose: a.documentId ?? null };
+}
+
+/** An upload that looked like sūveryn's own output, used as a source anyway: ready, or on "To check" when its
+ *  reading noticed something. */
+export function usedAsSource(a: Attachment): Attachment {
+  return { ...a, status: a.reviewPages?.length || a.note ? "needs_review" : "ready", noticed: undefined };
+}
+
+/** In a case an upload is chosen as soon as it is read (docs/design/chat-ui.md §10): those not chosen yet. */
+export function readToChoose(pending: Attachment[], about: Chosen[]): { id: string; filename: string }[] {
+  return pending.filter((a) => isReady(a) && a.documentId && !about.some((x) => x.documentId === a.documentId))
+    .map((a) => ({ id: a.documentId!, filename: a.filename }));
 }
