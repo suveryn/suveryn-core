@@ -14,11 +14,7 @@ import json
 import sys
 
 # package -> (applies while the version starts with one of these, why it is tolerated for now)
-KNOWN = {
-    "pillow": (("12.",), "Docling 2.135 caps Pillow below 13. The avatar decoder no longer reaches any reader but "
-                         "PNG, JPEG and WebP (avatars.py), and the document reader runs sandboxed; the move to "
-                         "Pillow 13 comes with Docling 2.146 in its own PR."),
-}
+KNOWN: dict[str, tuple[tuple[str, ...], str]] = {}
 
 
 def main(path: str) -> int:
