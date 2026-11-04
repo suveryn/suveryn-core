@@ -40,8 +40,8 @@ import { AvatarDialog } from "./components/AvatarDialog";
 import { OfflineBar } from "./components/OfflineBar";
 import { BackupBar } from "./components/BackupBar";
 import { backupAttention, type BackupAttention } from "./lib/backups";
-import { checkPages, readingNotes, toCheck } from "./lib/readingNotes";
-import { afterCheck, attachmentFromJob, checkJobs, stillReading } from "./lib/uploads";
+import { afterCheck, archiveCards, attachmentFromJob, cardForStored, checkJobs, documentsChanged, readToChoose, removal, uploadsToCheck,
+         usedAsSource } from "./lib/uploads";
 import { CaseState } from "./components/CaseState";
 import { factCounts, RunPanel, runStatusWord, RunThread, runChipText, useRun, type RunPanelView } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
@@ -71,7 +71,7 @@ import { lang, locale, t, useLang, useT } from "./i18n";
 import { playbookWords } from "./lib/playbooks";
 import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
-import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
+import { staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
 import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "./lib/conversationActions";
 import { watermark, WatermarkContext } from "./lib/watermark";
@@ -391,17 +391,17 @@ function Chat({ me }: { me: Me }) {
 
   // Poll uploads that are still being read, in the composer and in the conversation.
   useEffect(() => {
-    const open = [...pending, ...turns.flatMap((t) => (t.role === "user" ? t.attachments : []))].filter(stillReading);
+    const open = uploadsToCheck(pending, turns);
     if (open.length === 0) return;
     const t = setTimeout(async () => {
-      // A job the server no longer knows (a restart forgot it) comes back as "lost": its card says the
-      // upload was interrupted, instead of "reading" for ever (lib/uploads.ts).
+      // A job the server no longer knows comes back as "lost": its card says the page lost track of the
+      // upload, instead of "reading" for ever (lib/uploads.ts).
       const checked = await checkJobs(open.map((a) => a.jobId!));
       const apply = (a: Attachment): Attachment => afterCheck(m, a, checked);
       // A job cancelled (here, or in another tab) leaves the composer.
       setPending((p) => p.map(apply).filter((a) => a.status !== "cancelled"));
       setTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
-      if ([...checked.values()].some((c) => c === "lost" || !["queued", "processing"].includes(c.status))) refreshDocuments();
+      if (documentsChanged(checked)) refreshDocuments();
     }, 1500);
     return () => clearTimeout(t);
   }, [pending, turns, refreshDocuments, m]);
@@ -437,11 +437,7 @@ function Chat({ me }: { me: Me }) {
           () => setPending((p) => p.map((a) => (a.key === key ? { ...a, progress: undefined } : a))), abort.signal);
         if (isArchiveUpload(job)) {
           // The archive's card becomes a card per document in it, and one per file left out, saying why.
-          const cards: Attachment[] = [
-            ...job.jobs.map((j) => attachmentFromJob(m, { key: nextId(), filename: j.filename, status: "queued", jobId: j.id }, j)),
-            ...job.skipped.map((s): Attachment => ({ key: nextId(), filename: s.name, status: "failed", notAdded: true,
-                                                     error: m.archiveSkipped(job.archive, s.reason) })),
-          ];
+          const cards = archiveCards(m, job, nextId);
           setPending((p) => p.flatMap((a) => (a.key === key ? cards : [a])));
         } else {
           setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob(m, { ...a, jobId: job.id }, job) : a)));
@@ -462,20 +458,17 @@ function Chat({ me }: { me: Me }) {
     const a = pending.find((x) => x.key === key);
     setPending((p) => p.filter((x) => x.key !== key));
     if (!a) return;
-    if (a.documentId) setAbout((c) => c.filter((x) => x.documentId !== a.documentId));  // out of this question
-    if (a.status === "uploading") uploads.current.get(key)?.abort();
-    else if ((a.status === "queued" || a.status === "processing") && a.jobId) {
-      cancelJob(a.jobId).then(refreshDocuments).catch((e: Error) => setProblem(e.message));
-    }
+    const { stop, unchoose } = removal(a);
+    if (unchoose) setAbout((c) => c.filter((x) => x.documentId !== unchoose));  // out of this question
+    if (stop === "upload") uploads.current.get(key)?.abort();
+    else if (stop === "job") cancelJob(a.jobId!).then(refreshDocuments).catch((e: Error) => setProblem(e.message));
   };
 
   const addDocument = (d: StoredDocument) => {
     // In a case a document is chosen under Ask about rather than attached (§10: choosing is one thing).
     if (caseId) { choose(d); return; }
     if (pending.some((a) => a.documentId === d.id)) return;
-    setPending((p) => [...p, { key: nextId(), filename: d.filename,
-                               status: d.status === "needs_review" || toCheck(readingNotes(d.warnings)) ? "needs_review" : "ready",
-                               documentId: d.id, reviewPages: checkPages(d.warnings), pages: d.pages || undefined }]);
+    setPending((p) => [...p, cardForStored(d, nextId())]);
   };
 
   const choose = (d: { id: string; filename: string }) => {
@@ -485,7 +478,7 @@ function Chat({ me }: { me: Me }) {
   // In a case, an upload is chosen as soon as it is read (§10: "it is chosen right away").
   useEffect(() => {
     if (!caseId) return;
-    for (const a of pending) if (isReady(a) && a.documentId && !about.some((x) => x.documentId === a.documentId)) choose({ id: a.documentId, filename: a.filename });
+    for (const d of readToChoose(pending, about)) choose(d);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, caseId]);
   // A chosen document that left the case leaves the choice; with none left, the whole case again.
@@ -502,7 +495,7 @@ function Chat({ me }: { me: Me }) {
     if (!a?.documentId) return;
     try {
       await confirmAsSource(a.documentId, caseId);
-      setPending((p) => p.map((x) => (x.key === key ? { ...x, status: x.reviewPages?.length || x.note ? "needs_review" : "ready", noticed: undefined } : x)));
+      setPending((p) => p.map((x) => (x.key === key ? usedAsSource(x) : x)));
       refreshDocuments();
     } catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
   };
