@@ -943,12 +943,6 @@ export async function setPlaybookActive(slug: string, active: boolean): Promise<
   return r.json();
 }
 
-export async function listRuns(caseId: string): Promise<RunSummary[]> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
 export async function getRun(caseId: string, runId: string): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}`);
   if (!r.ok) throw await responseError(r);
