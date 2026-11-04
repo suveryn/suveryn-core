@@ -26,7 +26,7 @@ import {
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  cancelJob, deleteDocument, documentConversations, getHealth, getJob, isArchiveUpload, listDocuments, streamChat, uploadDocument,
+  cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, uploadDocument,
   getMe, HttpError, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
@@ -40,7 +40,8 @@ import { AvatarDialog } from "./components/AvatarDialog";
 import { OfflineBar } from "./components/OfflineBar";
 import { BackupBar } from "./components/BackupBar";
 import { backupAttention, type BackupAttention } from "./lib/backups";
-import { cardNote, checkPages, readingNotes, toCheck } from "./lib/readingNotes";
+import { checkPages, readingNotes, toCheck } from "./lib/readingNotes";
+import { afterCheck, attachmentFromJob, checkJobs, stillReading } from "./lib/uploads";
 import { CaseState } from "./components/CaseState";
 import { factCounts, RunPanel, runStatusWord, RunThread, runChipText, useRun, type RunPanelView } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
@@ -87,16 +88,6 @@ let counter = 0;
 /** An attachment as its upload job says it is now. An upload that carries sūveryn's own export mark is
  *  read but waits for the person's choice before it is a source (docs/design/chat-ui.md §6): never
  *  blocked, never used unasked. */
-function attachmentFromJob(a: Attachment, j: Job): Attachment {
-  const noticed = j.noticed && (j.status === "ready" || j.status === "needs_review") ? j.noticed : undefined;
-  // What the reading noticed puts it on "To check" too, and says so once on the card (suveryn-tracker#26)
-  const status = j.status === "ready" && toCheck(readingNotes(j.warnings)) ? "needs_review" : j.status;
-  return { ...a, status: noticed ? "noticed" : status, noticed, documentId: j.document_id ?? undefined,
-           error: j.error ?? undefined, reviewPages: checkPages(j.warnings), pages: j.pages ?? undefined,
-           note: cardNote(t(), j.warnings) ?? undefined,
-           reading: j.status === "processing" ? j.progress ?? null : null, errorCode: j.error_code ?? undefined,
-           errorDetail: j.error_detail ?? undefined };
-}
 const nextId = () => `t${Date.now().toString(36)}-${++counter}`;
 const HEALTH_EVERY = 10_000;
 const MODELS_EVERY = 60_000;
@@ -398,25 +389,20 @@ function Chat({ me }: { me: Me }) {
 
   // Poll uploads that are still being read, in the composer and in the conversation.
   useEffect(() => {
-    const open = [...pending, ...turns.flatMap((t) => (t.role === "user" ? t.attachments : []))]
-      .filter((a) => a.jobId && (a.status === "queued" || a.status === "processing"));
+    const open = [...pending, ...turns.flatMap((t) => (t.role === "user" ? t.attachments : []))].filter(stillReading);
     if (open.length === 0) return;
     const t = setTimeout(async () => {
-      const updates = new Map<string, Job>();
-      await Promise.all(open.map(async (a) => {
-        try { updates.set(a.jobId!, await getJob(a.jobId!)); } catch { /* try again next round */ }
-      }));
-      const apply = (a: Attachment): Attachment => {
-        const j = a.jobId ? updates.get(a.jobId) : undefined;
-        return j ? attachmentFromJob(a, j) : a;
-      };
+      // A job the server no longer knows (a restart forgot it) comes back as "lost": its card says the
+      // upload was interrupted, instead of "reading" for ever (lib/uploads.ts).
+      const checked = await checkJobs(open.map((a) => a.jobId!));
+      const apply = (a: Attachment): Attachment => afterCheck(m, a, checked);
       // A job cancelled (here, or in another tab) leaves the composer.
       setPending((p) => p.map(apply).filter((a) => a.status !== "cancelled"));
       setTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
-      if ([...updates.values()].some((j) => !["queued", "processing"].includes(j.status))) refreshDocuments();
+      if ([...checked.values()].some((c) => c === "lost" || !["queued", "processing"].includes(c.status))) refreshDocuments();
     }, 1500);
     return () => clearTimeout(t);
-  }, [pending, turns, refreshDocuments]);
+  }, [pending, turns, refreshDocuments, m]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [turns]);
 
@@ -456,13 +442,13 @@ function Chat({ me }: { me: Me }) {
         if (isArchiveUpload(job)) {
           // The archive's card becomes a card per document in it, and one per file left out, saying why.
           const cards: Attachment[] = [
-            ...job.jobs.map((j) => attachmentFromJob({ key: nextId(), filename: j.filename, status: "queued", jobId: j.id }, j)),
+            ...job.jobs.map((j) => attachmentFromJob(m, { key: nextId(), filename: j.filename, status: "queued", jobId: j.id }, j)),
             ...job.skipped.map((s): Attachment => ({ key: nextId(), filename: s.name, status: "failed", notAdded: true,
                                                      error: m.archiveSkipped(job.archive, s.reason) })),
           ];
           setPending((p) => p.flatMap((a) => (a.key === key ? cards : [a])));
         } else {
-          setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob({ ...a, jobId: job.id }, job) : a)));
+          setPending((p) => p.map((a) => (a.key === key ? attachmentFromJob(m, { ...a, jobId: job.id }, job) : a)));
         }
         refreshDocuments();
       } catch (e) {

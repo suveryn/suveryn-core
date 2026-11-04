@@ -695,6 +695,7 @@ const fr: Messages = {
   failNoText: "Il ne contient aucun texte à lire.",
   failUnsupported: "Ce type de fichier ne peut pas être lu.",
   failTimeout: (minutes) => `La lecture a pris plus de ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
+  failLostTrack: "Cette page a perdu la trace du téléversement. S'il n'est pas dans les documents, ajoutez-le à nouveau.",
   failUnreadable: "Réessayez, ou choisissez un autre fichier.",
   recent: "Récents",
   newChatHint: "Personnelle, hors dossier",

@@ -693,6 +693,7 @@ const nl: Messages = {
   failNoText: "Er staat geen tekst in om te lezen.",
   failUnsupported: "Dit soort bestand kan niet gelezen worden.",
   failTimeout: (minutes) => `Lezen duurde langer dan ${minutes} ${minutes === 1 ? "minuut" : "minuten"}.`,
+  failLostTrack: "Deze pagina is de upload uit het oog verloren. Staat hij niet bij de documenten, voeg hem dan opnieuw toe.",
   failUnreadable: "Probeer het opnieuw, of een ander bestand.",
   recent: "Recent",
   newChatHint: "Persoonlijk, buiten een dossier",

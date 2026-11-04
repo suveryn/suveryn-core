@@ -21,13 +21,15 @@ import {
 import { useId } from "react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  answerRun, confirmRun, getJob, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
+  answerRun, confirmRun, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
   type Case, type Citation, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
 } from "../api";
 import { useWatermark } from "../lib/watermark";
 import { locale, useT } from "../i18n";
 import { entryPath, factLabel, nextEntry, optionLabel, shownFacts, type PlaybookWords } from "../lib/playbooks";
 import { ACCEPTED_FILES } from "../lib/formats";
+import { failureText } from "../lib/review";
+import { checkJob, LOST_TRACK } from "../lib/uploads";
 import { exportRef } from "../lib/marks";
 import {
   ActionMenu, Button, Card, Dialog, IconBadge, IconButton, InlineNotice, SourceRef, TextArea, TextButton, useFilePicker, type MenuEntry,
@@ -583,13 +585,17 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
         const r = await uploadDocument(f, undefined, kase.id);
         jobs.push(...(isArchiveUpload(r) ? r.jobs : [r]));
       }
+      const lost: string[] = [];
       for (let job of jobs) {
         while (job.status === "queued" || job.status === "processing") {
           await new Promise((ok) => window.setTimeout(ok, 1000));
-          job = await getJob(job.id);
+          const c = await checkJob(job.id);
+          if (c === "lost") { lost.push(job.filename); break; }  // a restart forgot it (lib/uploads.ts)
+          job = c;
         }
         if (job.document_id && (job.status === "ready" || job.status === "needs_review")) done.push({ id: job.document_id, filename: job.filename });
       }
+      if (lost.length) setError(lost.map((f) => `${f}: ${failureText(m, LOST_TRACK)}`).join(" "));
     } catch (e) { setError((e as Error).message); }
     setUploading([]);
     onDocumentsChanged();

@@ -26,6 +26,7 @@ export function failureText(m: Messages, code: string | undefined, detail: Recor
     case "unsupported": return m.failUnsupported;
     case "timeout": return m.failTimeout(detail.minutes || 30);
     case "unreadable": return m.failUnreadable;
+    case "lost": return m.failLostTrack;  // the server no longer knows the upload (lib/uploads.ts)
     default: return failureReason(error);
   }
 }

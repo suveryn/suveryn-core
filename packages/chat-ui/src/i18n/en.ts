@@ -721,6 +721,7 @@ const en = {
   failNoText: "It has no text to read.",
   failUnsupported: "This kind of file can't be read.",
   failTimeout: (minutes: number) => `Reading took longer than ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
+  failLostTrack: "This page lost track of the upload. If it isn't in the documents, add it again.",
   failUnreadable: "Try again, or another file.",
   // the column, the start screen and narrow screens (docs/design/chat-ui.md §2)
   recent: "Recent",
