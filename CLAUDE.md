@@ -9,7 +9,7 @@ Start with the private [suveryn-handbook](https://github.com/suveryn/suveryn-han
 | What exists, data flow, where confidential data lives, invariants, decisions with evidence, known limitations, the review checklist | [docs/architecture.md](docs/architecture.md) |
 | The grounded prompt, injection handling, server-side calculation, citation checks | [docs/harness.md](docs/harness.md) |
 | The chat interface, screen by screen; sources, playbook messages, administration | [docs/design/chat-ui.md](docs/design/chat-ui.md), [docs/design/admin.md](docs/design/admin.md) |
-| Cases, playbooks, the platform's order of work | [docs/design/cases.md](docs/design/cases.md), [docs/design/playbooks.md](docs/design/playbooks.md), [docs/design/platform.md](docs/design/platform.md) |
+| Cases, playbooks, the platform's order of work | [docs/design/cases.md](docs/design/cases.md), [docs/design/playbooks.md](docs/design/playbooks.md), [docs/design/platform.md](docs/design/platform.md); templates, proposed: [docs/design/templates.md](docs/design/templates.md) |
 | Languages and copy rules | [docs/translations.md](docs/translations.md) |
 | Each package | its `README.md` under `packages/` |
 

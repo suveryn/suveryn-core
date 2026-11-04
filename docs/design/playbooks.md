@@ -502,7 +502,7 @@ official ones until the licence manifest exists.
 - Conditions, `check`, `propose`, model roles, products beyond the summary, products marked out of
   date by changed facts (#28, the rest): the next formats.
 - Ordinary chat on the `turns` table: its own step, with the conversion of the saved blobs.
-- The Word document from the office's own template (#22): the summary is sūveryn's own layout now.
+- The Word document from the office's own template (#22): the summary is sūveryn's own layout now. How it could work, in stages, is proposed in [templates.md](templates.md) (4 November 2026, open until the first notary conversation).
 - Named subject fields on the case type (#29): the intake's facts are the first candidates.
 - Facts validated by form (national register numbers, cadastral patterns): an entities table, later.
 - A second model pass that judges meaning: the rule-based check is what a chat answer gets today.
