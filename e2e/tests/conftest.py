@@ -222,5 +222,13 @@ def health_part(part: str) -> str | None:
         return None
 
 
+def database_back() -> bool:
+    """The stores in PostgreSQL answer again: both that the page checks before it sends anyone to sign in
+    (``databaseDown`` in packages/chat-ui/src/lib/health.ts). Waiting for the conversations store alone left a
+    moment where the cases store hadn't reconnected yet: the page said sign-in was unavailable and never went
+    to Keycloak (CI on PR #168)."""
+    return health_part("history") == "ready" and health_part("cases") == "ready"
+
+
 __all__ = ["ADMIN", "COLLEAGUE", "GATEWAY", "PUBLIC_URL", "SLOW", "sign_in", "sign_out", "account_menu", "dialog", "upload", "ask",
-           "new_case", "open_case", "administration", "service", "wait_until", "health_part"]
+           "new_case", "open_case", "administration", "service", "wait_until", "health_part", "database_back"]
