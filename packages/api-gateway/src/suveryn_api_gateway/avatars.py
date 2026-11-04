@@ -16,6 +16,9 @@ Review notes:
 - The upload is read into memory and bounded by ``MAX_UPLOAD_BYTES`` (the middleware checks the
   Content-Length first, like documents); ``Image.MAX_IMAGE_PIXELS`` bounds the decode.
 - Nothing from the upload survives re-encoding: no metadata, no colour profile, no animation.
+- Only the PNG, JPEG and WebP readers ever see the bytes (``Image.open(..., formats=FORMATS)``): the
+  upload reaches no other decoder, even to be identified. The picture is decoded in the gateway, the
+  process that holds every session, so the attack surface is kept to three readers.
 """
 
 from __future__ import annotations
@@ -57,7 +60,11 @@ def normalise(upload: bytes) -> bytes:
         raise NotAnImage("too large")
     Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     try:
-        with Image.open(io.BytesIO(upload)) as img:
+        # Only the three readers ever look at the bytes: without ``formats`` Pillow tries each of its
+        # readers in turn (TIFF, MPO, DCX, …) before the check below, and those are where Pillow's
+        # published decoder bugs were (Pillow < 13; audit of 4 November 2026). Anything else is
+        # UnidentifiedImageError, so NotAnImage.
+        with Image.open(io.BytesIO(upload), formats=FORMATS) as img:
             if img.format not in FORMATS:
                 raise NotAnImage(f"not a {', '.join(FORMATS)} picture")
             img = ImageOps.exif_transpose(img) or img

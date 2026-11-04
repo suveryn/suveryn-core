@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 5 * * 1"   # Mondays, for the dependency audit
 
 jobs:
   markdown:
@@ -117,3 +119,25 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  dependencies:
+    name: Known vulnerabilities in the locked dependencies
+    # Every push, and weekly, since an advisory can be published against a lock that hasn't changed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Python (pip-audit over uv.lock; exceptions with their reason in .github/scripts/dependency_audit.py)
+        run: |
+          uv export --all-packages --no-dev --no-hashes --format requirements-txt -q | grep -v '^-e\|^\./' > reqs.txt
+          # pip-audit exits 1 whenever it finds anything; the script below decides. A run that wrote no report fails here.
+          uvx pip-audit -r reqs.txt --no-deps --disable-pip --progress-spinner off --format json -o audit.json || test -s audit.json
+          python3 .github/scripts/dependency_audit.py audit.json
+
+      - name: Chat UI (npm audit, what ships to the browser)
+        working-directory: packages/chat-ui
+        run: npm audit --omit=dev --audit-level=high
