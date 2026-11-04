@@ -10,6 +10,7 @@ What a VM regression round did by hand, run by a machine on every pull request (
 | [`tests/test_stub_contract.py`](tests/test_stub_contract.py) | The stub against the real `LlamaServerClient`, in-process: a change on either side fails here first |
 | [`tests/test_walkthrough.py`](tests/test_walkthrough.py) | Sign in; a document read and an answer that cites it (the injection attempt flagged, never followed); *Thorough* that thinks without answering, asked again; a case with a colleague and deed intake to its summary; the colleague's view; every Administration page and Status; an account switched off whose session ends within seconds; a new account's first sign-in with its temporary password; sign out |
 | [`tests/test_lifecycle.py`](tests/test_lifecycle.py) | PostgreSQL stopped and started: nobody signed out, the stores reconnect, the first upload after works; Keycloak stopped and started: `/health` notices, the session survives, a fresh sign-in works after; the model server away: the answer says so in words, and works again after; the sign-in page with the database down |
+| `.github/workflows/e2e.yml`, the reader job | Beside the walk-through, on every pull request: `packages/rag/tests/test_e2e.py`, the trap deed born-digital, scanned, scanned under a thin text layer, and scanned and signed, through the real Docling, OCR and embedder on the CPU, against the quality bar in its docstring. No language model is involved, so no GPU is needed |
 | [`light/`](light/) | **Light mode**, for a development machine that can't reach Hugging Face: a reader that takes a PDF's text layer (no OCR, no layout) and a static 1,024-dimension embedder. CI never uses it |
 
 ## Run it
@@ -44,4 +45,4 @@ The stack listens on `http://localhost:5173`; sign in as `notaris.test` (an admi
 
 ## What it doesn't cover
 
-The image, the installer, the encrypted disk, the TPM, a reboot, a restore onto a fresh machine: those are suveryn-appliance's `run-vm-tests`. A real model on real documents: `packages/rag/tests/test_answers_e2e.py` on the GPU machine, by hand, before a model or prompt change. Copy and design: a person, once per release.
+The image, the installer, the encrypted disk, the TPM, a reboot, a restore onto a fresh machine: those are suveryn-appliance's `run-vm-tests`. A real model on real documents: `packages/rag/tests/test_answers_e2e.py` on the GPU machine, by hand, before a model or prompt change (the reader's own test runs here, in the reader job). Copy and design: a person, once per release.
