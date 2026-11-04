@@ -4,6 +4,7 @@
 #
 #   bash scripts/gpu-round.sh                 # llama.cpp at the appliance's pin
 #   COMPARE=b12111 bash scripts/gpu-round.sh  # and again with a newer llama.cpp, the answers and the reads only
+#   LLAMA_TAG=b12111 bash scripts/gpu-round.sh  # only that llama.cpp; the summary keeps earlier runs' results
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);
@@ -95,7 +96,12 @@ su postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='suveryn_tes
   || su postgres -c "createdb suveryn_test"
 
 LLAMA_PID=""; MEM_PID=""
-stop_all() { [ -n "$LLAMA_PID" ] && kill "$LLAMA_PID" 2>/dev/null; [ -n "$MEM_PID" ] && kill "$MEM_PID" 2>/dev/null; wait 2>/dev/null || true; LLAMA_PID=""; MEM_PID=""; }
+# Waits for these two only: a bare `wait` also waits for the log's tee (bash 5.1+), which never ends.
+stop_all() {
+  local pid
+  for pid in $LLAMA_PID $MEM_PID; do kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; done
+  LLAMA_PID=""; MEM_PID=""
+}
 trap stop_all EXIT
 
 serve() {  # a tag: llama-server with the manifest's arguments, until /health answers
@@ -142,8 +148,9 @@ step "summary"
   nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader | sed 's/^/card: /'
   echo "suveryn-core: $(git -C "$CORE" rev-parse --short HEAD) ($(git -C "$CORE" rev-parse --abbrev-ref HEAD))"
   echo "model: $MODEL_FILE"
-  for tag in $LLAMA_TAG $COMPARE; do
-    echo "llama.cpp $tag (${LLAMA_COMMIT[$tag]:0:7}): peak $(sort -n "$RESULTS/memory-$tag.csv" | tail -1) MiB used"
+  for csv in "$RESULTS"/memory-*.csv; do   # this run's and any earlier run's kept in $WORK
+    tag="$(basename "$csv" .csv)"; tag="${tag#memory-}"
+    echo "llama.cpp $tag (${LLAMA_COMMIT[$tag]:0:7}): peak $(sort -n "$csv" | tail -1) MiB used"
   done
   for xml in "$RESULTS"/*.xml; do
     name="$(basename "$xml" .xml)"
@@ -155,7 +162,9 @@ t, f, e, k = (int(s.get(a, 0)) for a in ("tests", "failures", "errors", "skipped
 print(f"{sys.argv[2]}: {t - f - e - k} passed, {f} failed, {e} errors, {k} skipped (exit {sys.argv[3]})")
 PY
   done
-  echo "out of memory in the reader's log: $(grep -ci 'out of memory' "$RESULTS/reader-$LLAMA_TAG.log" || true)"
+  for log in "$RESULTS"/reader-*.log; do
+    echo "out of memory in $(basename "$log"): $(grep -ci 'out of memory' "$log" || true)"
+  done
   for j in "$RESULTS"/answers-*.json; do
     [ -f "$j" ] && uv run python -c "import json,sys; r=json.load(open(sys.argv[1])); s=sorted(c['seconds'] for c in r['cases'] if 'seconds' in c); print(f\"{sys.argv[1].split('/')[-1]}: {r['passed']}/{r['total']} cases, median {s[len(s)//2] if s else '?'} s per answer\"); [print('  failed:', f) for f in r['failures']]" "$j"
   done
