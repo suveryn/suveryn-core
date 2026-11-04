@@ -49,6 +49,8 @@ import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
 import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
 import { afterDelete, citingCheck, deleteRefusal, saveState } from "./lib/documentActions";
+import { asksBeforeSignOut, inAnotherPlace, liveRunInstead, memberName, needsCaseOpen, pinHintDue, reopened, runIsLive,
+         runPlaybook as playbookOfRun } from "./lib/navigation";
 import { inTurn } from "./lib/turns";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { SearchView } from "./components/ListViews";
@@ -60,7 +62,7 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, withoutDocument } from "./lib/conversations";
+import { conversationTitle, MAX_SAVED_TURNS, newConversationId, toSaved, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
@@ -72,10 +74,10 @@ import { playbookWords } from "./lib/playbooks";
 import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
 import { staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
-import { choosable, pickMeta, restoreAbout, stillThere } from "./lib/askAbout";
-import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "./lib/conversationActions";
+import { choosable, pickMeta, stillThere } from "./lib/askAbout";
+import type { ConversationAction } from "./lib/conversationActions";
 import { watermark, WatermarkContext } from "./lib/watermark";
-import { restoreThinking, thinkingDefault } from "./lib/thinking";
+import { thinkingDefault } from "./lib/thinking";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -740,8 +742,8 @@ function Chat({ me }: { me: Me }) {
 
   // The open run's playbook, its words, and the facts panel beside it (in the source panel's place).
   // the run's own playbook (the manifest it started under) before the installed one, which may be newer
-  const runPlaybook = openRun ? openRun.playbook ?? playbooks.find((p) => p.id === openRun.playbook_id) ?? null : null;
-  const nameOfUsername = (u: string) => { const x = caseMembers.find((p) => p.username === u); return x?.name || u; };
+  const runPlaybook = playbookOfRun(openRun, playbooks);
+  const nameOfUsername = (u: string) => memberName(caseMembers, u);
   const runChanged = (r: Run) => {
     setOpenRun(r);
     refreshConversations();
@@ -752,7 +754,7 @@ function Chat({ me }: { me: Me }) {
     if (!v) window.setTimeout(() => runPanelOpener.current?.focus(), 0);
     setRunPanel(v);
   };
-  const runLive = !!openRun && ["reading", "waiting", "paused"].includes(openRun.status);
+  const runLive = runIsLive(openRun);
   const factsPanel = view === "chat" && openRun && currentCase && runPanel && openRun.facts.length > 0 && (
     <RunPanel key={openRun.id} run={openRun} words={playbookWords(runPlaybook, language)} view={runPanel} onView={showRunPanel}
               onClose={() => showRunPanel(null)} />
@@ -802,8 +804,7 @@ function Chat({ me }: { me: Me }) {
   const caseById = (id: string | null | undefined) => (id ? cases.find((c) => c.id === id) ?? null : null);
   // A conversation from a list that spans every place: go to its place first (docs/design/chat-ui.md).
   const openListed = (c: ConversationSummary) => {
-    const target = c.case_id ?? null;
-    if (target !== caseId) goTo(caseById(target));
+    if (inAnotherPlace(c.case_id, caseId)) goTo(caseById(c.case_id));
     else refreshConversations();  // the case's list may predate a colleague's sharing
     setView("chat");
     if (c.run_id) { openPlaybookRun(c.run_id); return; }  // a playbook run is a conversation the run shows
@@ -826,14 +827,14 @@ function Chat({ me }: { me: Me }) {
       setOpenRun(run);
       refreshConversations();
     } catch (e) {
-      const live = (e as { status?: number }).status === 409 ? (await activeRuns_().catch(() => ({} as Record<string, RunSummary>)))[currentCase.id] : undefined;
+      const status = (e as { status?: number }).status;
+      const live = liveRunInstead(status, status === 409 ? await activeRuns_().catch(() => null) : null, currentCase.id);
       if (live) openPlaybookRun(live.id); else setProblem((e as Error).message);
     }
   };
   // A document from the list of everything: go to its place, with the document ready to ask about.
   const openDocument = (d: AllDocument) => {
-    const target = d.case_id ?? null;
-    if (target !== caseId) { goTo(caseById(target)); newChat(); }
+    if (inAnotherPlace(d.case_id, caseId)) { goTo(caseById(d.case_id ?? null)); newChat(); }
     setView("chat");
     if (originKind(d) === "source") addDocument(d);  // never sūveryn's own output (cases.md decision 7)
   };
@@ -845,9 +846,12 @@ function Chat({ me }: { me: Me }) {
   const caseAction = (c: Case, action: CaseAction) => {
     if (action === "open") openCase(c);
     else if (action === "unpin") pin(c, false);
-    else if (action === "members") { if (c.id !== caseId) goTo(c); setShowMembers(true); }
-    else if (action === "log") { if (c.id !== caseId) goTo(c); setShowLog(true); }
-    else if (action === "close") { if (c.id !== caseId) goTo(c); setClosingCase(true); }
+    else if (needsCaseOpen(action)) {
+      if (inAnotherPlace(c.id, caseId)) goTo(c);
+      if (action === "members") setShowMembers(true);
+      else if (action === "log") setShowLog(true);
+      else setClosingCase(true);
+    }
   };
   const share = async (shared: boolean) => {
     try { await shareConversation(conversationId, shared); refreshConversations(); } catch (e) { setProblem(m.shareFailed((e as Error).message)); }
@@ -877,13 +881,13 @@ function Chat({ me }: { me: Me }) {
     try {
       const c = await getConversation(id);
       abort.current?.abort();
-      const opened = fromSaved(c.turns);
-      lastSaved.current = JSON.stringify(toSaved(opened));
+      const opened = reopened(c.turns, thinkingDefault());  // with its Ask about choice (§10) and Fast or Thorough (§5)
+      lastSaved.current = opened.lastSaved;
       setConversationId(id);
       setSavedHere(new Set());
-      setTurns(opened);
-      setAbout(restoreAbout(opened));  // the choice belongs to the conversation (§10)
-      setThinking(restoreThinking(opened, thinkingDefault()));  // and so does Fast or Thorough (§5)
+      setTurns(opened.turns);
+      setAbout(opened.about);
+      setThinking(opened.thinking);
       setAboutGone(false);
       setPending([]);
       setProblem(null);
@@ -898,7 +902,7 @@ function Chat({ me }: { me: Me }) {
     try {
       await pinConversation(c.id, pinned);
       // A sixth pinned conversation works, and says once that a case keeps them together (§3).
-      if (pinned && pinnedConversations(allConversations).filter((x) => x.id !== c.id).length + 1 > PIN_HINT_AFTER && !pinHintShown()) {
+      if (pinHintDue(allConversations, c.id, pinned, pinHintShown())) {
         setPinHint(true);
         rememberPinHint();
       }
@@ -936,7 +940,7 @@ function Chat({ me }: { me: Me }) {
   };
 
   // Signing out with saved conversations asks first: keep them (the default) or delete them.
-  const requestSignOut = () => (historyReady && conversations.length > 0 ? setAskingSignOut(true) : signOut());
+  const requestSignOut = () => (asksBeforeSignOut(historyReady, conversations.length) ? setAskingSignOut(true) : signOut());
   const deleteHistoryAndSignOut = async () => {
     abort.current?.abort();
     await deleteAllConversations();
@@ -969,7 +973,7 @@ function Chat({ me }: { me: Me }) {
   // A document deleted from the list of everything (docs/design/chat-ui.md): asked in its own place.
   const removeListed = (d: AllDocument) => {
     const target = d.case_id ?? null;
-    if (target !== caseId) { goTo(caseById(target)); newChat(); }
+    if (inAnotherPlace(target, caseId)) { goTo(caseById(target)); newChat(); }
     setView("chat");
     remove(d, target);
   };
