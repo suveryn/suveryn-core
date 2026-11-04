@@ -217,6 +217,7 @@ Reviewers: check changes against these.
 
 ## 7. How to verify
 
+- **Known vulnerabilities in the dependencies:** CI's `dependencies` job, on every push and every Monday: `pip-audit` over `uv.lock` and `npm audit` over what the chat UI ships. Any advisory fails it, except those listed with their reason in `.github/scripts/dependency_audit.py`, which stop applying once the package moves past the versions named.
 - **Fast tests, any machine:** `uv sync --locked && uv run pytest`. These are the harness (including calculations) and gateway tests; rag tests are skipped.
 - **Chat UI:** `cd packages/chat-ui && npm ci && npm test && npm run typecheck`. Covers SSE parsing, answer rendering, source marking, conversation history and its cap, copy and download, translated server errors, the i18n rules (formal Dutch, the brand name's case), the brand-file hash check, the web setup's text and password rules, and that React Aria stays within the CSP (`vite.config.ts`).
 - **Full tests on the GPU machine:** `uv sync --locked --all-packages`, then `SUVERYN_TEST_DATABASE_URL=… uv run pytest`. This adds the rag units (including the offline guard), pgvector storage, and the end-to-end trap deed ([`test_e2e.py`](../packages/rag/tests/test_e2e.py)) as a born-digital PDF, a scan, and a scan with a thin digital text layer.

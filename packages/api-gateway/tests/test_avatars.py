@@ -68,6 +68,25 @@ def test_normalise_refuses_what_isnt_a_picture():
         normalise(b"x" * (2 * 1024 * 1024 + 1))
 
 
+def test_only_the_three_readers_ever_see_the_bytes(monkeypatch):
+    """Audit of 4 November 2026: Image.open without ``formats`` let every Pillow reader try the upload
+    before the format check, the TIFF, MPO and DCX readers among them (where Pillow's decoder bugs were).
+    A TIFF is refused, and the TIFF reader is never asked whether it recognises it."""
+    Image.init()
+    asked = []
+    factory, accept = Image.OPEN["TIFF"]
+    monkeypatch.setitem(Image.OPEN, "TIFF", (factory, lambda prefix: asked.append(prefix) or accept(prefix)))
+    tiff = io.BytesIO()
+    Image.new("RGB", (64, 64), (250, 91, 53)).save(tiff, format="TIFF")
+    with pytest.raises(NotAnImage):
+        normalise(tiff.getvalue())
+    assert asked == []
+    normalise(picture(fmt="PNG"))  # the three still work
+    normalise(picture(fmt="JPEG"))
+    normalise(picture(fmt="WEBP"))
+    assert asked == []
+
+
 # ------------------------------------------------------------------ through the app (needs PostgreSQL)
 
 URL = os.environ.get("SUVERYN_TEST_DATABASE_URL")

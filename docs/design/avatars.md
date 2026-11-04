@@ -29,7 +29,7 @@ seen in the frame. "Remove the picture" brings the initials back.
 ## On the server
 
 The gateway (`avatars.py`) trusts nothing about the bytes. Pillow opens them with a bounded
-decoder (three formats; a pixel cap against decompression bombs; at most 2 MB, checked from the
+decoder (three formats, and only those three readers ever see the bytes, not even to identify them; a pixel cap against decompression bombs; at most 2 MB, checked from the
 `Content-Length` before the body is read), applies the camera's orientation, centre-crops to a
 square if the browser didn't, resizes to 256 pixels and re-encodes as WebP (quality 85, about
 10 to 20 KB). What is stored is always that small, normalised image, never the upload: no metadata,
