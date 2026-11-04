@@ -27,7 +27,7 @@ import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, uploadDocument,
-  getMe, HttpError, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
+  getMe, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
@@ -48,6 +48,7 @@ import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
 import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
+import { afterDelete, citingCheck, deleteRefusal, saveState } from "./lib/documentActions";
 import { inTurn } from "./lib/turns";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { SearchView } from "./components/ListViews";
@@ -59,7 +60,7 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, usesDocument, withoutDocument } from "./lib/conversations";
+import { conversationTitle, fromSaved, MAX_SAVED_TURNS, newConversationId, toSaved, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
@@ -669,11 +670,10 @@ function Chat({ me }: { me: Me }) {
   const setTurn = (id: string, patch: Partial<AssistantTurn>) =>
     setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
   const saveControls = (t: AssistantTurn, question: string): SaveToCase | null => {
-    if (!currentCase || !caseId || !contributes || closed || readOnly || t.status !== "done") return null;
-    const here = savedHere.has(t.id);
-    const exists = !!t.saved && (here || documents.some((d) => d.id === t.saved!.documentId));
+    const state = saveState(t, { inCase: !!caseId, contributes, closed, readOnly, savedHere, documents });
+    if (!currentCase || !caseId || !state) return null;
     return {
-      caseRef: currentCase.reference, saved: exists ? t.saved! : null, undoable: here && exists,
+      caseRef: currentCase.reference, ...state,
       onSave: async () => {
         try {
           const content = savedAnswer(t, question, filenames, currentCase.reference);
@@ -954,19 +954,18 @@ function Chat({ me }: { me: Me }) {
   const [deleting, setDeleting] = useState<{ doc: StoredDocument; conversations: string[]; where: string | null } | null>(null);
   const remove = async (d: StoredDocument, where: string | null = caseId) => {
     let using: string[] = [];
-    // Saved conversations exist on this server but can't be read now: it can't be asked whether those
-    // that cite the document go too, so nothing is deleted (Pod check of a318b65: it was sent at once).
-    if (!historyReady && health?.history?.status && health.history.status !== "unavailable") {
+    // Whether the saved conversations that cite it can be asked about (lib/documentActions.ts).
+    const check = citingCheck(historyReady, health?.history?.status);
+    if (check === "refuse") {
       setProblem(m.deleteDocumentFailed(d.filename, m.conversationsUnreachable));
       return;
     }
-    if (historyReady) {
+    if (check === "ask") {
       // Not known which conversations cite it: nothing is deleted, rather than skip the question
       // whether they go too (Pod check of f0ff96c, the database stopped).
       try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch (e) {
-        // A 503 is the database gone before the health check noticed (Pod check of cbccd38): the same reason.
-        const unreachable = e instanceof HttpError && e.status === 503;
-        setProblem(m.deleteDocumentFailed(d.filename, unreachable ? m.conversationsUnreachable : (e as Error).message));
+        const { why, unreachable } = deleteRefusal(e, m);
+        setProblem(m.deleteDocumentFailed(d.filename, why));
         if (unreachable) checkNow();
         return;
       }
@@ -984,8 +983,9 @@ function Chat({ me }: { me: Me }) {
   const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[], where: string | null = caseId) => {
     await deleteDocument(d.id, conversations, where);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
-    if (conversations === "delete" && using.includes(conversationId)) newChat();
-    else if (usesDocument(turns, d.id)) setTurns((ts) => withoutDocument(ts, d.id));  // as the server cleaned it
+    const open = afterDelete({ documentId: d.id, turns, conversationId, conversations, deleted: using });
+    if (open === "new") newChat();
+    else if (open === "clean") setTurns((ts) => withoutDocument(ts, d.id));  // as the server cleaned it
     setDeleting(null);
     refreshDocuments();
     refreshConversations();
