@@ -1,6 +1,7 @@
-"""End-to-end regression test with planted traps (see trap_deed.py). Runs on the GPU machine:
-needs suveryn-rag installed (uv sync --all-packages), a database (SUVERYN_TEST_DATABASE_URL) and
-Docling/bge-m3. The scanned variants also need poppler (pdf2image): a plain scan, a scan whose
+"""End-to-end regression test with planted traps (see trap_deed.py). Runs on every pull request on CI's CPU
+(e2e.yml, the reader job), and on the GPU machine when a model changes: needs suveryn-rag installed
+(uv sync --all-packages), a database (SUVERYN_TEST_DATABASE_URL) and Docling/bge-m3 fetched
+(suveryn-fetch-models; SUVERYN_RAG_DEVICE=cpu without a GPU). The scanned variants also need poppler (pdf2image): a plain scan, a scan whose
 pages carry a short digital label ("thin" text layer) that must not stop OCR, and a digitally
 signed scan (OCRmyPDF refuses those unless told the signature may break in its own copy).
 

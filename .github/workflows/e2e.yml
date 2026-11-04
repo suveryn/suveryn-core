@@ -2,6 +2,7 @@ name: End to end
 
 # The walk-through and the lifecycle scenarios (e2e/README.md): the gateway, the chat UI, Keycloak and PostgreSQL
 # together, a stand-in model server, a browser. What a VM regression round did by hand, on every pull request.
+# Beside it, the reader on its own: the trap deed in four forms through the real Docling, OCR and embedder.
 
 on:
   push:
@@ -86,3 +87,71 @@ jobs:
         env:
           E2E_SERVICES: docker
         run: uv run python e2e/stack.py down
+
+  reader:
+    name: The reader on the trap deed (real Docling, OCR and embedder, CPU)
+    # packages/rag/tests/test_e2e.py: the trap deed born-digital, scanned, scanned under a thin text layer and
+    # scanned and signed, read, OCR'd, chunked, embedded and searched, against the quality bar in its docstring.
+    # It needs no language model, so a CPU does: it catches a reader regression (a Docling or OCRmyPDF upgrade)
+    # on the pull request that brings it, instead of on the GPU machine later. test_answers_e2e.py, which asks
+    # a real model, stays on the GPU machine.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: suveryn_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: System packages for the document reader
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - run: uv python install 3.12
+      - run: uv sync --all-packages --dev
+
+      - name: Model files for the reader and the embedder (cached, shared with the walk-through)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-bge-m3-docling-${{ hashFiles('uv.lock') }}
+          restore-keys: hf-${{ runner.os }}-bge-m3-docling-
+
+      - name: Fetch the models, as an appliance does at set-up
+        env:
+          SUVERYN_RAG_DEVICE: cpu
+        run: uv run suveryn-fetch-models
+
+      - name: The trap deed, four ways
+        env:
+          SUVERYN_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/suveryn_test
+          SUVERYN_RAG_DEVICE: cpu
+          SUVERYN_OCR_JOBS: "2"
+          SUVERYN_EXTRACT_UNSANDBOXED: "1"   # no sandbox wrapper on a CI runner (the appliance has one)
+        run: uv run pytest packages/rag/tests/test_e2e.py -v -rs -p no:cacheprovider --junitxml=reader.xml
+
+      - name: All four were read, none skipped
+        # The test skips itself without Docling, reportlab, Poppler or a database; here that would pass without
+        # having read anything.
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          suite = ET.parse("reader.xml").getroot().find("testsuite")
+          tests, skipped = int(suite.get("tests")), int(suite.get("skipped"))
+          print(f"{tests} tests, {skipped} skipped")
+          sys.exit(0 if tests >= 4 and skipped == 0 else 1)
+          PY

@@ -92,9 +92,8 @@ jobs:
       - name: Tests against a real Postgres
         env:
           SUVERYN_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/suveryn_test
-        # test_e2e.py and test_answers_e2e.py are the GPU-machine model
-        # regression suite (see their docstrings) — excluded here, kept for
-        # manual runs against real hardware when a model changes.
+        # test_e2e.py needs the reader's models: it runs in e2e.yml's reader job, on the CPU.
+        # test_answers_e2e.py asks a real model and runs by hand on the GPU machine (its docstring).
         run: >
           uv run pytest -q
           --ignore=packages/rag/tests/test_e2e.py
