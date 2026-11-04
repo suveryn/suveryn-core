@@ -93,11 +93,12 @@ jobs:
         env:
           SUVERYN_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/suveryn_test
         # test_e2e.py needs the reader's models: it runs in e2e.yml's reader job, on the CPU.
-        # test_answers_e2e.py asks a real model and runs by hand on the GPU machine (its docstring).
+        # test_answers_e2e.py and test_playbook_reads_e2e.py ask a real model: scripts/gpu-round.sh, on a GPU machine.
         run: >
           uv run pytest -q
           --ignore=packages/rag/tests/test_e2e.py
           --ignore=packages/rag/tests/test_answers_e2e.py
+          --ignore=packages/rag/tests/test_playbook_reads_e2e.py
 
   chat-ui:
     name: chat-ui (typecheck, test, build)
