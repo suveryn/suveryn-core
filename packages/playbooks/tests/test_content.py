@@ -59,3 +59,32 @@ def test_the_languages_are_the_interfaces():
     packs = Path(__file__).parents[1] / "src" / "suveryn_playbooks"
     for text in packs.glob("*/text"):
         assert sorted(f.stem for f in text.glob("*.json")) == sorted(LANGUAGES), text.parent.name
+
+
+def _texts(value, path=""):
+    """Every text in a pack's words file, by its path (``.deed-intake.labels.price``)."""
+    if isinstance(value, str):
+        yield path, value
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            yield from _texts(v, f"{path}.{k}")
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            yield from _texts(v, f"{path}[{i}]")
+
+
+def test_every_sentence_is_translated():
+    """A sentence left in English in another language's words file: the file is there and every label too
+    (the tests above), but a text copied from en.json to add a fact and never translated would pass them.
+    Short ones may rightly be the same word; four words or more, identical, is untranslated
+    (as the chat's src/i18n/untranslated.test.ts)."""
+    packs = Path(__file__).parents[1] / "src" / "suveryn_playbooks"
+    for english in packs.glob("*/text/en.json"):
+        base = dict(_texts(json.loads(english.read_text(encoding="utf-8"))))
+        for lang in LANGUAGES:
+            if lang == "en":
+                continue
+            other = english.with_name(f"{lang}.json")
+            same = [f"{k}: {s}" for k, s in _texts(json.loads(other.read_text(encoding="utf-8")))
+                    if base.get(k) == s and len([w for w in s.split() if re.search(r"[^\W\d_]{2}", w)]) >= 4]
+            assert same == [], f"{other.relative_to(packs)} still has English: {same}"

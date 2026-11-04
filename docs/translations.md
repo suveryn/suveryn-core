@@ -11,9 +11,9 @@ language per place, and a test that fails when a place is missing one.**
 |---|---|---|---|
 | The list of languages (UI) | `packages/chat-ui/src/i18n/languages.ts`: `LANGS`, `LANGUAGE_NAMES`, `LOCALES`; the current choice | (the list itself) | TypeScript: every table is a `Record<Lang, …>` |
 | The list of languages (server) | `suveryn_playbooks.LANGUAGES` (`packages/playbooks`), used by the gateway's sign-in | (the list itself) | `packages/playbooks/tests/test_content.py`: same as the UI's list and the realm's `supportedLocales` |
-| The chat | `packages/chat-ui/src/i18n/<lang>.ts`, registered in `i18n/index.ts` | yes | TypeScript (every key of `en.ts`); `i18n.test.ts` (the copy rules) |
-| The web setup | `packages/chat-ui/src/setup/i18n/<lang>.ts`, registered in `setup/i18n/index.ts` | yes | TypeScript; `setup.test.ts` (the copy rules) |
-| Playbooks: title, one line, fact labels | `packages/playbooks/src/suveryn_playbooks/<pack>/text/<lang>.json`, one file per pack | yes | `test_content.py`: every playbook has every language, every fact a label |
+| The chat | `packages/chat-ui/src/i18n/<lang>.ts`, registered in `i18n/index.ts` | yes | TypeScript (every key of `en.ts`); `i18n.test.ts` (the copy rules); `untranslated.test.ts` (no sentence left in English) |
+| The web setup | `packages/chat-ui/src/setup/i18n/<lang>.ts`, registered in `setup/i18n/index.ts` | yes | TypeScript; `setup.test.ts` (the copy rules); `i18n/untranslated.test.ts` (no sentence left in English) |
+| Playbooks: title, one line, fact labels | `packages/playbooks/src/suveryn_playbooks/<pack>/text/<lang>.json`, one file per pack | yes | `test_content.py`: every playbook has every language, every fact a label, no sentence left in English |
 | The sign-in, account and email pages | suveryn-appliance `keycloak/theme/src/suveryn/<theme>/messages/messages_<lang>.properties`; the realm's `supportedLocales` in `packages/api-gateway/keycloak/suveryn-realm.json` | yes | the theme's `test_theme.py`; `test_content.py` (the realm) |
 | The console installer | suveryn-appliance `image/mkosi/mkosi.extra/usr/lib/suveryn/installer-text.json`, every key with each language beside it; the language menu in `installer-ui` | no: one file, languages side by side | the installer's tests |
 | The website | suveryn-website, its own workflow (project doc `website-workflow`) | per page | the website's checks |
@@ -69,6 +69,8 @@ Say German (`de`). In this order:
    `image/mkosi/test/test_installer_ui.py`): add `de` there too.
 7. **The website**, if it should speak it too.
 8. **A native speaker reviews** every new file before it ships: the translations are machine-drafted
-   until then.
+   until then. The tests catch a sentence of four words or more left identical to the English (a copied
+   key never translated); a short text such as "Status" may rightly be the same, and only a reader
+   catches a wrong translation.
 
 Nothing else changes: the sign-in page, dates and numbers follow the list.
