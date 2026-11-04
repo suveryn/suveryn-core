@@ -4,12 +4,16 @@
  * - ComboBoxField: a text field with suggestions, for a value that is usually one of a short list
  *   but may be the user's own (a case type: the notarial list, or another sector's word). Typing
  *   filters the suggestions; arrow keys move, Enter chooses, Escape closes; a typed value stays.
+ *   Suggestions that arrive after the last keystroke (a directory searched as you type) open the
+ *   list too: React Aria opens it only on a keystroke, with the suggestions in hand at that moment.
  * - SearchField: a search box with a clear button (Escape clears too), to filter a list.
  */
 import { Check, ChevronDown, CircleAlert, Search, X } from "lucide-react";
+import { useContext, useEffect, useRef } from "react";
 import {
   Button as AriaButton,
   ComboBox,
+  ComboBoxStateContext,
   FieldError,
   Input,
   Label,
@@ -40,6 +44,7 @@ export function ComboBoxField({ name, label, description, options, value, onChan
       <FieldError className="ui-field-error">
         {({ validationErrors }) => <><CircleAlert size={16} aria-hidden /><span>{validationErrors.join(" ")}</span></>}
       </FieldError>
+      <OpenOnLateSuggestions options={options} />
       <Popover className="ui-popover" placement="bottom start" offset={6}>
         <ListBox className="ui-listbox">
           {options.map((o) => (
@@ -51,6 +56,37 @@ export function ComboBoxField({ name, label, description, options, value, onChan
       </Popover>
     </ComboBox>
   );
+}
+
+/**
+ * Suggestions that arrived after the last keystroke, and whether to open the list for them now. They are
+ * waiting from the render they change in until the list opens, the person leaves the field, or none came.
+ * React Aria builds its list of suggestions a render later, and asking it to open before then does
+ * nothing, so the list is asked again on each render while they wait (the first fix asked once, in the
+ * render they changed in, and the e2e walk-through showed it never opened in the members dialog).
+ */
+export function lateSuggestions(s: { changed: boolean; empty: boolean; waiting: boolean; focused: boolean; open: boolean;
+                                     typed: string; chosen: boolean }): { open: boolean; waiting: boolean } {
+  const waiting = (s.changed ? !s.empty : s.waiting) && s.focused && !s.open;
+  return { open: waiting && s.typed.trim() !== "" && !s.chosen, waiting };
+}
+
+/** Opens the list when the suggestions change after the last keystroke (the member search's directory
+ *  answering ~300 ms later; found by the end-to-end walk-through). */
+function OpenOnLateSuggestions({ options }: { options: Option[] }) {
+  const state = useContext(ComboBoxStateContext);
+  const ids = options.map((o) => o.id).join("\n");
+  const before = useRef(ids);
+  const waiting = useRef(false);
+  useEffect(() => {
+    if (!state) return;
+    const next = lateSuggestions({ changed: ids !== before.current, empty: ids === "", waiting: waiting.current, focused: state.isFocused,
+                                   open: state.isOpen, typed: state.inputValue, chosen: state.selectedKey != null });
+    before.current = ids;
+    waiting.current = next.waiting;
+    if (next.open) state.open(null, "input");  // does nothing until React Aria has the suggestions; asked again next render
+  });
+  return null;
 }
 
 export function SearchField({ label, value, onChange, placeholder, className, autoFocus }: {
