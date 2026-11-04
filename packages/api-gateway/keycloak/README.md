@@ -31,7 +31,7 @@ Keycloak 26.8 needs Java 21:
 
 ```bash
 apt-get install -y openjdk-21-jre-headless
-V=26.8.0
+V=26.8.1
 curl -fLO https://github.com/keycloak/keycloak/releases/download/$V/keycloak-$V.tar.gz
 curl -fLO https://github.com/keycloak/keycloak/releases/download/$V/keycloak-$V.tar.gz.sha1
 echo "$(cat keycloak-$V.tar.gz.sha1)  keycloak-$V.tar.gz" | sha1sum -c -
