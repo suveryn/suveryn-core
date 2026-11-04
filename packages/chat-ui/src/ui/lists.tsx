@@ -58,11 +58,17 @@ export function ComboBoxField({ name, label, description, options, value, onChan
   );
 }
 
-/** Whether new suggestions should open the list: they are new, the person is in the field and has typed
- *  something they haven't chosen yet, and the list is closed. (Whether any suggestion matches what was
- *  typed, React Aria decides when asked to open.) */
-export function opensOnArrival(s: { before: string; after: string; focused: boolean; open: boolean; typed: string; chosen: boolean }): boolean {
-  return s.after !== s.before && s.after !== "" && s.focused && !s.open && s.typed.trim() !== "" && !s.chosen;
+/**
+ * Suggestions that arrived after the last keystroke, and whether to open the list for them now. They are
+ * waiting from the render they change in until the list opens, the person leaves the field, or none came.
+ * React Aria builds its list of suggestions a render later, and asking it to open before then does
+ * nothing, so the list is asked again on each render while they wait (the first fix asked once, in the
+ * render they changed in, and the e2e walk-through showed it never opened in the members dialog).
+ */
+export function lateSuggestions(s: { changed: boolean; empty: boolean; waiting: boolean; focused: boolean; open: boolean;
+                                     typed: string; chosen: boolean }): { open: boolean; waiting: boolean } {
+  const waiting = (s.changed ? !s.empty : s.waiting) && s.focused && !s.open;
+  return { open: waiting && s.typed.trim() !== "" && !s.chosen, waiting };
 }
 
 /** Opens the list when the suggestions change after the last keystroke (the member search's directory
@@ -71,12 +77,15 @@ function OpenOnLateSuggestions({ options }: { options: Option[] }) {
   const state = useContext(ComboBoxStateContext);
   const ids = options.map((o) => o.id).join("\n");
   const before = useRef(ids);
+  const waiting = useRef(false);
   useEffect(() => {
-    const was = before.current;
+    if (!state) return;
+    const next = lateSuggestions({ changed: ids !== before.current, empty: ids === "", waiting: waiting.current, focused: state.isFocused,
+                                   open: state.isOpen, typed: state.inputValue, chosen: state.selectedKey != null });
     before.current = ids;
-    if (state && opensOnArrival({ before: was, after: ids, focused: state.isFocused, open: state.isOpen,
-                                  typed: state.inputValue, chosen: state.selectedKey != null })) state.open(null, "input");
-  }, [ids, state]);
+    waiting.current = next.waiting;
+    if (next.open) state.open(null, "input");  // does nothing until React Aria has the suggestions; asked again next render
+  });
   return null;
 }
 
