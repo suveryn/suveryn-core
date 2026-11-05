@@ -257,6 +257,9 @@ span.chip-run { cursor: default; }
 .run-check > svg { flex: none; margin-top: 3px; color: var(--teal); }
 .run-check[data-status="fails"] > svg, .run-check[data-status="open"] > svg { color: var(--text); }
 .run-check-text { font-weight: 600; }
+/* On its own line: as .fact-note (inline-flex) the space before it collapsed, and the page and a screen reader read
+   "There is at least one sellerHolds." (pod round of aebf5bc, finding 7). */
+.run-check-note { display: block; font-size: var(--text-caption); color: var(--text-dim); }
 /* an entry to add to a list (format 3): one field per value, then Keep or Cancel */
 .fact-card-entry-fields { display: flex; flex-direction: column; gap: var(--space-2); }
 .fact-card-entry-fields .run-quick { display: flex; gap: var(--space-2); }

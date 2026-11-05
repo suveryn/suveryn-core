@@ -287,7 +287,7 @@ def test_switching_off_not_your_own_and_only_with_cases_handed_over(setup):
     assert api.users[BOB]["enabled"] is False and BOB in api.logged_out  # off signs out everywhere too
     assert c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": True}, headers=admin).json()["enabled"] is True
     kinds = [e["kind"] for e in c.get("/v1/admin/users/events", headers=admin).json()]
-    assert kinds == ["changed", "changed"]  # no details in Keycloak's admin events: off and on read as changed
+    assert kinds == ["switched_on", "switched_off"]  # told apart without details (the sign-out that comes with off)
 
 
 def test_password_two_step_and_sign_out(setup):
@@ -320,6 +320,17 @@ def test_sign_ins_and_changes_never_name_what_was_typed(setup):
     assert ("signed_in", "Carol Claes", None, None) in kinds
     assert ("signed_out_everywhere", "Bob Peeters", None, "Alice Admin") in kinds
     assert "MyPassword" not in json.dumps(events)
+
+
+def test_switching_off_and_on_read_as_such_not_as_account_changed(setup):
+    """Pod round of aebf5bc, finding 9: both logged as "Account changed by …"."""
+    c, kc, api, _ = setup
+    admin = as_user(kc, ALICE, admin=True)
+    c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
+    c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": True}, headers=admin)
+    kinds = [(e["kind"], e["name"], e["by"]) for e in c.get("/v1/admin/users/events", headers=admin).json()]
+    assert kinds[:2] == [("switched_on", "Bob Peeters", "Alice Admin"), ("switched_off", "Bob Peeters", "Alice Admin")]
+    assert not any(k in ("changed", "signed_out_everywhere") for k, _, _ in kinds)  # the sign-out is part of switching off
 
 
 def test_temporary_passwords_are_readable_and_long_enough():

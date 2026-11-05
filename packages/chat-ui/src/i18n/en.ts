@@ -927,6 +927,8 @@ const en = {
   userSearch: "Search by name or e-mail",
   usersCount: (n: number, max: number | null) => (max === null ? `${n} ${n === 1 ? "user" : "users"}` : `${n} of ${max} users`),
   accountFilter: { on: "Account: On", off: "Account: Off", all: "Account: All" },
+  // The list filtered to nothing (pod round of aebf5bc, finding 8: an empty table under "2 users").
+  noAccountsInFilter: { on: "No accounts are on.", off: "No accounts are off.", all: "No accounts." },
   colUser: "User",
   colAdministrator: "Administrator",
   colLastSignedIn: "Last signed in",
@@ -1001,7 +1003,8 @@ const en = {
   accountEvent: {
     signed_in: "Signed in", signed_out: "Signed out", added: "Added", made_admin: "Made administrator",
     admin_removed: "Administrator rights removed", password_reset: "Password reset", two_step_reset: "Two-step sign-in reset",
-    signed_out_everywhere: "Signed out everywhere", changed: "Account changed", deleted: "Account deleted",
+    signed_out_everywhere: "Signed out everywhere", switched_off: "Switched off", switched_on: "Switched on",
+    changed: "Account changed", deleted: "Account deleted",
   },
   signInFailed: { wrong_password: "Failed: wrong password", locked: "Failed: locked for a while", switched_off: "Failed: account off", other: "Failed" },
   unknownAccount: "Unknown account",

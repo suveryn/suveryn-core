@@ -347,7 +347,7 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
                 {c.status === "holds" ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
                 <span>
                   <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
-                  <span className="fact-note"> {c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
+                  <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
                     : m.pbCheckOpen(c.missing.map((p) => factLabel(words, p)).join(", "))}</span>
                 </span>
               </li>

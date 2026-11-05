@@ -87,7 +87,8 @@ class Account(BaseModel):
 
 
 EventKind = Literal["signed_in", "sign_in_failed", "signed_out", "added", "made_admin", "admin_removed",
-                    "password_reset", "two_step_reset", "signed_out_everywhere", "changed", "deleted"]
+                    "password_reset", "two_step_reset", "signed_out_everywhere", "switched_off", "switched_on",
+                    "changed", "deleted"]
 
 
 class AccountEvent(BaseModel):
@@ -183,7 +184,7 @@ class Accounts:
         A failed sign-in names the account only when it is one of ``known`` (id to name): what someone typed
         into the name field is never shown. A change names the administrator who made it. Admin events carry
         no details on the appliance (``adminEventsDetailsEnabled`` off), so an update that is not one of the
-        actions here (switched off or on, say) reads as "changed"."""
+        actions here reads as "changed". Switching off and on are told apart by their pattern (``_changes``)."""
         sign_ins = (await self._call(token, "GET", "/events",
                                      params={"type": ["LOGIN", "LOGIN_ERROR", "LOGOUT"], "max": str(limit)})).json()
         changes = (await self._call(token, "GET", "/admin-events", params={
@@ -343,7 +344,20 @@ def _changes(events: list[dict], known: dict[str, str]) -> list[AccountEvent]:
 
     lines = [x for x in lines if not (x[1] == "password_reset" and near(x, "added", lines))
              and not (x[1] == "changed" and near(x, "two_step_reset", lines))]
+    # Switching off is an update followed by a sign-out everywhere (set_enabled); switching on, an update after the
+    # account's last switch-off. Admin events carry no details, so this is how the two are told apart from any other
+    # update (pod round of aebf5bc, finding 9: both read "Account changed").
+    off = {id(x) for x in lines if x[1] == "changed" and any(
+        o[0] == x[0] and o[1] == "signed_out_everywhere" and 0 <= (o[2] - x[2]).total_seconds() <= PAIRED_S for o in lines)}
     lines = [x for x in lines if not (x[1] == "signed_out_everywhere" and near(x, "changed", lines))]
+    lines = [(s, "switched_off" if id(x) in off else k, at, e) for x in lines for s, k, at, e in [x]]
+    named = []
+    for i, (s, k, at, e) in enumerate(lines):  # newest first: the account's next older change says what this one undid
+        if k == "changed":
+            older = next((o[1] for o in lines[i + 1:] if o[0] == s and o[1] in ("switched_off", "switched_on", "added")), None)
+            k = "switched_on" if older == "switched_off" else k
+        named.append((s, k, at, e))
+    lines = named
     return [AccountEvent(at=at, kind=kind, user=sub, name=known.get(sub, ""),
                          by=known.get((e.get("authDetails") or {}).get("userId") or ""))
             for sub, kind, at, e in lines]
