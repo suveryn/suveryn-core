@@ -4,12 +4,17 @@
 #
 #   bash scripts/gpu-round.sh                 # llama.cpp at the appliance's pin
 #   COMPARE=b12111 bash scripts/gpu-round.sh  # and again with a newer llama.cpp, the answers and the reads only
-#   LLAMA_TAG=b12111 bash scripts/gpu-round.sh  # only that llama.cpp; the summary keeps earlier runs' results
+#   LLAMA_TAG=b11223 bash scripts/gpu-round.sh  # only that llama.cpp; the summary keeps earlier runs' results
+#   PACKS=/workspace/suveryn-packs bash scripts/gpu-round.sh  # the packs' playbooks too (a checkout copied in:
+#                                             # the repository is private; their runs are in its tests/runs)
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);
 #   2. test_answers_e2e.py (the answers held to their citations, the trap deed's questions);
-#   3. test_playbook_reads_e2e.py (deed intake read by the model).
+#   3. test_playbook_reads_e2e.py (deed intake read by the model);
+#   4. e2e/tests/test_playbook_runs.py (every playbook run start to finish through the gateway's API, with
+#      PostgreSQL and Keycloak as the end-to-end stack runs them: the reads, the answers in words, the checks,
+#      the checkpoint and the summary). RUNS=0 leaves it out.
 # It ends with a summary to paste back: the card, the versions, the peak memory, pass or fail per run. The reports
 # hold per check whether it held, never document or answer text. Only the fictional trap deed is read.
 # Safe to run again: the downloads, the build and the database are kept in $WORK and reused.
@@ -17,8 +22,12 @@ set -euo pipefail
 
 CORE="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="${WORK:-/workspace/gpu-round}"
-LLAMA_TAG="${LLAMA_TAG:-b11223}"            # suveryn-appliance provision/versions.json
+LLAMA_TAG="${LLAMA_TAG:-b12111}"            # suveryn-appliance provision/versions.json
 COMPARE="${COMPARE:-}"                      # another llama.cpp tag to compare, or empty
+RUNS="${RUNS:-1}"                           # the playbook runs through the gateway (4. above)
+PACKS="${PACKS:-}"                          # a suveryn-packs checkout, for its playbooks' runs
+KC_VERSION=26.8.1                           # suveryn-appliance provision/versions.json
+KC_SHA256=4e2740b181faa2ea623a1c2ecf00855935311e546046e2f857615a47ed24cbe8
 UV_VERSION=0.13.7
 UV_SHA256=c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83
 declare -A LLAMA_COMMIT=([b11223]=4da6337767f973e2b4d0797e5b323d77d8565e4a [b12111]=52e53a76df0298d2c316ae7e704eeec03b0bf478)
@@ -47,7 +56,7 @@ if [ ! -d /usr/lib/postgresql/16 ]; then
   /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
   apt-get install -y -qq postgresql-16 postgresql-16-pgvector >/dev/null
 fi
-apt-get install -y -qq git cmake build-essential libssl-dev ocrmypdf tesseract-ocr-nld tesseract-ocr-fra \
+apt-get install -y -qq git cmake build-essential libssl-dev openjdk-21-jre-headless ocrmypdf tesseract-ocr-nld tesseract-ocr-fra \
   tesseract-ocr-eng ghostscript poppler-utils >/dev/null
 
 step "uv $UV_VERSION"
@@ -60,7 +69,14 @@ fi
 step "suveryn-core $(git -C "$CORE" rev-parse --short HEAD)"
 cd "$CORE"
 uv python install 3.12
-uv sync --all-packages --dev -q
+uv sync --all-packages --dev --group e2e -q
+if [ "$RUNS" = 1 ] && [ ! -x "$WORK/keycloak-$KC_VERSION/bin/kc.sh" ]; then
+  step "Keycloak $KC_VERSION (the playbook runs' sign-in)"
+  curl -fsSL -o "$WORK/keycloak.tar.gz" "https://github.com/keycloak/keycloak/releases/download/$KC_VERSION/keycloak-$KC_VERSION.tar.gz"
+  echo "$KC_SHA256  $WORK/keycloak.tar.gz" | sha256sum -c --quiet || die "Keycloak download doesn't match its checksum"
+  tar -xzf "$WORK/keycloak.tar.gz" -C "$WORK"
+fi
+[ -z "$PACKS" ] || [ -d "$PACKS/be-notary" ] || die "PACKS=$PACKS isn't a suveryn-packs checkout"
 
 build_llama() {  # a tag: clone at its pinned commit, build llama-server for this card
   local tag="$1" dir="$WORK/llama.cpp-$1"
@@ -131,6 +147,22 @@ run_test() {  # a name, a test file, extra environment
   set -e
 }
 
+playbook_runs() {  # a tag: the end-to-end stack's PostgreSQL, Keycloak and gateway with this model server, no UI
+  local tag="$1"
+  step "playbook runs-$tag"
+  export E2E_SERVICES=local E2E_KEYCLOAK_HOME="$WORK/keycloak-$KC_VERSION" E2E_LLM="http://127.0.0.1:$PORT" E2E_NO_UI=1 \
+    E2E_RAG_DEVICE=cuda E2E_PACKS_DIR="$PACKS"
+  set +e
+  uv run python e2e/stack.py up 2>&1 | grep -v "health:"
+  E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" \
+    uv run pytest e2e/tests/test_playbook_runs.py -v -rs -s -p no:cacheprovider --junitxml="$RESULTS/runs-$tag.xml" 2>&1 \
+    | tee "$RESULTS/runs-$tag.log"
+  RC[runs-$tag]=${PIPESTATUS[0]}
+  uv run python e2e/stack.py stop gateway; uv run python e2e/stack.py stop keycloak  # PostgreSQL stays for what follows
+  set -e
+  unset E2E_SERVICES E2E_KEYCLOAK_HOME E2E_LLM E2E_NO_UI E2E_RAG_DEVICE E2E_PACKS_DIR
+}
+
 for tag in $LLAMA_TAG $COMPARE; do
   step "llama-server $tag"
   serve "$tag"
@@ -139,6 +171,7 @@ for tag in $LLAMA_TAG $COMPARE; do
   [ "$tag" = "$LLAMA_TAG" ] && run_test "reader-$tag" test_e2e.py
   run_test "answers-$tag" test_answers_e2e.py SUVERYN_EVAL_REPORT="$RESULTS/answers-$tag.json"
   run_test "reads-$tag" test_playbook_reads_e2e.py SUVERYN_EVAL_REPORT_READS="$RESULTS/reads-$tag.json"
+  [ "$tag" = "$LLAMA_TAG" ] && [ "$RUNS" = 1 ] && playbook_runs "$tag"
   stop_all
 done
 
@@ -167,6 +200,14 @@ PY
   done
   for j in "$RESULTS"/answers-*.json; do
     [ -f "$j" ] && uv run python -c "import json,sys; r=json.load(open(sys.argv[1])); s=sorted(c['seconds'] for c in r['cases'] if 'seconds' in c); print(f\"{sys.argv[1].split('/')[-1]}: {r['passed']}/{r['total']} cases, median {s[len(s)//2] if s else '?'} s per answer\"); [print('  failed:', f) for f in r['failures']]" "$j"
+  done
+  for j in "$RESULTS"/runs-*.json; do
+    [ -f "$j" ] && uv run python -c "
+import json, sys
+for name, r in json.load(open(sys.argv[1])).items():
+    failed = [k for k, ok in r['checks'].items() if not ok]
+    print(f\"{name} ({sys.argv[1].split('/')[-1]}): {len(r['checks']) - len(failed)}/{len(r['checks'])} held, {r['found']} of {r['facts']} facts found, {r['seconds']} s\")
+    [print('  failed:', f) for f in failed]" "$j"
   done
   for j in "$RESULTS"/reads-*.json; do
     [ -f "$j" ] && uv run python -c "import json,sys; r=json.load(open(sys.argv[1])); print(f\"{sys.argv[1].split('/')[-1]}: {r['playbook']}, {r['retries']} retries, failures: {r['failures'] or 'none'}\")" "$j"

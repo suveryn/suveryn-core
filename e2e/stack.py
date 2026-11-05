@@ -46,6 +46,13 @@ KC_IMAGE = "quay.io/keycloak/keycloak:26.8.1"
 PG_IMAGE = "pgvector/pgvector:pg16"
 GATEWAY = "http://127.0.0.1:8000"
 STUB = "http://127.0.0.1:8080"
+# A real model server instead of the stub (the GPU round, scripts/gpu-round.sh): no stub is started, the gateway asks
+# this one, with a real model's timeout. The playbook runs' scenario (tests/test_playbook_runs.py) runs only then.
+REAL_LLM = os.environ.get("E2E_LLM", "")
+PACKS_DIR = os.environ.get("E2E_PACKS_DIR", "")   # suveryn-packs' playbooks too (a checkout's folders), as SUVERYN_PACKS_DIR
+RAG_DEVICE = os.environ.get("E2E_RAG_DEVICE", "cpu")  # cuda on the GPU machine, next to the model
+NO_UI = os.environ.get("E2E_NO_UI", "") == "1"     # the API only: no Node to build the chat UI (a GPU pod)
+LLM = REAL_LLM or STUB
 
 # The two accounts the scenarios use. Passwords meet the realm's policy (12+ characters).
 ACCOUNTS = [
@@ -224,11 +231,11 @@ def gateway_env() -> dict[str, str]:
     env = {
         "SUVERYN_HOST": "127.0.0.1", "SUVERYN_PORT": "8000", "SUVERYN_PUBLIC_URL": PUBLIC_URL,
         "SUVERYN_DATABASE_URL": f"{PG_URL}/{DB}",
-        "SUVERYN_LLM_BASE_URL": STUB, "SUVERYN_LLM_TIMEOUT_S": "60",
+        "SUVERYN_LLM_BASE_URL": LLM, "SUVERYN_LLM_TIMEOUT_S": "600" if REAL_LLM else "60",
         "SUVERYN_OIDC_ISSUER": ISSUER, "SUVERYN_OIDC_CLIENT_ID": "suveryn-chat", "SUVERYN_OIDC_CLIENT_SECRET": CHAT_SECRET,
         "SUVERYN_DIRECTORY_CLIENT_SECRET": DIRECTORY_SECRET,
         "SUVERYN_WORK_DIR": str(work), "SUVERYN_EXTRACT_UNSANDBOXED": "1",
-        "SUVERYN_RAG_DEVICE": "cpu", "SUVERYN_OCR_JOBS": "2",
+        "SUVERYN_RAG_DEVICE": RAG_DEVICE, "SUVERYN_OCR_JOBS": "2",
         "SUVERYN_VERSION": "e2e", "SUVERYN_LOG_LEVEL": "INFO",
         # every scenario signs in afresh from one address; the appliance's 30 a minute would refuse the tenth test
         "SUVERYN_RATE_SIGN_IN": "600",
@@ -238,6 +245,8 @@ def gateway_env() -> dict[str, str]:
         "SUVERYN_BACKUP_REQUESTS": str(RUN / "backup" / "requests"),
         "SUVERYN_BACKUP_KEY_TEST": str(RUN / "backup" / "key-test"),
     }
+    if PACKS_DIR:
+        env["SUVERYN_PACKS_DIR"] = PACKS_DIR
     if LIGHT:
         embedder = RUN / "light-embedder"
         if not (embedder / "modules.json").exists():
@@ -310,10 +319,12 @@ def up() -> None:
     postgres_prepare()
     keycloak_start()
     seed_accounts()
-    stub_start()
+    if not REAL_LLM:
+        stub_start()
     gateway_start()
-    ui_start()
-    print("up: " + PUBLIC_URL)
+    if not NO_UI:
+        ui_start()
+    print("up: " + (GATEWAY if NO_UI else PUBLIC_URL))
 
 
 def down() -> None:
@@ -329,7 +340,7 @@ def down() -> None:
 
 
 def status() -> None:
-    for name, url in (("stub", f"{STUB}/health"), ("gateway", f"{GATEWAY}/health"), ("ui", f"{PUBLIC_URL}/"),
+    for name, url in (("model server" if REAL_LLM else "stub", f"{LLM}/health"), ("gateway", f"{GATEWAY}/health"), ("ui", f"{PUBLIC_URL}/"),
                       ("keycloak", f"{ISSUER}/.well-known/openid-configuration")):
         try:
             print(f"{name}: HTTP {httpx.get(url, timeout=3.0).status_code}")

@@ -1,0 +1,57 @@
+# A fictional care-mandate playbook for core's tests: what the certified one in suveryn-packs uses of the format
+# that the formation test playbook beside it doesn't, reads that follow each other with no one in between (one per
+# branch a choice opens). The pod round's playbook runs found the second such read failing the run.
+
+manifest: 3
+id: playbook/be-test/care-mandate
+pack: pack/be-test
+version: "1.0"
+name: Care mandate test
+case_types: [care-mandate]
+
+facts:
+  - id: principal
+    ask: the principal's full name
+  - id: start
+    ask: "when the mandate takes effect: immediately or on_incapacity"
+    kind: choice
+    options: [immediately, on_incapacity]
+  - id: gift_power
+    ask: whether the agents may make gifts
+    kind: choice
+    options: ["yes", "no"]
+  - id: incapacity_proof
+    ask: how the principal's incapacity is established
+  - id: gift_terms
+    ask: the terms of the power to make gifts
+
+instructions: >-
+  Read the excerpts and give every fact below as the documents write it, with the numbers of the
+  excerpts the value comes from. A fact the excerpts do not contain is null.
+
+steps:
+  - id: choices
+    kind: request
+    expects: client_choices
+  - id: choices_read
+    kind: read
+    documents: [client_choices]
+    facts: [principal, start, gift_power]
+  - id: incapacity_read
+    kind: read
+    documents: [client_choices]
+    facts: [incapacity_proof]
+    when: start == on_incapacity
+  - id: gift_read
+    kind: read
+    documents: [client_choices]
+    facts: [gift_terms]
+    when: gift_power == yes
+  - id: missing
+    kind: ask
+    facts: all
+  - id: confirm
+    kind: checkpoint
+  - id: summary
+    kind: produce
+    template: summary

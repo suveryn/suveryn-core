@@ -48,5 +48,30 @@
       "contributions_add_up": "Inbrengen tellen op",
       "bank_certifies_the_contribution": "De controle van de bank"
     }
+  },
+  "care-mandate": {
+    "title": "Zorgvolmacht test",
+    "summary": "Leest de gegevens voor een zorgvolmacht uit de keuzes van de cliënt",
+    "factsTitle": "Gegevens voor de zorgvolmacht",
+    "labels": {
+      "principal": "Volmachtgever",
+      "start": "Ingang",
+      "start.immediately": "Meteen",
+      "start.on_incapacity": "Bij onbekwaamheid",
+      "gift_power": "Schenkingen toegestaan",
+      "gift_power.yes": "Ja",
+      "gift_power.no": "Nee",
+      "incapacity_proof": "Bewijs van onbekwaamheid",
+      "gift_terms": "Voorwaarden schenkingen"
+    },
+    "questions": {
+      "choices": "Laad de keuzes van de cliënt op. Ga daarna verder.",
+      "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het niet weet."
+    },
+    "steps": {
+      "choices": "Keuzes van de cliënt",
+      "incapacity_read": "Het bewijs van onbekwaamheid lezen",
+      "gift_read": "De voorwaarden voor schenkingen lezen"
+    }
   }
 }

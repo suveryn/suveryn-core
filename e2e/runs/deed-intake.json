@@ -1,0 +1,23 @@
+{
+  "title": "Deed intake on the trap deed",
+  "playbook": "deed-intake",
+  "case_type": "sale",
+  "language": "nl",
+  "documents": {"*": ["akte-testdorp.pdf"]},
+  "build": "deed_intake_documents.py",
+  "say": {},
+  "expect": {
+    "facts": {
+      "sellers": "Zandvoorde Vastgoed",
+      "buyers": "Duinrand Beleggingen",
+      "property": "Havenweg 12",
+      "cadastral": "4182",
+      "price": "1.275.000",
+      "conditions": "financiering"
+    },
+    "not_found": ["epc", "deposit"],
+    "not_said": ["EUR 1,00", "GOEDGEKEURD"],
+    "checks": {},
+    "skipped": []
+  }
+}

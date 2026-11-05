@@ -48,5 +48,30 @@
       "contributions_add_up": "Les apports totalisent",
       "bank_certifies_the_contribution": "Le contrôle de la banque"
     }
+  },
+  "care-mandate": {
+    "title": "Mandat de protection test",
+    "summary": "Lit les données d'un mandat de protection dans les choix du client",
+    "factsTitle": "Données du mandat de protection",
+    "labels": {
+      "principal": "Mandant",
+      "start": "Prise d'effet",
+      "start.immediately": "Immédiatement",
+      "start.on_incapacity": "En cas d'incapacité",
+      "gift_power": "Donations permises",
+      "gift_power.yes": "Oui",
+      "gift_power.no": "Non",
+      "incapacity_proof": "Preuve de l'incapacité",
+      "gift_terms": "Conditions des donations"
+    },
+    "questions": {
+      "choices": "Chargez les choix du client. Continuez ensuite.",
+      "missing": "Les documents ne mentionnent pas {label}. Qu'est-ce que c'est ? Laissez vide si vous ne savez pas."
+    },
+    "steps": {
+      "choices": "Choix du client",
+      "incapacity_read": "Lecture de la preuve d'incapacité",
+      "gift_read": "Lecture des conditions des donations"
+    }
   }
 }
