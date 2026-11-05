@@ -326,7 +326,8 @@ def test_an_admin_switches_a_playbook_off_and_it_leaves_every_case(office):
     listed = c.get("/v1/admin/playbooks", headers=admin).json()
     # the official playbook, then the installed pack's (the fictional test pack, conftest.py: SUVERYN_PACKS_DIR)
     assert [(p["id"], p["active"], p["case_types"]) for p in listed] == [
-        ("playbook/be-notary/deed-intake", True, ["sale"]), ("playbook/be-test/company-formation", True, ["company-formation"])]
+        ("playbook/be-notary/deed-intake", True, ["sale"]), ("playbook/be-test/care-mandate", True, ["care-mandate"]),
+        ("playbook/be-test/company-formation", True, ["company-formation"])]
     assert c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=alice).status_code == 403
     assert c.put("/v1/admin/playbooks/nope", json={"active": False}, headers=admin).status_code == 404
     r = c.put("/v1/admin/playbooks/deed-intake", json={"active": False}, headers=admin)
@@ -804,3 +805,38 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     store._execute("UPDATE playbook_runs SET manifest = NULL WHERE id = %s", (uuid.UUID(rid),))
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
     assert run["playbook"] is None
+
+
+CARE_ANSWER = json.dumps({
+    "principal": {"value": "Godelieve Van Testergem", "sources": [1]}, "start": {"value": "on_incapacity", "sources": [1]},
+    "gift_power": {"value": "yes", "sources": [1]}, "incapacity_proof": {"value": "twee medische attesten", "sources": [1]},
+    "gift_terms": {"value": "aan de kleinkinderen", "sources": [1]},
+})
+
+
+@needs_db
+def test_reads_that_follow_each_other_run_one_after_the_other(runs):
+    """The pod round of aebf5bc's playbook runs: the care mandate's branches are reads with no one in between (the
+    incapacity, then the gifts), and the second one failed the run ("a second read step is not supported yet").
+    Each now runs after the other in the same task, each asking for its own facts."""
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    captured: list = []
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport(captured, text=CARE_ANSWER))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json={**NEW, "type": "care-mandate", "name": "Zorgvolmacht"}, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        rid = c.post(f"/v1/cases/{cid}/playbooks/care-mandate/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        assert run["step"] == "choices"
+        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "choices", "documents": [DOC]}, headers=alice)
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        assert run["status"] == "waiting" and run["step"] in ("missing", "confirm"), (run["status"], run["step"], run.get("error"))
+        assert all(run["steps"][s]["status"] == "done" for s in ("choices_read", "incapacity_read", "gift_read")), run["steps"]
+        shapes = [sorted(b["response_format"]["json_schema"]["schema"]["properties"]) for b in captured if "response_format" in b]
+        assert shapes == [["gift_power", "principal", "start"], ["incapacity_proof"], ["gift_terms"]]
+        by = {f["id"]: f["value"] for f in run["facts"]}
+        assert by["incapacity_proof"] == "twee medische attesten" and by["gift_terms"] == "aan de kleinkinderen"

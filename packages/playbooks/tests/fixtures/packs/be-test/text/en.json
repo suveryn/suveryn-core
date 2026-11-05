@@ -48,5 +48,30 @@
       "contributions_add_up": "Contributions add up",
       "bank_certifies_the_contribution": "The bank's check"
     }
+  },
+  "care-mandate": {
+    "title": "Care mandate test",
+    "summary": "Reads the facts for a care mandate from the client's choices",
+    "factsTitle": "Facts for the care mandate",
+    "labels": {
+      "principal": "Principal",
+      "start": "Takes effect",
+      "start.immediately": "Immediately",
+      "start.on_incapacity": "On incapacity",
+      "gift_power": "Gifts allowed",
+      "gift_power.yes": "Yes",
+      "gift_power.no": "No",
+      "incapacity_proof": "Proof of incapacity",
+      "gift_terms": "Terms of gifts"
+    },
+    "questions": {
+      "choices": "Upload the client's choices. Then continue.",
+      "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know."
+    },
+    "steps": {
+      "choices": "Client's choices",
+      "incapacity_read": "Reading the proof of incapacity",
+      "gift_read": "Reading the gift terms"
+    }
   }
 }

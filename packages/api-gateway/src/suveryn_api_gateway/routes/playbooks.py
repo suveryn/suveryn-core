@@ -282,7 +282,29 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
                 owner: str, reference: str) -> None:
     """The model call for a read step, after the request has answered (``suveryn_harness.facts``:
     asked twice before the answer counts as unreadable). Errors are stored by kind only. When the
-    answer is in, the run walks on (to the ask, or the checkpoint)."""
+    answer is in, the run walks on (to the ask, or the checkpoint), and through any read that follows
+    straight after, one after the other in this task (the care mandate's branches: the incapacity, the
+    person, the gifts; the pod round's playbook runs found a second read failing the run)."""
+    run_id = uuid.UUID(run.id)
+    while True:
+        step = await _read_one(app, runtime, store, run, pb, step, filenames, owner, reference)
+        if step is None:
+            return
+        fresh = await run_in_threadpool(store.get, run_id, uuid.UUID(run.case_id))
+        if fresh is None:
+            return
+        filenames = await run_in_threadpool(runtime.documents_to_read, fresh, step)
+        if not filenames:
+            await run_in_threadpool(store.fail, run_id, "document_missing")
+            return
+        await run_in_threadpool(store.set_documents, run_id, list(filenames))
+        run = fresh
+
+
+async def _read_one(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, filenames: dict[str, str],
+                    owner: str, reference: str) -> Step | None:
+    """One read step: the model call, its facts recorded, and the run walked on. The next read step when the
+    routine reaches one straight away, else None (waiting for a person, done, or ended)."""
     run_id = uuid.UUID(run.id)
     try:
         facts, response = await read_playbook(lambda req: app.state.chat.answer(req, owner), pb, filenames, run.case_id,
@@ -292,22 +314,19 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
     except (BackendError, DocumentsUnavailable, DocumentNotFound, Unreadable) as e:
         await run_in_threadpool(store.fail, run_id, {BackendError: "model_unavailable", DocumentsUnavailable: "documents_unavailable",
                                                      DocumentNotFound: "document_missing", Unreadable: "unreadable_answer"}[type(e)])
-        return
+        return None
     except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
         log.error("playbook run failed: %s", type(e).__name__)
         await run_in_threadpool(store.fail, run_id, "server_error")
-        return
+        return None
     fresh = await run_in_threadpool(runtime.finish_read, run, pb, step, facts, response.model, response.instruction_like_sources)
     if fresh is None:
-        return  # stopped or cancelled while reading
+        return None  # stopped or cancelled while reading
     try:
-        again = await run_in_threadpool(runtime.advance, fresh, pb, reference)
+        return await run_in_threadpool(runtime.advance, fresh, pb, reference)
     except Exception as e:  # noqa: BLE001
         log.error("playbook run could not go on: %s", type(e).__name__)
-        return
-    if again is not None:  # a routine with a second read: not in any official playbook yet
-        log.error("playbook run %s: a second read step is not supported yet", run.id)
-        await run_in_threadpool(store.fail, run_id, "server_error")
+        return None
 
 
 async def _live_run(request: Request, case_id: str, run_id: str, action: str) -> tuple[Case, RunStore, Run, Playbook]:
