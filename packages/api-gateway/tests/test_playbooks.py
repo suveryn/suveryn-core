@@ -45,7 +45,7 @@ def test_summary_text_uses_the_confirmed_values_and_the_language():
               status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts)
     # the title and labels are the playbook's own words in that language (suveryn_playbooks, docs/translations.md)
     text = summary_text(DEED_INTAKE, "2026/0417", run, "fr")
-    assert text.startswith("Intake de l'acte 2026/0417\n\nplaybook/be-notary/deed-intake 1.0")
+    assert text.startswith("Analyse de l'acte 2026/0417\n\nplaybook/be-notary/deed-intake 1.0")
     assert "Prix: EUR 412.000,00 (compromis.pdf p. 1)" in text and "Données cadastrales: —" in text
     assert summary_text(DEED_INTAKE, "2026/0417", run, "de").startswith("Deed intake 2026/0417")  # unknown: English
     # provenance (review 2026-10-17): the run's version, not the playbook's as installed now

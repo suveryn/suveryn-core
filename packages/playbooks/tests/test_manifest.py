@@ -57,8 +57,10 @@ def test_deed_intake_1_3_reads_what_1_0_read():
         assert words in old["instructions"] and words in new["instructions"], words
     assert "table" in old["instructions"] and "table" not in new["instructions"].split("Answer with one JSON")[0]
     assert new["instructions"].endswith(answer_scaffold(DEED_INTAKE.facts))
+    renamed = {"fr": "Analyse de l'acte"}  # "Intake de l'acte" was an anglicism (pod round of aebf5bc, finding 15)
     for lang, words in old["text"].items():
-        assert {k: new["text"][lang][k] for k in ("title", "summary")} == {k: words[k] for k in ("title", "summary")}, lang
+        assert new["text"][lang]["summary"] == words["summary"], lang
+        assert new["text"][lang]["title"] == renamed.get(lang, words["title"]), lang
         assert {k: v for k, v in new["text"][lang]["labels"].items() if "." not in k} == words["labels"], lang
         assert set(new["text"][lang]["checks"]) == {"a_seller", "a_buyer", "deposit_within_price", "deed_after_agreement", "conditions_before_deed"}
     assert [(s["id"], s["kind"]) for s in new["steps"]] == [("agreement", "request"), ("read", "read"), ("missing", "ask"),
