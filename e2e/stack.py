@@ -39,6 +39,9 @@ MODE = os.environ.get("E2E_SERVICES", "docker")
 LIGHT = os.environ.get("E2E_LIGHT", "") == "1"  # no Hugging Face: the light reader and embedder (e2e/light/)
 PG_URL = "postgresql://postgres:postgres@localhost:5432"
 DB = "suveryn_e2e"
+# Keycloak's own database, named for the stack: on a machine where an appliance was installed (a test pod) a database
+# "keycloak" holds the appliance's realm, which requires HTTPS, and the stack's Keycloak found it and answered 403.
+KC_DB = "keycloak_e2e"
 KC_URL = "http://localhost:8180"
 ISSUER = f"{KC_URL}/realms/suveryn"
 KC_ADMIN = ("admin", "e2e-admin-password")
@@ -82,7 +85,12 @@ def wait_for(what: str, probe, timeout: float = 120.0, every: float = 1.0) -> No
 
 
 def http_ok(url: str, expect: int = 200) -> bool:
-    return httpx.get(url, timeout=3.0).status_code == expect
+    """Whether the URL answers ``expect``. Another status raises, so a wait that gives up says what it last got,
+    not the refused connection of its first second (the GPU round of 5 November: Keycloak was up, and answered 403)."""
+    status = httpx.get(url, timeout=3.0).status_code
+    if status != expect:
+        raise RuntimeError(f"HTTP {status} from {url}")
+    return True
 
 
 # ----------------------------------------------------------------------------------------------- PostgreSQL
@@ -115,7 +123,7 @@ def postgres_stop() -> None:
 
 
 def postgres_prepare() -> None:
-    for db in (DB, "keycloak"):
+    for db in (DB, KC_DB):
         if psql(f"select 1 from pg_database where datname='{db}'") != "1":
             psql(f"create database {db}")
     psql("create extension if not exists vector", DB)
@@ -125,7 +133,7 @@ def postgres_prepare() -> None:
 
 def keycloak_args() -> list[str]:
     return ["start-dev", "--http-host=0.0.0.0" if MODE == "docker" else "--http-host=127.0.0.1", "--http-port=8180",
-            f"--hostname={KC_URL}", "--import-realm", "--db=postgres", "--db-url=jdbc:postgresql://localhost:5432/keycloak",
+            f"--hostname={KC_URL}", "--import-realm", "--db=postgres", f"--db-url=jdbc:postgresql://localhost:5432/{KC_DB}",
             "--db-username=postgres", "--db-password=postgres", "--cache=local"]
 
 
