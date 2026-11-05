@@ -13,7 +13,7 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, MenuButton, SourceRef, SplitButton, TextButton, Toolbar } from "../ui";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
-import { citedNumbers, markPassage, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
+import { citedNumbers, instructionLikeWarning, markPassage, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
 import type { AnswerExport } from "../lib/export";
 import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
@@ -309,6 +309,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
   // A stopped answer keeps its markers and the passages they point to, but was never checked.
   const settled = turn.status === "done" || turn.status === "stopped";
   const issues = turn.status === "done" ? turn.citationIssues ?? [] : [];
+  const aimedAtAi = instructionLikeWarning(turn.instructionLikeSources, turn.text, turn.citations.length, m);
   const flaggedMarkers = new Set(issues.map((i) => i.marker));
   const blocks = toBlocks(turn.text, settled ? available : 0, turn.status === "done" ? flagged : []);
   // Word and Excel downloads carry the same warnings and sources as the chat (lib/saved.ts).
@@ -370,8 +371,8 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {turn.status === "done" && turn.calculations?.map((c, i) => <CalculationNote key={i} calc={c} />)}
         {turn.status === "done" && flagged.length > 0 && <UnverifiedNote figures={flagged} />}
         {issues.length > 0 && <CitationIssuesNote issues={issues} />}
-        {turn.status === "done" && (turn.instructionLikeSources?.length ?? 0) > 0 && (
-          <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.instructionLike(turn.instructionLikeSources!)}</InlineNotice>
+        {turn.status === "done" && aimedAtAi && (
+          <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{aimedAtAi}</InlineNotice>
         )}
 
         {turn.status === "stopped" && (

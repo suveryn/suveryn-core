@@ -797,7 +797,7 @@ export type UsersList = { users: Account[]; agreement_users: number | null };
 /** A temporary password to pass on, in the answer once and nowhere else. */
 export type TemporaryPassword = { user: Account; address: string; password: string };
 export type AccountEventKind = "signed_in" | "sign_in_failed" | "signed_out" | "added" | "made_admin" | "admin_removed"
-  | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "changed" | "deleted";
+  | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "switched_off" | "switched_on" | "changed" | "deleted";
 export type AccountEvent = {
   at: string; kind: AccountEventKind; user: string | null; name: string; by: string | null;
   reason: "wrong_password" | "locked" | "switched_off" | "other" | null;

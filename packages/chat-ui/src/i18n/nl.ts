@@ -12,7 +12,7 @@ const nl: Messages = {
   sessionEnded: "Uw sessie is afgelopen. Log opnieuw in om verder te gaan.",
   signInIncomplete: "U bent nog niet aangemeld. Open sūveryn via het adres van uw kantoor en sta cookies toe.",
   signInUnavailable: (why) => `Inloggen lukt niet: ${why}`,
-  signInWhenDown: "Duurt het langer, vraag dan wie het toestel beheert.",
+  signInWhenDown: "Duurt het langer, vraag dan wie de appliance beheert.",
   signInTryAgain: "Opnieuw proberen",
 
   serverUnreachable: "De sūveryn-server is niet bereikbaar.",
@@ -200,7 +200,7 @@ const nl: Messages = {
   adminCases: "Dossiers",
   adminCasesIntro: "Elk dossier met zijn beheerder. De inhoud blijft bij de leden.",
   settingsSaved: "Opgeslagen.",
-  settingsAsProvisioned: "Zoals ingesteld bij de installatie van het toestel.",
+  settingsAsProvisioned: "Zoals ingesteld bij de installatie van de appliance.",
   settingsChangedBy: (who, day) => `Gewijzigd door ${who}, ${day}.`,
   settingsFailed: (why) => `De instellingen konden niet worden opgeslagen: ${why}${/[.!?]$/.test(why) ? "" : "."}`,
   saving: "Opslaan…",
@@ -359,7 +359,7 @@ const nl: Messages = {
   costExplain: (cost) => `Via een cloud-API ongeveer ${cost}, zonder hardware en stroom.`,
   rateInput: "Per miljoen invoertokens",
   rateOutput: "Per miljoen uitvoertokens",
-  currency: "Munt",
+  currency: "Valuta",
   save: "Bewaren",
   ratesInvalid: "Vul bedragen van 0 tot 10.000 in, met hoogstens 4 decimalen.",
   // Vraag over (docs/design/chat-ui.md §10)
@@ -426,6 +426,7 @@ const nl: Messages = {
     : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${foundIn.length > 1 ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
     : `Controleer bron ${n}: „${item}” staat er niet in.`,
   citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",
+  instructionLikeUncited: "Een passage die het model kreeg, bevat tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.",
   instructionLike: (sources) =>
     `${sources.length > 1 ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.`,
   // playbooks (suveryn-tracker#51): intake akte
@@ -894,6 +895,7 @@ const nl: Messages = {
   userSearch: "Zoek op naam of e-mail",
   usersCount: (n, max) => (max === null ? `${n} ${n === 1 ? "gebruiker" : "gebruikers"}` : `${n} van ${max} gebruikers`),
   accountFilter: { on: "Account: aan", off: "Account: uit", all: "Account: alle" },
+  noAccountsInFilter: { on: "Er staan geen accounts aan.", off: "Er staan geen accounts uit.", all: "Geen accounts." },
   colUser: "Gebruiker",
   colAdministrator: "Administrator",
   colLastSignedIn: "Laatst aangemeld",
@@ -969,12 +971,12 @@ const nl: Messages = {
     signed_in: "Aangemeld", signed_out: "Afgemeld", added: "Toegevoegd", made_admin: "Administrator gemaakt",
     admin_removed: "Administratorrechten ingetrokken", password_reset: "Wachtwoord opnieuw ingesteld",
     two_step_reset: "Tweestapsaanmelding opnieuw ingesteld", signed_out_everywhere: "Overal afgemeld",
-    changed: "Account gewijzigd", deleted: "Account verwijderd",
+    switched_off: "Uitgeschakeld", switched_on: "Ingeschakeld", changed: "Account gewijzigd", deleted: "Account verwijderd",
   },
   signInFailed: { wrong_password: "Mislukt: verkeerd wachtwoord", locked: "Mislukt: tijdelijk geblokkeerd", switched_off: "Mislukt: account uit", other: "Mislukt" },
   unknownAccount: "Onbekend account",
   byWhom: (what, who) => `${what} door ${who}`,
-  adminPlaybooksIntro: "Actieve playbooks staan in elk dossier onder de knop Playbook. Uitgeschakelde verdwijnen daar; eerdere runs blijven.",
+  adminPlaybooksIntro: "Actieve playbooks staan in elk dossier onder de knop Playbook. Uitgeschakelde verdwijnen daar; eerdere uitvoeringen blijven.",
   playbookActive: "Actief",
   playbookFor: (types: string) => `Voor: ${types}`,
   playbooksEmpty: "Er zijn geen playbooks geïnstalleerd.",

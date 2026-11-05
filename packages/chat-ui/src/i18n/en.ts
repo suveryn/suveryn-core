@@ -451,6 +451,9 @@ const en = {
     : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${foundIn.length > 1 ? "sources" : "source"} ${foundIn.join(", ")}.`
     : `Check source ${n}: "${item}" isn't in it.`,
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
+  // Text aimed at an AI among the passages the model was given but this answer doesn't cite (pod round of aebf5bc,
+  // finding 3): no number, which would point at a source the answer doesn't list.
+  instructionLikeUncited: "A passage given to the model contains text aimed at an AI. It wasn't followed; check this answer carefully.",
   instructionLike: (sources: number[]) =>
     `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text aimed at an AI. It wasn't followed; check this answer carefully.`,
   // downloaded sources
@@ -924,6 +927,8 @@ const en = {
   userSearch: "Search by name or e-mail",
   usersCount: (n: number, max: number | null) => (max === null ? `${n} ${n === 1 ? "user" : "users"}` : `${n} of ${max} users`),
   accountFilter: { on: "Account: On", off: "Account: Off", all: "Account: All" },
+  // The list filtered to nothing (pod round of aebf5bc, finding 8: an empty table under "2 users").
+  noAccountsInFilter: { on: "No accounts are on.", off: "No accounts are off.", all: "No accounts." },
   colUser: "User",
   colAdministrator: "Administrator",
   colLastSignedIn: "Last signed in",
@@ -998,7 +1003,8 @@ const en = {
   accountEvent: {
     signed_in: "Signed in", signed_out: "Signed out", added: "Added", made_admin: "Made administrator",
     admin_removed: "Administrator rights removed", password_reset: "Password reset", two_step_reset: "Two-step sign-in reset",
-    signed_out_everywhere: "Signed out everywhere", changed: "Account changed", deleted: "Account deleted",
+    signed_out_everywhere: "Signed out everywhere", switched_off: "Switched off", switched_on: "Switched on",
+    changed: "Account changed", deleted: "Account deleted",
   },
   signInFailed: { wrong_password: "Failed: wrong password", locked: "Failed: locked for a while", switched_off: "Failed: account off", other: "Failed" },
   unknownAccount: "Unknown account",

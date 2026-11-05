@@ -31,6 +31,9 @@ export function copyProblems(lang: Lang, texts: [string, string][]): [string, st
     // Dutch says "gedeelde map" and "ondersteuning" (docs/translations.md); a written address may hold "\\share"
     if (lang === "nl" && /(?<![\\\p{L}])share(?!\p{L})/iu.test(text)) out.push([path, "\"share\" in Dutch: gedeelde map"]);
     if (lang === "nl" && /(?<!\p{L})support/iu.test(text)) out.push([path, "\"support\" in Dutch: ondersteuning"]);
+    // One word for the office and one for the machine (pod round of aebf5bc, findings 11 and 13).
+    if (lang === "fr" && /(?<!\p{L})(cabinet|bureau)(?!\p{L})/iu.test(text)) out.push([path, "the office in French: étude"]);
+    if (lang === "nl" && /(?<!\p{L})toestel(?!\p{L})/iu.test(text)) out.push([path, "the machine in Dutch: appliance"]);
     // sūveryn in lower case, capitalised only where it opens a sentence (a label, a line, after . ! ? :);
     // "Sūveryn Labs" is the company's name; "suveryn-backups" is a folder's name on a backup disk, as written there
     const misspelt = /suveryn/i.test(text.replaceAll("sūveryn", "").replaceAll("Sūveryn", "").replaceAll("suveryn-backups", ""));

@@ -12,6 +12,7 @@ from suveryn_playbooks import LANGUAGES
 from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError
 from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
 
+SIGN_IN_LANG_COOKIE = "suveryn_sign_in_lang"  # the language chosen on the sign-in page, for the page to take once
 UI_LANGUAGES = set(LANGUAGES)  # the interface languages (docs/translations.md), passed on to Keycloak's login page
 
 router = APIRouter()
@@ -61,6 +62,12 @@ async def callback(request: Request, code: str | None = None, state: str | None 
         raise HTTPException(400, f"Sign-in failed: {e}.") from e
     response = RedirectResponse(return_to, status_code=303)
     response.delete_cookie(LOGIN_COOKIE, path="/")
+    if session.sign_in_locale in UI_LANGUAGES:
+        # The language picked on the sign-in page carries into the app, which reads this once (i18n/languages.ts;
+        # pod round of aebf5bc, finding 10: Nederlands chosen there, and the app stayed English). Not a secret, so
+        # readable by the page; gone in a minute either way.
+        response.set_cookie(SIGN_IN_LANG_COOKIE, session.sign_in_locale, max_age=60, path="/", httponly=False,
+                            samesite="lax", secure=_auth(request).settings.secure_cookies)
     _cookie(request, response, _auth(request).settings.session_cookie, session.id, None)  # a browser-session cookie
     return response
 

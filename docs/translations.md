@@ -48,8 +48,11 @@ same thing. The fixed terms, in every place:
 | Administration (the chat's pages for administrators) | Beheer | Administration |
 | admin dashboard (the web setup's text only, for the same pages) | beheerdashboard | tableau de bord d'administration |
 | case | dossier | dossier |
+| the office (the notary's) | kantoor | étude, never cabinet or bureau |
+| the appliance (the machine) | appliance, never toestel | appliance |
+| deed intake (the playbook) | intake akte | analyse de l'acte |
 
-`copyProblems` refuses "share" and "support" in Dutch (an address written as `\\server\share` is fine).
+`copyProblems` refuses "share" and "support" in Dutch (an address written as `\\server\share` is fine), "toestel" in Dutch, and "cabinet" and "bureau" in French.
 
 ## Adding a language
 

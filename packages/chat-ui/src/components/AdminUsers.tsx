@@ -138,6 +138,8 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
         <div className="users-empty"><b>{m.onlyUser}</b></div>
       ) : shown.length === 0 && query ? (
         <p className="caption">{m.noUserFound(q.trim())} <TextButton link onPress={() => setQ("")}>{m.clearSearch}</TextButton></p>
+      ) : shown.length === 0 ? (
+        <p className="caption">{m.noAccountsInFilter[filter]}</p>
       ) : narrow ? (
         <ul className="users-list">
           {shown.map((u) => (

@@ -1,6 +1,6 @@
 {
   "deed-intake": {
-    "title": "Intake de l'acte",
+    "title": "Analyse de l'acte",
     "summary": "Lit dans les documents les faits nécessaires à l'acte",
     "factsTitle": "Données pour l'acte",
     "labels": {

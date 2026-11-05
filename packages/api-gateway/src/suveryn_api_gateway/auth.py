@@ -152,6 +152,8 @@ class Session:
     refresh_token: str | None
     refresh_expires: float | None
     last_seen: float = field(default_factory=time.time)  # for the cap: the least recently seen go first
+    # The language chosen on Keycloak's sign-in page (the ID token's ``locale``), handed to the page once.
+    sign_in_locale: str | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -427,6 +429,7 @@ class Authenticator:
         claims = await provider.verify(tokens.get("id_token", ""), kind="id", nonce=pending.nonce)
         access = await provider.verify(tokens.get("access_token", ""), kind="access")
         session = self._new_session(user_from_claims(claims, roles_from=access), tokens)
+        session.sign_in_locale = claims.get("locale") if isinstance(claims.get("locale"), str) else None
         return session, pending.return_to
 
     def _new_session(self, user: User, tokens: dict) -> Session:
