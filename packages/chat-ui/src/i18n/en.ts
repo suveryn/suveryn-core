@@ -451,6 +451,9 @@ const en = {
     : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${foundIn.length > 1 ? "sources" : "source"} ${foundIn.join(", ")}.`
     : `Check source ${n}: "${item}" isn't in it.`,
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
+  // Text aimed at an AI among the passages the model was given but this answer doesn't cite (pod round of aebf5bc,
+  // finding 3): no number, which would point at a source the answer doesn't list.
+  instructionLikeUncited: "A passage given to the model contains text aimed at an AI. It wasn't followed; check this answer carefully.",
   instructionLike: (sources: number[]) =>
     `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text aimed at an AI. It wasn't followed; check this answer carefully.`,
   // downloaded sources

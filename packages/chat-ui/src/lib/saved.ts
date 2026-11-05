@@ -10,7 +10,7 @@ import type { Watermark } from "./watermark";
 import type { Citation } from "../api";
 import { locale, type Messages } from "../i18n";
 import type { AssistantTurn } from "../types";
-import { citedNumbers, stripMarkers, toBlocks } from "./answer";
+import { citedNumbers, instructionLikeWarning, stripMarkers, toBlocks } from "./answer";
 import { checkLines, type AnswerExport } from "./export";
 import { exportRef } from "./marks";
 
@@ -49,7 +49,7 @@ export function answerExport(turn: AssistantTurn, question: string, nameOf: (c: 
   return {
     question, answeredOn, model: turn.model, blocks: toBlocks(turn.text, available, flagged),
     checks: [...checkLines(turn.calculations ?? [], flagged, turn.citationIssues ?? [], m),
-             ...(turn.instructionLikeSources?.length ? [m.instructionLike(turn.instructionLikeSources)] : [])],
+             ...[instructionLikeWarning(turn.instructionLikeSources, turn.text, available, m)].filter((w): w is string => !!w)],
     sources: citedNumbers(turn.text, available).map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
     // sūveryn's mark (lib/marks.ts): so that this file, uploaded again, is recognised and asks first.
     mark: m.exportMark("answer", caseRef, answeredOn.toLocaleDateString(locale()), exportRef("A", turn.id))

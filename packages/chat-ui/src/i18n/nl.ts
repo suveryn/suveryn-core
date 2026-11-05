@@ -426,6 +426,7 @@ const nl: Messages = {
     : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${foundIn.length > 1 ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
     : `Controleer bron ${n}: „${item}” staat er niet in.`,
   citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",
+  instructionLikeUncited: "Een passage die het model kreeg, bevat tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.",
   instructionLike: (sources) =>
     `${sources.length > 1 ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.`,
   // playbooks (suveryn-tracker#51): intake akte

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { citedNumbers, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
+import { citedNumbers, instructionLikeWarning, stripMarkers, tableCells, toBlocks, type Block, type Segment, type Table } from "./answer";
 import { cellValue, checkLines, segmentText, tableRows } from "./export";
 
 import {
@@ -60,6 +60,16 @@ describe("answer rendering", () => {
   it("lists cited sources in order of first use", () => {
     expect(citedNumbers("a [2] b [1][2] c [5]", 3)).toEqual([2, 1]);
     expect(stripMarkers("Prijs EUR 10 [1]. Datum [2][3], ok")).toBe("Prijs EUR 10. Datum, ok");
+  });
+
+  it("warns about text aimed at an AI by the numbers this answer shows, never by one it doesn't cite", () => {
+    // Pod round of aebf5bc, finding 3: "Source 13 contains text aimed at an AI" under an answer citing 2 and 6.
+    const m = { instructionLike: (s: number[]) => `sources ${s.join(",")}`, instructionLikeUncited: "a passage" };
+    expect(instructionLikeWarning([13], "Huur [2] en oppervlakte [6].", 13, m)).toBe("a passage");
+    expect(instructionLikeWarning([13, 2], "Huur [2] en oppervlakte [6].", 13, m)).toBe("sources 2");
+    expect(instructionLikeWarning([6, 2], "Huur [2] en oppervlakte [6].", 13, m)).toBe("sources 2,6");
+    expect(instructionLikeWarning([], "Huur [2].", 13, m)).toBeNull();
+    expect(instructionLikeWarning(undefined, "Huur [2].", 13, m)).toBeNull();
   });
 });
 

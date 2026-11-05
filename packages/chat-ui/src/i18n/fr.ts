@@ -428,6 +428,7 @@ const fr: Messages = {
     : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${foundIn.length > 1 ? "les sources" : "la source"} ${foundIn.join(", ")}.`
     : `Vérifiez la source ${n} : « ${item} » n'y figure pas.`,
   citationIssueTitle: "Cette source ne contient pas tout ce que dit la phrase. Vérifiez-la.",
+  instructionLikeUncited: "Un passage transmis au modèle contient un texte adressé à une IA. Il n'a pas été suivi ; vérifiez cette réponse avec soin.",
   instructionLike: (sources) =>
     `${sources.length > 1 ? `Les sources ${sources.join(", ")} contiennent` : `La source ${sources[0]} contient`} un texte adressé à une IA. Il n'a pas été suivi ; vérifiez cette réponse avec soin.`,
   // playbooks (suveryn-tracker#51) : intake de l'acte

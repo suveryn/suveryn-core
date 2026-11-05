@@ -42,6 +42,16 @@ export function citedNumbers(text: string, available: number): number[] {
   return seen;
 }
 
+/** The warning about text aimed at an AI, as the answer can show it: the flagged passages this answer cites, by
+ *  their numbers, or, when it cites none of them, the warning without a number (pod round of aebf5bc, finding 3:
+ *  "Source 13 contains…" under an answer whose sources were 2 and 6). Null when nothing was flagged. */
+export function instructionLikeWarning(flagged: number[] | undefined, text: string, available: number,
+                                       m: { instructionLike: (s: number[]) => string; instructionLikeUncited: string }): string | null {
+  if (!flagged?.length) return null;
+  const cited = citedNumbers(text, available).filter((n) => flagged.includes(n)).sort((a, b) => a - b);
+  return cited.length ? m.instructionLike(cited) : m.instructionLikeUncited;
+}
+
 /**
  * Splits on **bold** first, then on [n] markers in every piece, bold ones included (they used to stay
  * as text). ``counter`` numbers the valid markers across the whole answer, as the server does for
