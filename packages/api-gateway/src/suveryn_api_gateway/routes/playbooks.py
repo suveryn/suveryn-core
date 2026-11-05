@@ -423,6 +423,9 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         asked = await run_in_threadpool(runtime.unanswered, run, step)
         labels = runtime.askable(pb, asked, run.language)  # a list the documents named none of: its first entry's values
         mapped = {} if body.unknown or not text else await _mapped(request, labels, {}, text, _choices(pb, labels, run.language))
+        # A choice placed in words that are none of its options is no value: dropped here it would leave the fact empty
+        # without a word (the GPU round's playbook runs, 5 November: the care mandate's pay), so it counts as unplaced.
+        mapped = {k: v for k, v in mapped.items() if runtime.normalise(pb, k, v, run.language)}
         if not body.unknown and not mapped and said_unknown(text, labels):
             pass  # "nog niet bekend" in words: as the quick reply, they stay unknown (VM regression 03c8f74, finding 8)
         elif not body.unknown and not mapped:

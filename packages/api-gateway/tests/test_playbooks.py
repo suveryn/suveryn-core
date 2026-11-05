@@ -840,3 +840,45 @@ def test_reads_that_follow_each_other_run_one_after_the_other(runs):
         assert shapes == [["gift_power", "principal", "start"], ["incapacity_proof"], ["gift_terms"]]
         by = {f["id"]: f["value"] for f in run["facts"]}
         assert by["incapacity_proof"] == "twee medische attesten" and by["gift_terms"] == "aan de kleinkinderen"
+
+
+@needs_db
+def test_a_choice_in_words_that_are_none_of_its_options_is_asked_again_not_dropped(runs):
+    """The GPU round's playbook runs (5 November): the care mandate's pay, placed in words that were none of its
+    options, was dropped without a word and the fact stayed empty. Now it is "couldn't be placed", asked again;
+    the options go with the mapping's prompt."""
+    import json as _json
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    replies: list[str] = []
+    prompts: list[str] = []
+    reading = llm_transport([], text=FORMATION_ANSWER).handle_request
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        content = _json.loads(request.content)["messages"][-1]["content"] if request.url.path.endswith("/chat/completions") else ""
+        if "answered in their own words" in content:
+            prompts.append(content)
+            return httpx.Response(200, json={"id": "m", "choices": [{"message": {"content": replies.pop(0)}, "finish_reason": "stop"}]})
+        return reading(request)
+
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        alice = as_user(kc, ALICE)
+        cid = c.post("/v1/cases", json={**NEW, "type": "company-formation", "name": "Oprichting"}, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        rid = c.post(f"/v1/cases/{cid}/playbooks/company-formation/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        url = RUN.format(cid=cid, rid=rid)
+        for step in ("identity", "plan"):
+            wait_for(c, url, alice, "waiting")
+            c.post(url + "/answer", json={"step_id": step, "documents": [DOC]}, headers=alice)
+        run = wait_for(c, url, alice, "waiting")
+        assert run["step"] == "kind_known"
+        replies.append("contribution_kind: met een bestelwagen")  # placed, but none of the options
+        run = c.post(url + "/say", json={"text": "Ze brengen een bestelwagen in."}, headers=alice).json()
+        assert run["step"] == "kind_known" and run["turns"][-1]["meta"]["kind"] == "unplaced"
+        assert "contribution_kind: Contribution" not in prompts[0] and "(a choice; options: cash = In geld" in prompts[0], prompts[0]
+        replies.append("contribution_kind: cash")
+        run = c.post(url + "/say", json={"text": "Enkel in geld."}, headers=alice).json()
+        assert run["step"] == "bank" and {f["id"]: f["value"] for f in run["facts"]}["contribution_kind"] == "cash"
