@@ -44,6 +44,9 @@ pytestmark = pytest.mark.skipif(not REAL_LLM, reason="needs a real model server 
 SPECS = sorted((E2E / "runs").glob("*.json"))
 if os.environ.get("E2E_RUNS_DIR"):
     SPECS += sorted(Path(os.environ["E2E_RUNS_DIR"]).glob("*.json"))
+# Never a hidden file: macOS's tar adds "._name.json" beside each file, its attributes, not a spec (the GPU round of
+# 5 November: two runs failed on them).
+SPECS = [p for p in SPECS if not p.name.startswith(".")]
 REPORT: dict[str, dict] = {}
 READ_TIMEOUT_S = 900   # a read with the real model: tens of seconds; the first one also waits for the documents
 
