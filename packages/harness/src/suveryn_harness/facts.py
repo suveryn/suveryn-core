@@ -280,6 +280,8 @@ async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]]
 
 MAP_TOKENS = 512
 _MAPPED = re.compile(r"^\s*[-*]?\s*`?([a-z][a-z0-9_]{0,49}(?:\[\d{1,2}\](?:\.[a-z][a-z0-9_]{0,49})?)?)`?\s*[:=]\s*(.+?)\s*$")
+# The model's "no value for any fact": NOTHING, as asked (it was NONE, which a choice's option "none" read like:
+# the GPU round's playbook runs, 5 November: "geen aparte vertrouwenspersoon" placed nothing), or NONE as before.
 _NOTHING = re.compile(r"^\s*(none|nothing|-)\s*\.?\s*$", re.IGNORECASE)
 
 MAP_INSTRUCTIONS = """A person answered in their own words about facts for a file. Say which of the facts below their
@@ -294,9 +296,10 @@ The person wrote:
 >>>
 
 Answer with one line per fact the person gives a value for, as `id: value`, using only the ids above.
-For a fact that is a choice, the value is the id of the option their words mean, from its list.
+For a fact that is a choice, the value is the id of the option their words mean, from its list, even when
+that option is "none" (for example `trusted_person: none` for "no trusted person").
 A fact the person says is not known yet, or will follow later, is not a value: leave it out.
-If their words give no value for any of the facts, answer with the single word NONE. Nothing else."""
+If their words give no value for any of the facts, answer with the single word NOTHING. Nothing else."""
 
 
 def map_prompt(labels: dict[str, str], current: dict[str, str], text: str,

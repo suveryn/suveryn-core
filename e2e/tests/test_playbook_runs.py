@@ -112,7 +112,9 @@ def _plain(text: str) -> str:
 def holds(run: dict, spec: dict) -> dict[str, bool]:
     """Every expectation of the spec against the run at its checkpoint: name -> held."""
     expect = spec["expect"]
-    values = {f["id"]: f.get("value") or "" for f in run["facts"] if f.get("found", True) and f.get("value")}
+    # Every value the run has: read from the documents, or given by a person's answer (``found`` is false then: the
+    # documents didn't have it).
+    values = {f["id"]: f["value"] for f in run["facts"] if f.get("value")}
 
     def says(prefix: str, needle: str) -> bool:
         return any(_plain(needle) in _plain(v) for k, v in values.items()
@@ -200,7 +202,7 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
     results = holds(at_checkpoint, spec)
     results["done, with its summary in the case"] = run["status"] == "done" and bool(run.get("result_document_id"))
     results |= {f"the answer at {s} understood": s not in not_understood for s in spec.get("say", {})}
-    found = sum(1 for f in at_checkpoint["facts"] if f.get("found", True) and f.get("value"))
+    found = sum(1 for f in at_checkpoint["facts"] if f.get("value"))
     REPORT[spec_path.stem] = {"playbook": spec["playbook"], "checks": results, "found": found, "facts": len(at_checkpoint["facts"]),
                               "asked": asked, "seconds": round(time.time() - started)}
     if path := os.environ.get("E2E_RUNS_REPORT"):

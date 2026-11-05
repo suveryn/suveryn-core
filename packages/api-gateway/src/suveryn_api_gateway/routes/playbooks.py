@@ -516,7 +516,10 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
     """An answer in words as values per fact (one plain model call); 503 if the model can't be asked."""
     owner = owner_of(request)
     try:
-        mapped, _ = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text, choices)
+        mapped, response = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text, choices)
+        # Counts only (an answer may hold a client's details): how many lines the model wrote, how many it placed.
+        log.info("answer in words: %d line(s) from the model, %d of %d fact(s) placed", len(response.answer.strip().splitlines()),
+                 len(mapped), len(labels))
     except BackendError:
         raise HTTPException(503, "The model isn't available to read this answer; try again in a moment.") from None
     return mapped

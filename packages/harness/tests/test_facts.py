@@ -295,6 +295,7 @@ def test_a_choice_answered_in_words_is_mapped_to_its_option():
     assert "- reporting: Verslag\n" in prompt + "\n" and "the id of the option" in prompt
     assert read_mapping("remuneration: unpaid\ntrusted_person: none", labels, choices) == {"remuneration": "unpaid", "trusted_person": "none"}
     assert read_mapping("reporting: none", labels, choices) == {}  # not a choice: "none" is still nothing
+    assert read_mapping("NOTHING", labels, choices) == {} and "the single word NOTHING" in prompt and "`trusted_person: none`" in prompt
 
 
 # ------------------------------------------------------------------ by meaning (decision, 1 November 2026; VM regression 03c8f74)
