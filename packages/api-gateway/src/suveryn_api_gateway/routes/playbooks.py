@@ -423,6 +423,9 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         asked = await run_in_threadpool(runtime.unanswered, run, step)
         labels = runtime.askable(pb, asked, run.language)  # a list the documents named none of: its first entry's values
         mapped = {} if body.unknown or not text else await _mapped(request, labels, {}, text, _choices(pb, labels, run.language))
+        # A choice placed in words that are none of its options is no value: dropped here it would leave the fact empty
+        # without a word (the GPU round's playbook runs, 5 November: the care mandate's pay), so it counts as unplaced.
+        mapped = {k: v for k, v in mapped.items() if runtime.normalise(pb, k, v, run.language)}
         if not body.unknown and not mapped and said_unknown(text, labels):
             pass  # "nog niet bekend" in words: as the quick reply, they stay unknown (VM regression 03c8f74, finding 8)
         elif not body.unknown and not mapped:
@@ -513,7 +516,10 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
     """An answer in words as values per fact (one plain model call); 503 if the model can't be asked."""
     owner = owner_of(request)
     try:
-        mapped, _ = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text, choices)
+        mapped, response = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text, choices)
+        # Counts only (an answer may hold a client's details): how many lines the model wrote, how many it placed.
+        log.info("answer in words: %d line(s) from the model, %d of %d fact(s) placed", len(response.answer.strip().splitlines()),
+                 len(mapped), len(labels))
     except BackendError:
         raise HTTPException(503, "The model isn't available to read this answer; try again in a moment.") from None
     return mapped
