@@ -31,6 +31,9 @@ def prepared_realm() -> dict:
             seen.add(client["clientId"])
             if client["clientId"] == "suveryn-chat":
                 assert client["redirectUris"] == [f"{PUBLIC_URL}/auth/callback"], client["redirectUris"]
+                # The playbook runs' scenario talks to the gateway's API with a bearer token, without a browser (a GPU
+                # pod has no Node for the chat UI): the test accounts' password grant, in this test realm only.
+                client["directAccessGrantsEnabled"] = True
     missing = set(secrets) - seen
     if missing:
         raise SystemExit(f"realm file lacks clients: {sorted(missing)}")
