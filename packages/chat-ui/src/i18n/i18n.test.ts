@@ -3,6 +3,7 @@ import { dayLabel } from "../lib/conversations";
 import { statusText } from "../lib/status";
 import { LANGS, pickLang, setLang, t, TABLES_FOR_TESTS as TABLES, type Lang } from ".";
 import { copyProblems, strings } from "./rules";
+import { signInLang } from "./languages";
 
 const ARRAYS: Record<string, unknown[]> = { pageList: [[1, 3]], reviewHint: [[1, 3]], calcMissing: [["1.000,00"]], unverified: [["1.000,00", "2,5"]] };
 /** Sample arguments for functions whose arguments the defaults don't fit: two or more each, covering their branches. */
@@ -41,6 +42,14 @@ describe("interface languages (suveryn-tracker#8)", () => {
                                ["d", "De gedeelde map"], ["e", "Supportovereenkomst"]]).map(([k]) => k)).toEqual(["a", "b", "e"]);
     expect(copyProblems("en", [["a", "Made by sūveryn."], ["b", "Ask Sūveryn"], ["c", "Done. sūveryn knows"], ["d", "Sūveryn Labs"],
                                ["e", "a — b"], ["f", "suveryn"]]).map(([k]) => k)).toEqual(["b", "c", "e", "f"]);
+  });
+
+  it("takes the language picked on the sign-in page from the gateway's cookie, and only a supported one", () => {
+    expect(signInLang("a=1; suveryn_sign_in_lang=nl; b=2")).toBe("nl");
+    expect(signInLang("suveryn_sign_in_lang=fr")).toBe("fr");
+    expect(signInLang("suveryn_sign_in_lang=de")).toBeNull();
+    expect(signInLang("other_suveryn_sign_in_lang=nl")).toBeNull();
+    expect(signInLang("")).toBeNull();
   });
 
   it("picks the browser's language when supported, else English", () => {

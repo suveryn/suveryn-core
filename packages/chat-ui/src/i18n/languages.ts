@@ -41,9 +41,24 @@ export function initialLang(first: string | null = null): Lang {
   return pickLang(typeof navigator === "undefined" ? [] : navigator.languages ?? [navigator.language]);
 }
 
+/** The language picked on the sign-in page, when the gateway just handed it over (a cookie it sets at the end of
+ *  signing in, for a minute): taken once, as a choice made in a language menu (pod round of aebf5bc, finding 10). */
+export function signInLang(cookie: string): Lang | null {
+  const m = /(?:^|;\s*)suveryn_sign_in_lang=([a-z]{2})(?:;|$)/.exec(cookie);
+  return m && isLang(m[1]) ? m[1] : null;
+}
+
 let current: Lang = initialLang();
 const listeners = new Set<() => void>();
-if (typeof document !== "undefined") document.documentElement.lang = LOCALES[current];
+if (typeof document !== "undefined") {
+  const picked = signInLang(document.cookie);
+  if (picked) {
+    current = picked;
+    try { localStorage.setItem(KEY, picked); } catch { /* this page only */ }
+    document.cookie = "suveryn_sign_in_lang=; Max-Age=0; Path=/; SameSite=Lax";
+  }
+  document.documentElement.lang = LOCALES[current];
+}
 
 /** The current language. */
 export const lang = (): Lang => current;

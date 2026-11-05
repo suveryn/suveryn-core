@@ -154,6 +154,17 @@ def test_api_needs_sign_in_and_health_stays_public(client):
     assert client.get("/auth/me").status_code == 401
 
 
+def test_the_language_picked_on_the_sign_in_page_is_handed_to_the_page(client, kc):
+    """Pod round of aebf5bc, finding 10: Nederlands chosen on the sign-in page, and the app stayed English."""
+    r = sign_in(client, kc, locale="nl")
+    assert r.cookies.get("suveryn_sign_in_lang") == "nl"
+    lang_cookie = next(h for h in r.headers.get_list("set-cookie") if h.startswith("suveryn_sign_in_lang="))
+    assert "httponly" not in lang_cookie.lower() and "max-age=60" in lang_cookie.lower()  # for the page to read, briefly
+    other = TestClient(client.app)
+    assert "suveryn_sign_in_lang" not in sign_in(other, kc, locale="de").cookies  # not one of the interface's
+    assert "suveryn_sign_in_lang" not in sign_in(TestClient(client.app), kc).cookies  # none chosen
+
+
 def test_login_redirects_to_keycloak_with_pkce_state_and_nonce(client):
     r = client.get("/auth/login", follow_redirects=False)
     url = urlsplit(r.headers["location"])
