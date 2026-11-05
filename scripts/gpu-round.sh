@@ -7,6 +7,7 @@
 #   LLAMA_TAG=b11223 bash scripts/gpu-round.sh  # only that llama.cpp; the summary keeps earlier runs' results
 #   PACKS=/workspace/suveryn-packs bash scripts/gpu-round.sh  # the packs' playbooks too (a checkout copied in:
 #                                             # the repository is private; their runs are in its tests/runs)
+#     from a Mac: COPYFILE_DISABLE=1 tar -czf - suveryn-packs | ssh … "tar -xzf - -C /workspace"
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);

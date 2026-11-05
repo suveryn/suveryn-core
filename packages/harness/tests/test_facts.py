@@ -282,6 +282,21 @@ def test_an_answer_in_words_is_mapped_only_to_the_facts_asked():
     assert "- deed_by: Akte te verlijden tegen (now: 12 februari 2027)" in prompt and "> > > label C" in prompt
 
 
+def test_a_choice_answered_in_words_is_mapped_to_its_option():
+    """The GPU round's playbook runs (5 November 2026): "kosteloos" and "geen aparte vertrouwenspersoon" couldn't be
+    placed on the care mandate's pay and trusted person: the prompt gave the label only, and the option ``none`` read
+    as "nothing"."""
+    from suveryn_harness.facts import map_prompt, read_mapping
+
+    labels = {"remuneration": "Vergoeding lasthebbers", "trusted_person": "Vertrouwenspersoon", "reporting": "Verslag"}
+    choices = {"remuneration": {"unpaid": "Kosteloos", "paid": "Bezoldigd"}, "trusted_person": {"none": "Geen", "named": "Aangeduid"}}
+    prompt = map_prompt(labels, {}, "Kosteloos, geen aparte vertrouwenspersoon.", choices)
+    assert "- remuneration: Vergoeding lasthebbers (a choice; options: unpaid = Kosteloos; paid = Bezoldigd)" in prompt
+    assert "- reporting: Verslag\n" in prompt + "\n" and "the id of the option" in prompt
+    assert read_mapping("remuneration: unpaid\ntrusted_person: none", labels, choices) == {"remuneration": "unpaid", "trusted_person": "none"}
+    assert read_mapping("reporting: none", labels, choices) == {}  # not a choice: "none" is still nothing
+
+
 # ------------------------------------------------------------------ by meaning (decision, 1 November 2026; VM regression 03c8f74)
 
 def test_an_amount_or_a_date_is_compared_by_what_it_means():

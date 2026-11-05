@@ -422,7 +422,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     elif step.kind == "ask":
         asked = await run_in_threadpool(runtime.unanswered, run, step)
         labels = runtime.askable(pb, asked, run.language)  # a list the documents named none of: its first entry's values
-        mapped = {} if body.unknown or not text else await _mapped(request, labels, {}, text)
+        mapped = {} if body.unknown or not text else await _mapped(request, labels, {}, text, _choices(pb, labels, run.language))
         if not body.unknown and not mapped and said_unknown(text, labels):
             pass  # "nog niet bekend" in words: as the quick reply, they stay unknown (VM regression 03c8f74, finding 8)
         elif not body.unknown and not mapped:
@@ -433,7 +433,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     else:
         current = {f.id: f.value for f in run.facts}
         labels = _checkpoint_labels(pb, run)
-        mapped = await _mapped(request, labels, current, text) if text else {}
+        mapped = await _mapped(request, labels, current, text, _choices(pb, labels, run.language)) if text else {}
         changed = {k: v for k, v in mapped.items() if v.strip() and v.strip() != current.get(k, "")}
         unknown = [] if changed else said_unknown(text, labels)
         if unknown and not any(current.get(f) for f in unknown):
@@ -497,11 +497,23 @@ def _checkpoint_labels(pb: Playbook, run: Run) -> dict[str, str]:
     return out
 
 
-async def _mapped(request: Request, labels: dict[str, str], current: dict[str, str], text: str) -> dict[str, str]:
+def _choices(pb: Playbook, labels: dict[str, str], language: str) -> dict[str, dict[str, str]]:
+    """The options of the choice facts among ``labels``, each with its words in the run's language, for the mapping."""
+    words = pb.wording(language)
+    out: dict[str, dict[str, str]] = {}
+    for fid in labels:
+        f = pb.fact(fid)
+        if f is not None and f.kind == "choice" and f.options:
+            out[fid] = {o: words.label(f"{fid}.{o}") for o in f.options}
+    return out
+
+
+async def _mapped(request: Request, labels: dict[str, str], current: dict[str, str], text: str,
+                  choices: dict[str, dict[str, str]] | None = None) -> dict[str, str]:
     """An answer in words as values per fact (one plain model call); 503 if the model can't be asked."""
     owner = owner_of(request)
     try:
-        mapped, _ = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text)
+        mapped, _ = await map_answer(lambda req: request.app.state.chat.answer(req, owner), labels, current, text, choices)
     except BackendError:
         raise HTTPException(503, "The model isn't available to read this answer; try again in a moment.") from None
     return mapped
