@@ -4,6 +4,7 @@
  * two can be put side by side. A new screen state gets its preview here in the same change.
  */
 import { useEffect, type ReactNode } from "react";
+import App from "../App";
 import { AdminView } from "../components/Admin";
 import { CloseCaseDialog, DeleteCaseDialog } from "../components/CaseDialogs";
 import { AccessLogDialog, MembersDialog } from "../components/CaseMembers";
@@ -11,8 +12,18 @@ import { RenameConversationDialog } from "../components/ConversationDialogs";
 import { SignOutDialog } from "../components/SignOutDialog";
 import { HttpError } from "../api";
 import { CASE_124, CONVERSATION } from "./sample";
+import { Steps, type Step } from "./steps";
+import { hold, offline, replace } from "./fakeApi";
+import { EMPTY_OFFICE } from "./sample";
+import type { Lang } from "../i18n";
 
-export type Preview = { id: string; board: string; title: string; render: () => ReactNode };
+export type Preview = {
+  id: string; board: string; title: string; render: () => ReactNode;
+  /** The board's language (the dialog boards are English, the rest Dutch); ?lang= overrides it. */
+  lang?: Lang;
+  /** Changes to the sample office before the screen starts (fakeApi.ts). */
+  setup?: () => void;
+};
 
 const nothing = () => {};
 const never = () => new Promise<void>(() => {});
@@ -28,7 +39,51 @@ function PressMain({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** The whole app, signed in as Mieke Delarivière, brought into a state by `steps`. */
+const app = (...steps: Step[]) => () => <Steps steps={steps}><App /></Steps>;
+
+/** Administration on one of its pages, reached as an administrator does: the account menu, Beheer, the page. */
+const admin = (page: string, ...steps: Step[]) =>
+  app({ click: "Account: Test Beheerder" }, { click: "Beheer" }, ...(page === "Status" ? [] : [{ click: page, within: "Beheer" }]), ...steps);
+
 export const PREVIEWS: Preview[] = [
+  // G: the conversation (Dutch, as the boards)
+  { id: "g01-start", board: "G01", lang: "nl", title: "Start, persoonlijk", render: app() },
+  { id: "g02-case-conversation", board: "G02", lang: "nl", title: "Gesprek in een dossier",
+    render: app({ click: "Akte van verkoop: nazicht clausules" }) },
+  { id: "g03-collapsed", board: "G03", lang: "nl", title: "Ingeklapte kolom, persoonlijk gesprek",
+    render: app({ click: "Wat is een huurkoopformule?" }, { click: "Zijbalk inklappen" }) },
+  { id: "g04-account-menu", board: "G04", lang: "nl", title: "Accountmenu",
+    render: app({ click: "Account: Test Beheerder" }) },
+  { id: "g05-new-menu", board: "G05", lang: "nl", title: "Menu Nieuw",
+    render: app({ click: "Nieuw" }) },
+  { id: "g06-conversations", board: "G06", lang: "nl", title: "Gesprekken, overzicht", render: app({ click: "Gesprekken" }) },
+  { id: "g07-cases", board: "G07", lang: "nl", title: "Dossiers, overzicht", render: app({ click: "Dossiers" }) },
+  { id: "g08-documents", board: "G08", lang: "nl", title: "Documenten, overzicht", render: app({ click: "Documenten" }) },
+  { id: "g09-offline", board: "G09", lang: "nl", title: "Server niet bereikbaar", setup: () => offline(),
+    render: app({ click: "Wat is een huurkoopformule?" }) },
+  { id: "g10-busy", board: "G10", lang: "nl", title: "Bezig met een antwoord", setup: () => hold("/v1/chat"),
+    render: app({ type: "Wat is een huurkoopformule, in grote lijnen?", into: "Stel een vraag" }, { key: "Enter" }) },
+  { id: "g11-source", board: "G11", lang: "nl", title: "Bronpaneel open",
+    render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Bron 1: Compromis_Schipperskaai.pdf, pagina 7" }) },
+  { id: "g12-first-use", board: "G12", lang: "nl", title: "Eerste gebruik", setup: () => replace(EMPTY_OFFICE), render: app() },
+  { id: "g14-new-case", board: "G14", lang: "nl", title: "Nieuw dossier",
+    render: app({ click: "Nieuw" }, { click: "Nieuw dossier" }) },
+  { id: "g16-save-answer", board: "G16", lang: "nl", title: "Antwoord bewaren: Word of Markdown",
+    render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Andere formaten" }) },
+  { id: "g17-ask-about", board: "G17", lang: "nl", title: "Vraag over: documenten kiezen",
+    render: app({ click: "123" }, { click: "Vraag over, alle documenten" }) },
+  { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier",
+    render: app({ click: "Dossiers" }, { click: "118" }) },
+  { id: "g15-narrow", board: "G15", lang: "nl", title: "Smal scherm (390 px): open op een telefoon", render: app() },
+  // B: administration (Dutch, as the boards)
+  { id: "b01-status", board: "B01", lang: "nl", title: "Status", render: admin("Status") },
+  { id: "b03-users", board: "B03", lang: "nl", title: "Gebruikers", render: admin("Gebruikers") },
+  { id: "b05-cases", board: "B05", lang: "nl", title: "Dossiers", render: admin("Dossiers") },
+  { id: "b06-playbooks", board: "B06", lang: "nl", title: "Playbooks", render: admin("Playbooks") },
+  { id: "b07-usage", board: "B07", lang: "nl", title: "Verbruik", render: admin("Verbruik") },
+  { id: "b08-settings", board: "B08", lang: "nl", title: "Instellingen van het kantoor", render: admin("Instellingen") },
+  { id: "b11-backups", board: "B11", lang: "nl", title: "Back-ups", render: admin("Back-ups") },
   // D01: the pattern, the four kinds
   { id: "d01-confirmation", board: "D01", title: "Confirmation: close a case",
     render: () => <CloseCaseDialog open kase={CASE_124} period="5y" onCloseCase={never} onCancel={nothing} /> },

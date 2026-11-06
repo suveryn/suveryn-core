@@ -19,6 +19,10 @@ body {
 }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+/* A menu, list or dialog takes the focus itself when it opens (React Aria), also after a click: no ring around
+   the whole of it. The keyboard's place is the ring on its item or control. */
+[role="menu"]:focus-visible, [role="listbox"]:focus-visible, [role="dialog"]:focus-visible,
+[role="alertdialog"]:focus-visible { box-shadow: none; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* type roles */

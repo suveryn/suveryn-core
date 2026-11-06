@@ -16,16 +16,19 @@ import { PREVIEWS } from "./previews";
 
 useSampleData();
 const params = new URLSearchParams(window.location.search);
-const wanted = params.get("lang");
-setLang((LANGS as readonly string[]).includes(wanted ?? "") ? (wanted as Lang) : "en", false);
 const shown = PREVIEWS.find((p) => p.id === params.get("p"));
+const wanted = params.get("lang");
+setLang((LANGS as readonly string[]).includes(wanted ?? "") ? (wanted as Lang) : shown?.lang ?? "en", false);
+shown?.setup?.();
+// A preview without steps is ready once its first data is in (the screenshot script waits for this).
+if (shown) setTimeout(() => document.documentElement.setAttribute("data-preview-ready", ""), 1500);
 
 function Index() {
   const boards = [...new Set(PREVIEWS.map((p) => p.board))];
   return (
     <main className="preview-index">
       <h1>Screen previews</h1>
-      <p>The real screens with sample data, one per state on the design boards. Add <code>&amp;lang=nl</code> or <code>fr</code>.</p>
+      <p>The real screens with sample data, one per state on the design boards. Each opens in its board's language; add <code>&amp;lang=en</code>, <code>nl</code> or <code>fr</code> for another.</p>
       {boards.map((b) => (
         <section key={b}>
           <h2>{b}</h2>
