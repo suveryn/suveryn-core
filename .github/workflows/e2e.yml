@@ -20,13 +20,16 @@ jobs:
       - name: System packages for the document reader
         # OCRmyPDF with Dutch, French and English Tesseract, Ghostscript and Poppler: what the appliance's
         # provisioning installs for suveryn-rag's extraction.
-        # A hung mirror once kept this step waiting until the job's 45 minutes ran out: each apt call has a
-        # time limit and apt's own retries, and the whole step is tried three times before it fails.
-        timeout-minutes: 15
+        # A hung mirror once kept this step waiting until the job's 45 minutes ran out, and later a download
+        # stalled without a word (run 42281173931): each apt call has a time limit, apt's own retries, IPv4
+        # only and a limit on waiting for the package lock, prints its progress (-q, not -qq) so a stall shows
+        # where it is, and the whole step is tried three times before it fails.
+        timeout-minutes: 25
         run: |
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=120"
           for attempt in 1 2 3; do
-            if timeout 180 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -qq \
-               && timeout 600 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils postgresql-client; then
+            if timeout 120 sudo apt-get $APT update -q \
+               && timeout 360 sudo DEBIAN_FRONTEND=noninteractive apt-get $APT install -y -q ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils postgresql-client; then
               exit 0
             fi
             echo "::warning::apt attempt $attempt failed or hung; trying again in 15 s"
@@ -121,13 +124,16 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: System packages for the document reader
-        # A hung mirror once kept this step waiting until the job's 45 minutes ran out: each apt call has a
-        # time limit and apt's own retries, and the whole step is tried three times before it fails.
-        timeout-minutes: 15
+        # A hung mirror once kept this step waiting until the job's 45 minutes ran out, and later a download
+        # stalled without a word (run 42281173931): each apt call has a time limit, apt's own retries, IPv4
+        # only and a limit on waiting for the package lock, prints its progress (-q, not -qq) so a stall shows
+        # where it is, and the whole step is tried three times before it fails.
+        timeout-minutes: 25
         run: |
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=120"
           for attempt in 1 2 3; do
-            if timeout 180 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -qq \
-               && timeout 600 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils; then
+            if timeout 120 sudo apt-get $APT update -q \
+               && timeout 360 sudo DEBIAN_FRONTEND=noninteractive apt-get $APT install -y -q ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils; then
               exit 0
             fi
             echo "::warning::apt attempt $attempt failed or hung; trying again in 15 s"
