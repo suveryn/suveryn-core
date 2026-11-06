@@ -500,6 +500,7 @@ const fr: Messages = {
   changeValue: (label, value) => `${label}, ${value}, modifier`,
   factsCount: (found, total) => `${found} sur ${total}`,
   runAnswerPlaceholder: "Répondez, ou dites ce qui doit changer…",
+  runPausedPlaceholder: (title) => `En pause : reprenez via ${title}.`,
   runConfirmedLine: (name, time) => `Confirmé par ${name} · ${time}`,
   runPausedLine: (name, time) => `Mis en pause par ${name} · ${time}`,
   runResumedLine: (name, time) => `Repris par ${name} · ${time}`,

@@ -9,7 +9,7 @@
  * Administrators only: the gateway answers 403 to anyone else on every /v1/admin route.
  */
 import {
-  ArrowLeft, ChartColumn, ChevronRight, ClipboardList, Folder, Gauge, HardDrive, Settings, Shield, TriangleAlert,
+  ArrowLeft, ChartColumn, ChevronRight, Folder, Gauge, HardDrive, Route, Settings, Shield, TriangleAlert,
   Users
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -49,7 +49,7 @@ export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
     { heading: m.adminOffice, items: [
       { id: "users", label: m.adminUsers, icon: <Users size={16} aria-hidden /> },
       { id: "cases", label: m.adminCases, icon: <Folder size={16} aria-hidden /> },
-      { id: "playbooks", label: m.adminPlaybooks, icon: <ClipboardList size={16} aria-hidden /> },
+      { id: "playbooks", label: m.adminPlaybooks, icon: <Route size={16} aria-hidden /> },
       { id: "usage", label: m.adminUsage, icon: <ChartColumn size={16} aria-hidden /> },
       { id: "settings", label: m.adminSettings, icon: <Settings size={16} aria-hidden /> },
     ] },

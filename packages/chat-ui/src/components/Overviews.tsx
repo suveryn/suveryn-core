@@ -8,7 +8,7 @@
  * conversation in its case, or the case a document is in with the document ready to ask about.
  */
 import {
-  ArrowUpDown, Check, CircleX, ClipboardList, Clock, Download, Ellipsis, FileOutput, Folder, FolderKey, Funnel,
+  ArrowUpDown, Check, CircleX, Clock, Download, Ellipsis, FileOutput, Folder, FolderKey, Funnel,
   LoaderCircle, Lock, MessageSquare, MessageSquareLock, NotebookText, Pin, PinOff, Plus, Route, ScrollText, Trash,
   TriangleAlert, Upload, Users
 } from "lucide-react";
@@ -177,7 +177,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
     { id: "status", label: m.colStatus, render: (c) => <span className="overview-status-cell">{status(c)}
         {/* §11: an ink outline label in words beside the status */}
         {c.confidential && <span className="overview-label"><FolderKey size={12} aria-hidden /> {m.strictlyConfidential}</span>}
-        {activeRuns[c.id] && runChip && <span className="playbook-chip" data-status={activeRuns[c.id].status}><ClipboardList size={12} aria-hidden /> {runChip(activeRuns[c.id])}</span>}</span> },
+        {activeRuns[c.id] && runChip && <span className="playbook-chip" data-status={activeRuns[c.id].status}><Route size={12} aria-hidden /> {runChip(activeRuns[c.id])}</span>}</span> },
     { id: "members", label: m.colMembers, render: members },
     { id: "documents", label: m.colDocuments, align: "end",
       render: (c) => { const n = docs.get(c.id)?.length ?? 0; return (

@@ -375,7 +375,8 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
             {blocked && <span id={why} className="ui-visually-hidden">{check.length === 1 ? m.pbConfirmBlockedOne(label(check[0])) : m.pbConfirmBlocked}</span>}
           </>
         )}
-        <TextButton link className="run-all-facts" onPress={() => onPanel({ kind: "list" })}>{m.pbAllFacts(total)}</TextButton>
+        {/* ink, underlined: orange is the main action only (board P01) */}
+        <TextButton className="run-all-facts" onPress={() => onPanel({ kind: "list" })}>{m.pbAllFacts(total)}</TextButton>
       </div>
     </div>
   );
@@ -417,7 +418,7 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
           ) : fact.value ? <span className="fact-card-value">{fact.value}</span> : <em className="fact-unknown">{m.answerPlaceholder}</em>}
         </div>
         {canAnswer && !editing && (
-          <Button variant="quiet" size="small" onPress={() => setEditing(true)}>{group === "check" ? m.pbAdjust : m.pbFill}</Button>
+          <Button variant="secondary" size="small" onPress={() => setEditing(true)}>{group === "check" ? m.pbAdjust : m.pbFill}</Button>
         )}
       </div>
       {group === "check" && quote && <blockquote className="fact-card-quote">{quote}</blockquote>}
@@ -458,7 +459,7 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd }: {
           <span className="fact-card-label">{words.labels[list] ?? list}</span>
           {!open && (count ? <span className="fact-card-value">{m.pbEntries(count)}</span> : <em className="fact-unknown">{m.pbNoEntries}</em>)}
         </div>
-        {canAnswer && !open && <Button variant="quiet" size="small" onPress={() => setOpen(true)}>{m.pbAddEntry}</Button>}
+        {canAnswer && !open && <Button variant="secondary" size="small" onPress={() => setOpen(true)}>{m.pbAddEntry}</Button>}
       </div>
       {open && (
         <div className="fact-card-entry-fields" title={m.pbFieldHint}>
@@ -657,7 +658,7 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
       )}
       <div className="composer">
         <TextArea label={title} hideLabel value={text} onChange={setText} onKeyDown={onKey} isReadOnly={!waiting}
-                  placeholder={waiting ? m.runAnswerPlaceholder : ""} className="composer-field" />
+                  placeholder={waiting ? m.runAnswerPlaceholder : run.status === "paused" ? m.runPausedPlaceholder(title) : ""} className="composer-field" />
         <div className="composer-tools">
           {picker.input}
           <IconButton size="small" label={m.addDocuments} onPress={() => picker.open()} isDisabled={!waiting || busy || uploading.length > 0}>
@@ -665,7 +666,8 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
           </IconButton>
           {chip}
           <span className="composer-space" />
-          <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
+          <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}
+                  data-empty={waiting && !busy && !text.trim() ? true : undefined}>
             <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
           </Button>
         </div>

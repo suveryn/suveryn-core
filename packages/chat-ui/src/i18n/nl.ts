@@ -498,6 +498,7 @@ const nl: Messages = {
   changeValue: (label, value) => `${label}, ${value}, aanpassen`,
   factsCount: (found, total) => `${found} van ${total}`,
   runAnswerPlaceholder: "Antwoord, of zeg wat er anders moet…",
+  runPausedPlaceholder: (title) => `Gepauzeerd: hervat via ${title}.`,
   runConfirmedLine: (name, time) => `Bevestigd door ${name} · ${time}`,
   runPausedLine: (name, time) => `Gepauzeerd door ${name} · ${time}`,
   runResumedLine: (name, time) => `Hervat door ${name} · ${time}`,

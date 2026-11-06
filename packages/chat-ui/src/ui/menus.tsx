@@ -322,7 +322,9 @@ export function ActionMenu({ children, menuLabel, entries: items, onAction, head
   const narrow = useMedia(NARROW);
   return (
     <MenuTrigger>
-      <AriaButton className={cx("ui-menu-trigger", className)} aria-label={rest["aria-label"]} isDisabled={isDisabled}>
+      {/* data-* attributes go on the button (the run's chip styles by its data-status: ink when paused) */}
+      <AriaButton className={cx("ui-menu-trigger", className)} aria-label={rest["aria-label"]} isDisabled={isDisabled}
+                  {...Object.fromEntries(Object.entries(rest).filter(([k]) => k.startsWith("data-")))}>
         {children}
       </AriaButton>
       <Popover className={cx("ui-popover", "ui-popover-rich", popoverClassName)} placement={placement} offset={6}>

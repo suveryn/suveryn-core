@@ -7,7 +7,7 @@
  * playbook and the model, and send. On the start screen, "Work in a case" chooses a case (§2, artboard 01).
  */
 import {
-  ArrowUp, Check, ChevronDown, ClipboardList, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Square, TriangleAlert
+  ArrowUp, Check, ChevronDown, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Route, Square, TriangleAlert
 } from "lucide-react";
 import { keepDraft, readDraft } from "../lib/draft";
 import { useRef, useState, type KeyboardEvent } from "react";
@@ -113,7 +113,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   };
 
   const playbookEntries: MenuEntry[] = playbooks.map((p) => ({
-    id: p.slug, label: playbookWords(p, lang()).title, icon: <ClipboardList size={16} />,
+    id: p.slug, label: playbookWords(p, lang()).title, icon: <Route size={16} />,
     description: [playbookWords(p, lang()).summary, `v${p.version}`].filter(Boolean).join(" · "),
     meta: p.covered ? m.covered : m.notCovered, metaTone: p.covered ? "teal" as const : "warn" as const,
     metaIcon: p.covered ? <Check size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />,
@@ -208,7 +208,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
                         header={<span className="ui-menu-eyebrow">{m.playbookMenuTitle(caseReference ?? "", caseType ?? "")}</span>}
                         entries={playbookEntries}
                         onAction={onPlaybook}>
-              <ClipboardList size={13} aria-hidden /> {m.playbook} <ChevronDown size={13} aria-hidden />
+              <Route size={13} aria-hidden /> {m.playbook} <ChevronDown size={13} aria-hidden />
             </ActionMenu>
           )}
           <span className="composer-space" />
