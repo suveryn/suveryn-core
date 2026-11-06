@@ -215,7 +215,7 @@ export const DEED_INTAKE: PlaybookInfo = {
   steps: [step("agreement", "request"), step("read", "read", ["agreement"], DEED_FACTS), step("missing", "ask", ["read"], DEED_FACTS),
           step("deposit_within_price", "check", ["missing"]), step("deed_after_agreement", "check", ["missing"]),
           step("confirm", "checkpoint", ["missing"]), step("summary", "produce", ["confirm"])],
-  text: { nl: { title: "Akte-intake", summary: "Leest de feiten voor de akte uit de documenten", labels: DEED_LABELS,
+  text: { nl: { title: "Akte-intake", summary: "Leest de feiten voor de akte uit de documenten", facts_title: "Gegevens voor de akte", labels: DEED_LABELS,
                 questions: { agreement: "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
                              missing: "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet." },
                 checks: { deposit_within_price: "Het voorschot of de waarborg ligt binnen de prijs",

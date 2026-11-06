@@ -866,3 +866,5 @@ span.chip-run { cursor: default; }
 .backup-card-value { margin: 0; font-size: var(--text-ui); font-weight: 600; }
 .backup-card-detail { margin: 0; font-size: var(--text-caption); color: var(--text-dim); }
 .backup-retention { display: flex; flex-direction: column; gap: var(--space-2); }
+/* the facts panel's title takes the room the head has: "Alle gegevens voor de akte" in full (board P03) */
+.facts-panel .source-panel-head > .composer-space { flex: 0 0 0; }
