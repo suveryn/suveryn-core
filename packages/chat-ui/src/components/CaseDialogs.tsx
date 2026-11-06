@@ -95,7 +95,7 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
         {officeWide && (
           <div className="case-form-access">
             <span className="ui-label">{m.whoSeesThisCase}</span>
-            <RadioCards label={m.whoSeesThisCase} name="access" value={access} onChange={(v) => setAccess(v as "default" | "restricted")}
+            <RadioCards dotFirst label={m.whoSeesThisCase} name="access" value={access} onChange={(v) => setAccess(v as "default" | "restricted")}
                         choices={[{ value: "default", title: m.accessOffice, description: m.officeDefault },
                                   { value: "restricted", title: m.accessMembers, description: m.membersAfterOpening }]} />
           </div>

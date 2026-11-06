@@ -184,7 +184,9 @@ export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: strin
       {/* board B03: what this page doesn't cover, in the sign-in service's own console (the office's network only) */}
       {consoleUrl && (
         <p className="caption admin-console-line">
-          <LinkButton href={consoleUrl} variant="text" newTab><ExternalLink size={14} aria-hidden /> {m.signInConsole}</LinkButton>
+          {/* "Advanced:" as plain text, the link after it (board B03) */}
+          {m.signInConsoleLead}{" "}
+          <LinkButton href={consoleUrl} variant="text" newTab>{m.signInConsole} <ExternalLink size={13} aria-hidden /></LinkButton>
         </p>
       )}
 
