@@ -55,7 +55,9 @@ These apply to every screen below.
 - **Tables** (tokens v3.6): the header and a footer on `band`, rows on the page colour without
   stripes, a hovered row `row-hover` (a cool blue-grey). A selected row has an ink bar on its left.
   A row is never teal and never warm: its only teal is keyboard focus. A footer holds only what
-  belongs to the whole table (a total, "Kept 180 days").
+  belongs to the whole table: the totals under Administration › Usage's per-user table, "Kept 180
+  days." under the sign-in log with *Show all*, a link in ink (it takes you somewhere, it doesn't
+  act). A table with nothing that belongs to the whole of it has no footer.
 - **Focus looks the same on every control**: the field's, a 1 px `focus` border with a 3 px glow
   against it, no gap (`--focus-ring` in `ui.css`; a control with its own border turns that border
   teal). A row draws it inside. On an orange or teal fill (the main action, send, a citation

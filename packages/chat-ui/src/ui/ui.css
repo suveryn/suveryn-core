@@ -600,6 +600,12 @@
 .ui-table-foot { display: flex; align-items: center; gap: var(--space-3); padding: 8px 10px; background: var(--band);
                  border-top: 1px solid var(--line); font-size: var(--text-ui-sm); line-height: var(--leading-ui-sm); color: var(--text-dim); }
 .ui-table-foot b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* the same footer on a plain <table> (<tfoot class="ui-foot">) */
+tfoot.ui-foot td, tfoot.ui-foot th { background: var(--band); border-top: 1px solid var(--line); border-bottom: 0;
+                                     font-size: var(--text-ui-sm); color: var(--text-dim); }
+tfoot.ui-foot b, tfoot.ui-foot .ui-total { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* "Show all" in a footer is a link in ink: it takes you somewhere, it doesn't act (not orange) */
+.ui-table-foot .ui-text-button, tfoot.ui-foot .ui-text-button { color: var(--text); font-size: inherit; }
 .ui-table-empty { margin: 0; padding: var(--space-6); text-align: center; color: var(--text-dim); }
 .ui-pager { display: flex; align-items: center; gap: var(--space-2); }
 .ui-pager-range { font-size: var(--text-caption); color: var(--text-dim); margin-right: var(--space-2); }
