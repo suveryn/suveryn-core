@@ -173,12 +173,29 @@ export function AdminSettings() {
       </div>
       <Dialog isOpen={confirming !== null} onClose={() => setConfirming(null)} busy={busy} kind="confirmation" title={m.saveSettingsTitle}
               cancel={{ label: m.cancel }} primary={{ label: m.save, onPress: () => void write(), busyLabel: m.saving }}>
-        {confirming?.cases_opened ? <p>{m.casesOpened(confirming.cases_opened)}</p> : null}
-        {confirming?.cases_closed ? <p>{m.casesClosed(confirming.cases_closed)}</p> : null}
-        {confirming?.conversations_deleted ? <p>{m.conversationsDeleted(confirming.conversations_deleted)}</p> : null}
+        {confirming && <SettingsConsequences preview={confirming} />}
         {twoStepChanged ? <p>{twoStep ? m.twoStepTurnsOn : m.twoStepTurnsOff}</p> : null}
-        {confirming?.cases_opened || confirming?.cases_closed ? <p className="caption">{m.strictlyStays}</p> : null}
       </Dialog>
     </div>
   );
+}
+
+/** What saving the office's case settings does to cases and conversations that exist, as the gateway previewed it:
+ *  the confirmation's text, here and under Administration › Cases (board B05: one setting, two places). */
+export function SettingsConsequences({ preview }: { preview: SettingsPreview }) {
+  const m = useT();
+  return <>
+    {preview.cases_opened ? <p>{m.casesOpened(preview.cases_opened)}</p> : null}
+    {preview.cases_closed ? <p>{m.casesClosed(preview.cases_closed)}</p> : null}
+    {preview.conversations_deleted ? <p>{m.conversationsDeleted(preview.conversations_deleted)}</p> : null}
+    {preview.cases_opened || preview.cases_closed ? <p className="caption">{m.strictlyStays}</p> : null}
+  </>;
+}
+
+/** The keep periods in their order, labelled as everywhere: "6 months", …, "Until deleted by hand". */
+export function keepPeriodOptions(m: ReturnType<typeof useT>) {
+  return PERIODS.map((p) => {
+    const l = keepPeriodLabel(p, m);
+    return { id: p, label: l ? l.charAt(0).toUpperCase() + l.slice(1) : m.keepUntilDeleted };
+  });
 }

@@ -939,6 +939,12 @@ const en = {
   tryAgain: "Try again",
   statusVersion: "Version",
   lastBackup: "Last backup",
+  testNow: "Test now",
+  view: "View",
+  lastNight: "Last night",
+  onUsbDisk: "On the USB disk",
+  onNetworkShare: "On the network share",
+  usersTile: (n: number, max: number | null) => (max === null ? `${n}` : `${n} of ${max}`),
   // Administration › Users (admin.md, artboards 32 and 34)
   userName: "Name",
   userEmail: "E-mail",

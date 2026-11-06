@@ -36,7 +36,7 @@ import { ActionMenu, Avatar, Button, Expander, IconButton, type MenuEntry } from
 
 const RECENT = 8;  // conversations under Recent
 export type SideView = "conversations" | "cases" | "documents" | "search";
-export type CaseAction = "open" | "unpin" | "members" | "log" | "close";
+export type CaseAction = "open" | "pin" | "unpin" | "members" | "log" | "close";
 export type AllDocument = StoredDocument & { case_id: string | null };
 
 type Props = {
@@ -186,8 +186,11 @@ export function Sidebar(p: Props) {
         {/* §11: a strictly confidential case's conversation, without its title */}
         <span className="side-text" data-shielded={c.shielded || undefined}
               aria-label={c.shielded && r ? m.shieldedIn(r) : undefined}>{listedTitle(c)}</span>
+        {/* board G02: a colleague's shared conversation says whose it is, by first name */}
         {underCase ? (c.run_id ? <Route size={13} className="side-shared" role="img" aria-label={m.playbook} />
-                      : shared && <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />)
+                      : shared && (c.owner_name
+                        ? <span className="side-meta" title={c.owner_name}>{c.owner_name.split(" ")[0]}</span>
+                        : <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />))
                    : r && <span className="side-meta">{r}</span>}
       </Button>
     );
@@ -207,7 +210,8 @@ export function Sidebar(p: Props) {
   };
   const caseActions = (c: Case): MenuEntry[] => [
     { id: "open", label: m.open, icon: <Folder size={16} /> },
-    { id: "unpin", label: m.unpin, icon: <PinOff size={16} /> },
+    // a pinned case unpins; the open conversation's case, unfolded under Recent, pins
+    c.pinned ? { id: "unpin", label: m.unpin, icon: <PinOff size={16} /> } : { id: "pin", label: m.pin, icon: <Pin size={16} /> },
     { id: "members", label: m.members, icon: <Users size={16} />, isDisabled: c.my_role === null },
     { id: "log", label: m.accessLog, icon: <ScrollText size={16} />, isDisabled: !(c.my_role === "manager" || (p.admin && c.my_role === null)) },
     "-",
@@ -221,11 +225,40 @@ export function Sidebar(p: Props) {
     </Button>
   );
 
-  // Recent never repeats what Pinned shows: the conversations of a pinned case that is open in the column.
-  const shownUnderPinned = new Set(pinned.filter((c) => open[c.id]).flatMap((c) =>
-    (c.id === p.currentCase?.id ? p.caseConversations : p.conversations.filter((x) => x.case_id === c.id)).map((x) => x.id)));
-  for (const c of pinnedOwn) shownUnderPinned.add(c.id);
-  const recent = p.conversations.filter((c) => !shownUnderPinned.has(c.id)).slice(0, RECENT);
+  // Board G02: the case of the open conversation unfolds in the column, under Pinned when it is pinned, at the
+  // top of Recent when it isn't; its conversations are listed under it (the open one in bold with the dot).
+  const openInCase = p.currentCase && p.caseConversations.some((x) => x.id === p.currentConversation) ? p.currentCase : null;
+  const isOpen = (c: Case) => open[c.id] ?? c.id === openInCase?.id;
+  const conversationsOf = (c: Case) => (c.id === p.currentCase?.id ? p.caseConversations : p.conversations.filter((x) => x.case_id === c.id));
+  const caseInRecent = openInCase && !openInCase.pinned ? openInCase : null;
+  // Recent never repeats what the column shows unfolded: the conversations of an unfolded pinned case, or of
+  // the open conversation's case.
+  const shownUnfolded = new Set([...pinned, ...(caseInRecent ? [caseInRecent] : [])].filter(isOpen).flatMap((c) => conversationsOf(c).map((x) => x.id)));
+  for (const c of pinnedOwn) shownUnfolded.add(c.id);
+  const recent = p.conversations.filter((c) => !shownUnfolded.has(c.id)).slice(0, RECENT);
+
+  const caseRow = (c: Case) => {
+    const inIt = conversationsOf(c);
+    const expanded = isOpen(c);
+    return (
+      <Expander key={c.id} className="side-case" toggleFirst expanded={expanded} onToggle={(v) => toggle(c.id, v)}
+                onOpen={() => p.onOpenCase(c)} current={c.id === p.currentCase?.id}
+                toggleLabel={m.caseConversationsToggle(c.reference)} title={m.openCase(c.reference, c.name)}
+                icon={c.state === "closed" ? <Lock size={16} /> : c.confidential ? <FolderKey size={16} /> : expanded ? <FolderOpen size={16} /> : <Folder size={16} />}
+                label={<><b>{c.reference}</b> <span className="side-dim">{c.state === "closed" ? `${m.caseClosed} · ` : ""}{c.name}</span></>}
+                actions={
+                  <ActionMenu className="side-actions" aria-label={m.caseActions(c.reference)} menuLabel={m.caseActions(c.reference)}
+                              entries={caseActions(c)} onAction={(a) => p.onCaseAction(c, a as CaseAction)} placement="bottom end">
+                    <Ellipsis size={16} aria-hidden />
+                  </ActionMenu>
+                }>
+        <div className="side-guide">
+          {inIt.map((x) => conversationRow(x, true))}
+          {inIt.length === 0 && <p className="caption side-note">{m.caseConversationsEmpty}</p>}
+        </div>
+      </Expander>
+    );
+  };
   const firstUse = pinned.length === 0 && pinnedOwn.length === 0 && p.conversations.length === 0 && !p.historyNote;
   const notes = [p.casesNote, p.documentsNote].filter(Boolean) as string[];
 
@@ -254,37 +287,17 @@ export function Sidebar(p: Props) {
       {(pinned.length > 0 || pinnedOwn.length > 0) && (
         <section className="side-section" aria-labelledby="pinned-title">
           <h2 id="pinned-title" className="label side-label"><Pin size={12} aria-hidden /> {m.pinned}</h2>
-          {pinned.map((c) => {
-            const inIt = c.id === p.currentCase?.id ? p.caseConversations : p.conversations.filter((x) => x.case_id === c.id);
-            const expanded = !!open[c.id];
-            return (
-              <Expander key={c.id} className="side-case" toggleFirst expanded={expanded} onToggle={(v) => toggle(c.id, v)}
-                        onOpen={() => p.onOpenCase(c)} current={c.id === p.currentCase?.id}
-                        toggleLabel={m.caseConversationsToggle(c.reference)} title={m.openCase(c.reference, c.name)}
-                        icon={c.state === "closed" ? <Lock size={16} /> : c.confidential ? <FolderKey size={16} /> : expanded ? <FolderOpen size={16} /> : <Folder size={16} />}
-                        label={<><b>{c.reference}</b> <span className="side-dim">{c.state === "closed" ? `${m.caseClosed} · ` : ""}{c.name}</span></>}
-                        actions={
-                          <ActionMenu className="side-actions" aria-label={m.caseActions(c.reference)} menuLabel={m.caseActions(c.reference)}
-                                      entries={caseActions(c)} onAction={(a) => p.onCaseAction(c, a as CaseAction)} placement="bottom end">
-                            <Ellipsis size={16} aria-hidden />
-                          </ActionMenu>
-                        }>
-                <div className="side-guide">
-                  {inIt.map((x) => conversationRow(x, true))}
-                  {inIt.length === 0 && <p className="caption side-note">{m.caseConversationsEmpty}</p>}
-                </div>
-              </Expander>
-            );
-          })}
+          {pinned.map((c) => caseRow(c))}
           {pinnedOwn.map((c) => conversationRow(c, false, true))}
           {p.pinHint && pinnedOwn.length > PIN_HINT_AFTER && <p className="caption side-note side-pin-hint" role="status">{m.fivePinned}</p>}
         </section>
       )}
 
-      {(recent.length > 0 || p.historyNote) && (
+      {(recent.length > 0 || caseInRecent || p.historyNote) && (
         <section className="side-section" aria-labelledby="recent-title">
           <h2 id="recent-title" className="label side-label"><Clock size={12} aria-hidden /> {m.recent}</h2>
           {p.historyNote && <p className="caption side-note">{p.historyNote}</p>}
+          {caseInRecent && caseRow(caseInRecent)}
           {recent.map((c) => conversationRow(c))}
         </section>
       )}

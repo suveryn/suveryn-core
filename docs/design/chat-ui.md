@@ -777,6 +777,16 @@ What the build settled that the sections above don't say, by topic. Each is curr
 - The choice belongs to the conversation: each answer records it, and a reopened conversation goes on with it. A new conversation starts with the default under *Settings*, kept in this browser. "Thought for 14 s" opens the reasoning, with "How the model got to its answer. This isn't checked: the answer and its sources are."
 - A grounded answer that cites none of its passages is logged by counts only (passages, whole or selected, earlier answers and their markers, answer length, thinking), to study the cause without document text (suveryn-tracker#54).
 
+### The boards against the running app (6 November 2026)
+
+Filip's rule, from Claude Design's build instruction (`Claude outputs/build-instruction-board-vs-code.md`): the code follows the board, except for what still has to be developed, which stays out of the app until it exists.
+
+- **Full-width pages fold the column** (G06 to G08, the B boards): Conversations, Cases, Documents and Administration show the column as the rail. It comes from the view, not from the person's choice (`suveryn.sidebar` keeps what they set); opening the column there opens it on that page only. The drawer on a narrow screen is unchanged.
+- **The open conversation's case unfolds in the column** (G02): under Pinned when it is pinned, at the top of Recent when it isn't, with its conversations under it (the open one in bold with the dot, a colleague's shared one with their first name); they aren't repeated under Recent. Its menu offers Pin when it isn't pinned.
+- **A personal conversation has a title bar** (G03): its title and a chevron that opens the same menu as its row in the column (G05). A conversation in a case keeps the case header.
+- **Status, Needs attention** (B01): one row per item, the backups' own state ("View") and the recovery key ("Test now"), also both at once. The overview's tiles: version, last backup ("Last night 02:14 · On the USB disk"), users ("12 of 15"). The update row, the support tile and the Updates, Network and Licence pages come with their features.
+- **Administration › Cases** (B05) changes the office's three case settings in place, the same settings as Settings with the same confirmation (`SettingsConsequences`) when a change touches existing cases or conversations.
+
 ### Copy decided along the way
 
 - The tagline stays in English in every language, the sign-in screens included: a brand line, not a translation gap.

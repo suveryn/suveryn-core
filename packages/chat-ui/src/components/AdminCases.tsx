@@ -6,20 +6,19 @@
  * manages it, so a case can be handed over before an account goes (decision 6); and what is due
  * for deletion. Nothing from inside a case: an administrator who isn't a member reads no documents.
  */
-import { ArrowRightLeft, CircleAlert, Folder, Lock, MessageSquare, Users } from "lucide-react";
+import { ArrowRightLeft, Check, CircleAlert, Folder, Lock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getCaseSettings, handOver, listAdminCases, searchUsers,
-  type AdminCase, type CaseSettings, type KeepPeriod, type Person,
+  getCaseSettings, handOver, listAdminCases, previewCaseSettings, searchUsers, setCaseSettings,
+  type AdminCase, type CaseSettings, type KeepPeriod, type Person, type SettingsPreview,
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { ComboBoxField, Dialog, Facts, InlineNotice, TextButton } from "../ui";
-import type { AdminPage } from "./Admin";
-import { keepPeriodLabel } from "./CaseDialogs";
+import { Button, ComboBoxField, Dialog, InlineNotice, SelectField, TextButton } from "../ui";
+import { keepPeriodOptions, SettingsConsequences } from "./AdminSettings";
 import { fateLabel, isDue } from "./CaseState";
 
-export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
+export function AdminCases() {
   const m = useT();
   const [cases, setCases] = useState<AdminCase[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +31,7 @@ export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   return (
     <>
       <p className="view-intro">{m.adminCasesIntro}</p>
-      <SettingsFacts onOpen={onOpen} />
+      <CaseSettingsEditor onSaved={refresh} />
       {due.length > 0 && (
         <InlineNotice icon={<CircleAlert size={14} />}>
           {m.casesDue(due.length)}: {due.map((c) => c.reference).join(", ")}
@@ -69,22 +68,72 @@ export function AdminCases({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   );
 }
 
-/** The office's settings for cases as they apply now; changed in Administration › Settings. */
-function SettingsFacts({ onOpen }: { onOpen: (page: AdminPage) => void }) {
+/** The office's three settings for cases, changed here as on Administration › Settings (board B05: one setting
+ *  shown in two places), with the same confirmation when a change touches cases or conversations that exist. */
+function CaseSettingsEditor({ onSaved }: { onSaved: () => void }) {
   const m = useT();
   const [settings, setSettings] = useState<CaseSettings | null>(null);
-  useEffect(() => { getCaseSettings().then(setSettings).catch(() => setSettings(null)); }, []);
+  const [access, setAccess] = useState<"office" | "members">("members");
+  const [applyTo, setApplyTo] = useState<"new" | "all">("new");
+  const [keep, setKeep] = useState<KeepPeriod>("manual");
+  const [conversations, setConversations] = useState<KeepPeriod>("manual");
+  const [confirming, setConfirming] = useState<SettingsPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const take = (s: CaseSettings) => { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); setApplyTo("new"); };
+  useEffect(() => { getCaseSettings().then(take).catch(() => setSettings(null)); }, []);
   if (!settings) return null;
-  const period = (p: KeepPeriod) => {
-    const l = keepPeriodLabel(p, m);
-    return l ? l.charAt(0).toUpperCase() + l.slice(1) : m.keepUntilDeleted;
+
+  const opens = access === "office" && settings.default_access === "members";
+  const changed = access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep;
+  const edited = <T,>(set: (v: T) => void) => (v: T) => { set(v); setSaved(false); setError(null); };
+  const body = { default_access: access, keep, conversations_keep: conversations, two_step: settings.two_step,
+                 ...(opens ? { apply_to: applyTo } : {}) };
+  const write = async () => {
+    setBusy(true);
+    setError(null);
+    try { take(await setCaseSettings(body)); setConfirming(null); setSaved(true); onSaved(); }
+    catch (e) { setConfirming(null); setError(m.settingsFailed((e as Error).message)); }
+    finally { setBusy(false); }
   };
+  const save = async () => {
+    setBusy(true);
+    try {
+      const p = await previewCaseSettings({ default_access: access, apply_to: opens ? applyTo : undefined, conversations_keep: conversations });
+      setBusy(false);
+      if (p.cases_opened || p.cases_closed || p.conversations_deleted) setConfirming(p);
+      else await write();
+    } catch (e) { setBusy(false); setError(m.settingsFailed((e as Error).message)); }
+  };
+  const periods = keepPeriodOptions(m);
   return (
-    <Facts facts={[
-      { icon: <Users size={16} />, label: m.whoSeesACase, value: settings.default_access === "office" ? m.accessEveryone : m.accessMembersOnly },
-      { icon: <Lock size={16} />, label: m.keepClosedCase, value: period(settings.keep) },
-      { icon: <MessageSquare size={16} />, label: m.keepConversations, value: period(settings.conversations_keep) },
-    ]} footer={<TextButton link onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>} />
+    <section aria-labelledby="case-settings" className="admin-case-settings">
+      <h2 id="case-settings" className="ui-visually-hidden">{m.adminCases}</h2>
+      <div className="admin-settings-row">
+        <SelectField name="default_access" label={m.whoSeesACase} size="small" value={access}
+                     onChange={edited((v: string) => setAccess(v as "office" | "members"))}
+                     options={[{ id: "office", label: m.accessEveryone }, { id: "members", label: m.accessMembersOnly }]} />
+        {opens && <SelectField name="apply_to" label={m.applyTo} size="small" value={applyTo}
+                               onChange={edited((v: string) => setApplyTo(v as "new" | "all"))}
+                               options={[{ id: "new", label: m.applyNewCases }, { id: "all", label: m.applyAllCases }]} />}
+        <SelectField name="keep" label={m.keepClosedCase} size="small" value={keep} onChange={edited((v: string) => setKeep(v as KeepPeriod))} options={periods} />
+        <SelectField name="conversations_keep" label={m.keepConversations} size="small" value={conversations}
+                     onChange={edited((v: string) => setConversations(v as KeepPeriod))} options={periods} />
+      </div>
+      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
+      <div className="admin-settings-save">
+        <Button variant="primary" size="small" onPress={() => void save()} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
+        <p className="caption">
+          {saved ? <span className="status-ok"><Check size={12} aria-hidden /> {m.settingsSaved}</span>
+            : settings.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}
+        </p>
+      </div>
+      <Dialog isOpen={confirming !== null} onClose={() => setConfirming(null)} busy={busy} kind="confirmation" title={m.saveSettingsTitle}
+              cancel={{ label: m.cancel }} primary={{ label: m.save, onPress: () => void write(), busyLabel: m.saving }}>
+        {confirming && <SettingsConsequences preview={confirming} />}
+      </Dialog>
+    </section>
   );
 }
 

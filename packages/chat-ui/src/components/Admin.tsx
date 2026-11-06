@@ -86,7 +86,7 @@ export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
 
   const body = shown === "status" ? <AdminStatus onOpen={setPage} />
     : shown === "users" ? <AdminUsers me={me} onLostAdministration={onLostAdministration} />
-    : shown === "cases" ? <AdminCases onOpen={setPage} />
+    : shown === "cases" ? <AdminCases />
     : shown === "playbooks" ? <AdminPlaybooks />
     : shown === "usage" ? <AdminUsage onOpen={setPage} />
     : shown === "settings" ? <AdminSettings />

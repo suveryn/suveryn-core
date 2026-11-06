@@ -908,6 +908,12 @@ const fr: Messages = {
   tryAgain: "Réessayer",
   statusVersion: "Version",
   lastBackup: "Dernière sauvegarde",
+  testNow: "Tester maintenant",
+  view: "Voir",
+  lastNight: "Cette nuit",
+  onUsbDisk: "Sur le disque USB",
+  onNetworkShare: "Sur le partage réseau",
+  usersTile: (n, max) => (max === null ? `${n}` : `${n} sur ${max}`),
   // Administration › Utilisateurs (admin.md, planches 32 et 34)
   userName: "Nom",
   userEmail: "E-mail",

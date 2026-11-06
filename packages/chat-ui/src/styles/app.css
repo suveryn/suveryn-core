@@ -146,6 +146,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .case-head .case-name { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
 .case-head .case-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
 .case-head .case-space { flex: 1; }
+/* a personal conversation's title bar (board G03): its title and the chevron of its menu */
+.conversation-head .conversation-head-menu { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-dim); cursor: pointer; flex: none; }
+.conversation-head .conversation-head-menu[data-hovered], .conversation-head .conversation-head-menu[aria-expanded="true"] { background: var(--surface-alt); color: var(--text); }
+.conversation-head .conversation-head-menu[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 .case-head .case-name { color: var(--text); }
 .case-head .case-type { flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--line);
                         border-radius: var(--radius-pill); font-size: var(--text-caption); color: var(--text-dim); white-space: nowrap; }

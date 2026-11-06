@@ -906,6 +906,12 @@ const nl: Messages = {
   tryAgain: "Opnieuw proberen",
   statusVersion: "Versie",
   lastBackup: "Laatste back-up",
+  testNow: "Nu testen",
+  view: "Bekijken",
+  lastNight: "Vannacht",
+  onUsbDisk: "Op de USB-schijf",
+  onNetworkShare: "Op de netwerkshare",
+  usersTile: (n, max) => (max === null ? `${n}` : `${n} van ${max}`),
   // Beheer › Gebruikers (admin.md, artboards 32 en 34)
   userName: "Naam",
   userEmail: "E-mail",

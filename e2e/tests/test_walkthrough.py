@@ -150,6 +150,30 @@ def test_a_price_typed_and_saved_without_leaving_the_field_is_saved(page):
         save.click()
 
 
+def test_full_width_pages_fold_the_column_and_a_personal_conversation_has_its_title_bar(page):
+    """Claude Design's build instruction of 6 November: on Administration (and Conversations, Cases, Documents) the
+    column is the rail, so the page gets the width (G06 to G08, the B boards); Administration › Cases changes the
+    office's case settings in place (B05); a personal conversation has a title bar whose chevron opens its menu (G03)."""
+    sign_in(page)
+    administration(page, "Cases")
+    expect(page.get_by_role("button", name="Expand the sidebar")).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile("Who sees a case$"))).to_be_visible()
+    page.get_by_role("button", name="Expand the sidebar").click()     # the column on this page only
+    expect(page.get_by_role("button", name="Collapse the sidebar")).to_be_visible()
+    page.get_by_role("button", name="Conversations", exact=True).click()
+    expect(page.get_by_role("button", name="Expand the sidebar")).to_be_visible()
+    page.get_by_role("button", name="Expand the sidebar").click()
+    page.get_by_role("button", name="New conversation or new case").click()
+    page.get_by_role("menuitem", name="New conversation").click()
+    ask(page, "Wat is een huurkoopformule?")
+    menu = page.locator("main").get_by_role("button", name=re.compile("^Actions for"))
+    expect(menu).to_be_visible(timeout=15_000)
+    menu.click()
+    for item in ("Pin", "Rename", "Move to a case", "Delete"):
+        expect(page.get_by_role("menuitem", name=re.compile(f"^{item}"))).to_be_visible()
+    page.keyboard.press("Escape")
+
+
 def test_an_account_switched_off_loses_its_session_at_once(page, browser):
     # the colleague is signed in on a second browser
     other = browser.new_context(locale="en-GB", base_url=PUBLIC_URL)

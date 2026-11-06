@@ -6,13 +6,14 @@
  */
 import {
   Brain, Check, CircleAlert, CircleX, Clock, Database, DatabaseBackup, FileText, HardDrive, Lock, RefreshCw,
-  TriangleAlert
+  TriangleAlert, Users
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { applianceClockAnswer, getAdminStatus, getBackups, setApplianceClock, type AdminStatus as Status, type BackupStatus,
-  type StatusCheck } from "../api";
+import { applianceClockAnswer, getAdminStatus, getBackups, listAccounts, setApplianceClock, type AdminStatus as Status, type BackupStatus,
+  type StatusCheck, type UsersList } from "../api";
 import { locale, useT } from "../i18n";
-import { backupAttention, sizeLabel } from "../lib/backups";
+import { dayLabel } from "../lib/conversations";
+import { backupAttentions, sizeLabel } from "../lib/backups";
 import { measureClock, sendClock, type Measured } from "../lib/clock";
 import { Button, Dialog, InlineNotice, Notice } from "../ui";
 import type { AdminPage } from "./Admin";
@@ -24,12 +25,12 @@ const ICON: Record<StatusCheck["id"], ReactNode> = {
 const CLOCK_WARN_MS = 10_000; // as the gateway's clock.WARN_MS: codes fail from about 30 s
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
-const when = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
 
 export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   const m = useT();
   const [status, setStatus] = useState<Status | null>(null);
   const [backups, setBackups] = useState<BackupStatus | null>(null);
+  const [users, setUsers] = useState<UsersList | null>(null);
   const [failed, setFailed] = useState(false);
   const load = useCallback(async () => {
     try {
@@ -39,6 +40,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       setFailed(true);
     }
     getBackups().then(setBackups).catch(() => setBackups(null));
+    listAccounts().then(setUsers).catch(() => setUsers(null));
   }, []);
   useEffect(() => {
     load();
@@ -69,19 +71,23 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   }, [clockCheck?.offset_ms, clockSynced, clockCheck, load]);
   const pcOff = clockCheck ? thisPcOff(clockCheck, thisPc) : null;
 
-  const attention = backupAttention(backups);
+  const attention = backupAttentions(backups);
+  const counted = users ? users.users.filter((u) => u.enabled).length : null;
   const reading = status?.checks.find((c) => c.id === "reading");
   return (
     <>
-      {attention && (
+      {/* Board B01: only when something needs it, one row per item with its action at the right */}
+      {attention.length > 0 && (
         <section aria-labelledby="needs-attention">
           <h2 id="needs-attention" className="label">{m.needsAttention}</h2>
           <ul className="admin-attention">
-            <li>
-              <TriangleAlert size={16} aria-hidden />
-              <span className="admin-attention-text"><b>{m.backupAttention[attention]}</b></span>
-              <Button size="small" onPress={() => onOpen("backups")}>{m.backupAttentionOpen}</Button>
-            </li>
+            {attention.map((a) => (
+              <li key={a}>
+                <TriangleAlert size={16} aria-hidden />
+                <span className="admin-attention-text"><b>{m.backupAttention[a]}</b></span>
+                <Button size="small" onPress={() => onOpen("backups")}>{a === "key_due" || a === "key_failed" ? m.testNow : m.view}</Button>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -131,7 +137,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
         )}
       </section>
 
-      {(status?.version || backups?.last_success) && (
+      {(status?.version || backups?.last_success || counted !== null) && (
         <section aria-labelledby="status-overview">
           <h2 id="status-overview" className="label">{m.statusOverview}</h2>
           <div className="admin-overview">
@@ -141,13 +147,26 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             )}
             {backups?.last_success && (
               <div className="admin-tile"><span className="admin-tile-label"><DatabaseBackup size={14} aria-hidden /> {m.lastBackup}</span>
-                <b>{when(backups.last_success.at)}</b></div>
+                <b>{backupWhen(backups.last_success.at, m)}{backups.target ? ` · ${backups.target === "usb" ? m.onUsbDisk : m.onNetworkShare}` : ""}</b></div>
+            )}
+            {counted !== null && (
+              <div className="admin-tile"><span className="admin-tile-label"><Users size={14} aria-hidden /> {m.adminUsers}</span>
+                <b>{m.usersTile(counted, users?.agreement_users ?? null)}</b></div>
             )}
           </div>
         </section>
       )}
     </>
   );
+}
+
+/** "Last night 02:14" for the small hours of today, else "Today 14:02", "Yesterday 02:14", "3 Nov 02:14". */
+function backupWhen(iso: string, m: ReturnType<typeof useT>): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  const now = new Date();
+  const today = d.toDateString() === now.toDateString();
+  return `${today && d.getHours() < 6 ? m.lastNight : dayLabel(iso)} ${time}`;
 }
 
 /** This PC's difference with the appliance when the row would say "on time" from the browsers' earlier reports but
