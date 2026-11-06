@@ -49,6 +49,14 @@ describe("the Content-Security-Policy (docs/content-security-policy.md)", () => 
     }
   });
 
+  it("shows no picture from a blob: URL (img-src 'self'): files are decoded with createImageBitmap", () => {
+    for (const f of sources) {
+      const c = code(f);
+      expect(c, f).not.toMatch(/new Image\(/);
+      expect(c, f).not.toMatch(/\.src\s*=\s*URL\.createObjectURL|src=\{\s*URL\.createObjectURL/);
+    }
+  });
+
   it("has HTML entry pages with no inline script, style or event handler", () => {
     for (const f of pages) {
       const h = read(f);

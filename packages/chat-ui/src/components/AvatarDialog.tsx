@@ -6,6 +6,10 @@
  * clamped so no edge leaves the frame. Saving draws the same framing at 512 x 512 and sends the
  * PNG; the server re-encodes it. Everything happens in the browser until the save; nothing is
  * uploaded that the person hasn't seen.
+ *
+ * The file is decoded with createImageBitmap, never through an <img> or `new Image()` on a blob: URL:
+ * the appliance's CSP allows images from 'self' only (img-src 'self'), so a blob: picture is blocked
+ * and every pick failed as "not a picture" (docs/content-security-policy.md).
  */
 import { CircleAlert, ImagePlus, Trash } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -36,7 +40,7 @@ function clamp(img: { width: number; height: number }, f: Framing): Framing {
   return { zoom: f.zoom, x: Math.min(maxX, Math.max(-maxX, f.x)), y: Math.min(maxY, Math.max(-maxY, f.y)) };
 }
 
-function draw(canvas: HTMLCanvasElement, img: HTMLImageElement, f: Framing) {
+function draw(canvas: HTMLCanvasElement, img: ImageBitmap, f: Framing) {
   const side = canvas.width;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -50,20 +54,22 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
   open: boolean; me: Me; onClose: () => void; onChanged: (etag: string | null) => void;
 }) {
   const m = useT();
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  const [img, setImg] = useState<ImageBitmap | null>(null);
   const [framing, setFraming] = useState<Framing>({ zoom: 1, x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ startX: number; startY: number; x: number; y: number } | null>(null);
-  const objectUrl = useRef<string | null>(null);
+  const bitmap = useRef<ImageBitmap | null>(null);
+  const picks = useRef(0);  // a later pick wins over an earlier one still decoding
 
   const reset = useCallback(() => {
+    picks.current++;
     setImg(null); setFraming({ zoom: 1, x: 0, y: 0 }); setError(null); setBusy(false);
-    if (objectUrl.current) { URL.revokeObjectURL(objectUrl.current); objectUrl.current = null; }
+    bitmap.current?.close(); bitmap.current = null;
   }, []);
   useEffect(() => { if (open) reset(); }, [open, reset]);
-  useEffect(() => () => { if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); }, []);
+  useEffect(() => () => { bitmap.current?.close(); }, []);
   useEffect(() => { if (canvas.current && img) draw(canvas.current, img, framing); }, [img, framing]);
 
   const pick = (files: File[]) => {
@@ -72,16 +78,14 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
     setError(null);
     if (!ACCEPT.includes(file.type)) { setError(m.avatarNotAPicture); return; }
     if (file.size > 20 * 1024 * 1024) { setError(m.avatarTooLarge); return; }
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
-      objectUrl.current = url;
+    const pick = ++picks.current;
+    createImageBitmap(file).then((image) => {
+      if (pick !== picks.current) { image.close(); return; }
+      bitmap.current?.close();
+      bitmap.current = image;
       setFraming({ zoom: 1, x: 0, y: 0 });
       setImg(image);
-    };
-    image.onerror = () => { URL.revokeObjectURL(url); setError(m.avatarNotAPicture); };
-    image.src = url;
+    }, () => { if (pick === picks.current) setError(m.avatarNotAPicture); });
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {

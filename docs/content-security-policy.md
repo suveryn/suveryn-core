@@ -25,6 +25,7 @@ Keycloak's pages (sign-in, account) are not covered: Keycloak sends its own CSP,
 | `<script>` with code in it, `on…=` attributes in HTML | Code in modules, loaded as files (Vite does this) |
 | `<style>` elements, and `style="…"` written in HTML | Rules in a `.css` file (`src/styles`, `src/ui/ui.css`, `src/setup/setup.css`) |
 | `data:` URLs (inlined images or fonts) | Files; `assetsInlineLimit: 0` in `vite.config.ts` keeps Vite from inlining them |
+| A picture shown from a `blob:` URL (`<img>`, `new Image()`): `img-src 'self'` blocks it | Decode the file with `createImageBitmap` and draw it on a canvas (`AvatarDialog.tsx`). `blob:` URLs for downloads (an `<a download>`) are fine |
 | `eval`, `new Function`, string timers | Plain code |
 | Anything from another host (fonts, icons, CDNs, analytics) | Bundled files, from suveryn-brand or `node_modules` |
 | `dangerouslySetInnerHTML`, `innerHTML` with markup | React elements; answers are rendered element by element (`lib/answer.ts`) |
