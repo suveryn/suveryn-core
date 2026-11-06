@@ -103,6 +103,12 @@ Screens are built from a small component library in [`src/ui/`](src/ui/), shared
 
 React Aria's own strings (e.g. "selected") are kept for English, Dutch and French only (`@react-aria/optimize-locales-plugin`). The spike's measurements: [`docs/spikes/react-aria/`](../../docs/spikes/react-aria/README.md).
 
+## Screen previews (development only)
+
+`npm run dev`, then `/preview.html`: the real screens and dialogs from `src/components`, given a fictional office's sample data, each in one state (closing a case, deleting it while busy, a failure, the users table, …). Each preview names the design board it answers to, so the two can be put side by side; `?p=<id>&lang=nl` opens one in another language. Nothing talks to a server: `src/preview/fakeApi.ts` answers `fetch` from `src/preview/sample.ts`, and names in the console any path it has no answer for.
+
+A preview is the screen itself, not a copy, so it can't drift from what ships. The design is reviewed on these pages; a change to how a screen looks adds or updates its preview in the same PR. `preview.html` is not a build input (`vite.config.ts`), so the previews never reach the appliance; `src/preview/preview.test.ts` checks that.
+
 ## The web setup (setup.html)
 
 The appliance's first-boot setup in the browser (suveryn-tracker#37; design in suveryn-appliance `docs/design/first-boot-setup/`). Its own entry and bundle: `setup.html` and [`src/setup/`](src/setup/). It shares the component library, fonts and tokens with the chat and nothing else: no sign-in (setup creates the first account, so it can't depend on Keycloak), no chat code. The appliance serves it only until setup finishes.
