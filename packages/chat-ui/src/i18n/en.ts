@@ -180,6 +180,8 @@ const en = {
   deletedOn: (day: string) => `deleted ${day}`,
   deletedOnDue: (day: string) => `due for deletion ${day}`,
   keptUntilDeleted: "kept until deleted",
+  deletedOnShort: (day: string) => `on ${day}`,
+  keptUntilShort: (day: string) => `kept until ${day}`,
   keptMarked: "kept",
   reopenCase: "Reopen",
   extendCase: "Extend",

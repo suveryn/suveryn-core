@@ -6,7 +6,7 @@
  * manages it, so a case can be handed over before an account goes (decision 6); and what is due
  * for deletion. Nothing from inside a case: an administrator who isn't a member reads no documents.
  */
-import { ArrowRightLeft, Check, CircleAlert, Folder, Lock } from "lucide-react";
+import { ArrowRightLeft, Check, CircleAlert, Folder, FolderKey, Lock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getCaseSettings, handOver, listAdminCases, previewCaseSettings, searchUsers, setCaseSettings,
@@ -16,7 +16,7 @@ import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
 import { Button, ComboBoxField, Dialog, InlineNotice, SelectField, TextButton } from "../ui";
 import { keepPeriodOptions, SettingsConsequences } from "./AdminSettings";
-import { fateLabel, isDue } from "./CaseState";
+import { isDue, onDay } from "./CaseState";
 
 export function AdminCases() {
   const m = useT();
@@ -41,21 +41,23 @@ export function AdminCases() {
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {cases && cases.length === 0 && <p className="caption">{m.noCasesYet}</p>}
       {cases && cases.length > 0 && (
-        <div className="table-wrap">
+        <div className="table-wrap cases-table-wrap">
           <table className="usage-table cases-table">
             <thead><tr>
               <th scope="col">{m.colReference}</th><th scope="col">{m.colName}</th><th scope="col">{m.colState}</th>
-              <th scope="col">{m.colManager}</th><th scope="col">{m.colMembers}</th><th scope="col">{m.colFate}</th><th scope="col"></th>
+              <th scope="col">{m.colManager}</th><th scope="col" className="cases-num">{m.colMembers}</th><th scope="col">{m.colFate}</th><th scope="col"></th>
             </tr></thead>
             <tbody>
               {cases.map((c) => (
                 <tr key={c.id} data-due={isDue(c) || undefined}>
                   <th scope="row">{c.state === "closed" ? <Lock size={12} aria-hidden /> : <Folder size={12} aria-hidden />} {c.reference}</th>
                   <td className="cases-name" title={c.name}>{c.name || (c.confidential ? <span className="overview-dim">{m.strictlyConfidential}</span> : "")}</td>
-                  <td>{c.state === "closed" ? `${m.caseClosed} ${dayLabel(c.closed_at!)}` : m.stateOpen}</td>
+                  <td><span className="overview-status-cell">{c.state === "closed" ? `${m.caseClosed} ${dayLabel(c.closed_at!)}` : m.stateOpen}
+                    {/* §11: the violet outline label, as in Dossiers (board B05) */}
+                    {c.confidential && <span className="overview-label"><FolderKey size={12} aria-hidden /> {m.strictlyConfidential}</span>}</span></td>
                   <td title={c.manager_username}>{c.manager_name || c.manager_username || c.manager}</td>
-                  <td>{c.members}</td>
-                  <td>{c.state !== "closed" ? "" : isDue(c) ? <b>{fateLabel(c, m)}</b> : fateLabel(c, m)}</td>
+                  <td className="cases-num">{c.members}</td>
+                  <td className="cases-fate">{c.state !== "closed" ? "" : isDue(c) ? <b>{fateShort(c, m)}</b> : fateShort(c, m)}</td>
                   <td><TextButton link onPress={() => setHanding(c)}><ArrowRightLeft size={12} aria-hidden /> {m.handOver}</TextButton></td>
                 </tr>
               ))}
@@ -66,6 +68,14 @@ export function AdminCases() {
       <HandOverDialog kase={handing} onClose={() => setHanding(null)} onDone={() => { setHanding(null); refresh(); }} />
     </>
   );
+}
+
+/** Under "Deleted" (board B05), short: "on 1 Nov 2026" when it is due, "kept until 1 Mar 2027" before that,
+ *  "kept" for a case marked to keep, nothing when the office keeps cases until they are deleted by hand. */
+function fateShort(c: AdminCase, m: ReturnType<typeof useT>): string {
+  if (c.keep) return m.keptMarked;
+  if (c.keep_until === null) return "";
+  return isDue(c) ? m.deletedOnShort(onDay(c.keep_until)) : m.keptUntilShort(onDay(c.keep_until));
 }
 
 /** The office's three settings for cases, changed here as on Administration › Settings (board B05: one setting

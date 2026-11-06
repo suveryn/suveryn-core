@@ -169,6 +169,8 @@ const fr: Messages = {
   deletedOn: (day) => `supprimé ${day}`,
   deletedOnDue: (day) => `suppression prochaine, ${day}`,
   keptUntilDeleted: "conservé jusqu'à sa suppression",
+  deletedOnShort: (day) => `le ${day}`,
+  keptUntilShort: (day) => `conservé jusqu'au ${day}`,
   keptMarked: "conservé",
   reopenCase: "Rouvrir",
   extendCase: "Prolonger",

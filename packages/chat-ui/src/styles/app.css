@@ -306,7 +306,11 @@ span.chip-run { cursor: default; }
 .playbook-fact-field textarea:focus-visible { outline: none; border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
 .cases-table th:first-child { white-space: nowrap; }
 .cases-table .cases-name { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-.cases-table td, .cases-table thead th { text-align: left; }
+.usage-table.cases-table td, .usage-table.cases-table thead th { text-align: left; }
+/* Board B05: the table takes the page's width (the column is the rail here), so every column, Hand over too, is on
+   the page at 1280 px and up; below that it scrolls inside its frame, never past the page's edge. */
+.admin-page > .cases-table-wrap { max-width: 100%; }
+.usage-table.cases-table .cases-num { text-align: right; }
 .cases-table tr[data-due] td, .cases-table tr[data-due] th { background: var(--surface-alt); }  /* and the date in bold */
 .range { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); } /* level with the dates' fields, under their labels */
 .range-dates { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }

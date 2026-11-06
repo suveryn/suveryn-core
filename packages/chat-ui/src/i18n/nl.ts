@@ -167,6 +167,8 @@ const nl: Messages = {
   deletedOn: (day) => `wordt verwijderd ${day}`,
   deletedOnDue: (day) => `wordt binnenkort verwijderd, ${day}`,
   keptUntilDeleted: "bewaard tot het wordt verwijderd",
+  deletedOnShort: (day) => `op ${day}`,
+  keptUntilShort: (day) => `bewaard tot ${day}`,
   keptMarked: "bewaard",
   reopenCase: "Heropenen",
   extendCase: "Verlengen",
