@@ -44,7 +44,8 @@ export function AdminSettings() {
 
   const take = useCallback((s: CaseSettings | null, r: Rates | null) => {
     if (s) { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); setTwoStep(s.two_step); setApplyTo("new"); }
-    if (r) { setSavedRates(r); setInput(Number(r.input_per_million)); setOutput(Number(r.output_per_million)); setCurrency(r.currency); }
+    if (r) { setSavedRates(r); setInput(Number(r.input_per_million)); setOutput(Number(r.output_per_million)); setCurrency(r.currency);
+             setTypedInput(null); setTypedOutput(null); }
   }, []);
   useEffect(() => {
     getCaseSettings().then((s) => take(s, null)).catch(() => setLoadFailed(true));
@@ -56,11 +57,19 @@ export function AdminSettings() {
     && (access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep
         || twoStep !== settings.two_step);
   const twoStepChanged = settings !== null && twoStep !== settings.two_step;
+  // A price as typed counts at once, before its field commits it on blur (board B08: Save stayed grey after typing
+  // a price and clicking Save, because a click on a disabled button doesn't take the focus from the field).
+  const [typedInput, setTypedInput] = useState<number | null>(null);
+  const [typedOutput, setTypedOutput] = useState<number | null>(null);
+  const inputNow = typedInput ?? input;
+  const outputNow = typedOutput ?? output;
   const ratesChanged = rates !== null
-    && (input !== Number(rates.input_per_million) || output !== Number(rates.output_per_million) || currency !== rates.currency);
-  const ratesValid = validRate(input) && validRate(output);
+    && (inputNow !== Number(rates.input_per_million) || outputNow !== Number(rates.output_per_million) || currency !== rates.currency);
+  const ratesValid = validRate(inputNow) && validRate(outputNow);
   const changed = casesChanged || ratesChanged;
   const edited = <T,>(set: (v: T) => void) => (v: T) => { set(v); setSaved(false); setError(null); };
+  // null is the field committing (or text that isn't a number): it doesn't undo "Saved."
+  const typing = (set: (v: number | null) => void) => (v: number | null) => { set(v); if (v !== null) { setSaved(false); setError(null); } };
 
   const write = async () => {
     setBusy(true);
@@ -69,7 +78,7 @@ export function AdminSettings() {
       const s = casesChanged
         ? await setCaseSettings({ default_access: access, keep, conversations_keep: conversations, two_step: twoStep, ...(opens ? { apply_to: applyTo } : {}) })
         : null;
-      const r = ratesChanged ? await setRates({ input_per_million: String(input), output_per_million: String(output), currency }) : null;
+      const r = ratesChanged ? await setRates({ input_per_million: String(inputNow), output_per_million: String(outputNow), currency }) : null;
       take(s, r);
       setConfirming(null);
       setSaved(true);
@@ -142,9 +151,9 @@ export function AdminSettings() {
         <section aria-labelledby="indicative-cost">
           <h2 id="indicative-cost" className="label">{m.indicativeCost}</h2>
           <div className="admin-settings-row">
-            <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} minValue={0} maxValue={10_000}
+            <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} onTyped={typing(setTypedInput)} minValue={0} maxValue={10_000}
                          maxDecimals={4} size="small" className="rates-field" />
-            <NumberField name="output" label={m.rateOutput} value={output} onChange={edited(setOutput)} minValue={0} maxValue={10_000}
+            <NumberField name="output" label={m.rateOutput} value={output} onChange={edited(setOutput)} onTyped={typing(setTypedOutput)} minValue={0} maxValue={10_000}
                          maxDecimals={4} size="small" className="rates-field" />
             <SelectField name="currency" label={m.currency} value={currency} onChange={edited(setCurrency)} size="small"
                          options={["USD", "EUR", "GBP"].map((c) => ({ id: c, label: c }))} />

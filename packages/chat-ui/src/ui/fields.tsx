@@ -7,6 +7,7 @@
 import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { parseDate } from "@internationalized/date";
+import { NumberParser } from "@internationalized/number";
 import type { KeyboardEvent } from "react";
 import {
   DateField as AriaDateField,
@@ -22,6 +23,7 @@ import {
   TextField as AriaTextField,
   ToggleButton,
   type TextFieldProps as AriaTextFieldProps,
+  useLocale,
 } from "react-aria-components";
 import { cx } from "./Button";
 
@@ -76,17 +78,29 @@ export function PasswordField({ label, description, placeholder, showLabel, ...p
  * A number in the interface's language: "3,5" in Dutch and French, "3.5" in English, typed either way
  * and shown back formatted. The form receives it under `name` as a plain number ("3.5").
  */
-export function NumberField({ label, description, name, value, onChange, minValue, maxValue, maxDecimals = 2,
+export function NumberField({ label, description, name, value, onChange, onTyped, minValue, maxValue, maxDecimals = 2,
                               size, className }: {
   label: string; description?: string; name: string; value: number; onChange: (value: number) => void;
+  /** The number as it is being typed, before the field commits it (React Aria commits on blur and Enter
+   *  only): null when the text isn't a number, and once more with null when the field commits. A screen
+   *  whose Save depends on the field uses it, so Save is active while the person is still in the field
+   *  and saves what they typed (the token prices on Settings, board B08). */
+  onTyped?: (value: number | null) => void;
   minValue?: number; maxValue?: number; maxDecimals?: number; size?: FieldSize; className?: string;
 }) {
+  const { locale } = useLocale();
+  const formatOptions = { maximumFractionDigits: maxDecimals };
+  const typed = (text: string) => {
+    if (!onTyped) return;
+    const n = text.trim() === "" ? NaN : new NumberParser(locale, formatOptions).parse(text);
+    onTyped(Number.isNaN(n) ? null : n);
+  };
   return (
     <AriaNumberField name={name} value={value} onChange={onChange} minValue={minValue} maxValue={maxValue}
-                     formatOptions={{ maximumFractionDigits: maxDecimals }} className={cx("ui-field", className)}
+                     formatOptions={formatOptions} className={cx("ui-field", className)}
                      data-size={size === "small" ? "small" : undefined}>
       <Label className="ui-label">{label}</Label>
-      <Input className="ui-input" />
+      <Input className="ui-input" onInput={(e) => typed(e.currentTarget.value)} onBlur={() => onTyped?.(null)} />
       {description && <Text slot="description" className="ui-hint">{description}</Text>}
       <Error />
     </AriaNumberField>
