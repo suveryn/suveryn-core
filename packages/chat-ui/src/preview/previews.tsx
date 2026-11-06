@@ -81,7 +81,7 @@ export const PREVIEWS: Preview[] = [
   { id: "p02-source", board: "P02", lang: "nl", title: "Op een bron geklikt",
     render: app({ click: "Akte-intake" }, { click: "Bron 1: Compromis_DeSmet.pdf, pagina 4" }) },
   { id: "p03-all-facts", board: "P03", lang: "nl", title: "Alle gegevens als naslag",
-    render: app({ click: "Akte-intake" }, { click: "Alle 15 gegevens bekijken" }) },
+    render: app({ click: "Akte-intake" }, { click: "Alle 13 gegevens bekijken" }) },
   { id: "p04-start", board: "P04", lang: "nl", title: "1 · Starten vanuit de composer", setup: () => replace(NO_RUN),
     render: app({ click: "124" }, { click: "Een playbook toepassen op dit dossier" }) },
   { id: "p04-steer", board: "P04", lang: "nl", title: "2 · Sturen: het menu van de chip",

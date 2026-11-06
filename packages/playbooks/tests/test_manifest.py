@@ -36,16 +36,17 @@ steps:
 WORDS = {lang: Wording("Example", "An example", {"price": "Price", "sellers": "Sellers"}) for lang in ("en", "nl", "fr")}
 
 
-def test_deed_intake_1_3_reads_what_1_0_read():
+def test_deed_intake_1_4_reads_what_1_0_read():
     """The snapshot is ``DEED_INTAKE`` 1.0 as main built it in Python (669e5c6). 1.1 added the routine
     (format 2); 1.2 asks for the answer as JSON of the facts' shape instead of a table (format 3); 1.3 makes
-    the parties and the conditions lists and adds checks. The thirteen facts are 1.0's by id and order, and
+    the parties and the conditions lists and adds checks; 1.4 has the deed's deadline and a condition's term count
+    from the agreement's date when written as a term. The thirteen facts are 1.0's by id and order, and
     every 1.0 label is kept byte for byte, so a run made under 1.0 reads the same facts and a notary sees
     the same words; the three lists' entries have words of their own. The instructions keep 1.0's rules
     (as written, never guess, the documents' language) and differ only in the answer's shape."""
     old = json.loads((FIXTURES / "deed-intake-1.0.json").read_text(encoding="utf-8"))
     new = json.loads(json.dumps(dataclasses.asdict(DEED_INTAKE)))  # tuples to lists, as the snapshot has them
-    assert new["version"] == "1.3" and old["version"] == "1.0" and new["format"] == 3
+    assert new["version"] == "1.4" and old["version"] == "1.0" and new["format"] == 3
     for k in ("id", "pack", "name", "case_types"):
         assert new[k] == old[k], k
     assert [f["id"] for f in new["facts"]] == [f["id"] for f in old["facts"]]
@@ -471,3 +472,27 @@ def test_a_packs_directory_loads_beside_the_official_playbooks_and_refuses_a_sec
     with pytest.raises(ManifestError, match="not a directory of packs"):
         load_dir(tmp_path / "nowhere")
     assert main([str(tmp_path)], ()) == 0 and main([str(tmp_path / "nowhere")], ()) == 1 and main([], ()) == 2
+
+
+DEED = (PACK / "deed-intake.yaml").read_text(encoding="utf-8")
+
+
+def test_a_date_written_as_a_term_counts_from_the_agreements_date():
+    """Deed intake 1.4 (board P01): the deed's deadline and a condition's term count from the agreement's date."""
+    assert DEED_INTAKE.fact("deed_deadline").counts_from == "agreement_date"
+    assert DEED_INTAKE.leaf("conditions[1].term").counts_from == "agreement_date"
+    assert DEED_INTAKE.fact("agreement_date").counts_from == "" and DEED_INTAKE.fact("price").counts_from == ""
+
+
+@pytest.mark.parametrize(
+    "old, new, said",
+    [
+        ("    kind: date\n    counts_from: agreement_date\n", "    kind: text\n    counts_from: agreement_date\n", "'counts_from' only applies to kind date"),
+        ("    kind: date\n    counts_from: agreement_date\n", "    kind: date\n    counts_from: price\n", "counts_from 'price' is not a date fact"),
+        ("        kind: date\n        counts_from: agreement_date\n", "        kind: date\n        counts_from: deed_deadline\n", "counts_from 'deed_deadline' is not a date fact"),
+    ],
+    ids=["not-a-date", "from-an-amount", "from-a-counted-date"])
+def test_a_wrong_counts_from_is_refused_and_the_error_names_the_fact(old, new, said):
+    assert old in DEED, old
+    with pytest.raises(ManifestError, match=said):
+        parse(DEED.replace(old, new, 1), where="deed-intake.yaml")

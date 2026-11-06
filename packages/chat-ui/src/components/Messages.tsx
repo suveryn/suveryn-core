@@ -150,9 +150,13 @@ const NONE: ReadonlySet<string> = new Set();
  * *Open document* opens the file as uploaded in a new tab, a PDF at the cited page (board G11). A document
  * stored before files were kept (not in ``kept``) offers the passage's download instead.
  */
-export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseId = null, onSource, onClose }: {
+export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseId = null, verdict: said, note, countAlways = false, onSource, onClose }: {
   turn: AssistantTurn; open: OpenSource; filenames: Map<string, string>; caseRef: string | null;
   kept?: ReadonlySet<string>; caseId?: string | null;
+  /** A playbook's fact (board P02): what its check found, in place of an answer's, and how a date was worked out. */
+  verdict?: { ok: boolean; text: string } | null; note?: string;
+  /** "1 of 1" and its arrows also for a single source (board P02). */
+  countAlways?: boolean;
   onSource: (s: OpenSource) => void; onClose: () => void;
 }) {
   const m = useT();
@@ -181,7 +185,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
     if (box && first instanceof HTMLElement) box.scrollTop = Math.max(0, first.offsetTop - box.clientHeight / 3);
   }, [n, occ]);
   const found = verdictOf(turn, n, occ);
-  const verdict = found === null ? null
+  const verdict = said !== undefined ? said : found === null ? null
     : found.kind === "unchecked" ? { ok: false, text: m.verdictUnchecked }
     : found.kind === "issues" ? { ok: false, text: [...new Set(found.issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))].join(" ") }
     : { ok: true, text: found.kind === "source" ? m.verdictSource : m.verdictSentence };
@@ -196,7 +200,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
           <span className="source-panel-file">{filename}</span>
           <span className="source-panel-where">{m.sourcePlace(citation.source?.page ?? null, caseRef)}</span>
         </span>
-        {cited.length > 1 && at >= 0 && <>
+        {(cited.length > 1 || countAlways) && at >= 0 && <>
           <IconButton size="small" label={m.previousSource} isDisabled={at === 0} onPress={() => go(at - 1)}><ChevronLeft size={16} aria-hidden /></IconButton>
           <span className="source-panel-count">{m.sourceOf(at + 1, cited.length)}</span>
           <IconButton size="small" label={m.nextSource} isDisabled={at === cited.length - 1} onPress={() => go(at + 1)}><ChevronRight size={16} aria-hidden /></IconButton>
@@ -216,6 +220,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
               <span>{verdict.text}</span>
             </p>
           )}
+          {note && <p className="caption source-panel-note">{note}</p>}
           {markedByMeaning(turn, n, occ) && <p className="caption">{m.markedByMeaning}</p>}
           <p className="caption">{m.sourceCaption}</p>
         </>}

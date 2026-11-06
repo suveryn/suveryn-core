@@ -17,11 +17,14 @@
 # checkpoint: a seller and a buyer, the advance within the price, the deed after the agreement, every
 # condition's term before the deed. The questions and the labels of 1.0 are unchanged; the lists' fields
 # and the checks have words of their own.
+# 1.4 (November 2026): the deed's deadline and a condition's term count from the agreement's date when the
+# agreement gives a term instead of a date ("within four months of the signing"): sūveryn works the date out
+# and says how, and a person checks it (board P01). The facts, the instructions and the words are 1.3's.
 
 manifest: 3
 id: playbook/be-notary/deed-intake
 pack: pack/be-notary
-version: "1.3"
+version: "1.4"
 name: Deed intake
 case_types: [sale]
 
@@ -62,6 +65,7 @@ facts:
   - id: deed_deadline
     ask: the date by which the notarial deed must be signed
     kind: date
+    counts_from: agreement_date
   - id: conditions
     ask: the suspensive conditions (financing, permits, other), one entry per condition
     kind: list
@@ -71,6 +75,7 @@ facts:
       - id: term
         ask: the date by which the condition must be met, as the agreement writes it
         kind: date
+        counts_from: agreement_date
   - id: title
     ask: "the seller's title: the earlier deed, its date and the notary who passed it"
   - id: epc

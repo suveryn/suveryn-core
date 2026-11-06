@@ -76,6 +76,10 @@ class FieldSpec(BaseModel):
     id: str = Field(pattern=_FACT_ID.pattern, description="Stable within the list; labelled as <list id>.<field id>")
     ask: str = Field(min_length=1, max_length=500, description="What the field is, in the words the model gets (English)")
     kind: LeafKind = Field(default="text", description="text, amount, date or number: decides which checks apply")
+    counts_from: str | None = Field(default=None, pattern=_FACT_ID.pattern,
+                                    description="date only: the date fact a term written instead of a date counts from "
+                                                "(\"four months after the signing\": agreement_date); sūveryn works the date out, "
+                                                "and a person checks it")
 
     @field_validator("kind")
     @classmethod
@@ -93,6 +97,10 @@ class FactSpec(BaseModel):
     kind: FactKind = Field(default="text", description="text, amount, date or number: decides which checks apply; choice (format 3): one of options; list (format 3): several entries")
     of: tuple[FieldSpec, ...] | LeafKind | None = Field(default=None, description="list only: the entries' fields (a record each), or the kind of each entry's one value")
     options: tuple[str, ...] | None = Field(default=None, description="choice only: the option ids (cash, in_kind), two to twelve")
+    counts_from: str | None = Field(default=None, pattern=_FACT_ID.pattern,
+                                    description="date only: the date fact a term written instead of a date counts from "
+                                                "(\"four months after the signing\": agreement_date); sūveryn works the date out, "
+                                                "and a person checks it")
 
     @field_validator("options")
     @classmethod
@@ -216,6 +224,7 @@ class Manifest(BaseModel):
             for f in self.facts:
                 if f.kind in FORMAT_3_KINDS:
                     raise ValueError(f"fact {f.id!r}: kind {f.kind} needs manifest: 3")
+        validate_counts_from(self.facts)
         steps = self.resolved_steps()
         validate_steps(steps, {f.id for f in self.facts})
         validate_rules(steps, tuple(_fact(f) for f in self.facts))
@@ -256,13 +265,28 @@ class Manifest(BaseModel):
         )
 
 
+def validate_counts_from(facts: tuple[FactSpec, ...]) -> None:
+    """A date that counts from another (``counts_from``) is a date itself, and names a date fact of the playbook
+    that isn't in a list and isn't itself counted from another."""
+    dates = {f.id for f in facts if f.kind == "date" and not f.counts_from}
+    for f in facts:
+        for where, spec in [(f.id, f), *((f"{f.id}.{x.id}", x) for x in (f.of if isinstance(f.of, tuple) else ()))]:
+            if spec.counts_from is None:
+                continue
+            if spec.kind != "date":
+                raise ValueError(f"fact {where!r}: 'counts_from' only applies to kind date")
+            if spec.counts_from not in dates:
+                raise ValueError(f"fact {where!r}: counts_from {spec.counts_from!r} is not a date fact of this playbook "
+                                 "(outside a list, and not counted from another)")
+
+
 def _fact(f: FactSpec) -> Fact:
     if f.kind == "choice":
         return Fact(f.id, f.ask, "choice", options=tuple(f.options or ()))
     if f.kind != "list":
-        return Fact(f.id, f.ask, f.kind)
+        return Fact(f.id, f.ask, f.kind, counts_from=f.counts_from or "")
     if isinstance(f.of, tuple):
-        return Fact(f.id, f.ask, "list", fields=tuple(Fact(x.id, x.ask, x.kind) for x in f.of))
+        return Fact(f.id, f.ask, "list", fields=tuple(Fact(x.id, x.ask, x.kind, counts_from=x.counts_from or "") for x in f.of))
     return Fact(f.id, f.ask, "list", item_kind=f.of or "text")
 
 

@@ -540,6 +540,12 @@ const en = {
   factsCount: (found: number, total: number) => `${found} of ${total}`,
   runAnswerPlaceholder: "Answer, or say what should change…",
   runPausedPlaceholder: (title: string) => `Paused: resume from ${title}.`,
+  runTypeAhead: "You can already type on…",
+  runHeld: (title: string) => `Sent as soon as ${title} waits for you.`,
+  // the chip in the lists (board P04, 7): who the run waits for
+  waitsFor: (name: string) => `waiting for ${name}`,
+  waitsForYou: "waiting for you",
+  waitsForMember: "waiting for a member",
   runConfirmedLine: (name: string, time: string) => `Confirmed by ${name} · ${time}`,
   runPausedLine: (name: string, time: string) => `Paused by ${name} · ${time}`,
   runResumedLine: (name: string, time: string) => `Resumed by ${name} · ${time}`,
@@ -570,6 +576,12 @@ const en = {
   pbFill: "Fill in",
   pbNotInPassage: (items: string) => `Not in the cited passage as written: ${items}.`,
   pbNotADate: "Not a date as written: work it out and check it.",
+  // a term worked out from the date it counts from (board P01): "Worked out: 12 October 2026 plus four months."
+  pbComputedCheck: "Worked out. Check it.",
+  pbComputedHow: (base: string, term: string, before: boolean) => `Worked out: ${base} ${before ? "minus" : "plus"} ${term}.`,
+  pbTerm: (n: number, unit: "day" | "week" | "month" | "year") =>
+    `${["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] ?? n} ${unit}${n === 1 ? "" : "s"}`,
+  pbDateNotInPassage: "The date itself isn't in the passage.",
   pbNotAnAmount: "Not an amount as written: work it out and check it.",
   pbNotANumber: "Not a number as written: work it out and check it.",
   // lists (format 3): a list the documents name no entries of, and one more entry for a list that has some

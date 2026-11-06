@@ -14,19 +14,22 @@
  * shown as written. Pause, cancel and stop are on the run's chip in the composer, shown only to those the
  * gateway would allow (it decides; the chip hides what would fail).
  */
-import { quoteFor } from "../lib/quote";
+import { citedContext } from "../lib/quote";
 import {
-  ArrowLeft, ArrowUp, Check, ChevronDown, CircleAlert, CircleX, Download, FileText, Paperclip, Pause, Play, Route, Square, TriangleAlert, X,
+  ArrowUp, Check, ChevronDown, CircleAlert, CircleX, Download, FileText, Paperclip, Pause, Play, Route, Square, TriangleAlert, X,
 } from "lucide-react";
 import { useId } from "react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   answerRun, confirmRun, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
-  type Case, type Citation, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
+  type Case, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
+  type TermComputed,
 } from "../api";
 import { useWatermark } from "../lib/watermark";
 import { locale, useT } from "../i18n";
-import { entryPath, factLabel, nextEntry, optionLabel, shownFacts, type PlaybookWords } from "../lib/playbooks";
+import {
+  entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, optionLabel, shownFacts, splitPath, type FactGroup, type PlaybookWords,
+} from "../lib/playbooks";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { failureText } from "../lib/review";
 import { checkJob, LOST_TRACK } from "../lib/uploads";
@@ -35,7 +38,8 @@ import {
   ActionMenu, Button, Card, Dialog, IconBadge, IconButton, InlineNotice, SourceRef, TextArea, TextButton, useFilePicker, type MenuEntry,
 } from "../ui";
 import { AssistantMark } from "./Brand";
-import { SourceCard } from "./Messages";
+import { SourcePanel } from "./Messages";
+import type { AssistantTurn } from "../types";
 
 const POLL_MS = 1500;
 const LIVE: RunStatus[] = ["reading", "waiting", "paused"];
@@ -61,10 +65,22 @@ export function stepLabel(run: Pick<RunSummary, "step" | "status" | "step_kind">
   return names[kind ?? ""] ?? "";
 }
 
-/** One line for the chip on a case in the case lists: the playbook's title and what the run waits for. */
-export function runChipText(run: RunSummary, playbook: Pick<PlaybookInfo, "steps" | "name" | "text"> | null | undefined, title: string, m: Words, lang?: string): string {
+/** Who a waiting run waits for (board P04, 7): the case's members at the checkpoint, else the person who started it,
+ *  "you" when that is the reader, by first name otherwise. */
+export function waitsFor(run: Pick<RunSummary, "step" | "step_kind" | "starter">, playbook: Pick<PlaybookInfo, "steps"> | null | undefined,
+                         m: Words, me?: string, starterName?: string | null): string {
+  if (stepKind(run, playbook) === "checkpoint") return m.waitsForMember;
+  if (me && run.starter === me) return m.waitsForYou;
+  return starterName ? m.waitsFor(starterName.split(" ")[0]) : m.waitsForMember;
+}
+
+/** One line for the chip on a case in the case lists: the playbook's title and what the run waits for ("Akte-intake ·
+ *  wacht op Mieke"; board P04, 7). Without ``people``: the step in words, as before. */
+export function runChipText(run: RunSummary, playbook: Pick<PlaybookInfo, "steps" | "name" | "text"> | null | undefined, title: string, m: Words, lang?: string,
+                            people?: { me?: string; starterName?: string | null }): string {
   const name = (lang && run.title?.[lang]) || run.title?.en || title;
-  const what = run.status === "paused" ? m.runPaused : stepLabel(run, playbook, m);
+  const what = run.status === "paused" ? m.runPaused
+    : run.status === "waiting" && people ? waitsFor(run, playbook, m, people.me, people.starterName) : stepLabel(run, playbook, m);
   return what ? `${name} · ${what}` : name;
 }
 
@@ -84,12 +100,14 @@ const dayAndTime = (iso: string) => {
   return today ? time(iso) : `${d.toLocaleDateString(locale(), { day: "numeric", month: "short" })} ${time(iso)}`;
 };
 
-/** The facts a review card is for (handover of 31 October 2026): *Check*, a value the check couldn't find
- *  literally in its passage and nobody has checked since; *Missing*, a fact without a value. */
+/** The facts a review card is for (handover of 31 October 2026; board P01): *Check*, a value the check couldn't find
+ *  literally in its passage, or one sūveryn worked out, that nobody has checked since; *Missing*, a fact without a value,
+ *  a list without entries among them. A list that has entries isn't missing, nor is a field an entry lacks: one more entry
+ *  is added in the panel, a field corrected in words. */
 export function reviewGroups(run: Pick<Run, "facts">): { check: RunFact[]; missing: RunFact[] } {
   const facts = shownFacts(run.facts);
   return { check: facts.filter((f) => f.value && (f.issues.length > 0 || !!f.needs) && f.source !== "person"),
-           missing: facts.filter((f) => !f.value) };
+           missing: facts.filter((f) => !f.value && splitPath(f.id).index === null) };
 }
 
 /** The run's state in the breadcrumb, while it is live: the one place it is said. */
@@ -103,6 +121,7 @@ export function runStatusWord(run: Pick<RunSummary, "status" | "step" | "step_ki
 
 /** Why a fact is under *Check*, in words: a value that gives no date or amount as such, or what the passage doesn't say. */
 function checkReason(f: RunFact, m: Words): string {
+  if (f.needs === "computed") return m.pbComputedCheck;
   if (f.needs === "not_a_date") return m.pbNotADate;
   if (f.needs === "not_an_amount") return m.pbNotAnAmount;
   if (f.needs === "not_a_number") return m.pbNotANumber;
@@ -116,13 +135,19 @@ function sourceText(f: RunFact, m: Words): { n: number; text: string; name: stri
 }
 
 /** The panel beside a run: the reference list, or one fact's source (from the list, with a way back; or from a card). */
-export type RunPanelView = { kind: "list" } | { kind: "source"; fact: string; fromList: boolean };
+export type RunPanelView = { kind: "list"; from?: string } | { kind: "source"; fact: string; fromList: boolean };
 
-/** How many facts have a value, of how many. */
-export const factCounts = (run: Pick<Run, "facts">) => {
-  const facts = shownFacts(run.facts);
-  return [facts.filter((f) => (f.confirmed ?? f.value)).length, facts.length] as const;
+/** How many facts have a value, of how many: a list is one fact, found when it has an entry (board P01: "12 of 13"). */
+export const factCounts = (run: Pick<Run, "facts"> & { playbook?: Pick<PlaybookInfo, "lists"> | null }) => {
+  const groups = factGroups(run.facts, run.playbook?.lists ?? {});
+  return [groups.filter(groupFound).length, groups.length] as const;
 };
+
+/** How a date was worked out, in words: "Berekend: 12 oktober 2026 plus vier maanden." */
+export function computedHow(c: TermComputed, m: Words): string {
+  const base = new Date(`${c.base}T12:00:00`).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+  return m.pbComputedHow(base, m.pbTerm(c.amount, c.unit), c.direction === "before");
+}
 
 // ------------------------------------------------------------------ the run, kept fresh
 
@@ -332,9 +357,9 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
               active={panel?.kind === "source" && panel.fact === f.id}
               onSave={(v) => save(f, v)} onSource={() => onPanel({ kind: "source", fact: f.id, fromList: false })} />
   );
-  const more = Object.keys(lists).filter((list) => nextEntry(run.facts, list) > 1);  // lists with entries: one more can be added
-  // the checks (format 3), in the routine's order: what each says and whether it holds now; a failed one is a point for the notary, never a block
-  const checks = steps.filter((s) => s.kind === "check" && run.checks?.[s.id]).map((s) => ({ id: s.id, ...run.checks![s.id] }));
+  // the checks that fail (format 3; board P01), in the routine's order: a point for the notary, never a block. Those that
+  // hold, or can't be worked out yet, are in the panel.
+  const checks = steps.filter((s) => s.kind === "check" && run.checks?.[s.id]?.status === "fails").map((s) => ({ id: s.id, ...run.checks![s.id] }));
   return (
     <div className="run-review">
       <p>{n ? m.pbReviewIntro(found, total, n) : m.pbReviewIntroNone(found, total)}</p>
@@ -357,11 +382,6 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
       )}
       {check.length > 0 && <section className="run-group" aria-label={m.pbGroupCheck}><h3 className="run-group-title">{m.pbGroupCheck}</h3>{check.map((f) => card(f, "check"))}</section>}
       {missing.length > 0 && <section className="run-group" aria-label={m.pbGroupMissing}><h3 className="run-group-title">{m.pbGroupMissing}</h3>{missing.map((f) => card(f, "missing"))}</section>}
-      {canAnswer && more.length > 0 && (
-        <section className="run-group" aria-label={m.pbGroupMore}>
-          {more.map((list) => <AddEntryCard key={list} list={list} fields={lists[list]} count={nextEntry(run.facts, list) - 1} words={words} canAnswer={canAnswer} onAdd={(v) => add(list, v)} />)}
-        </section>
-      )}
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       <div className="run-review-actions">
         {canAnswer && !canConfirm && <span className="caption run-confirm-note">{m.pbManagerConfirms}</span>}
@@ -404,7 +424,8 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditing(false); }
   };
   const src = sourceText(fact, m);
-  const quote = fact.citations[0]?.text ? quoteFor(fact.citations[0].text, fact.value) : undefined;
+  // the passage around what it cites: for a worked-out date, the term as written (board P01)
+  const quote = fact.citations[0]?.text ? citedContext(fact.citations[0].text, fact.computed?.written ?? fact.value) : undefined;
   return (
     <Card compact className="fact-card">
       <div className="fact-card-head">
@@ -421,10 +442,17 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
           <Button variant="secondary" size="small" onPress={() => setEditing(true)}>{group === "check" ? m.pbAdjust : m.pbFill}</Button>
         )}
       </div>
-      {group === "check" && quote && <blockquote className="fact-card-quote">{quote}</blockquote>}
+      {group === "check" && quote && (
+        <blockquote className="fact-card-quote" data-context={quote.cited !== undefined || undefined}>
+          {quote.cited !== undefined
+            ? <><span className="quote-context">{quote.before}</span><span className="quote-cited">{quote.cited}</span><span className="quote-context">{quote.after}</span></>
+            : quote.text}
+        </blockquote>
+      )}
       {group === "check" && (
         <div className="fact-card-foot">
-          <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {checkReason(fact, m)}</span>
+          {fact.computed ? <span className="fact-note fact-computed">{computedHow(fact.computed, m)}</span>
+            : <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {checkReason(fact, m)}</span>}
           {src && <SourceRef n={src.n} text={src.text} name={src.name} active={active} onPress={onSource} />}
         </div>
       )}
@@ -434,8 +462,10 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
 
 /** A list the documents named no entries of, or one more entry for a list that has some (format 3): *Add* opens one
  *  field per value of the entry (a record's fields, or the one value), *Keep* saves what was filled in. */
-function AddEntryCard({ list, fields, count, words, canAnswer, onAdd }: {
+function AddEntryCard({ list, fields, count, words, canAnswer, onAdd, inline = false }: {
   list: string; fields: string[]; count: number; words: PlaybookWords; canAnswer: boolean; onAdd: (values: Record<string, string>) => Promise<void>;
+  /** At the end of the list's block in the panel (board P03): only *Add* and, once pressed, the fields. */
+  inline?: boolean;
 }) {
   const m = useT();
   const [open, setOpen] = useState(false);
@@ -452,6 +482,26 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd }: {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); keep(); }
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); setDraft({}); }
   };
+  const fieldsOpen = open && (
+    <div className="fact-card-entry-fields" title={m.pbFieldHint}>
+      {keys.map((field) => (
+        <TextArea key={field} label={fieldLabel(field)} value={draft[field] ?? ""} onChange={(v) => setDraft({ ...draft, [field]: v })}
+                  onKeyDown={onKey} rows={1} className="playbook-fact-field" isReadOnly={saving} />
+      ))}
+      <div className="run-quick">
+        <Button variant="secondary" size="small" onPress={keep} isDisabled={saving}>{saving ? m.saving : m.pbKeepEntry}</Button>
+        <Button variant="quiet" size="small" onPress={() => { setOpen(false); setDraft({}); }} isDisabled={saving}>{m.cancel}</Button>
+      </div>
+    </div>
+  );
+  if (inline) {
+    return (
+      <div className="fact-list-add">
+        {!open && <Button variant="secondary" size="small" onPress={() => setOpen(true)}>{m.pbAddEntry}</Button>}
+        {fieldsOpen}
+      </div>
+    );
+  }
   return (
     <Card compact className="fact-card fact-card-entry">
       <div className="fact-card-head">
@@ -461,18 +511,7 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd }: {
         </div>
         {canAnswer && !open && <Button variant="secondary" size="small" onPress={() => setOpen(true)}>{m.pbAddEntry}</Button>}
       </div>
-      {open && (
-        <div className="fact-card-entry-fields" title={m.pbFieldHint}>
-          {keys.map((field) => (
-            <TextArea key={field} label={fieldLabel(field)} value={draft[field] ?? ""} onChange={(v) => setDraft({ ...draft, [field]: v })}
-                      onKeyDown={onKey} rows={1} className="playbook-fact-field" isReadOnly={saving} />
-          ))}
-          <div className="run-quick">
-            <Button variant="secondary" size="small" onPress={keep} isDisabled={saving}>{saving ? m.saving : m.pbKeepEntry}</Button>
-            <Button variant="quiet" size="small" onPress={() => { setOpen(false); setDraft({}); }} isDisabled={saving}>{m.cancel}</Button>
-          </div>
-        </div>
-      )}
+      {fieldsOpen}
     </Card>
   );
 }
@@ -560,6 +599,10 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
   const live = LIVE.includes(run.status);
   const mayEnd = live && (run.starter === me || kase.manager === me);
   const waiting = run.status === "waiting";
+  // While sūveryn reads, the field stays open (board P04, 3): what is sent then is held, and goes as the person's turn
+  // when the playbook next waits for a person.
+  const reading = run.status === "reading";
+  const [held, setHeld] = useState<string | null>(null);
 
   const act = async (action: "pause" | "resume" | "stop" | "cancel") => {
     setBusy(true);
@@ -603,9 +646,16 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
     setReady((r) => [...r, ...done.filter((d) => !r.some((x) => x.id === d.id))]);
   };
   const picker = useFilePicker(ACCEPTED_FILES, true, (files) => void upload(files));
-  const canSend = waiting && !busy && uploading.length === 0 && (!!text.trim() || ready.length > 0);
+  useEffect(() => {
+    if (!waiting || held === null) return;
+    setHeld(null);
+    void say({ text: held });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the run starts waiting with something held
+  }, [waiting, held]);
+  const canSend = (waiting || reading) && !busy && uploading.length === 0 && (!!text.trim() || (waiting && ready.length > 0));
   const send = () => {
     if (!canSend) return;
+    if (reading) { setHeld((h) => (h ? `${h}\n` : "") + text.trim()); setText(""); return; }
     void say({ text: text.trim(), ...(ready.length ? { documents: ready.map((d) => d.id) } : {}) }).then(() => setReady([]));
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -657,8 +707,8 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
         </ul>
       )}
       <div className="composer">
-        <TextArea label={title} hideLabel value={text} onChange={setText} onKeyDown={onKey} isReadOnly={!waiting}
-                  placeholder={waiting ? m.runAnswerPlaceholder : run.status === "paused" ? m.runPausedPlaceholder(title) : ""} className="composer-field" />
+        <TextArea label={title} hideLabel value={text} onChange={setText} onKeyDown={onKey} isReadOnly={!waiting && !reading}
+                  placeholder={waiting ? m.runAnswerPlaceholder : reading ? m.runTypeAhead : run.status === "paused" ? m.runPausedPlaceholder(title) : ""} className="composer-field" />
         <div className="composer-tools">
           {picker.input}
           <IconButton size="small" label={m.addDocuments} onPress={() => picker.open()} isDisabled={!waiting || busy || uploading.length > 0}>
@@ -667,11 +717,12 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
           {chip}
           <span className="composer-space" />
           <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}
-                  data-empty={waiting && !busy && !text.trim() ? true : undefined}>
+                  data-empty={(waiting || reading) && !busy && !text.trim() ? true : undefined}>
             <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
           </Button>
         </div>
       </div>
+      {held && <p className="composer-hint caption run-held" role="status"><span className="run-held-text">{held}</span> {m.runHeld(title)}</p>}
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {/* A form whose main action is itself a cancel: the way out says "Keep the run"; the focus starts in
           the reason, where Enter makes a new line and doesn't submit. */}
@@ -686,66 +737,85 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
 
 // ------------------------------------------------------------------ the panel: every fact, and a fact's source
 
-/** Beside the conversation, in the source panel's place (handover of 31 October 2026, board 5): every fact
- *  in the pack's order with its source, nothing edited here; or one fact's source, with a way back to the
- *  list when it was opened from there. Esc closes it (or goes back), and focus returns to what opened it. */
-export function RunPanel({ run, words, view, onView, onClose }: {
+/** Beside the conversation, in the source panel's place (handover of 31 October 2026, board P03): every fact in the
+ *  pack's order with its source, a list as one block (its entries on one line, their other fields under it, dimmed,
+ *  and *Add* for one more), then the checks with what each found. A fact's source opens the conversation's own source
+ *  panel (``RunSourcePanel``; board P02). Esc closes it, and focus returns to what opened it. */
+export function RunPanel({ run, words, view, lists = run.playbook?.lists ?? {}, steps = run.playbook?.steps ?? [], kase = null, canAnswer = false,
+                          onChanged, onView, onClose }: {
   run: Run; words: PlaybookWords; view: RunPanelView;
+  /** The playbook's lists and their entries' fields; its steps, for the checks' order. */
+  lists?: Record<string, string[]>; steps?: { id: string; kind: string }[];
+  /** Adding an entry (board P03): the case, and whether the reader may. */
+  kase?: Pick<Case, "id"> | null; canAnswer?: boolean; onChanged?: (run: Run) => void;
   onView: (view: RunPanelView) => void; onClose: () => void;
 }) {
   const m = useT();
   const panel = useRef<HTMLElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const scroll = useRef(0);
   const listTitle = m.pbListTitle(words.facts_title || m.factsPanel);
-  const fact = view.kind === "source" ? run.facts.find((f) => f.id === view.fact) ?? null : null;
-  const heading = useRef<HTMLSpanElement>(null);
-  const cameFrom = useRef<string | null>(null);
-  // Focus follows the view (VM regression e0f2e26, finding 4: it fell to the page, and Esc did nothing): the
-  // panel when it opens, the source's heading when one opens, the row it came from on the way back.
-  useEffect(() => { panel.current?.focus(); }, []);
+  const [error, setError] = useState<string | null>(null);
+  // Focus follows the view (VM regression e0f2e26, finding 4): the panel when it opens; back from a source, the row it came from.
   useEffect(() => {
-    if (view.kind === "source") { heading.current?.focus(); return; }
-    if (list.current) list.current.scrollTop = scroll.current;
-    const row = cameFrom.current && panel.current?.querySelector<HTMLElement>(`[data-fact="${cameFrom.current}"] .ui-source-ref`);
-    if (row) row.focus();
-  }, [view.kind]);
-  // Esc while the panel is open, wherever the focus is (not in a dialog or a menu of its own)
-  const viewRef = useRef(view);
-  viewRef.current = view;
+    const back = view.kind === "list" && view.from && panel.current?.querySelector<HTMLElement>(`[data-fact="${view.from}"] .ui-source-ref`);
+    if (back) back.focus(); else panel.current?.focus();
+  }, [view]);
+  // Esc while the panel is open, wherever the focus is (not in a dialog, a menu or a field of its own)
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || (e.target as Element | null)?.closest?.("[role=dialog], [role=menu], [role=listbox], textarea, input")) return;
       e.preventDefault();
-      const v = viewRef.current;
-      if (v.kind === "source" && v.fromList) onView({ kind: "list" }); else onClose();
+      onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onView, onClose]);
-  const close = useCallback(onClose, [onClose]);
-  const open = (f: RunFact) => { scroll.current = list.current?.scrollTop ?? 0; cameFrom.current = f.id; onView({ kind: "source", fact: f.id, fromList: true }); };
+  }, [onClose]);
+  const open = (f: RunFact) => onView({ kind: "source", fact: f.id, fromList: true });
+  const add = async (listId: string, values: Record<string, string>) => {
+    if (!kase || !onChanged) return;
+    setError(null);
+    const index = nextEntry(run.facts, listId);
+    try {
+      let fresh = run;
+      for (const [field, value] of Object.entries(values)) {
+        if (value.trim()) fresh = await setRunFact(kase.id, run.id, entryPath(listId, index, field || null), value.trim());
+      }
+      onChanged(fresh);
+    } catch (e) { setError((e as Error).message); }
+  };
+  const mayAdd = canAnswer && !!kase && run.status === "waiting";
+  const checks = steps.filter((st) => st.kind === "check" && run.checks?.[st.id]).map((st) => ({ id: st.id, ...run.checks![st.id] }));
   return (
-    <aside id="run-panel" className="source-panel facts-panel" ref={panel} tabIndex={-1} aria-label={view.kind === "list" ? listTitle : fact ? factLabel(words, fact.id) : ""}
->
-      {view.kind === "source" && view.fromList && (
-        <div className="facts-back"><TextButton onPress={() => onView({ kind: "list" })}><ArrowLeft size={14} aria-hidden /> {listTitle}</TextButton></div>
-      )}
+    <aside id="run-panel" className="source-panel facts-panel" ref={panel} tabIndex={-1} aria-label={listTitle}>
       <header className="source-panel-head">
-        <span className="source-panel-title">
-          <span className="source-panel-file" ref={heading} tabIndex={view.kind === "source" ? -1 : undefined}>
-            {view.kind === "list" ? listTitle : fact ? factLabel(words, fact.id) : ""}</span>
-          {fact?.citations[0] && <span className="source-panel-where">{fact.citations[0].filename}{fact.citations[0].page ? `, ${m.pageShort(fact.citations[0].page)}` : ""}</span>}
-        </span>
+        <span className="source-panel-title"><span className="source-panel-file">{listTitle}</span></span>
         <span className="composer-space" />
-        <IconButton label={m.close} onPress={close}><X size={16} aria-hidden /></IconButton>
+        <IconButton label={m.close} onPress={onClose}><X size={16} aria-hidden /></IconButton>
       </header>
       <div className="source-panel-body" ref={list}>
-        {view.kind === "list" ? (
-          <ol className="facts">
-            {shownFacts(run.facts).map((f) => <FactRow key={f.id} fact={f} label={factLabel(words, f.id)} onSource={() => open(f)} />)}
-          </ol>
-        ) : fact?.citations[0] ? <Passage fact={fact} /> : null}
+        <ol className="facts">
+          {factGroups(run.facts, lists).map((g) => g.list
+            ? <ListBlock key={g.id} group={g} fields={lists[g.id] ?? []} words={words} canAdd={mayAdd} onSource={open} onAdd={(v) => add(g.id, v)} />
+            : <FactRow key={g.id} fact={g.facts[0]} label={factLabel(words, g.id)} onSource={() => open(g.facts[0])} />)}
+        </ol>
+        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
+        {checks.length > 0 && (
+          <section className="run-group facts-checks" aria-label={m.pbGroupChecks}>
+            <h3 className="run-group-title">{m.pbGroupChecks}</h3>
+            <ul className="run-checks">
+              {checks.map((c) => (
+                <li key={c.id} className="run-check" data-status={c.status}>
+                  {c.status === "holds" ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
+                  <span>
+                    <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
+                    <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
+                      : m.pbCheckOpen(c.missing.map((x) => factLabel(words, x)).join(", "))}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </aside>
   );
@@ -767,14 +837,79 @@ function FactRow({ fact, label, onSource }: { fact: RunFact; label: string; onSo
       </div>
       {fromChat && fact.at ? <span className="fact-note">{m.pbFromChat(time(fact.at))}</span>
         : src ? <span className="fact-note"><SourceRef n={src.n} text={src.text} name={src.name} onPress={onSource} /></span> : null}
-      {(fact.issues.length > 0 || fact.needs) && fact.source !== "person" && (
+      {(fact.issues.length > 0 || fact.needs) && fact.source !== "person" && !confirmed && (
         <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {fact.needs ? checkReason(fact, m) : m.factCheckThis}</span>)}
     </li>
   );
 }
 
-function Passage({ fact }: { fact: RunFact }) {
-  const first = fact.citations[0];
-  const citation: Citation = { text: first.text, source: { document_id: first.document_id, page: first.page, location: first.location } };
-  return <SourceCard n={first.n} citation={citation} filename={first.filename} claims={[fact.value]} />;
+/** A list as one block (board P03): "Verkoper(s)", then "Jan Van Damme en Els Peeters" on one line, its source, each entry's
+ *  other fields under it, dimmed, when they are known; *Add* at the end for another entry. */
+function ListBlock({ group, fields, words, canAdd, onSource, onAdd }: {
+  group: FactGroup<RunFact>; fields: string[]; words: PlaybookWords; canAdd: boolean;
+  onSource: (f: RunFact) => void; onAdd: (values: Record<string, string>) => Promise<void>;
+}) {
+  const m = useT();
+  const entries = entriesOf(group);
+  const [head, ...rest] = fields.length ? fields : [""];
+  const shown = (f: RunFact | undefined) => (f ? f.confirmed ?? f.value : "");
+  // the entry's name: its first field, else the first value it has
+  const nameOf = (values: Record<string, RunFact>) => shown(values[head]) || Object.values(values).map(shown).find(Boolean) || m.answerPlaceholder;
+  const names = new Intl.ListFormat(locale(), { type: "conjunction" }).format(entries.map((e) => nameOf(e.values)));
+  const first = entries.flatMap((e) => Object.values(e.values)).find((f) => f.citations.length > 0);
+  const src = first ? sourceText(first, m) : null;
+  const flagged = group.facts.filter((f) => (f.issues.length > 0 || f.needs) && f.source !== "person" && !(f.confirmed ?? ""));
+  return (
+    <li className="fact fact-list" data-fact={group.id}>
+      <span className="fact-label">{words.labels[group.id] ?? group.id}</span>
+      <div className="fact-row">
+        {entries.length ? <span className="fact-value">{names}</span> : <em className="fact-value fact-unknown">{m.pbNoEntries}</em>}
+      </div>
+      {src && first && <span className="fact-note"><SourceRef n={src.n} text={src.text} name={src.name} onPress={() => onSource(first)} /></span>}
+      {entries.map((e) => {
+        const more = rest.map((f) => shown(e.values[f])).filter(Boolean);
+        return more.length > 0 && <span key={e.index} className="fact-note fact-entry-more">{nameOf(e.values)} · {more.join(" · ")}</span>;
+      })}
+      {flagged.map((f) => (
+        <span key={f.id} className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {factLabel(words, f.id)}: {f.needs ? checkReason(f, m) : m.factCheckThis}</span>
+      ))}
+      {canAdd && <AddEntryCard list={group.id} fields={fields} count={entries.length} words={words} canAnswer onAdd={onAdd} inline />}
+    </li>
+  );
+}
+
+/** A fact's source in the conversation's own source panel (board P02, agreed on 31 October): the file and page, "1 of 1"
+ *  with its arrows, the passage with the cited words marked, what the check found, how a date was worked out, and
+ *  *Open document at p. 4* with *Copy passage*. Closing goes back to the list when it was opened from there. */
+export function RunSourcePanel({ run, fact: factId, fromList, caseRef, kept, caseId, onView, onClose }: {
+  run: Run; fact: string; fromList: boolean; caseRef: string | null;
+  kept?: ReadonlySet<string>; caseId?: string | null;
+  onView: (view: RunPanelView) => void; onClose: () => void;
+}) {
+  const m = useT();
+  const [n, setN] = useState(1);
+  const fact = run.facts.find((f) => f.id === factId);
+  if (!fact || fact.citations.length === 0) return null;
+  const turn = factTurn(fact);
+  const filenames = new Map(fact.citations.map((c) => [c.document_id, c.filename]));
+  const verdict = fact.computed ? { ok: false, text: m.pbDateNotInPassage }
+    : fact.needs ? { ok: false, text: checkReason(fact, m) } : undefined;
+  const back = () => (fromList ? onView({ kind: "list", from: factId }) : onClose());
+  return (
+    <SourcePanel turn={turn} open={{ n, occ: null }} filenames={filenames} caseRef={caseRef} kept={kept} caseId={caseId}
+                 verdict={verdict} note={fact.computed ? computedHow(fact.computed, m) : undefined} countAlways
+                 onSource={(o) => setN(o.n)} onClose={back} />
+  );
+}
+
+/** A fact as an answer the source panel can show: what it cites (the term as written, for a worked-out date) with a
+ *  marker per source, and the check's findings as the answer's. */
+export function factTurn(fact: RunFact): AssistantTurn {
+  const cited = fact.computed?.written ?? fact.confirmed ?? fact.value;
+  return {
+    id: `fact-${fact.id}`, role: "assistant", status: "done", grounded: true,
+    text: `${cited} ${fact.citations.map((_, i) => `[${i + 1}]`).join("")}`,
+    citations: fact.citations.map((c) => ({ text: c.text, source: { document_id: c.document_id, page: c.page, location: c.location } })),
+    citationIssues: fact.computed ? [] : fact.issues.map((item) => ({ marker: 0, n: 1, item, found_in: [], written_as: null })),
+  };
 }

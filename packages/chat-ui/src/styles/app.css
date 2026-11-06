@@ -65,6 +65,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .side-sub[data-hovered] { background: var(--surface-alt); color: var(--text); }
 .side-sub[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 .side-sub[aria-current] { color: var(--text); font-weight: 600; }
+/* Board P01: a case's live playbook run, in bold, with its state at the right ("wacht op u") */
+.side-sub[data-run] { color: var(--text); font-weight: 600; }
+.side-run-state { font-weight: 400; margin-left: auto; }
 .side-sub[data-guide] { padding-left: 0; }
 .side-dot { flex: none; width: 7px; height: 7px; margin-left: -4px !important; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--control-off); background: var(--surface); }
 .side-sub[aria-current] .side-dot, .side-dot[data-current] { background: var(--text); border-color: var(--text); }  /* navigation: ink */
@@ -290,6 +293,19 @@ span.chip-run { cursor: default; }
 .fact-unknown { color: var(--text-dim); font-style: italic; }
 .fact-check { color: var(--teal-ink); flex: none; margin-top: 3px; }
 .fact-note { font-size: var(--text-caption); color: var(--text-dim); display: inline-flex; align-items: center; gap: var(--space-1); }
+/* Board P02: on a card, the cited words in ink and the passage around them dimmed */
+.fact-card-quote[data-context] { color: var(--text-dimmer); }
+.fact-card-quote .quote-cited { color: var(--text); }
+/* Board P01: how sūveryn worked a date out, under the passage */
+.fact-computed { margin: 0; }
+/* Board P03: a list as one block; an entry's other fields under it, dimmed; *Add* at its end */
+.fact-entry-more { display: block; color: var(--text-dimmer); }
+.fact-list-add { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-1); align-items: flex-start; }
+.fact-list-add .fact-card-entry-fields { align-self: stretch; }
+.facts-checks { margin-top: var(--space-4); }
+/* Board P04, 3: what was typed while sūveryn read, held until the playbook waits */
+.run-held { text-align: left; }
+.run-held-text { color: var(--text); white-space: pre-wrap; }
 .fact-issue { color: var(--text); }
 /* a case's run in the lists: ink while it waits for a person, teal only while sūveryn reads (board P04, 7) */
 .playbook-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--text);

@@ -24,3 +24,28 @@ export function quoteFor(passage: string, value: string): string {
   const sentence = sentences[best];
   return `${best > 0 ? "… " : ""}${sentence}${best < sentences.length - 1 ? " …" : ""}`;
 }
+
+/**
+ * A fact's passage on its card (board P02): the words the fact cites, then a few words of what follows, with "…" where
+ * the passage goes on ("… uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval …").
+ * The cited words are shown in ink and the rest dimmed. When the passage doesn't hold them as written, its sentence that
+ * comes closest (``quoteFor``), all in ink.
+ */
+export function citedContext(passage: string, cited: string, after = 4): { text: string; before?: string; cited?: string; after?: string } {
+  const text = passage.trim().replace(/\s+/g, " ");
+  const want = cited.trim().replace(/\s+/g, " ");
+  const at = want ? text.toLowerCase().indexOf(want.toLowerCase()) : -1;
+  if (at < 0) return { text: quoteFor(text, cited) };
+  const rest = text.slice(at + want.length);
+  const words = rest.match(/^\S*(\s+\S+)*/)?.[0].split(/(?=\s+\S)/) ?? [];
+  // what sticks to the cited words (",") and then ``after`` words, no further than the sentence's end
+  const pieces: string[] = [];
+  for (const w of words) {
+    if (pieces.length >= after + (/^\s/.test(rest) ? 0 : 1)) break;
+    pieces.push(w);
+    if (/[.;!?]$/.test(w)) break;
+  }
+  const tail = pieces.join("");
+  return { text, before: at > 0 ? "… " : "", cited: text.slice(at, at + want.length),
+           after: tail + (rest.length > tail.length ? " …" : "") };
+}

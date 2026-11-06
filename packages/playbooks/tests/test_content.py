@@ -41,7 +41,7 @@ def test_deed_intake_fits_a_sale_and_is_covered():
     assert p is not None and p.id == "playbook/be-notary/deed-intake" and p.pack == "pack/be-notary"
     assert for_case_type("sale") == [p] and for_case_type("estate") == []
     assert find(p.id) is p and covered(p.id) and not covered("playbook/be-notary/nothing")
-    assert len(p.facts) == 13 and p.version == "1.3" and [s.kind for s in p.steps] == ["request", "read", "ask", *["check"] * 5, "checkpoint", "produce"]
+    assert len(p.facts) == 13 and p.version == "1.4" and [s.kind for s in p.steps] == ["request", "read", "ask", *["check"] * 5, "checkpoint", "produce"]
     assert [(f.id, [x.id for x in f.fields]) for f in p.facts if f.kind == "list"] == [
         ("sellers", ["name", "address", "register"]), ("buyers", ["name", "address", "register"]), ("conditions", ["condition", "term"])]
     assert [s.rule for s in p.steps if s.kind == "check"] == ["count(sellers) >= 1", "count(buyers) >= 1", "deposit <= price",

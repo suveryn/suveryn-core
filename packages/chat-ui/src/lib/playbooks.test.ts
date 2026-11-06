@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entryPath, factLabel, nextEntry, shownFacts, splitPath, stepQuestion } from "./playbooks";
+import { entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, shownFacts, splitPath, stepQuestion } from "./playbooks";
 
 const words = { title: "Formation", summary: "", labels: { founders: "Founder(s)", "founders.name": "Name", conditions: "Conditions", price: "Price" },
                 questions: { missing: "The documents don't mention {label}." } };
@@ -26,5 +26,16 @@ describe("paths into a list (format 3)", () => {
     expect(shownFacts(facts).map((f) => f.id)).toEqual(["founders[1].name", "founders[3].name", "conditions"]);
     expect(nextEntry(facts, "founders")).toBe(4);
     expect(nextEntry(facts, "conditions")).toBe(1);
+  });
+});
+
+
+describe("facts as a person counts them (board P01)", () => {
+  it("makes a list one fact, found when it has an entry", () => {
+    const facts = [{ id: "price", value: "EUR 1" }, { id: "founders", value: "" }, { id: "founders[1].name", value: "Filip" },
+                   { id: "founders[1].shares", value: "" }, { id: "founders[2].name", value: "Ines" }, { id: "conditions", value: "" }];
+    const groups = factGroups(facts, { founders: ["name", "shares"], conditions: [] });
+    expect(groups.map((g) => [g.id, g.list, groupFound(g)])).toEqual([["price", false, true], ["founders", true, true], ["conditions", true, false]]);
+    expect(entriesOf(groups[1]).map((e) => [e.index, Object.keys(e.values)])).toEqual([[1, ["name", "shares"]], [2, ["name"]]]);
   });
 });

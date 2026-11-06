@@ -787,6 +787,18 @@ Filip's rule, from Claude Design's build instruction (`Claude outputs/build-inst
 - **Status, Needs attention** (B01): one row per item, the backups' own state ("View") and the recovery key ("Test now"), also both at once. The overview's tiles: version, last backup ("Last night 02:14 · On the USB disk"), users ("12 of 15"). The update row, the support tile and the Updates, Network and Licence pages come with their features.
 - **Administration › Cases** (B05) changes the office's three case settings in place, the same settings as Settings with the same confirmation (`SettingsConsequences`) when a change touches existing cases or conversations.
 
+### A playbook against its boards (6 November 2026)
+
+From Claude Design's second instruction (`build-instruction-playbook-vs-board.md`), boards P01 to P04:
+
+- **Counting** (P01): a list is one fact, found when it has an entry: "12 van 13" in the message, the breadcrumb and the panel's link; the gateway's own turns count the same way.
+- **The checkpoint message** (P01) holds only what needs the person: under *Kijk na* and *Ontbreekt* the facts missing or to check (a list without entries is one; a list with entries, or a field an entry lacks, isn't); of the checks, only those that fail. The checks that hold or are still open are listed in the panel.
+- **A date worked out** (P01, P03): the card shows the date, the passage around the term (the term in ink, the rest dimmed) and "Berekend: 12 oktober 2026 plus vier maanden."; the panel says "Berekend. Kijk na."; the source panel "De datum zelf staat niet in de passage." (docs/design/playbooks.md, "A date written as a term").
+- **A fact's source** (P02) opens the conversation's own source panel: file and page, "1 van 1" with its arrows, the passage with the cited words marked, what the check found, *Document openen op p. 4* and *Passage kopiëren*. The run's own source view is gone; from the panel's list, closing goes back to the list.
+- **A list in the panel** (P03) is one block: its entries on one line ("Jan Van Damme en Els Peeters"), its source, each entry's other fields under it, dimmed, and *Toevoegen* at its end for a contributor while the run waits.
+- **Typing while sūveryn reads** (P04, 3): the field stays open ("U kunt al verder typen…"); what is sent is held in the page and goes as the person's turn when the playbook next waits. A reload before then loses it.
+- **Who a run waits for** (P04, 7): the chip in the lists reads "Akte-intake · wacht op Mieke", "· wacht op u" for the person who started it, "· wacht op een lid" at the checkpoint; the same words beside the run under its case in the column (P01), in bold.
+
 ### Copy decided along the way
 
 - The tagline stays in English in every language, the sign-in screens included: a brand line, not a translation gap.

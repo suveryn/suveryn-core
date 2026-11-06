@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quoteFor } from "./quote";
+import { citedContext, quoteFor } from "./quote";
 
 const DEED = [
   "Artikel 1. De verkoper verkoopt aan de koper, die aanvaardt, het hierna beschreven goed.",
@@ -18,5 +18,18 @@ describe("the quote on a Check card (VM regression 9c97d76, finding 7)", () => {
   it("keeps a short passage whole, and the whole passage when nothing matches", () => {
     expect(quoteFor("De prijs bedraagt EUR 412.500,00.", "EUR 415.000,00")).toBe("De prijs bedraagt EUR 412.500,00.");
     expect(quoteFor(DEED, "xyz")).toBe(DEED);
+  });
+});
+
+
+describe("the cited words in their context (board P02)", () => {
+  it("shows the cited words, a few words after, and … where the passage goes on", () => {
+    const c = citedContext(DEED, "uiterlijk vier maanden na de vervulling");
+    expect(c.before).toBe("… ");
+    expect(c.cited).toBe("uiterlijk vier maanden na de vervulling");
+    expect(c.after).toBe(" van de opschortende voorwaarde. …");
+  });
+  it("quotes the closest sentence when the words aren't in the passage as written", () => {
+    expect(citedContext(DEED, "EUR 412.500").cited).toBeUndefined();
   });
 });

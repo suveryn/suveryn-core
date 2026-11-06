@@ -82,6 +82,27 @@ def office(runs):
         yield c, kc, cases, docs, captured
 
 
+@needs_db
+def test_a_term_worked_out_from_the_agreements_date_is_kept_with_how(runs):
+    """Board P01, deed intake 1.4: a deadline written as a term is stored as the date worked out, with how, and stays to check."""
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    answer = {**ANSWER, "deed_deadline": {"value": "binnen vier maanden na de ondertekening", "sources": [1]}}
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=json.dumps(answer, ensure_ascii=False)))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        cid, alice, _ = a_case_with_a_contributor(c, kc)
+        rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis."}, headers=alice)
+        run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+        deadline = {f["id"]: f for f in run["facts"]}["deed_deadline"]
+        assert (deadline["value"], deadline["needs"]) == ("3 februari 2027", "computed")
+        assert deadline["computed"]["written"] == "binnen vier maanden na de ondertekening" and deadline["computed"]["from"] == "agreement_date"
+        assert (deadline["computed"]["base"], deadline["computed"]["date"]) == ("2026-10-03", "2027-02-03")
+
+
 def wait_for(c, url, headers, status, tries=50):
     for _ in range(tries):
         run = c.get(url, headers=headers).json()
@@ -114,7 +135,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
     # which playbooks fit: a sale gets deed intake 1.1, covered, with its routine and its words in every language
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.3")]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.4")]
     assert [s["kind"] for s in fits[0]["steps"]] == ["request", "read", "ask", *["check"] * 5, "checkpoint", "produce"]
     assert fits[0]["lists"]["sellers"] == ["name", "address", "register"] and fits[0]["kinds"]["conditions.term"] == "date"
     assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["labels"]["price"] == "Price"
@@ -126,7 +147,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert r.status_code == 202
     run = r.json()
     rid = run["id"]
-    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.3")
+    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.4")
     assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["read"]["status"] == "pending"
     assert [(t["role"], t["step_id"], t["by"]) for t in run["turns"]] == [("playbook", "agreement", "playbook/be-notary/deed-intake")]
     assert run["turns"][0]["text"].startswith("Laad de ondertekende verkoopovereenkomst op")
@@ -158,10 +179,10 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # not asked, it is corrected at the checkpoint, as a founder's is in company formation
     not_found = [f["id"] for f in run["facts"] if not f["found"] and "[" not in f["id"]]
     assert not_found == ["cadastral", "title", "epc", "soil"]
-    # one turn says what was found and what not, and asks (handover of 30 October 2026, board 52); the counts are over
-    # every line, the entries' values included (1.3: 21 lines, 11 of them read)
-    total, found = len(run["facts"]), sum(1 for f in run["facts"] if f["found"])
-    assert (total, found) == (21, 11)
+    # one turn says what was found and what not, and asks (handover of 30 October 2026, board 52); a list is one fact,
+    # found when it has an entry (board P01: 13 facts, 9 of them read; the lines were 21 and 11, entries and fields counted)
+    assert (len(run["facts"]), sum(1 for f in run["facts"] if f["found"])) == (21, 11)
+    found, total = 9, 13
     assert [t["meta"] for t in asked] == [{"kind": "ask", "facts": not_found, "found": found, "total": total}]
     assert not_found[0] == "cadastral" and "Cadastral" in asked[0]["text"]
     assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook"]
@@ -195,13 +216,13 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the summary is a document in the case with origin playbook, named after the playbook, the case and the run's version,
     # in the run's language; its text is what 1.0 wrote for the same confirmed facts
     name, text = docs.stored_text
-    assert name == "Akte-intake 2026/0417 (1.3)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.3")
+    assert name == "Akte-intake 2026/0417 (1.4)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.4")
     assert "Prijs: EUR 412.000,00 (akte.pdf p. 2)" in text and "Kadastrale gegevens: Gent 5e afd., sectie B, nr. 123" in text
     assert "Verkoper(s) 1 · Naam: Jan Peeters" in text and "Verkoper(s) 2 · Naam: Marie Claes" in text and "Koper(s) 1 · Naam: Tom Janssens" in text
     assert "Opschortende voorwaarden 1 · Te vervullen tegen: 2 november 2026" in text
     assert "Het voorschot of de waarborg ligt binnen de prijs: klopt" in text  # the price as confirmed: 41.250 within 412.000
     assert "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte: klopt" in text
-    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.3", "run": rid}
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.4", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice).status_code == 409
     assert cid not in c.get("/v1/playbooks/runs/active", headers=alice).json()  # done: no chip
@@ -783,7 +804,7 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
-    assert run["playbook"]["version"] == "1.3" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
+    assert run["playbook"]["version"] == "1.4" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
     assert run["playbook"]["lists"]["conditions"] == ["condition", "term"] and run["playbook"]["kinds"]["price"] == "amount"
     # "the next release" renames a label and bumps the version; the run doesn't follow it
     store = c.app.state.runs.get()
@@ -792,7 +813,7 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     store._execute("UPDATE playbook_runs SET manifest = %s WHERE id = %s", (json.dumps(record), uuid.UUID(rid)))
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
     assert run["playbook"]["version"] == "0.9" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Koopsom"
-    assert run["playbook_version"] == "1.3"  # what was recorded at the start stays the run's version
+    assert run["playbook_version"] == "1.4"  # what was recorded at the start stays the run's version
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
