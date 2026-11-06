@@ -29,6 +29,8 @@ class Me(BaseModel):
     cases_keep: str = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
     avatar: str | None = None   # the ETag of the user's picture, None without one (initials are shown)
     account_url: str | None = None  # Keycloak's account console (password, second factor): the settings dialog links to it
+    office_name: str | None = None  # the office's name (Administration › Settings), after the person's name in the column
+    admin_console_url: str | None = None  # administrators: the sign-in service's own console (Users, "Advanced")
 
 
 def _auth(request: Request) -> Authenticator:
@@ -78,13 +80,23 @@ async def me(request: Request):
     authenticator, cases = _auth(request), case_settings(request)
     if not authenticator.enabled:
         return Me(username="dev", name="Development (sign-in off)", sub=LOCAL_OWNER, admin=True, office_wide=cases.office_wide,
-                  cases_keep=cases.keep, avatar=await _avatar_etag(request, LOCAL_OWNER))
+                  cases_keep=cases.keep, avatar=await _avatar_etag(request, LOCAL_OWNER), office_name=cases.office_name or None)
     user = await authenticator.session_user(request.cookies.get(authenticator.settings.session_cookie))
     if user is None:
         raise HTTPException(401, "Sign in to continue.")
-    return Me(username=user.username, name=user.name, sub=user.sub, admin=ADMIN_ROLE in user.roles, office_wide=cases.office_wide,
+    issuer = authenticator.settings.issuer
+    admin = ADMIN_ROLE in user.roles
+    return Me(username=user.username, name=user.name, sub=user.sub, admin=admin, office_wide=cases.office_wide,
               cases_keep=cases.keep, avatar=await _avatar_etag(request, user.sub),
-              account_url=f"{authenticator.settings.issuer}/account" if authenticator.settings.issuer else None)
+              account_url=f"{issuer}/account" if issuer else None, office_name=cases.office_name or None,
+              admin_console_url=admin_console(issuer) if admin else None)
+
+
+def admin_console(issuer: str) -> str | None:
+    """Keycloak's administration console for the realm the issuer names: ``…/realms/suveryn`` gives
+    ``…/admin/suveryn/console/`` (the appliance's nginx serves it only to the office's own network)."""
+    head, sep, realm = issuer.rpartition("/realms/")
+    return f"{head}/admin/{realm}/console/" if sep and realm and "/" not in realm else None
 
 
 async def _avatar_etag(request: Request, sub: str) -> str | None:

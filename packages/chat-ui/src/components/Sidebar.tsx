@@ -116,7 +116,8 @@ export function Sidebar(p: Props) {
       </Button>
       <span className="account-who">
         <span className="account-name">{p.user.name}{p.user.admin && <span className="account-role"> · {m.administratorTitle}</span>}</span>
-        <span className="account-user">{p.user.username}</span>
+        {/* board G04: the sign-in name, then the office's */}
+        <span className="account-user">{p.user.username}{p.user.office_name ? ` · ${p.user.office_name}` : ""}</span>
       </span>
     </>
   );
@@ -306,7 +307,8 @@ export function Sidebar(p: Props) {
       {accountMenu(
         <>
           <Avatar name={p.user.name} sub={p.user.sub} etag={p.user.avatar} admin={p.user.admin} adminLabel={m.administrator} />
-          <span className="account-row-name">{p.user.name}</span>
+          {/* board G01: the office's name dimmed after the person's, cut with an ellipsis */}
+          <span className="account-row-name">{p.user.name}{p.user.office_name && <span className="account-row-office"> · {p.user.office_name}</span>}</span>
           <ChevronsUpDown size={14} aria-hidden />
         </>, "account-row")}
     </aside>

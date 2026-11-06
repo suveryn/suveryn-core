@@ -171,7 +171,8 @@ def ask(page, question: str, timeout: int = 60_000) -> str:
     return page.locator("main").inner_text()
 
 
-def new_case(page, reference: str, name: str, subject: str = "Havenweg 12, Testdorp", kind: str = "Sale") -> None:
+def new_case(page, reference: str, name: str, kind: str = "Sale", access: str | None = None) -> None:
+    """The new-case dialog (board G14): reference, name, type and, on an office-wide appliance, who sees it."""
     page.get_by_role("button", name="New conversation or new case").click()
     page.get_by_role("menuitem", name="New case").click()
     page.get_by_label("Reference").fill(reference)
@@ -180,7 +181,8 @@ def new_case(page, reference: str, name: str, subject: str = "Havenweg 12, Testd
     option = page.get_by_role("option", name=re.compile(kind, re.I))
     if option.count():
         option.first.click()
-    page.get_by_label("Subject").fill(subject)
+    if access:
+        page.get_by_role("radio", name=access).check()
     page.get_by_role("button", name="Open case").click()
     page.get_by_role("button", name=f"Case {reference}: actions").wait_for()
 

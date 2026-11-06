@@ -8,7 +8,7 @@ import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { parseDate } from "@internationalized/date";
 import { NumberParser } from "@internationalized/number";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import {
   DateField as AriaDateField,
   DateInput,
@@ -35,15 +35,19 @@ export type TextFieldProps = Omit<AriaTextFieldProps, "className" | "children"> 
   label: string;
   description?: string;
   placeholder?: string;
+  /** After the field's error, on the same line: the way out it names ("… or open case 123", board G14). */
+  errorAction?: ReactNode;
+  /** The label for screen readers only, when a section heading right above already says it. */
+  hideLabel?: boolean;
 };
 
-export function TextField({ label, description, placeholder, ...props }: TextFieldProps) {
+export function TextField({ label, description, placeholder, errorAction, hideLabel, ...props }: TextFieldProps) {
   return (
     <AriaTextField {...props} className="ui-field">
-      <Label className="ui-label">{label}</Label>
+      <Label className={hideLabel ? "ui-visually-hidden" : "ui-label"}>{label}</Label>
       <Input className="ui-input" placeholder={placeholder} />
       {description && <Text slot="description" className="ui-hint">{description}</Text>}
-      <Error />
+      <Error action={errorAction} />
     </AriaTextField>
   );
 }
@@ -143,13 +147,13 @@ export function TextArea({ label, hideLabel, value, onChange, onKeyDown, placeho
   );
 }
 
-function Error() {
+function Error({ action }: { action?: ReactNode }) {
   return (
     <FieldError className="ui-field-error">
       {({ validationErrors }) => (
         <>
           <CircleAlert size={16} aria-hidden />
-          <span>{validationErrors.join(" ")}</span>
+          <span>{validationErrors.join(" ")}{action && <> {action}</>}</span>
         </>
       )}
     </FieldError>

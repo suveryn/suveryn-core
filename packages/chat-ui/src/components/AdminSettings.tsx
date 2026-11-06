@@ -11,12 +11,12 @@
 import { Check, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
-  getCaseSettings, getRates, previewCaseSettings, setCaseSettings, setRates,
+  getCaseSettings, ME_CHANGED, getRates, previewCaseSettings, setCaseSettings, setRates,
   type CaseSettings, type KeepPeriod, type Rates, type SettingsPreview,
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, Dialog, InlineNotice, NumberField, RadioList, Segmented, SelectField, Switch } from "../ui";
+import { Button, Dialog, InlineNotice, NumberField, RadioList, Segmented, SelectField, Switch, TextField } from "../ui";
 import { keepPeriodLabel } from "./CaseDialogs";
 
 type Access = "office" | "members";
@@ -34,6 +34,7 @@ export function AdminSettings() {
   const [keep, setKeep] = useState<KeepPeriod>("manual");
   const [conversations, setConversations] = useState<KeepPeriod>("manual");
   const [twoStep, setTwoStep] = useState(false);
+  const [officeName, setOfficeName] = useState("");
   const [input, setInput] = useState(0);
   const [output, setOutput] = useState(0);
   const [currency, setCurrency] = useState("USD");
@@ -43,7 +44,8 @@ export function AdminSettings() {
   const [error, setError] = useState<string | null>(null);
 
   const take = useCallback((s: CaseSettings | null, r: Rates | null) => {
-    if (s) { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); setTwoStep(s.two_step); setApplyTo("new"); }
+    if (s) { setSettings(s); setAccess(s.default_access); setKeep(s.keep); setConversations(s.conversations_keep); setTwoStep(s.two_step); setApplyTo("new");
+             setOfficeName(s.office_name ?? ""); }
     if (r) { setSavedRates(r); setInput(Number(r.input_per_million)); setOutput(Number(r.output_per_million)); setCurrency(r.currency);
              setTypedInput(null); setTypedOutput(null); }
   }, []);
@@ -55,7 +57,7 @@ export function AdminSettings() {
   const opens = settings !== null && access === "office" && settings.default_access === "members";
   const casesChanged = settings !== null
     && (access !== settings.default_access || keep !== settings.keep || conversations !== settings.conversations_keep
-        || twoStep !== settings.two_step);
+        || twoStep !== settings.two_step || officeName.trim() !== (settings.office_name ?? ""));
   const twoStepChanged = settings !== null && twoStep !== settings.two_step;
   // A price as typed counts at once, before its field commits it on blur (board B08: Save stayed grey after typing
   // a price and clicking Save, because a click on a disabled button doesn't take the focus from the field).
@@ -76,8 +78,10 @@ export function AdminSettings() {
     setError(null);
     try {
       const s = casesChanged
-        ? await setCaseSettings({ default_access: access, keep, conversations_keep: conversations, two_step: twoStep, ...(opens ? { apply_to: applyTo } : {}) })
+        ? await setCaseSettings({ default_access: access, keep, conversations_keep: conversations, two_step: twoStep, office_name: officeName.trim(),
+                                  ...(opens ? { apply_to: applyTo } : {}) })
         : null;
+      if (s && s.office_name !== (settings?.office_name ?? "")) window.dispatchEvent(new Event(ME_CHANGED));
       const r = ratesChanged ? await setRates({ input_per_million: String(inputNow), output_per_million: String(outputNow), currency }) : null;
       take(s, r);
       setConfirming(null);
@@ -116,6 +120,12 @@ export function AdminSettings() {
     <div className="admin-settings">
       {settings && (
         <>
+          {/* boards G01, G04: shown after each person's name in the column and in the account menu */}
+          <section aria-labelledby="office-name">
+            <h2 id="office-name" className="label">{m.officeName}</h2>
+            <TextField label={m.officeName} hideLabel name="office_name" value={officeName} onChange={edited(setOfficeName)} maxLength={120}
+                       description={m.officeNameHint} />
+          </section>
           <section aria-labelledby="who-sees">
             <h2 id="who-sees" className="label">{m.whoSeesACase}</h2>
             <RadioList label={m.whoSeesACase} name="default_access" value={access} onChange={edited((v: string) => setAccess(v as Access))}

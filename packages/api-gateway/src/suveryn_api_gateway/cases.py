@@ -141,7 +141,8 @@ CREATE TABLE IF NOT EXISTS case_settings (
 );
 """
 
-SETTING_KEYS = ("default_access", "keep", "conversations_keep", "two_step")  # what an administrator may change at runtime
+SETTING_KEYS = ("default_access", "keep", "conversations_keep", "two_step", "office_name")  # what an administrator may change at runtime
+OFFICE_NAME_MAX = 120
 
 
 class StrictlyConfidential(ValueError):
@@ -162,6 +163,9 @@ class CaseSettings:
     conversations_keep: Literal["6m", "1y", "5y", "manual"] = "manual"  # saved conversations, from their last change
     # Two-step sign-in for every account: off unless an administrator turns it on (decision, 29 October 2026)
     two_step: bool = False
+    # The office's name, shown after a person's name in the column and in the account menu (board G01, G04);
+    # empty until an administrator sets it in Administration › Settings.
+    office_name: str = ""
 
     @property
     def office_wide(self) -> bool:
@@ -183,6 +187,8 @@ class CaseSettings:
             changes["conversations_keep"] = overrides["conversations_keep"]
         if overrides.get("two_step") in ("on", "off"):
             changes["two_step"] = overrides["two_step"] == "on"
+        if isinstance(overrides.get("office_name"), str) and len(overrides["office_name"]) <= OFFICE_NAME_MAX:
+            changes["office_name"] = overrides["office_name"].strip()
         return replace(self, **changes) if changes else self
 
     @classmethod
@@ -287,6 +293,7 @@ class SettingsOut(BaseModel):
     keep: Literal["6m", "1y", "5y", "manual"]
     conversations_keep: Literal["6m", "1y", "5y", "manual"]
     two_step: bool = False  # every account must set up two-step sign-in
+    office_name: str = ""   # the office's name; empty: not set
     updated_at: datetime | None = None  # None: as provisioned, never changed in the dashboard
     updated_by: str = ""
 
@@ -298,6 +305,7 @@ class SettingsIn(BaseModel):
     keep: Literal["6m", "1y", "5y", "manual"] | None = None
     conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None
     two_step: bool | None = None
+    office_name: str | None = Field(default=None, max_length=OFFICE_NAME_MAX)  # "" clears it
     # When the default access opens up to the office: "new" (the default) leaves the existing cases with
     # their members, "all" opens every case (strictly confidential ones never). Closing it to the members
     # applies to every case that follows the default; there is nothing to choose then.

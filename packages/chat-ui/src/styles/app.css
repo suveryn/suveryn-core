@@ -122,6 +122,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .account-row[aria-expanded="true"] { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
 .account-row svg:last-child { color: var(--text-dim); }
 .account-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-ui); font-weight: 600; }
+.account-row-office { font-weight: 400; color: var(--text-dim); }
 .account-who { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .account-name { font-size: var(--text-ui-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-role { font-weight: 400; color: var(--text-dim); }

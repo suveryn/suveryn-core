@@ -60,6 +60,15 @@ def test_thorough_without_an_answer_is_asked_again(page, deed):
 def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     sign_in(page)
     new_case(page, CASE, "Havenweg 12 sale")
+    # the same reference again is said under its field, with the way to the case that has it (board G14)
+    page.get_by_role("button", name="New conversation or new case").click()
+    page.get_by_role("menuitem", name="New case").click()
+    page.get_by_label("Reference").fill(CASE)
+    page.get_by_label("Name", exact=True).fill("Twice")
+    page.get_by_role("button", name="Open case").click()
+    expect(dialog(page).get_by_text(f"Case {CASE} already exists. Choose another number, or")).to_be_visible()
+    dialog(page).get_by_role("button", name=f"open case {CASE}").click()
+    page.get_by_role("button", name=f"Case {CASE}: actions").wait_for()
     # a colleague joins as a contributor
     page.get_by_role("button", name=re.compile("^Members: ")).click()
     members = dialog(page)

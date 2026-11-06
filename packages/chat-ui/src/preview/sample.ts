@@ -15,7 +15,8 @@ const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
 // ---------- who is signed in ----------
 export const ME: Me = { username: "test@kantoor.be", name: "Test Beheerder", sub: "u-test", admin: true, office_wide: true,
-                        cases_keep: "5y", avatar: null, account_url: null };
+                        cases_keep: "5y", avatar: null, account_url: null,
+                        office_name: "Thirdexpert Notarissen", admin_console_url: "https://kantoor.local/idp/admin/suveryn/console/" };
 
 export const HEALTH: Health = {
   status: "ok",
@@ -162,7 +163,7 @@ export const ADMIN_STATUS = {
            check("data"), check("disk", { free: 1_420_000_000_000, total: 2_000_000_000_000 }), check("clock", { offset_ms: 120, synced: true })],
 };
 export const ADMIN_CASES = CASES.map((c) => ({ ...c, manager_username: "test@kantoor.be", manager_name: "Test Beheerder", members: 3 }));
-export const CASE_SETTINGS = { default_access: "office", keep: "5y", conversations_keep: "1y", two_step: false, updated_at: ago(10 * DAY), updated_by: "Test Beheerder" };
+export const CASE_SETTINGS = { default_access: "office", keep: "5y", conversations_keep: "1y", two_step: false, office_name: "Thirdexpert Notarissen", updated_at: ago(10 * DAY), updated_by: "Test Beheerder" };
 const totals = (requests: number, tokens: number) => ({ requests, prompt_tokens: Math.round(tokens * 0.9), completion_tokens: Math.round(tokens * 0.1), total_tokens: tokens });
 export const OFFICE_USAGE = {
   start: ago(30 * DAY), end: ago(0), step: "1 day", totals: totals(777, 4_200_000), by_kind: { chat: totals(600, 2_980_000), summary: totals(120, 760_000), "playbook-step": totals(57, 460_000) },

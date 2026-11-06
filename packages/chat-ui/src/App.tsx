@@ -27,7 +27,7 @@ import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, uploadDocument,
-  getMe, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
+  getMe, ME_CHANGED, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
@@ -129,6 +129,12 @@ export default function App() {
     const timer = setInterval(reportClock, REPORT_EVERY_MS);
     return () => clearInterval(timer);
   }, [signedIn]);
+  // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
+  useEffect(() => {
+    const again = () => { getMe().then((user) => { if (user) setMe(user); }).catch(() => undefined); };
+    window.addEventListener(ME_CHANGED, again);
+    return () => window.removeEventListener(ME_CHANGED, again);
+  }, []);
 
   useT(); // re-render on a language change, so React Aria's numbers and dates follow it
   if (me === undefined) return null; // checking, or on the way to the login page
@@ -1007,7 +1013,8 @@ function Chat({ me }: { me: Me }) {
         : sidebar(false)}
       <SettingsDialog open={showSettings} me={self} thinks={models.some((x) => x.thinks)} onClose={() => setShowSettings(false)}
                       onPicture={() => { setShowSettings(false); setShowAvatar(true); }} />
-      <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
+      <NewCaseDialog open={newCase} officeWide={!!me.office_wide} cases={cases} onCancel={() => setNewCase(false)}
+                     onOpenExisting={(c) => { setNewCase(false); openCase(c); }}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
       <RenameConversationDialog conversation={renaming} onCancel={() => setRenaming(null)}
                                 onDone={() => { setRenaming(null); refreshConversations(); }} />
@@ -1059,7 +1066,7 @@ function Chat({ me }: { me: Me }) {
         )}
         {problem && <p className="banner" role="alert"><CircleAlert size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
-        {view === "admin" && <AdminView me={me.sub ?? ""} onBack={() => setView("chat")} initialPage={adminPage}
+        {view === "admin" && <AdminView me={me.sub ?? ""} consoleUrl={me.admin_console_url} onBack={() => setView("chat")} initialPage={adminPage}
                                          onLostAdministration={() => { setAdminGone(true); setView("chat"); }} />}
         {view === "conversations" && <div className="conversation conversation-wide">
           <ConversationsOverview key={overviewFilter} initialCase={overviewFilter} conversations={allConversations} cases={casesWithMembers} me={me}

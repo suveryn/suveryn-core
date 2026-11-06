@@ -8,7 +8,7 @@
  * always one administrator: the menu item is disabled with the reason under it, and the gateway refuses too.
  */
 import {
-  CircleAlert, Copy, Ellipsis, Folder, LogOut, Printer, RectangleEllipsis, RefreshCw, Shield, ShieldOff, Smartphone,
+  CircleAlert, Copy, Ellipsis, ExternalLink, Folder, LogOut, Printer, RectangleEllipsis, RefreshCw, Shield, ShieldOff, Smartphone,
   Trash, TriangleAlert, UserPlus, UserRoundCheck, UserRoundX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -19,7 +19,7 @@ import {
 } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { ActionMenu, Avatar, Button, Checkbox, DataTable, Dialog, FilterSelect, Form, NARROW, Notice, SearchField, SelectField, TextButton, TextField, useMedia, type MenuEntry, type TableColumn } from "../ui";
+import { LinkButton, ActionMenu, Avatar, Button, Checkbox, DataTable, Dialog, FilterSelect, Form, NARROW, Notice, SearchField, SelectField, TextButton, TextField, useMedia, type MenuEntry, type TableColumn } from "../ui";
 
 type Filter = "on" | "off" | "all";
 type Confirm = { kind: "admin_on" | "admin_off" | "password" | "two_step" | "sign_out" | "off" | "on" | "delete"; user: Account };
@@ -27,7 +27,7 @@ type Confirm = { kind: "admin_on" | "admin_off" | "password" | "two_step" | "sig
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 const whenLabel = (iso: string) => `${dayLabel(iso)} ${timeLabel(iso)}`;
 
-export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdministration: () => void }) {
+export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: string; consoleUrl: string | null; onLostAdministration: () => void }) {
   const m = useT();
   const narrow = useMedia(NARROW);
   const [list, setList] = useState<UsersList | null>(null);
@@ -180,6 +180,13 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
         )}
         {!(events && events.length > 0) && <p className="caption">{m.kept180Days}</p>}
       </section>
+
+      {/* board B03: what this page doesn't cover, in the sign-in service's own console (the office's network only) */}
+      {consoleUrl && (
+        <p className="caption admin-console-line">
+          <LinkButton href={consoleUrl} variant="text" newTab><ExternalLink size={14} aria-hidden /> {m.signInConsole}</LinkButton>
+        </p>
+      )}
 
       <AddUserDialog open={adding} counted={counted} max={list?.agreement_users ?? null} onClose={() => setAdding(false)}
                      onAdded={(t) => { setAdding(false); setTemporary(t); load(); }} />
