@@ -123,3 +123,23 @@ def test_the_sign_in_page_says_the_database_is_down(page, restored):
     assert "localhost:8180" not in page.url, "sent to Keycloak while its database is down"
     assert re.search(r"database|can't be reached|unavailable", body, re.I), body[:400]
     expect(page.get_by_role("button", name=re.compile("Try again", re.I))).to_be_visible()
+
+
+def test_a_file_that_doesnt_arrive_reloads_the_page_once(page):
+    """Found by this suite on 6 November 2026: right after a container restart, Chromium cancelled one of the app's
+    files (ERR_NETWORK_CHANGED: Docker had changed the machine's network) and the app never started, a white page
+    and no way to sign in. An office sees the same when a laptop changes Wi-Fi as sūveryn opens. public/boot.js
+    reloads the page once; here one file is dropped on purpose and the person still reaches the sign-in."""
+    dropped: list[str] = []
+
+    def drop_once(route):
+        if dropped:
+            route.continue_()
+        else:
+            dropped.append(route.request.url)
+            route.abort("internetdisconnected")
+
+    page.route(re.compile(r"/assets/i18n-[^/]*\.js$"), drop_once)
+    sign_in(page)
+    assert dropped, "the test dropped nothing: the i18n chunk is named differently now"
+
