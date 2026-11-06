@@ -168,11 +168,14 @@ export function AdminUsers({ me, onLostAdministration }: { me: string; onLostAdm
                 </tr>
               ))}
             </tbody>
+            {/* what belongs to the whole log: how long it is kept, and the way to the rest (an ink link) */}
+            <tfoot className="ui-foot"><tr><td colSpan={3}>
+              {m.kept180Days}{" "}
+              {!allEvents && events.length >= 20 && <TextButton onPress={() => setAllEvents(true)}>{m.showAll}</TextButton>}
+            </td></tr></tfoot>
           </table>
         )}
-        <p className="caption">{m.kept180Days}{" "}
-          {!allEvents && events && events.length >= 20 && <TextButton link onPress={() => setAllEvents(true)}>{m.showAll}</TextButton>}
-        </p>
+        {!(events && events.length > 0) && <p className="caption">{m.kept180Days}</p>}
       </section>
 
       <AddUserDialog open={adding} counted={counted} max={list?.agreement_users ?? null} onClose={() => setAdding(false)}

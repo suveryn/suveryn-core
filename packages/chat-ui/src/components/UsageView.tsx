@@ -201,6 +201,14 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                       </tr>
                     ))}
                   </tbody>
+                  {report.per_user.length > 1 && (
+                    <tfoot className="ui-foot"><tr>
+                      <th scope="row" className="ui-total">{m.chartTotal}</th>
+                      <td className="ui-total">{whole(report.totals.requests)}</td><td className="ui-total">{whole(report.totals.prompt_tokens)}</td>
+                      <td className="ui-total">{whole(report.totals.completion_tokens)}</td><td className="ui-total">{whole(report.totals.total_tokens)}</td>
+                      <td className="ui-total">{money(report.cost, report.rates.currency)}</td>
+                    </tr></tfoot>
+                  )}
                 </table>
               </div>
             </>

@@ -308,7 +308,7 @@ span.chip-run { cursor: default; }
 .usage-table { width: 100%; border-collapse: collapse; font-size: var(--text-ui-sm); font-variant-numeric: tabular-nums; }
 .usage-table th, .usage-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 .usage-table th:first-child, .usage-table thead th:first-child { text-align: left; font-weight: 500; }
-.usage-table thead th { font-size: var(--text-caption); color: var(--text-dim); font-weight: 500; }
+.usage-table thead th { font-size: var(--text-caption); color: var(--text-dim); font-weight: 500; background: var(--band); }
 .rates-field .ui-input { width: 9em; }
 
 /* sign-in screen */
