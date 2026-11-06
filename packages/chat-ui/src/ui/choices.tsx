@@ -102,13 +102,18 @@ export function Checkbox({ name, children, checked, onChange }: { name: string; 
 
 /** On or off, applied at once (a playbook's "active" in the administration): React Aria's Switch,
  *  a role="switch" the keyboard toggles with Space. */
-export function Switch({ label, checked, onChange, isDisabled, className }: {
-  label: string; checked: boolean; onChange: (checked: boolean) => void; isDisabled?: boolean; className?: string;
+export function Switch({ label, checked, onChange, isDisabled, labelFirst, className }: {
+  label: string; checked: boolean; onChange: (checked: boolean) => void; isDisabled?: boolean;
+  /** The label before the switch, at the end of a row ("Active ⬤", board B06). */
+  labelFirst?: boolean;
+  className?: string;
 }) {
+  const text = <span className="ui-switch-label">{label}</span>;
   return (
     <AriaSwitch isSelected={checked} onChange={onChange} isDisabled={isDisabled} className={cx("ui-switch", className)}>
+      {labelFirst && text}
       <span className="ui-switch-track" aria-hidden><span className="ui-switch-thumb" /></span>
-      <span className="ui-switch-label">{label}</span>
+      {!labelFirst && text}
     </AriaSwitch>
   );
 }

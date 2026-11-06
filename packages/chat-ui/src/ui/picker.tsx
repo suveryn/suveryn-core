@@ -3,11 +3,12 @@
  * documents, several at once, with search. `MenuButton` can't do multiple choice with search, so this
  * is a `DialogTrigger` with a `Popover` (on a narrow screen a sheet from the bottom, with *Done*):
  *
- * - first an "everything" option, chosen when nothing else is;
- * - a `SearchField` once there are `searchFrom` items or more;
+ * - a `SearchField` once there are `searchFrom` items or more, at the top (board G17);
+ * - an "everything" option, a checkbox like the others, chosen when nothing else is;
  * - a `ListBox` with `selectionMode="multiple"`: the chosen items first, under their own heading, even
  *   when the search no longer matches them; then the others (matching the search);
- * - an action at the bottom (upload a new one) and a line of fine print.
+ * - an action at the bottom (upload a new one), a line of fine print, and with `countLabel` a footer:
+ *   "2 of 10 chosen" and *Done*.
  *
  * Keyboard: Enter, Space or arrow down on the button opens; typing in the search field searches;
  * Space chooses in the list; Escape closes and keeps the choice. The button's name says what is chosen.
@@ -34,8 +35,8 @@ import { SearchField } from "./lists";
 export type PickItem = { id: string; label: string; meta?: string };
 
 export function DocumentPicker({ items, selected, onChange, trigger, triggerLabel, label, allLabel, allMeta, chosenHeading,
-                                 othersHeading, searchLabel, searchFrom = 9, action, footnote, narrow = false, doneLabel,
-                                 className }: {
+                                 othersHeading, searchLabel, searchFrom = 5, action, footnote, narrow = false, doneLabel,
+                                 countLabel, className }: {
   items: PickItem[];
   /** The chosen ids; none: everything. */
   selected: string[];
@@ -58,6 +59,8 @@ export function DocumentPicker({ items, selected, onChange, trigger, triggerLabe
   /** A sheet from the bottom instead of a popover, with *Done*. */
   narrow?: boolean;
   doneLabel: string;
+  /** The footer's count beside *Done* ("2 of 10 chosen", board G17); without it, *Done* only on a narrow screen. */
+  countLabel?: (chosen: number, total: number) => string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -90,13 +93,16 @@ export function DocumentPicker({ items, selected, onChange, trigger, triggerLabe
   );
   const body = (
     <AriaDialog aria-label={label} className="ui-pick-dialog">
+      {/* the search first, then everything, then the documents (board G17) */}
+      {items.length >= searchFrom && <SearchField label={searchLabel} value={query} onChange={setQuery} className="ui-pick-search" />}
       <AriaButton className="ui-pick-all" aria-pressed={selected.length === 0} onPress={() => onChange([])}>
-        <span className="ui-pick-radio" data-on={selected.length === 0 || undefined} aria-hidden />
+        <span className="ui-pick-box" data-on={selected.length === 0 || undefined} aria-hidden>
+          {selected.length === 0 && <Check size={12} strokeWidth={3} />}</span>
         <span className="ui-pick-text"><span className="ui-pick-label">{allLabel}</span>
           {allMeta && <span className="ui-pick-meta">{allMeta}</span>}</span>
+        <span className="ui-pick-count">{items.length}</span>
       </AriaButton>
       <div className="ui-pick-rule" />
-      {items.length >= searchFrom && <SearchField label={searchLabel} value={query} onChange={setQuery} className="ui-pick-search" />}
       <ListBox aria-label={label} selectionMode="multiple" selectedKeys={selected} onSelectionChange={onSelection} escapeKeyBehavior="none"
                className="ui-pick-list" renderEmptyState={() => null}>
         {first.length > 0 && (
@@ -121,7 +127,12 @@ export function DocumentPicker({ items, selected, onChange, trigger, triggerLabe
         </AriaButton>
       </>}
       {footnote && <p className="ui-pick-fine">{footnote}</p>}
-      {narrow && <AriaButton className="ui-button ui-pick-done" data-variant="primary" onPress={close}>{doneLabel}</AriaButton>}
+      {countLabel
+        ? <div className="ui-pick-foot">
+            <span className="ui-pick-foot-count">{countLabel(selected.length === 0 ? items.length : selected.length, items.length)}</span>
+            <AriaButton className="ui-button" data-size="small" onPress={close}>{doneLabel}</AriaButton>
+          </div>
+        : narrow && <AriaButton className="ui-button ui-pick-done" data-variant="primary" onPress={close}>{doneLabel}</AriaButton>}
     </AriaDialog>
   );
   return (

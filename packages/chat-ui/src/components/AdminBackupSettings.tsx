@@ -19,7 +19,7 @@ import { sizeLabel } from "../lib/backups";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../setup/recoveryKey";
 import { useText } from "../setup/i18n";
 import {
-  Button, Checkbox, Dialog, InlineNotice, PasswordField, RadioCards, SelectField, TextButton, TextField,
+  Button, Checkbox, Dialog, InlineNotice, PasswordField, RadioCards, Segmented, SelectField, TextButton, TextField,
 } from "../ui";
 
 const RETENTIONS: BackupRetention[] = [14, 30, 90, 365];
@@ -235,9 +235,13 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
           <SelectField name="hour" label={m.everyDayAt} value={String(form.hour)} onChange={(v) => set("hour")(Number(v))}
                        description={yourHour !== null ? m.backupHourYours(hourLabel(yourHour)) : undefined}
                        options={HOURS.map((h) => ({ id: String(h), label: hourLabel(h) }))} />
-          <SelectField name="retention" label={m.retention} description={t.keepHint} value={String(form.retention)}
-                       onChange={(v) => set("retention")(Number(v) as BackupRetention)}
-                       options={RETENTIONS.map((d) => ({ id: String(d), label: t.days(d) }))} />
+        </div>
+        {/* the keep period as segmented buttons (board B11) */}
+        <div className="backup-retention">
+          <span className="ui-label" aria-hidden>{m.retention}</span>
+          <Segmented label={m.retention} description={t.keepHint} value={String(form.retention)}
+                     onChange={(v) => set("retention")(Number(v) as BackupRetention)}
+                     options={RETENTIONS.map((d) => ({ value: String(d), label: t.days(d) }))} />
         </div>
         {saved && (saved.target !== form.target || (saved.disk ?? "") !== form.disk || (saved.address ?? "") !== form.address.trim()) && (
           <p className="caption">{saved.target === "usb" ? m.olderStayUsb : m.olderStayShare}</p>

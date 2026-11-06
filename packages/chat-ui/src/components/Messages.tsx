@@ -23,7 +23,7 @@ import { statusText } from "../lib/status";
 import { thoughtTime } from "../lib/thinking";
 import {
   copyText, downloadText, formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
-  sourcesDocument, sourcesMarkdown, type Format,
+  type Format,
 } from "../lib/copy";
 import type { AssistantTurn, UserTurn } from "../types";
 import { AssistantMark } from "./Brand";
@@ -281,8 +281,11 @@ export function AnswerNotes({ turn }: { turn: Pick<AssistantTurn, "thinkingCut" 
   );
 }
 
-export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource, onRegenerate = null }: {
+export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource, onRegenerate = null,
+                                  aboutChosen = false }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
+  /** The question was asked about chosen documents (§10): the answer names the documents it rests on (board G18). */
+  aboutChosen?: boolean;
   /** The case the conversation is in (null: personal), named in the export mark. */
   caseRef?: string | null;
   save?: SaveToCase | null;
@@ -355,9 +358,10 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {/* Thorough (§5): what the model thought, collapsed, once the answer has begun */}
         {turn.reasoning && (turn.text || settled) && <ThoughtFor reasoning={turn.reasoning} seconds={turn.thoughtSeconds} />}
         {settled && <AnswerNotes turn={turn} />}
-        {/* Which documents the answer rests on, before it (docs/design/chat-ui.md §5): in a case, a fact
-            from the wrong deed shows at a glance (Pod check of 470b9da). */}
-        {settled && basis.length > 0 && (
+        {/* Which documents the answer rests on, before it (docs/design/chat-ui.md §5), when the question was asked
+            about chosen documents (§10, board G18): a fact from the wrong deed shows at a glance (Pod check of 470b9da).
+            Asked about the whole case, the sources line under the answer says it (board G02). */}
+        {settled && aboutChosen && basis.length > 0 && (
           <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
         )}
         {settled && turn.partial && <InlineNotice icon={<CircleAlert size={14} />}>{m.partialRead}</InlineNotice>}
@@ -396,10 +400,6 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
                 );
               })}
             </span>
-            {citedItems.length > 0 && <CopyButton label={m.copySources} what={m.allCitedSources} text={allSources} />}
-            {citedItems.length > 0 && <DownloadButton filename={(f) => `sources_${safeFileName(question)}.${f}`} what={m.allCitedSources}
-                            text={(f) => (f === "md" ? sourcesMarkdown(question, citedItems, new Date())
-                                                     : sourcesDocument(question, allSources, new Date()))} />}
           </div>
         )}
 
@@ -408,8 +408,9 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             <CopyButton label={m.copy} what={m.answerWithSources}
                         text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />
             <DownloadFormats kind="answer"
-                             formats={[{ id: "docx", label: m.downloadWord, what: mark() ? m.downloadWordWhatConfidential : m.downloadWordWhat },
-                                       { id: "md", label: m.markdownFile, what: m.downloadMarkdownWhat }]}
+                             formats={[{ id: "docx", label: m.downloadWord, what: mark() ? m.downloadWordWhatConfidential : m.downloadWordWhat,
+                                         hint: m.formatWordHint },
+                                       { id: "md", label: m.markdownFile, what: m.downloadMarkdownWhat, hint: m.formatMarkdownHint }]}
                              make={async (format) => {
                                const name = `${safeFileName(question)}.${format}`;
                                if (format === "md") {
@@ -489,7 +490,7 @@ function AnswerTable({ table, render, done, exported }: {
  * the default (lib/downloadFormat.ts). Says so if the file can't be made.
  */
 function DownloadFormats({ kind, formats, make }: {
-  kind: FormatKind; formats: { id: string; label: string; what: string }[]; make: (format: string) => Promise<[string, Blob]>;
+  kind: FormatKind; formats: { id: string; label: string; what: string; hint?: string }[]; make: (format: string) => Promise<[string, Blob]>;
 }) {
   const m = useT();
   const preferred = useFormat(kind);
@@ -512,7 +513,7 @@ function DownloadFormats({ kind, formats, make }: {
   return (
     <SplitButton className="copy-button" label={current.what} onPress={() => run(current.id)}
                  moreLabel={m.otherFormats} menuLabel={m.downloadFormat} selected={current.id}
-                 items={formats.map(({ id, label }) => ({ id, label }))}
+                 items={formats.map(({ id, label, hint }) => ({ id, label, description: hint }))}
                  onAction={(id) => { rememberFormat(kind, id as never); void run(id); }}>
       <Icon size={13} aria-hidden />
       <span aria-live="polite">{state === "busy" ? m.preparingDownload : state === "failed" ? m.downloadFailed : current.label}</span>

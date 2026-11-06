@@ -16,7 +16,7 @@ import {
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, Dialog, InlineNotice, NumberField, RadioList, SelectField, Switch } from "../ui";
+import { Button, Dialog, InlineNotice, NumberField, RadioList, Segmented, SelectField, Switch } from "../ui";
 import { keepPeriodLabel } from "./CaseDialogs";
 
 type Access = "office" | "members";
@@ -120,12 +120,16 @@ export function AdminSettings() {
             )}
             <p className="caption">{m.changeablePerCase} {m.strictlyStays}</p>
           </section>
-          <section aria-labelledby="keep-periods" className="admin-settings-row">
-            <h2 id="keep-periods" className="ui-visually-hidden">{m.keepClosedCase}</h2>
-            <SelectField name="keep" label={m.keepClosedCase} description={m.keepClosedHint} value={keep}
-                         onChange={edited((v: string) => setKeep(v as KeepPeriod))} options={periods} />
-            <SelectField name="conversations_keep" label={m.keepConversations} description={m.keepConversationsHint} value={conversations}
-                         onChange={edited((v: string) => setConversations(v as KeepPeriod))} options={periods} />
+          {/* the keep periods as segmented buttons, each under its own label (board B08) */}
+          <section aria-labelledby="keep-closed" className="admin-settings-periods">
+            <h2 id="keep-closed" className="label">{m.keepClosedCase}</h2>
+            <Segmented label={m.keepClosedCase} description={m.keepClosedHint} value={keep}
+                       onChange={edited((v: string) => setKeep(v as KeepPeriod))} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
+          </section>
+          <section aria-labelledby="keep-conversations" className="admin-settings-periods">
+            <h2 id="keep-conversations" className="label">{m.keepConversations}</h2>
+            <Segmented label={m.keepConversations} description={m.keepConversationsHint} value={conversations}
+                       onChange={edited((v: string) => setConversations(v as KeepPeriod))} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
           </section>
           <section aria-labelledby="two-step">
             <h2 id="two-step" className="label">{m.twoStepHeading}</h2>
@@ -151,6 +155,8 @@ export function AdminSettings() {
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       <div className="admin-settings-save">
         <Button variant="primary" onPress={save} isDisabled={busy || !changed || !ratesValid}>{busy ? m.saving : m.save}</Button>
+        {/* Cancel: back to what is saved (board B08) */}
+        {changed && !busy && <Button variant="quiet" onPress={() => { take(settings, rates); setError(null); }}>{m.cancel}</Button>}
         <p className="caption">
           {saved ? <span className="status-ok"><Check size={12} aria-hidden /> {m.settingsSaved}</span>
             : settings?.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}

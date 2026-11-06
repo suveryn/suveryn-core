@@ -22,7 +22,7 @@ import { listedTitle } from "../lib/conversations";
 import { PIN_HINT_AFTER, pinnedConversations, type ConversationAction } from "../lib/conversationActions";
 import { conversationMenu } from "./ConversationDialogs";
 import {
-  ChartColumn, ChevronDown, ChevronsUpDown, ClipboardList, Clock, Ellipsis, FileText, Folder, FolderKey, FolderOpen,
+  ChartColumn, ChevronDown, ChevronsUpDown, Clock, Ellipsis, FileText, Folder, FolderKey, FolderOpen,
   FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, PanelLeft, Pin, PinOff, Route,
   Plus, ScrollText, Search, Settings, Shield, Users, X
 } from "lucide-react";
@@ -96,9 +96,8 @@ export function Sidebar(p: Props) {
     { id: "settings", label: m.settings, icon: <Settings size={16} />, meta: m.settingsMeta },
     { id: "language", label: m.language, icon: <Languages size={16} />, meta: LANGUAGE_NAMES[lang()], submenu: langEntries, selected: `lang:${lang()}` },
     ...(p.admin ? [{ heading: m.administratorsOnly, items: [
+      // Playbooks are a page of Administration (board G04): no item of their own here.
       { id: "admin", label: m.administration, icon: <Shield size={16} />, meta: m.adminMeta },
-      { id: "playbooks", label: m.playbooks, icon: <ClipboardList size={16} />,
-        ...(p.activePlaybooks === null ? {} : { meta: m.playbooksActive(p.activePlaybooks) }) },
     ] }] : []),
     "-",
     { id: "signout", label: m.signOut, icon: <LogOut size={16} /> },
@@ -108,7 +107,6 @@ export function Sidebar(p: Props) {
     else if (id === "usage") p.onOpenUsage();
     else if (id === "settings") p.onOpenSettings();
     else if (id === "admin") p.onOpenAdmin();
-    else if (id === "playbooks") p.onOpenAdmin("playbooks");
     else if (id === "signout") p.onSignOut();
   };
   const accountHeader = (
@@ -124,7 +122,7 @@ export function Sidebar(p: Props) {
   );
   const accountMenu = (trigger: ReactNode, className: string) => (
     <ActionMenu className={className} aria-label={m.accountMenu(p.user.name)} menuLabel={m.accountMenu(p.user.name)}
-                entries={accountEntries} onAction={onAccount} header={accountHeader} footer={m.staysOnServer}
+                entries={accountEntries} onAction={onAccount} header={accountHeader}
                 placement={p.collapsed ? "right bottom" : "top start"}>
       {trigger}
     </ActionMenu>

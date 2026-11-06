@@ -1164,6 +1164,7 @@ function Chat({ me }: { me: Me }) {
                                 source={source?.turnId === t.id ? source : null} onSource={openSource(t.id)}
                                 onRegenerate={regenerable && t.id === turns[turns.length - 1]?.id ? regenerate : null}
                                 question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""}
+                                aboutChosen={(() => { const q = turns[i - 1]; return q?.role === "user" && !!q.about?.length; })()}
                                 save={saveControls(t, turns[i - 1]?.role === "user" ? turns[i - 1].text : "")} />))
           )}
           <div ref={endRef} />

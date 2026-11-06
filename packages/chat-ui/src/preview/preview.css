@@ -1,5 +1,6 @@
 /* Screen previews (development only): the list of previews, and the stage a screen sits on. */
 .preview-stage {
+  height: 100%;
   min-height: 100vh;
   background: var(--bg);
 }
