@@ -1,0 +1,47 @@
+/* Screen previews (development only): the list of previews, and the stage a screen sits on. */
+.preview-stage {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.preview-index {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-6);
+  font-size: var(--text-body);
+  color: var(--text);
+}
+.preview-index h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  margin: 0 0 var(--space-2);
+}
+.preview-index p {
+  color: var(--text-dim);
+  margin: 0 0 var(--space-8);
+}
+.preview-index h2 {
+  font-size: var(--text-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: var(--space-6) 0 var(--space-2);
+}
+.preview-index ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.preview-index li {
+  border-bottom: 1px solid var(--line);
+}
+.preview-index a {
+  display: block;
+  padding: var(--space-3) 0;
+  color: var(--text);
+  text-decoration: none;
+}
+.preview-index a:hover {
+  text-decoration: underline;
+}

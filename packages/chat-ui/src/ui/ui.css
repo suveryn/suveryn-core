@@ -477,7 +477,7 @@
 /* the modal dialog (docs/design/chat-ui.md, "Dialogs"): centred; under 520 px a sheet from the bottom */
 .ui-modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
                     padding: var(--space-4); background: oklch(from var(--ink) l c h / 0.32); }
-.ui-modal { width: 100%; max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--surface);
+.ui-modal { width: 100%; max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--bg);
             color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-lg);
             box-shadow: 0 12px 40px oklch(from var(--ink) l c h / 0.18); }
 .ui-modal-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
