@@ -17,6 +17,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The packages' files are kept between runs (6 November 2026): the reader job's runner fetched
+      # them at a few dozen kB/s, run after run, while the walk-through's fetched the same 113 MB in nine seconds.
+      # Keyed by the runner image, so a new image fetches them once more; both jobs share it.
+      - name: Runner image, for the package cache's key
+        id: image
+        run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Package files from an earlier run (cached)
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.image.outputs.id }}-v1
+          restore-keys: apt-${{ steps.image.outputs.id }}-
+
       - name: System packages for the document reader
         # OCRmyPDF with Dutch, French and English Tesseract, Ghostscript and Poppler: what the appliance's
         # provisioning installs for suveryn-rag's extraction.
@@ -26,10 +40,12 @@ jobs:
         # where it is, and the whole step is tried three times before it fails.
         timeout-minutes: 25
         run: |
-          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=120"
+          mkdir -p ~/apt-archives/partial
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=120 -o Dir::Cache::Archives=$HOME/apt-archives"
           for attempt in 1 2 3; do
             if timeout 120 sudo apt-get $APT update -q \
                && timeout 360 sudo DEBIAN_FRONTEND=noninteractive apt-get $APT install -y -q ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils postgresql-client; then
+              sudo chown -R "$USER" ~/apt-archives  # for the cache to save them
               exit 0
             fi
             echo "::warning::apt attempt $attempt failed or hung; trying again in 15 s"
@@ -123,6 +139,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The packages' files are kept between runs (6 November 2026): the reader job's runner fetched
+      # them at a few dozen kB/s, run after run, while the walk-through's fetched the same 113 MB in nine seconds.
+      # Keyed by the runner image, so a new image fetches them once more; both jobs share it.
+      - name: Runner image, for the package cache's key
+        id: image
+        run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Package files from an earlier run (cached)
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.image.outputs.id }}-v1
+          restore-keys: apt-${{ steps.image.outputs.id }}-
+
       - name: System packages for the document reader
         # A hung mirror once kept this step waiting until the job's 45 minutes ran out, and later a download
         # stalled without a word (run 42281173931): each apt call has a time limit, apt's own retries, IPv4
@@ -130,10 +160,12 @@ jobs:
         # where it is, and the whole step is tried three times before it fails.
         timeout-minutes: 25
         run: |
-          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=120"
+          mkdir -p ~/apt-archives/partial
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=120 -o Dir::Cache::Archives=$HOME/apt-archives"
           for attempt in 1 2 3; do
             if timeout 120 sudo apt-get $APT update -q \
                && timeout 360 sudo DEBIAN_FRONTEND=noninteractive apt-get $APT install -y -q ocrmypdf tesseract-ocr-nld tesseract-ocr-fra tesseract-ocr-eng ghostscript poppler-utils; then
+              sudo chown -R "$USER" ~/apt-archives  # for the cache to save them
               exit 0
             fi
             echo "::warning::apt attempt $attempt failed or hung; trying again in 15 s"
