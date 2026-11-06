@@ -141,7 +141,9 @@ def dialog(page):
 
 
 def account_menu(page):
-    page.locator("button.account-row").click()  # "Account: <name>" in the sidebar; Users has an "Account" filter too
+    # "Account: <name>": the column's row, or the rail's avatar where the column is folded (Administration, the
+    # overviews: board G06); by class, since Users has an "Account" filter too
+    page.locator("button.account-row, button.rail-account").first.click()
     return page
 
 
@@ -196,7 +198,8 @@ def open_case(page, reference: str) -> None:
 def administration(page, section: str) -> None:
     account_menu(page).get_by_role("menuitem", name="Administration").click()
     page.get_by_role("heading", name="Administration").wait_for()
-    page.get_by_role("button", name=section, exact=True).first.click()
+    # in Administration's own menu: the rail has a "Cases" of its own (the case list)
+    page.get_by_role("navigation", name="Administration").get_by_role("button", name=section, exact=True).click()
     page.get_by_role("heading", name=section, exact=True).first.wait_for()
 
 
