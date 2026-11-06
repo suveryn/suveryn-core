@@ -34,6 +34,8 @@ Keycloak's pages (sign-in, account) are not covered: Keycloak sends its own CSP,
 
 `src/csp.test.ts` checks the source and the HTML entry pages for the things in the left column.
 
+**The safety net** (`public/boot.js`): a plain script each HTML entry page loads before the app's modules. When one of the app's files doesn't arrive (the browser cancels it when the network changes), it reloads the page once, then shows a sentence with a Reload button instead of a white page. It stays within the policy like the rest: a file of its own, elements built through the DOM, styles set through the CSSOM, nothing fetched. `src/csp.test.ts` checks it is loaded first on both pages.
+
 ## Adding a library
 
 Before adding a package that ends up in the browser bundle:

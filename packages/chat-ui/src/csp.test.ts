@@ -70,6 +70,17 @@ describe("the Content-Security-Policy (docs/content-security-policy.md)", () => 
     }
   });
 
+  it("loads the safety net first on every page, a plain file within the policy (public/boot.js)", () => {
+    for (const f of pages) {
+      const h = read(f);
+      const boot = h.indexOf('<script src="/boot.js"></script>');
+      expect(boot, f).toBeGreaterThan(-1);
+      expect(boot, f).toBeLessThan(h.indexOf('type="module"'));  // before the app's modules, so it runs when they don't
+    }
+    const boot = code("public/boot.js");
+    expect(boot).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|\beval\(|new Function|createElement\(\s*["']style|setAttribute\(\s*["']style|https?:\/\/|\bimport\b|fetch\(/);
+  });
+
   it("keeps Vite from inlining assets as data: URLs", () => {
     expect(read("vite.config.ts")).toMatch(/assetsInlineLimit:\s*0/);
   });
