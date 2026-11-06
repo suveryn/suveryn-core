@@ -333,10 +333,9 @@ export function RecoverySheet({ status, onSaved }: { status: BackupStatus; onSav
         <Button size="small" onPress={() => setPrinting(true)}><Printer size={14} aria-hidden /> {m.printRecoverySheet}</Button>
         <TextButton link onPress={begin}>{m.newRecoveryKey}</TextButton>
       </div>
-      <Dialog isOpen={printing} onClose={() => setPrinting(false)} title={m.recoverySheet} actions={<>
-        <TextButton onPress={() => setPrinting(false)}>{m.cancel}</TextButton>
-        <Button variant="primary" onPress={() => window.print()}><Printer size={16} aria-hidden /> {m.printRecoverySheet}</Button>
-      </>}>
+      <Dialog isOpen={printing} onClose={() => setPrinting(false)} kind="confirmation" title={m.recoverySheet}
+              cancel={{ label: m.cancel }} primary={{ label: m.printRecoverySheet, onPress: () => window.print() }}>
+        <p>{m.printSheetBody}</p>
         <div className="recovery-sheet">
           <h2>{m.recoverySheet}</h2>
           <dl>
@@ -353,18 +352,14 @@ export function RecoverySheet({ status, onSaved }: { status: BackupStatus; onSav
           <div className="recovery-sheet-kept">{m.keyKeptAt}</div>
         </div>
       </Dialog>
-      <Dialog isOpen={newKey !== null} onClose={() => setNewKey(null)} busy={busy} title={m.newRecoveryKeyTitle} actions={<>
-        <TextButton onPress={() => setNewKey(null)} isDisabled={busy}>{m.cancel}</TextButton>
-        <Button variant="primary" onPress={use} isDisabled={busy || !newKey?.downloaded || !newKey?.stored}>
-          {busy ? m.saving : m.newRecoveryKeySave}
-        </Button>
-      </>}>
+      <Dialog isOpen={newKey !== null} onClose={() => setNewKey(null)} busy={busy} kind="confirmation" risky title={m.newRecoveryKeyTitle}
+              error={problem} cancel={{ label: m.cancel }}
+              primary={{ label: m.newRecoveryKeySave, onPress: () => void use(), disabled: !newKey?.downloaded || !newKey?.stored, busyLabel: m.saving }}>
         <p>{m.newRecoveryKeyText}</p>
         <KeyDownload ready={!!newKey?.key} downloaded={!!newKey?.downloaded} onDownload={download} />
         <Checkbox name="stored-new" checked={!!newKey?.stored} onChange={(v) => setNewKey((k) => (k ? { ...k, stored: v } : k))}>
           {t.recoveryConfirm}
         </Checkbox>
-        {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
       </Dialog>
     </section>
   );

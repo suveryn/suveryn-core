@@ -15,6 +15,16 @@
 :root {
   --focus-border: var(--focus);                          /* the brand's focus token: the teal as a UI boundary (3:1), tokens v3.2 */
   --focus-glow: oklch(from var(--teal) l c h / 0.15);    /* 3px, around fields and the language button */
+  /* One focus look for every control (docs/design/chat-ui.md, "Dialogs"; handover of 6 November 2026):
+     the field's, a 1 px focus border with a 3 px glow against it, no gap. A control with a border of its
+     own turns that border teal and adds the glow; one without draws the 1 px line as a shadow. The
+     border holds the 3:1 (WCAG 2.4.7); the glow is extra. */
+  --focus-ring: 0 0 0 1px var(--focus-border), 0 0 0 4px var(--focus-glow);
+  --focus-ring-inset: inset 0 0 0 1px var(--focus-border), inset 0 0 0 4px var(--focus-glow);
+  /* On an orange or teal fill, and on surface-alt (tokens v3.7): the control keeps its own edge, then a 2 px
+     gap in bg, the 1 px line and the glow, so the teal never touches orange or teal and the line holds
+     its 3:1 against the gap. */
+  --focus-ring-gap: 0 0 0 2px var(--bg), 0 0 0 3px var(--focus-border), 0 0 0 6px var(--focus-glow);
   --card-width: 560px;
 }
 .ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
@@ -63,7 +73,8 @@
 .ui-button[data-variant="quiet"] { border-color: transparent; background: transparent; }
 .ui-button[data-variant="quiet"][data-hovered] { background: var(--surface-alt); }
 .ui-button[data-pressed] { transform: translateY(1px); }
-.ui-button[data-focus-visible] { outline: 2px solid var(--text); outline-offset: 2px; }
+.ui-button[data-focus-visible] { outline: none; border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
+.ui-button[data-variant="primary"][data-focus-visible] { border-color: transparent; box-shadow: var(--focus-ring-gap); }
 .ui-button[data-disabled] { opacity: 0.5; cursor: default; }
 .ui-button[data-busy] { cursor: progress; opacity: 0.8; }
 
@@ -71,7 +82,7 @@
                   background: transparent; border: none; border-radius: var(--radius-sm); color: var(--text-dim);
                   cursor: pointer; }
 .ui-icon-button[data-hovered] { color: var(--text); background: var(--surface-alt); }
-.ui-icon-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-icon-button[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 
 /* ------------------------------------------------------------------------------------------------ fields */
 .ui-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
@@ -90,7 +101,7 @@
                  border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
 .ui-radio-card[data-hovered] { border-color: oklch(from var(--ink) l c h / 0.40); }
 .ui-radio-card[data-selected] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
-.ui-radio-card[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-radio-card[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 .ui-radio-card-icon { flex: none; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--surface-alt);
                       display: flex; align-items: center; justify-content: center; color: var(--text); }
 .ui-radio-card[data-selected] .ui-radio-card-icon { background: var(--surface-alt); color: var(--text); }
@@ -107,7 +118,7 @@
 .ui-radio-list { display: flex; flex-direction: column; }
 .ui-radio-option { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
 .ui-radio-option .ui-radio-dot { margin-top: 1px; }
-.ui-radio-option[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: var(--radius-sm); }
+.ui-radio-option[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .ui-radio-option-title { display: block; font-size: var(--text-body-sm); font-weight: 600; }
 .ui-radio-option-desc { display: block; font-size: var(--text-caption); line-height: 1.5; color: var(--text-dim); }
 
@@ -128,26 +139,26 @@
                             padding: 8px 10px; border-radius: var(--radius-sm); font-size: var(--text-ui-sm); color: var(--text);
                             cursor: pointer; outline: none; }
 .ui-option[data-focused], .ui-menu-item[data-focused] { background: var(--surface-alt); }
-.ui-option[data-focus-visible], .ui-menu-item[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-option[data-focus-visible], .ui-menu-item[data-focus-visible] { box-shadow: var(--focus-ring-inset); }
 .ui-option:focus-visible, .ui-menu-item:focus-visible { outline: none; } /* not also the chat's page-wide outline */
 .ui-option[data-selected] { font-weight: 600; }
 .ui-menu-item-label { font-size: var(--text-body-sm); font-weight: 500; }
 .ui-menu-item-desc { grid-column: 1; font-size: var(--text-caption); color: var(--text-dim); }
 .ui-menu-item-check { grid-column: 2; grid-row: 1 / span 2; }
 .ui-menu-button { display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; }
-.ui-menu-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-menu-button[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 /* A split button: the action and its chevron as one shape, joined by a hairline. */
 .ui-split-button { display: inline-flex; align-items: stretch; }
 .ui-split-main, .ui-split-more { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 .ui-split-button > .ui-split-main { border-start-end-radius: 0; border-end-end-radius: 0; }
 .ui-split-button > .ui-split-more { border-start-start-radius: 0; border-end-start-radius: 0; margin-inline-start: -1px;
                                     padding-inline: 6px; border-inline-start: 1px solid var(--line); }
-.ui-split-main[data-focus-visible], .ui-split-more[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; position: relative; z-index: 1; }
+.ui-split-main[data-focus-visible], .ui-split-more[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); position: relative; z-index: 1; }
 .ui-split-main[data-disabled], .ui-split-more[data-disabled] { cursor: default; opacity: 0.6; }
 
 /* the rich menu (ActionMenu): icon, label, meta in one row; a header and fine print around the items */
 .ui-menu-trigger { font-family: inherit; cursor: pointer; }  /* the size is the caller's class */
-.ui-menu-trigger[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-menu-trigger[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 .ui-popover-rich { min-width: 272px; max-width: 360px; }
 .ui-popover-sub { min-width: 10rem; }
 .ui-menu-item-rich { grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 10px; padding: 7px 10px; min-height: 36px; }
@@ -180,7 +191,7 @@
 .ui-expander-row:hover { background: var(--surface-alt); }
 .ui-expander-label { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 0; background: transparent;
                      border-radius: var(--radius-sm); font: inherit; font-size: var(--text-ui); line-height: var(--leading-control); color: var(--text); text-align: left; cursor: pointer; }
-.ui-expander-label[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-expander-label[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 .ui-expander-label[aria-current] { font-weight: 600; }
 .ui-expander-icon { display: flex; flex: none; color: var(--text-dim); }
 .ui-expander-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -191,7 +202,7 @@
 .ui-expander[data-expanded] > .ui-expander-row > .ui-expander-toggle svg { transform: none; }
 @media (prefers-reduced-motion: reduce) { .ui-expander-toggle svg { transition: none; } }
 .ui-expander-toggle[data-hovered] { background: var(--line); color: var(--text); }
-.ui-expander-toggle[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-expander-toggle[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 .ui-expander-panel { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 4px; }
 /* the chevron first (a pinned case): right when closed, down when open, 90° over 150ms */
 .ui-expander[data-toggle-first] > .ui-expander-row > .ui-expander-toggle { width: 20px; margin: 0 -6px 0 4px; }
@@ -260,7 +271,7 @@
 
 .ui-text-link, .ui-link-button { color: var(--accent-ink); font: inherit; font-weight: 600; text-decoration: underline;
                                  text-underline-offset: 2px; background: none; border: none; padding: 0; cursor: pointer; }
-.ui-text-link[data-focus-visible], .ui-link-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
+.ui-text-link[data-focus-visible], .ui-link-button[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 .ui-form-error { display: flex; gap: 8px; color: var(--text); font-size: var(--text-body-sm); margin: 0 0 var(--space-4); }
 .ui-form-error:focus { outline: none; }
 .ui-form-error svg { flex: none; margin-top: 3px; }
@@ -293,7 +304,7 @@
                    background: var(--bg); display: flex; align-items: center; justify-content: center; color: transparent; }
 .ui-checkbox[data-selected] .ui-checkbox-box { background: var(--text); border-color: var(--text); color: var(--bg); }
 .ui-checkbox[data-invalid] .ui-checkbox-box { border-color: var(--text); }
-.ui-checkbox[data-focus-visible] .ui-checkbox-box { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-checkbox[data-focus-visible] .ui-checkbox-box { outline: none; box-shadow: var(--focus-ring); }
 
 /* select with a label */
 .ui-select-field-button { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); text-align: left; cursor: pointer; }
@@ -316,7 +327,7 @@
 .ui-search-clear { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: none; border-radius: var(--radius-sm);
                    background: transparent; color: var(--text-dim); cursor: pointer; }
 .ui-search-clear[data-hovered] { color: var(--text); background: var(--surface-alt); }
-.ui-search-clear[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-search-clear[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 .ui-search[data-empty] .ui-search-clear { display: none; }
 
 /* rows (review, support agreement) */
@@ -403,7 +414,7 @@
                     margin: 0; padding: 0; }
 .ui-chart-column { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; border-radius: 2px 2px 0 0; outline: none; }
 .ui-chart-column[data-active] { background: var(--surface-alt); }
-.ui-chart-column:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-chart-column:focus-visible { box-shadow: var(--focus-ring-inset); }
 .ui-chart-column .ui-chart-stack { width: 100%; display: flex; flex-direction: column-reverse; overflow: hidden;
                                    border-radius: 2px 2px 0 0; }
 .ui-chart-segment { flex: 1 1 0; min-height: 0; min-width: 0; }
@@ -450,22 +461,20 @@
 .ui-chart-table th, .ui-chart-table td { padding: 6px var(--space-2); border-bottom: 1px solid var(--line); text-align: right;
                                           white-space: nowrap; }
 .ui-chart-table th:first-child { text-align: left; font-weight: 500; }
-.ui-chart-table thead th { font-size: var(--text-caption); color: var(--text-dim); font-weight: 500; }
+.ui-chart-table thead th { font-size: var(--text-caption); color: var(--text-dim); font-weight: 500; background: var(--band); }
 
 /* ------------------------------------------------------------------------------------------------ chat pieces (#44) */
-/* text buttons: Cancel, Keep, Sign out */
+/* text buttons: a quiet action in a line (Change, Show more); never a dialog's way out */
 .ui-text-button { display: inline-flex; align-items: center; gap: var(--space-1); background: none; border: none; padding: 2px;
                   font: inherit; font-size: var(--text-caption); color: inherit; text-decoration: underline; text-underline-offset: 2px;
                   cursor: pointer; }
-.ui-text-button[data-danger] { font-weight: 600; }
 .ui-text-button[data-hovered] { color: var(--text); }
-.ui-text-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
+.ui-text-button[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 .ui-text-button[data-disabled] { opacity: 0.5; cursor: default; }
 .ui-icon-button[data-size="small"] { width: 28px; height: 28px; }
 .ui-icon-button[data-disabled] { opacity: 0.4; cursor: default; }
 
-/* the modal dialog: buttons stacked and equally wide, in DOM order (the safe choice first, then the
-   other, then Cancel centred). Side by side they only fitted in English. */
+/* the modal dialog (docs/design/chat-ui.md, "Dialogs"): centred; under 520 px a sheet from the bottom */
 .ui-modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
                     padding: var(--space-4); background: oklch(from var(--ink) l c h / 0.32); }
 .ui-modal { width: 100%; max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--surface);
@@ -474,6 +483,10 @@
 .ui-modal-overlay[data-entering] { animation: ui-fade 120ms ease-out; }
 @keyframes ui-fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ui-modal-overlay[data-entering] { animation: none; } }
+@media (max-width: 520px) {
+  .ui-modal-overlay { align-items: flex-end; padding: 0; }
+  .ui-modal { max-width: none; max-height: calc(100dvh - 24px); border-radius: var(--radius-lg) var(--radius-lg) 0 0; border-bottom: 0; }
+}
 /* the drawer: the column over a scrim on narrow screens (docs/design/chat-ui.md §2) */
 .ui-drawer-overlay { position: fixed; inset: 0; z-index: 100; background: oklch(from var(--ink) l c h / 0.32); }
 .ui-drawer { position: fixed; inset: 0 auto 0 0; width: min(320px, 88vw); background: var(--surface);
@@ -486,12 +499,28 @@
 .ui-drawer-overlay[data-entering] .ui-drawer[data-side="right"] { animation-name: ui-slide-right; }
 @keyframes ui-slide-right { from { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .ui-drawer-overlay[data-entering], .ui-drawer-overlay[data-entering] .ui-drawer { animation: none; } }
-.ui-dialog { padding: var(--space-6); outline: none; }
-.ui-dialog-title { margin: 0 0 var(--space-3); font-size: var(--text-subtitle); }
+.ui-dialog { position: relative; padding: var(--space-6); outline: none; }
+.ui-dialog-title { margin: 0 0 var(--space-3); font-size: var(--text-title); line-height: var(--leading-title);
+                   font-weight: var(--weight-title); }
+.ui-dialog:has(> .ui-dialog-close) > .ui-dialog-title { padding-right: 44px; }
 .ui-dialog > p { margin: 0 0 var(--space-4); font-size: var(--text-body-sm); line-height: 1.55; color: var(--text-dim); }
-.ui-dialog-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); }
-.ui-dialog-actions .ui-text-button { align-self: center; font-size: var(--text-body-sm); color: var(--text-dim); }
-@media (max-width: 520px) { .ui-dialog { padding: var(--space-5); } }
+.ui-dialog-error { margin: 0 0 var(--space-4); }
+/* the × of a form or an information dialog: 44 px, top right */
+.ui-dialog-close { position: absolute; top: var(--space-4); right: var(--space-4); width: 44px; height: 44px; }
+/* the buttons: one row, right-aligned, in reading order (helpers, the way out, a second action, the main
+   action); every button 44 px. Under 520 px, or when the labels don't fit (data-stack, set by Dialog),
+   a full-width column in the same order, the main action last, nearest the thumb. Never reversed. */
+.ui-dialog-actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: var(--space-2);
+                     margin-top: var(--space-5); }
+.ui-dialog-actions > .ui-button { white-space: nowrap; flex: none; }
+.ui-dialog-actions > [data-dialog-role="helper"] + :not([data-dialog-role="helper"]) { margin-left: auto; }
+.ui-dialog-actions[data-stack] { flex-direction: column; align-items: stretch; }
+.ui-dialog-actions[data-stack] > .ui-button { white-space: normal; margin-left: 0; }
+@media (max-width: 520px) {
+  .ui-dialog { padding: var(--space-5); }
+  .ui-dialog-actions { flex-direction: column; align-items: stretch; }
+  .ui-dialog-actions > .ui-button { white-space: normal; margin-left: 0; }
+}
 
 /* a row of short options (the usage period) */
 .ui-segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
@@ -500,7 +529,7 @@
 .ui-segment:last-child { border-right: none; }
 .ui-segment[data-hovered] { background: var(--surface); }
 .ui-segment[data-selected] { background: var(--surface-alt); font-weight: 600; }
-.ui-segment[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: -2px; }
+.ui-segment[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 .ui-segment[data-disabled] { color: var(--text-dimmer); cursor: default; }
 .ui-segmented-field { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .ui-segmented-hint { font-size: var(--text-caption); line-height: 1.45; color: var(--text-dim); }
@@ -554,18 +583,23 @@
 .ui-table { width: 100%; border-collapse: collapse; font-size: var(--text-body-sm); }
 .ui-table-column { padding: 8px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); outline: none;
                    font-size: var(--text-label); line-height: var(--leading-label); font-weight: var(--weight-label);
-                   letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-dim); }
+                   letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-dim);
+                   background: var(--band); }
 .ui-table-column[data-allows-sorting] { cursor: pointer; }
-.ui-table-column[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-table-column[data-focus-visible] { box-shadow: var(--focus-ring-inset); }
 .ui-table-column-label { display: inline-flex; align-items: center; gap: 4px; }
 .ui-table-column[data-align="end"], .ui-table-cell[data-align="end"] { text-align: right; font-variant-numeric: tabular-nums; }
 .ui-table-row { outline: none; cursor: default; }
 .ui-table-row[data-href], .ui-table-row[data-pressed] { cursor: pointer; }
 .ui-table-row:not(:last-child) .ui-table-cell { border-bottom: 1px solid var(--line); }
-.ui-table-row[data-hovered] { background: var(--surface); }
-.ui-table-row[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-table-row[data-hovered] { background: var(--row-hover); }  /* never teal, never warm (brand, "Tables") */
+.ui-table-row[data-focus-visible] { box-shadow: var(--focus-ring-inset); }
 .ui-table-cell { padding: 8px 10px; vertical-align: middle; outline: none; }
-.ui-table-cell[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-table-cell[data-focus-visible] { box-shadow: var(--focus-ring-inset); }
+/* a table's footer (DataTable `footer`): on the band, a line above; a total in ink, semibold, tabular */
+.ui-table-foot { display: flex; align-items: center; gap: var(--space-3); padding: 8px 10px; background: var(--band);
+                 border-top: 1px solid var(--line); font-size: var(--text-ui-sm); line-height: var(--leading-ui-sm); color: var(--text-dim); }
+.ui-table-foot b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ui-table-empty { margin: 0; padding: var(--space-6); text-align: center; color: var(--text-dim); }
 .ui-pager { display: flex; align-items: center; gap: var(--space-2); }
 .ui-pager-range { font-size: var(--text-caption); color: var(--text-dim); margin-right: var(--space-2); }
@@ -573,7 +607,7 @@
                    border-radius: var(--radius-pill); background: var(--bg); color: var(--text); font: inherit; font-size: var(--text-ui-sm); cursor: pointer; }
 .ui-pager-button[data-disabled] { color: var(--text-dimmer); cursor: default; }
 .ui-pager-button[data-hovered]:not([data-disabled]) { background: var(--surface-alt); }
-.ui-pager-button[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-pager-button[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 /* a filter chip: active, surface-alt with a darker border and a clear button */
 .ui-filter { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-pill); }
 .ui-filter .ui-select { gap: 0; }
@@ -585,12 +619,12 @@
 .ui-filter-clear { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 4px; border: 0;
                    border-radius: var(--radius-pill); background: transparent; color: var(--text-dim); cursor: pointer; }
 .ui-filter-clear[data-hovered] { background: var(--line); color: var(--text); }
-.ui-filter-clear[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 1px; }
+.ui-filter-clear[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 .ui-filter-toggle { gap: 6px; min-height: 32px; padding: 0 10px 0 12px; background: var(--bg); color: var(--text-dim); font: inherit;
                     font-size: var(--text-ui-sm); cursor: pointer; }
 .ui-filter-toggle[data-hovered] { background: var(--surface); }
 .ui-filter-toggle[data-active] { background: var(--surface-alt); color: var(--text); }
-.ui-filter-toggle[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-filter-toggle[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 .ui-filter-icon, .ui-filter-toggle-x { display: inline-flex; }
 /* a row's pin: dim until pinned, then filled */
 .ui-pin { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm);
@@ -599,14 +633,14 @@
 @media (hover: none) { .ui-pin { color: var(--text-dim); } }  /* §3: shown at text-dim on touch */
 .ui-pin[data-selected] { color: var(--text); }
 .ui-pin[data-selected] svg { fill: currentColor; }
-.ui-pin[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 1px; }
+.ui-pin[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 
 /* a toolbar: quiet buttons in a row (an answer's actions, docs/design/chat-ui.md §6) */
 .ui-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
 
 /* DocumentPicker (§10): a popover, or a sheet from the bottom on a narrow screen. */
 .ui-pick-trigger { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font: inherit; cursor: pointer; }
-.ui-pick-trigger[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+.ui-pick-trigger[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); }
 .ui-pick-popover { width: 420px; max-width: calc(100vw - 32px); max-height: min(560px, 70vh); display: flex; }
 .ui-pick-dialog { display: flex; flex-direction: column; gap: 4px; min-width: 0; width: 100%; outline: none; }
 .ui-pick-list { outline: none; display: flex; flex-direction: column; gap: 2px; overflow: auto; min-height: 0; flex: 0 1 auto; }
@@ -616,7 +650,7 @@
                                 border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left;
                                 font: inherit; font-size: var(--text-ui-sm); cursor: pointer; outline: none; width: 100%; }
 .ui-pick-option[data-focused], .ui-pick-all[data-hovered], .ui-pick-all[data-focus-visible] { background: var(--surface-alt); }
-.ui-pick-option[data-focus-visible], .ui-pick-all[data-focus-visible] { box-shadow: inset 0 0 0 2px var(--focus-border); }
+.ui-pick-option[data-focus-visible], .ui-pick-all[data-focus-visible] { box-shadow: var(--focus-ring-inset); }
 .ui-pick-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ui-pick-label { overflow-wrap: anywhere; }
 .ui-pick-meta { font-size: var(--text-caption); color: var(--text-dim); }
@@ -656,4 +690,4 @@
 .ui-source-ref[data-hovered] .ui-source-ref-n { background: oklch(from var(--teal) l c h / 0.22); }
 .ui-source-ref[data-active] .ui-source-ref-n { background: var(--teal); border-color: var(--teal); color: var(--ink); }
 .ui-source-ref[data-removed] .ui-source-ref-text { color: var(--text-dim); text-decoration: line-through; }
-.ui-source-ref[data-focus-visible] { outline: 2px solid var(--focus-border); outline-offset: 2px; border-radius: 2px; }
+.ui-source-ref[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }

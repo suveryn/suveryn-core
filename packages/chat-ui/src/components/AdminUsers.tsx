@@ -19,10 +19,7 @@ import {
 } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import {
-  ActionMenu, Avatar, Button, Checkbox, DataTable, Dialog, FilterSelect, Form, InlineNotice, NARROW, Notice, SearchField, SelectField,
-  TextButton, TextField, useMedia, type MenuEntry, type TableColumn,
-} from "../ui";
+import { ActionMenu, Avatar, Button, Checkbox, DataTable, Dialog, FilterSelect, Form, NARROW, Notice, SearchField, SelectField, TextButton, TextField, useMedia, type MenuEntry, type TableColumn } from "../ui";
 
 type Filter = "on" | "off" | "all";
 type Confirm = { kind: "admin_on" | "admin_off" | "password" | "two_step" | "sign_out" | "off" | "on" | "delete"; user: Account };
@@ -223,10 +220,8 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
     }
   };
   return (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} title={m.addUser} actions={<>
-      <Button variant="primary" type="submit" form="add-user" isDisabled={busy}><UserPlus size={16} aria-hidden /> {m.add}</Button>
-      <TextButton onPress={onClose} isDisabled={busy}>{m.cancel}</TextButton>
-    </>}>
+    <Dialog isOpen={open} onClose={onClose} busy={busy} kind="form" title={m.addUser} closeLabel={m.close}
+            error={error && sentence(error)} primary={{ label: m.add, form: "add-user" }} cancel={{ label: m.cancel }}>
       <Form id="add-user" check={check} onValid={add} className="case-form">
         <TextField name="name" label={m.userName} value={name} onChange={setName} autoFocus maxLength={120} />
         <TextField name="email" type="email" label={m.userEmail} value={email} onChange={setEmail} maxLength={254} />
@@ -236,7 +231,6 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
         {max !== null && counted + 1 > max
           ? <Notice icon={<TriangleAlert size={16} />}>{m.overAgreement(counted + 1, max)}</Notice>
           : <p className="caption">{m.temporaryPasswordNote}</p>}
-        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -248,13 +242,14 @@ function TemporaryDialog({ temporary, onClose }: { temporary: TemporaryPassword 
   const text = t ? [`${m.address}: ${t.address}`, `${m.signInWith}: ${t.user.username}`, `${m.temporaryPassword}: ${t.password}`].join("\n") : "";
   const [copied, setCopied] = useState(false);
   return (
-    <Dialog isOpen={t !== null} onClose={onClose} title={t ? m.passThisOn(t.user.name) : ""} actions={<>
-      <Button variant="primary" autoFocus onPress={() => { setCopied(false); onClose(); }}>{m.done}</Button>
-      <TextButton link onPress={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { /* not allowed */ } }}>
-        <Copy size={14} aria-hidden /> {copied ? m.copied : m.copy}
-      </TextButton>
-      <TextButton link onPress={() => window.print()}><Printer size={14} aria-hidden /> {m.print}</TextButton>
-    </>}>
+    // Seen once: Done is the only way out (no ×); Escape still closes it.
+    <Dialog isOpen={t !== null} onClose={onClose} kind="information" title={t ? m.passThisOn(t.user.name) : ""}
+            helpers={[
+              { label: copied ? m.copied : m.copy, icon: <Copy size={16} aria-hidden />,
+                onPress: () => { navigator.clipboard.writeText(text).then(() => setCopied(true), () => { /* not allowed */ }); } },
+              { label: m.print, icon: <Printer size={16} aria-hidden />, onPress: () => window.print() },
+            ]}
+            primary={{ label: m.done, onPress: () => { setCopied(false); onClose(); } }}>
       {t && (
         <div className="temporary-password">
           <dl>
@@ -319,24 +314,24 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
   const named = useMemo(() => c?.user.name ?? "", [c]);
   if (!c) return null;
   const self = c.user.sub === me;
-  const text: Record<Confirm["kind"], { title: string; body?: string; action: string }> = {
-    admin_on: { title: m.makeAdministrator, body: m.canOpenAdministration, action: m.makeAdministrator },
+  // risky: the focus starts on Cancel (docs/design/chat-ui.md, "Dialogs").
+  const text: Record<Confirm["kind"], { title: string; body?: string; action: string; busy: string; risky?: boolean }> = {
+    admin_on: { title: m.makeAdministrator, body: m.canOpenAdministration, action: m.makeAdministrator, busy: m.saving },
     admin_off: { title: self ? m.youNoLongerAdminTitle : m.noLongerAdminTitle(named),
-                 body: self ? m.administrationClosesForYou : m.noLongerOpensAdministration(named), action: m.removeRights },
-    password: { title: m.resetPasswordTitle(named), body: m.resetPasswordBody, action: m.reset },
-    two_step: { title: m.resetTwoStepTitle(named), body: m.resetTwoStepBody(named), action: m.reset },
-    sign_out: { title: m.signOutTitle(named), body: m.signOutBody(named), action: m.signOutEverywhere },
+                 body: self ? m.administrationClosesForYou : m.noLongerOpensAdministration(named), action: m.removeRights, busy: m.saving },
+    password: { title: m.resetPasswordTitle(named), body: m.resetPasswordBody, action: m.reset, busy: m.resetting, risky: true },
+    two_step: { title: m.resetTwoStepTitle(named), body: m.resetTwoStepBody(named), action: m.reset, busy: m.resetting, risky: true },
+    sign_out: { title: m.signOutTitle(named), body: m.signOutBody(named), action: m.signOutEverywhere, busy: m.signingOut, risky: true },
     off: { title: m.switchOffTitle(named), body: managed.length ? m.chooseTakeOver(managed.length) : m.conversationsStay,
-           action: managed.length ? m.handOverAndSwitchOff : m.switchOff },
-    on: { title: m.switchAccountOn, action: m.switchAccountOn },
-    delete: { title: m.deleteAccountTitle(named), action: m.deleteAccountAction },
+           action: managed.length ? m.handOverAndSwitchOff : m.switchOff, busy: m.switching, risky: true },
+    on: { title: m.switchOnTitle(named), body: m.switchOnBody, action: m.switchAccountOn, busy: m.switching },
+    delete: { title: m.deleteAccountTitle(named), action: m.deleteAccountAction, busy: m.deleting, risky: true },
   };
   const waiting = (c.kind === "off" && (cases === null || managed.some((k) => !heirs[k.id]))) || (c.kind === "delete" && goes === null);
   return (
-    <Dialog isOpen onClose={onClose} busy={busy} title={text[c.kind].title} actions={<>
-      <TextButton onPress={onClose} isDisabled={busy}>{m.cancel}</TextButton>
-      <Button variant="primary" onPress={run} isDisabled={busy || waiting}>{text[c.kind].action}</Button>
-    </>}>
+    <Dialog isOpen onClose={onClose} busy={busy} kind="confirmation" risky={text[c.kind].risky} title={text[c.kind].title}
+            error={error && sentence(error)} cancel={{ label: m.cancel }}
+            primary={{ label: text[c.kind].action, onPress: () => void run(), disabled: waiting, busyLabel: text[c.kind].busy }}>
       {text[c.kind].body && <p>{text[c.kind].body}</p>}
       {c.kind === "delete" && goes && (
         <>
@@ -361,7 +356,6 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
           </tbody>
         </table>
       )}
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{sentence(error)}</InlineNotice>}
     </Dialog>
   );
 }

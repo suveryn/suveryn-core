@@ -52,6 +52,19 @@ These apply to every screen below.
   `oklch(0.62 0.12 230)`, chart-4 moss green `oklch(0.62 0.13 150)`; dark theme 0.58, 0.66, 0.64,
   0.63 at the same hues. Validated for colour-blind separation in both themes. Ochre on white is
   only 2.2:1, so every chart has a legend and *Show table*. A fifth series becomes "Other".
+- **Tables** (tokens v3.6): the header and a footer on `band`, rows on the page colour without
+  stripes, a hovered row `row-hover` (a cool blue-grey). A selected row has an ink bar on its left.
+  A row is never teal and never warm: its only teal is keyboard focus. A footer holds only what
+  belongs to the whole table (a total, "Kept 180 days").
+- **Focus looks the same on every control**: the field's, a 1 px `focus` border with a 3 px glow
+  against it, no gap (`--focus-ring` in `ui.css`; a control with its own border turns that border
+  teal). A row draws it inside. On an orange or teal fill (the main action, send, a citation
+  marker, a running playbook's chip) and on `surface-alt` chips, a 2 px gap in `bg` comes first
+  (`--focus-ring-gap`), so the teal never touches orange or teal and the lighter line of tokens
+  v3.7 keeps its 3:1.
+- **As few colours as possible.** Each colour does only what the brand guidelines' table says
+  (suveryn-brand, "What each colour means", tokens v3.6); a new use fits that table or the table
+  changes first. There is no danger colour (section 12).
 - **Navigation is never orange**: the active tab is underlined in ink, the active item of a side
   menu has an ink bar on its left and bold text.
 - **One notice box everywhere**: `surface-alt` (light) or `surface` (dark, one step lighter than
@@ -603,6 +616,45 @@ with two uses reads as deliberate.
 `confidential_on` / `confidential_off`. The gateway enforces members only and no sharing; the export
 code adds the watermark; the conversation lists return `title: null` and `shielded: true` for these
 conversations, and the client shows the placeholder.
+
+## 12. Dialogs
+
+From Claude Design's handover of 6 November 2026 (`Claude outputs/design-handover-dialogs.md`, boards
+69 to 79). The kit's `Dialog` (`ui/dialog.tsx`) lays out the buttons from their roles; a screen
+names the kind, the roles and the labels, nothing else, and `ui/kit-only.test.ts` keeps it so.
+
+- **Four kinds**: a *confirmation* (one action and a way out), a *choice* (two real actions and a
+  way out), a *form* (fields, a submit and a way out) and an *information* dialog (nothing to
+  decide).
+- **One row, right-aligned, every button 44 px**, the height of a field. Left to right: the way
+  out, the second real action, the main action, written in that order so that reading order, Tab
+  and a screen reader agree. No text links for a real choice.
+- **The main action is `primary`** (orange), also when it deletes: orange means act, and a dialog
+  has one action. The second real action and the way out are `secondary` (outlined). The way out
+  says *Cancel*; *Keep the run* when the main action is itself a cancel.
+- **Helpers** that don't close the dialog (*Copy*, *Print*) are `quiet` buttons with their icon, at
+  the left of the row. They are the only dialog buttons with an icon.
+- **No danger colour.** A risky action (delete, switch off, sign out everywhere, reset, set the
+  clock, a new recovery key, cancel a run) is marked by where the focus starts, on *Cancel*, and by
+  the sentence. An ordinary confirmation or choice starts on the main action; a form in its first
+  field; an information dialog on its first control, or its × when it has none.
+- **The title** is the question with its object ("Delete case 124?") or the task ("Rename
+  conversation"), in the `title` style (22 px). **The body** is one or two sentences, only when the
+  outcome is irreversible or surprising; it says what happens, not what the button does.
+- **The ×** (44 px, top right, "Close") is on forms and information dialogs; confirmations and
+  choices have their way out in the row. *Pass this on* (the temporary password, seen once) has
+  only *Done*; Escape still closes it.
+- **Busy**: the running button shows its progress word ("Deleting…"), every button is disabled,
+  Escape and a click outside do nothing. **Failed**: an `InlineNotice` under the body, in ink with
+  its icon, the reason in the reader's language; the buttons come back and the focus goes to the
+  main action.
+- **Narrow** (under 520 px): a sheet from the bottom, the buttons a full-width column in the same
+  order top to bottom, the main action last, nearest the thumb. When the labels don't fit on one
+  row, `Dialog` uses that column at every width. Labels stay under 45 characters in every language.
+- `role="alertdialog"` for confirmations and choices, `dialog` for forms and information.
+
+The setup wizard and the sign-in pages (Keycloak's theme, in suveryn-appliance) still use their own
+pattern (a full-width orange button with Cancel as a text link); they follow in a later round.
 
 ## Where it lives in `packages/chat-ui`
 

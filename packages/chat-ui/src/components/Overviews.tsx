@@ -462,8 +462,8 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
                 <span><OriginIcon kind="source" size={14} /> <b>{m.originSource}</b> {m.legendSource}</span>
                 <span><OriginIcon kind="made" size={14} /> <b>{m.originMade}</b> {m.legendMade}</span>
               </span>} />
-      <Dialog isOpen={notesOf !== null} onClose={() => setNotesOf(null)} title={`${m.readingNotes}: ${notesOf?.filename ?? ""}`}
-              actions={<Button variant="primary" autoFocus onPress={() => setNotesOf(null)}>{m.close}</Button>}>
+      <Dialog isOpen={notesOf !== null} onClose={() => setNotesOf(null)} kind="information" title={`${m.readingNotes}: ${notesOf?.filename ?? ""}`}
+              closeLabel={m.close}>
         <ul className="reading-notes">{notesOf && noteDetails(m, notesOf.warnings).map((line) => <li key={line}>{line}</li>)}</ul>
       </Dialog>
     </section>

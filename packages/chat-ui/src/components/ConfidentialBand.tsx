@@ -18,8 +18,7 @@ export function ConfidentialBand({ narrow }: { narrow: boolean }) {
       <b>{m.strictlyConfidential}</b>
       {narrow ? <>
         <TextButton className="confidential-what" onPress={() => setOpen(true)}>{m.confidentialWhat}</TextButton>
-        <Dialog isOpen={open} onClose={() => setOpen(false)} title={m.strictlyConfidential}
-                actions={<TextButton onPress={() => setOpen(false)}>{m.close}</TextButton>}>
+        <Dialog isOpen={open} onClose={() => setOpen(false)} kind="information" title={m.strictlyConfidential} closeLabel={m.close}>
           <ul className="confidential-rules">{m.confidentialRules.split(" · ").map((r) => <li key={r}>{r}</li>)}</ul>
         </Dialog>
       </> : <span className="confidential-rules-line">· {m.confidentialRules}</span>}

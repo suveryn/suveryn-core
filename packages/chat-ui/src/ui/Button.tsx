@@ -37,12 +37,13 @@ function useTitle(title: string | undefined) {
   return ref;
 }
 
-/** A button that reads as a text link: Cancel, Keep, Sign out. `danger` for the destructive one of a
- *  pair (bold; the brand has no red). `link` gives it the look of a link in running text (accent ink,
- *  underlined): Edit on the setup's summary, Replace a file. */
-export function TextButton({ danger, link, className, title, ...props }: Omit<ButtonProps, "variant" | "size"> & { danger?: boolean; link?: boolean }) {
+/** A button that reads as a text link, for a quiet action in a line (Show more, Change). Never a
+ *  dialog's way out or one of its actions: Dialog lays those out by role (docs/design/chat-ui.md,
+ *  "Dialogs"). There is no danger variant: the brand has no danger colour. `link` gives it the look
+ *  of a link in running text (accent ink, underlined): Edit on the setup's summary, Replace a file. */
+export function TextButton({ link, className, title, ...props }: Omit<ButtonProps, "variant" | "size"> & { link?: boolean }) {
   const ref = useTitle(title);
-  return <AriaButton {...props} ref={ref} className={cx(link ? "ui-link-button" : "ui-text-button", className)} data-danger={danger || undefined} />;
+  return <AriaButton {...props} ref={ref} className={cx(link ? "ui-link-button" : "ui-text-button", className)} />;
 }
 
 /** A button with only an icon. `label` is its name for screen readers and its tooltip. */

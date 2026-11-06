@@ -11,11 +11,11 @@
  * the appliance's CSP allows images from 'self' only (img-src 'self'), so a blob: picture is blocked
  * and every pick failed as "not a picture" (docs/content-security-policy.md).
  */
-import { CircleAlert, ImagePlus, Trash } from "lucide-react";
+import { ImagePlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { removeMyAvatar, setMyAvatar, type Me } from "../api";
 import { useT } from "../i18n";
-import { Avatar, Button, Dialog, FileButton, InlineNotice, Slider, TextButton } from "../ui";
+import { Avatar, Button, Dialog, FileButton, Slider, TextButton } from "../ui";
 
 const FRAME = 240;      // CSS pixels of the editing canvas
 const OUTPUT = 512;     // pixels of the square sent to the server
@@ -57,6 +57,7 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
   const [img, setImg] = useState<ImageBitmap | null>(null);
   const [framing, setFraming] = useState<Framing>({ zoom: 1, x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ startX: number; startY: number; x: number; y: number } | null>(null);
@@ -118,18 +119,18 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
   };
   const remove = async () => {
     setBusy(true);
+    setRemoving(true);
     setError(null);
-    try { await removeMyAvatar(); onChanged(null); onClose(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    try { await removeMyAvatar(); onChanged(null); onClose(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); setRemoving(false); }
   };
 
   return (
-    <Dialog isOpen={open} onClose={onClose} title={m.avatarTitle} busy={busy} actions={
-      <>
-        {img && <Button variant="primary" onPress={save} isDisabled={busy}>{busy ? m.saving : m.avatarSave}</Button>}
-        {!img && me.avatar && <Button onPress={remove} isDisabled={busy}><Trash size={14} aria-hidden /> {m.avatarRemove}</Button>}
-        <TextButton onPress={onClose}>{m.cancel}</TextButton>
-      </>
-    }>
+    // A form with a second outcome: Remove the picture (while none is being framed), Use this picture
+    // once one is. The focus starts on the picker.
+    <Dialog isOpen={open} onClose={onClose} kind="form" title={m.avatarTitle} busy={busy} closeLabel={m.close} error={error}
+            cancel={{ label: m.cancel }}
+            secondary={!img && me.avatar ? { label: m.avatarRemove, onPress: () => void remove(), busyLabel: m.removing, running: removing } : undefined}
+            primary={{ label: m.avatarSave, onPress: () => void save(), disabled: !img, busyLabel: m.saving }}>
       <p>{m.avatarIntro}</p>
       {img ? (
         <div className="avatar-editor">
@@ -150,7 +151,6 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
           <p className="caption">{m.avatarPickHint}</p>
         </div>
       )}
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }
