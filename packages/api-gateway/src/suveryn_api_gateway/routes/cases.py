@@ -340,6 +340,7 @@ async def admin_case_settings(request: Request):
     meta = await run_in_threadpool(store.overrides_meta)
     return SettingsOut(default_access=effective.default_access, keep=effective.keep,
                        conversations_keep=effective.conversations_keep, two_step=effective.two_step,
+                       office_name=effective.office_name,
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
@@ -382,7 +383,9 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
     admin_or_403(request)
     changes = body.model_dump(exclude_none=True, exclude={"apply_to"})
     if not changes:
-        raise HTTPException(422, "Say what to change: default_access, keep, conversations_keep or two_step.")
+        raise HTTPException(422, "Say what to change: default_access, keep, conversations_keep, two_step or office_name.")
+    if "office_name" in changes:
+        changes["office_name"] = " ".join(changes["office_name"].split())  # one line, no stray spaces
     if "two_step" in changes:
         on = changes.pop("two_step")
         if on != case_settings(request).two_step:

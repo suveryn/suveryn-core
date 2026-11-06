@@ -100,7 +100,11 @@ export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
 // avatar: the ETag of the user's picture (null: initials are shown); see Avatar in the UI kit
 // account_url: where the person changes their password (Keycloak's account console); null with sign-in off
 export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod; avatar?: string | null;
-                   account_url?: string | null };
+                   account_url?: string | null;
+                   /** The office's name (Administration › Settings), after the person's name; null: not set. */
+                   office_name?: string | null;
+                   /** Administrators: the sign-in service's own console; null when there is none. */
+                   admin_console_url?: string | null };
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
 export type StreamStatus = {
   step: "searching" | "loading_model" | "reading" | "writing" | "thinking";
@@ -152,6 +156,9 @@ export async function getMe(): Promise<Me | null> {
   if (!r.ok) throw new Error(await errorText(r));
   return r.json();
 }
+
+/** Fired on window when what /auth/me says has changed (the office's name): the app reads it again. */
+export const ME_CHANGED = "suveryn:me-changed";
 
 /** Goes to the Keycloak login page (through the gateway); comes back to the chat. */
 export function signIn(): void {
@@ -500,7 +507,9 @@ export type Case = {
   pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/chat-ui.md)
   confidential?: boolean;     // strictly confidential (docs/design/chat-ui.md §11)
 };
-export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string> };
+export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string>;
+  /** default: as the office's default access; restricted: members only (board G14). */
+  access?: "default" | "restricted" };
 
 /** The cases the signed-in user may see, most recently active first: open ones, and with
  *  `closed` the closed ones too (after the open ones). */
@@ -639,6 +648,7 @@ export type AdminCase = Case & { manager_username: string; manager_name: string;
 // conversations_keep: how long saved conversations are kept after their last change, in cases too (the data lifecycle, suveryn-tracker#31)
 // two_step: every account must set up two-step sign-in (off by default; decision, 29 October 2026)
 export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; conversations_keep: KeepPeriod; two_step: boolean;
+  office_name?: string;
   updated_at: string | null; updated_by: string };
 
 export async function listAdminCases(): Promise<AdminCase[]> {
@@ -664,7 +674,7 @@ export async function previewCaseSettings(q: { default_access?: "office" | "memb
 }
 
 /** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
-export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep" | "two_step">> & { apply_to?: "new" | "all" }): Promise<CaseSettings> {
+export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep" | "two_step" | "office_name">> & { apply_to?: "new" | "all" }): Promise<CaseSettings> {
   const r = await fetch("/v1/admin/cases/settings", {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
   });

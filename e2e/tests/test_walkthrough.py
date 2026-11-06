@@ -60,6 +60,15 @@ def test_thorough_without_an_answer_is_asked_again(page, deed):
 def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     sign_in(page)
     new_case(page, CASE, "Havenweg 12 sale")
+    # the same reference again is said under its field, with the way to the case that has it (board G14)
+    page.get_by_role("button", name="New conversation or new case").click()
+    page.get_by_role("menuitem", name="New case").click()
+    page.get_by_label("Reference").fill(CASE)
+    page.get_by_label("Name", exact=True).fill("Twice")
+    page.get_by_role("button", name="Open case").click()
+    expect(dialog(page).get_by_text(f"Case {CASE} already exists. Choose another number, or")).to_be_visible()
+    dialog(page).get_by_role("button", name=f"open case {CASE}").click()
+    page.get_by_role("button", name=f"Case {CASE}: actions").wait_for()
     # a colleague joins as a contributor
     page.get_by_role("button", name=re.compile("^Members: ")).click()
     members = dialog(page)
@@ -148,6 +157,33 @@ def test_a_price_typed_and_saved_without_leaving_the_field_is_saved(page):
     field.press_sequentially(before or "0")
     with page.expect_response(lambda r: r.url.endswith("/v1/admin/usage/rates") and r.request.method != "GET"):
         save.click()
+
+
+def test_full_width_pages_fold_the_column_and_a_personal_conversation_has_its_title_bar(page):
+    """Claude Design's build instruction of 6 November: on Administration (and Conversations, Cases, Documents) the
+    column is the rail, so the page gets the width (G06 to G08, the B boards); Administration › Cases changes the
+    office's case settings in place (B05); a personal conversation has a title bar whose chevron opens its menu (G03)."""
+    sign_in(page)
+    administration(page, "Cases")
+    expect(page.get_by_role("button", name="Expand the sidebar")).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile("Who sees a case$"))).to_be_visible()
+    page.get_by_role("button", name="Expand the sidebar").click()     # the column on this page only
+    expect(page.get_by_role("button", name="Collapse the sidebar")).to_be_visible()
+    page.get_by_role("button", name="Conversations", exact=True).click()
+    expect(page.get_by_role("button", name="Expand the sidebar")).to_be_visible()
+    page.get_by_role("button", name="Expand the sidebar").click()
+    page.get_by_role("button", name="New conversation or new case").click()
+    page.get_by_role("menuitem", name="New conversation").click()
+    # a question without documents: the answer has no "Sources:" line (``ask`` waits for one), so wait for the
+    # title bar instead, which comes once the conversation is saved after the answer
+    page.get_by_role("textbox", name=re.compile("^Your question")).fill("Wat is een huurkoopformule?")
+    page.get_by_role("button", name="Send message").click()
+    menu = page.locator("main").get_by_role("button", name=re.compile("^Actions for"))
+    expect(menu).to_be_visible(timeout=60_000)
+    menu.click()
+    for item in ("Pin", "Rename", "Move to a case", "Delete"):
+        expect(page.get_by_role("menuitem", name=re.compile(f"^{item}"))).to_be_visible()
+    page.keyboard.press("Escape")
 
 
 def test_an_account_switched_off_loses_its_session_at_once(page, browser):

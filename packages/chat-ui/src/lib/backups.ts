@@ -58,13 +58,27 @@ export function backupAttention(s: BackupStatus | null, now: Date = new Date()):
   if (state.kind === "stale") return "stale";
   if (state.kind === "failing" || (state.kind === "never" && state.failing)) return "failing";
   if (state.kind !== "ok") return null;
-  const key = keyTestState(state.status, now);
+  return keyAttention(state.status, now);
+}
+
+/** The recovery key's part: its last test failed, or a test is due. */
+function keyAttention(s: BackupStatus, now: Date): "key_failed" | "key_due" | null {
+  const key = keyTestState(s, now);
   if (key.kind === "failed") return "key_failed";
-  const since = state.status.last_success?.oldest ?? state.status.last_success?.at;
+  const since = s.last_success?.oldest ?? s.last_success?.at;
   const untested = key.kind === "never" || (key.kind === "wrong_file" && key.lastOk === null);
   if (key.kind === "due" || (key.kind === "wrong_file" && key.due)
       || (untested && since && now.getTime() - Date.parse(since) > 7 * DAY)) return "key_due";
   return null;
+}
+
+/** Everything that needs attention, one item each (Status, board B01): the backups' own state first, then the
+ *  recovery key, also while the backups fail (a failing night doesn't make an untested key any safer). */
+export function backupAttentions(s: BackupStatus | null, now: Date = new Date()): BackupAttention[] {
+  const first = backupAttention(s, now);
+  if (!first || !s || first === "not_set_up" || first === "key_failed" || first === "key_due") return first ? [first] : [];
+  const key = keyAttention(s, now);
+  return key ? [first, key] : [first];
 }
 
 /** "1.2 GB", "340 MB": a backup's size, decimal units as disks are sold; in French in octets ("188 ko"). */

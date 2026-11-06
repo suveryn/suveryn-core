@@ -203,7 +203,8 @@ def test_full_sign_in_gives_an_httponly_session_and_opens_the_api(client, kc):
     assert kc.token_calls[0]["code_verifier"]  # PKCE verifier sent, and checked by the fake
     assert client.get("/v1/documents").status_code == 200
     assert client.get("/auth/me").json() == {"username": "notaris.test", "name": "Test Notaris", "sub": "user-1", "admin": False, "office_wide": False, "cases_keep": "manual", "avatar": None,
-                                              "account_url": f"{SETTINGS.issuer}/account"}  # the settings dialog's password link (chat-ui.md)
+                                              "account_url": f"{SETTINGS.issuer}/account",  # the settings dialog's password link (chat-ui.md)
+                                              "office_name": None, "admin_console_url": None}  # not set; not an administrator
     assert "token" not in client.get("/auth/me").text  # no token ever reaches the browser
 
 
@@ -546,3 +547,24 @@ def test_sign_in_status_notices_keycloak_stopping_and_coming_back(monkeypatch):
     kc.stopped = False
     clock[0] += auth_module.REACHABLE_TTL_S
     assert asyncio.run(auth.status())[0] == "ready"
+
+
+def test_an_administrator_sees_the_office_name_and_the_sign_in_console(client, kc):
+    from suveryn_api_gateway.app import ADMIN_ROLE
+    from suveryn_api_gateway.cases import CaseSettings
+
+    client.app.state.case_settings = CaseSettings().with_overrides({"office_name": "Notariaat Test"})
+    sign_in(client, kc, realm_access={"roles": [ADMIN_ROLE]})
+    me = client.get("/auth/me").json()
+    assert me["admin"] and me["office_name"] == "Notariaat Test"
+    assert me["admin_console_url"] == SETTINGS.issuer.replace("/realms/", "/admin/") + "/console/"
+
+
+def test_the_admin_console_is_derived_from_the_issuer():
+    """Administration › Users links to the sign-in service's own console (board B03)."""
+    from suveryn_api_gateway.routes.signin import admin_console
+
+    assert admin_console("https://notaris.local/idp/realms/suveryn") == "https://notaris.local/idp/admin/suveryn/console/"
+    assert admin_console("http://localhost:8180/realms/suveryn") == "http://localhost:8180/admin/suveryn/console/"
+    assert admin_console("https://notaris.local/idp") is None
+

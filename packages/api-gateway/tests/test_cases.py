@@ -1290,7 +1290,7 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     # the settings: as provisioned (members, 6m) until changed here, then effective at once
     before = c.get("/v1/admin/cases/settings", headers=admin).json()
     assert before == {"default_access": "members", "keep": "6m", "conversations_keep": "manual", "two_step": False,
-                      "updated_at": None, "updated_by": ""}
+                      "office_name": "", "updated_at": None, "updated_by": ""}
     assert c.put("/v1/admin/cases/settings", json={}, headers=admin).status_code == 422
     r = c.put("/v1/admin/cases/settings", json={"default_access": "office", "keep": "manual", "apply_to": "all"}, headers=admin)
     assert r.status_code == 200 and r.json()["default_access"] == "office" and r.json()["keep"] == "manual"
@@ -1304,6 +1304,13 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     closed = c.post(f"/v1/cases/{cid}/close", headers=alice).json()
     assert closed["keep_until"] is None  # the new period applies to cases closed from now on
     assert c.put("/v1/admin/cases/settings", json={"keep": "2y"}, headers=admin).status_code == 422
+    # the office's name (boards G01, G04): set here, one line, shown to everyone after their own name; "" clears it
+    assert c.get("/v1/admin/cases/settings", headers=admin).json()["office_name"] == ""
+    r = c.put("/v1/admin/cases/settings", json={"office_name": "  Notariaat   Test  "}, headers=admin)
+    assert r.status_code == 200 and r.json()["office_name"] == "Notariaat Test" and r.json()["keep"] == "manual"
+    assert c.get("/v1/admin/cases/settings", headers=admin).json()["office_name"] == "Notariaat Test"  # /auth/me shows it (test_auth)
+    assert c.put("/v1/admin/cases/settings", json={"office_name": "x" * 121}, headers=admin).status_code == 422
+    assert c.put("/v1/admin/cases/settings", json={"office_name": ""}, headers=admin).json()["office_name"] == ""
 
 
 def test_opening_the_office_applies_to_new_cases_or_by_choice_to_all_but_never_strictly_confidential_ones(office):

@@ -30,9 +30,11 @@ export type AdminPage = "status" | "users" | "cases" | "playbooks" | "usage" | "
 
 type Item = { id: AdminPage; label: string; icon: ReactNode; mark?: ReactNode };
 
-export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
+export function AdminView({ me, consoleUrl, onBack, initialPage, onLostAdministration }: {
   /** The administrator's own account id (Users: not their own account off). */
   me: string; onBack: () => void; initialPage?: AdminPage;
+  /** The sign-in service's own console (Users, "Advanced"); null: none, and the line is left out. */
+  consoleUrl?: string | null;
   /** They removed their own administrator rights: Administration closes for them. */
   onLostAdministration: () => void;
 }) {
@@ -85,8 +87,8 @@ export function AdminView({ me, onBack, initialPage, onLostAdministration }: {
   );
 
   const body = shown === "status" ? <AdminStatus onOpen={setPage} />
-    : shown === "users" ? <AdminUsers me={me} onLostAdministration={onLostAdministration} />
-    : shown === "cases" ? <AdminCases onOpen={setPage} />
+    : shown === "users" ? <AdminUsers me={me} consoleUrl={consoleUrl ?? null} onLostAdministration={onLostAdministration} />
+    : shown === "cases" ? <AdminCases />
     : shown === "playbooks" ? <AdminPlaybooks />
     : shown === "usage" ? <AdminUsage onOpen={setPage} />
     : shown === "settings" ? <AdminSettings />

@@ -20,21 +20,21 @@
  *   contract) and the turn shows an error instead.
  */
 import {
-  CircleAlert, Ellipsis, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
+  ChevronDown, CircleAlert, Ellipsis, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
   RotateCw, ScrollText, Share2, Trash, Users, UsersRound
 } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, uploadDocument,
-  getMe, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
+  getMe, ME_CHANGED, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
-import { MoveConversationDialog, RenameConversationDialog } from "./components/ConversationDialogs";
+import { conversationMenu, MoveConversationDialog, RenameConversationDialog } from "./components/ConversationDialogs";
 import { AccessLogDialog, CaseFaces, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { AvatarDialog } from "./components/AvatarDialog";
 import { OfflineBar } from "./components/OfflineBar";
@@ -62,7 +62,7 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { conversationTitle, MAX_SAVED_TURNS, newConversationId, toSaved, withoutDocument } from "./lib/conversations";
+import { conversationTitle, listedTitle, MAX_SAVED_TURNS, newConversationId, toSaved, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
@@ -81,6 +81,7 @@ import { thinkingDefault } from "./lib/thinking";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
+const FULL_WIDTH = new Set(["conversations", "cases", "documents", "admin"]);
 const readCollapsed = () => { try { return localStorage.getItem(SIDEBAR_KEY) === "collapsed"; } catch { return false; } };
 // The five-pinned hint shows once in this browser (docs/design/chat-ui.md §3); without storage, once per page.
 const PIN_HINT_KEY = "suveryn.pinHint";
@@ -128,6 +129,12 @@ export default function App() {
     const timer = setInterval(reportClock, REPORT_EVERY_MS);
     return () => clearInterval(timer);
   }, [signedIn]);
+  // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
+  useEffect(() => {
+    const again = () => { getMe().then((user) => { if (user) setMe(user); }).catch(() => undefined); };
+    window.addEventListener(ME_CHANGED, again);
+    return () => window.removeEventListener(ME_CHANGED, again);
+  }, []);
 
   useT(); // re-render on a language change, so React Aria's numbers and dates follow it
   if (me === undefined) return null; // checking, or on the way to the login page
@@ -194,6 +201,11 @@ function Chat({ me }: { me: Me }) {
   const [adminGone, setAdminGone] = useState(false);  // removed their own administrator rights: Administration closes
   const [collapsed, setCollapsedState] = useState(readCollapsed);
   const setCollapsed = (c: boolean) => { setCollapsedState(c); try { localStorage.setItem(SIDEBAR_KEY, c ? "collapsed" : "expanded"); } catch { /* this page only */ } };
+  // Board G06 to G08 and the B boards: a full-width page (Conversations, Cases, Documents, Administration) shows
+  // the column as the rail, so the page gets the width. It comes from the view, not from the person's choice
+  // (suveryn.sidebar stays as they set it); opening the column there opens it on that page only.
+  const [columnHere, setColumnHere] = useState<string | null>(null);
+  useEffect(() => { setColumnHere(null); }, [view]);
   const [showSettings, setShowSettings] = useState(false);
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
@@ -614,8 +626,11 @@ function Chat({ me }: { me: Me }) {
 
   // The left column (docs/design/chat-ui.md §2); on a narrow screen a drawer that closes once something is chosen.
   const closing = <A extends unknown[]>(f: (...a: A) => unknown) => (...a: A) => { setDrawer(false); f(...a); };
+  const fullWidth = FULL_WIDTH.has(view);
+  const railed = fullWidth ? columnHere !== view : collapsed;
+  const onCollapse = (c: boolean) => (fullWidth ? setColumnHere(c ? null : view) : setCollapsed(c));
   const sidebar = (inDrawer: boolean) => (
-      <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={(me.admin ?? false) && !adminGone} collapsed={inDrawer ? false : collapsed} onCollapse={setCollapsed}
+      <Sidebar user={self} view={view} onClose={inDrawer ? () => setDrawer(false) : undefined} admin={(me.admin ?? false) && !adminGone} collapsed={inDrawer ? false : railed} onCollapse={onCollapse}
                conversations={allConversations} caseConversations={conversations} documents={allDocuments} cases={cases}
                currentCase={currentCase} currentConversation={openRunId ? current?.id ?? "" : conversationId}
                casesNote={health === null || casesReady ? null : health.cases?.status === "failed" ? m.casesFailed : m.casesUnavailable}
@@ -847,7 +862,7 @@ function Chat({ me }: { me: Me }) {
   };
   const caseAction = (c: Case, action: CaseAction) => {
     if (action === "open") openCase(c);
-    else if (action === "unpin") pin(c, false);
+    else if (action === "pin" || action === "unpin") pin(c, action === "pin");
     else if (needsCaseOpen(action)) {
       if (inAnotherPlace(c.id, caseId)) goTo(c);
       if (action === "members") setShowMembers(true);
@@ -992,13 +1007,14 @@ function Chat({ me }: { me: Me }) {
 
   // ---------------------------------------------------------------- view
   return (
-    <div className="app" data-sidebar={collapsed ? "collapsed" : undefined} data-panel={(sourcePanel || factsPanel) && !narrow ? true : undefined}>
+    <div className="app" data-sidebar={railed ? "collapsed" : undefined} data-panel={(sourcePanel || factsPanel) && !narrow ? true : undefined}>
 {narrow
         ? <Drawer isOpen={drawer} onClose={() => setDrawer(false)} label={m.navigation}>{sidebar(true)}</Drawer>
         : sidebar(false)}
       <SettingsDialog open={showSettings} me={self} thinks={models.some((x) => x.thinks)} onClose={() => setShowSettings(false)}
                       onPicture={() => { setShowSettings(false); setShowAvatar(true); }} />
-      <NewCaseDialog open={newCase} onCancel={() => setNewCase(false)}
+      <NewCaseDialog open={newCase} officeWide={!!me.office_wide} cases={cases} onCancel={() => setNewCase(false)}
+                     onOpenExisting={(c) => { setNewCase(false); openCase(c); }}
                      onCreated={(c) => { setNewCase(false); setCases((cs) => [c, ...cs]); openCase(c); }} />
       <RenameConversationDialog conversation={renaming} onCancel={() => setRenaming(null)}
                                 onDone={() => { setRenaming(null); refreshConversations(); }} />
@@ -1050,7 +1066,7 @@ function Chat({ me }: { me: Me }) {
         )}
         {problem && <p className="banner" role="alert"><CircleAlert size={14} aria-hidden /> {problem}</p>}
         {view === "usage" && <div className="conversation"><UsageView onBack={() => setView("chat")} /></div>}
-        {view === "admin" && <AdminView me={me.sub ?? ""} onBack={() => setView("chat")} initialPage={adminPage}
+        {view === "admin" && <AdminView me={me.sub ?? ""} consoleUrl={me.admin_console_url} onBack={() => setView("chat")} initialPage={adminPage}
                                          onLostAdministration={() => { setAdminGone(true); setView("chat"); }} />}
         {view === "conversations" && <div className="conversation conversation-wide">
           <ConversationsOverview key={overviewFilter} initialCase={overviewFilter} conversations={allConversations} cases={casesWithMembers} me={me}
@@ -1075,6 +1091,18 @@ function Chat({ me }: { me: Me }) {
                       onOpenConversation={openListed} onOpenDocument={openDocument} onOpenCase={openCase} onBack={() => setView("chat")} />
         </div>}
         {view === "chat" && <>
+        {!currentCase && !narrow && current && !current.case_id && (
+          // Board G03: a personal conversation's title bar; the chevron opens the same menu as its row in the
+          // column (G05: pin, rename, move to a case, delete). A conversation in a case has the case header.
+          <header className="case-head conversation-head">
+            <span className="case-title" title={current.title ?? undefined}>{listedTitle(current)}</span>
+            <ActionMenu className="conversation-head-menu" aria-label={m.conversationMenu(listedTitle(current))} menuLabel={m.conversationMenu(listedTitle(current))}
+                        entries={conversationMenu(current, me.sub, m)} placement="bottom start"
+                        onAction={(a) => conversationAction(current, a as ConversationAction)}>
+              <ChevronDown size={16} aria-hidden />
+            </ActionMenu>
+          </header>
+        )}
         {currentCase?.confidential && <ConfidentialBand narrow={narrow} />}
         {currentCase && (
           // The case header (docs/design/chat-ui.md §5, artboard 02): the case and its type, the

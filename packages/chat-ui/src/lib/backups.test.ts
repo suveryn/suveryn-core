@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BackupStatus } from "../api";
-import { backupAttention, backupState, keyTestState, sizeLabel } from "./backups";
+import { backupAttention, backupAttentions, backupState, keyTestState, sizeLabel } from "./backups";
 
 const now = new Date("2026-10-23T09:00:00Z");
 const ok = { at: "2026-10-23T02:40:00Z", size: 1_234_567_890, on_target: 30, oldest: "2026-09-23T02:31:00Z" };
@@ -49,6 +49,16 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: "2026-07-01T10:00:00Z" } }, now)).toBe("key_due");
     expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: null } }, now)).toBe("key_due");  // never passed, a month of backups
     expect(backupAttention({ ...base, key_test: { ...wrong, step: "read", last_ok: null } }, now)).toBe("key_failed");  // the backup itself
+  });
+
+  it("lists each thing that needs attention on its own row, the key also while the backups fail (board B01)", () => {
+    const test = { at: "2026-10-01T10:00:00Z", ok: true, created: "2026-10-01T02:40:00Z" };
+    const failing = { ...base, last_error: { at: "2026-10-23T02:41:00Z", step: "space", message: "full" } };
+    expect(backupAttentions(failing, now)).toEqual(["failing", "key_due"]);          // a month of backups, never tested
+    expect(backupAttentions({ ...failing, key_test: test }, now)).toEqual(["failing"]);
+    expect(backupAttentions(base, now)).toEqual(["key_due"]);
+    expect(backupAttentions({ ...base, configured: false }, now)).toEqual(["not_set_up"]);  // no key to test yet
+    expect(backupAttentions({ ...base, key_test: test }, now)).toEqual([]);
   });
 
   it("gives a backup's size in decimal units", () => {
