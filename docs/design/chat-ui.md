@@ -787,7 +787,6 @@ Filip's rule, from Claude Design's build instruction (`Claude outputs/build-inst
 - **Status, Needs attention** (B01): one row per item, the backups' own state ("View") and the recovery key ("Test now"), also both at once. The overview's tiles: version, last backup ("Last night 02:14 · On the USB disk"), users ("12 of 15"). The update row, the support tile and the Updates, Network and Licence pages come with their features.
 - **Administration › Cases** (B05) changes the office's three case settings in place, the same settings as Settings with the same confirmation (`SettingsConsequences`) when a change touches existing cases or conversations.
 
-
 ### A playbook against its boards (6 November 2026)
 
 From Claude Design's second instruction (`build-instruction-playbook-vs-board.md`), boards P01 to P04:
