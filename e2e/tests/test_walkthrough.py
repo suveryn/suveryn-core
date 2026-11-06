@@ -117,6 +117,31 @@ def test_administration_pages_open_and_status_is_sound(page):
     expect(page.get_by_text(re.compile("Deed intake 1.3")).first).to_be_visible()
 
 
+def test_a_price_typed_and_saved_without_leaving_the_field_is_saved(page):
+    """Board B08, Filip's review of 6 November: after typing a price, Save stayed grey, because the field only
+    committed its number on blur and a click on a disabled button doesn't take the focus. Typed, then Save at once."""
+    sign_in(page)
+    administration(page, "Settings")
+    field = page.get_by_label("Per million input tokens")
+    before = field.input_value()
+    save = page.get_by_role("button", name="Save", exact=True)
+    field.click()
+    field.press("ControlOrMeta+a")
+    field.press_sequentially("3.5")
+    expect(field).to_be_focused()
+    expect(save).to_be_enabled()
+    save.click()
+    expect(page.get_by_text("Saved.", exact=True)).to_be_visible()
+    rates = page.request.get("/v1/admin/usage/rates").json()
+    assert float(rates["input_per_million"]) == 3.5, rates
+    # put it back, so the usage scenarios see the stack's own price
+    field.click()
+    field.press("ControlOrMeta+a")
+    field.press_sequentially(before or "0")
+    with page.expect_response(lambda r: r.url.endswith("/v1/admin/usage/rates") and r.request.method != "GET"):
+        save.click()
+
+
 def test_an_account_switched_off_loses_its_session_at_once(page, browser):
     # the colleague is signed in on a second browser
     other = browser.new_context(locale="en-GB", base_url=PUBLIC_URL)
