@@ -672,6 +672,11 @@ tfoot.ui-foot b, tfoot.ui-foot .ui-total { color: var(--text); font-weight: 600;
 .ui-pick-search { margin: 2px 4px; }
 .ui-pick-fine { margin: 0; padding: 2px 10px 6px; font-size: var(--text-caption); line-height: 1.45; color: var(--text-dim); }
 .ui-pick-done { margin: 8px 4px 4px; }
+.ui-pick-count { flex: none; font-size: var(--text-caption); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+/* the footer: how many are chosen, and Done (board G17) */
+.ui-pick-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: 4px -6px -6px;
+                padding: 8px 12px; background: var(--band); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.ui-pick-foot-count { font-size: var(--text-caption); color: var(--text-dim); }
 /* ChipDialog: the model and its thinking mode (§5) */
 .ui-chip-popover { width: 340px; max-width: calc(100vw - 32px); }
 .ui-chip-dialog { display: flex; flex-direction: column; gap: 10px; padding: 8px 10px 10px; outline: none; width: 100%; min-width: 0; }

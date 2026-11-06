@@ -66,11 +66,11 @@ export const CASE_124 = kase("c124", "124", "Van Damme · De Smet", "sale", "man
 export const CASES: Case[] = [
   CASE_123,
   CASE_124,
-  kase("c121", "121", "Hypotheek Wouters", "credit", "contributor", { updated_at: ago(2 * DAY) }),
-  kase("c119", "119", "Oprichting Bakkerij Peeters BV", "company", "contributor", { updated_at: ago(4 * DAY), manager: "u-filip" }),
+  kase("c121", "121", "Hypotheek Wouters", "sale", "contributor", { updated_at: ago(2 * DAY) }),
+  kase("c119", "119", "Oprichting Bakkerij Peeters BV", "company-formation", "contributor", { updated_at: ago(4 * DAY), manager: "u-filip" }),
   kase("c118", "118", "Schenking Claes", "gift", "contributor", { updated_at: ago(6 * DAY), confidential: true, access: "restricted", manager: "u-mieke" }),
   kase("c112", "112", "Verkoop Kluizendorp", "sale", "reader", { updated_at: ago(9 * DAY), manager: "u-filip" }),
-  kase("c109", "109", "Huwelijkscontract Janssens · Maes", "marriage", "contributor", { updated_at: ago(12 * DAY) }),
+  kase("c109", "109", "Huwelijkscontract Janssens · Maes", "marriage-contract", "contributor", { updated_at: ago(12 * DAY) }),
   kase("c097", "097", "Erfenis Vermeulen", "estate", "reader", { state: "closed", closed_at: ago(20 * DAY), keep_until: ago(-5 * 365 * DAY) }),
 ];
 export const CASES_OVERVIEW: CaseOverview[] = CASES.map((c) => ({
@@ -164,7 +164,7 @@ export const ADMIN_CASES = CASES.map((c) => ({ ...c, manager_username: "test@kan
 export const CASE_SETTINGS = { default_access: "office", keep: "5y", conversations_keep: "1y", two_step: false, updated_at: ago(10 * DAY), updated_by: "Test Beheerder" };
 const totals = (requests: number, tokens: number) => ({ requests, prompt_tokens: Math.round(tokens * 0.9), completion_tokens: Math.round(tokens * 0.1), total_tokens: tokens });
 export const OFFICE_USAGE = {
-  start: ago(30 * DAY), end: ago(0), step: "1 day", totals: totals(777, 4_200_000), by_kind: { chat: totals(700, 3_600_000), playbook: totals(77, 600_000) },
+  start: ago(30 * DAY), end: ago(0), step: "1 day", totals: totals(777, 4_200_000), by_kind: { chat: totals(600, 2_980_000), summary: totals(120, 760_000), "playbook-step": totals(57, 460_000) },
   series: Array.from({ length: 30 }, (_, i) => ({ start: ago((30 - i) * DAY), ...totals(10 + ((i * 7) % 30), 60_000 + ((i * 37_000) % 200_000)) })),
   per_user: [
     { user_id: "u-mieke", username: "mieke@kantoor.be", name: "Mieke Delarivière", totals: totals(412, 2_200_000), cost: null },
@@ -179,6 +179,18 @@ export const BACKUPS = {
   key_test: { at: ago(12 * DAY), ok: true }, settings: { target: "usb", disk: "Samsung T7", protocol: null, address: null, user: null,
   has_password: false, retention_days: 30, hour: 2, recipient: "test@kantoor.be", next_run: ago(-17 * HOUR) },
 };
+
+/** The installed playbooks (board B06): three certified, one of the office's own. */
+const playbook = (slug: string, title: string, version: string, pack: string, types: string[], covered: boolean, active: boolean) => ({
+  id: `pb-${slug}`, slug, pack, version, name: title, covered, facts: [], case_types: types, active,
+  text: { nl: { title, summary: "", labels: {} }, en: { title, summary: "", labels: {} }, fr: { title, summary: "", labels: {} } },
+});
+export const PLAYBOOKS = [
+  playbook("akte-intake", "Akte-intake", "v1.0", "notariaat-be", ["sale"], true, true),
+  playbook("oprichting", "Oprichting vennootschap", "v0.9", "notariaat-be", ["company-formation"], true, true),
+  playbook("nalatenschap", "Aangifte nalatenschap", "v0.4", "notariaat-be", ["estate"], true, false),
+  playbook("kantoor", "[Playbook van het kantoor]", "v0.3", "kantoor", ["estate", "gift"], false, true),
+];
 
 // ---------- the routes ----------
 type Answer = unknown | ((m: RegExpMatchArray, body: unknown) => unknown);
@@ -212,7 +224,7 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/usage\?/, { start: ago(DAY), end: ago(0), step: "1 hour", totals: { requests: 12, prompt_tokens: 48000, completion_tokens: 6000, total_tokens: 54000 }, series: [], by_kind: {} }],
   ["GET", /^\/v1\/admin\/users$/, USERS],
   ["GET", /^\/v1\/admin\/users\/events/, ACCOUNT_EVENTS],
-  ["GET", /^\/v1\/admin\/playbooks$/, []],
+  ["GET", /^\/v1\/admin\/playbooks$/, PLAYBOOKS],
   ["GET", /^\/v1\/admin\/backups$/, BACKUPS],
   ["GET", /^\/v1\/admin\/status$/, ADMIN_STATUS],
   ["GET", /^\/v1\/admin\/cases$/, ADMIN_CASES],

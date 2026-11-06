@@ -36,16 +36,16 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 /* One row exactly as high as the window: only the conversation (and a long sidebar) scroll, never the
    page. With an auto row a long conversation made the grid taller than the window, so the whole page
    scrolled and took the sidebar with it while an answer streamed in (suveryn-tracker#23). */
-.app { display: grid; grid-template-columns: 272px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; overflow: hidden; }
+.app { display: grid; grid-template-columns: 280px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; overflow: hidden; }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 .conversation { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-8) var(--space-6) var(--space-4);
                 display: flex; flex-direction: column; gap: var(--space-6); }
 .conversation > * { width: 100%; max-width: 760px; margin-inline: auto; }
 
-/* sidebar (docs/design/chat-ui.md): one column, 272px, or a 60px rail when collapsed */
+/* sidebar (docs/design/chat-ui.md): one column, 280px, or a 60px rail when collapsed */
 .app[data-sidebar="collapsed"] { grid-template-columns: 60px minmax(0, 1fr); }
 /* the source panel beside the conversation (docs/design/chat-ui.md §5) */
-.app[data-panel] { grid-template-columns: 272px minmax(0, 1fr) 440px; }
+.app[data-panel] { grid-template-columns: 280px minmax(0, 1fr) 440px; }
 .app[data-panel][data-sidebar="collapsed"] { grid-template-columns: 60px minmax(0, 1fr) 440px; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--line); padding: var(--space-3) var(--space-3) var(--space-3);
            display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow-y: auto; }
@@ -421,8 +421,9 @@ span.chip-run { cursor: default; }
 .case-confidential .ui-hint { margin: 0; }
 [data-shielded] { color: var(--text-dim); }
 .overview-status-cell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.overview-label { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border: 1px solid var(--text);
-                  border-radius: var(--radius-sm); font-size: var(--text-caption); color: var(--text); white-space: nowrap; }
+/* "Strikt vertrouwelijk" on a case's row: violet, the one colour that means it (§11; boards G07, B05) */
+.overview-label { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border: 1px solid var(--confidential);
+                  border-radius: var(--radius-sm); font-size: var(--text-caption); color: var(--confidential); white-space: nowrap; }
 /* Ask about (§10): the chip in the composer, and under each question what it was asked about. */
 .chip-about { height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: var(--surface-alt);
               font-size: var(--text-caption); color: var(--text); white-space: nowrap; }
@@ -548,6 +549,8 @@ span.chip-run { cursor: default; }
                background: var(--accent); color: var(--on-accent); border: none; border-radius: var(--radius-pill); cursor: pointer; }
 .send-button:hover:not(:disabled) { background: var(--accent-hover); }
 .send-button:disabled { background: var(--surface-alt); color: var(--text-dimmer); cursor: not-allowed; }  /* grey, never a faded orange (§5) */
+/* Nothing typed yet, but nothing in the way either: orange, as drawn (board G01). Grey only when it can't send (offline, busy). */
+.send-button[data-empty]:disabled { background: var(--accent); color: var(--on-accent); cursor: default; }
 .composer-hint { padding: 0 var(--space-4); text-align: center; }
 
 .spin { animation: spin 1s linear infinite; }
@@ -838,3 +841,26 @@ span.chip-run { cursor: default; }
 /* Focus on an orange or teal fill and on surface-alt chips (tokens v3.7): the gap ring (ui.css). */
 .send-button:focus-visible, .cite-marker:focus-visible, .chip-run:focus-visible, .chip-about:focus-visible,
 .chip-playbook:focus-visible, .chip-model-button:focus-visible { outline: none; box-shadow: var(--focus-ring-gap); }
+.users-events-more { text-align: right; }
+/* a list in one box, a line between rows (board B06: the playbooks) */
+.item-list-boxed { gap: 0; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.item-list-boxed > .item { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); border-radius: 0; }
+.item-list-boxed > .item:last-child { border-bottom: 0; }
+.item-list-boxed .ui-switch-label { color: var(--text-dim); font-size: var(--text-ui-sm); }
+/* usage per kind: one bar split by kind, the shares under it (board B07) */
+.kind-bar { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.kind-bar-track { display: flex; height: 12px; border-radius: var(--radius-sm); overflow: hidden; gap: 2px; }
+.kind-bar-track > span { flex-basis: 0; min-width: 2px; }
+.kind-bar-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: var(--text-caption); color: var(--text-dim); }
+.kind-bar-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.kind-bar-legend b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.kind-bar-swatch { width: 10px; height: 10px; border-radius: 2px; }
+/* Back-ups: the last backup and the recovery key as two cards at the top (board B11) */
+.backup-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
+.backup-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); padding: var(--space-3) var(--space-4);
+               border: 1px solid var(--line); border-radius: var(--radius-md); min-width: 0; }
+.backup-card .ui-inline-notice, .backup-card .inline-notice { margin: 0; }
+.backup-card-label { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); font-weight: 400; color: var(--text-dim); }
+.backup-card-value { margin: 0; font-size: var(--text-ui); font-weight: 600; }
+.backup-card-detail { margin: 0; font-size: var(--text-caption); color: var(--text-dim); }
+.backup-retention { display: flex; flex-direction: column; gap: var(--space-2); }

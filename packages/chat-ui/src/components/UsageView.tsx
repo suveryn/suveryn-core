@@ -14,7 +14,7 @@ import { locale, useT } from "../i18n";
 import type { AdminPage } from "./Admin";
 import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
 import {
-  BarChart, ColumnChart, DateField, InlineNotice, Segmented, TextButton,
+  ColumnChart, DateField, InlineNotice, Segmented, TextButton,
   type ChartText, type Datum, type Series,
 } from "../ui";
 
@@ -54,8 +54,9 @@ function RangePicker({ preset, setPreset, from, setFrom, to, setTo }: {
 
 function Totals({ totals, extra }: { totals: UsageTotals; extra?: { label: string; value: string } }) {
   const m = useT();
-  const cells = [[m.requests, whole(totals.requests)], [m.inputTokens, whole(totals.prompt_tokens)],
-                 [m.outputTokens, whole(totals.completion_tokens)], [m.totalTokens, whole(totals.total_tokens)],
+  // Tokens rounded ("3,9 M", "413 k"), as on board B07: the exact figures are in the table below.
+  const cells = [[m.requests, whole(totals.requests)], [m.inputTokens, compact(totals.prompt_tokens)],
+                 [m.outputTokens, compact(totals.completion_tokens)], [m.totalTokens, compact(totals.total_tokens)],
                  ...(extra ? [[extra.label, extra.value]] : [])];
   return (
     <dl className="totals">
@@ -111,23 +112,26 @@ function clock(report: UsageReport): { slots: number[]; every: number[] } {
   return { slots: report.series.map((b) => slot(at(b.start))), every };
 }
 
-/** The office's users compared; the table after it has the exact numbers, so no table of its own. */
-function PerUserChart({ report }: { report: OfficeUsageReport }) {
-  const m = useT();
-  const text = useChartText(m.user);
-  const series = useTokenSeries();
-  const data: Datum[] = report.per_user.map((u) => ({
-    key: u.user_id, label: u.name ?? u.username ?? m.unknownUser, values: [u.totals.prompt_tokens, u.totals.completion_tokens],
-  }));
-  return <BarChart label={m.perUserChartLabel(whole(report.totals.total_tokens))} series={series} data={data}
-                   format={compact} text={text} withTable={false} />;
-}
 
 function ByKind({ report }: { report: UsageReport }) {
   const m = useT();
   const kinds = Object.entries(report.by_kind);
   if (kinds.length < 2) return null;
-  return <p className="caption">{kinds.map(([k, v]) => `${m.kind(k)}: ${compact(v.total_tokens)}`).join(" · ")}</p>;
+  // One bar split by kind, with each kind's share under it (board B07).
+  const total = kinds.reduce((sum, [, v]) => sum + v.total_tokens, 0) || 1;
+  const pct = (n: number) => `${Math.round((n / total) * 100)} %`;
+  return (
+    <figure className="ui-chart kind-bar" aria-label={m.kindsLabel}>
+      <div className="kind-bar-track" aria-hidden>
+        {kinds.map(([k, v], i) => <span key={k} data-series={i % 4} style={{ flexGrow: v.total_tokens }} />)}
+      </div>
+      <figcaption className="kind-bar-legend">
+        {kinds.map(([k, v], i) => (
+          <span key={k}><span className="kind-bar-swatch" data-series={i % 4} aria-hidden />{m.kind(k)} <b>{pct(v.total_tokens)}</b></span>
+        ))}
+      </figcaption>
+    </figure>
+  );
 }
 
 export function ViewHeader({ icon, title, onBack }: { icon: React.ReactNode; title: string; onBack: () => void }) {
@@ -178,15 +182,15 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
-          <Totals totals={report.totals} extra={{ label: m.notionalCost, value: money(report.cost, report.rates.currency) }} />
+          <Totals totals={report.totals} extra={{ label: m.costTile, value: money(report.cost, report.rates.currency) }} />
           <p className="caption">{m.costExplain(money(report.cost, report.rates.currency))}</p>
           {report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
             <>
               <Chart report={report} />
+              <h2 className="label">{m.kindsLabel}</h2>
               <ByKind report={report} />
               <h2 className="label">{m.perUser}</h2>
               {report.totals_only_before && <p className="caption">{m.perUserKeptFrom(keptFrom(report.totals_only_before))}</p>}
-              {report.per_user.length > 1 && <PerUserChart report={report} />}
               <div className="table-wrap">
                 <table className="usage-table">
                   <thead><tr><th scope="col">{m.user}</th><th scope="col">{m.requests}</th><th scope="col">{m.inputTokens}</th>

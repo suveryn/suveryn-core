@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getBackups, HttpError, testRecoveryKey, type BackupStatus } from "../api";
 import { locale, useT } from "../i18n";
 import { backupState, keyTestState, sizeLabel } from "../lib/backups";
-import { Button, FileButton, InlineNotice, readText, Rows } from "../ui";
+import { Button, FileButton, InlineNotice, readText } from "../ui";
 import { BackUpNow, BackupSettingsForm, RecoverySheet } from "./AdminBackupSettings";
 
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
@@ -48,7 +48,6 @@ export function AdminBackups() {
   return (
     <>
       <p className="view-intro">{m.adminBackupsIntro}</p>
-      {status.settings && <BackUpNow status={status} onStarted={load} />}
       {state.kind === "unavailable" && <InlineNotice icon={<Info size={14} />}>{m.backupsUnavailable}</InlineNotice>}
       {state.kind === "not_set_up" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
       {state.kind === "never" && (state.failing
@@ -56,26 +55,34 @@ export function AdminBackups() {
         : <InlineNotice icon={<Info size={14} />}>{m.backupsNever}</InlineNotice>)}
       {(state.kind === "ok" || state.kind === "stale" || state.kind === "failing") && (() => {
         const s = state.status, ok = s.last_success!;
+        const detail = [sizeLabel(ok.size, locale()), ok.on_target != null ? m.backupCount(ok.on_target, ok.oldest ? when(ok.oldest) : null) : null, ok.disk]
+          .filter(Boolean).join(" · ");
         return (
           <>
-            {state.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.backupLast(when(ok.at), sizeLabel(ok.size, locale()))}</InlineNotice>}
             {state.kind !== "ok" && (
               <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>
                 {state.kind === "stale" ? m.backupStale(when(ok.at)) : m.backupFailed(when(s.last_error!.at), reason(s.last_error!.step))}
               </InlineNotice>
             )}
-            <Rows rows={[
-              ...(state.kind !== "ok" ? [{ label: m.backupLastGood, value: `${when(ok.at)} · ${sizeLabel(ok.size, locale())}` }] : []),
-              ...(ok.on_target != null ? [{ label: m.backupOnTarget, value: m.backupCount(ok.on_target, ok.oldest ? when(ok.oldest) : null) }] : []),
-              ...(ok.disk ? [{ label: m.backupDisk, value: ok.disk }] : []),
-            ]} />
-            {s.target === "usb" && <p className="caption">{m.backupRotate}</p>}
-            <h2 className="label">{m.keyTestTitle}</h2>
-            <p className="view-intro">{m.keyTestIntro}</p>
-            <KeyTest status={s} problem={keyProblem} onTest={test} />
+            {/* two cards first: the last backup, and the recovery key (board B11) */}
+            <div className="backup-cards">
+              <section className="backup-card" aria-labelledby="backup-last">
+                <h2 id="backup-last" className="backup-card-label">
+                  {state.kind === "ok" ? <Check size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />} {m.backupLastHeading}
+                </h2>
+                <p className="backup-card-value">{when(ok.at)}</p>
+                <p className="backup-card-detail">{detail}</p>
+              </section>
+              <section className="backup-card" aria-labelledby="backup-key">
+                <h2 id="backup-key" className="backup-card-label"><FileKey size={13} aria-hidden /> {m.keyTestTitle}</h2>
+                <KeyTest status={s} problem={keyProblem} onTest={test} />
+              </section>
+            </div>
+            <p className="caption">{m.keyTestIntro}{s.target === "usb" ? ` ${m.backupRotate}` : ""}</p>
           </>
         );
       })()}
+      {status.settings && <BackUpNow status={status} onStarted={load} />}
       <BackupSettingsForm status={status} onSaved={load} />
       {status.settings && <RecoverySheet status={status} onSaved={load} />}
       <p className="caption">{m.backupsCaption}</p>

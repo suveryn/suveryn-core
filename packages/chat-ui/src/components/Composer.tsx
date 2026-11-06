@@ -153,7 +153,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   const picker2 = askAbout && caseReference && (
     <DocumentPicker className="chip-about" narrow={compact} items={askAbout.items} selected={askAbout.selected}
                     onChange={askAbout.onChange} label={m.askAboutTitle} triggerLabel={m.askAboutLabel(askAbout.selected.length)}
-                    allLabel={m.askAboutAllIn(caseReference)} allMeta={m.askAboutSources(askAbout.items.length)}
+                    allLabel={m.askAboutEverything} allMeta={m.askAboutEverythingHint} countLabel={m.askAboutPicked}
                     chosenHeading={m.askAboutChosen} othersHeading={(q, n) => (q ? m.askAboutMatching(q, n) : null)}
                     searchLabel={m.askAboutSearch} doneLabel={m.askAboutDone}
                     action={{ label: m.askAboutUpload, description: m.askAboutUploadHint, onPress: () => picker.open() }}
@@ -218,7 +218,8 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
             ? <Button variant="plain" className="send-button" onPress={stop} aria-label={m.stop} title={m.stopTitle}>
                 <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden />
               </Button>
-            : <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}>
+            : <Button variant="plain" className="send-button" onPress={send} isDisabled={!canSend} aria-label={m.send}
+                      data-empty={!reason && !busy && !text.trim() ? true : undefined}>
                 <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
               </Button>}
         </div>

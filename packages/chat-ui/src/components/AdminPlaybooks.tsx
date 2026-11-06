@@ -30,7 +30,7 @@ export function AdminPlaybooks() {
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {playbooks && playbooks.length === 0 && <p className="caption">{m.playbooksEmpty}</p>}
       {playbooks && playbooks.length > 0 && (
-        <ul className="item-list">
+        <ul className="item-list item-list-boxed">
           {playbooks.map((p) => (
             <li key={p.id} className="item item-static">
               <span className="item-open">
@@ -39,7 +39,7 @@ export function AdminPlaybooks() {
                   ? <span className="status-ok"><Check size={13} aria-hidden /> {m.covered}</span>
                   : <span className="status-warn"><TriangleAlert size={13} aria-hidden /> {m.notCovered}</span>}</span>
               </span>
-              <Switch label={m.playbookActive} checked={p.active !== false} onChange={(v) => flip(p, v)} />
+              <Switch label={m.playbookActive} checked={p.active !== false} onChange={(v) => flip(p, v)} labelFirst />
             </li>
           ))}
         </ul>
