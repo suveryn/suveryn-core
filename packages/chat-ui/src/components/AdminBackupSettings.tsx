@@ -189,7 +189,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
     <section aria-labelledby="backup-where" className="backup-settings">
       <h2 id="backup-where" className="label">{saved ? m.whereBackupsAre : m.setUpBackups}</h2>
       {!saved && <p className="caption">{m.diskFails}</p>}
-      <RadioCards label={m.whereBackupsAre} name="target" value={form.target} onChange={(v) => set("target")(v as Form["target"])}
+      <RadioCards dotFirst label={m.whereBackupsAre} name="target" value={form.target} onChange={(v) => set("target")(v as Form["target"])}
                   choices={[
                     { value: "usb", title: t.usbDisk, description: t.usbDiskDesc, icon: <HardDrive size={18} /> },
                     { value: "share", title: t.networkShare, description: t.networkShareDesc, icon: <FolderSync size={18} /> },

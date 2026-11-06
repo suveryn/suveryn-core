@@ -36,21 +36,25 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   name?: string;
+  /** RadioCards: the dot before the card's text, as in the product's dialogs and Administration (boards G14, B11);
+   *  without it at the end, as in the web setup. */
+  dotFirst?: boolean;
 };
 
-export function RadioCards({ label, choices, value, onChange, name }: Props) {
+export function RadioCards({ label, choices, value, onChange, name, dotFirst }: Props) {
   const id = useId();
   return (
     <RadioGroup aria-label={label} value={value} onChange={onChange} name={name} className="ui-radio-cards">
       {choices.map((c) => (
         <Radio key={c.value} value={c.value} className="ui-radio-card" aria-labelledby={`${id}-${c.value}-title`}
                aria-describedby={c.description ? `${id}-${c.value}` : undefined}>
+          {dotFirst && <span className="ui-radio-dot" aria-hidden />}
           {c.icon && <span className="ui-radio-card-icon" aria-hidden>{c.icon}</span>}
           <span className="ui-radio-card-body">
             <span id={`${id}-${c.value}-title`} className="ui-radio-card-title">{c.title}</span>
             {c.description && <span id={`${id}-${c.value}`} className="ui-radio-card-desc">{c.description}</span>}
           </span>
-          <span className="ui-radio-dot" aria-hidden />
+          {!dotFirst && <span className="ui-radio-dot" aria-hidden />}
         </Radio>
       ))}
     </RadioGroup>

@@ -300,6 +300,7 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/conversations$/, PERSONAL_CONVERSATIONS],
   ["GET", /^\/v1\/conversations\/conv-clauses$/, SAVED],
   ["GET", /^\/v1\/conversations\/conv-huurkoop$/, SAVED_PERSONAL],
+  ["GET", /^\/v1\/conversations\/conv-prijs$/, () => SAVED_ABOUT],
   ["GET", /^\/v1\/conversations\/([^/?]+)$/, (m: RegExpMatchArray) => ({ ...(ALL_CONVERSATIONS.find((c) => c.id === m[1]) ?? CONVERSATION), turns: [] })],
   ["GET", /^\/v1\/documents\/all$/, { documents: ALL_DOCUMENTS }],
   ["GET", /^\/v1\/documents\?case=c123/, { documents: CASE_DOCUMENTS, jobs: [] }],
@@ -354,3 +355,27 @@ export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}],
                                 ["GET", /^\/v1\/conversations\?case=c124/, CASE_CONVERSATIONS.filter((c) => c.case_id === "c124" && !c.run_id)]];
 /** Case 124 as a reader (board P04, 8): follows along, doesn't answer. */
 export const AS_READER: Route[] = [["GET", /^\/v1\/cases\/c124$/, { ...CASE_124, my_role: "reader", manager: "u-mieke" }]];
+
+/** Asked about one chosen document (board G18): "Vraag over" under the question, "Op basis van" above the answer. */
+const SAVED_ABOUT: SavedConversation = {
+  ...CASE_CONVERSATIONS[0],
+  turns: [
+    { id: "a1", role: "user", text: "Wat is de verkoopprijs, en wanneer moet die betaald worden?", attachments: [],
+      about: [{ documentId: "d-compromis", filename: "Compromis_Schipperskaai.pdf" }] },
+    { id: "a2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
+      text: "De prijs bedraagt € 385.000, te betalen bij het verlijden van de akte [1]. Het voorschot van € 38.500 is betaald bij de ondertekening van het compromis [2].",
+      citations: [
+        { text: "De verkoop wordt toegestaan en aanvaard voor de prijs van € 385.000, te betalen bij het verlijden van de authentieke akte.",
+          source: { document_id: "d-compromis", page: 2, location: null } },
+        { text: "Een voorschot van € 38.500 werd betaald bij de ondertekening van deze overeenkomst.",
+          source: { document_id: "d-compromis", page: 3, location: null } },
+      ] },
+  ],
+};
+
+/** The recovery key last tested four months ago (board B01): Status asks for attention. */
+export const KEY_TEST_DUE: Route[] = [["GET", /^\/v1\/admin\/backups$/, { ...BACKUPS, key_test: { at: ago(120 * DAY), ok: true } }]];
+/** The run finished and confirmed (board P04, 9): a new run starts a new conversation. */
+export const RUN_DONE = runIn({ status: "done", step: null, finished_at: ago(30 * MIN), confirmed_by: "mieke@kantoor.be", confirmed_at: ago(30 * MIN),
+  turns: [...RUN.turns, { seq: 6, role: "playbook", step_id: "confirm", by: "mieke@kantoor.be", at: ago(30 * MIN), text: "", meta: { kind: "confirmed" } }],
+  facts: RUN.facts.map((f) => ({ ...f, confirmed: f.value })) });

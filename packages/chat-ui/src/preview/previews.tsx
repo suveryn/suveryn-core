@@ -14,7 +14,7 @@ import { HttpError } from "../api";
 import { CASE_124, CONVERSATION } from "./sample";
 import { Steps, type Step } from "./steps";
 import { hold, offline, replace } from "./fakeApi";
-import { AS_READER, EMPTY_OFFICE, NO_RUN, RUN_CANCELLED, RUN_FAILED, RUN_PAUSED, RUN_READING, RUN_STOPPED } from "./sample";
+import { AS_READER, EMPTY_OFFICE, KEY_TEST_DUE, NO_RUN, RUN_DONE, RUN_CANCELLED, RUN_FAILED, RUN_PAUSED, RUN_READING, RUN_STOPPED } from "./sample";
 import type { Lang } from "../i18n";
 
 export type Preview = {
@@ -73,6 +73,8 @@ export const PREVIEWS: Preview[] = [
     render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Andere formaten" }) },
   { id: "g17-ask-about", board: "G17", lang: "nl", title: "Vraag over: documenten kiezen",
     render: app({ click: "123" }, { click: "Vraag over, alle documenten" }) },
+  { id: "g18-ask-about-conversation", board: "G18", lang: "nl", title: "Vraag over: antwoord op één gekozen document",
+    render: app({ click: "Prijs en kosten" }) },
   { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier",
     render: app({ click: "Dossiers" }, { click: "118" }) },
   { id: "g15-narrow", board: "G15", lang: "nl", title: "Smal scherm (390 px): open op een telefoon", render: app() },
@@ -92,9 +94,14 @@ export const PREVIEWS: Preview[] = [
   { id: "p04-cancelled", board: "P04", lang: "nl", title: "5 · Geannuleerd", setup: () => replace(RUN_CANCELLED), render: app({ click: "Akte-intake" }) },
   { id: "p04-failed", board: "P04", lang: "nl", title: "6 · Iets misgelopen", setup: () => replace(RUN_FAILED), render: app({ click: "Akte-intake" }) },
   { id: "p04-where", board: "P04", lang: "nl", title: "7 · Waar het staat: Dossiers", render: app({ click: "Dossiers" }) },
+  { id: "p04-done", board: "P04", lang: "nl", title: "Klaar: bevestigd, met de samenvatting", setup: () => replace(RUN_DONE), render: app({ click: "Akte-intake" }) },
+  { id: "p04-again", board: "P04", lang: "nl", title: "9 · Opnieuw: een nieuwe uitvoering, een nieuw gesprek", setup: () => replace(RUN_DONE),
+    render: app({ click: "124" }, { click: "Een playbook toepassen op dit dossier" }) },
   { id: "p04-reader", board: "P04", lang: "nl", title: "8 · Een lezer volgt mee", setup: () => replace(AS_READER), render: app({ click: "Akte-intake" }) },
   // B: administration (Dutch, as the boards)
   { id: "b01-status", board: "B01", lang: "nl", title: "Status", render: admin("Status") },
+  { id: "b01-attention", board: "B01", lang: "nl", title: "Status: vraagt aandacht (herstelsleutel niet getest)", setup: () => replace(KEY_TEST_DUE),
+    render: admin("Status") },
   { id: "b03-users", board: "B03", lang: "nl", title: "Gebruikers", render: admin("Gebruikers") },
   { id: "b05-cases", board: "B05", lang: "nl", title: "Dossiers", render: admin("Dossiers") },
   { id: "b06-playbooks", board: "B06", lang: "nl", title: "Playbooks", render: admin("Playbooks") },

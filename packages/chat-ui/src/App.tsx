@@ -1234,7 +1234,7 @@ function Chat({ me }: { me: Me }) {
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
                   playbooks={administers ? [] : playbooks} onPlaybook={(slug) => void startPlaybook(slug)}
-                  compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : undefined}
+                  compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : !currentCase && turns.length > 0 ? m.replyPlaceholder : undefined /* a personal conversation under way: "Reply…" (board G03) */}
                   workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),
                                                                   onChoose: openCase, onNew: () => setNewCase(true) } : null} />
         </>}
