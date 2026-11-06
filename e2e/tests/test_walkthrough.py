@@ -174,9 +174,12 @@ def test_full_width_pages_fold_the_column_and_a_personal_conversation_has_its_ti
     page.get_by_role("button", name="Expand the sidebar").click()
     page.get_by_role("button", name="New conversation or new case").click()
     page.get_by_role("menuitem", name="New conversation").click()
-    ask(page, "Wat is een huurkoopformule?")
+    # a question without documents: the answer has no "Sources:" line (``ask`` waits for one), so wait for the
+    # title bar instead, which comes once the conversation is saved after the answer
+    page.get_by_role("textbox", name=re.compile("^Your question")).fill("Wat is een huurkoopformule?")
+    page.get_by_role("button", name="Send message").click()
     menu = page.locator("main").get_by_role("button", name=re.compile("^Actions for"))
-    expect(menu).to_be_visible(timeout=15_000)
+    expect(menu).to_be_visible(timeout=60_000)
     menu.click()
     for item in ("Pin", "Rename", "Move to a case", "Delete"):
         expect(page.get_by_role("menuitem", name=re.compile(f"^{item}"))).to_be_visible()
