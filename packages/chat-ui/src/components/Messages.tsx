@@ -6,12 +6,12 @@
  * panel beside the conversation (``SourcePanel``, docs/design/chat-ui.md §5, artboard 11).
  */
 import {
-  Brain, Calculator, Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, FileSpreadsheet, FileText, Files,
+  Brain, Calculator, Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, ExternalLink, FileSpreadsheet, FileText, Files,
   FolderInput, Square, TriangleAlert, X
 } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { Button, IconButton, InlineNotice, MenuButton, SourceRef, SplitButton, TextButton, Toolbar } from "../ui";
-import type { Calculation, Citation, CitationIssue } from "../api";
+import { Button, IconButton, InlineNotice, LinkButton, MenuButton, SourceRef, SplitButton, TextButton, Toolbar } from "../ui";
+import { originalUrl, type Calculation, type Citation, type CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
 import { citedNumbers, instructionLikeWarning, markPassage, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
 import type { AnswerExport } from "../lib/export";
@@ -138,18 +138,21 @@ export function sourceName(c: Citation, filenames: Map<string, string>, m: Retur
   return c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument;
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 /**
  * The source panel (docs/design/chat-ui.md §5, artboard 11): one source of an answer beside the
  * conversation. The file, the page and the case; previous and next between the answer's sources; the
  * passage, with the sentences the claim rests on in a teal wash and the rest dimmed; what the check
- * found, in words; *Copy passage* and the download. Esc closes it (from inside it, or anywhere when no
+ * found, in words; *Open document at p. 3* and *Copy passage*. Esc closes it (from inside it, or anywhere when no
  * answer is being written: App), and the focus goes back to what opened it.
  *
- * Not here: *Open document at p. 3*. sūveryn keeps a document's text, not the file it was read from,
- * so there is no page to open (docs/design/chat-ui.md, "Resolved while building").
+ * *Open document* opens the file as uploaded in a new tab, a PDF at the cited page (board G11). A document
+ * stored before files were kept (not in ``kept``) offers the passage's download instead.
  */
-export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose }: {
+export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseId = null, onSource, onClose }: {
   turn: AssistantTurn; open: OpenSource; filenames: Map<string, string>; caseRef: string | null;
+  kept?: ReadonlySet<string>; caseId?: string | null;
   onSource: (s: OpenSource) => void; onClose: () => void;
 }) {
   const m = useT();
@@ -219,9 +222,16 @@ export function SourcePanel({ turn, open, filenames, caseRef, onSource, onClose 
       </div>
       {!citation.removed && (
         <footer className="source-panel-actions">
+          {citation.source && kept.has(citation.source.document_id) && (
+            <LinkButton variant="text" className="copy-button source-open" newTab
+                        href={originalUrl(citation.source.document_id, caseId, citation.source.page)}>
+              <ExternalLink size={13} aria-hidden />
+              <span>{citation.source.page ? m.openAtPage(citation.source.page) : m.openDocument}</span>
+            </LinkButton>
+          )}
           <CopyButton text={formatSource(n, citation, filename)} label={m.copyPassage} what={m.passageWhat(n)} />
-          <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
-                          text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />
+          {!(citation.source && kept.has(citation.source.document_id)) && <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
+                          text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />}
         </footer>
       )}
     </aside>

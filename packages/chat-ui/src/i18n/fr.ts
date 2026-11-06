@@ -673,6 +673,8 @@ const fr: Messages = {
   nextSource: "Source suivante",
   closeSource: "Fermer la source (Échap)",
   copyPassage: "Copier le passage",
+  openAtPage: (page) => `Ouvrir le document à la p. ${page}`,
+  openDocument: "Ouvrir le document",
   passageWhat: (n) => `le passage de la source ${n} avec sa référence`,
   verdictSentence: "Vérifié : dans le passage",
   verdictSource: "Vérifié : dans le passage",

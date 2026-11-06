@@ -415,6 +415,7 @@ function Chat({ me }: { me: Me }) {
   // may name documents that are gone; asking about them would fail).
   const conversationDocs = useMemo(() => conversationDocuments(turns, documents, documentsReady), [turns, documents, documentsReady]);
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
+  const kept = useMemo(() => new Set(documents.filter((d) => d.original).map((d) => d.id)), [documents]);
 
   const disabledReason =
     !reachable ? m.offlineSend :
@@ -737,6 +738,7 @@ function Chat({ me }: { me: Me }) {
   const sourceTurn = source ? turns.find((t): t is AssistantTurn => t.id === source.turnId && t.role === "assistant") : undefined;
   const sourcePanel = view === "chat" && source && sourceTurn && sourceTurn.citations[source.n - 1] && (
     <SourcePanel key={source.turnId} turn={sourceTurn} open={source} filenames={filenames} caseRef={currentCase?.reference ?? null}
+                 kept={kept} caseId={caseId}
                  onSource={openSource(source.turnId)} onClose={() => setSource(null)} />
   );
 

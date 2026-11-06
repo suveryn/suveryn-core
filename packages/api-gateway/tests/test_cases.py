@@ -31,7 +31,7 @@ from suveryn_api_gateway.cases import (
 )
 from suveryn_api_gateway.directory import Person
 from suveryn_harness import LlamaServerClient, LLMSettings
-from suveryn_rag.store import Scope
+from suveryn_rag.store import Original, Scope
 from test_auth import SETTINGS, FakeKeycloak
 from test_conversations import FakeConversations, as_user
 from test_documents import DOC, FakeDocuments, llm_transport
@@ -498,6 +498,12 @@ def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
     ask = {"messages": [{"role": "user", "content": "What is the price?"}], "document_ids": [did], "case_id": cid}
     assert c.post("/v1/chat", json=ask, headers=bob).status_code == 404  # never a source (cases.md decision 7)
     assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "answer_saved"
+    # the file a document was read from (board G11): a reader opens it, noted in the case's access log
+    docs.originals = {did: ("Compromis.pdf", Original("application/pdf", b"%PDF-1.7 test"))}
+    r = c.get(f"/v1/documents/{did}/original?case={cid}", headers=carla)
+    assert r.status_code == 200 and r.content == b"%PDF-1.7 test"
+    assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "document_opened"
+    assert c.get(f"/v1/documents/{did}/original", headers=carla).status_code == 404  # not in her personal space
     other = c.post(f"/v1/cases/{cid}/documents", json=saved(message="m-2"), headers=alice).json()["id"]
     assert c.delete(f"/v1/documents/{other}?case={cid}", headers=bob).status_code == 403  # Alice's
     assert c.delete(f"/v1/documents/{did}?case={cid}", headers=bob).status_code == 204    # his own: Undo

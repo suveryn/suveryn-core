@@ -671,6 +671,8 @@ const nl: Messages = {
   nextSource: "Volgende bron",
   closeSource: "De bron sluiten (Esc)",
   copyPassage: "Passage kopiëren",
+  openAtPage: (page) => `Document openen op p. ${page}`,
+  openDocument: "Document openen",
   passageWhat: (n) => `de passage van bron ${n} met haar vindplaats`,
   verdictSentence: "Nagekeken: staat in de passage",
   verdictSource: "Nagekeken: staat in de passage",

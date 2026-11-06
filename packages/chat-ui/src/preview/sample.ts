@@ -86,7 +86,7 @@ export const CASE_EVENTS: CaseEvent[] = [
 // ---------- documents ----------
 const doc = (id: string, filename: string, pages: number, when: number, extra: Partial<StoredDocument> = {}): StoredDocument => ({
   id, filename, pages, ocr_pages: 0, status: "ok", warnings: [], created_at: ago(when), origin: "uploaded",
-  uploaded_by: "mieke@kantoor.be", source: true, ...extra,
+  uploaded_by: "mieke@kantoor.be", source: true, original: true, ...extra,
 });
 export const CASE_DOCUMENTS: StoredDocument[] = [
   doc("d-compromis", "Compromis_Schipperskaai.pdf", 14, HOUR),

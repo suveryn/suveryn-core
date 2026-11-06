@@ -134,6 +134,10 @@ class FakeDocuments:
                 return did, self.contents[did][0]
         return None
 
+    def original(self, document_id, scope):
+        found = getattr(self, "originals", {}).get(document_id)
+        return found if found and self.docs.get(document_id, (None,))[0] == scope else None
+
     def content(self, document_id, scope):
         found = getattr(self, "contents", {}).get(document_id)
         return found if found and found[2] is not None and self.docs.get(document_id, (None,))[0] == scope else None
@@ -280,6 +284,27 @@ def test_documents_list_and_delete():
         assert c.delete(f"/v1/documents/{DOC}").status_code == 204
         assert c.delete(f"/v1/documents/{uuid.uuid4()}").status_code == 404
         assert c.delete("/v1/documents/not-an-id").status_code == 422
+
+
+def test_a_documents_file_opens_as_uploaded_pdf_in_the_browser_word_downloaded():
+    """Board G11, "Open document at p. 3": the file as uploaded, for whoever may read the passage."""
+    from suveryn_rag.store import Original
+    docs = FakeDocuments()
+    with client(docs) as c:
+        assert c.get(f"/v1/documents/{DOC}/original").status_code == 404  # stored before files were kept
+        docs.originals = {DOC: ("Compromis été.pdf", Original("application/pdf", b"%PDF-1.7 test"))}
+        r = c.get(f"/v1/documents/{DOC}/original")
+        assert r.status_code == 200 and r.content == b"%PDF-1.7 test" and r.headers["content-type"] == "application/pdf"
+        assert r.headers["content-disposition"] == "inline; filename=\"Compromis _t_.pdf\"; filename*=UTF-8''Compromis%20%C3%A9t%C3%A9.pdf"
+        assert r.headers["x-content-type-options"] == "nosniff" and "no-store" in r.headers["cache-control"]
+        docs.originals = {DOC: ("notes.md", Original("text/plain; charset=utf-8", b"# <script>x</script>"))}
+        r = c.get(f"/v1/documents/{DOC}/original")
+        assert r.headers["content-type"].startswith("text/plain") and r.headers["content-disposition"].startswith("inline;")
+        assert r.headers["content-security-policy"].startswith("sandbox")  # text, never a page
+        docs.originals = {DOC: ("akte.docx", Original("application/vnd.openxmlformats-officedocument.wordprocessingml.document", b"PK"))}
+        assert c.get(f"/v1/documents/{DOC}/original").headers["content-disposition"].startswith("attachment;")
+        assert c.get("/v1/documents/not-an-id/original").status_code == 422
+        assert c.get(f"/v1/documents/{uuid.uuid4()}/original").status_code == 404
 
 
 def test_document_endpoints_503_when_unavailable_or_starting():
