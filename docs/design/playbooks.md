@@ -139,7 +139,7 @@ case takes part through that routine, and it ends in a product. The model is ask
 ``read`` and never decides what comes next; a person's answer never becomes a confirmed fact except
 at the checkpoint, by that person.
 
-The routine is in the manifest (format 2, below): steps of five kinds, each saying what it needs.
+The routine is in the manifest (formats 2 and 3, below): steps of six kinds, each saying what it needs.
 
 | Kind | What the runtime does | Waits for |
 |---|---|---|
@@ -148,9 +148,9 @@ The routine is in the manifest (format 2, below): steps of five kinds, each sayi
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
 | `check` | Evaluates one rule on the values as they stand (`suveryn_harness.checks`); the result is shown at the checkpoint and in the summary, never a block | Nothing |
+| `produce` | Writes the summary into the case, origin `playbook` | Nothing |
 
 Any step may carry `when` (a condition on a choice fact, "Choices" below): a step whose condition doesn't hold is skipped, and the thread says why.
-| `produce` | Writes the summary into the case, origin `playbook` | Nothing |
 
 The runtime (`suveryn_api_gateway/playbook_runtime.py`) walks the graph: `next_step` is the first
 step, in the manifest's order, that isn't done and whose needs all are; `advance` does what needs
@@ -328,8 +328,9 @@ implicit routine read, checkpoint, produce), was retired before any was publishe
 document and test, as nothing written in it exists. The questions a `request` or `ask` step puts to people are the pack's
 wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's template, or by
 `step.fact` for one fact's own words), reviewed and translated like the labels; the model never
-words them. Later formats bring `check`, `propose`, conditions, products beyond the summary and a
-model role per step. Open: whether an office's own manifest may carry its wording inline (one file
+words them. Format 3 (below) brought lists and numbers, documents by name, `check` steps, choices
+with `when`, and `by: manager`; `propose`, a model role per step and products beyond the summary are
+still to come. Open: whether an office's own manifest may carry its wording inline (one file
 to upload) rather than in a pack's text files.
 
 ### Format 3: lists and numbers (3 November 2026)
@@ -499,9 +500,9 @@ official ones until the licence manifest exists.
 
 - Which facts recur between playbooks (#27): `case_facts` is the record; its shared vocabulary is
   to be seen from the second playbook.
-- Conditions, `check`, `propose`, model roles, products beyond the summary, products marked out of
-  date by changed facts (#28, the rest): the next formats.
-- Ordinary chat on the `turns` table: its own step, with the conversion of the saved blobs.
+- `propose` (the model drafts a passage, such as the company's object; marked as the model's and
+  confirmed by a person) and a model role per step: the next format, after the notary conversation.
+- Products marked out of date when a fact they were made from changes after confirmation.
 - The Word document from the office's own template (#22): the summary is sūveryn's own layout now. How it could work, in stages, is proposed in [templates.md](templates.md) (4 November 2026, open until the first notary conversation).
 - Named subject fields on the case type (#29): the intake's facts are the first candidates.
 - Facts validated by form (national register numbers, cadastral patterns): an entities table, later.
