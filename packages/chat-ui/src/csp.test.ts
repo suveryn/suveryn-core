@@ -77,7 +77,8 @@ describe("the Content-Security-Policy (docs/content-security-policy.md)", () => 
       expect(boot, f).toBeGreaterThan(-1);
       expect(boot, f).toBeLessThan(h.indexOf('type="module"'));  // before the app's modules, so it runs when they don't
     }
-    const boot = code("public/boot.js");
+    // the SVG namespace is a name, not an address: nothing is fetched from it
+    const boot = code("public/boot.js").replace('"http://www.w3.org/2000/svg"', '""');
     expect(boot).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|\beval\(|new Function|createElement\(\s*["']style|setAttribute\(\s*["']style|https?:\/\/|\bimport\b|fetch\(/);
   });
 
