@@ -97,6 +97,8 @@
 
 /* ------------------------------------------------------------------------------------------------ choices */
 .ui-radio-cards { display: flex; flex-direction: column; gap: 10px; }
+.ui-radio-cards[data-row] { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.ui-radio-card .ui-radio-dot:first-child { margin-top: 2px; }
 .ui-radio-card { display: flex; gap: 14px; align-items: flex-start; padding: var(--space-4); background: var(--bg);
                  border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
 .ui-radio-card[data-hovered] { border-color: oklch(from var(--ink) l c h / 0.40); }

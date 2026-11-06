@@ -9,8 +9,9 @@ import { routes, type Route } from "./sample";
 const held = new Set<string>();
 export const hold = (pattern: string) => held.add(pattern);
 /** Requests that fail as a dropped connection does ("/health": the server can't be reached). */
-const failing = new Set<string>();
-export const offline = (pattern = "/health") => failing.add(pattern);
+const failing = new Map<string, number>();  // pattern → how many requests still pass before it fails
+/** `after`: let that many requests through first (the page loads, then the server goes away, board G09). */
+export const offline = (pattern = "/health", after = 0) => failing.set(pattern, after);
 /** Answers that go before the sample office's own (another office, an error). */
 const first: Route[] = [];
 export const replace = (more: Route[]) => first.push(...more);
@@ -22,7 +23,11 @@ export function useSampleData(): void {
     if (url.origin !== window.location.origin || !/^\/(v1|auth|health)\b/.test(url.pathname)) return real(input, init);
     const method = (init?.method ?? "GET").toUpperCase();
     const path = url.pathname + url.search;
-    if ([...failing].some((f) => path.startsWith(f))) throw new TypeError("Failed to fetch");
+    for (const [f, left] of failing) {
+      if (!path.startsWith(f)) continue;
+      if (left > 0) { failing.set(f, left - 1); break; }
+      throw new TypeError("Failed to fetch");
+    }
     if ([...held].some((h) => path.startsWith(h))) return new Promise<Response>(() => {});
     let body: unknown = null;
     try { body = typeof init?.body === "string" ? JSON.parse(init.body) : null; } catch { /* not JSON */ }

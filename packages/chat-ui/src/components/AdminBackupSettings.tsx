@@ -9,7 +9,7 @@
  * writes a test file. The recovery key is made in this browser, as in the setup: only its public half goes to
  * the appliance, so the appliance can write backups and never read them. Old backups stay where they were.
  */
-import { Check, CircleAlert, CircleCheck, Download, FolderSync, HardDrive, KeyRound, Play, Printer } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, Download, KeyRound, Play, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   askBackupService, type BackupDisk, type BackupRetention, type BackupSettings, type BackupStatus,
@@ -189,10 +189,11 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
     <section aria-labelledby="backup-where" className="backup-settings">
       <h2 id="backup-where" className="label">{saved ? m.whereBackupsAre : m.setUpBackups}</h2>
       {!saved && <p className="caption">{m.diskFails}</p>}
-      <RadioCards dotFirst label={m.whereBackupsAre} name="target" value={form.target} onChange={(v) => set("target")(v as Form["target"])}
+      {/* side by side, the dot first, no icons (board B11) */}
+      <RadioCards dotFirst row label={m.whereBackupsAre} name="target" value={form.target} onChange={(v) => set("target")(v as Form["target"])}
                   choices={[
-                    { value: "usb", title: t.usbDisk, description: t.usbDiskDesc, icon: <HardDrive size={18} /> },
-                    { value: "share", title: t.networkShare, description: t.networkShareDesc, icon: <FolderSync size={18} /> },
+                    { value: "usb", title: t.usbDisk, description: t.usbDiskDesc },
+                    { value: "share", title: t.networkShare, description: t.networkShareDesc },
                   ]} />
       <div className="backup-settings-detail">
         {form.target === "usb" && (diskOptions.length ? (

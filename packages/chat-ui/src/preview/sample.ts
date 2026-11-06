@@ -72,7 +72,7 @@ export const CASES: Case[] = [
   kase("c118", "118", "Schenking Claes", "gift", "contributor", { updated_at: ago(6 * DAY), confidential: true, access: "restricted", manager: "u-mieke" }),
   kase("c112", "112", "Verkoop Kluizendorp", "sale", "reader", { updated_at: ago(9 * DAY), manager: "u-filip" }),
   kase("c109", "109", "Huwelijkscontract Janssens · Maes", "marriage-contract", "contributor", { updated_at: ago(12 * DAY) }),
-  kase("c097", "097", "Erfenis Vermeulen", "estate", "reader", { state: "closed", closed_at: ago(20 * DAY), keep_until: ago(-5 * 365 * DAY) }),
+  kase("c097", "097", "Erfenis Vermeulen", "estate", "reader", { state: "closed", closed_at: ago(5 * 365 * DAY), keep_until: ago(-4 * DAY) }),
 ];
 export const CASES_OVERVIEW: CaseOverview[] = CASES.map((c) => ({
   ...c, members: MEMBERS, last_activity_at: c.updated_at, last_activity_by: "Mieke Delarivière",
@@ -110,6 +110,7 @@ const conv = (id: string, title: string, when: number, extra: Partial<Conversati
 export const CONVERSATION = conv("conv-clauses", "Akte van verkoop: nazicht clausules", 2 * HOUR, { case_id: "c123" });
 export const CASE_CONVERSATIONS: ConversationSummary[] = [
   conv("conv-prijs", "Prijs en kosten", HOUR, { case_id: "c123" }),
+  conv("conv-termijnen", "Betalingen en termijnen", 90 * MIN, { case_id: "c123" }),
   CONVERSATION,
   conv("conv-vergadering", "Samenvatting vergadering met de kopers", DAY, { case_id: "c123", owner: "u-mieke", owner_name: "Mieke", shared: true }),
   conv("conv-vertaling", "Vertaling clausule naar het Frans", 3 * HOUR, { case_id: "c124" }),
@@ -301,6 +302,7 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/conversations\/conv-clauses$/, SAVED],
   ["GET", /^\/v1\/conversations\/conv-huurkoop$/, SAVED_PERSONAL],
   ["GET", /^\/v1\/conversations\/conv-prijs$/, () => SAVED_ABOUT],
+  ["GET", /^\/v1\/conversations\/conv-termijnen$/, () => SAVED_TABLE],
   ["GET", /^\/v1\/conversations\/([^/?]+)$/, (m: RegExpMatchArray) => ({ ...(ALL_CONVERSATIONS.find((c) => c.id === m[1]) ?? CONVERSATION), turns: [] })],
   ["GET", /^\/v1\/documents\/all$/, { documents: ALL_DOCUMENTS }],
   ["GET", /^\/v1\/documents\?case=c123/, { documents: CASE_DOCUMENTS, jobs: [] }],
@@ -379,3 +381,24 @@ export const KEY_TEST_DUE: Route[] = [["GET", /^\/v1\/admin\/backups$/, { ...BAC
 export const RUN_DONE = runIn({ status: "done", step: null, finished_at: ago(30 * MIN), confirmed_by: "mieke@kantoor.be", confirmed_at: ago(30 * MIN),
   turns: [...RUN.turns, { seq: 6, role: "playbook", step_id: "confirm", by: "mieke@kantoor.be", at: ago(30 * MIN), text: "", meta: { kind: "confirmed" } }],
   facts: RUN.facts.map((f) => ({ ...f, confirmed: f.value })) });
+
+/** An answer with a table, saved to its case as a Word document (board G16). */
+const SAVED_TABLE: SavedConversation = {
+  ...CASE_CONVERSATIONS[1],
+  turns: [
+    { id: "b1", role: "user", text: "Zet de bedragen en termijnen uit het compromis in een tabel.", attachments: [] },
+    { id: "b2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
+      saved: { documentId: "d-termijnen", filename: "Betalingen en termijnen.docx" },
+      text: "Het compromis noemt vier bedragen met hun termijn.\n\n"
+        + "| Wat | Bedrag | Termijn | Bron |\n|---|---:|---|---|\n"
+        + "| Prijs | € 385.000 | Bij het verlijden van de akte | [1] |\n"
+        + "| Voorschot | € 38.500 | Bij ondertekening van het compromis | [2] |\n"
+        + "| Saldo | € 346.500 | Bij het verlijden van de akte | [1] |\n"
+        + "| Kosten en erelonen | volgens barema | Ten laste van de koper | [3] |",
+      citations: [
+        { text: "De prijs is betaalbaar bij het verlijden van de authentieke akte.", source: { document_id: "d-compromis", page: 3, location: null } },
+        { text: "Een voorschot van € 38.500 werd betaald bij de ondertekening.", source: { document_id: "d-compromis", page: 7, location: null } },
+        { text: "Alle kosten, rechten en erelonen van de akte zijn ten laste van de koper.", source: { document_id: "d-compromis", page: 9, location: null } },
+      ] },
+  ],
+};

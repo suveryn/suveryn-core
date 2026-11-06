@@ -8,7 +8,7 @@
  * while it loads, and other people's questions wait too. The list and the note under the composer
  * say so; nothing is hidden.
  */
-import { Brain, Cpu } from "lucide-react";
+import { Brain, ChevronDown, Cpu } from "lucide-react";
 import type { ModelInfo } from "../api";
 import { t, useT } from "../i18n";
 import { modelName } from "../lib/model";
@@ -58,7 +58,8 @@ export function ModelPicker({ models, chosen, onChoose, thinking, onThinking, na
   return (
     <span className="model-picker">
       <ChipDialog className="chip-model chip-model-button" triggerLabel={m.modelChipLabel(name.full, thorough ? m.thorough : m.fast)}
-                  title={m.modelDialog} hideTitle narrow={narrow} doneLabel={m.askAboutDone} trigger={label}>
+                  title={m.modelDialog} hideTitle narrow={narrow} doneLabel={m.askAboutDone}
+                  trigger={<>{label}<ChevronDown size={12} aria-hidden className="model-chevron" /></>}>{/* the chevron: it opens a choice (board G01) */}
         {models.length > 1 && (
           <div className="model-section">
             <p className="label model-section-label">{m.model}</p>
