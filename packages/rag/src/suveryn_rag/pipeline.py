@@ -25,7 +25,8 @@ from .integrity import (
 from .isolation import make_extractor
 from .marks import find_mark
 from .reading import Progress, Unreadable, Watch
-from .store import Scope, Store
+from .formats import CONTENT_TYPE, kind_of
+from .store import Original, Scope, Store
 
 
 @dataclass
@@ -79,6 +80,11 @@ def _hit(r) -> RetrievedChunk:
             document_id=str(r.document_id), page=r.page_start,
             location=location_label(r.page_start, r.page_end, r.headings, r.place))),
         score=r.score, filename=r.filename)
+
+
+def original_of(path: Path) -> Original:
+    """The file as uploaded, to keep with its document (``store.originals``), typed by its extension."""
+    return Original(CONTENT_TYPE.get(kind_of(path.name) or "", "application/octet-stream"), path.read_bytes())
 
 
 def sha256_of(path: Path) -> str:
@@ -137,13 +143,15 @@ class Rag:
         if existing:
             status, warnings = self.store.document_status(existing)
             if not should_read_again(status, self.store.recovered_share(existing)):
+                # stored before files were kept: keep this one now (board G11)
+                self.store.keep_original_if_missing(existing, original_of(pdf))
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf, owner=owner, watch=watch)
         watch.check()
         watch.report(Progress("store", None, ex.pages or None))
         if ex.passages is not None:
-            return self._store_passages(ex, existing, name, digest, owner, case_id)
+            return self._store_passages(ex, existing, name, digest, owner, case_id, original_of(pdf))
         t = time.perf_counter()
         result = self._chunker.chunk(ex.document, ex.page_texts)
         chunks = result.chunks
@@ -168,13 +176,15 @@ class Rag:
         t = time.perf_counter()
         noticed = None
         if existing:
-            doc_id = self.store.replace_document(existing, name, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings)
+            doc_id = self.store.replace_document(existing, name, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings,
+                                                 original=original_of(pdf))
         else:
             # sūveryn's own export coming back (docs/design/chat-ui.md §6): stored, but not a source
             # until a person says so. The text layer has the footers the chunks may leave out.
             noticed = find_mark([*ex.page_texts, *(c.text for c in chunks)])
             doc_id = self.store.add_document(name, digest, ex.pages, ex.ocr_pages, chunks, vectors, result.warnings,
-                                             owner, case_id, provenance={"noticed": noticed} if noticed else None)
+                                             owner, case_id, provenance={"noticed": noticed} if noticed else None,
+                                             original=original_of(pdf))
         if suspicious:
             audit("instruction_like_document", user=owner, document=str(doc_id), pages=sorted(suspicious),
                   kinds=sorted({k for kinds in suspicious.values() for k in kinds}))
@@ -184,7 +194,7 @@ class Rag:
                             ex.mixed_pages, noticed)
 
     def _store_passages(self, ex, existing: uuid.UUID | None, name: str, digest: str, owner: str | None,
-                        case_id: uuid.UUID | None) -> IngestResult:
+                        case_id: uuid.UUID | None, original: Original) -> IngestResult:
         """Store a Word, Excel, Markdown or CSV file read by ``formats``: its passages are already placed
         and complete, so the PDF checks (page coverage, recovery, encoding) don't apply. Text addressed
         to an AI is flagged as in a PDF, and the mark is looked for in the body and outside it."""
@@ -200,11 +210,11 @@ class Rag:
         t = time.perf_counter()
         noticed = None
         if existing:
-            doc_id = self.store.replace_document(existing, name, 0, 0, chunks, vectors, warnings)
+            doc_id = self.store.replace_document(existing, name, 0, 0, chunks, vectors, warnings, original=original)
         else:
             noticed = find_mark([*ex.furniture, *(c.text for c in chunks)])
             doc_id = self.store.add_document(name, digest, 0, 0, chunks, vectors, warnings, owner, case_id,
-                                             provenance={"noticed": noticed} if noticed else None)
+                                             provenance={"noticed": noticed} if noticed else None, original=original)
         if kinds:
             audit("instruction_like_document", user=owner, document=str(doc_id), pages=[], kinds=kinds)
         ex.timings["store"] = time.perf_counter() - t

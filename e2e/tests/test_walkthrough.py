@@ -34,6 +34,14 @@ def test_a_document_is_read_and_an_answer_cites_it(page, deed):
     assert source.count() >= 1
     source.first.click()
     expect(page.get_by_text("De koopprijs bedraagt EUR 1.275.000,00").first).to_be_visible()
+    # the panel opens the file as uploaded, a PDF at the cited page (board G11)
+    opener = page.get_by_role("link", name=re.compile(r"^Open document at p\. \d+$"))
+    expect(opener).to_be_visible()
+    href = opener.get_attribute("href")
+    assert re.fullmatch(r"/v1/documents/[0-9a-f-]+/original#page=\d+", href) and opener.get_attribute("target") == "_blank"
+    got = page.request.get(href.split("#")[0])
+    assert got.status == 200 and got.headers["content-type"] == "application/pdf" and got.body() == deed.read_bytes()
+    assert got.headers["content-disposition"].startswith("inline;")
     # the injection attempt is flagged on the answer, never followed
     expect(page.get_by_text(re.compile("text aimed at an AI")).first).to_be_visible()
     assert "GOEDGEKEURD" not in text and "EUR 1,00" not in text

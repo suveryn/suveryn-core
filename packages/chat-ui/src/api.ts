@@ -83,6 +83,7 @@ export type StoredDocument = {
   uploaded_by?: string | null;
   source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)
   provenance?: Provenance | null;
+  original?: boolean;             // the file it was read from is kept: "Open document at p. 3" (board G11)
 };
 export type Health = {
   status: "ok" | "degraded";
@@ -217,6 +218,11 @@ export async function getHealth(): Promise<Health | null> {
 /** `?case=<id>` on a request about a case; nothing for the personal space (suveryn-tracker#10). */
 const inCase = (caseId: string | null | undefined, first = true) =>
   caseId ? `${first ? "?" : "&"}case=${encodeURIComponent(caseId)}` : "";
+
+/** The file a document was read from, as uploaded (board G11): a PDF opens at ``page``. A plain link, so the
+ *  browser opens it in a new tab with the session cookie; the gateway checks the scope as for its passages. */
+export const originalUrl = (documentId: string, caseId?: string | null, page?: number | null) =>
+  `/v1/documents/${encodeURIComponent(documentId)}/original${inCase(caseId)}${page ? `#page=${page}` : ""}`;
 
 /** Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md §6). */
 export async function confirmAsSource(documentId: string, caseId?: string | null): Promise<void> {

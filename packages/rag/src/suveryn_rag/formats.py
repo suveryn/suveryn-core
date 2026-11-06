@@ -34,6 +34,12 @@ from .reading import Unreadable
 # File types by extension. The upload check (``looks_like``) and the reader confirm the content.
 KINDS = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".md": "md", ".markdown": "md", ".csv": "csv"}
 SUFFIX = {"pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "md": ".md", "csv": ".csv"}
+# The type the gateway serves a kept file as (board G11, "Open document"): a PDF opens in the browser, Word and
+# Excel are downloaded, Markdown and CSV are shown as plain text (never as HTML).
+CONTENT_TYPE = {"pdf": "application/pdf",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "md": "text/plain; charset=utf-8", "csv": "text/plain; charset=utf-8"}
 
 # Limits for one file, checked before and while reading, so one upload can't exhaust the reader.
 MAX_UNPACKED_BYTES = 300 * 1024 * 1024   # an Office file's content once unzipped

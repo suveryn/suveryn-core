@@ -396,6 +396,10 @@ span.chip-run { cursor: default; }
                border-radius: var(--radius-pill); padding: 4px 10px; font-size: var(--text-caption); color: var(--text); cursor: pointer; }
 .copy-button:hover { background: var(--surface-alt); }
 .copy-button.ui-menu-button { font-size: var(--text-caption); }  /* the kit's menu button resets the font */
+/* "Open document at p. 3" (board G11): a link (it opens the file in a new tab), dressed as its neighbours */
+.copy-button.source-open { border: 1px solid var(--line); padding: 4px 10px; font-size: var(--text-caption); font-weight: 400;
+                           color: var(--text); text-decoration: none; }
+.copy-button.source-open[data-focus-visible] { border-radius: var(--radius-pill); }
 .source-text { margin: 0 0 var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line);
                font-size: var(--text-body-sm); white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
 /* Facts of the citing sentence, marked in the passage (teal wash, like citations), which scrolls to the first. */

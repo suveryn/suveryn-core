@@ -702,6 +702,8 @@ const en = {
   nextSource: "Next source",
   closeSource: "Close the source (Esc)",
   copyPassage: "Copy passage",
+  openAtPage: (page: number) => `Open document at p. ${page}`,
+  openDocument: "Open document",
   passageWhat: (n: number) => `the passage of source ${n} with its reference`,
   verdictSentence: "Checked: in the passage",
   verdictSource: "Checked: in the passage",

@@ -14,7 +14,7 @@ common words don't drown out the rare, specific ones.
 
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import psycopg
@@ -86,6 +86,15 @@ CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 -- No vector index: answers rank every chunk of the documents exactly (``best_chunks``); keeping an HNSW index
 -- up to date made storing a document some hundred times slower (2,500 chunks: 51 s against 0.4 s).
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
+-- The file a document was read from, as uploaded (board G11: "Open document at p. 3"). In the database, so it
+-- goes with its document (ON DELETE CASCADE: deleting the document, its case or a keep period deletes it too)
+-- and into the backups with everything else (docs/design/data-lifecycle.md). Documents stored before files
+-- were kept have none, until the same file is uploaded there again.
+CREATE TABLE IF NOT EXISTS originals (
+    document_id   uuid PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+    content_type  text NOT NULL,
+    data          bytea NOT NULL
+);
 """
 
 
@@ -105,8 +114,18 @@ def without(content: dict, document_id: str) -> dict:
 
 # A source for answers (cases.md decision 7): uploaded, and not sūveryn's own export coming back
 # unless a person chose to use it anyway (docs/design/chat-ui.md §6). Constants only, no input.
+# Whether the file a document was read from is kept (``originals``).
+HAS_ORIGINAL = "EXISTS (SELECT 1 FROM originals o WHERE o.document_id = d.id)"
 SOURCE = ("d.origin = 'uploaded' AND NOT (coalesce(d.provenance, '{}') ? 'noticed'"
           " AND NOT coalesce(d.provenance, '{}') ? 'confirmed')")
+
+
+@dataclass(frozen=True)
+class Original:
+    """The file a document was read from: its content type and bytes (``originals``)."""
+
+    content_type: str
+    data: bytes = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -195,7 +214,8 @@ class Store:
         return recovered / total if total else 0.0
 
     def replace_document(self, document_id: uuid.UUID, filename: str, pages: int, ocr_pages: int, chunks: list[Chunk],
-                         embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None) -> uuid.UUID:
+                         embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
+                         original: Original | None = None) -> uuid.UUID:
         """Read again: the document keeps its id (saved conversations still point to it), its chunks, status
         and warnings are replaced, in one transaction."""
         warnings = warnings or []
@@ -207,14 +227,18 @@ class Store:
                 (filename, pages, ocr_pages, status,
                  json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), document_id))
             self._insert_chunks(document_id, chunks, embeddings)
+            if original is not None:
+                self._keep_original(document_id, original)
         return document_id
 
     def add_document(self, filename: str, sha256: str, pages: int, ocr_pages: int, chunks: list[Chunk],
                      embeddings: np.ndarray, warnings: list[IntegrityWarning] | None = None,
                      owner: str | None = None, case_id: uuid.UUID | None = None, origin: str = "uploaded",
-                     provenance: dict | None = None, content: dict | None = None) -> uuid.UUID:
+                     provenance: dict | None = None, content: dict | None = None,
+                     original: Original | None = None) -> uuid.UUID:
         """Store a document and its chunks in one transaction (all or nothing), uploaded by ``owner``
-        into the case ``case_id`` (or their personal space), with its ``origin``.
+        into the case ``case_id`` (or their personal space), with its ``origin`` and, for an upload, the
+        file it was read from (``original``).
 
         Status is ``needs_review`` if any warning means text may be missing; recovered or
         restored text alone keeps it ``ok``. The file name is stored too and may itself be
@@ -231,7 +255,29 @@ class Store:
                  origin, json.dumps(provenance) if provenance else None,
                  json.dumps(content) if content is not None else None)).fetchone()[0]
             self._insert_chunks(doc_id, chunks, embeddings)
+            if original is not None:
+                self._keep_original(doc_id, original)
         return doc_id
+
+    def _keep_original(self, document_id: uuid.UUID, original: Original) -> None:
+        self._conn.execute(
+            "INSERT INTO originals (document_id, content_type, data) VALUES (%s, %s, %s)"
+            " ON CONFLICT (document_id) DO UPDATE SET content_type = EXCLUDED.content_type, data = EXCLUDED.data",
+            (document_id, original.content_type, original.data))
+
+    def keep_original_if_missing(self, document_id: uuid.UUID, original: Original) -> bool:
+        """Keep the file of a document stored before files were kept, when the same file is uploaded again."""
+        return self._conn.execute(
+            "INSERT INTO originals (document_id, content_type, data) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (document_id, original.content_type, original.data)).rowcount == 1
+
+    def original(self, document_id: uuid.UUID, scope: Scope) -> tuple[str, Original] | None:
+        """(file name, the file) of a document in the scope whose file is kept, or None."""
+        where, params = scope.where("d")
+        row = self._conn.execute(
+            "SELECT d.filename, o.content_type, o.data FROM documents d JOIN originals o ON o.document_id = d.id"
+            f" WHERE d.id = %s AND {where}", (document_id, *params)).fetchone()
+        return (row[0], Original(row[1], bytes(row[2]))) if row else None
 
     def _insert_chunks(self, doc_id: uuid.UUID, chunks: list[Chunk], embeddings: np.ndarray) -> None:
         with self._conn.cursor() as cur:
@@ -250,10 +296,10 @@ class Store:
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
             "       d.origin, d.owner, d.provenance,"
-            f"       ({SOURCE})"
+            f"       ({SOURCE}), {HAS_ORIGINAL}"
             f"  FROM documents d WHERE {where} ORDER BY d.created_at DESC", params).fetchall()
         keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "origin", "uploaded_by",
-                "provenance", "source")
+                "provenance", "source", "original")
         return [dict(zip(keys, r)) for r in rows]
 
     def list_documents_many(self, owner: str, case_ids: list[uuid.UUID]) -> list[dict]:
@@ -262,11 +308,11 @@ class Store:
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
             "       d.origin, d.owner, d.case_id, d.provenance,"
-            f"       ({SOURCE})"
+            f"       ({SOURCE}), {HAS_ORIGINAL}"
             "  FROM documents d WHERE (d.case_id IS NULL AND d.owner IS NOT DISTINCT FROM %s) OR d.case_id = ANY(%s)"
             " ORDER BY d.created_at DESC LIMIT 1000", (owner, case_ids)).fetchall()
         keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "origin", "uploaded_by", "case_id",
-                "provenance", "source")
+                "provenance", "source", "original")
         return [dict(zip(keys, r)) for r in rows]
 
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
@@ -320,7 +366,7 @@ class Store:
         return (row[0], row[1], row[2]) if row else None
 
     def delete_document(self, document_id: uuid.UUID, scope: Scope | None = None) -> bool:
-        """Delete a document (only one in ``scope`` when given); its chunks go with it (ON DELETE CASCADE).
+        """Delete a document (only one in ``scope`` when given); its chunks and its file go with it (ON DELETE CASCADE).
         Saved answers in the same scope that cite it lose its passages and its file name (``without``),
         in the same transaction, as saved conversations do (suveryn-tracker#12).
 
@@ -352,7 +398,7 @@ class Store:
         return True
 
     def delete_scope(self, scope: Scope) -> int:
-        """Delete every document in a scope (a case being deleted), chunks with them; how many."""
+        """Delete every document in a scope (a case being deleted), chunks and files with them; how many."""
         where, params = scope.where()
         return self._conn.execute(f"DELETE FROM documents WHERE {where}", params).rowcount
 

@@ -14,7 +14,8 @@ Quality bar:
 - every question finds the right passage in the top 5 with the correct page, and the
   buried tenant arrears in the top 3;
 - no leftover files in the work directory;
-- the document reaches status "ok", and forgetting it removes everything.
+- the uploaded file is kept as it was (board G11);
+- the document reaches status "ok", and forgetting it removes everything, its file too.
 """
 
 import os
@@ -85,6 +86,8 @@ def test_trap_deed(rag, tmp_path, kind):
         assert norm(trap_deed.PASTED_SCAN_HEADING) in stored, "digital text on the mixed page lost"
         assert all(ps is not None for _, ps, *_ in rows), "chunk without page number"
         assert r.status == "ok", f"document flagged: {r.warnings}"
+        kept = rag.store._conn.execute("SELECT content_type, data FROM originals WHERE document_id = %s", (r.document_id,)).fetchone()
+        assert kept is not None and kept[0] == "application/pdf" and bytes(kept[1]) == original, "the uploaded file isn't kept as it was"
         assert not any(rag.settings.work_dir.rglob("*")), "files left in the work directory"
 
         for item in trap_deed.QUESTIONS:
@@ -100,3 +103,4 @@ def test_trap_deed(rag, tmp_path, kind):
     finally:
         assert rag.store.delete_document(r.document_id)
         assert rag.store.document_status(r.document_id) is None
+        assert rag.store._conn.execute("SELECT 1 FROM originals WHERE document_id = %s", (r.document_id,)).fetchone() is None
