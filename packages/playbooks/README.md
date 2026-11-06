@@ -49,7 +49,7 @@ What is here:
 | `src/suveryn_playbooks/_model.py` | `Playbook`, `Fact`, `Step` and `Wording`: a playbook as the product sees it |
 | `src/suveryn_playbooks/manifest.py` | The manifest formats 1 and 2 (`Manifest`, validated strictly; `validate_steps` for the graph), `parse`, `load`, the table scaffold and the JSON Schema |
 | `src/suveryn_playbooks/paths.py` | Paths into a list's values (`founders[2].name`): split, root, entry |
-| `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.3: its thirteen facts (three of them lists), the instructions the model gets, the case type it fits and its ten steps |
+| `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake 1.4: its thirteen facts (three of them lists; two dates that count from the agreement's date when written as a term), the instructions the model gets, the case type it fits and its ten steps |
 | `src/suveryn_playbooks/record.py` | A playbook as a record and back: what a run keeps (``playbook_runs.manifest``) |
 | `src/suveryn_playbooks/rules.py` | A check's rule: one comparison, parsed and checked against the facts; the harness evaluates it |
 | `src/suveryn_playbooks/conditions.py` | A step's `when`: one condition on a choice fact; the runtime evaluates it when the step is reached |

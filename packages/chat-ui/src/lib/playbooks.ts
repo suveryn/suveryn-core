@@ -55,3 +55,38 @@ export function stepQuestion(words: PlaybookWords, stepId: string, factId?: stri
   if (factId) return q[`${stepId}.${factId}`] || (q[stepId] ?? "{label}").replace("{label}", factLabel(words, factId));
   return q[stepId] ?? "";
 }
+
+// ------------------------------------------------------------------ facts as the boards count and show them (P01, P03)
+
+/** One fact as a person counts it: a plain fact, or a whole list with its entries' values (board P01: "12 of 13",
+ *  a list is one fact). ``facts``: the plain fact, or the list's values by path (or its own "none" when it has no entries). */
+export type FactGroup<F> = { id: string; list: boolean; facts: F[] };
+
+/** The facts grouped as a person counts them, in the run's order (a list where its first value is). ``lists``: the
+ *  playbook's list facts, so a list the documents named no entries of is a list too. */
+export function factGroups<F extends { id: string }>(facts: F[], lists: Record<string, unknown> = {}): FactGroup<F>[] {
+  const out = new Map<string, FactGroup<F>>();
+  for (const f of shownFacts(facts)) {
+    const { root, index } = splitPath(f.id);
+    const g = out.get(root) ?? { id: root, list: root in lists, facts: [] };
+    if (index !== null) g.list = true;
+    g.facts.push(f);
+    out.set(root, g);
+  }
+  return [...out.values()];
+}
+
+/** Whether a fact as counted has a value: a plain one its own (or the confirmed one), a list any entry's. */
+export const groupFound = (g: FactGroup<{ value: string; confirmed?: string | null }>) =>
+  g.facts.some((f) => !!(f.confirmed ?? f.value));
+
+/** A list's entries in order, each its values by field ("" for a list of plain values). */
+export function entriesOf<F extends { id: string }>(g: FactGroup<F>): { index: number; values: Record<string, F> }[] {
+  const by = new Map<number, Record<string, F>>();
+  for (const f of g.facts) {
+    const { index, field } = splitPath(f.id);
+    if (index === null) continue;
+    by.set(index, { ...(by.get(index) ?? {}), [field ?? ""]: f });
+  }
+  return [...by.entries()].sort(([a], [b]) => a - b).map(([index, values]) => ({ index, values }));
+}

@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, PlaybookInfo, Run, RunSummary } from "../api";
 import en from "../i18n/en";
-import { RunPanel, RunThread, factCounts, reviewGroups, runChipText, runStatusWord, statusLabel, stepLabel } from "./RunConversation";
+import { RunPanel, RunSourcePanel, RunThread, computedHow, factCounts, reviewGroups, runChipText, runStatusWord, statusLabel, stepLabel, waitsFor } from "./RunConversation";
 
 const PLAYBOOK: PlaybookInfo = {
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.1", name: "Deed intake", covered: true,
@@ -127,10 +127,15 @@ describe("the facts list", () => {
     expect(html).not.toContain("<textarea");
   });
 
-  it("opens a fact's source with a way back to the list", () => {
-    const html = renderToStaticMarkup(<RunPanel run={RUN} words={words} view={{ kind: "source", fact: "price", fromList: true }} onView={noop} onClose={noop} />);
-    expect(html).toContain("facts-back");
+  it("opens a fact's source in the conversation's own source panel (board P02)", () => {
+    const html = renderToStaticMarkup(<RunSourcePanel run={RUN} fact="price" fromList caseRef="2026/0611" kept={new Set(["d1"])} caseId="c1"
+                                                      onView={noop} onClose={noop} />);
     expect(html).toContain("De prijs bedraagt");
+    expect(html).toContain(en.sourceOf(1, 1));                                   // "1 of 1", with its arrows
+    expect(html).toContain(en.openAtPage(2));                                    // the document at its page
+    expect(html).toContain(en.copyPassage);
+    expect(html).toContain("EUR 415.000,00");                                    // what the check didn't find, as under an answer
+    expect(html).not.toContain(en.verdictSource);
   });
 });
 
@@ -170,14 +175,13 @@ describe("lists (format 3)", () => {
     const { check, missing } = reviewGroups(run);
     expect(check.map((f) => f.id)).toEqual(["founders[1].shares"]);
     expect(missing.map((f) => f.id)).toEqual(["conditions"]);   // not "founders": it has an entry
-    expect(factCounts(run)).toEqual([3, 4]);
+    expect(factCounts(run)).toEqual([2, 3]);   // a list is one fact, found with an entry (board P01): not its fields
     const html = renderToStaticMarkup(
       <RunThread run={run} kase={KASE} playbook={FORMATION} words={fwords} me="u-ines" canAnswer nameOf={names} panel={null}
                  onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
     expect(html).toContain("Founder(s) 1 · Shares");
     expect(html).toContain("Conditions</span><em class=\"fact-unknown\">None in the documents</em>");  // a list with no entries: an entry to add, not a value to fill in
-    expect(html.match(/fact-card-entry/g)?.length).toBe(2);   // and one more founder can be added
-    expect(html).toContain("Founder(s)</span><span class=\"fact-card-value\">1 entry</span>");
+    expect(html.match(/fact-card-entry/g)?.length).toBe(1);   // a list with entries isn't in the message: one more is added in the panel
     expect(html).not.toContain(">Fill in<");
   });
 
@@ -196,9 +200,15 @@ describe("lists (format 3)", () => {
                  onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
     expect(html).toContain("The founders&#x27; shares add up to the shares issued");
     expect(html).toContain("Does not hold: 1050 against 1000.");
-    expect(html).toContain("count(founders) &gt;= 1");   // no sentence in the words: the rule as written
-    expect(html).toContain("Not checked yet: Founder(s) 2 · Name is needed.");
+    // only a check that fails is in the message (board P01); the others are in the panel
+    expect(html).not.toContain("count(founders) &gt;= 1");
+    expect(html).not.toContain("Not checked yet");
     expect(html).not.toContain("data-blocked");   // a failed check is a point for the notary, never a block
+    const panel = renderToStaticMarkup(<RunPanel run={checked} words={{ ...fwords, checks: playbook.text!.en.checks }} view={{ kind: "list" }}
+                                                 steps={playbook.steps} lists={FORMATION.lists} onView={noop} onClose={noop} />);
+    expect(panel).toContain("count(founders) &gt;= 1");   // no sentence in the words: the rule as written
+    expect(panel).toContain(en.pbCheckHolds);
+    expect(panel).toContain("Not checked yet: Founder(s) 2 · Name is needed.");
   });
 
   it("offers a choice's options as buttons when the playbook asks, and says why a step was skipped", () => {
@@ -235,11 +245,66 @@ describe("lists (format 3)", () => {
     expect(asManager).toContain("Confirm the facts");
   });
 
-  it("lists the entries, not the list's none, in the panel", () => {
-    const html = renderToStaticMarkup(<RunPanel run={run} words={fwords} view={{ kind: "list" }} onView={noop} onClose={noop} />);
-    expect(html).toContain("Founder(s) 1 · Name");
-    expect(html).toContain("Founder(s) 1 · Shares");
-    expect(html).not.toContain("data-fact=\"founders\"");
+  it("shows a list as one block in the panel, its entries' other fields dimmed, Add at its end (board P03)", () => {
+    const two: Run = { ...run, facts: [...run.facts, { id: "founders[2].name", value: "Ines Wouters", citations: [], issues: [], found: true, confirmed: null, source: "document" }] };
+    const html = renderToStaticMarkup(<RunPanel run={two} words={fwords} view={{ kind: "list" }} lists={FORMATION.lists} kase={KASE} canAnswer
+                                                onView={noop} onClose={noop} />);
+    expect(html).toContain("data-fact=\"founders\"");
+    expect(html).toContain("Filip Tack and Ines Wouters");            // the entries on one line
+    expect(html).toContain("fact-entry-more\">Filip Tack · 650");      // an entry's other field, under it
+    expect(html).not.toContain("Founder(s) 1 · Name");                 // not a block per entry and field
+    expect(html).toContain("Founder(s) 1 · Shares: " + esc(en.factCheckThis));
+    expect(html.match(/>Add</g)?.length).toBe(2);                      // one more founder, a first condition
     expect(html).toContain("data-fact=\"conditions\"");
+    expect(html).toContain(en.pbNoEntries);
+    const reader = renderToStaticMarkup(<RunPanel run={two} words={fwords} view={{ kind: "list" }} lists={FORMATION.lists} onView={noop} onClose={noop} />);
+    expect(reader).not.toContain(">Add<");
+  });
+});
+
+
+describe("a date sūveryn worked out (board P01)", () => {
+  const computed = { written: "binnen vier maanden na de ondertekening", from: "agreement_date", base: "2026-10-12", date: "2027-02-12",
+                     amount: 4, unit: "month" as const, direction: "after" as const };
+  const run: Run = { ...RUN, facts: [{ id: "deed_deadline", value: "12 februari 2027", issues: [], found: true, confirmed: null, source: "document",
+    needs: "computed", computed, citations: [{ n: 1, document_id: "d1", filename: "akte.pdf", page: 4, location: null,
+      text: "De akte wordt verleden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de voorwaarde." }] }] };
+  const dwords = { ...words, labels: { deed_deadline: "Deed by" } };
+
+  it("is under Check with how it was worked out, the term in ink and its context dimmed", () => {
+    expect(reviewGroups(run).check.map((f) => f.id)).toEqual(["deed_deadline"]);
+    expect(computedHow(computed, en)).toBe("Worked out: 12 October 2026 plus four months.");
+    const html = renderToStaticMarkup(<RunThread run={run} kase={KASE} playbook={PLAYBOOK} words={dwords} me="u-ines" canAnswer nameOf={names}
+                                                 panel={null} onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html).toContain("12 februari 2027");
+    expect(html).toContain("Worked out: 12 October 2026 plus four months.");
+    expect(html).toContain('<span class="quote-cited">binnen vier maanden na de ondertekening</span><span class="quote-context"> van deze overeenkomst, en …</span>');
+    expect(html).toContain("data-blocked");   // to check before the facts are confirmed
+  });
+
+  it("says in the source panel that the date itself isn't in the passage", () => {
+    const html = renderToStaticMarkup(<RunSourcePanel run={run} fact="deed_deadline" fromList={false} caseRef={null} onView={noop} onClose={noop} />);
+    expect(html).toContain(esc(en.pbDateNotInPassage));
+    expect(html).toContain("Worked out: 12 October 2026 plus four months.");
+  });
+});
+
+describe("who a run waits for (board P04, 7)", () => {
+  it("names the person who started it, you, or a member at the checkpoint", () => {
+    const asking = { ...SUMMARY, step: "missing", step_kind: "ask" as const };
+    expect(waitsFor(asking, PLAYBOOK, en, "u-bob", "Ines Wouters")).toBe("waiting for Ines");
+    expect(waitsFor(asking, PLAYBOOK, en, "u-ines", "Ines Wouters")).toBe(en.waitsForYou);
+    expect(waitsFor(SUMMARY, PLAYBOOK, en, "u-ines", "Ines Wouters")).toBe(en.waitsForMember);   // at the checkpoint
+    expect(runChipText({ ...asking, title: { en: "Deed intake" } }, PLAYBOOK, "", en, "en", { me: "u-bob", starterName: "Ines Wouters" }))
+      .toBe("Deed intake · waiting for Ines");
+  });
+});
+
+describe("typing while sūveryn reads (board P04, 3)", () => {
+  it("keeps the field open, with its hint", () => {
+    const html = renderToStaticMarkup(<RunThread run={{ ...RUN, status: "reading" }} kase={KASE} playbook={PLAYBOOK} words={words} me="u-ines" canAnswer
+                                                 nameOf={names} panel={null} onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html).toContain(`placeholder="${en.runTypeAhead}"`);
+    expect(html).not.toMatch(/<textarea[^>]*readonly/);
   });
 });

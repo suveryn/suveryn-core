@@ -195,7 +195,7 @@ export const PLAYBOOKS = [
 ];
 
 
-// ---------- a playbook run (boards P01 to P04): deed intake 1.3 in case 124 ----------
+// ---------- a playbook run (boards P01 to P04): deed intake 1.4 in case 124 ----------
 /** As the gateway gives the playbook (packages/playbooks, be_notary/deed-intake.yaml and text/*.json). */
 const DEED_LABELS = {
   sellers: "Verkoper(s)", "sellers.name": "Naam", "sellers.address": "Adres", "sellers.register": "Rijksregister- of ondernemingsnummer",
@@ -209,7 +209,7 @@ const DEED_FACTS = ["sellers", "buyers", "property", "cadastral", "price", "depo
                     "title", "epc", "soil", "occupancy"];
 const step = (id: string, kind: PlaybookStep["kind"], needs: string[] = [], facts: string[] = []): PlaybookStep => ({ id, kind, needs, facts });
 export const DEED_INTAKE: PlaybookInfo = {
-  id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.3", name: "Deed intake", covered: true,
+  id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.4", name: "Deed intake", covered: true,
   facts: DEED_FACTS, case_types: ["sale"], active: true,
   lists: { sellers: ["name", "address", "register"], buyers: ["name", "address", "register"], conditions: ["condition", "term"] },
   kinds: { price: "amount", deposit: "amount", agreement_date: "date", deed_deadline: "date", "conditions.term": "date" },
@@ -230,7 +230,7 @@ const fact = (id: string, value: string, citations: RunFact["citations"], extra:
 });
 const RUN_START = ago(70 * MIN);
 export const RUN_SUMMARY: RunSummary = {
-  id: "run-124", case_id: "c124", playbook_id: DEED_INTAKE.id, playbook_version: "1.3", status: "waiting", documents: ["d-compromis-124", "d-titel-124", "d-bodem-124"],
+  id: "run-124", case_id: "c124", playbook_id: DEED_INTAKE.id, playbook_version: "1.4", status: "waiting", step_kind: "checkpoint", documents: ["d-compromis-124", "d-titel-124", "d-bodem-124"],
   started_by: "mieke@kantoor.be", started_at: RUN_START, finished_at: null, confirmed_by: null, confirmed_at: null, model: "Qwen3.8-27B", error: null,
   result_document_id: null, out_of_date: false, step: "confirm", language: "nl", paused_by: null, paused_at: null, ended_by: null, ended_reason: null,
   starter: "u-mieke", conversation_id: "conv-run", title: { nl: "Akte-intake", en: "Deed intake", fr: "Intake de l'acte" },
@@ -241,6 +241,7 @@ export const RUN: Run = {
             deed_after_agreement: { status: "holds", rule: "agreement_date < deed_deadline", left: "12 oktober 2026", right: "12 februari 2027", missing: [] } },
   facts: [
     fact("sellers[1].name", "Jan Van Damme", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.")]),
+    fact("sellers[1].address", "Kerkstraat 14, 9000 Gent", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters, samenwonend te 9000 Gent, Kerkstraat 14.")]),
     fact("sellers[2].name", "Els Peeters", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.")]),
     fact("buyers[1].name", "Pieter De Smet", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.")]),
     fact("buyers[2].name", "An Claes", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.")]),
@@ -250,7 +251,8 @@ export const RUN: Run = {
     fact("deposit", "€ 38.500, op de derdenrekening van notaris Claes", [COMPROMIS(2, "Een voorschot van € 38.500 wordt betaald op de derdenrekening van notaris Claes.")]),
     fact("agreement_date", "12 oktober 2026", [COMPROMIS(9, "Opgemaakt te Gent op 12 oktober 2026.")]),
     fact("deed_deadline", "12 februari 2027", [COMPROMIS(4, "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.")],
-         { issues: ["12 februari 2027"], needs: "not_a_date" }),
+         { needs: "computed", computed: { written: "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", from: "agreement_date",
+                                          base: "2026-10-12", date: "2027-02-12", amount: 4, unit: "month", direction: "after" } }),
     fact("conditions[1].condition", "Hypothecair krediet, binnen vier weken na ondertekening", [COMPROMIS(5, "Onder de opschortende voorwaarde van het verkrijgen van een hypothecair krediet binnen vier weken na ondertekening.")]),
     fact("title", "Akte van 3 maart 1998, notaris Verhaeghe", [TITEL(3, "Verleden voor notaris Verhaeghe op 3 maart 1998.")]),
     fact("epc", "20260915-0002, label C", [], { source: "person", by: "mieke@kantoor.be", at: ago(64 * MIN), found: false }),

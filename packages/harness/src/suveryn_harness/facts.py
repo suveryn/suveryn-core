@@ -71,6 +71,10 @@ class RunFact(BaseModel):
     # person works it out and checks it (``not_a_date``, ``not_an_amount``, ``not_a_number``; decision, 1 November
     # 2026: *Kijk na* by meaning).
     needs: str | None = None
+    # A term worked out from the date it counts from (``terms``; board P01): ``needs`` is "computed", ``value`` the date
+    # as worked out, and this how: {"written": the term as the agreement writes it, "from": the fact counted from,
+    # "base", "date" (ISO), "amount", "unit" (day, week, month, year), "direction" (after, before)}.
+    computed: dict | None = None
 
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
@@ -116,6 +120,27 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
                     out.append(_leaf(entry(f.id, i, x.id), x.kind, record.get(x.id), citations, filenames, source, sep))
             else:
                 out.append(_leaf(entry(f.id, i), f.item_kind, item, citations, filenames, source, sep))
+    return work_out_terms(playbook, out)
+
+
+def work_out_terms(playbook: Playbook, facts: list[RunFact]) -> list[RunFact]:
+    """A date written as a term ("binnen vier maanden na de ondertekening") worked out from the date the playbook
+    says it counts from (``counts_from``), when that date was read as a date (``terms``; board P01). The fact stays
+    under *Check* (``needs: computed``) until a person confirms it; without a date to count from, or a term this
+    reads with certainty, it stays as written (``not_a_date``)."""
+    by_id = {f.id: f for f in facts}
+    out = []
+    for f in facts:
+        spec = playbook.leaf(f.id)
+        base = by_id.get(spec.counts_from) if spec is not None and spec.counts_from else None
+        if f.needs == "not_a_date" and base is not None and base.found and base.needs is None:
+            from .terms import work_out
+            done = work_out(f.value, as_date(base.value))
+            if done is not None:
+                value, how = done
+                f = f.model_copy(update={"value": value, "needs": "computed",
+                                         "computed": {"written": f.value, "from": spec.counts_from, **how}})
+        out.append(f)
     return out
 
 

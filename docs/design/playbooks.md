@@ -377,7 +377,25 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
   playbook with a list: the founders, each with name, shares (number) and contribution (amount).
   **Deed intake 1.3** (4 November 2026) makes the parties and the conditions lists and adds checks,
   keeping 1.0's thirteen ids, questions and labels: a run made under 1.0 reads the same facts.
+  **Deed intake 1.4** (6 November 2026) has the deed's deadline and a condition's term count from the
+  agreement's date (`counts_from`, below).
 - `check` steps on these typed values: below, "Checks".
+
+### A date written as a term (6 November 2026, board P01)
+
+An agreement often gives a deadline as a term: "binnen vier maanden na de ondertekening", "dans les deux
+mois de la signature". A date fact (or a list's date field) may say which date of the playbook such a term
+counts from: `counts_from: agreement_date`, a date fact outside a list that isn't counted from another
+(the loader refuses anything else). When the read gives a term instead of a date and the run has that date
+as a date, the harness works the deadline out (`suveryn_harness.terms`): days, weeks, calendar months or
+years, after or before, in Dutch, French and English, with the number in figures or words. The value
+becomes the date as the agreement would write it ("12 februari 2027"), `needs` is `computed`, and
+`computed` keeps the term as written, the date counted from and how (base, amount, unit, direction). The
+fact stays under *Check* until a person confirms it; the card says "Berekend: 12 oktober 2026 plus vier
+maanden.", the source panel "De datum zelf staat niet in de passage.". Not worked out, so the value stays
+as written for a person (`not_a_date`): no date to count from, working days (no calendar of public
+holidays yet), no direction, or more than one term in the value. A list counts as one fact everywhere a
+count is shown ("12 van 13"): found when it has an entry.
 
 ### Documents by name (3 November 2026)
 

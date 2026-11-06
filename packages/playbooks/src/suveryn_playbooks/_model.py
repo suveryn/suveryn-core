@@ -92,6 +92,9 @@ class Fact:
     item_kind: LeafKind = "text"
     # choice: the option ids (``cash``, ``in_kind``); their words per language are ``labels["<fact>.<option>"]``
     options: tuple[str, ...] = ()
+    # date: the date fact a term written instead of a date counts from ("four months after the signing":
+    # ``agreement_date``); the harness works the date out (``suveryn_harness.terms``) and a person checks it
+    counts_from: str = ""
 
     @property
     def leaf_kind(self) -> LeafKind:

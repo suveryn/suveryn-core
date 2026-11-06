@@ -511,6 +511,11 @@ const nl: Messages = {
   factsCount: (found, total) => `${found} van ${total}`,
   runAnswerPlaceholder: "Antwoord, of zeg wat er anders moet…",
   runPausedPlaceholder: (title) => `Gepauzeerd: hervat via ${title}.`,
+  runTypeAhead: "U kunt al verder typen…",
+  runHeld: (title) => `Wordt verstuurd zodra ${title} op u wacht.`,
+  waitsFor: (name) => `wacht op ${name}`,
+  waitsForYou: "wacht op u",
+  waitsForMember: "wacht op een lid",
   runConfirmedLine: (name, time) => `Bevestigd door ${name} · ${time}`,
   runPausedLine: (name, time) => `Gepauzeerd door ${name} · ${time}`,
   runResumedLine: (name, time) => `Hervat door ${name} · ${time}`,
@@ -541,6 +546,11 @@ const nl: Messages = {
   pbFill: "Invullen",
   pbNotInPassage: (items) => `Staat zo niet in de aangehaalde passage: ${items}.`,
   pbNotADate: "Geen datum zoals geschreven: reken ze uit en kijk na.",
+  pbComputedCheck: "Berekend. Kijk na.",
+  pbComputedHow: (base, term, before) => `Berekend: ${base} ${before ? "min" : "plus"} ${term}.`,
+  pbTerm: (n, unit) => `${["", "één", "twee", "drie", "vier", "vijf", "zes", "zeven", "acht", "negen", "tien", "elf", "twaalf"][n] ?? n} ${
+    { day: n === 1 ? "dag" : "dagen", week: n === 1 ? "week" : "weken", month: n === 1 ? "maand" : "maanden", year: "jaar" }[unit]}`,
+  pbDateNotInPassage: "De datum zelf staat niet in de passage.",
   pbNotAnAmount: "Geen bedrag zoals geschreven: reken het uit en kijk na.",
   pbNotANumber: "Geen getal zoals geschreven: reken het uit en kijk na.",
   // lijsten (formaat 3): een lijst waarvan de documenten geen items noemen, en nog een item voor een lijst die er heeft

@@ -41,6 +41,8 @@ export type AllDocument = StoredDocument & { case_id: string | null };
 
 type Props = {
   user: Me;
+  /** A live playbook run's state, for its row under its case (board P01): "wacht op u". */
+  runState?: (runId: string) => string | null;
   /** The overview open in the main area, if any: its navigation row is current. */
   view: string;
   /** In the drawer on a narrow screen: a close button instead of collapsing (docs/design/chat-ui.md §2). */
@@ -172,6 +174,7 @@ export function Sidebar(p: Props) {
   // ---------------------------------------------------------------- a conversation row
   // In Recent: the icon says who sees it, the case's reference is the meta. Under a pinned case: on
   // the hairline, an orange dot for the open one.
+  const runStateOf = (runId: string) => p.runState?.(runId) ?? null;
   const conversationRow = (c: ConversationSummary, underCase = false, pinnedRow = false) => {
     const r = ref(c.case_id);
     const shared = !!c.shared || (!!c.owner && c.owner !== p.user.sub);
@@ -179,6 +182,7 @@ export function Sidebar(p: Props) {
     const current = c.id === p.currentConversation;
     const row = (
       <Button key={c.id} variant="plain" className={underCase ? "side-sub" : "side-recent"} data-guide={underCase || undefined}
+              data-run={(underCase && !!c.run_id && !!runStateOf(c.run_id)) || undefined}
               onPress={() => p.onOpenConversation(c)} aria-current={current ? "page" : undefined} title={hint}>
         {underCase
           ? <span className="side-dot" data-current={current || undefined} aria-hidden />
@@ -188,7 +192,9 @@ export function Sidebar(p: Props) {
         <span className="side-text" data-shielded={c.shielded || undefined}
               aria-label={c.shielded && r ? m.shieldedIn(r) : undefined}>{listedTitle(c)}</span>
         {/* board G02: a colleague's shared conversation says whose it is, by first name */}
-        {underCase ? (c.run_id ? <Route size={13} className="side-shared" role="img" aria-label={m.playbook} />
+        {underCase ? (c.run_id ? (runStateOf(c.run_id)
+                        ? <span className="side-meta side-run-state">{runStateOf(c.run_id)}</span>
+                        : <Route size={13} className="side-shared" role="img" aria-label={m.playbook} />)
                       : shared && (c.owner_name
                         ? <span className="side-meta" title={c.owner_name}>{c.owner_name.split(" ")[0]}</span>
                         : <Users size={13} className="side-shared" role="img" aria-label={m.sharedConversations} />))

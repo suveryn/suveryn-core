@@ -43,7 +43,7 @@ import { backupAttention, type BackupAttention } from "./lib/backups";
 import { afterCheck, archiveCards, attachmentFromJob, cardForStored, checkJobs, documentsChanged, readToChoose, removal, uploadsToCheck,
          usedAsSource } from "./lib/uploads";
 import { CaseState } from "./components/CaseState";
-import { factCounts, RunPanel, runStatusWord, RunThread, runChipText, useRun, type RunPanelView } from "./components/RunConversation";
+import { factCounts, RunPanel, RunSourcePanel, runStatusWord, RunThread, runChipText, useRun, waitsFor, type RunPanelView } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
@@ -644,7 +644,7 @@ function Chat({ me }: { me: Me }) {
                onCaseAction={closing(caseAction)} onConversationAction={(c, a) => (a === "open" ? closing(conversationAction)(c, a) : conversationAction(c, a))}
                pinHint={pinHint} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
                onOpenAdmin={closing((page) => { setAdminPage(page); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
-               onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} />
+               onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} runState={runState} />
   );
 
   // The open case's one menu: in its header, or in the top bar on a narrow screen.
@@ -772,10 +772,13 @@ function Chat({ me }: { me: Me }) {
     setRunPanel(v);
   };
   const runLive = runIsLive(openRun);
-  const factsPanel = view === "chat" && openRun && currentCase && runPanel && openRun.facts.length > 0 && (
-    <RunPanel key={openRun.id} run={openRun} words={playbookWords(runPlaybook, language)} view={runPanel} onView={showRunPanel}
-              onClose={() => showRunPanel(null)} />
-  );
+  // a fact's source opens the conversation's own source panel (board P02); the list is the playbook's own (P03)
+  const factsPanel = view === "chat" && openRun && currentCase && runPanel && openRun.facts.length > 0 && (runPanel.kind === "source"
+    ? <RunSourcePanel key={`${openRun.id}-${runPanel.fact}`} run={openRun} fact={runPanel.fact} fromList={runPanel.fromList}
+                      caseRef={currentCase.reference} kept={kept} caseId={currentCase.id} onView={showRunPanel} onClose={() => showRunPanel(null)} />
+    : <RunPanel key={openRun.id} run={openRun} words={playbookWords(runPlaybook, language)} view={runPanel} onView={showRunPanel}
+                lists={runPlaybook?.lists ?? {}} steps={runPlaybook?.steps ?? []} kase={currentCase}
+                canAnswer={contributes && !closed} onChanged={runChanged} onClose={() => showRunPanel(null)} />);
 
   const newChat = () => {
     setView("chat");
@@ -857,6 +860,17 @@ function Chat({ me }: { me: Me }) {
   };
   const casesWithMembers: CaseOverview[] = overviewCases
     ?? cases.map((c) => ({ ...c, members: [], last_activity_at: null, last_activity_by: "" }));
+  // who a live run waits for (board P04, 7; P01): the starter by name, from the case's members
+  const starterName = (r: RunSummary) => (r.case_id === caseId ? names.get(r.starter ?? "") : undefined)
+    ?? casesWithMembers.find((c) => c.id === r.case_id)?.members.find((x) => x.user === r.starter)?.name ?? r.started_by;
+  const chipFor = (r: RunSummary) => runChipText(r, null, m.playbooks, m, language, { me: me.sub, starterName: starterName(r) });
+  // the run's state beside it in the column, under its case (board P01): "wacht op u"
+  const runState = (runId: string): string | null => {
+    const r = openRun?.id === runId ? openRun : Object.values(activeRuns).find((x) => x.id === runId);
+    if (!r) return null;
+    return r.status === "waiting" ? waitsFor(r, runPlaybook, m, me.sub, starterName(r))
+      : r.status === "reading" ? m.stepReading : r.status === "paused" ? m.runPaused : null;
+  };
   const pin = async (c: Case, pinned: boolean) => {
     try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed((e as Error).message)); }
   };
@@ -1051,7 +1065,7 @@ function Chat({ me }: { me: Me }) {
             </span>
             {/* on a phone too: the run's state above, and every fact a tap away (VM regression e0f2e26, finding 9) */}
             {view === "chat" && openRun && runLive && openRun.facts.length > 0 && (
-              <IconButton label={`${m.factsPanel} · ${m.factsCount(...factCounts(openRun))}`} aria-pressed={runPanel?.kind === "list"}
+              <IconButton label={`${m.factsPanel} · ${m.factsCount(...factCounts({ ...openRun, playbook: runPlaybook }))}`} aria-pressed={runPanel?.kind === "list"}
                           onPress={() => showRunPanel(runPanel?.kind === "list" ? null : { kind: "list" })}>
                 <FileText size={18} aria-hidden />
               </IconButton>
@@ -1083,7 +1097,7 @@ function Chat({ me }: { me: Me }) {
         </div>}
         {view === "cases" && <div className="conversation conversation-wide">
           <CasesOverview cases={casesWithMembers} documents={allDocuments} conversations={allConversations} activeRuns={activeRuns}
-                         runChip={(r) => runChipText(r, null, m.playbooks, m, language)} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
+                         runChip={chipFor} onOpen={openCase} onPin={pin} onNew={() => setNewCase(true)} onAction={caseAction}
                          onShowDocuments={(id) => showOverview("documents", id)} onShowConversations={(id) => showOverview("conversations", id)} />
         </div>}
         {view === "search" && <div className="conversation">
@@ -1132,7 +1146,7 @@ function Chat({ me }: { me: Me }) {
               // every fact, beside the conversation (handover of 31 October 2026, 2.4); the count is here and nowhere else
               <Button variant="plain" className="case-documents case-facts" aria-pressed={runPanel?.kind === "list"} aria-controls="run-panel"
                       onPress={() => showRunPanel(runPanel?.kind === "list" ? null : { kind: "list" })}>
-                <FileText size={14} aria-hidden /> {m.factsPanel} · <span aria-live="polite">{m.factsCount(...factCounts(openRun))}</span>
+                <FileText size={14} aria-hidden /> {m.factsPanel} · <span aria-live="polite">{m.factsCount(...factCounts({ ...openRun, playbook: runPlaybook }))}</span>
               </Button>
             )}
             {!administers && (

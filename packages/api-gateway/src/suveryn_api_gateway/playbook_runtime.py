@@ -261,7 +261,8 @@ class Runtime:
             dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value if f.found else "",
                  status="proposed" if f.found else "not_established",
                  source={"kind": "document", "citations": [c.model_dump() for c in f.citations],
-                         **({"needs": f.needs} if f.needs else {})} if f.found else {"kind": "none"},
+                         **({"needs": f.needs} if f.needs else {}), **({"computed": f.computed} if f.computed else {})}
+                 if f.found else {"kind": "none"},
                  issues=f.issues, by=playbook.id) for f in facts if root(f.id) in step.facts])
         states = dict(run.steps)
         states[step.id] = StepState(status="done", at=_now())
@@ -360,10 +361,12 @@ class Runtime:
 
     @staticmethod
     def counts(run: Run) -> tuple[int, int]:
-        """How many facts have a value (read from the documents, or given by a person), of how many. A
-        list with entries counts by its entries, not by its own "none"."""
-        shown = shown_facts(run.facts)
-        return sum(1 for f in shown if f.value), len(shown)
+        """How many facts have a value (read from the documents, or given by a person), of how many. A list is one
+        fact, found when it has an entry with a value (board P01: "12 of 13", not its entries and fields, "14 of 15")."""
+        found: dict[str, bool] = {}
+        for f in shown_facts(run.facts):
+            found[root(f.id)] = found.get(root(f.id), False) or bool(f.value)
+        return sum(found.values()), len(found)
 
     def ask_turn(self, run: Run, playbook: Playbook, open_facts: list[str]) -> tuple[str, dict]:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run

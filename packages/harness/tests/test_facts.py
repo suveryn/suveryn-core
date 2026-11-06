@@ -347,3 +347,56 @@ def test_a_choice_is_read_as_one_of_its_options_or_not_at_all():
     labels = {"cash": "In geld", "in_kind": "In natura", "mixed": "Gemengd"}
     assert option_of("in natura", ("cash", "in_kind", "mixed"), labels) == "in_kind" and option_of("cash", ("cash",), labels) == "cash"
     assert option_of("goud", ("cash", "in_kind"), labels) is None
+
+
+TERM = Citation(text="De authentieke akte wordt verleden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst. "
+                     "Opschortende voorwaarde: financiering, binnen zes weken na de ondertekening.",
+                source=SourceRef(document_id=DOC, page=4, location="p. 4"))
+
+
+def test_a_term_is_worked_out_from_the_date_it_counts_from_and_says_how():
+    """Board P01, deed intake 1.4: "binnen vier maanden na de ondertekening" counted from the agreement's date
+    (12 October 2026) is 12 February 2027, worked out and to check; the term as written is kept with how."""
+    answer = {**ANSWER, "agreement_date": leaf("12 oktober 2026", 1),
+              "deed_deadline": leaf("uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", 3),
+              "conditions": [{"condition": leaf("Financiering", 3), "term": leaf("binnen zes weken na de ondertekening", 3)}]}
+    passages = [PASSAGES[0].model_copy(update={"text": PASSAGES[0].text.replace("3 oktober 2026", "12 oktober 2026")}), PASSAGES[1], TERM]
+    facts = {f.id: f for f in read_facts(DEED_INTAKE, response(answer, passages), {DOC: "compromis.pdf"})}
+    deadline = facts["deed_deadline"]
+    assert (deadline.value, deadline.needs) == ("12 februari 2027", "computed")
+    assert deadline.computed == {"written": "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", "from": "agreement_date",
+                                 "base": "2026-10-12", "amount": 4, "unit": "month", "direction": "after", "date": "2027-02-12"}
+    assert deadline.citations[0].page == 4  # the passage with the term stays its source
+    term = facts["conditions[1].term"]
+    assert (term.value, term.needs, term.computed["unit"]) == ("23 november 2026", "computed", "week")
+    assert facts["agreement_date"].needs is None and facts["agreement_date"].computed is None
+
+
+def test_a_term_without_a_date_to_count_from_or_in_working_days_stays_as_written():
+    passages = [*PASSAGES, TERM]
+    no_base = {**ANSWER, "agreement_date": leaf(None), "deed_deadline": leaf("binnen vier maanden na de ondertekening", 3)}
+    deadline = {f.id: f for f in read_facts(DEED_INTAKE, response(no_base, passages), {})}["deed_deadline"]
+    assert (deadline.value, deadline.needs, deadline.computed) == ("binnen vier maanden na de ondertekening", "not_a_date", None)
+    working = {**ANSWER, "deed_deadline": leaf("binnen vijftien werkdagen na de ondertekening", 3)}
+    assert {f.id: f for f in read_facts(DEED_INTAKE, response(working, passages), {})}["deed_deadline"].needs == "not_a_date"
+
+
+@pytest.mark.parametrize("written, base, expect", [
+    ("binnen vier maanden na de ondertekening", (31, 10, 2026), "28 februari 2027"),        # no 31 February: the month's last day
+    ("dans les deux mois de la signature", (12, 10, 2026), "12 décembre 2026"),
+    ("quatre-vingt-dix jours à compter de la signature", (12, 10, 2026), "10 janvier 2027"),
+    ("within 30 days after signing", (12, 10, 2026), "11 November 2026"),
+    ("two weeks before the deed", (12, 10, 2026), "28 September 2026"),
+    ("binnen een jaar na de ondertekening", (29, 2, 2028), "28 februari 2029"),
+    ("drie (3) maanden na de ondertekening", (12, 10, 2026), "12 januari 2027"),
+])
+def test_terms_in_three_languages(written, base, expect):
+    from suveryn_harness.terms import work_out
+    assert work_out(written, base)[0] == expect
+
+
+@pytest.mark.parametrize("written", ["binnen vier maanden", "binnen 15 werkdagen na de ondertekening", "12 februari 2027",
+                                     "vier maanden of zes weken na de ondertekening", "tien procent van de prijs"])
+def test_what_isnt_one_certain_term_is_not_worked_out(written):
+    from suveryn_harness.terms import work_out
+    assert work_out(written, (12, 10, 2026)) is None

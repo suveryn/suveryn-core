@@ -513,6 +513,11 @@ const fr: Messages = {
   factsCount: (found, total) => `${found} sur ${total}`,
   runAnswerPlaceholder: "Répondez, ou dites ce qui doit changer…",
   runPausedPlaceholder: (title) => `En pause : reprenez via ${title}.`,
+  runTypeAhead: "Vous pouvez déjà continuer à écrire…",
+  runHeld: (title) => `Envoyé dès que ${title} vous attend.`,
+  waitsFor: (name) => `attend ${name}`,
+  waitsForYou: "vous attend",
+  waitsForMember: "attend un membre",
   runConfirmedLine: (name, time) => `Confirmé par ${name} · ${time}`,
   runPausedLine: (name, time) => `Mis en pause par ${name} · ${time}`,
   runResumedLine: (name, time) => `Repris par ${name} · ${time}`,
@@ -543,6 +548,11 @@ const fr: Messages = {
   pbFill: "Compléter",
   pbNotInPassage: (items) => `Ne figure pas ainsi dans le passage cité : ${items}.`,
   pbNotADate: "Pas une date telle qu'écrite : calculez-la et vérifiez.",
+  pbComputedCheck: "Calculé. À vérifier.",
+  pbComputedHow: (base, term, before) => `Calculé : ${base} ${before ? "moins" : "plus"} ${term}.`,
+  pbTerm: (n, unit) => `${["", unit === "week" ? "une" : "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix", "onze", "douze"][n] ?? n} ${
+    { day: n === 1 ? "jour" : "jours", week: n === 1 ? "semaine" : "semaines", month: "mois", year: n === 1 ? "an" : "ans" }[unit]}`,
+  pbDateNotInPassage: "La date elle-même ne figure pas dans le passage.",
   pbNotAnAmount: "Pas un montant tel qu'écrit : calculez-le et vérifiez.",
   pbNotANumber: "Pas un nombre tel qu'écrit : calculez-le et vérifiez.",
   // listes (format 3) : une liste dont les documents ne nomment aucune entrée, et une entrée de plus pour une liste qui en a
