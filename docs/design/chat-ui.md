@@ -58,7 +58,10 @@ These apply to every screen below.
   belongs to the whole table (a total, "Kept 180 days").
 - **Focus looks the same on every control**: the field's, a 1 px `focus` border with a 3 px glow
   against it, no gap (`--focus-ring` in `ui.css`; a control with its own border turns that border
-  teal). A row draws it inside.
+  teal). A row draws it inside. On an orange or teal fill (the main action, send, a citation
+  marker, a running playbook's chip) and on `surface-alt` chips, a 2 px gap in `bg` comes first
+  (`--focus-ring-gap`), so the teal never touches orange or teal and the lighter line of tokens
+  v3.7 keeps its 3:1.
 - **As few colours as possible.** Each colour does only what the brand guidelines' table says
   (suveryn-brand, "What each colour means", tokens v3.6); a new use fits that table or the table
   changes first. There is no danger colour (section 12).

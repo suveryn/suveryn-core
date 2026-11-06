@@ -830,3 +830,7 @@ span.chip-run { cursor: default; }
   body:has(.recovery-sheet) > *:not(:has(.recovery-sheet)) { display: none !important; }
   .ui-modal-overlay:has(.recovery-sheet) .ui-dialog-actions, .ui-modal-overlay:has(.recovery-sheet) .ui-dialog-title { display: none !important; }
 }
+
+/* Focus on an orange or teal fill and on surface-alt chips (tokens v3.7): the gap ring (ui.css). */
+.send-button:focus-visible, .cite-marker:focus-visible, .chip-run:focus-visible, .chip-about:focus-visible,
+.chip-playbook:focus-visible, .chip-model-button:focus-visible { outline: none; box-shadow: var(--focus-ring-gap); }

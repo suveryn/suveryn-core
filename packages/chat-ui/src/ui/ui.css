@@ -21,6 +21,10 @@
      border holds the 3:1 (WCAG 2.4.7); the glow is extra. */
   --focus-ring: 0 0 0 1px var(--focus-border), 0 0 0 4px var(--focus-glow);
   --focus-ring-inset: inset 0 0 0 1px var(--focus-border), inset 0 0 0 4px var(--focus-glow);
+  /* On an orange or teal fill, and on surface-alt (tokens v3.7): the control keeps its own edge, then a 2 px
+     gap in bg, the 1 px line and the glow, so the teal never touches orange or teal and the line holds
+     its 3:1 against the gap. */
+  --focus-ring-gap: 0 0 0 2px var(--bg), 0 0 0 3px var(--focus-border), 0 0 0 6px var(--focus-glow);
   --card-width: 560px;
 }
 .ui-card { width: 100%; max-width: var(--card-width); background: var(--surface); border: 1px solid var(--line);
@@ -70,6 +74,7 @@
 .ui-button[data-variant="quiet"][data-hovered] { background: var(--surface-alt); }
 .ui-button[data-pressed] { transform: translateY(1px); }
 .ui-button[data-focus-visible] { outline: none; border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-glow); }
+.ui-button[data-variant="primary"][data-focus-visible] { border-color: transparent; box-shadow: var(--focus-ring-gap); }
 .ui-button[data-disabled] { opacity: 0.5; cursor: default; }
 .ui-button[data-busy] { cursor: progress; opacity: 0.8; }
 
