@@ -671,11 +671,10 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
         </div>
       </div>
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
-      <Dialog isOpen={cancelling} onClose={() => setCancelling(false)} title={m.cancelRun} busy={busy}
-              actions={<>
-                <Button variant="secondary" onPress={() => setCancelling(false)}>{m.keepRunning}</Button>
-                <Button variant="primary" onPress={() => void act("cancel")} isDisabled={busy}>{m.cancelRunConfirm}</Button>
-              </>}>
+      {/* A form whose main action is itself a cancel: the way out says "Keep the run"; the focus starts in
+          the reason, where Enter makes a new line and doesn't submit. */}
+      <Dialog isOpen={cancelling} onClose={() => setCancelling(false)} kind="form" risky title={m.cancelRun} busy={busy}
+              cancel={{ label: m.keepRun }} primary={{ label: m.cancelRunConfirm, onPress: () => void act("cancel"), busyLabel: m.cancelling }}>
         <p>{m.cancelRunExplain}</p>
         <TextArea label={m.cancelReason} value={reason} onChange={setReason} rows={2} className="ui-field playbook-reason" />
       </Dialog>

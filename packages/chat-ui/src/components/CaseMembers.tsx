@@ -90,9 +90,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
   const taking = members?.find((x) => x.user === handingOver);
 
   return (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} title={m.membersTitle(kase.reference)} actions={<>
-      <TextButton onPress={onClose} isDisabled={busy}>{m.close}</TextButton>
-    </>}>
+    <Dialog isOpen={open} onClose={onClose} busy={busy} kind="information" title={m.membersTitle(kase.reference)} closeLabel={m.close}>
       {canManage && (
         // Strictly confidential (docs/design/chat-ui.md §11): the manager's switch, with what it changes.
         <div className="case-confidential">
@@ -212,9 +210,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
     casePlaybooks(kase.id).then((ps) => setTitles(new Map(ps.map((p) => [p.id, playbookWords(p, lang()).title])))).catch(() => {});
   }, [open, kase.id]);
   return (
-    <Dialog isOpen={open} onClose={onClose} title={m.accessLogTitle(kase.reference)} actions={<>
-      <TextButton onPress={onClose}>{m.close}</TextButton>
-    </>}>
+    <Dialog isOpen={open} onClose={onClose} kind="information" title={m.accessLogTitle(kase.reference)} closeLabel={m.close} error={error}>
       <p>{m.accessLogIntro}</p>
       {events === null && !error && <p className="caption">{m.loading}</p>}
       {events && events.length === 0 && <p className="caption">{m.accessLogEmpty}</p>}
@@ -229,7 +225,6 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
           ))}
         </ol>
       )}
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

@@ -14,7 +14,7 @@ import {
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, ComboBoxField, Dialog, Facts, InlineNotice, TextButton } from "../ui";
+import { ComboBoxField, Dialog, Facts, InlineNotice, TextButton } from "../ui";
 import type { AdminPage } from "./Admin";
 import { keepPeriodLabel } from "./CaseDialogs";
 import { fateLabel, isDue } from "./CaseState";
@@ -117,14 +117,11 @@ function HandOverDialog({ kase, onClose, onDone }: { kase: AdminCase | null; onC
     try { await handOver(kase.id, chosen.sub); onDone(); } catch (e) { setError(m.handOverFailed((e as Error).message)); } finally { setBusy(false); }
   };
   return (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} title={m.handOverTo(kase?.reference ?? "")} actions={<>
-      <TextButton onPress={onClose} isDisabled={busy}>{m.cancel}</TextButton>
-      <Button variant="primary" onPress={confirm} isDisabled={busy || !chosen}><ArrowRightLeft size={16} aria-hidden /> {m.handOver}</Button>
-    </>}>
+    <Dialog isOpen={open} onClose={onClose} busy={busy} kind="confirmation" title={m.handOverTo(kase?.reference ?? "")} error={error}
+            cancel={{ label: m.cancel }} primary={{ label: m.handOver, onPress: () => void confirm(), disabled: !chosen, busyLabel: m.handingOver }}>
       <p>{m.handOverHint}</p>
       <ComboBoxField name="colleague" label={m.newManager} value={query} onChange={setQuery}
                      options={candidates.map((p) => ({ id: p.sub, label: labelOf(p) }))} />
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

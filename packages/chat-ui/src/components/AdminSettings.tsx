@@ -16,7 +16,7 @@ import {
 } from "../api";
 import { useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { Button, Dialog, InlineNotice, NumberField, RadioList, SelectField, Switch, TextButton } from "../ui";
+import { Button, Dialog, InlineNotice, NumberField, RadioList, SelectField, Switch } from "../ui";
 import { keepPeriodLabel } from "./CaseDialogs";
 
 type Access = "office" | "members";
@@ -156,10 +156,8 @@ export function AdminSettings() {
             : settings?.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}
         </p>
       </div>
-      <Dialog isOpen={confirming !== null} onClose={() => setConfirming(null)} busy={busy} title={m.saveSettingsTitle} actions={<>
-        <TextButton onPress={() => setConfirming(null)} isDisabled={busy}>{m.cancel}</TextButton>
-        <Button variant="primary" onPress={write} isDisabled={busy}>{busy ? m.saving : m.save}</Button>
-      </>}>
+      <Dialog isOpen={confirming !== null} onClose={() => setConfirming(null)} busy={busy} kind="confirmation" title={m.saveSettingsTitle}
+              cancel={{ label: m.cancel }} primary={{ label: m.save, onPress: () => void write(), busyLabel: m.saving }}>
         {confirming?.cases_opened ? <p>{m.casesOpened(confirming.cases_opened)}</p> : null}
         {confirming?.cases_closed ? <p>{m.casesClosed(confirming.cases_closed)}</p> : null}
         {confirming?.conversations_deleted ? <p>{m.conversationsDeleted(confirming.conversations_deleted)}</p> : null}

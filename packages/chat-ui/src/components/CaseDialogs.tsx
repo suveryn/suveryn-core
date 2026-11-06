@@ -9,13 +9,12 @@
  * Closing is the normal end of a case: it says the case stays readable, that it is deleted after
  * the office's keep period (or kept until deleted by hand), and that it can be reopened.
  * Deleting is for a case opened by mistake: the dialog says the documents and conversations go
- * with it, and keeping it is the focused choice.
+ * with it, and the focus starts on Cancel.
  */
-import { CircleAlert, FolderPlus, Lock, Trash } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createCase, type Case, type KeepPeriod, type NewCase } from "../api";
 import { useT } from "../i18n";
-import { Button, ComboBoxField, Dialog, Form, InlineNotice, TextButton, TextField } from "../ui";
+import { ComboBoxField, Dialog, Form, TextField } from "../ui";
 
 export const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract", "care-mandate"] as const;
 
@@ -61,12 +60,8 @@ export function NewCaseDialog({ open, onCreated, onCancel }: { open: boolean; on
   };
 
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={busy} title={m.newCaseTitle} actions={<>
-      <Button variant="primary" type="submit" form="new-case" isDisabled={busy}>
-        <FolderPlus size={16} aria-hidden /> {busy ? m.creating : m.createCase}
-      </Button>
-      <TextButton onPress={onCancel} isDisabled={busy}>{m.cancel}</TextButton>
-    </>}>
+    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="form" title={m.newCaseTitle} closeLabel={m.close} error={error}
+            primary={{ label: m.createCase, form: "new-case", busyLabel: m.creating }} cancel={{ label: m.cancel }}>
       <Form id="new-case" check={check} onValid={create} className="case-form">
         <TextField name="reference" label={m.caseReference} description={m.caseReferenceHint} value={reference}
                    onChange={setReference} autoFocus maxLength={100} />
@@ -74,7 +69,6 @@ export function NewCaseDialog({ open, onCreated, onCancel }: { open: boolean; on
         <ComboBoxField name="type" label={m.caseType} description={m.caseTypeHint} value={type} onChange={setType}
                        options={CASE_TYPES.map((id) => ({ id, label: caseTypeLabel(id, m) }))} />
         <TextField name="subject" label={m.caseSubject} description={m.caseSubjectHint} value={subject} onChange={setSubject} maxLength={500} />
-        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -104,13 +98,10 @@ export function CloseCaseDialog({ open, kase, period, onCloseCase, onCancel }: {
   };
   const kept = keepPeriodLabel(period, m);
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={busy} title={m.closeCaseTitle(kase?.reference ?? "")} actions={<>
-      <TextButton onPress={onCancel} isDisabled={busy}>{m.cancel}</TextButton>
-      <Button variant="primary" autoFocus onPress={close} isDisabled={busy}><Lock size={16} aria-hidden /> {busy ? m.closing : m.closeCase}</Button>
-    </>}>
+    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="confirmation" title={m.closeCaseTitle(kase?.reference ?? "")} error={error}
+            primary={{ label: m.closeCase, onPress: close, busyLabel: m.closing }} cancel={{ label: m.cancel }}>
       <p>{m.closeCaseBody}</p>
       <p>{kept ? m.closeCaseKept(kept) : m.closeCaseKeptManual}</p>
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }
@@ -133,13 +124,9 @@ export function DeleteCaseDialog({ open, kase, onDelete, onCancel }: {
     }
   };
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={busy} title={m.deleteCaseTitle(kase?.reference ?? "")} actions={<>
-      {/* Keep first: the dialog focuses it */}
-      <Button variant="primary" autoFocus onPress={onCancel} isDisabled={busy}>{m.keep}</Button>
-      <Button onPress={remove} isDisabled={busy}><Trash size={16} aria-hidden /> {busy ? m.deleting : m.deleteCase}</Button>
-    </>}>
+    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="confirmation" risky title={m.deleteCaseTitle(kase?.reference ?? "")}
+            error={error} primary={{ label: m.deleteCase, onPress: remove, busyLabel: m.deleting }} cancel={{ label: m.cancel }}>
       <p>{m.deleteCaseBody}</p>
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

@@ -14,7 +14,7 @@ import { applianceClockAnswer, getAdminStatus, getBackups, setApplianceClock, ty
 import { locale, useT } from "../i18n";
 import { backupAttention, sizeLabel } from "../lib/backups";
 import { measureClock, sendClock, type Measured } from "../lib/clock";
-import { Button, Dialog, InlineNotice, Notice, TextButton } from "../ui";
+import { Button, Dialog, InlineNotice, Notice } from "../ui";
 import type { AdminPage } from "./Admin";
 
 const ICON: Record<StatusCheck["id"], ReactNode> = {
@@ -194,10 +194,8 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
         {m.clockThisPc(offLabel(offset, m))}{" "}
         <Button size="small" onPress={() => { onOutcome(null); setOpen(true); }}><Clock size={14} aria-hidden /> {m.clockSet}</Button>
       </p>
-      <Dialog isOpen={open} onClose={() => setOpen(false)} busy={busy} title={m.clockSetTitle} actions={<>
-        <TextButton onPress={() => setOpen(false)} isDisabled={busy}>{m.cancel}</TextButton>
-        <Button variant="primary" onPress={set} isDisabled={busy}>{busy ? m.clockSetting : m.clockSet}</Button>
-      </>}>
+      <Dialog isOpen={open} onClose={() => setOpen(false)} busy={busy} kind="confirmation" risky title={m.clockSetTitle}
+              cancel={{ label: m.cancel }} primary={{ label: m.clockSet, onPress: () => void set(), busyLabel: m.clockSetting }}>
         <p>{m.clockSetBody(hms(now + offset), hms(now))}</p>
         <p className="caption">{m.clockSetCheck}</p>
       </Dialog>

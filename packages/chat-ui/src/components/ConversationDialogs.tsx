@@ -2,13 +2,13 @@
  * The conversation menu's two dialogs (docs/design/chat-ui.md §4): *Rename* and *Move to a case*. The
  * server decides (routes/conversations.py); these only ask, and say what went wrong.
  */
-import { CircleAlert, FolderInput, MessageSquare, Pencil, Pin, PinOff, Trash } from "lucide-react";
+import { FolderInput, MessageSquare, Pencil, Pin, PinOff, Trash } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { moveConversation, renameConversation, type Case, type ConversationSummary } from "../api";
 import { useT } from "../i18n";
 import { listedTitle } from "../lib/conversations";
 import { conversationActions, moveTargets, type ConversationAction } from "../lib/conversationActions";
-import { Button, Dialog, Form, InlineNotice, SelectField, TextButton, TextField, type MenuEntry } from "../ui";
+import { Dialog, Form, SelectField, TextField, type MenuEntry } from "../ui";
 
 const MAX_TITLE = 200;
 
@@ -54,13 +54,10 @@ export function RenameConversationDialog({ conversation, onDone, onCancel }: {
     }
   };
   return (
-    <Dialog isOpen={!!conversation} onClose={onCancel} busy={busy} title={m.renameTitle} actions={<>
-      <Button variant="primary" type="submit" form="rename-conversation" isDisabled={busy}><Pencil size={16} aria-hidden /> {m.save}</Button>
-      <TextButton onPress={onCancel} isDisabled={busy}>{m.cancel}</TextButton>
-    </>}>
+    <Dialog isOpen={!!conversation} onClose={onCancel} busy={busy} kind="form" title={m.renameTitle} closeLabel={m.close} error={error}
+            primary={{ label: m.save, form: "rename-conversation", busyLabel: m.saving }} cancel={{ label: m.cancel }}>
       <Form id="rename-conversation" check={check} onValid={save} className="case-form">
         <TextField name="title" label={m.renameLabel} value={title} onChange={setTitle} autoFocus maxLength={MAX_TITLE} />
-        {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       </Form>
     </Dialog>
   );
@@ -90,18 +87,14 @@ export function MoveConversationDialog({ conversation, cases, onDone, onCancel }
     }
   };
   return (
-    <Dialog isOpen={!!conversation} onClose={onCancel} busy={busy}
-            title={conversation ? m.moveTitle(listedTitle(conversation)) : m.moveToCase} actions={<>
-      {/* Cancel first when there's nowhere to go: the dialog focuses it */}
-      {targets.length > 0 && <Button variant="primary" autoFocus onPress={move} isDisabled={busy}><FolderInput size={16} aria-hidden /> {m.moveButton}</Button>}
-      <TextButton onPress={onCancel} isDisabled={busy} autoFocus={targets.length === 0}>{m.cancel}</TextButton>
-    </>}>
+    <Dialog isOpen={!!conversation} onClose={onCancel} busy={busy} kind="form" closeLabel={m.close} error={error}
+            title={conversation ? m.moveTitle(listedTitle(conversation)) : m.moveToCase} cancel={{ label: m.cancel }}
+            primary={targets.length > 0 ? { label: m.moveButton, onPress: move, busyLabel: m.moving } : undefined}>
       {targets.length > 0
         ? <SelectField name="case" label={m.moveLabel} value={chosen} onChange={setTarget}
                        options={targets.map((c) => ({ id: c.id, label: `${c.reference} ${c.name}` }))} />
         : <p>{m.moveNoCase}</p>}
       <p className="caption">{targets.find((c) => c.id === chosen)?.confidential ? m.moveHintConfidential : m.moveHint}</p>
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

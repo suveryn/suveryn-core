@@ -1,11 +1,10 @@
 /**
- * Asked when signing out with saved conversations (suveryn-tracker#5): keep them (the default,
+ * Asked when signing out with saved conversations (suveryn-tracker#5): keep them (the main action,
  * focused) or delete them all. Escape or Cancel closes the dialog and stays signed in.
  */
-import { CircleAlert, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n";
-import { Button, Dialog, InlineNotice, TextButton } from "../ui";
+import { Dialog } from "../ui";
 
 type Props = { open: boolean; onKeep: () => void; onDelete: () => Promise<void>; onCancel: () => void };
 
@@ -27,14 +26,11 @@ export function SignOutDialog({ open, onKeep, onDelete, onCancel }: Props) {
   };
 
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={deleting} title={m.keepHistoryTitle} actions={<>
-      {/* Keep first: the dialog focuses it, and it is the default */}
-      <Button variant="primary" autoFocus onPress={onKeep} isDisabled={deleting}><LogOut size={16} aria-hidden /> {m.keepAndSignOut}</Button>
-      <Button onPress={remove} isDisabled={deleting}>{deleting ? m.deleting : m.deleteAndSignOut}</Button>
-      <TextButton onPress={onCancel} isDisabled={deleting}>{m.cancel}</TextButton>
-    </>}>
+    <Dialog isOpen={open} onClose={onCancel} busy={deleting} kind="choice" title={m.keepHistoryTitle} error={error}
+            cancel={{ label: m.cancel }}
+            secondary={{ label: m.deleteAndSignOut, onPress: () => void remove(), busyLabel: m.deleting, running: true }}
+            primary={{ label: m.keepAndSignOut, onPress: onKeep }}>
       <p>{m.keepHistoryBody}</p>
-      {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </Dialog>
   );
 }

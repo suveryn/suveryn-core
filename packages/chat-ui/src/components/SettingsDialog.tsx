@@ -10,7 +10,7 @@ import { useState } from "react";
 import type { Me } from "../api";
 import { useT } from "../i18n";
 import { setThinkingDefault, thinkingDefault } from "../lib/thinking";
-import { Avatar, Button, Dialog, LinkButton, Segmented, TextButton } from "../ui";
+import { Avatar, Button, Dialog, LinkButton, Segmented } from "../ui";
 
 export function SettingsDialog({ open, me, onClose, onPicture, thinks = false }: {
   open: boolean; me: Me; onClose: () => void; onPicture: () => void;
@@ -20,7 +20,7 @@ export function SettingsDialog({ open, me, onClose, onPicture, thinks = false }:
   const m = useT();
   const [thorough, setThorough] = useState(thinkingDefault);
   return (
-    <Dialog isOpen={open} onClose={onClose} title={m.settings} actions={<TextButton autoFocus onPress={onClose}>{m.close}</TextButton>}>
+    <Dialog isOpen={open} onClose={onClose} kind="information" title={m.settings} closeLabel={m.close}>
       <div className="settings-rows">
         <div className="settings-row">
           <Avatar name={me.name} sub={me.sub} etag={me.avatar} admin={me.admin} adminLabel={m.administrator} size="large" />

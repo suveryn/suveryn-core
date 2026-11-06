@@ -39,7 +39,7 @@ export type TableColumn<T> = {
   render: (row: T) => ReactNode;
 };
 
-export function DataTable<T extends { id: string }>({ label, columns, rows, onRowAction, sort, onSortChange, empty, className }: {
+export function DataTable<T extends { id: string }>({ label, columns, rows, onRowAction, sort, onSortChange, empty, footer, className }: {
   label: string;
   columns: TableColumn<T>[];
   rows: T[];
@@ -49,6 +49,9 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, onRo
   onSortChange?: (sort: SortDescriptor) => void;
   /** What the body says when there are no rows. */
   empty?: string;
+  /** What belongs to the whole table (a total, "Kept 180 days"): on the band under the rows. Left out
+   *  when nothing does. */
+  footer?: ReactNode;
   className?: string;
 }) {
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -78,6 +81,7 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, onRo
           )}
         </TableBody>
       </Table>
+      {footer && <div className="ui-table-foot">{footer}</div>}
     </div>
   );
 }
