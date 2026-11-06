@@ -527,6 +527,7 @@ const en = {
   changeValue: (label: string, value: string) => `${label}, ${value}, change`,
   factsCount: (found: number, total: number) => `${found} of ${total}`,
   runAnswerPlaceholder: "Answer, or say what should change…",
+  runPausedPlaceholder: (title: string) => `Paused: resume from ${title}.`,
   runConfirmedLine: (name: string, time: string) => `Confirmed by ${name} · ${time}`,
   runPausedLine: (name: string, time: string) => `Paused by ${name} · ${time}`,
   runResumedLine: (name: string, time: string) => `Resumed by ${name} · ${time}`,

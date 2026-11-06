@@ -270,7 +270,7 @@ span.chip-run { cursor: default; }
 .fact-card-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); }
 .run-review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .run-review-actions .ui-button[data-blocked] { opacity: 0.5; cursor: default; }
-.run-all-facts { color: var(--text); }
+.run-all-facts { color: var(--text); font-size: var(--text-ui-sm); }
 .case-facts[aria-pressed="true"] { background: var(--surface-alt); }
 .facts-back { padding: var(--space-2) var(--space-4); background: var(--surface-alt); border-bottom: 1px solid var(--line); }
 /* the facts list, in the source panel's place: every fact, nothing edited */
@@ -285,8 +285,10 @@ span.chip-run { cursor: default; }
 .fact-check { color: var(--teal-ink); flex: none; margin-top: 3px; }
 .fact-note { font-size: var(--text-caption); color: var(--text-dim); display: inline-flex; align-items: center; gap: var(--space-1); }
 .fact-issue { color: var(--text); }
-.playbook-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--teal-ink);
-                 padding: 2px 8px; border: 1px solid var(--teal-ink); border-radius: 999px; white-space: nowrap; }
+/* a case's run in the lists: ink while it waits for a person, teal only while sūveryn reads (board P04, 7) */
+.playbook-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption); color: var(--text);
+                 padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
+.playbook-chip[data-status="reading"] { color: var(--teal-ink); border-color: var(--teal-ink); }
 .playbook-chip[data-status="paused"] { color: var(--text-dim); border-color: var(--line); }
 .playbook-reason textarea { width: 100%; min-height: 64px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
                             font: inherit; font-size: var(--text-body-sm); color: var(--text); background: var(--bg); resize: vertical; }
@@ -864,3 +866,5 @@ span.chip-run { cursor: default; }
 .backup-card-value { margin: 0; font-size: var(--text-ui); font-weight: 600; }
 .backup-card-detail { margin: 0; font-size: var(--text-caption); color: var(--text-dim); }
 .backup-retention { display: flex; flex-direction: column; gap: var(--space-2); }
+/* the facts panel's title takes the room the head has: "Alle gegevens voor de akte" in full (board P03) */
+.facts-panel .source-panel-head > .composer-space { flex: 0 0 0; }

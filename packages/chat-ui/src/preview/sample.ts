@@ -4,8 +4,8 @@
  * Nothing here is real data (CLAUDE.md, "Confidential data").
  */
 import type {
-  Account, AccountEvent, Case, CaseEvent, CaseOverview, ConversationSummary, Health, Me, Member, ModelInfo,
-  SavedConversation, StoredDocument, UsersList,
+  Account, AccountEvent, Case, CaseEvent, CaseOverview, ConversationSummary, Health, Me, Member, ModelInfo, PlaybookInfo, PlaybookStep,
+  Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
 } from "../api";
 
 const MIN = 60 * 1000;
@@ -112,6 +112,7 @@ export const CASE_CONVERSATIONS: ConversationSummary[] = [
   CONVERSATION,
   conv("conv-vergadering", "Samenvatting vergadering met de kopers", DAY, { case_id: "c123", owner: "u-mieke", owner_name: "Mieke", shared: true }),
   conv("conv-vertaling", "Vertaling clausule naar het Frans", 3 * HOUR, { case_id: "c124" }),
+  conv("conv-run", "Akte-intake", 63 * MIN, { case_id: "c124", owner: "u-mieke", owner_name: "Mieke", shared: true, run_id: "run-124" }),
   conv("conv-hypotheek", "Hypotheekvoorwaarden vergelijken", 2 * DAY, { case_id: "c121", owner: "u-mieke", owner_name: "Mieke", shared: true }),
 ];
 export const PERSONAL_CONVERSATIONS: ConversationSummary[] = [
@@ -192,6 +193,85 @@ export const PLAYBOOKS = [
   playbook("kantoor", "[Playbook van het kantoor]", "v0.3", "kantoor", ["estate", "gift"], false, true),
 ];
 
+
+// ---------- a playbook run (boards P01 to P04): deed intake 1.3 in case 124 ----------
+/** As the gateway gives the playbook (packages/playbooks, be_notary/deed-intake.yaml and text/*.json). */
+const DEED_LABELS = {
+  sellers: "Verkoper(s)", "sellers.name": "Naam", "sellers.address": "Adres", "sellers.register": "Rijksregister- of ondernemingsnummer",
+  buyers: "Koper(s)", "buyers.name": "Naam", "buyers.address": "Adres", "buyers.register": "Rijksregister- of ondernemingsnummer",
+  property: "Goed", cadastral: "Kadastrale gegevens", price: "Prijs", deposit: "Voorschot of waarborg", agreement_date: "Compromis getekend op",
+  deed_deadline: "Akte te verlijden tegen", conditions: "Opschortende voorwaarden", "conditions.condition": "Voorwaarde",
+  "conditions.term": "Te vervullen tegen", title: "Eigendomstitel", epc: "Energieprestatiecertificaat", soil: "Bodemattest",
+  occupancy: "Bewoning bij levering",
+};
+const DEED_FACTS = ["sellers", "buyers", "property", "cadastral", "price", "deposit", "agreement_date", "deed_deadline", "conditions",
+                    "title", "epc", "soil", "occupancy"];
+const step = (id: string, kind: PlaybookStep["kind"], needs: string[] = [], facts: string[] = []): PlaybookStep => ({ id, kind, needs, facts });
+export const DEED_INTAKE: PlaybookInfo = {
+  id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.3", name: "Deed intake", covered: true,
+  facts: DEED_FACTS, case_types: ["sale"], active: true,
+  lists: { sellers: ["name", "address", "register"], buyers: ["name", "address", "register"], conditions: ["condition", "term"] },
+  kinds: { price: "amount", deposit: "amount", agreement_date: "date", deed_deadline: "date", "conditions.term": "date" },
+  steps: [step("agreement", "request"), step("read", "read", ["agreement"], DEED_FACTS), step("missing", "ask", ["read"], DEED_FACTS),
+          step("deposit_within_price", "check", ["missing"]), step("deed_after_agreement", "check", ["missing"]),
+          step("confirm", "checkpoint", ["missing"]), step("summary", "produce", ["confirm"])],
+  text: { nl: { title: "Akte-intake", summary: "Leest de feiten voor de akte uit de documenten", facts_title: "Gegevens voor de akte", labels: DEED_LABELS,
+                questions: { agreement: "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
+                             missing: "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet." },
+                checks: { deposit_within_price: "Het voorschot of de waarborg ligt binnen de prijs",
+                          deed_after_agreement: "De uiterste datum van de akte valt na de ondertekening van het compromis" } } },
+};
+const cite = (n: number, document_id: string, filename: string, page: number, text: string) => ({ n, document_id, filename, page, location: null, text });
+const COMPROMIS = (page: number, text: string) => cite(1, "d-compromis-124", "Compromis_DeSmet.pdf", page, text);
+const TITEL = (page: number, text: string) => cite(2, "d-titel-124", "Eigendomstitel_1998.pdf", page, text);
+const fact = (id: string, value: string, citations: RunFact["citations"], extra: Partial<RunFact> = {}): RunFact => ({
+  id, value, citations, issues: [], found: !!value, confirmed: null, source: value ? "document" : "none", ...extra,
+});
+const RUN_START = ago(70 * MIN);
+export const RUN_SUMMARY: RunSummary = {
+  id: "run-124", case_id: "c124", playbook_id: DEED_INTAKE.id, playbook_version: "1.3", status: "waiting", documents: ["d-compromis-124", "d-titel-124", "d-bodem-124"],
+  started_by: "mieke@kantoor.be", started_at: RUN_START, finished_at: null, confirmed_by: null, confirmed_at: null, model: "Qwen3.8-27B", error: null,
+  result_document_id: null, out_of_date: false, step: "confirm", language: "nl", paused_by: null, paused_at: null, ended_by: null, ended_reason: null,
+  starter: "u-mieke", conversation_id: "conv-run", title: { nl: "Akte-intake", en: "Deed intake", fr: "Intake de l'acte" },
+};
+export const RUN: Run = {
+  ...RUN_SUMMARY, instruction_like_sources: [], steps: {}, playbook: DEED_INTAKE,
+  checks: { deposit_within_price: { status: "holds", rule: "deposit <= price", left: "€ 38.500", right: "€ 385.000", missing: [] },
+            deed_after_agreement: { status: "holds", rule: "agreement_date < deed_deadline", left: "12 oktober 2026", right: "12 februari 2027", missing: [] } },
+  facts: [
+    fact("sellers[1].name", "Jan Van Damme", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.")]),
+    fact("sellers[2].name", "Els Peeters", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.")]),
+    fact("buyers[1].name", "Pieter De Smet", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.")]),
+    fact("buyers[2].name", "An Claes", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.")]),
+    fact("property", "Woning, Kerkstraat 14, 9000 Gent", [COMPROMIS(1, "Een woning gelegen te 9000 Gent, Kerkstraat 14.")]),
+    fact("cadastral", "Gent, 3e afdeling, sectie B, nr. 412B", [TITEL(1, "Gekend ten kadaster Gent, 3e afdeling, sectie B, nummer 412B.")]),
+    fact("price", "€ 385.000", [COMPROMIS(2, "De verkoop wordt toegestaan en aanvaard voor de prijs van driehonderdvijfentachtigduizend euro (€ 385.000).")]),
+    fact("deposit", "€ 38.500, op de derdenrekening van notaris Claes", [COMPROMIS(2, "Een voorschot van € 38.500 wordt betaald op de derdenrekening van notaris Claes.")]),
+    fact("agreement_date", "12 oktober 2026", [COMPROMIS(9, "Opgemaakt te Gent op 12 oktober 2026.")]),
+    fact("deed_deadline", "12 februari 2027", [COMPROMIS(4, "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.")],
+         { issues: ["12 februari 2027"], needs: "not_a_date" }),
+    fact("conditions[1].condition", "Hypothecair krediet, binnen vier weken na ondertekening", [COMPROMIS(5, "Onder de opschortende voorwaarde van het verkrijgen van een hypothecair krediet binnen vier weken na ondertekening.")]),
+    fact("title", "Akte van 3 maart 1998, notaris Verhaeghe", [TITEL(3, "Verleden voor notaris Verhaeghe op 3 maart 1998.")]),
+    fact("epc", "20260915-0002, label C", [], { source: "person", by: "mieke@kantoor.be", at: ago(64 * MIN), found: false }),
+    fact("soil", "", [], { found: false }),
+    fact("occupancy", "Vrij bij levering", [COMPROMIS(6, "Het goed wordt vrij van bewoning geleverd.")]),
+  ],
+  turns: [
+    { seq: 1, role: "playbook", step_id: "agreement", by: DEED_INTAKE.id, at: RUN_START, text: "", meta: {} },
+    { seq: 2, role: "user", step_id: "agreement", by: "mieke@kantoor.be", at: ago(69 * MIN), text: "Hier zijn ze.",
+      meta: { attachments: [{ documentId: "d-compromis-124", filename: "Compromis_DeSmet.pdf" }, { documentId: "d-titel-124", filename: "Eigendomstitel_1998.pdf" },
+                            { documentId: "d-bodem-124", filename: "Bodemattest_scan.pdf" }] } },
+    { seq: 3, role: "playbook", step_id: "missing", by: DEED_INTAKE.id, at: ago(68 * MIN), text: "", meta: { kind: "ask", facts: ["epc", "soil"], found: 11, total: 13 } },
+    { seq: 4, role: "user", step_id: "missing", by: "mieke@kantoor.be", at: ago(64 * MIN), text: "EPC 20260915-0002, label C. Het bodemattest volgt nog.", meta: {} },
+    { seq: 5, role: "playbook", step_id: "confirm", by: DEED_INTAKE.id, at: ago(63 * MIN), text: "", meta: { kind: "checkpoint", found: 12, total: 13, issues: 1 } },
+  ],
+};
+export const CASE_124_DOCUMENTS: StoredDocument[] = [
+  doc("d-compromis-124", "Compromis_DeSmet.pdf", 12, 70 * MIN),
+  doc("d-titel-124", "Eigendomstitel_1998.pdf", 4, 70 * MIN),
+  doc("d-bodem-124", "Bodemattest_scan.pdf", 2, 70 * MIN, { status: "needs_review", ocr_pages: 2 }),
+];
+
 // ---------- the routes ----------
 type Answer = unknown | ((m: RegExpMatchArray, body: unknown) => unknown);
 /** [method, path pattern (the query is part of the path), answer]. The first match answers. */
@@ -207,8 +287,11 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/cases\/([^/?]+)$/, (m: RegExpMatchArray) => CASES.find((c) => c.id === m[1]) ?? CASE_123],
   ["GET", /^\/v1\/cases\/[^/]+\/members$/, MEMBERS],
   ["GET", /^\/v1\/cases\/[^/]+\/events$/, CASE_EVENTS],
+  ["GET", /^\/v1\/cases\/c124\/playbooks\/runs\/run-124$/, () => RUN],
+  ["GET", /^\/v1\/cases\/c124\/playbooks$/, [DEED_INTAKE]],
   ["GET", /^\/v1\/cases\/[^/]+\/playbooks$/, []],
-  ["GET", /^\/v1\/playbooks\/runs\/active$/, {}],
+  ["GET", /^\/v1\/playbooks\/runs\/active$/, { c124: RUN_SUMMARY }],
+  ["GET", /^\/v1\/documents\?case=c124/, { documents: CASE_124_DOCUMENTS, jobs: [] }],
   ["GET", /^\/v1\/conversations\?all=true$/, ALL_CONVERSATIONS],
   ["GET", /^\/v1\/conversations\?case=([^&]+)/, (m: RegExpMatchArray) => CASE_CONVERSATIONS.filter((c) => c.case_id === m[1])],
   ["GET", /^\/v1\/conversations$/, PERSONAL_CONVERSATIONS],
@@ -242,3 +325,29 @@ export const EMPTY_OFFICE: Route[] = [
   ["GET", /^\/v1\/documents\/all$/, { documents: [] }],
   ["GET", /^\/v1\/documents/, { documents: [], jobs: [] }],
 ];
+
+/** The run in another state (board P04): the run itself, the case's live runs and the case's playbooks answer accordingly. */
+export function runIn(change: Partial<Run>): Route[] {
+  const run = { ...RUN, ...change };
+  const live = ["reading", "waiting", "paused"].includes(run.status);
+  return [
+    ["GET", /^\/v1\/cases\/c124\/playbooks\/runs\/run-124$/, run],
+    ["GET", /^\/v1\/playbooks\/runs\/active$/, live ? { c124: { ...RUN_SUMMARY, ...change } } : {}],
+  ];
+}
+const later = (min: number) => ago((63 - min) * MIN);
+const event = (seq: number, kind: string, by: string, min: number, meta: Record<string, unknown> = {}): Run["turns"][number] =>
+  ({ seq, role: "playbook", step_id: "confirm", by, at: later(min), text: "", meta: { kind, ...meta } });
+export const RUN_READING = runIn({ status: "reading", step: "read", turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
+export const RUN_PAUSED = runIn({ status: "paused", paused_by: "filip@kantoor.be", paused_at: later(15),
+                                   turns: [...RUN.turns, event(6, "paused", "filip@kantoor.be", 15)] });
+export const RUN_STOPPED = runIn({ status: "stopped", ended_by: "filip@kantoor.be", finished_at: later(20),
+                                    turns: [...RUN.turns, event(6, "stopped", "filip@kantoor.be", 20)] });
+export const RUN_CANCELLED = runIn({ status: "cancelled", ended_by: "filip@kantoor.be", finished_at: later(20), ended_reason: "verkeerde compromis",
+                                      turns: [...RUN.turns, event(6, "cancelled", "filip@kantoor.be", 20, { reason: "verkeerde compromis" })] });
+export const RUN_FAILED = runIn({ status: "failed", step: "read", error: "model_unavailable", turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
+/** No run in the case yet: starting one (board P04, 1). */
+export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}],
+                                ["GET", /^\/v1\/conversations\?case=c124/, CASE_CONVERSATIONS.filter((c) => c.case_id === "c124" && !c.run_id)]];
+/** Case 124 as a reader (board P04, 8): follows along, doesn't answer. */
+export const AS_READER: Route[] = [["GET", /^\/v1\/cases\/c124$/, { ...CASE_124, my_role: "reader", manager: "u-mieke" }]];
