@@ -42,6 +42,9 @@ function PressMain({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** A personal conversation, opened from the Gesprekken overview (Recent shows only the newest eight). */
+const HUURKOOP: Step[] = [{ click: "Gesprekken" }, { click: "Wat is een huurkoopformule?" }];
+
 /** The whole app, signed in as Mieke Delarivière, brought into a state by `steps`. */
 const app = (...steps: Step[]) => () => <Steps steps={steps}><App /></Steps>;
 
@@ -55,7 +58,7 @@ export const PREVIEWS: Preview[] = [
   { id: "g02-case-conversation", board: "G02", lang: "nl", title: "Gesprek in een dossier",
     render: app({ click: "Akte van verkoop: nazicht clausules" }) },
   { id: "g03-collapsed", board: "G03", lang: "nl", title: "Ingeklapte kolom, persoonlijk gesprek",
-    render: app({ click: "Wat is een huurkoopformule?" }, { click: "Zijbalk inklappen" }) },
+    render: app(...HUURKOOP, { click: "Zijbalk inklappen" }) },
   { id: "g04-account-menu", board: "G04", lang: "nl", title: "Accountmenu",
     render: app({ click: "Account: Test Beheerder" }) },
   { id: "g05-new-menu", board: "G05", lang: "nl", title: "Menu Nieuw",
@@ -64,8 +67,8 @@ export const PREVIEWS: Preview[] = [
   { id: "g07-cases", board: "G07", lang: "nl", title: "Dossiers, overzicht", render: app({ click: "Dossiers" }) },
   { id: "g08-documents", board: "G08", lang: "nl", title: "Documenten, overzicht", render: app({ click: "Documenten" }) },
   { id: "g09-offline", board: "G09", lang: "nl", title: "Server niet bereikbaar, met een gesprek open",
-    // the page loads, then the server goes away: the next health check (after 10 seconds) shows the bar
-    setup: () => offline("/health", 1), render: app({ click: "Wat is een huurkoopformule?" }, { wait: 11_000 }) },
+    // the page loads, then the server goes away: the next health check (every 10 seconds) shows the bar
+    setup: () => offline("/health", 3000), render: app(...HUURKOOP, { wait: 11_000 }) },
   { id: "g10-busy", board: "G10", lang: "nl", title: "Bezig met een antwoord", setup: () => hold("/v1/chat"),
     render: app({ type: "Wat is een huurkoopformule, in grote lijnen?", into: "Stel een vraag" }, { key: "Enter" }) },
   { id: "g11-source", board: "G11", lang: "nl", title: "Bronpaneel open",
@@ -76,7 +79,7 @@ export const PREVIEWS: Preview[] = [
   { id: "g14-new-case", board: "G14", lang: "nl", title: "Nieuw dossier",
     render: app({ click: "Nieuw" }, { click: "Nieuw dossier" }) },
   { id: "g16-table-saved", board: "G16", lang: "nl", title: "Een antwoord met een tabel, bewaard in het dossier",
-    render: app({ click: "Betalingen en termijnen" }) },
+    render: app({ click: "Betalingen en termijnen" }, { click: "Als Word-document in dossier" }) },
   { id: "g16-save-answer", board: "G16", lang: "nl", title: "Antwoord bewaren: Word of Markdown",
     render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Andere formaten" }) },
   { id: "g17-ask-about", board: "G17", lang: "nl", title: "Vraag over: documenten kiezen",

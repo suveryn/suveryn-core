@@ -436,7 +436,7 @@ span.chip-run { cursor: default; }
 
 /* Tables in answers: a real table, so copy and paste into Excel or Word keeps the columns. */
 .answer-table { margin: var(--space-3) 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
-.answer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.answer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }  /* white on the tinted page, as on G16 */
 .answer-table table { border-collapse: collapse; font-size: var(--text-body-sm); line-height: 1.45; }
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }

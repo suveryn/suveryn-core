@@ -100,6 +100,8 @@ export async function play(steps: Step[]): Promise<void> {
 }
 
 let started = false;
+/** Whether a preview's steps have started (main.tsx then leaves "ready" to them). */
+export const stepsRunning = () => started;
 export function Steps({ steps, children }: { steps: Step[]; children: ReactNode }) {
   useEffect(() => {
     if (started) return; // StrictMode runs effects twice in development
