@@ -340,3 +340,19 @@ def test_the_file_a_document_was_read_from_is_kept_in_its_scope_and_goes_with_it
         store.delete_document(doc)
         store.delete_document(old)
         store.close()
+
+
+
+def test_a_chunks_neighbours_are_read_for_the_text_around_a_passage():
+    """Board G11: the chunks right before and after a hit, in the same document."""
+    store = Store(URL, DIM)
+    chunks = [Chunk(i, f"zin {i} van de akte.", f"zin {i}", 1, 1, []) for i in range(3)]
+    doc = store.add_document("akte.pdf", f"sha-{uuid.uuid4()}", 1, 0, chunks, np.stack([unit(i) for i in range(3)]))
+    try:
+        near = store.neighbours([(doc, 1)])
+        assert near[(doc, 0)][0] == "zin 0 van de akte." and near[(doc, 2)][:3] == ("zin 2 van de akte.", 1, 1)
+        assert (doc, 1) not in near and store.neighbours([]) == {}
+        assert set(store.neighbours([(doc, 0)])) == {(doc, 1)}  # no chunk -1
+    finally:
+        store.delete_document(doc)
+        store.close()

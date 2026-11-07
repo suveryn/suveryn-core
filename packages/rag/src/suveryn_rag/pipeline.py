@@ -5,12 +5,13 @@ into ``ChatResponse.citations`` with ``source`` filled in (document, page, locat
 """
 
 import hashlib
+import re
 import time
 import uuid
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from suveryn_harness import Citation, SourceRef
+from suveryn_harness import Citation, PassageContext, SourceRef
 from suveryn_harness.audit import audit
 from suveryn_harness.guard import instruction_like
 
@@ -73,13 +74,49 @@ WHOLE_DOCUMENT_CHARS = 48_000
 WHOLE_DOCUMENT_CHUNKS = 99
 
 
-def _hit(r) -> RetrievedChunk:
-    """A stored chunk as a citation with its file name."""
+def _hit(r, context: PassageContext | None = None) -> RetrievedChunk:
+    """A stored chunk as a citation with its file name, and the text around it on its page."""
     return RetrievedChunk(
         citation=Citation(text=r.text, source=SourceRef(
             document_id=str(r.document_id), page=r.page_start,
-            location=location_label(r.page_start, r.page_end, r.headings, r.place))),
+            location=location_label(r.page_start, r.page_end, r.headings, r.place)), context=context),
         score=r.score, filename=r.filename)
+
+
+# The text around a cited passage (board G11): at most this many sentences, and characters, on each side.
+CONTEXT_SENTENCES = 2
+CONTEXT_CHARS = 400
+_SENTENCES = re.compile(r"(?<=[.!?;:])\s+")
+
+
+def passage_context(r, before: tuple | None, after: tuple | None) -> PassageContext | None:
+    """The passage with up to ``CONTEXT_SENTENCES`` sentences of the chunks before and after it, when those are on
+    the same page; None when there is nothing around it (a short page, a scan without text) or for a spreadsheet's
+    cells, whose neighbours aren't text around them."""
+    if r.place or r.page_start is None:
+        return None
+
+    def same_page(n: tuple | None) -> str:
+        if n is None or n[3] or n[1] is None:
+            return ""
+        lo, hi = n[1], n[2] if n[2] is not None else n[1]
+        return n[0].strip() if lo <= (r.page_end or r.page_start) and hi >= r.page_start else ""
+
+    head = _SENTENCES.split(same_page(before))
+    tail = _SENTENCES.split(same_page(after))
+    pre = " ".join(head[-CONTEXT_SENTENCES:]).strip()[-CONTEXT_CHARS:] if head != [""] else ""
+    post = " ".join(tail[:CONTEXT_SENTENCES]).strip()[:CONTEXT_CHARS] if tail != [""] else ""
+    if not pre and not post:
+        return None
+    pre = f"{pre} " if pre else ""
+    return PassageContext(text=f"{pre}{r.text}{' ' + post if post else ''}", start=len(pre), end=len(pre) + len(r.text))
+
+
+def with_context(store, rows) -> list[RetrievedChunk]:
+    """The rows as hits, each with the text around it on its page (``passage_context``)."""
+    near = store.neighbours([(r.document_id, r.chunk_index) for r in rows]) if rows else {}
+    return [_hit(r, passage_context(r, near.get((r.document_id, r.chunk_index - 1)), near.get((r.document_id, r.chunk_index + 1))))
+            for r in rows]
 
 
 def original_of(path: Path) -> Original:
@@ -253,7 +290,7 @@ class Rag:
         """
         whole = self.store.document_chunks(document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS)
         if whole:
-            return [_hit(r) for r in whole], True
+            return with_context(self.store, whole), True
         query = self.embedder.embed([question])[0]
         best = self.store.best_chunks(query, question, document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS, k)
-        return [_hit(r) for r in best], False
+        return with_context(self.store, best), False

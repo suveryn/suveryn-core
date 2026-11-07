@@ -29,7 +29,7 @@ from suveryn_playbooks import Playbook, entry, read_schema
 from suveryn_playbooks.paths import MAX_ENTRIES
 
 
-from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation
+from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
 from .calc import source_decimal_separator, unverified_figures
 from .support import citation_issues
 from .values import as_amount, as_date, as_number, numbers_in
@@ -54,6 +54,7 @@ class FactCitation(BaseModel):
     page: int | None = None
     location: str | None = None
     text: str
+    context: PassageContext | None = None  # the text around it on its page, for the source panel (board P02)
 
 
 class RunFact(BaseModel):
@@ -260,7 +261,7 @@ def _valid(text: str, available: int) -> list[int]:
 def _cite(n: int, c: Citation, filenames: dict[str, str]) -> FactCitation:
     s = c.source
     return FactCitation(n=n, document_id=s.document_id if s else "", filename=filenames.get(s.document_id, "") if s else "",
-                        page=s.page if s else None, location=s.location if s else None, text=c.text)
+                        page=s.page if s else None, location=s.location if s else None, text=c.text, context=c.context)
 
 
 def answer_shape(playbook: Playbook, response: ChatResponse) -> dict[str, int | str | None]:

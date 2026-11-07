@@ -827,6 +827,9 @@ const en = {
   documentCount: (n: number) => `${n} ${n === 1 ? "document" : "documents"}`,
   playbook: "Playbook",
   playbookMenu: "Playbooks for this case",
+  // the playbook menu (board P04, 9): its last run in this case
+  pbLastRun: (when: string, state: string) => `Last: ${when}, ${state} · starts a new conversation`,
+  pbRunningNow: (what: string) => `Running: ${what} · opens that conversation`,
   playbookChip: "Apply a playbook to this case",
   covered: "Covered",
   notCovered: "Not covered",
@@ -862,6 +865,9 @@ const en = {
   keyTestNotKey: "That isn't a sūveryn recovery key file.",
   backupAttention: { not_set_up: "Backups aren't set up.", stale: "There has been no backup for more than two days.", failing: "Last night's backup failed.", key_failed: "The last test of the recovery key failed.", key_due: "Test the recovery key: the appliance can't check it by itself." },
   backupAttentionOpen: "Open Backups",
+  // Status, Needs attention (board B01): when the recovery key last opened a backup
+  keyNotTestedSince: (day: string) => `Recovery key not tested since ${day}. Test every three months.`,
+  keyNeverTested: "Recovery key never tested. Test every three months.",
   // Administration › Backups, editable (docs/design/admin.md, artboard 36)
   backUpNow: "Back up now",
   backupStarted: "Started. It runs in the background.",

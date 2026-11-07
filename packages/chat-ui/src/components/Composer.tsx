@@ -64,6 +64,8 @@ type Props = {
   /** The playbooks that fit the open case (empty: no chip), and what to do when one is chosen. */
   playbooks?: PlaybookInfo[];
   onPlaybook?: (slug: string) => void;
+  /** Per playbook (slug), its last run in this case in words (board P04, 9); none for one never run here. */
+  playbookNotes?: Record<string, string>;
   /** One pill with a "+" menu (narrow screens). */
   compact?: boolean;
   /** The line under the box instead of the default (which says where answers come from). */
@@ -77,7 +79,7 @@ const CASES_IN_CHIP = 8;
 
 export function Composer({ askAbout = null, caseNote = null, locked = false, attachments, models, chosenModel, onChooseModel, thinking, onThinking, disabledReason, busy, onAttach,
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
-                          playbooks = [], onPlaybook, compact = false, hint = null, placeholder, workInCase = null }: Props) {
+                          playbooks = [], onPlaybook, playbookNotes = {}, compact = false, hint = null, placeholder, workInCase = null }: Props) {
   const m = useT();
   // The draft outlives a sign-in in this tab (lib/draft.ts).
   const [text, setTextState] = useState(readDraft);
@@ -117,6 +119,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
     description: [playbookWords(p, lang()).summary, `v${p.version}`].filter(Boolean).join(" · "),
     meta: p.covered ? m.covered : m.notCovered, metaTone: p.covered ? "teal" as const : "warn" as const,
     metaIcon: p.covered ? <Check size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />,
+    note: playbookNotes[p.slug],
   }));
   // The narrow composer's "+": the document, the case's playbooks and the model, in one menu.
   const current = models.find((x) => x.id === chosenModel) ?? defaultModel(models);

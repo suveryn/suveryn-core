@@ -89,11 +89,22 @@ class SourceRef(BaseModel):
     location: str | None = Field(default=None, description="Finer position, e.g. 'p. 3-4 · Article 2 - Price', 'Article 2 › Price' or 'Prices!A2:D31'")
 
 
+class PassageContext(BaseModel):
+    """The text around a cited passage on the same page (board G11): ``text`` holds the passage itself at
+    ``[start, end)``, with a few sentences before and after it, for the source panel to dim around it."""
+
+    text: str
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+
+
 class Citation(BaseModel):
     """A passage the answer relies on. ``source`` is null when the passage can't be traced to a document."""
 
     text: str = Field(description="The passage or claim that is being cited")
     source: SourceRef | None = Field(default=None, description="null means unsourced; show as unverified")
+    context: PassageContext | None = Field(default=None, description="The passage with the sentences around it on its page; "
+                                                                     "null on a short page, a spreadsheet or a scan without text around it")
 
 
 class Usage(BaseModel):

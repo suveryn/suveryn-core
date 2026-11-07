@@ -492,6 +492,19 @@ class Store:
             "  FROM documents d WHERE d.id = ANY(%s)", (document_ids,)).fetchall()
         return {str(r[0]): (r[1], r[2][:chars]) for r in rows}
 
+    def neighbours(self, chunks: list[tuple[uuid.UUID, int]]) -> dict[tuple[uuid.UUID, int], tuple[str, int | None, int | None, str | None]]:
+        """The chunks right before and after the ones given (same document, chunk_index - 1 and + 1), as
+        (document, index) -> (text, page_start, page_end, place): the text around a cited passage (board G11)."""
+        wanted = {(d, i + step) for d, i in chunks for step in (-1, 1) if i + step >= 0}
+        if not wanted:
+            return {}
+        docs, idxs = zip(*wanted, strict=True)
+        rows = self._conn.execute(
+            "SELECT c.document_id, c.chunk_index, c.text, c.page_start, c.page_end, c.place"
+            "  FROM chunks c JOIN unnest(%s::uuid[], %s::int[]) AS w(d, i) ON c.document_id = w.d AND c.chunk_index = w.i",
+            (list(docs), list(idxs))).fetchall()
+        return {(r[0], r[1]): (r[2], r[3], r[4], r[5]) for r in rows}
+
     def document_chunks(self, document_ids: list[uuid.UUID], max_chars: int, max_chunks: int) -> list[StoredChunk] | None:
         """Every chunk of the documents in reading order, or None if they are larger than the limits.
 

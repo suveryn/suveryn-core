@@ -677,6 +677,8 @@ span.chip-run { cursor: default; }
 /* the passage dimmed, what the claim rests on in ink on a teal wash */
 .source-panel-text { position: relative; margin: 0; font-size: var(--text-body-sm); line-height: 1.7; white-space: pre-wrap; color: var(--text-dim); }
 .source-panel-text mark { color: var(--text); }
+/* Board G11: the text around the passage on its page, dimmed further */
+.source-panel-text .source-context { color: var(--text-dimmer); }
 .source-panel-verdict { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; padding: 10px 12px; border-radius: var(--radius-sm);
                         background: var(--surface-alt); font-size: var(--text-caption); line-height: 1.5; color: var(--text); }
 .source-panel-verdict > svg { flex: none; margin-top: 1px; }

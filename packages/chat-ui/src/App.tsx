@@ -30,7 +30,7 @@ import {
   getMe, ME_CHANGED, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, listAdminPlaybooks, getBackups,
+  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, caseRuns, listAdminPlaybooks, getBackups,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -43,7 +43,7 @@ import { backupAttention, type BackupAttention } from "./lib/backups";
 import { afterCheck, archiveCards, attachmentFromJob, cardForStored, checkJobs, documentsChanged, readToChoose, removal, uploadsToCheck,
          usedAsSource } from "./lib/uploads";
 import { CaseState } from "./components/CaseState";
-import { factCounts, RunPanel, RunSourcePanel, runStatusWord, RunThread, runChipText, useRun, waitsFor, type RunPanelView } from "./components/RunConversation";
+import { factCounts, RunPanel, RunSourcePanel, runStatusWord, RunThread, runChipText, lastRunLine, useRun, waitsFor, type RunPanelView } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
@@ -103,6 +103,8 @@ const MODELS_EVERY = 60_000;
  * session ends while working (any API call answering 401), when sign-in is unavailable, or when a
  * sign-in didn't complete. The chat itself only mounts when signed in.
  */
+const LIVE_RUN: RunSummary["status"][] = ["reading", "waiting", "paused"];
+
 export default function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined); // undefined: still checking
   const [ended, setEnded] = useState(false);
@@ -210,7 +212,8 @@ function Chat({ me }: { me: Me }) {
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
-  const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});         // the live playbook run per case (the chip)
+  const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});
+  const [runsHere, setRunsHere] = useState<RunSummary[]>([]);                                  // the open case's runs, newest first (the playbook menu)         // the live playbook run per case (the chip)
   const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const [cases, setCases] = useState<Case[]>([]);
@@ -378,7 +381,11 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => {
     if (view === "admin") return;
     let stopped = false;
-    const load = () => activeRuns_().then((r) => { if (!stopped) setActiveRuns(r); }).catch(() => undefined);
+    const load = () => {
+      activeRuns_().then((r) => { if (!stopped) setActiveRuns(r); }).catch(() => undefined);
+      if (caseId) caseRuns(caseId).then((r) => { if (!stopped) setRunsHere(r); }).catch(() => undefined);
+      else setRunsHere([]);
+    };
     load();
     const t = window.setInterval(load, 15_000);
     return () => { stopped = true; window.clearInterval(t); };
@@ -841,6 +848,9 @@ function Chat({ me }: { me: Me }) {
   // 30 October 2026, board 53). One live run per playbook per case: a second start opens the live one.
   const startPlaybook = async (slug: string) => {
     if (!currentCase) return;
+    // a run of it still open in this case: choosing the playbook opens that conversation (board P04, 9)
+    const open = lastRunOf(slug);
+    if (open && open.case_id === currentCase.id && LIVE_RUN.includes(open.status)) { openPlaybookRun(open.id); return; }
     try {
       const run = await startRun(currentCase.id, slug, lang());
       openPlaybookRun(run.id);
@@ -871,6 +881,16 @@ function Chat({ me }: { me: Me }) {
     return r.status === "waiting" ? waitsFor(r, runPlaybook, m, me.sub, starterName(r))
       : r.status === "reading" ? m.stepReading : r.status === "paused" ? m.runPaused : null;
   };
+  // the playbook menu's line under each playbook (board P04, 9): its last run in this case
+  const lastRunOf = (slug: string) => {
+    const id = playbooks.find((p) => p.slug === slug)?.id;
+    return id ? runsHere.find((r) => r.playbook_id === id && r.case_id === caseId) : undefined;
+  };
+  const playbookNotes = Object.fromEntries(playbooks.flatMap((p) => {
+    const r = lastRunOf(p.slug);
+    if (!r) return [];
+    return [[p.slug, lastRunLine(r, p, m, me.sub, starterName(r))]];
+  }));
   const pin = async (c: Case, pinned: boolean) => {
     try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed((e as Error).message)); }
   };
@@ -1233,7 +1253,7 @@ function Chat({ me }: { me: Me }) {
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
-                  playbooks={administers ? [] : playbooks} onPlaybook={(slug) => void startPlaybook(slug)}
+                  playbooks={administers ? [] : playbooks} onPlaybook={(slug) => void startPlaybook(slug)} playbookNotes={playbookNotes}
                   compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : !currentCase && turns.length > 0 ? m.replyPlaceholder : undefined /* a personal conversation under way: "Reply…" (board G03) */}
                   workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),
                                                                   onChoose: openCase, onNew: () => setNewCase(true) } : null} />

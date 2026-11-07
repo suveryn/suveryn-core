@@ -799,6 +799,12 @@ From Claude Design's second instruction (`build-instruction-playbook-vs-board.md
 - **Typing while sūveryn reads** (P04, 3): the field stays open ("U kunt al verder typen…"); what is sent is held in the page and goes as the person's turn when the playbook next waits. A reload before then loses it.
 - **Who a run waits for** (P04, 7): the chip in the lists reads "Akte-intake · wacht op Mieke", "· wacht op u" for the person who started it, "· wacht op een lid" at the checkpoint; the same words beside the run under its case in the column (P01), in bold.
 
+### The board review of 6 November (`build-instruction-review-6-nov.md`)
+
+- **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`, `withoutDocument`).
+- **The recovery key in Status** (B01): "Herstelsleutel niet getest sinds 21 juli. Test elke drie maanden.", the date of the last test that opened a backup; "nog nooit getest" when none did.
+- **The last run in the playbook menu** (P04, 9): under each playbook, "Laatst: vandaag, klaar · start een nieuw gesprek" from the case's runs (`GET /v1/cases/{id}/playbooks/runs`); for a run still open, "Loopt: wacht op Mieke · opent dat gesprek", and choosing the playbook opens that conversation. Never run in this case: no line.
+
 ### Copy decided along the way
 
 - The tagline stays in English in every language, the sign-in screens included: a brand line, not a translation gap.

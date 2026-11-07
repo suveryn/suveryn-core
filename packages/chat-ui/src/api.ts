@@ -11,7 +11,9 @@ import type { SavedAnswer } from "./lib/saved";
 
 type SourceRef = { document_id: string; page: number | null; location: string | null };
 /** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
-export type Citation = { text: string; source: SourceRef | null; removed?: boolean };
+/** The text around a cited passage on its page (board G11): the passage is ``text.slice(start, end)``. */
+export type PassageContext = { text: string; start: number; end: number };
+export type Citation = { text: string; source: SourceRef | null; removed?: boolean; context?: PassageContext | null };
 /** A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11). ``marker`` is the
  *  0-based place of the [n] among the answer's valid markers; ``found_in``: other passages that do contain it. */
 export type CitationIssue = { marker: number; n: number; item: string; found_in: number[]; written_as: string | null };
@@ -896,7 +898,8 @@ export type PlaybookInfo = { id: string; slug: string; pack: string; version: st
                              /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
                              steps?: PlaybookStep[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
-export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string };
+export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string;
+                             context?: PassageContext | null };
 export type RunCheck = { status: "holds" | "fails" | "open"; rule: string; left: string; right: string; missing: string[] };
 export type RunFact = {
   id: string;
@@ -972,6 +975,13 @@ export async function getRun(caseId: string, runId: string): Promise<Run> {
 }
 
 /** The live run per case the caller may read (reading, waiting or paused), keyed by case id: the chip on the case lists. */
+/** The case's runs, newest first (a reader's right): the playbook menu's "Last" line (board P04, 9). */
+export async function caseRuns(caseId: string): Promise<RunSummary[]> {
+  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs`);
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
 export async function activeRuns(): Promise<Record<string, RunSummary>> {
   const r = await fetch("/v1/playbooks/runs/active");
   if (!r.ok) throw await responseError(r);

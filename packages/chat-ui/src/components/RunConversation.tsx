@@ -32,6 +32,7 @@ import {
 } from "../lib/playbooks";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { failureText } from "../lib/review";
+import { dayLabel } from "../lib/conversations";
 import { checkJob, LOST_TRACK } from "../lib/uploads";
 import { exportRef } from "../lib/marks";
 import {
@@ -72,6 +73,18 @@ export function waitsFor(run: Pick<RunSummary, "step" | "step_kind" | "starter">
   if (stepKind(run, playbook) === "checkpoint") return m.waitsForMember;
   if (me && run.starter === me) return m.waitsForYou;
   return starterName ? m.waitsFor(starterName.split(" ")[0]) : m.waitsForMember;
+}
+
+/** A playbook's last run in this case, for the line under it in the playbook menu (board P04, 9): "Laatst: vandaag,
+ *  klaar · start een nieuw gesprek", or for a run still open "Loopt: wacht op Mieke · opent dat gesprek". */
+export function lastRunLine(run: RunSummary, playbook: Pick<PlaybookInfo, "steps"> | null | undefined, m: Words, me?: string,
+                            starterName?: string | null, now: Date = new Date()): string {
+  const low = (s: string) => s.toLocaleLowerCase(locale());
+  if (LIVE.includes(run.status)) {
+    return m.pbRunningNow(run.status === "waiting" ? waitsFor(run, playbook, m, me, starterName)
+      : run.status === "reading" ? m.stepReading : low(m.runPaused));
+  }
+  return m.pbLastRun(low(dayLabel(run.finished_at ?? run.started_at, now)), low(statusLabel(run.status, m)));
 }
 
 /** One line for the chip on a case in the case lists: the playbook's title and what the run waits for ("Akte-intake ·
@@ -909,7 +922,7 @@ export function factTurn(fact: RunFact): AssistantTurn {
   return {
     id: `fact-${fact.id}`, role: "assistant", status: "done", grounded: true,
     text: `${cited} ${fact.citations.map((_, i) => `[${i + 1}]`).join("")}`,
-    citations: fact.citations.map((c) => ({ text: c.text, source: { document_id: c.document_id, page: c.page, location: c.location } })),
+    citations: fact.citations.map((c) => ({ text: c.text, source: { document_id: c.document_id, page: c.page, location: c.location }, context: c.context })),
     citationIssues: fact.computed ? [] : fact.issues.map((item) => ({ marker: 0, n: 1, item, found_in: [], written_as: null })),
   };
 }

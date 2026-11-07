@@ -795,6 +795,8 @@ const fr: Messages = {
   documentCount: (n: number) => `${n} ${n === 1 ? "document" : "documents"}`,
   playbook: "Playbook",
   playbookMenu: "Playbooks pour ce dossier",
+  pbLastRun: (when, state) => `Dernière : ${when}, ${state} · démarre une nouvelle conversation`,
+  pbRunningNow: (what) => `En cours : ${what} · ouvre cette conversation`,
   playbookChip: "Appliquer un playbook à ce dossier",
   covered: "Couvert",
   notCovered: "Non couvert",
@@ -830,6 +832,8 @@ const fr: Messages = {
   keyTestNotKey: "Ce n'est pas un fichier de clé de récupération sūveryn.",
   backupAttention: { not_set_up: "Aucune sauvegarde n'est configurée.", stale: "Aucune sauvegarde depuis plus de deux jours.", failing: "La sauvegarde de cette nuit a échoué.", key_failed: "Le dernier test de la clé de récupération a échoué.", key_due: "Testez la clé de récupération : l'appliance ne peut pas le faire elle-même." },
   backupAttentionOpen: "Ouvrir les sauvegardes",
+  keyNotTestedSince: (day) => `Clé de récupération non testée depuis le ${day}. Testez-la tous les trois mois.`,
+  keyNeverTested: "Clé de récupération jamais testée. Testez-la tous les trois mois.",
   // Administration › Sauvegardes, modifiables (docs/design/admin.md, artboard 36)
   backUpNow: "Sauvegarder maintenant",
   backupStarted: "Lancée. Elle se poursuit en arrière-plan.",
