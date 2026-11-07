@@ -39,12 +39,14 @@ type Props = {
   /** RadioCards: the dot before the card's text, as in the product's dialogs and Administration (boards G14, B11);
    *  without it at the end, as in the web setup. */
   dotFirst?: boolean;
+  /** RadioCards: the cards side by side (two short choices, board B11); one under the other on a narrow screen. */
+  row?: boolean;
 };
 
-export function RadioCards({ label, choices, value, onChange, name, dotFirst }: Props) {
+export function RadioCards({ label, choices, value, onChange, name, dotFirst, row }: Props) {
   const id = useId();
   return (
-    <RadioGroup aria-label={label} value={value} onChange={onChange} name={name} className="ui-radio-cards">
+    <RadioGroup aria-label={label} value={value} onChange={onChange} name={name} className="ui-radio-cards" data-row={row || undefined}>
       {choices.map((c) => (
         <Radio key={c.value} value={c.value} className="ui-radio-card" aria-labelledby={`${id}-${c.value}-title`}
                aria-describedby={c.description ? `${id}-${c.value}` : undefined}>
