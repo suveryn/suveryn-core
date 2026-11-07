@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, PlaybookInfo, Run, RunSummary } from "../api";
 import en from "../i18n/en";
-import { RunPanel, RunSourcePanel, RunThread, computedHow, factCounts, reviewGroups, runChipText, runStatusWord, statusLabel, stepLabel, waitsFor } from "./RunConversation";
+import { RunPanel, RunSourcePanel, RunThread, computedHow, factCounts, reviewGroups, runChipText, runStatusWord, statusLabel, stepLabel, waitsFor, lastRunLine } from "./RunConversation";
 
 const PLAYBOOK: PlaybookInfo = {
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.1", name: "Deed intake", covered: true,
@@ -306,5 +306,17 @@ describe("typing while sūveryn reads (board P04, 3)", () => {
                                                  nameOf={names} panel={null} onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
     expect(html).toContain(`placeholder="${en.runTypeAhead}"`);
     expect(html).not.toMatch(/<textarea[^>]*readonly/);
+  });
+});
+
+describe("the playbook menu's line about the last run (board P04, 9)", () => {
+  const now = new Date("2026-11-06T16:00:00");
+  it("says when it ran and how it ended, or who an open run waits for", () => {
+    const done = { ...SUMMARY, status: "done" as const, finished_at: "2026-11-06T15:00:00" };
+    expect(lastRunLine(done, PLAYBOOK, en, "u-ines", null, now)).toBe("Last: today, done · starts a new conversation");
+    expect(lastRunLine({ ...done, status: "cancelled", finished_at: "2026-11-05T15:00:00" }, PLAYBOOK, en, "u-ines", null, now))
+      .toBe(`Last: ${en.yesterday.toLowerCase()}, ${en.runCancelled.toLowerCase()} · starts a new conversation`);
+    const asking = { ...SUMMARY, step: "missing", step_kind: "ask" as const };
+    expect(lastRunLine(asking, PLAYBOOK, en, "u-bob", "Mieke Delarivière", now)).toBe("Running: waiting for Mieke · opens that conversation");
   });
 });

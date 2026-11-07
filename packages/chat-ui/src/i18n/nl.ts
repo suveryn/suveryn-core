@@ -793,6 +793,8 @@ const nl: Messages = {
   documentCount: (n: number) => `${n} ${n === 1 ? "document" : "documenten"}`,
   playbook: "Playbook",
   playbookMenu: "Playbooks voor dit dossier",
+  pbLastRun: (when, state) => `Laatst: ${when}, ${state} · start een nieuw gesprek`,
+  pbRunningNow: (what) => `Loopt: ${what} · opent dat gesprek`,
   playbookChip: "Een playbook toepassen op dit dossier",
   covered: "Gedekt",
   notCovered: "Niet gedekt",
@@ -828,6 +830,8 @@ const nl: Messages = {
   keyTestNotKey: "Dat is geen herstelsleutelbestand van sūveryn.",
   backupAttention: { not_set_up: "Er zijn geen back-ups ingesteld.", stale: "Al meer dan twee dagen geen back-up.", failing: "De back-up van vannacht is mislukt.", key_failed: "De laatste test van de herstelsleutel is mislukt.", key_due: "Test de herstelsleutel: de appliance kan dat niet zelf." },
   backupAttentionOpen: "Back-ups openen",
+  keyNotTestedSince: (day) => `Herstelsleutel niet getest sinds ${day}. Test elke drie maanden.`,
+  keyNeverTested: "Herstelsleutel nog nooit getest. Test elke drie maanden.",
   // Beheer › Back-ups, aan te passen (docs/design/admin.md, artboard 36)
   backUpNow: "Nu een back-up maken",
   backupStarted: "Gestart. Het loopt op de achtergrond.",

@@ -140,6 +140,15 @@ export function sourceName(c: Citation, filenames: Map<string, string>, m: Retur
 
 const NONE: ReadonlySet<string> = new Set();
 
+/** What the server sent around a cited passage (``context``), before and after it; null when it has none, or when
+ *  the context doesn't hold the passage where it says (then the passage is shown alone, as before). */
+export function contextAround(c: Citation): { before: string; after: string } | null {
+  const ctx = c.context;
+  if (!ctx || c.removed || ctx.text.slice(ctx.start, ctx.end) !== c.text) return null;
+  const before = ctx.text.slice(0, ctx.start), after = ctx.text.slice(ctx.end);
+  return before || after ? { before, after } : null;
+}
+
 /**
  * The source panel (docs/design/chat-ui.md §5, artboard 11): one source of an answer beside the
  * conversation. The file, the page and the case; previous and next between the answer's sources; the
@@ -179,6 +188,8 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
   const citation = turn.citations[n - 1];
   const at = cited.indexOf(n);
   const filename = sourceName(citation, filenames, m);
+  // the text around the passage on its page, dimmed (board G11); the passage alone when there is none
+  const around = contextAround(citation);
   // Scroll the passage (not the page) to the first marked sentence: a long passage shows only its start.
   useEffect(() => {
     const box = quote.current, first = box?.querySelector("mark");
@@ -210,9 +221,11 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
       <div className="source-panel-body">
         {citation.removed ? <p className="caption">{m.sourceRemovedCaption}</p> : <>
           <blockquote className="source-panel-text" ref={quote}>
+            {around && <span className="source-context">{around.before}</span>}
             {sourceParts(turn, n, occ).map((part, i) => (part.mark
               ? <mark key={i} className={part.mark === "term" ? "source-match" : "source-span"}>{part.text}</mark>
               : <Fragment key={i}>{part.text}</Fragment>))}
+            {around && <span className="source-context">{around.after}</span>}
           </blockquote>
           {verdict && (
             <p className="source-panel-verdict" data-ok={verdict.ok || undefined}>

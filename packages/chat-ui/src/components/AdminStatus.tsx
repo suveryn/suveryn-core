@@ -13,7 +13,7 @@ import { applianceClockAnswer, getAdminStatus, getBackups, listAccounts, setAppl
   type StatusCheck, type UsersList } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
-import { backupAttentions, sizeLabel } from "../lib/backups";
+import { backupAttentions, lastKeyTestOk, sizeLabel } from "../lib/backups";
 import { measureClock, sendClock, type Measured } from "../lib/clock";
 import { Button, Dialog, InlineNotice, Notice } from "../ui";
 import type { AdminPage } from "./Admin";
@@ -84,7 +84,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             {attention.map((a) => (
               <li key={a}>
                 <TriangleAlert size={16} aria-hidden />
-                <span className="admin-attention-text"><b>{m.backupAttention[a]}</b></span>
+                <span className="admin-attention-text"><b>{a === "key_due" ? keyDueLine(lastKeyTestOk(backups), m) : m.backupAttention[a]}</b></span>
                 <Button size="small" onPress={() => onOpen("backups")}>{a === "key_due" || a === "key_failed" ? m.testNow : m.view}</Button>
               </li>
             ))}
@@ -230,4 +230,13 @@ function detail(c: StatusCheck, m: ReturnType<typeof useT>): string {
   if (c.id === "disk" && c.free != null && c.total != null) return m.freeOf(sizeLabel(c.free, locale()), sizeLabel(c.total, locale()));
   if (c.id === "clock") return c.synced ? m.clockKeptByServer : m.clockByBrowsers; // the offset only when it is off, in the status column
   return "";
+}
+
+/** The recovery key's line in *Needs attention* (board B01): when it last opened a backup, as the page writes dates
+ *  ("21 July", with the year when it isn't this one), or that it never did; and how often to test it. */
+export function keyDueLine(lastOk: string | null, m: ReturnType<typeof useT>, now: Date = new Date()): string {
+  if (!lastOk) return m.keyNeverTested;
+  const d = new Date(lastOk);
+  return m.keyNotTestedSince(d.toLocaleDateString(locale(), { day: "numeric", month: "long",
+                                                           ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }));
 }

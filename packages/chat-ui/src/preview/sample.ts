@@ -125,6 +125,10 @@ export const PERSONAL_CONVERSATIONS: ConversationSummary[] = [
 ];
 export const ALL_CONVERSATIONS = [...CASE_CONVERSATIONS, ...PERSONAL_CONVERSATIONS];
 
+/** A passage with the text around it on its page, as the gateway sends it (board G11). */
+const around = (before: string, text: string, after: string) =>
+  ({ text: `${before} ${text} ${after}`, start: before.length + 1, end: before.length + 1 + text.length });
+
 /** The open conversation: a question about the case's documents, answered with two sources (board G02). */
 export const SAVED: SavedConversation = {
   ...CONVERSATION,
@@ -137,7 +141,10 @@ export const SAVED: SavedConversation = {
         + "Een voorwaarde over stedenbouwkundige vergunningen staat niet in het compromis.",
       citations: [
         { text: "De verkoop geschiedt onder de opschortende voorwaarde van het verkrijgen door de kopers van een hypothecair krediet.",
-          source: { document_id: "d-compromis", page: 7, location: null } },
+          source: { document_id: "d-compromis", page: 7, location: null },
+          context: around("Artikel 6. Opschortende voorwaarde. De partijen komen het volgende overeen.",
+                          "De verkoop geschiedt onder de opschortende voorwaarde van het verkrijgen door de kopers van een hypothecair krediet.",
+                          "Het krediet bedraagt ten hoogste driehonderdduizend euro. De kopers verbinden zich ertoe het krediet aan te vragen bij ten minste twee kredietinstellingen.") },
         { text: "De kopers delen de toekenning of weigering van het krediet schriftelijk mee binnen vier weken na ondertekening van deze overeenkomst.",
           source: { document_id: "d-compromis", page: 9, location: null } },
       ],
@@ -252,7 +259,10 @@ export const RUN: Run = {
     fact("price", "€ 385.000", [COMPROMIS(2, "De verkoop wordt toegestaan en aanvaard voor de prijs van driehonderdvijfentachtigduizend euro (€ 385.000).")]),
     fact("deposit", "€ 38.500, op de derdenrekening van notaris Claes", [COMPROMIS(2, "Een voorschot van € 38.500 wordt betaald op de derdenrekening van notaris Claes.")]),
     fact("agreement_date", "12 oktober 2026", [COMPROMIS(9, "Opgemaakt te Gent op 12 oktober 2026.")]),
-    fact("deed_deadline", "12 februari 2027", [COMPROMIS(4, "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.")],
+    fact("deed_deadline", "12 februari 2027", [{ ...COMPROMIS(4, "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde."),
+                                                context: around("Artikel 4. Authentieke akte. De partijen kiezen notaris Claes te Gent.",
+                                                                "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.",
+                                                                "De kosten van de akte zijn ten laste van de kopers.") }],
          { needs: "computed", computed: { written: "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", from: "agreement_date",
                                           base: "2026-10-12", date: "2027-02-12", amount: 4, unit: "month", direction: "after" } }),
     fact("conditions[1].condition", "Hypothecair krediet, binnen vier weken na ondertekening", [COMPROMIS(5, "Onder de opschortende voorwaarde van het verkrijgen van een hypothecair krediet binnen vier weken na ondertekening.")]),
@@ -309,6 +319,8 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/cases\/c124\/playbooks$/, [DEED_INTAKE]],
   ["GET", /^\/v1\/cases\/[^/]+\/playbooks$/, []],
   ["GET", /^\/v1\/playbooks\/runs\/active$/, { c124: RUN_SUMMARY }],
+  ["GET", /^\/v1\/cases\/c124\/playbooks\/runs$/, [RUN_SUMMARY]],
+  ["GET", /^\/v1\/cases\/[^/]+\/playbooks\/runs$/, []],
   ["GET", /^\/v1\/documents\?case=c124/, { documents: CASE_124_DOCUMENTS, jobs: [] }],
   ["GET", /^\/v1\/conversations\?all=true$/, ALL_CONVERSATIONS],
   ["GET", /^\/v1\/conversations\?case=([^&]+)/, (m: RegExpMatchArray) => CASE_CONVERSATIONS.filter((c) => c.case_id === m[1])],
@@ -354,6 +366,7 @@ export function runIn(change: Partial<Run>): Route[] {
   return [
     ["GET", /^\/v1\/cases\/c124\/playbooks\/runs\/run-124$/, run],
     ["GET", /^\/v1\/playbooks\/runs\/active$/, live ? { c124: { ...RUN_SUMMARY, ...change } } : {}],
+    ["GET", /^\/v1\/cases\/c124\/playbooks\/runs$/, [{ ...RUN_SUMMARY, ...change }]],   // the playbook menu's "Last" (board P04, 9)
   ];
 }
 const later = (min: number) => ago((63 - min) * MIN);
@@ -368,7 +381,7 @@ export const RUN_CANCELLED = runIn({ status: "cancelled", ended_by: "filip@kanto
                                       turns: [...RUN.turns, event(6, "cancelled", "filip@kantoor.be", 20, { reason: "verkeerde compromis" })] });
 export const RUN_FAILED = runIn({ status: "failed", step: "read", error: "model_unavailable", turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
 /** No run in the case yet: starting one (board P04, 1). */
-export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}],
+export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}], ["GET", /^\/v1\/cases\/c124\/playbooks\/runs$/, []],
                                 ["GET", /^\/v1\/conversations\?case=c124/, CASE_CONVERSATIONS.filter((c) => c.case_id === "c124" && !c.run_id)]];
 /** Case 124 as a reader (board P04, 8): follows along, doesn't answer. */
 export const AS_READER: Route[] = [["GET", /^\/v1\/cases\/c124$/, { ...CASE_124, my_role: "reader", manager: "u-mieke" }]];

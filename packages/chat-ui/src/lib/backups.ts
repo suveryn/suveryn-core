@@ -81,6 +81,14 @@ export function backupAttentions(s: BackupStatus | null, now: Date = new Date())
   return key ? [first, key] : [first];
 }
 
+/** When the recovery key last opened a backup, for Status's line (board B01): the last test if it passed, else the
+ *  last one that did (a later test with the wrong file doesn't undo it); null when it never did. */
+export function lastKeyTestOk(s: BackupStatus | null): string | null {
+  const t = s?.key_test;
+  if (!t) return null;
+  return t.ok ? t.at : t.last_ok ?? null;
+}
+
 /** "1.2 GB", "340 MB": a backup's size, decimal units as disks are sold; in French in octets ("188 ko"). */
 export function sizeLabel(bytes: number, locale: string): string {
   const units = locale.startsWith("fr") ? ["o", "ko", "Mo", "Go", "To"] : ["B", "kB", "MB", "GB", "TB"];

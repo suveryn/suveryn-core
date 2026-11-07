@@ -238,8 +238,9 @@ def redact(turns: list[dict], gone: Callable[[str], bool]) -> bool:
     for doc, ref in list(_references(turns)):
         if not gone(doc) or ref.get("removed"):
             continue
-        if "source" in ref:  # a citation: no text, no location (headings), only the page number stays
+        if "source" in ref:  # a citation: no text, no location (headings), no text around it; only the page number stays
             ref["text"] = ""
+            ref.pop("context", None)
             ref["source"] = {"document_id": doc, "page": ref["source"].get("page"), "location": None}
         else:  # an attachment
             ref["filename"] = ""

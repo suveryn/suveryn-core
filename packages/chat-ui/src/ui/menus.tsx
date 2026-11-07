@@ -238,6 +238,8 @@ export type MenuEntry = "-" | { heading: string; items: MenuEntry[] } | {
   metaIcon?: ReactNode;
   /** A second line under the label. */
   description?: string;
+  /** One more dimmed line under the description ("Last: today, done · starts a new conversation"). */
+  note?: string;
   /** accent: for an action that stands out (an administrator's playbooks). */
   tone?: "accent";
   /** Entries of a submenu this item opens; `selected` is the ticked one. */
@@ -282,7 +284,8 @@ function entries(items: MenuEntry[], onAction: (id: string) => void, narrow = fa
       <>
         {e.icon && <span className="ui-menu-item-icon" aria-hidden>{e.icon}</span>}
         <Text slot="label" className="ui-menu-item-label">{e.label}</Text>
-        {e.description && <Text slot="description" className="ui-menu-item-desc-line">{e.description}</Text>}
+        {e.description && <Text slot="description" className="ui-menu-item-desc-line">{e.description}
+          {e.note && <span className="ui-menu-item-note">{e.note}</span>}</Text>}
         {e.meta && (e.description
           ? <span className="ui-menu-item-meta" data-tone={e.metaTone}>{e.metaIcon}{e.meta}</span>
           : <Text slot="description" className="ui-menu-item-meta" data-tone={e.metaTone}>{e.metaIcon}{e.meta}</Text>)}

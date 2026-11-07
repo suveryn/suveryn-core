@@ -400,3 +400,14 @@ def test_terms_in_three_languages(written, base, expect):
 def test_what_isnt_one_certain_term_is_not_worked_out(written):
     from suveryn_harness.terms import work_out
     assert work_out(written, (12, 10, 2026)) is None
+
+
+def test_a_facts_passage_keeps_the_text_around_it_for_the_source_panel():
+    """Board P02: a playbook's source opens the conversation's source panel, the passage in its context."""
+    from suveryn_harness.schemas import PassageContext
+    text = PASSAGES[1].text
+    around = PASSAGES[1].model_copy(update={"context": PassageContext(text=f"Artikel 3. {text} Ontvangstbewijs volgt.", start=11, end=11 + len(text))})
+    facts = {f.id: f for f in read_facts(DEED_INTAKE, response(citations=[PASSAGES[0], around]), {DOC: "compromis.pdf"})}
+    ctx = facts["deposit"].citations[0].context
+    assert ctx is not None and ctx.text[ctx.start:ctx.end] == text
+    assert facts["price"].citations[0].context is None

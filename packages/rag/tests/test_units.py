@@ -188,3 +188,22 @@ def test_chunks_are_numbered_in_reading_order():
             Chunk(4, "p2 recovered", "p2 recovered", 2, 2, [], "text_recovered")]
     ordered = in_reading_order(made)
     assert [(c.index, c.text) for c in ordered] == [(0, "p1 recovered"), (1, "p2"), (2, "p2 recovered"), (3, "p3"), (4, "sheet")]
+
+
+
+def test_a_passage_comes_with_the_sentences_around_it_on_its_page():
+    """Board G11: up to two sentences of the chunks before and after, on the same page; none for a spreadsheet, or
+    when the neighbours are on another page."""
+    from suveryn_rag.pipeline import passage_context
+    hit = NS(text="De prijs bedraagt EUR 300.000.", page_start=3, page_end=3, place=None)
+    before = ("Artikel 1. Het goed. Een woning te Gent. Artikel 2. Prijs.", 3, 3, None)
+    after = ("Betaalbaar bij de akte. Het voorschot is tien procent. Artikel 3.", 3, 3, None)
+    ctx = passage_context(hit, before, after)
+    assert ctx.text[ctx.start:ctx.end] == hit.text
+    assert ctx.text == "Artikel 2. Prijs. De prijs bedraagt EUR 300.000. Betaalbaar bij de akte. Het voorschot is tien procent."  # two sentences each side
+    assert passage_context(hit, ("Op een andere pagina.", 2, 2, None), ("Ook elders.", 4, 4, None)) is None
+    assert passage_context(NS(text="A2:D3", page_start=None, page_end=None, place="Blad1!A2:D3"), before, after) is None
+    only_after = passage_context(hit, None, after)
+    assert only_after.start == 0 and only_after.text.startswith(hit.text)
+    long = passage_context(hit, ("x" * 2000, 3, 3, None), None)
+    assert long.start <= 401  # at most CONTEXT_CHARS before it

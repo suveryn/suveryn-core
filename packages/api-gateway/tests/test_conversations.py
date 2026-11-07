@@ -417,7 +417,8 @@ def cited_turns(doc=DOC):
          "attachments": [{"key": "a", "filename": "akte-peeters.pdf", "status": "ready", "documentId": doc}]},
         {"id": "a1", "role": "assistant", "text": "€ 345.000 [1], verkoper Peeters [2]", "status": "done", "grounded": True,
          "citations": [{"text": "De koopprijs bedraagt € 345.000.", "source": {"document_id": doc, "page": 3,
-                                                                               "location": "p. 3 · Artikel 2 - Koopprijs"}},
+                                                                               "location": "p. 3 · Artikel 2 - Koopprijs"},
+                        "context": {"text": "Artikel 2. De koopprijs bedraagt € 345.000. Betaalbaar bij de akte.", "start": 11, "end": 43}},
                        {"text": "Verkoper: Jan Peeters.", "source": {"document_id": OTHER, "page": 1, "location": "p. 1"}}]},
     ]
 
@@ -427,7 +428,7 @@ def test_redact_takes_out_passages_and_names_of_deleted_documents_only():
     assert cited_documents(turns) == {DOC, OTHER}
     assert redact(turns, lambda d: d == DOC) is True
     gone, kept = turns[1]["citations"]
-    assert gone == {"text": "", "source": {"document_id": DOC, "page": 3, "location": None}, "removed": True}
+    assert gone == {"text": "", "source": {"document_id": DOC, "page": 3, "location": None}, "removed": True}  # its context too
     assert kept["text"] == "Verkoper: Jan Peeters." and "removed" not in kept
     assert turns[0]["attachments"][0]["filename"] == "" and turns[0]["attachments"][0]["removed"] is True
     assert turns[1]["text"] == "€ 345.000 [1], verkoper Peeters [2]"  # the answer stays; the UI offers to delete it
