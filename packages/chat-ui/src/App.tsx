@@ -212,8 +212,8 @@ function Chat({ me }: { me: Me }) {
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
-  const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});
-  const [runsHere, setRunsHere] = useState<RunSummary[]>([]);                                  // the open case's runs, newest first (the playbook menu)         // the live playbook run per case (the chip)
+  const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});         // the live playbook run per case (the chip)
+  const [runsHere, setRunsHere] = useState<RunSummary[]>([]);                         // the open case's runs, newest first (the playbook menu)
   const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
   const [tokensToday, setTokensToday] = useState<number | null>(null); // null: usage not available
   const [cases, setCases] = useState<Case[]>([]);
@@ -244,6 +244,15 @@ function Chat({ me }: { me: Me }) {
   const [runPanel, setRunPanel] = useState<RunPanelView | null>(null);
   const runPanelOpener = useRef<HTMLElement | null>(null);  // focus goes back here when the panel closes
   const { run: openRun, setRun: setOpenRun, error: runError } = useRun(caseId, openRunId);
+  // The open run as it stands now, in the case's runs: the playbook menu's line follows it at once (a run just
+  // confirmed reads "Last: today, done", not "Running" until the next read of the list; e2e run 42386404733).
+  useEffect(() => {
+    if (!openRun) return;
+    const { turns: _t, facts: _f, steps: _s, checks: _c, playbook: _p, requested: _r, instruction_like_sources: _i, ...summary } = openRun;
+    setRunsHere((rs) => (rs.some((x) => x.id === openRun.id)
+      ? rs.map((x) => (x.id === openRun.id ? { ...x, ...summary } : x))
+      : openRun.case_id === caseId ? [summary, ...rs] : rs));
+  }, [openRun, caseId]);
   const openCaseId = useRef(caseId);
   openCaseId.current = caseId;
   // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an

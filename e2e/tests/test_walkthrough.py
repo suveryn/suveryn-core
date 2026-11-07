@@ -110,7 +110,8 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     expect(page.get_by_role("button", name=f"2 documents in case {CASE}")).to_be_visible()
     # the playbook menu says when it last ran here and how it ended (board P04, 9)
     page.get_by_role("button", name="New conversation or new case").click()
-    page.get_by_role("menuitem", name=re.compile(f"^New conversation in case {CASE}")).click()
+    # by its text, not a regex: the case's reference has a "/" (E2E/61923), which Playwright's regex selector can't take
+    page.get_by_role("menuitem", name=f"New conversation in case {CASE}").click()
     page.get_by_role("button", name="Apply a playbook to this case").click()
     expect(page.get_by_text("Last: today, done · starts a new conversation")).to_be_visible()
     page.keyboard.press("Escape")
