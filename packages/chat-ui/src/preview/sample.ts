@@ -5,7 +5,7 @@
  */
 import type {
   Account, AccountEvent, Case, CaseEvent, CaseOverview, ConversationSummary, Health, Me, Member, ModelInfo, PlaybookInfo, PlaybookStep,
-  Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
+  Job, Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
 } from "../api";
 
 const MIN = 60 * 1000;
@@ -110,6 +110,7 @@ const conv = (id: string, title: string, when: number, extra: Partial<Conversati
 export const CONVERSATION = conv("conv-clauses", "Akte van verkoop: nazicht clausules", 2 * HOUR, { case_id: "c123" });
 export const CASE_CONVERSATIONS: ConversationSummary[] = [
   conv("conv-prijs", "Prijs en kosten", HOUR, { case_id: "c123" }),
+  conv("conv-erf", "Erfdienstbaarheden", 4 * HOUR, { case_id: "c123" }),
   conv("conv-termijnen", "Betalingen en termijnen", 90 * MIN, { case_id: "c123" }),
   CONVERSATION,
   conv("conv-vergadering", "Samenvatting vergadering met de kopers", DAY, { case_id: "c123", owner: "u-mieke", owner_name: "Mieke", shared: true }),
@@ -278,9 +279,22 @@ export const CASE_124_DOCUMENTS: StoredDocument[] = [
 
 // ---------- the routes ----------
 type Answer = unknown | ((m: RegExpMatchArray, body: unknown) => unknown);
+// ---------- uploads (board G13): what the server answers for each file, by name ----------
+const job = (id: string, filename: string, more: Partial<Job>): Job => ({ id, filename, status: "ready", document_id: null, ...more });
+export const UPLOADS: Record<string, Job> = {
+  "Compromis_DeSmet.pdf": job("job-1", "Compromis_DeSmet.pdf", { status: "processing", progress: { step: "read", done: 3, total: 12 }, pages: 12 }),
+  "Eigendomstitel_1998.pdf": job("job-2", "Eigendomstitel_1998.pdf", { document_id: "d-up-titel", pages: 9 }),
+  "Bodemattest_scan.pdf": job("job-3", "Bodemattest_scan.pdf", { status: "needs_review", document_id: "d-up-bodem", pages: 3,
+    warnings: [{ page: 2, kind: "page_coverage_low", detail: "" }] }),
+  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", error_code: "password" }),
+  "Termijnen_aangepast.docx": job("job-5", "Termijnen_aangepast.docx", { document_id: "d-up-termijnen", pages: 2,
+    noticed: { ref: "A-7c21e04d", kind: "answer", line: "Gemaakt door sūveryn: antwoord uit dossier 124, 17-10-2026" } }),
+};
+
 /** [method, path pattern (the query is part of the path), answer]. The first match answers. */
 export type Route = [string, RegExp, Answer];
 export const routes: Route[] = [
+  ["GET", /^\/v1\/documents\/jobs\/([^/?]+)/, ([, id]: RegExpMatchArray) => Object.values(UPLOADS).find((j) => j.id === id)],
   ["GET", /^\/auth\/me$/, ME],
   ["GET", /^\/health$/, HEALTH],
   ["GET", /^\/v1\/clock$/, () => ({ now_ms: Date.now() })],
@@ -302,6 +316,7 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/conversations\/conv-clauses$/, SAVED],
   ["GET", /^\/v1\/conversations\/conv-huurkoop$/, SAVED_PERSONAL],
   ["GET", /^\/v1\/conversations\/conv-prijs$/, () => SAVED_ABOUT],
+  ["GET", /^\/v1\/conversations\/conv-erf$/, () => SAVED_MIXED],
   ["GET", /^\/v1\/conversations\/conv-termijnen$/, () => SAVED_TABLE],
   ["GET", /^\/v1\/conversations\/([^/?]+)$/, (m: RegExpMatchArray) => ({ ...(ALL_CONVERSATIONS.find((c) => c.id === m[1]) ?? CONVERSATION), turns: [] })],
   ["GET", /^\/v1\/documents\/all$/, { documents: ALL_DOCUMENTS }],
@@ -374,6 +389,24 @@ const SAVED_ABOUT: SavedConversation = {
       ] },
   ],
 };
+
+/** Nothing chosen, the answer from three documents (board G19, 4): "Op basis van 3 documenten" names them. */
+const SAVED_MIXED: SavedConversation = {
+  ...conv("conv-erf", "Erfdienstbaarheden", 4 * HOUR, { case_id: "c123" }),
+  turns: [
+    { id: "e1", role: "user", text: "Welke erfdienstbaarheden rusten op het goed?", attachments: [] },
+    { id: "e2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
+      text: "Op het goed rust een erfdienstbaarheid van doorgang over een strook van drie meter langs de oostelijke grens [1]. Het kadaster vermeldt daarnaast een recht van overgang voor nutsleidingen [2]. Het bodemattest noemt geen beperkingen [3].",
+      citations: [
+        { text: "Het goed is bezwaard met een erfdienstbaarheid van doorgang over een strook van drie meter langs de oostelijke perceelsgrens.",
+          source: { document_id: "d-compromis", page: 4, location: null } },
+        { text: "Recht van overgang voor nutsleidingen ten voordele van het openbaar net.", source: { document_id: "d-kadaster", page: 1, location: null } },
+        { text: "Voor deze grond zijn geen gegevens over bodemverontreiniging beschikbaar.", source: { document_id: "d-bodem", page: 1, location: null } },
+      ] },
+  ],
+};
+/** Case 123 as a reader (board G19, 6): sees what each question read, asks nothing. */
+export const AS_READER_123: Route[] = [["GET", /^\/v1\/cases\/c123$/, { ...CASE_123, my_role: "reader" }]];
 
 /** The recovery key last tested four months ago (board B01): Status asks for attention. */
 export const KEY_TEST_DUE: Route[] = [["GET", /^\/v1\/admin\/backups$/, { ...BACKUPS, key_test: { at: ago(120 * DAY), ok: true } }]];

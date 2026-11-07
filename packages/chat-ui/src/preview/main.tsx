@@ -32,7 +32,10 @@ function Index() {
       {boards.map((b) => (
         <section key={b}>
           <h2>{b}</h2>
-          <ul>{PREVIEWS.filter((p) => p.board === b).map((p) => <li key={p.id}><a href={`?p=${p.id}`}>{p.title}</a></li>)}</ul>
+          <ul>{PREVIEWS.filter((p) => p.board === b).map((p) => <li key={p.id}><a href={`?p=${p.id}`} onClick={p.width ? (e) => {
+            // A phone-width board opens in a window that wide: the screen's own breakpoints then apply.
+            e.preventDefault(); window.open(`?p=${p.id}`, p.id, `width=${p.width},height=844`);
+          } : undefined}>{p.title}</a></li>)}</ul>
         </section>
       ))}
     </main>

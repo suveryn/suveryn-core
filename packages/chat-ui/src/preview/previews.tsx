@@ -14,6 +14,7 @@ import { HttpError } from "../api";
 import { CASE_124, CONVERSATION } from "./sample";
 import { Steps, type Step } from "./steps";
 import { hold, offline, replace } from "./fakeApi";
+import { AS_READER_123 } from "./sample";
 import { AS_READER, EMPTY_OFFICE, KEY_TEST_DUE, NO_RUN, RUN_DONE, RUN_CANCELLED, RUN_FAILED, RUN_PAUSED, RUN_READING, RUN_STOPPED } from "./sample";
 import type { Lang } from "../i18n";
 
@@ -21,6 +22,8 @@ export type Preview = {
   id: string; board: string; title: string; render: () => ReactNode;
   /** The board's language (the dialog boards are English, the rest Dutch); ?lang= overrides it. */
   lang?: Lang;
+  /** The width the board draws it at, when not the desktop's (a phone: 390). */
+  width?: number;
   /** Changes to the sample office before the screen starts (fakeApi.ts). */
   setup?: () => void;
 };
@@ -68,6 +71,8 @@ export const PREVIEWS: Preview[] = [
   { id: "g11-source", board: "G11", lang: "nl", title: "Bronpaneel open",
     render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Bron 1: Compromis_Schipperskaai.pdf, pagina 7" }) },
   { id: "g12-first-use", board: "G12", lang: "nl", title: "Eerste gebruik", setup: () => replace(EMPTY_OFFICE), render: app() },
+  { id: "g13-upload", board: "G13", lang: "nl", title: "Documenten toevoegen: elke toestand van een kaart",
+    render: app({ click: "124" }, { drop: ["Compromis_DeSmet.pdf", "Eigendomstitel_1998.pdf", "Bodemattest_scan.pdf", "Volmacht_koper.pdf", "Termijnen_aangepast.docx"] }) },
   { id: "g14-new-case", board: "G14", lang: "nl", title: "Nieuw dossier",
     render: app({ click: "Nieuw" }, { click: "Nieuw dossier" }) },
   { id: "g16-table-saved", board: "G16", lang: "nl", title: "Een antwoord met een tabel, bewaard in het dossier",
@@ -78,9 +83,21 @@ export const PREVIEWS: Preview[] = [
     render: app({ click: "123" }, { click: "Vraag over, alle documenten" }) },
   { id: "g18-ask-about-conversation", board: "G18", lang: "nl", title: "Vraag over: antwoord op één gekozen document",
     render: app({ click: "Prijs en kosten" }) },
+  { id: "g19-mixed", board: "G19", lang: "nl", title: "4 · Niets gekozen, het antwoord uit drie documenten",
+    render: app({ click: "Erfdienstbaarheden" }) },
+  { id: "g19-reader", board: "G19", lang: "nl", title: "6 · Een lezer: geen composer", setup: () => replace(AS_READER_123),
+    render: app({ click: "Prijs en kosten" }) },
+  { id: "g19-narrow-sheet", board: "G19", lang: "nl", title: "7 · Smal (390 px): Vraag over als blad", width: 390,
+    render: app({ click: "Menu openen" }, { click: "Prijs en kosten" }, { click: "Vraag over" }) },
   { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier",
     render: app({ click: "Dossiers" }, { click: "118" }) },
-  { id: "g15-narrow", board: "G15", lang: "nl", title: "Smal scherm (390 px): open op een telefoon", render: app() },
+  { id: "g21-setting", board: "G21", lang: "nl", title: "De instelling: Strikt vertrouwelijk in Leden en toegang",
+    render: () => <MembersDialog open kase={CASE_124} canManage canHandOver officeWide sharedCount={2} onChanged={nothing} onClose={nothing} /> },
+  { id: "g21-filter", board: "G21", lang: "nl", title: "Dossieroverzicht: gefilterd op Strikt vertrouwelijk",
+    render: app({ click: "Dossiers" }, { click: "Strikt vertrouwelijk" }) },
+  { id: "g21-narrow", board: "G21", lang: "nl", title: "Smal (390 px): de band wordt korter", width: 390,
+    render: app({ click: "Menu openen" }, { click: "Dossiers" }, { click: "118" }) },
+  { id: "g15-narrow", board: "G15", lang: "nl", title: "Smal scherm (390 px): open op een telefoon", width: 390, render: app() },
   // P: a playbook in the conversation (Dutch, as the boards): deed intake in case 124, at its checkpoint
   { id: "p01-playbook", board: "P01", lang: "nl", title: "Een playbook in het gesprek", render: app({ click: "Akte-intake" }) },
   { id: "p02-source", board: "P02", lang: "nl", title: "Op een bron geklikt",

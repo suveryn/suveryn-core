@@ -10,6 +10,7 @@ export type Step =
   | { type: string; into: string }                    // text into a field, by its label or placeholder
   | { key: string }                                   // a key on what has the focus ("Tab", "Escape")
   | { hover: string }
+  | { drop: string[] }                                 // files chosen in the file picker, by name (board G13; fakeApi.ts answers them)
   | { wait: number };
 
 const CONTROLS = 'button, a[href], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="row"], [role="tab"], [role="link"], [role="treeitem"], summary, label';
@@ -70,6 +71,16 @@ export async function play(steps: Step[]): Promise<void> {
       await pause(150);
       continue;
     }
+    if ("drop" in s) {
+      const input = await waitFor(() => document.querySelector<HTMLInputElement>('input[type="file"]'));
+      if (!input) { console.warn("preview: no file picker"); return; }
+      const files = new DataTransfer();
+      for (const name of s.drop) files.items.add(new File(["sample"], name));
+      input.files = files.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await pause(400);
+      continue;
+    }
     if ("type" in s) {
       const el = await waitFor(() => field(s.into));
       if (!el) { console.warn(`preview: no field "${s.into}"`); return; }
@@ -78,7 +89,7 @@ export async function play(steps: Step[]): Promise<void> {
       await pause(150);
       continue;
     }
-    const name = "click" in s ? s.click : s.hover;
+    const name = "click" in s ? s.click : (s as { hover: string }).hover;
     const el = await waitFor(() => find(name, "click" in s ? s.within : undefined, "click" in s ? s.nth : 0));
     if (!el) { console.warn(`preview: nothing named "${name}"`); return; }
     if ("hover" in s) pointer(el, ["pointerover", "pointerenter", "mouseover", "mouseenter", "pointermove"]);

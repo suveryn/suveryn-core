@@ -3,7 +3,7 @@
  * answered 404 and named in the console, so a preview that needs more data says so. A write (POST, PUT,
  * PATCH, DELETE) it doesn't know is answered with what was sent, so a button can be pressed.
  */
-import { routes, type Route } from "./sample";
+import { routes, UPLOADS, type Route } from "./sample";
 
 /** Requests the preview should leave unanswered (a screen kept in its loading state). */
 const held = new Set<string>();
@@ -16,7 +16,28 @@ export const offline = (pattern = "/health", after = 0) => failing.set(pattern, 
 const first: Route[] = [];
 export const replace = (more: Route[]) => first.push(...more);
 
+/** An upload (api.ts sends it with XMLHttpRequest, for its progress): answered with the job UPLOADS
+ *  names for the file, as the server answers once the file has arrived. */
+class SampleUpload extends EventTarget {
+  upload = new EventTarget() as XMLHttpRequestUpload;
+  status = 0; response: unknown = null; responseType = "";
+  onload: (() => void) | null = null; onerror: (() => void) | null = null; onabort: (() => void) | null = null;
+  open() {}
+  getResponseHeader() { return null; }
+  abort() { this.onabort?.(); }
+  send(form: FormData) {
+    const file = form.get("file") as File | null;
+    const job = file && UPLOADS[file.name];
+    setTimeout(() => {
+      if (!job) { console.warn(`preview: no sample upload for ${file?.name}`); this.status = 404; }
+      else { this.status = 200; this.response = job; }
+      this.onload?.();
+    }, 50);
+  }
+}
+
 export function useSampleData(): void {
+  window.XMLHttpRequest = SampleUpload as unknown as typeof XMLHttpRequest;
   const real = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
