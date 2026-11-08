@@ -248,7 +248,7 @@
 .ui-steps .ui-eyebrow { min-height: 36px; display: flex; align-items: center; margin-bottom: 12px; padding-right: 11.5rem; }
 .ui-rail { display: flex; gap: var(--space-2); }
 .ui-rail-segment { flex: 1; height: 4px; border-radius: var(--radius-pill); background: var(--line); }
-.ui-rail-segment[data-done] { background: var(--teal); }  /* a step done: a system status */
+.ui-rail-segment[data-done] { background: var(--text); }  /* a step done: ink (Filip, 8 November), not a system status */
 
 .ui-note { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--surface-alt); border: 1px solid var(--line);
            border-radius: var(--radius-md); padding: 14px var(--space-4); font-size: var(--text-ui-sm); line-height: 1.55; color: var(--text-dim); }

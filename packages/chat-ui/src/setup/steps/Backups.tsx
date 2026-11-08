@@ -4,9 +4,9 @@
  * made in this browser (recoveryKey.ts), downloaded by the administrator, its public half sent to the
  * appliance with the answer, so the appliance can write backups but never read them.
  */
-import { CircleCheck, Download, KeyRound, TriangleAlert } from "lucide-react";
+import { CircleCheck, Download, FolderSync, HardDrive, KeyRound, Clock, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button, Checkbox, Form, Notice, PasswordField, RadioCards, Segmented, SelectField, TextField, useFieldError,
+import { Button, Checkbox, Form, Notice, PasswordField, RadioCards, SelectField, TextField, useFieldError,
          type FieldErrors } from "../../ui";
 import { getState, saveBackups, testShare, type BackupsAnswer, type Retention, type SetupState, type UsbDisk } from "../api";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../recoveryKey";
@@ -104,17 +104,15 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
     <Form check={check} onValid={() => onDone(answer())} aria-labelledby={headingId}>
       <h1 id={headingId} className="setup-title">{t.backupsTitle}</h1>
       <p className="setup-lead">{t.backupsLead}</p>
-      {/* the dot first, no icons: as in Beheer › Back-ups (board B11), one way to choose everywhere */}
       <RadioCards
-        dotFirst
         label={t.backupTarget}
         name="target"
         value={target}
         onChange={(v) => setTarget(v as Target)}
         choices={[
-          { value: "usb", title: t.usbDisk, description: t.usbDiskDesc },
-          { value: "share", title: t.networkShare, description: t.networkShareDesc },
-          { value: "later", title: t.later, description: t.laterDesc },
+          { value: "usb", title: t.usbDisk, description: t.usbDiskDesc, icon: <HardDrive size={18} /> },
+          { value: "share", title: t.networkShare, description: t.networkShareDesc, icon: <FolderSync size={18} /> },
+          { value: "later", title: t.later, description: t.laterDesc, icon: <Clock size={18} /> },
         ]}
       />
 
@@ -153,13 +151,9 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
               </>
             )}
             <div className="setup-divider" />
-            {/* the keep period as in Beheer › Back-ups (board B11): short options side by side */}
-            <div className="setup-segmented">
-              <span className="ui-label" aria-hidden>{t.keepFor}</span>
-              <Segmented label={t.keepFor} description={t.keepHint} value={String(retention)}
+            <SelectField name="retention" label={t.keepFor} description={t.keepHint} value={String(retention)}
                          onChange={(v) => setRetention(Number(v) as Retention)}
-                         options={RETENTIONS.map((d) => ({ value: String(d), label: t.days(d) }))} />
-            </div>
+                         options={RETENTIONS.map((d) => ({ id: String(d), label: t.days(d) }))} />
           </div>
 
           <h2 className="setup-subtitle setup-section">{t.recoveryHeading}</h2>
