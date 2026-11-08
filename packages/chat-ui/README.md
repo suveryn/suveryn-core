@@ -109,6 +109,8 @@ React Aria's own strings (e.g. "selected") are kept for English, Dutch and Frenc
 
 A preview is the screen itself, not a copy, so it can't drift from what ships. The design boards are the design and the code follows them (the handbook's decision of 6 November 2026); each preview carries its board's id, and the design chat checks a changed screen's preview against its board before it is merged. A change to how a screen looks adds or updates its preview in the same PR. A new state of a screen is a new entry in `src/preview/previews.tsx`; the data it needs goes in `src/preview/sample.ts`, fictional only. `preview.html` is not a build input (`vite.config.ts`), so the previews never reach the appliance; `src/preview/preview.test.ts` checks that.
 
+**Screenshots, against drift.** `npm run previews:check` photographs every preview and setup screen (Playwright's Chromium: `npx playwright install chromium` once) and compares each with its baseline in `src/preview/baseline/`; CI runs it on every pull request and attaches the changed shots and their diffs. The clock is fixed at 8 November 2026, 11:30, so dates never move. A screen that changed on purpose, checked against its board, takes a new baseline with `npm run previews:update`, committed in the same PR; one that changed by accident is caught. `--only g01-start,b08-settings` limits a run.
+
 The web setup's screens are listed there too: `setup.html?screen=<step>` opens the setup at a step (0 to 6, or `restore`) with the demo's answers, in development only; `#answered` fills every step as on the design's Review.
 
 ## The web setup (setup.html)

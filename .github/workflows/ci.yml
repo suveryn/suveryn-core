@@ -120,6 +120,36 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  previews:
+    name: chat-ui (the screens against their baselines)
+    # Every preview and setup screen photographed and compared with src/preview/baseline/: a screen that
+    # drifts from its design board fails here, with the new shot and the diff as an artifact
+    # (packages/chat-ui/scripts/previews-shoot.mjs; the README's "Screen previews").
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/chat-ui
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: packages/chat-ui/package-lock.json
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run previews:check
+
+      - name: The changed screens, for the review
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: previews
+          path: packages/chat-ui/.previews/
+          if-no-files-found: ignore
+
   dependencies:
     name: Known vulnerabilities in the locked dependencies
     # Every push, and weekly, since an advisory can be published against a lock that hasn't changed.

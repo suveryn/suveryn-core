@@ -31,6 +31,13 @@ const SETUP: [string, string][] = [
   ["4", "4 · Ondersteuning (web-04)"], ["5", "5 · Back-ups (web-05)"], ["6#answered", "6 · Nakijken (web-06)"], ["restore", "Terugzetten (web-09)"],
 ];
 
+/** What the screenshot script photographs (scripts/previews-shoot.mjs): every preview and setup screen, with its width. */
+const SHOTS = [
+  ...PREVIEWS.map((p) => ({ id: p.id, url: `preview.html?p=${p.id}`, width: p.width ?? 1440 })),
+  ...SETUP.map(([screen]) => ({ id: `setup-${screen.replace("#", "-")}`, url: `setup.html?screen=${screen.replace("#", "&v=")}`, width: 1440 })),
+];
+if (!shown) document.documentElement.setAttribute("data-shots", JSON.stringify(SHOTS));
+
 function Index() {
   const boards = [...new Set(PREVIEWS.map((p) => p.board))];
   return (
