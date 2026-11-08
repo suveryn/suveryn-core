@@ -6,10 +6,14 @@ import "./setup.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { SetupApp } from "./SetupApp";
+import { PREVIEW_SCREENS, SetupApp, type PreviewScreen } from "./SetupApp";
+
+// Development only: ?screen=5 opens that step with the demo's answers (the screen previews, src/preview/).
+const asked = import.meta.env.DEV ? new URLSearchParams(location.search).get("screen") : null;
+const start = PREVIEW_SCREENS.find((s) => String(s) === asked) as PreviewScreen | undefined;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SetupApp />
+    <SetupApp start={start} />
   </StrictMode>,
 );

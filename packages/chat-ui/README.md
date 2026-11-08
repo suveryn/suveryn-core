@@ -109,6 +109,8 @@ React Aria's own strings (e.g. "selected") are kept for English, Dutch and Frenc
 
 A preview is the screen itself, not a copy, so it can't drift from what ships. The design boards are the design and the code follows them (the handbook's decision of 6 November 2026); each preview carries its board's id, and the design chat checks a changed screen's preview against its board before it is merged. A change to how a screen looks adds or updates its preview in the same PR. A new state of a screen is a new entry in `src/preview/previews.tsx`; the data it needs goes in `src/preview/sample.ts`, fictional only. `preview.html` is not a build input (`vite.config.ts`), so the previews never reach the appliance; `src/preview/preview.test.ts` checks that.
 
+The web setup's screens are listed there too: `setup.html?screen=<step>` opens the setup at a step (0 to 6, or `restore`) with the demo's answers, in development only; `#answered` fills every step as on the design's Review.
+
 ## The web setup (setup.html)
 
 The appliance's first-boot setup in the browser (suveryn-tracker#37; design in suveryn-appliance `docs/design/first-boot-setup/`). Its own entry and bundle: `setup.html` and [`src/setup/`](src/setup/). It shares the component library, fonts and tokens with the chat and nothing else: no sign-in (setup creates the first account, so it can't depend on Keycloak), no chat code. The appliance serves it only until setup finishes.

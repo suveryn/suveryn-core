@@ -24,7 +24,7 @@ The handbook's [design principles](https://github.com/suveryn/suveryn-handbook/b
 - **All or nothing:** several writes to one store go in `PgStore.transaction()`; a change across stores is made of steps that are safe to repeat (`delete_case_everywhere`).
 - **Failures:** the server sends a failure as a code, and the page words it in the reader's language (`failureWords`, `i18n/`).
 - **Screens:** built from the kit in `packages/chat-ui/src/ui/` (React Aria underneath); product components never import React Aria directly, and icons come through the kit. The end-to-end scenarios find every control by its role and name. A screen follows its design board (the handbook's [decision of 6 November](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-06-design-to-code.md)); a change to it updates its preview (`packages/chat-ui/src/preview/`, the README's *Screen previews*) in the same PR.
-- **Brand:** copied from suveryn-brand at a pinned commit (`brand-lock.json`, `npm run brand:sync`); colours are `oklch(from var(--token) …)`, text sizes the brand's named styles. Tests fail on a new hex or a pixel literal.
+- **Brand:** copied from suveryn-brand at a pinned commit (`brand-lock.json`, `npm run brand:sync`); colours are `oklch(from var(--token) …)`, text sizes the brand's named styles, and spacing is on the brand's 4 px grid (`--space-*` tokens where one exists; the guidelines' *Spacing: a 4 px grid*). Tests fail on a new hex, a font-size literal, or a spacing value off the grid (`src/styles/grid.test.ts`).
 - **Copy and languages:** [docs/translations.md](docs/translations.md) says where every string lives; `src/i18n/rules.ts` checks each against the brand's wording rules, and a missing language fails the build.
 
 ## Verify

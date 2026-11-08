@@ -6,7 +6,8 @@
  *
  * Variants for trying things: add #check-fails to the address for a failed outgoing-traffic check,
  * #provisioning-fails for provisioning that stops at the sign-in step, #no-disk for no USB disk,
- * #restore-wrong-key for a recovery key that doesn't open the backup, #no-backup for a target without one.
+ * #restore-wrong-key for a recovery key that doesn't open the backup, #no-backup for a target without one,
+ * #answered for every step already answered as on the design's Review (the screen previews).
  */
 import type { BackupsAnswer, Manifest, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
 import { Refused } from "./api";
@@ -14,7 +15,13 @@ import { Refused } from "./api";
 const variant = (v: string) => typeof location !== "undefined" && location.hash.includes(v);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const answers: SavedAnswers = {};
+const answers: SavedAnswers = variant("answered") ? {
+  network: { mode: "connected", outgoing: "approved" },
+  administrator: { name: "Filip Tack", email: "filip@yourfirm.example" },
+  certificate: { kind: "self-signed", names: ["notary-brussels-01.local", "192.168.1.50"] },
+  support: null,
+  backups: { target: "usb", disk: "usb-SanDisk_Extreme_4C53000", retention_days: 30, recipient: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" },
+} : {};
 let progress: Progress | null = null;
 let started = 0;
 let failOnce = variant("provisioning-fails");

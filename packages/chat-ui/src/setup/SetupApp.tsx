@@ -32,7 +32,11 @@ import { initialLang, LANGS, LANGUAGE_NAMES, LOCALES, setLang, useLang, useText,
 const TOTAL = 6;
 type Screen = 0 | 1 | 2 | 3 | 4 | 5 | 6 | "provisioning" | "complete" | "restore" | "restore-confirm" | "restore-progress" | "restore-done";
 
-export function SetupApp() {
+/** The screens a preview can open at (main.tsx, development only): a step, or the restore's first screen. */
+export const PREVIEW_SCREENS = [0, 1, 2, 3, 4, 5, 6, "restore"] as const;
+export type PreviewScreen = (typeof PREVIEW_SCREENS)[number];
+
+export function SetupApp({ start }: { start?: PreviewScreen } = {}) {
   const t = useText();
   const language = useLang();
   const headingId = useId();
@@ -56,6 +60,9 @@ export function SetupApp() {
       else if (r?.state === "restoring") setScreen("restore-progress");
       else if (r?.state === "checking" || r?.state === "checked") setScreen("restore-confirm");
       else if (r?.state === "failed") setScreen(r.steps ? "restore-progress" : "restore");
+      else if (start !== undefined) setScreen(start);
+      // a preview is ready once its screen has drawn (the screenshot script waits for this)
+      if (start !== undefined) setTimeout(() => document.documentElement.setAttribute("data-preview-ready", ""), 600);
     }, () => setFailed(true));
   }, []);
 
