@@ -25,6 +25,12 @@ shown?.setup?.();
 // A preview with steps (steps.tsx) says so itself when its last step is done.
 if (shown) setTimeout(() => { if (!stepsRunning()) document.documentElement.setAttribute("data-preview-ready", ""); }, 1500);
 
+/** The setup's screens (setup/SetupApp.tsx, ?screen=): the boards web-00 to web-06 and web-09. */
+const SETUP: [string, string][] = [
+  ["0", "Welkom (web-00)"], ["1", "1 · Netwerk (web-01)"], ["2", "2 · Beheerder (web-02)"], ["3", "3 · Certificaat (web-03)"],
+  ["4", "4 · Ondersteuning (web-04)"], ["5", "5 · Back-ups (web-05)"], ["6#answered", "6 · Nakijken (web-06)"], ["restore", "Terugzetten (web-09)"],
+];
+
 function Index() {
   const boards = [...new Set(PREVIEWS.map((p) => p.board))];
   return (
@@ -40,6 +46,11 @@ function Index() {
           } : undefined}>{p.title}</a></li>)}</ul>
         </section>
       ))}
+      <section>
+        <h2>S: the appliance's setup</h2>
+        <p>The setup's own page with the demo's answers, opened at a step (boards in suveryn-appliance, docs/design/first-boot-setup).</p>
+        <ul>{SETUP.map(([screen, title]) => <li key={screen}><a href={`setup.html?screen=${screen}`}>{title}</a></li>)}</ul>
+      </section>
     </main>
   );
 }

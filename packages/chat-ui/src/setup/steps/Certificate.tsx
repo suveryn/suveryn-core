@@ -3,7 +3,7 @@
  * office's own: certificate, private key and an optional chain, read in the browser as PEM text and
  * checked by the appliance on Continue (it must cover <name>.local, the key must match, not expired).
  */
-import { FileBadge, FileKey, FileText, Info, KeyRound } from "lucide-react";
+import { FileBadge, FileKey, FileText, Info } from "lucide-react";
 import { useRef, useState } from "react";
 import { Chips, FilePick, Form, Note, RadioCards, readText, type FieldErrors } from "../../ui";
 import { saveCertificate, type CertificateAnswer, type SetupState } from "../api";
@@ -44,14 +44,16 @@ export function Certificate({ state, onBack, onDone, headingId }: Props) {
     <Form check={check} onValid={() => saved.current && onDone(saved.current)} aria-labelledby={headingId}>
       <h1 id={headingId} className="setup-title">{t.certTitle}</h1>
       <p className="setup-lead">{t.certLead}</p>
+      {/* the dot first, no icons: as in Beheer › Back-ups (board B11), one way to choose everywhere */}
       <RadioCards
+        dotFirst
         label={t.certTitle}
         name="kind"
         value={kind}
         onChange={(v) => setKind(v as typeof kind)}
         choices={[
-          { value: "self-signed", title: t.selfSigned, description: t.selfSignedDesc, icon: <KeyRound size={18} /> },
-          { value: "own", title: t.ownCert, description: t.ownCertDesc, icon: <FileBadge size={18} /> },
+          { value: "self-signed", title: t.selfSigned, description: t.selfSignedDesc },
+          { value: "own", title: t.ownCert, description: t.ownCertDesc },
         ]}
       />
       <div className="setup-detail">

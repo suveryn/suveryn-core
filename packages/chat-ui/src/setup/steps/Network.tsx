@@ -3,7 +3,7 @@
  * installer and are only shown here; the choice is the internet access: Connected (approved
  * destinations only, or everything) or Air-gapped.
  */
-import { CircleAlert, Globe, Info, Network as NetworkIcon, Server, SquareTerminal, WifiOff } from "lucide-react";
+import { CircleAlert, Info, Network as NetworkIcon, Server, SquareTerminal } from "lucide-react";
 import { useState } from "react";
 import { Chips, Facts, Form, Notice, RadioCards, RadioList } from "../../ui";
 import { saveNetwork, type NetworkAnswer, type NetworkMode, type Outgoing, type SetupState } from "../api";
@@ -42,14 +42,16 @@ export function Network({ state, onBack, onDone, headingId }: Props) {
 
       <h2 className="setup-subtitle" id={`${headingId}-access`}>{t.internetAccess}</h2>
       <p className="setup-sublead">{t.internetAccessLead}</p>
+      {/* the dot first, no icons: as in Beheer › Back-ups (board B11), one way to choose everywhere */}
       <RadioCards
+        dotFirst
         label={t.internetAccess}
         name="mode"
         value={mode}
         onChange={(v) => setMode(v as NetworkMode)}
         choices={[
-          { value: "connected", title: t.connected, description: t.connectedDesc, icon: <Globe size={18} /> },
-          { value: "air-gapped", title: t.airGapped, description: t.airGappedDesc, icon: <WifiOff size={18} /> },
+          { value: "connected", title: t.connected, description: t.connectedDesc },
+          { value: "air-gapped", title: t.airGapped, description: t.airGappedDesc },
         ]}
       />
       {mode === "connected" && (

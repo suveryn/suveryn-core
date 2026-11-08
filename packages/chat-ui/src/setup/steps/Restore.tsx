@@ -13,7 +13,7 @@
  * The key and a share's password pass through the page once; the appliance keeps them on its encrypted
  * data partition until the restore has run, then deletes them.
  */
-import { ArchiveRestore, Check, CircleAlert, FileKey, FolderSync, HardDrive, Info, LoaderCircle, TriangleAlert } from "lucide-react";
+import { ArchiveRestore, Check, CircleAlert, FileKey, HardDrive, Info, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Facts, FilePick, Form, InlineNotice, LinkButton, Notice, PasswordField, Progress, RadioCards, readText, SelectField,
          StatusList, TextField, type FieldErrors, type StatusItem } from "../../ui";
@@ -98,14 +98,16 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
           </Notice>
         </div>
       )}
+      {/* the dot first, no icons: as in Beheer › Back-ups (board B11), one way to choose everywhere */}
       <RadioCards
+        dotFirst
         label={t.restoreWhere}
         name="target"
         value={target}
         onChange={(v) => setTarget(v as "usb" | "share")}
         choices={[
-          { value: "usb", title: t.usbDisk, description: t.restoreUsbDesc, icon: <HardDrive size={18} /> },
-          { value: "share", title: t.networkShare, description: t.restoreShareDesc, icon: <FolderSync size={18} /> },
+          { value: "usb", title: t.usbDisk, description: t.restoreUsbDesc },
+          { value: "share", title: t.networkShare, description: t.restoreShareDesc },
         ]}
       />
       <div className="setup-detail">
