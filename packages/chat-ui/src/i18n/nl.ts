@@ -832,6 +832,11 @@ const nl: Messages = {
   backupAttentionOpen: "Back-ups openen",
   keyNotTestedSince: (day) => `Herstelsleutel niet getest sinds ${day}. Test elke drie maanden.`,
   keyNeverTested: "Herstelsleutel nog nooit getest. Test elke drie maanden.",
+  // Beheer › Back-ups, the recovery key's card (board B11): its state in a few words, large
+  keyCardOk: (day) => `Getest op ${day}`,
+  keyCardDue: (day) => `Niet getest sinds ${day}`,
+  keyCardNever: "Nog nooit getest",
+  keyCardFailed: "Laatste test mislukt",
   // Beheer › Back-ups, aan te passen (docs/design/admin.md, artboard 36)
   backUpNow: "Nu een back-up maken",
   backupStarted: "Gestart. Het loopt op de achtergrond.",

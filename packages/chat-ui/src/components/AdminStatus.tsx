@@ -161,7 +161,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
 }
 
 /** "Last night 02:14" for the small hours of today, else "Today 14:02", "Yesterday 02:14", "3 Nov 02:14". */
-function backupWhen(iso: string, m: ReturnType<typeof useT>): string {
+export function backupWhen(iso: string, m: ReturnType<typeof useT>): string {
   const d = new Date(iso);
   const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
   const now = new Date();

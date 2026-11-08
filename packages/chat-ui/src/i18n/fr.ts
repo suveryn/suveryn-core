@@ -834,6 +834,11 @@ const fr: Messages = {
   backupAttentionOpen: "Ouvrir les sauvegardes",
   keyNotTestedSince: (day) => `Clé de récupération non testée depuis le ${day}. Testez-la tous les trois mois.`,
   keyNeverTested: "Clé de récupération jamais testée. Testez-la tous les trois mois.",
+  // Beheer › Back-ups, the recovery key's card (board B11): its state in a few words, large
+  keyCardOk: (day) => `Testée le ${day}`,
+  keyCardDue: (day) => `Non testée depuis le ${day}`,
+  keyCardNever: "Jamais testée",
+  keyCardFailed: "Dernier test échoué",
   // Administration › Sauvegardes, modifiables (docs/design/admin.md, artboard 36)
   backUpNow: "Sauvegarder maintenant",
   backupStarted: "Lancée. Elle se poursuit en arrière-plan.",

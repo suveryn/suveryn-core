@@ -120,37 +120,43 @@ export function AdminSettings() {
     <div className="admin-settings">
       {settings && (
         <>
-          {/* boards G01, G04: shown after each person's name in the column and in the account menu */}
-          <section aria-labelledby="office-name">
-            <h2 id="office-name" className="label">{m.officeName}</h2>
-            <TextField label={m.officeName} hideLabel name="office_name" value={officeName} onChange={edited(setOfficeName)} maxLength={120}
-                       description={m.officeNameHint} />
+          {/* Sections as on board B08: a heading in small capitals per section, the fields under it with their
+              own labels in bold. The office's name is new since the board (G01, G04: shown after each person's
+              name in the column and in the account menu), in a section of its own at the top. */}
+          <section aria-labelledby="office" className="admin-settings-section">
+            <h2 id="office" className="label">{m.adminOffice}</h2>
+            <div className="office-name-field">
+              <TextField label={m.officeName} name="office_name" value={officeName} onChange={edited(setOfficeName)} maxLength={120}
+                         description={m.officeNameHint} />
+            </div>
           </section>
-          <section aria-labelledby="who-sees">
-            <h2 id="who-sees" className="label">{m.whoSeesACase}</h2>
-            <RadioList label={m.whoSeesACase} name="default_access" value={access} onChange={edited((v: string) => setAccess(v as Access))}
-                       choices={[{ value: "members", title: m.accessMembersOnly }, { value: "office", title: m.accessEveryone }]} />
-            {opens && (
-              <div className="admin-settings-apply">
-                <h3 className="label">{m.applyTo}</h3>
-                <RadioList label={m.applyTo} name="apply_to" value={applyTo} onChange={edited((v: string) => setApplyTo(v as "new" | "all"))}
-                           choices={[{ value: "new", title: m.applyNewCases }, { value: "all", title: m.applyAllCases }]} />
-              </div>
-            )}
-            <p className="caption">{m.changeablePerCase} {m.strictlyStays}</p>
+          <section aria-labelledby="cases-settings" className="admin-settings-section">
+            <h2 id="cases-settings" className="label">{m.cases}</h2>
+            <div className="admin-settings-item">
+              <h3 className="ui-label" aria-hidden>{m.whoSeesACase}</h3>
+              <RadioList label={m.whoSeesACase} name="default_access" value={access} onChange={edited((v: string) => setAccess(v as Access))}
+                         choices={[{ value: "members", title: m.accessMembersOnly }, { value: "office", title: m.accessEveryone }]} />
+              {opens && (
+                <div className="admin-settings-apply">
+                  <Segmented label={m.applyTo} value={applyTo} onChange={edited((v: string) => setApplyTo(v as "new" | "all"))}
+                             options={[{ value: "new", label: m.applyNewCases }, { value: "all", label: m.applyAllCases }]} />
+                </div>
+              )}
+              <p className="caption">{m.changeablePerCase} {m.strictlyStays}</p>
+            </div>
+            {/* the keep periods as segmented buttons, each under its own label (board B08) */}
+            <div className="admin-settings-item">
+              <h3 className="ui-label" aria-hidden>{m.keepClosedCase}</h3>
+              <Segmented label={m.keepClosedCase} description={m.keepClosedHint} value={keep}
+                         onChange={edited((v: string) => setKeep(v as KeepPeriod))} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
+            </div>
+            <div className="admin-settings-item">
+              <h3 className="ui-label" aria-hidden>{m.keepConversations}</h3>
+              <Segmented label={m.keepConversations} description={m.keepConversationsHint} value={conversations}
+                         onChange={edited((v: string) => setConversations(v as KeepPeriod))} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
+            </div>
           </section>
-          {/* the keep periods as segmented buttons, each under its own label (board B08) */}
-          <section aria-labelledby="keep-closed" className="admin-settings-periods">
-            <h2 id="keep-closed" className="label">{m.keepClosedCase}</h2>
-            <Segmented label={m.keepClosedCase} description={m.keepClosedHint} value={keep}
-                       onChange={edited((v: string) => setKeep(v as KeepPeriod))} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
-          </section>
-          <section aria-labelledby="keep-conversations" className="admin-settings-periods">
-            <h2 id="keep-conversations" className="label">{m.keepConversations}</h2>
-            <Segmented label={m.keepConversations} description={m.keepConversationsHint} value={conversations}
-                       onChange={edited((v: string) => setConversations(v as KeepPeriod))} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
-          </section>
-          <section aria-labelledby="two-step">
+          <section aria-labelledby="two-step" className="admin-settings-section">
             <h2 id="two-step" className="label">{m.twoStepHeading}</h2>
             <Switch label={m.twoStepEveryone} checked={twoStep} onChange={edited(setTwoStep)} />
             <p className="caption">{m.twoStepHint}</p>
@@ -158,7 +164,7 @@ export function AdminSettings() {
         </>
       )}
       {rates && (
-        <section aria-labelledby="indicative-cost">
+        <section aria-labelledby="indicative-cost" className="admin-settings-section">
           <h2 id="indicative-cost" className="label">{m.indicativeCost}</h2>
           <div className="admin-settings-row">
             <NumberField name="input" label={m.rateInput} value={input} onChange={edited(setInput)} onTyped={typing(setTypedInput)} minValue={0} maxValue={10_000}

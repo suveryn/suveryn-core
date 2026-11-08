@@ -868,6 +868,11 @@ const en = {
   // Status, Needs attention (board B01): when the recovery key last opened a backup
   keyNotTestedSince: (day: string) => `Recovery key not tested since ${day}. Test every three months.`,
   keyNeverTested: "Recovery key never tested. Test every three months.",
+  // Beheer › Back-ups, the recovery key's card (board B11): its state in a few words, large
+  keyCardOk: (day: string) => `Tested on ${day}`,
+  keyCardDue: (day: string) => `Not tested since ${day}`,
+  keyCardNever: "Never tested",
+  keyCardFailed: "Last test failed",
   // Administration › Backups, editable (docs/design/admin.md, artboard 36)
   backUpNow: "Back up now",
   backupStarted: "Started. It runs in the background.",
