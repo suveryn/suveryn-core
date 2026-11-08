@@ -525,13 +525,12 @@
   .ui-dialog-actions > .ui-button { white-space: normal; margin-left: 0; }
 }
 
-/* a row of short options (the usage period) */
-.ui-segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-.ui-segment { padding: 7px var(--space-3); font-size: var(--text-ui-sm); line-height: 16px; color: var(--text); cursor: pointer;
-              border-right: 1px solid var(--line); } /* 30px, with the group's border 32px: small */
-.ui-segment:last-child { border-right: none; }
-.ui-segment[data-hovered] { background: var(--surface); }
-.ui-segment[data-selected] { background: var(--surface-alt); font-weight: 600; }
+/* a row of short options (the usage period, the keep periods): a grey track, the chosen one a white pill (boards B08, B11) */
+.ui-segmented { display: inline-flex; border: 1px solid var(--surface-alt); border-radius: var(--radius-sm); background: var(--surface-alt); }
+.ui-segment { padding: 7px var(--space-3); font-size: var(--text-ui-sm); line-height: 16px; color: var(--text-dim); cursor: pointer;
+              border-radius: var(--radius-sm); } /* 30px, with the group's border 32px: small */
+.ui-segment[data-hovered] { color: var(--text); }
+.ui-segment[data-selected] { background: var(--bg); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
 .ui-segment[data-focus-visible] { outline: none; box-shadow: var(--focus-ring-inset); }
 .ui-segment[data-disabled] { color: var(--text-dimmer); cursor: default; }
 .ui-segmented-field { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }

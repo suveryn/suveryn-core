@@ -37,7 +37,8 @@ const matches = (q: string, ...texts: (string | null | undefined)[]) =>
 const longDate = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
 const byText = (a: string, b: string) => a.localeCompare(b, locale(), { numeric: true, sensitivity: "base" });
 
-/** The page's head: its title, one line that sums it up, and its primary action. */
+/** The page's head: its title, one line that sums it up, and its action: outlined, with icon and words (Filip, 8 November: an
+ *  overview's button stays calm; orange is for the one main action of a page or dialog). */
 function OverviewHead({ title, summary, action }: { title: string; summary: string; action: ReactNode }) {
   return (
     <header className="overview-head">
@@ -196,7 +197,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
   return (
     <section className="overview">
       <OverviewHead title={m.cases} summary={m.casesSummary(open, cases.length - open)}
-                    action={<Button variant="primary" onPress={onNew}><Folder size={16} aria-hidden /> {m.newCase}</Button>} />
+                    action={<Button variant="secondary" onPress={onNew}><Folder size={16} aria-hidden /> {m.newCase}</Button>} />
       <div className="overview-tools">
         <SearchField label={m.findCase} placeholder={m.caseSearchPlaceholder} value={query} onChange={setQuery} className="overview-search" />
         <FilterSelect label={m.filterType} options={typeOptions} value={type} onChange={setType} clearLabel={m.clearFilter(m.filterType)} />
@@ -294,7 +295,7 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
   return (
     <section className="overview">
       <OverviewHead title={m.conversations} summary={m.conversationsSummary(conversations.length, personal, conversations.length - personal)}
-                    action={<Button variant="primary" onPress={onNew}><Plus size={16} aria-hidden /> {m.newConversation}</Button>} />
+                    action={<Button variant="secondary" onPress={onNew}><Plus size={16} aria-hidden /> {m.newConversation}</Button>} />
       <div className="overview-tools">
         <SearchField label={m.findConversation} placeholder={m.conversationSearchPlaceholder} value={query} onChange={setQuery} className="overview-search" />
         <FilterSelect label={m.filterCase} options={caseOptions} value={where} onChange={setWhere} icon={<Folder size={14} />} clearLabel={m.clearFilter(m.filterCase)} />
@@ -445,7 +446,7 @@ export function DocumentsOverview({ documents, jobs, jobsCase, cases, me, depart
     <section className="overview">
       <OverviewHead title={m.documents} summary={m.documentsSummary(documents.length, inCases)}
                     action={<FileButton accept={ACCEPTED_FILES} multiple onSelect={onUpload}>
-                      <Button variant="primary" title={m.uploadHint}><Upload size={16} aria-hidden /> {m.upload}</Button>
+                      <Button variant="secondary" title={m.uploadHint}><Upload size={16} aria-hidden /> {m.upload}</Button>
                     </FileButton>} />
       <div className="overview-tools">
         <SearchField label={m.findDocument} placeholder={m.documentSearchPlaceholder} value={query} onChange={setQuery} className="overview-search" />

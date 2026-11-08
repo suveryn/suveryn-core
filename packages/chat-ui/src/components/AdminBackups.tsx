@@ -11,7 +11,8 @@ import { useCallback, useEffect, useState } from "react";
 import { getBackups, HttpError, testRecoveryKey, type BackupStatus } from "../api";
 import { locale, useT } from "../i18n";
 import { backupState, keyTestState, sizeLabel } from "../lib/backups";
-import { Button, FileButton, InlineNotice, readText } from "../ui";
+import { FileButton, InlineNotice, readText, TextButton } from "../ui";
+import { backupWhen } from "./AdminStatus";
 import { BackUpNow, BackupSettingsForm, RecoverySheet } from "./AdminBackupSettings";
 
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
@@ -47,7 +48,6 @@ export function AdminBackups() {
   const reason = (step: string) => m.backupStep[step as keyof typeof m.backupStep] ?? m.backupStep.other;
   return (
     <>
-      <p className="view-intro">{m.adminBackupsIntro}</p>
       {state.kind === "unavailable" && <InlineNotice icon={<Info size={14} />}>{m.backupsUnavailable}</InlineNotice>}
       {state.kind === "not_set_up" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
       {state.kind === "never" && (state.failing
@@ -55,8 +55,8 @@ export function AdminBackups() {
         : <InlineNotice icon={<Info size={14} />}>{m.backupsNever}</InlineNotice>)}
       {(state.kind === "ok" || state.kind === "stale" || state.kind === "failing") && (() => {
         const s = state.status, ok = s.last_success!;
-        const detail = [sizeLabel(ok.size, locale()), ok.on_target != null ? m.backupCount(ok.on_target, ok.oldest ? when(ok.oldest) : null) : null, ok.disk]
-          .filter(Boolean).join(" · ");
+        // short, as on board B11: the size and how many there are
+        const detail = [sizeLabel(ok.size, locale()), ok.on_target != null ? m.backupCount(ok.on_target, null) : null].filter(Boolean).join(" · ");
         return (
           <>
             {state.kind !== "ok" && (
@@ -70,7 +70,7 @@ export function AdminBackups() {
                 <h2 id="backup-last" className="backup-card-label">
                   {state.kind === "ok" ? <Check size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />} {m.backupLastHeading}
                 </h2>
-                <p className="backup-card-value">{when(ok.at)}</p>
+                <p className="backup-card-value">{backupWhen(ok.at, m)}</p>
                 <p className="backup-card-detail">{detail}</p>
               </section>
               <section className="backup-card" aria-labelledby="backup-key">
@@ -78,14 +78,12 @@ export function AdminBackups() {
                 <KeyTest status={s} problem={keyProblem} onTest={test} />
               </section>
             </div>
-            <p className="caption">{m.keyTestIntro}{s.target === "usb" ? ` ${m.backupRotate}` : ""}</p>
           </>
         );
       })()}
       {status.settings && <BackUpNow status={status} onStarted={load} />}
       <BackupSettingsForm status={status} onSaved={load} />
       {status.settings && <RecoverySheet status={status} onSaved={load} />}
-      <p className="caption">{m.backupsCaption}</p>
     </>
   );
 }
@@ -93,22 +91,20 @@ export function AdminBackups() {
 function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: string | null; onTest: (files: File[]) => void }) {
   const m = useT();
   const k = keyTestState(status);
+  const day = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short" });
+  // Board B11: the key's state in a few words, large, and "Nu testen" as a link under it.
+  const value = k.kind === "testing" ? m.keyTesting : k.kind === "never" ? m.keyCardNever : k.kind === "ok" ? m.keyCardOk(day(k.test.at))
+    : k.kind === "due" ? m.keyCardDue(day(k.test.at)) : k.kind === "failed" ? m.keyCardFailed
+    : k.kind === "wrong_file" && k.lastOk ? (k.due ? m.keyCardDue(day(k.lastOk)) : m.keyCardOk(day(k.lastOk))) : m.keyCardNever;
   return (
     <>
-      {k.kind === "testing" && <InlineNotice icon={<Info size={14} />}>{m.keyTesting}</InlineNotice>}
-      {k.kind === "never" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.keyTestNever}</InlineNotice>}
-      {k.kind === "ok" && <InlineNotice icon={<Check size={14} />} tone="ok">{m.keyTestOk(when(k.test.at))}</InlineNotice>}
-      {k.kind === "due" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.keyTestDue(when(k.test.at))}</InlineNotice>}
+      <p className="backup-card-value" role="status">{value}</p>
+      {k.kind === "wrong_file" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestFailed}</InlineNotice>}
       {k.kind === "failed" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestBroken}</InlineNotice>}
-      {k.kind === "wrong_file" && (
-        <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>
-          {m.keyTestFailed}{k.lastOk && <> {k.due ? m.keyTestDue(when(k.lastOk)) : m.keyTestOk(when(k.lastOk))}</>}
-        </InlineNotice>
-      )}
       {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
       {k.kind !== "testing" && (
         <FileButton accept={[".txt", ".key"]} onSelect={onTest}>
-          <Button size="small" variant="secondary"><FileKey size={14} aria-hidden /> {m.keyTestButton}</Button>
+          <TextButton link aria-label={m.keyTestButton}>{m.testNow}</TextButton>
         </FileButton>
       )}
     </>

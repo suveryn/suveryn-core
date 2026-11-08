@@ -122,7 +122,7 @@ export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: strin
             {over && <TriangleAlert size={14} aria-hidden />}{m.usersCount(counted, list.agreement_users)}
           </span>
         )}
-        <Button variant="primary" onPress={() => setAdding(true)} aria-label={narrow ? m.addUser : undefined}>
+        <Button variant="secondary" onPress={() => setAdding(true)} aria-label={narrow ? m.addUser : undefined}>
           <UserPlus size={16} aria-hidden />{!narrow && ` ${m.addUser}`}
         </Button>
       </div>

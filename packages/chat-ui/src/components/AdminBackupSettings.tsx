@@ -9,7 +9,7 @@
  * writes a test file. The recovery key is made in this browser, as in the setup: only its public half goes to
  * the appliance, so the appliance can write backups and never read them. Old backups stay where they were.
  */
-import { Check, CircleAlert, CircleCheck, Download, KeyRound, Play, Printer } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, Download, HardDrive, KeyRound, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   askBackupService, type BackupDisk, type BackupRetention, type BackupSettings, type BackupStatus,
@@ -68,7 +68,7 @@ export function BackUpNow({ status, onStarted }: { status: BackupStatus; onStart
   };
   return (
     <div className="backup-now">
-      <Button variant="primary" onPress={start} isDisabled={busy || !!running}><Play size={14} aria-hidden /> {m.backUpNow}</Button>
+      <Button variant="primary" onPress={start} isDisabled={busy || !!running}><HardDrive size={14} aria-hidden /> {m.backUpNow}</Button>
       <span className="caption" role="status">
         {running ? m.backupRunning(new Date(running).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }))
           : started ? m.backupStarted
@@ -261,7 +261,9 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{errors._ || errors.recipient || errors.retention_days || errors.hour}</InlineNotice>
       )}
       <div className="admin-settings-save">
-        <Button variant="primary" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
+        {/* outlined, with Cancel beside it: "Nu een back-up maken" is the page's one orange action (board B11) */}
+        <Button variant="secondary" onPress={save} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
+        {changed && !busy && <Button variant="quiet" onPress={() => { setForm(formFrom(saved)); setErrors({}); }}>{m.cancel}</Button>}
         {done && <span className="caption status-ok"><Check size={12} aria-hidden /> {m.backupSettingsSaved}</span>}
         {/* Errors show on saving, at their fields; this line says so beside the button, where the press was
             (round 2, finding 6: the share's "test first" sat far above, and Save seemed to do nothing). */}

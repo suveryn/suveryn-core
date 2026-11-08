@@ -436,7 +436,7 @@ span.chip-run { cursor: default; }
 
 /* Tables in answers: a real table, so copy and paste into Excel or Word keeps the columns. */
 .answer-table { margin: var(--space-3) 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
-.answer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.answer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }  /* white on the tinted page, as on G16 */
 .answer-table table { border-collapse: collapse; font-size: var(--text-body-sm); line-height: 1.45; }
 .answer-table th, .answer-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 .answer-table th { background: var(--surface-alt); font-weight: 600; white-space: nowrap; }
@@ -789,8 +789,12 @@ span.chip-run { cursor: default; }
 
 /* Settings (artboard 35): sections apart, the keep periods side by side, Save at the foot */
 .admin-settings { display: flex; flex-direction: column; gap: var(--space-6); }
-.admin-settings-apply { padding-left: var(--space-6); }
-.admin-settings-apply h3.label { margin: 0 0 var(--space-1); }
+/* board B08: sections under a small-capitals heading; each setting under its own bold label */
+.admin-settings-section { display: flex; flex-direction: column; gap: var(--space-4); }
+.admin-settings-section > h2.label { margin: 0; }
+.admin-settings-item { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.admin-settings-item > h3.ui-label, .admin-settings-item > .caption { margin: 0; }
+.office-name-field { width: min(100%, 28rem); }
 .admin-settings-row, .admin-page section.admin-settings-row { display: flex; flex-flow: row wrap; gap: var(--space-4); align-items: flex-start; }
 .admin-settings-row > .ui-field { flex: 1 1 14rem; margin: 0; }
 .admin-settings-row > .rates-field, .admin-settings-row > .rates-field ~ .ui-field { flex: 0 0 auto; }
@@ -834,11 +838,13 @@ span.chip-run { cursor: default; }
 .backup-now { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .backup-now .ui-inline-notice { flex-basis: 100%; }
 .backup-settings { display: flex; flex-direction: column; gap: var(--space-3); }
-.backup-settings-detail { display: flex; flex-direction: column; gap: var(--space-3); padding-left: var(--space-1); }
+/* board B11: the page as wide as the board's, the fields narrow (a name, a time) */
+.admin-page > .backup-cards, .admin-page > .backup-settings, .admin-page > .backup-now { max-width: 66rem; }
+.backup-settings-detail { display: flex; flex-direction: column; gap: var(--space-3); }
 .backup-settings-row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
-.backup-settings-row > .ui-field { flex: 1 1 12rem; margin: 0; }
+.backup-settings-row > .ui-field { flex: 0 1 14rem; margin: 0; }
 .backup-disk-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
-.backup-disk-row > .ui-field { flex: 1 1 16rem; margin: 0; }
+.backup-disk-row > .ui-field { flex: 0 1 22rem; margin: 0; }
 .backup-test { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .backup-test-status { font-size: var(--text-ui-sm); color: var(--text-dim); }
 .backup-test-status[data-state="ok"] { color: var(--teal-ink); }
@@ -897,6 +903,7 @@ span.chip-run { cursor: default; }
 .backup-card-label { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); font-weight: 400; color: var(--text-dim); }
 .backup-card-value { margin: 0; font-size: var(--text-ui); font-weight: 600; }
 .backup-card-detail { margin: 0; font-size: var(--text-caption); color: var(--text-dim); }
+.backup-card .ui-link-button { font-size: var(--text-caption); }  /* "Nu testen", small under the state (board B11) */
 .backup-retention { display: flex; flex-direction: column; gap: var(--space-2); }
 /* the facts panel's title takes the room the head has: "Alle gegevens voor de akte" in full (board P03) */
 .facts-panel .source-panel-head > .composer-space { flex: 0 0 0; }

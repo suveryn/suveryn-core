@@ -13,6 +13,7 @@ import { LANGS, locale, setLang, type Lang } from "../i18n";
 import { I18nProvider } from "../ui";
 import { useSampleData } from "./fakeApi";
 import { PREVIEWS } from "./previews";
+import { stepsRunning } from "./steps";
 
 useSampleData();
 const params = new URLSearchParams(window.location.search);
@@ -21,7 +22,8 @@ const wanted = params.get("lang");
 setLang((LANGS as readonly string[]).includes(wanted ?? "") ? (wanted as Lang) : shown?.lang ?? "en", false);
 shown?.setup?.();
 // A preview without steps is ready once its first data is in (the screenshot script waits for this).
-if (shown) setTimeout(() => document.documentElement.setAttribute("data-preview-ready", ""), 1500);
+// A preview with steps (steps.tsx) says so itself when its last step is done.
+if (shown) setTimeout(() => { if (!stepsRunning()) document.documentElement.setAttribute("data-preview-ready", ""); }, 1500);
 
 function Index() {
   const boards = [...new Set(PREVIEWS.map((p) => p.board))];
