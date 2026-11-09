@@ -4,13 +4,17 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:   # "Screens, remake the baselines" starts CI again after its commit
+    # labeled: the label "remake the baselines" has the previews job take the screens' baselines on the
+    # runner and commit them to the branch (the previews job below); the other jobs sit that event out.
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:   # the previews job starts CI again by name after it commits the baselines
   schedule:
     - cron: "17 5 * * 1"   # Mondays, for the dependency audit
 
 jobs:
   markdown:
     name: Markdown lint
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -26,6 +30,7 @@ jobs:
 
   lint:
     name: Python workspace (lint)
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -43,6 +48,7 @@ jobs:
 
   python:
     name: Python workspace (pytest)
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -68,6 +74,7 @@ jobs:
 
   db-tests:
     name: Python workspace (Postgres-backed tests)
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -103,6 +110,7 @@ jobs:
 
   chat-ui:
     name: chat-ui (typecheck, test, build)
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -126,15 +134,27 @@ jobs:
     # Every preview and setup screen photographed and compared with src/preview/baseline/: a screen that
     # drifts from its design board fails here, with the new shot and the diff as an artifact
     # (packages/chat-ui/scripts/previews-shoot.mjs; the README's "Screen previews").
-    # Pinned: a screenshot depends on the browser and the fonts underneath it, so the baselines are made on
-    # this runner (previews-baseline.yml) and the two move together; ubuntu-latest (26.04) has no Chromium
-    # for Playwright yet.
+    #
+    # A screenshot depends on the machine that takes it (its browser build, fonts, text rendering), so a
+    # baseline is made here and nowhere else: the label "remake the baselines" on a pull request, once its
+    # screens agree with their design boards, has this job take them all, commit src/preview/baseline/ to the
+    # branch, drop the label and start CI again.
+    #
+    # Pinned: the runner moves only with the baselines; ubuntu-latest (26.04) has no Chromium for Playwright.
     runs-on: ubuntu-24.04
+    if: github.event.action != 'labeled' || github.event.label.name == 'remake the baselines'
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
     defaults:
       run:
         working-directory: packages/chat-ui
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The branch itself when the baselines are to be committed to it; otherwise the usual merge commit.
+          ref: ${{ github.event.action == 'labeled' && github.event.pull_request.head.ref || '' }}
 
       - uses: actions/setup-node@v5
         with:
@@ -144,7 +164,10 @@ jobs:
 
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run previews:check
+
+      - name: The screens against their baselines
+        if: github.event.action != 'labeled'
+        run: npm run previews:check
 
       - name: The changed screens, for the review
         if: failure()
@@ -155,8 +178,32 @@ jobs:
           include-hidden-files: true   # .previews is a hidden folder, which the action skips by default
           if-no-files-found: ignore
 
+      - name: The baselines, remade on the runner and committed to the branch
+        if: github.event.action == 'labeled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          npm run previews:update
+          gh pr edit "$PR" --remove-label "remake the baselines"
+          git add src/preview/baseline
+          if git diff --cached --quiet; then
+            echo "The baselines already match the screens; nothing to commit."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Screens: the baselines, remade on the runner" \
+            -m "Taken by CI's previews job on $BRANCH (the label \"remake the baselines\" on #$PR, run ${{ github.run_id }})."
+          git push origin "HEAD:$BRANCH"
+          # A push with the workflow's own token starts no workflow, so CI is asked for by name. That needs
+          # workflow_dispatch in main's ci.yml; until it is there (the first time), a push to the branch does it.
+          gh workflow run ci.yml --ref "$BRANCH" \
+            || echo "::warning::CI could not be started by name (main's ci.yml has no workflow_dispatch yet); push to the branch to run it."
+
   dependencies:
     name: Known vulnerabilities in the locked dependencies
+    if: github.event.action != 'labeled'
     # Every push, and weekly, since an advisory can be published against a lock that hasn't changed.
     runs-on: ubuntu-latest
     steps:
