@@ -88,7 +88,8 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     expect(members.get_by_text(f"Members and access of case {CASE}")).to_be_visible()
     save = members.get_by_role("button", name="Save", exact=True)
     expect(save).to_be_disabled()
-    members.get_by_role("switch", name="Strictly confidential").click()
+    # the switch's input is drawn over by its track: click its words, as a person does
+    members.get_by_text("Strictly confidential", exact=True).click()
     expect(save).to_be_enabled()
     members.get_by_role("button", name="Cancel").click()
     page.get_by_role("button", name=re.compile("^Members: ")).click()
