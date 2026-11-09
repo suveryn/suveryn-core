@@ -752,6 +752,7 @@ const en = {
   cardNoticedFrom: (caseRef: string, day: string) => `case ${caseRef}, ${day}`,
   cardNoticedNotSource: "It doesn't count as a source.",
   deleteUpload: "Delete",
+  deleteUploadFromCase: "Delete from case",
   deleteUploadTitle: (file: string) => `Delete ${file}?`,
   deleteUploadBody: "It was never a source. The document is deleted; this can't be undone.",
   anotherFile: "Another file",

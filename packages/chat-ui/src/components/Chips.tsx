@@ -19,14 +19,15 @@ import type { Attachment } from "../types";
  * *Another file*. sūveryn's own output: §6. A question can be sent while one is still read: it counts
  * for the next question once it is ready.
  */
-export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace }: {
+export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace, inCase }: {
   a: Attachment; onRemove: () => void;
   onUseAsSource?: () => void; onDelete?: () => void;
+  /** In a case, the delete link says where it deletes from ("Uit dossier verwijderen"). */
+  inCase?: boolean;
   /** Failed: choose another file in its place. */
   onReplace?: (files: File[]) => void;
 }) {
   const m = useT();
-  const [deleting, setDeleting] = useState(false);
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const icon = a.status === "failed" ? <CircleX size={14} aria-hidden />
     : a.status === "noticed" ? <FileOutput size={14} aria-hidden /> : <FileText size={14} aria-hidden />;
@@ -69,11 +70,14 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
       )}
       {a.status === "failed" && <>
         <span className="card-attachment-state" data-tone="warn">{[a.notAdded ? m.cardNotAdded : m.cardFailed, why].filter(Boolean).join(" ")}</span>
-        {onReplace && (
+        {(onReplace || onDelete) && (
           <span className="card-attachment-actions">
-            <FileButton accept={ACCEPTED_FILES} onSelect={onReplace}>
-              <Button size="small" aria-label={m.chooseAnotherFile(a.filename)}>{m.anotherFile}</Button>
-            </FileButton>
+            {onReplace && (
+              <FileButton accept={ACCEPTED_FILES} onSelect={onReplace}>
+                <Button size="small" aria-label={m.chooseAnotherFile(a.filename)}>{m.anotherFile}</Button>
+              </FileButton>
+            )}
+            {onDelete && <DeleteUploadLink filename={a.filename} inCase={inCase} onDelete={onDelete} />}
           </span>
         )}
       </>}
@@ -84,18 +88,26 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         {(onUseAsSource || onDelete) && (
           <span className="card-attachment-actions">
             {onUseAsSource && <Button size="small" onPress={onUseAsSource}>{m.useAsSource}</Button>}
-            {onDelete && <TextButton link onPress={() => setDeleting(true)}>{m.deleteUpload}</TextButton>}
+            {onDelete && <DeleteUploadLink filename={a.filename} inCase={inCase} onDelete={onDelete} />}
           </span>
-        )}
-        {onDelete && (
-          <Dialog isOpen={deleting} onClose={() => setDeleting(false)} kind="confirmation" risky title={m.deleteUploadTitle(a.filename)}
-                  cancel={{ label: m.cancel }} primary={{ label: m.deleteUpload, onPress: () => { setDeleting(false); onDelete(); } }}>
-            <p>{m.deleteUploadBody}</p>
-          </Dialog>
         )}
       </>}
     </li>
   );
+}
+
+/** Board G13: deleting an upload is a quiet worded link under the card's button, after a confirmation; the same
+ *  on the card sūveryn recognised as its own and on the card that couldn't be read. The × never deletes. */
+function DeleteUploadLink({ filename, inCase, onDelete }: { filename: string; inCase?: boolean; onDelete: () => void }) {
+  const m = useT();
+  const [deleting, setDeleting] = useState(false);
+  return <>
+    <TextButton link className="card-attachment-delete" onPress={() => setDeleting(true)}>{inCase ? m.deleteUploadFromCase : m.deleteUpload}</TextButton>
+    <Dialog isOpen={deleting} onClose={() => setDeleting(false)} kind="confirmation" risky title={m.deleteUploadTitle(filename)}
+            cancel={{ label: m.cancel }} primary={{ label: m.deleteUpload, onPress: () => { setDeleting(false); onDelete(); } }}>
+      <p>{m.deleteUploadBody}</p>
+    </Dialog>
+  </>;
 }
 
 /**

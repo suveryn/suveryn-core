@@ -533,7 +533,9 @@ function Chat({ me }: { me: Me }) {
   };
   const deleteNoticed = async (key: string) => {
     const a = pending.find((x) => x.key === key);
-    if (!a?.documentId) return;
+    if (!a) return;
+    // a card that couldn't be read stored nothing: deleting it only takes it away
+    if (!a.documentId) { setPending((p) => p.filter((x) => x.key !== key)); return; }
     try {
       await deleteDocument(a.documentId, "clean", caseId);
       setPending((p) => p.filter((x) => x.key !== key));

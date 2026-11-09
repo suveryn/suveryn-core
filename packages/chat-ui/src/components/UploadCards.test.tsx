@@ -33,6 +33,13 @@ describe("the cards of an upload (board G13)", () => {
     expect(html).toContain(`>${en.deleteUpload}</`);
     expect(html).toContain(en.removeFromQuestion("Terms.docx"));  // the × takes it out of the question, never deletes
   });
+  it("offers the same quiet delete link on a card that couldn't be read, saying the case in a case", () => {
+    const html = renderToStaticMarkup(<AttachmentCard a={{ key: "k", filename: "scan.pdf", status: "failed" } as Attachment}
+                                                      onRemove={none} onReplace={none} onDelete={none} inCase />);
+    expect(html).toContain(`>${en.anotherFile}</`);
+    expect(html).toContain(`class="ui-link-button card-attachment-delete"`);
+    expect(html).toContain(`>${en.deleteUploadFromCase}</`);
+  });
   it("reads the case and the date from a mark in any language", () => {
     expect(markOrigin("Gemaakt door sūveryn: antwoord uit dossier 124, 17-10-2026 · sūveryn-ref A-1")).toMatchObject({ caseRef: "124" });
     expect(markOrigin("Créé par sūveryn : réponse du dossier 2026/0611, 19/10/2026 · sūveryn-ref A-1")?.date?.getDate()).toBe(19);

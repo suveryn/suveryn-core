@@ -717,6 +717,7 @@ const nl: Messages = {
   cardNoticedFrom: (caseRef, day) => `dossier ${caseRef}, ${day}`,
   cardNoticedNotSource: "Het telt niet als bron.",
   deleteUpload: "Verwijderen",
+  deleteUploadFromCase: "Uit dossier verwijderen",
   deleteUploadTitle: (file) => `${file} verwijderen?`,
   deleteUploadBody: "Het was nooit een bron. Het document wordt verwijderd; dat kan niet ongedaan gemaakt worden.",
   anotherFile: "Ander bestand",
