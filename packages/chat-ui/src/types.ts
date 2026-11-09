@@ -15,6 +15,7 @@ export type Attachment = {
   errorCode?: string;            // failed: why, as the reader's code (lib/review.ts failureText)
   errorDetail?: Record<string, number>;
   reviewPages?: number[]; // with status needs_review: pages to check (text may be missing, or the reading noticed something)
+  reviewKind?: string;    // why those pages: the warning's kind (page_coverage_low, layout_failed), for the card's words (board G13)
   note?: string;          // once read: what the reading noticed, in a sentence (suveryn-tracker#26)
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/chat-ui.md §6)

@@ -12,7 +12,7 @@
 import { getJob, HttpError, type ArchiveUpload, type Job, type StoredDocument } from "../api";
 import type { Messages } from "../i18n";
 import { isReady, type Attachment, type Chosen, type Turn } from "../types";
-import { cardNote, checkPages, readingNotes, toCheck } from "./readingNotes";
+import { cardNote, checkPages, readingNotes, reviewKind, toCheck } from "./readingNotes";
 
 /** The reader's code for an upload the server no longer knows (``failureText``). */
 export const LOST_TRACK = "lost";
@@ -49,7 +49,7 @@ export function attachmentFromJob(m: Messages, a: Attachment, j: Job): Attachmen
   // What the reading noticed puts it on "To check" too, and says so once on the card (suveryn-tracker#26)
   const status = j.status === "ready" && toCheck(readingNotes(j.warnings)) ? "needs_review" : j.status;
   return { ...a, status: noticed ? "noticed" : status, noticed, documentId: j.document_id ?? undefined,
-           error: j.error ?? undefined, reviewPages: checkPages(j.warnings), pages: j.pages ?? undefined,
+           error: j.error ?? undefined, reviewPages: checkPages(j.warnings), reviewKind: reviewKind(j.warnings), pages: j.pages ?? undefined,
            note: cardNote(m, j.warnings) ?? undefined,
            reading: j.status === "processing" ? j.progress ?? null : null, errorCode: j.error_code ?? undefined,
            errorDetail: j.error_detail ?? undefined };
@@ -88,7 +88,7 @@ export function archiveCards(m: Messages, upload: ArchiveUpload, key: () => stri
 
 /** A stored document attached again: read already, put on "To check" if its reading noticed anything. */
 export function cardForStored(d: StoredDocument, key: string): Attachment {
-  return { key, filename: d.filename, documentId: d.id, reviewPages: checkPages(d.warnings), pages: d.pages || undefined,
+  return { key, filename: d.filename, documentId: d.id, reviewPages: checkPages(d.warnings), reviewKind: reviewKind(d.warnings), pages: d.pages || undefined,
            status: d.status === "needs_review" || toCheck(readingNotes(d.warnings)) ? "needs_review" : "ready" };
 }
 

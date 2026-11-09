@@ -292,7 +292,7 @@ type Answer = unknown | ((m: RegExpMatchArray, body: unknown) => unknown);
 // ---------- uploads (board G13): what the server answers for each file, by name ----------
 const job = (id: string, filename: string, more: Partial<Job>): Job => ({ id, filename, status: "ready", document_id: null, ...more });
 export const UPLOADS: Record<string, Job> = {
-  "Compromis_DeSmet.pdf": job("job-1", "Compromis_DeSmet.pdf", { status: "processing", progress: { step: "read", done: 3, total: 12 }, pages: 12 }),
+  "Compromis_DeSmet.pdf": job("job-1", "Compromis_DeSmet.pdf", { status: "processing", progress: { step: "ocr", done: 4, total: 12 }, pages: 12 }),  // four pages recognised (board G13)
   "Eigendomstitel_1998.pdf": job("job-2", "Eigendomstitel_1998.pdf", { document_id: "d-up-titel", pages: 9 }),
   "Bodemattest_scan.pdf": job("job-3", "Bodemattest_scan.pdf", { status: "needs_review", document_id: "d-up-bodem", pages: 3,
     warnings: [{ page: 2, kind: "page_coverage_low", detail: "" }] }),
