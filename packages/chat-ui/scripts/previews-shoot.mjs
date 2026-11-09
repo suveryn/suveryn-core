@@ -9,7 +9,7 @@
  *   node scripts/previews-shoot.mjs --only g01-start,b08-settings     a few
  *
  * Needs Playwright's Chromium (npx playwright install chromium). Starts vite itself on a free port. The
- * clock is fixed at 8 November 2026, 11:30, so dates and "vandaag" never change between runs; a step's
+ * clock is fixed at 8 November 2026, 11:30 in Brussels, so dates and "vandaag" never change between runs; a step's
  * own timers still run. A difference is a pixel that differs clearly (pixelmatch, threshold 0.1) and more
  * of them than --tolerance (default 0.05 % of the image): anti-aliasing may differ a little between
  * Chromium builds, a moved button never.
@@ -71,7 +71,8 @@ function compare(a, b) {
 const { origin, stop } = await startVite();
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage();
+  // the office's clock and language, wherever the script runs (a CI runner is in UTC)
+  const page = await browser.newPage({ timezoneId: "Europe/Brussels", locale: "nl-BE" });
   await page.goto(`${origin}/preview.html`);
   await page.waitForSelector("html[data-shots]");
   const shots = JSON.parse(await page.getAttribute("html", "data-shots")).filter((s) => !only.length || only.includes(s.id));

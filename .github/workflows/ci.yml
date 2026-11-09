@@ -125,7 +125,9 @@ jobs:
     # Every preview and setup screen photographed and compared with src/preview/baseline/: a screen that
     # drifts from its design board fails here, with the new shot and the diff as an artifact
     # (packages/chat-ui/scripts/previews-shoot.mjs; the README's "Screen previews").
-    runs-on: ubuntu-latest
+    # Pinned: a screenshot depends on the browser and the fonts underneath it, so the runner moves only when
+    # the baselines are remade on the new one; and ubuntu-latest (26.04) has no Chromium for Playwright yet.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: packages/chat-ui
