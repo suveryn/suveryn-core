@@ -388,8 +388,9 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
         {settled && <AnswerNotes turn={turn} />}
         {/* Which documents the answer rests on, before it (docs/design/chat-ui.md §5), when the question was asked
             about chosen documents (§10, board G18): a fact from the wrong deed shows at a glance (Pod check of 470b9da).
-            Asked about the whole case, the sources line under the answer says it (board G02). */}
-        {settled && aboutChosen && basis.length > 0 && (
+            Asked about the whole case, the sources line under the answer says it when they are from one document (board
+            G02), and the line shows too when the answer draws on several (board G19, state 4). */}
+        {settled && (aboutChosen ? basis.length > 0 : basis.length > 1) && (
           <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
         )}
         {settled && turn.partial && <InlineNotice icon={<CircleAlert size={14} />}>{m.partialRead}</InlineNotice>}

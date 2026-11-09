@@ -4,8 +4,10 @@
  * source). The model badge is in ModelPicker.tsx.
  */
 import { Check, CircleX, FileOutput, FileText, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { useT } from "../i18n";
-import { Button, FileButton, IconButton, Progress, TextButton } from "../ui";
+import { useState } from "react";
+import { locale, useT } from "../i18n";
+import { markOrigin } from "../lib/marks";
+import { Button, Dialog, FileButton, IconButton, Progress, TextButton } from "../ui";
 import { ACCEPTED_FILES } from "../lib/formats";
 import { failureText, pageList, reviewHint } from "../lib/review";
 import type { Attachment } from "../types";
@@ -24,6 +26,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
   onReplace?: (files: File[]) => void;
 }) {
   const m = useT();
+  const [deleting, setDeleting] = useState(false);
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const icon = a.status === "failed" ? <CircleX size={14} aria-hidden />
     : a.status === "noticed" ? <FileOutput size={14} aria-hidden /> : <FileText size={14} aria-hidden />;
@@ -31,7 +34,8 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
   const r = a.status === "processing" ? a.reading : null;
   const state = a.status === "uploading" ? m.cardUploading(Math.floor((a.progress ?? 0) * 100))
     : a.status === "queued" ? m.cardWaiting
-    : r?.step === "ocr" && r.done !== null && r.total ? m.cardRecognising(Math.max(1, Math.min(r.done + 1, r.total)), r.total)
+    // the pages done, not the one being worked on (board G13); none done yet: no count
+    : r?.step === "ocr" && r.done !== null && r.total ? (r.done > 0 ? m.cardRecognising(Math.min(r.done, r.total), r.total) : m.cardRecognisingStart)
     : r?.step === "layout" ? m.cardLayout(r.total) : r?.step === "store" ? m.cardStoring
     : a.status === "processing" ? m.cardReading : null;
   const value = a.status === "uploading" && a.progress !== undefined ? a.progress * 100
@@ -58,7 +62,9 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
       )}
       {a.status === "needs_review" && (
         <span className="card-attachment-state" data-tone="warn" role="status" title={a.note ? undefined : reviewHint(a.reviewPages)}>
-          <TriangleAlert size={14} aria-hidden />{a.note ?? (a.reviewPages?.length ? m.cardCheck(pageList(a.reviewPages)) : m.cardCheckNeeded)}
+          <TriangleAlert size={14} aria-hidden />{a.note ?? (a.reviewPages?.length
+            ? (a.reviewKind && m.reviewWhy[a.reviewKind] ? m.cardCheckWhy(pageList(a.reviewPages), m.reviewWhy[a.reviewKind]) : m.cardCheck(pageList(a.reviewPages)))
+            : m.cardCheckNeeded)}
         </span>
       )}
       {a.status === "failed" && <>
@@ -72,12 +78,20 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         )}
       </>}
       {a.status === "noticed" && a.noticed && <>
-        <span className="card-attachment-state" data-tone="warn" title={a.noticed.line}>{m.noticedTitle(a.noticed.kind)}. {m.cardNoticed}</span>
+        {/* board G13: where it came from, and that it isn't a source; one button. The × only takes it out of the question
+            (it never deletes, 9 November); deleting is the worded link, after a confirmation. */}
+        <span className="card-attachment-state" data-tone="warn" title={a.noticed.line}>{m.noticedTitle(a.noticed.kind)}{noticedFrom(a.noticed.line, m)}. {m.cardNoticedNotSource}</span>
         {(onUseAsSource || onDelete) && (
           <span className="card-attachment-actions">
             {onUseAsSource && <Button size="small" onPress={onUseAsSource}>{m.useAsSource}</Button>}
-            {onDelete && <Button size="small" variant="quiet" onPress={onDelete}>{m.delete}</Button>}
+            {onDelete && <TextButton link onPress={() => setDeleting(true)}>{m.deleteUpload}</TextButton>}
           </span>
+        )}
+        {onDelete && (
+          <Dialog isOpen={deleting} onClose={() => setDeleting(false)} kind="confirmation" risky title={m.deleteUploadTitle(a.filename)}
+                  cancel={{ label: m.cancel }} primary={{ label: m.deleteUpload, onPress: () => { setDeleting(false); onDelete(); } }}>
+            <p>{m.deleteUploadBody}</p>
+          </Dialog>
         )}
       </>}
     </li>
@@ -152,3 +166,11 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
 }
 
 /** Model tag in the composer: neutral on purpose (teal is reserved for citations). */
+
+/** " (dossier 124, 17 okt)": where an upload marked as sūveryn's own output came from, read from its mark (board G13). */
+function noticedFrom(line: string, m: ReturnType<typeof useT>): string {
+  const o = markOrigin(line);
+  if (!o) return "";
+  const day = o.date ? o.date.toLocaleDateString(locale(), { day: "numeric", month: "short" }).replace(/\.$/, "") : "";
+  return ` (${day ? m.cardNoticedFrom(o.caseRef, day) : o.caseRef})`;
+}

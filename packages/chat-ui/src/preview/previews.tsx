@@ -95,7 +95,9 @@ export const PREVIEWS: Preview[] = [
   { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier",
     render: app({ click: "Dossiers" }, { click: "118" }) },
   { id: "g21-setting", board: "G21", lang: "nl", title: "De instelling: Strikt vertrouwelijk in Leden en toegang",
-    render: () => <MembersDialog open kase={CASE_124} canManage canHandOver officeWide sharedCount={2} onChanged={nothing} onClose={nothing} /> },
+    // the switch turned on, not yet saved: the consequence in a grey note, Bewaren to apply it (board G21)
+    render: () => <Steps steps={[{ click: "Strikt vertrouwelijk" }]}>
+      <MembersDialog open kase={CASE_124} canManage canHandOver officeWide sharedCount={2} onChanged={nothing} onClose={nothing} /></Steps> },
   { id: "g21-filter", board: "G21", lang: "nl", title: "Dossieroverzicht: gefilterd op Strikt vertrouwelijk",
     render: app({ click: "Dossiers" }, { click: "Strikt vertrouwelijk" }) },
   { id: "g21-narrow", board: "G21", lang: "nl", title: "Smal (390 px): de band wordt korter", width: 390,

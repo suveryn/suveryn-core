@@ -20,7 +20,7 @@
  *   contract) and the turn shows an error instead.
  */
 import {
-  ChevronDown, CircleAlert, Ellipsis, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
+  ChevronDown, CircleAlert, Ellipsis, Eye, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
   RotateCw, ScrollText, Share2, Trash, Users, UsersRound
 } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
@@ -274,6 +274,7 @@ function Chat({ me }: { me: Me }) {
   const markNow = () => watermark(currentCase, me.name || me.username, m, locale());
   // The person can't ask here at all: the question box is read-only, without Ask about.
   const locked = readOnly || closed || (!!currentCase && role === "reader") || administers;
+  const readerHere = !!currentCase && role === "reader" && !closed && !readOnly && !administers;
   const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const stopped = useRef(false);  // the person pressed Stop: the abort keeps what was written
@@ -1242,7 +1243,10 @@ function Chat({ me }: { me: Me }) {
           )}
           <div ref={endRef} />
         </div>
-        <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
+        {/* board G19, state 6: a reader has no composer, only a note in its place */}
+        {readerHere
+          ? <div className="composer-wrap"><p className="composer-reader-note" role="status"><Eye size={14} aria-hidden /> {m.readerCantAsk}</p></div>
+          : <Composer attachments={pending} models={models} chosenModel={chosenModel} onChooseModel={setChosenModel} busy={busy}
                   thinking={thinking} onThinking={setThinking}
                   disabledReason={disabledReason}
                   locked={locked}
@@ -1265,7 +1269,7 @@ function Chat({ me }: { me: Me }) {
                   playbooks={administers ? [] : playbooks} onPlaybook={(slug) => void startPlaybook(slug)} playbookNotes={playbookNotes}
                   compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : !currentCase && turns.length > 0 ? m.replyPlaceholder : undefined /* a personal conversation under way: "Reply…" (board G03) */}
                   workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),
-                                                                  onChoose: openCase, onNew: () => setNewCase(true) } : null} />
+                                                                  onChoose: openCase, onNew: () => setNewCase(true) } : null} />}
         </>}
         </>}
       </main>

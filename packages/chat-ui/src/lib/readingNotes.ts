@@ -29,6 +29,10 @@ export const hasNotes = (warnings: Warning[] | undefined) => {
   return toCheck(n) || n.headers.length > 0 || reviewPages(warnings).length > 0;
 };
 
+/** Why the pages need checking, for the upload card (board G13): the kind of the first warning that put them there. */
+export const reviewKind = (warnings: Warning[] | undefined): string | undefined =>
+  (warnings ?? []).find((w) => w.kind === "page_coverage_low" || w.kind === "layout_failed")?.kind;
+
 /** The pages to name beside "To check": the server's review pages and the notes', together. */
 export const checkPages = (warnings: Warning[] | undefined) => {
   const n = readingNotes(warnings);

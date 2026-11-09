@@ -93,6 +93,13 @@ export function DocumentPicker({ items, selected, onChange, trigger, triggerLabe
   );
   const body = (
     <AriaDialog aria-label={label} className="ui-pick-dialog">
+      {/* on a narrow screen, a sheet: its title and *Done* at the top (board G19, state 7) */}
+      {narrow && (
+        <div className="ui-pick-sheet-head">
+          <span className="ui-pick-sheet-title">{label}</span>
+          <AriaButton className="ui-button" data-variant="primary" data-size="small" onPress={close}>{doneLabel}</AriaButton>
+        </div>
+      )}
       {/* the search first, then everything, then the documents (board G17) */}
       {items.length >= searchFrom && <SearchField label={searchLabel} value={query} onChange={setQuery} className="ui-pick-search" />}
       <AriaButton className="ui-pick-all" aria-pressed={selected.length === 0} onPress={() => onChange([])}>
@@ -127,12 +134,12 @@ export function DocumentPicker({ items, selected, onChange, trigger, triggerLabe
         </AriaButton>
       </>}
       {footnote && <p className="ui-pick-fine">{footnote}</p>}
-      {countLabel
-        ? <div className="ui-pick-foot">
-            <span className="ui-pick-foot-count">{countLabel(selected.length === 0 ? items.length : selected.length, items.length)}</span>
-            <AriaButton className="ui-button" data-size="small" onPress={close}>{doneLabel}</AriaButton>
-          </div>
-        : narrow && <AriaButton className="ui-button ui-pick-done" data-variant="primary" onPress={close}>{doneLabel}</AriaButton>}
+      {countLabel && !narrow && (
+        <div className="ui-pick-foot">
+          <span className="ui-pick-foot-count">{countLabel(selected.length === 0 ? items.length : selected.length, items.length)}</span>
+          <AriaButton className="ui-button" data-size="small" onPress={close}>{doneLabel}</AriaButton>
+        </div>
+      )}
     </AriaDialog>
   );
   return (

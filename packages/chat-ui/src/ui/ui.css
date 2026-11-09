@@ -674,6 +674,9 @@ tfoot.ui-foot b, tfoot.ui-foot .ui-total { color: var(--text); font-weight: 600;
 .ui-pick-search { margin: 2px var(--space-1); }
 .ui-pick-fine { margin: 0; padding: 2px var(--space-2) var(--space-2); font-size: var(--text-caption); line-height: 1.45; color: var(--text-dim); }
 .ui-pick-done { margin: var(--space-2) var(--space-1) var(--space-1); }
+/* the sheet's head on a narrow screen (board G19, state 7): its title, and Done as the main button */
+.ui-pick-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-1) var(--space-1) var(--space-2); }
+.ui-pick-sheet-title { font-size: var(--text-ui); font-weight: 600; color: var(--text); }
 .ui-pick-count { flex: none; font-size: var(--text-caption); color: var(--text-dim); font-variant-numeric: tabular-nums; }
 /* the footer: how many are chosen, and Done (board G17) */
 .ui-pick-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-1) -6px -6px;

@@ -17,3 +17,16 @@ export function exportRef(kind: "A" | "P", seed: string): string {
   }
   return `${kind}-${h.toString(16).padStart(8, "0")}`;
 }
+
+
+/** Where an export came from, read from its mark's line in any of the interface's languages ("…: answer from case
+ *  2026/0611, 19/10/2026 · sūveryn-ref …", "… uit dossier 124, 17-10-2026 · …"): the case's reference and the date,
+ *  day first as every language here writes it. Null when the line doesn't say (an export from a personal chat). */
+export function markOrigin(line: string): { caseRef: string; date: Date | null } | null {
+  const m = /\b(?:case|dossier)\s+(\S+?),\s*(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/i.exec(line);
+  if (!m) return null;
+  const [, caseRef, d, mo, y] = m;
+  const year = Number(y) < 100 ? 2000 + Number(y) : Number(y);
+  const date = new Date(year, Number(mo) - 1, Number(d));
+  return { caseRef, date: date.getMonth() === Number(mo) - 1 ? date : null };
+}

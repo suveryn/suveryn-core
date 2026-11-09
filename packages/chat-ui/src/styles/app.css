@@ -584,6 +584,9 @@ span.chip-run { cursor: default; }
 /* Nothing typed yet, but nothing in the way either: orange, as drawn (board G01). Grey only when it can't send (offline, busy). */
 .send-button[data-empty]:disabled { background: var(--accent); color: var(--on-accent); cursor: default; }
 .composer-hint { padding: 0 var(--space-4); text-align: center; }
+/* Board G19, state 6: a reader has no composer; a grey note in its place */
+.composer-reader-note { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-4);
+                        border-radius: var(--radius-md); background: var(--surface-alt); color: var(--text-dim); font-size: var(--text-ui-sm); }
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
