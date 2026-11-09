@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:   # "Screens, remake the baselines" starts CI again after its commit
   schedule:
     - cron: "17 5 * * 1"   # Mondays, for the dependency audit
 
@@ -125,8 +126,9 @@ jobs:
     # Every preview and setup screen photographed and compared with src/preview/baseline/: a screen that
     # drifts from its design board fails here, with the new shot and the diff as an artifact
     # (packages/chat-ui/scripts/previews-shoot.mjs; the README's "Screen previews").
-    # Pinned: a screenshot depends on the browser and the fonts underneath it, so the runner moves only when
-    # the baselines are remade on the new one; and ubuntu-latest (26.04) has no Chromium for Playwright yet.
+    # Pinned: a screenshot depends on the browser and the fonts underneath it, so the baselines are made on
+    # this runner (previews-baseline.yml) and the two move together; ubuntu-latest (26.04) has no Chromium
+    # for Playwright yet.
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -150,6 +152,7 @@ jobs:
         with:
           name: previews
           path: packages/chat-ui/.previews/
+          include-hidden-files: true   # .previews is a hidden folder, which the action skips by default
           if-no-files-found: ignore
 
   dependencies:

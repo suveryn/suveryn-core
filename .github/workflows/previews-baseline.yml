@@ -1,0 +1,52 @@
+name: Screens, remake the baselines
+
+# A screenshot depends on the machine that takes it (its browser build, its fonts, its text rendering), so a
+# baseline is only ever made here, on the same runner that checks it in CI. Start this from the Actions tab on
+# the branch whose screens changed, once their previews agree with the design boards: it photographs every
+# preview and setup screen, commits src/preview/baseline/ to that branch, and runs CI on the result.
+# (packages/chat-ui/scripts/previews-shoot.mjs; the README's "Screen previews".)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  baseline:
+    name: chat-ui (the baselines, remade on the runner)
+    runs-on: ubuntu-24.04   # the same runner as ci.yml's previews job; the two move together
+    defaults:
+      run:
+        working-directory: packages/chat-ui
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: packages/chat-ui/package-lock.json
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run previews:update
+
+      - name: Commit the baselines to the branch
+        run: |
+          git add src/preview/baseline
+          if git diff --cached --quiet; then
+            echo "The baselines already match the screens; nothing to commit."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Screens: the baselines, remade on the runner" \
+            -m "Taken by the workflow \"Screens, remake the baselines\" on ${{ github.ref_name }}, run ${{ github.run_id }}."
+          git push origin HEAD:${{ github.ref_name }}
+          # A push with the workflow's own token starts no workflow, so CI is asked for by name.
+          gh workflow run ci.yml --ref ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
