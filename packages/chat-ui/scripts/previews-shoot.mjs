@@ -35,10 +35,14 @@ const tolerance = Number(flag("--tolerance") ?? 0.05) / 100;
 /** Starts vite on a free port and resolves with its origin. */
 function startVite() {
   return new Promise((resolve, reject) => {
-    const vite = spawn("npx", ["vite", "--port", "0", "--strictPort"], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+    // NO_COLOR: on GitHub (CI set) vite colours its lines, and the escape codes would hide the address.
+    // vite itself, not through npx: killing npx would leave vite running and the script waiting on its pipes.
+    const vite = spawn(process.execPath, [join(ROOT, "node_modules/vite/bin/vite.js"), "--port", "0", "--strictPort"], {
+      cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+    });
     let out = "";
     vite.stdout.on("data", (d) => {
-      out += d.toString();
+      out += d.toString().replace(/\x1b\[[0-9;]*m/g, "");
       const m = out.match(/Local:\s+(http:\/\/[^\s/]+)/);
       if (m) resolve({ origin: m[1].replace("localhost", "127.0.0.1"), stop: () => vite.kill() });
     });
