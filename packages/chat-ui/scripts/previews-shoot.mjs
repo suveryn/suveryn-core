@@ -76,15 +76,21 @@ const { origin, stop } = await startVite();
 const browser = await chromium.launch();
 try {
   // the office's clock and language, wherever the script runs (a CI runner is in UTC)
-  const page = await browser.newPage({ timezoneId: "Europe/Brussels", locale: "nl-BE" });
-  await page.goto(`${origin}/preview.html`);
-  await page.waitForSelector("html[data-shots]");
-  const shots = JSON.parse(await page.getAttribute("html", "data-shots")).filter((s) => !only.length || only.includes(s.id));
+  const settings = { timezoneId: "Europe/Brussels", locale: "nl-BE" };
+  const index = await browser.newPage(settings);
+  await index.goto(`${origin}/preview.html`);
+  await index.waitForSelector("html[data-shots]");
+  const shots = JSON.parse(await index.getAttribute("html", "data-shots")).filter((s) => !only.length || only.includes(s.id));
+  await index.close();
   mkdirSync(BASELINE, { recursive: true });
   rmSync(OUT, { recursive: true, force: true });
   const changed = [], missing = [], same = [];
   for (const s of shots) {
-    const png = await shoot(page, origin, s);
+    // Each screen in a browser of its own: what one preview stores (a collapsed sidebar, say) must not
+    // reach the next, whose steps would then find nothing to click.
+    const context = await browser.newContext(settings);
+    const png = await shoot(await context.newPage(), origin, s);
+    await context.close();
     const file = join(BASELINE, `${s.id}.png`);
     if (update) { writeFileSync(file, png); same.push(s.id); continue; }
     if (!existsSync(file)) { missing.push(s.id); mkdirSync(OUT, { recursive: true }); writeFileSync(join(OUT, `${s.id}.png`), png); continue; }
