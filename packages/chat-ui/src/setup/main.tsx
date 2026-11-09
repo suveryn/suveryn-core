@@ -9,7 +9,9 @@ import { createRoot } from "react-dom/client";
 import { PREVIEW_SCREENS, SetupApp, type PreviewScreen } from "./SetupApp";
 
 // Development only: ?screen=5 opens that step with the demo's answers (the screen previews, src/preview/).
-const asked = import.meta.env.DEV ? new URLSearchParams(location.search).get("screen") : null;
+const params = import.meta.env.DEV ? new URLSearchParams(location.search) : null;
+const asked = params?.get("screen") ?? null;
+if (params?.get("v") && !location.hash) location.hash = params.get("v")!;  // ?v=answered: the demo's variant, as #answered
 const start = PREVIEW_SCREENS.find((s) => String(s) === asked) as PreviewScreen | undefined;
 
 createRoot(document.getElementById("root")!).render(
