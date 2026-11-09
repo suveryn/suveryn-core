@@ -719,6 +719,7 @@ const fr: Messages = {
   cardNoticedFrom: (caseRef, day) => `dossier ${caseRef}, ${day}`,
   cardNoticedNotSource: "Il ne compte pas comme source.",
   deleteUpload: "Supprimer",
+  deleteUploadFromCase: "Supprimer du dossier",
   deleteUploadTitle: (file) => `Supprimer ${file} ?`,
   deleteUploadBody: "Il n'a jamais été une source. Le document est supprimé ; c'est définitif.",
   anotherFile: "Autre fichier",

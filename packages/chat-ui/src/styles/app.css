@@ -585,7 +585,7 @@ span.chip-run { cursor: default; }
 .send-button[data-empty]:disabled { background: var(--accent); color: var(--on-accent); cursor: default; }
 .composer-hint { padding: 0 var(--space-4); text-align: center; }
 /* Board G19, state 6: a reader has no composer; a grey note in its place */
-.composer-reader-note { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-4);
+.composer-reader-note { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-block: 0; padding: var(--space-3) var(--space-4);
                         border-radius: var(--radius-md); background: var(--surface-alt); color: var(--text-dim); font-size: var(--text-ui-sm); }
 
 .spin { animation: spin 1s linear infinite; }
@@ -703,7 +703,9 @@ span.chip-run { cursor: default; }
 .card-attachment-state > svg { flex: none; margin-top: 1px; color: var(--text); }
 .card-attachment-state[data-tone="warn"] { color: var(--text); }
 .card-attachment-state[data-tone="ok"], .card-attachment-state[data-tone="ok"] > svg { color: var(--teal-ink); }
-.card-attachment-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.card-attachment-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+/* board G13: deleting is a quiet link under the card's button, never beside it */
+.card-attachment-actions .ui-link-button.card-attachment-delete { color: var(--text-dim); font-weight: 400; font-size: var(--text-caption); }
 
 /* ------------------------------------------------------------------------------------------------ the server unreachable (§5, artboard 09) */
 .offline-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-6);

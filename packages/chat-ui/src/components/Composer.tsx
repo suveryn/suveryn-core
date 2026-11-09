@@ -174,6 +174,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
         {attachments.map((a) => <AttachmentCard key={a.key} a={a} onRemove={() => onRemoveAttachment(a.key)}
                                                 onUseAsSource={onUseAsSource && (() => onUseAsSource(a.key))}
                                                 onDelete={onDeleteAttachment && (() => onDeleteAttachment(a.key))}
+                                                inCase={!!caseReference}
                                                 onReplace={(files) => { onRemoveAttachment(a.key); onAttach(files); }} />)}
       </ul>
   );
