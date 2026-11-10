@@ -2,9 +2,9 @@ import pytest
 from suveryn_harness.calc import (
     CalcError,
     CalcRewriter,
+    decimal_style,
     evaluate,
     unverified_figures,
-    written_style,
 )
 
 
@@ -123,17 +123,29 @@ def test_deep_nesting_is_a_calculation_error_not_a_crash():
             evaluate(expression)
 
 
-def test_a_figure_that_reads_either_way_is_read_as_its_source_writes_it_and_only_then():
+def test_a_document_says_once_how_it_writes_decimals():
+    assert decimal_style("Ten belope van 414.834,24 EUR, 6,49%; zie punt 2.15 van 12.05.2014.") == "comma"
+    assert decimal_style("Investors invest 414,834.24 EUR at 11.50 EUR per Share (clause 2.15).") == "point"
+    assert decimal_style("Total 241.044 100,00% … EUR 822.15") == "mixed"  # an English agreement with a Dutch table
+    assert decimal_style("Artikel 2.15, op 12.05.2014, 28.848 aandelen.") is None  # clause numbers and dates say nothing
+
+
+def test_a_figure_that_reads_either_way_is_read_as_its_documents_write_it_and_only_then():
     """Decision of 10 November 2026: "28.848 + 48.197" across a Dutch deed was refused, and the model did the sum
-    itself. A figure that reads either way is read as the text around it writes decimals, when every such figure is
-    written in the sources and that text writes decimals one way only; otherwise refused, as before."""
+    itself. A figure that reads either way is read in the style of the documents that write it: every such figure in
+    a passage, the documents writing them agreeing on one style, a "mixed" one saying nothing; else refused."""
     deed = ("De inbreng in geld ten belope van 414.834,24 EUR, met uitgifte van 28.848 nieuwe aandelen. "
-            "De inbreng in natura ten belope van 554.265,50 EUR, door uitgifte van 48.197 nieuwe aandelen.")
-    agreement = "The Cash Investors invest 414,834.24 EUR for 28,848 Shares; the others 554,265.50 EUR for 48,197 Shares."
-    assert evaluate("28.848 + 48.197", ",", deed)[0] == "77.045"
-    assert evaluate("28,848 + 48,197", ",", agreement)[0] == "77,045"
-    assert rewrite("[[calc: 28.848 + 48.197]]", deed)[0] == "28.848 + 48.197 = 77.045"
-    for source in ("", "Er zijn 28.848 aandelen.", deed.replace("48.197", "48.196"), deed + " Price 1.25 EUR."):
-        with pytest.raises(CalcError):  # not written there, nothing around it says, a figure not in it, both styles
-            evaluate("28.848 + 48.197", ",", source)
-    assert written_style("28.848", deed) == "," and written_style("28,848", agreement) == "." and written_style("99", deed) is None
+            "Als vergoeding werden 48.197 nieuwe aandelen uitgegeven, zodat het totaal op 241.044 werd gebracht.")
+    table = "Total 180.716 77.045 241.044 100,00% … EUR 822.15"
+    agreement = "The Cash Investors invest 414,834.24 EUR for 28,848 Shares; the others for 48,197 Shares."
+    assert evaluate("28.848 + 48.197", ",", [(deed, "comma")])[:3:2] == ("77.045", ["28.848", "48.197"])
+    assert evaluate("28,848 + 48,197", ",", [(agreement, "point")])[0] == "77,045"
+    # a "mixed" document says nothing, and doesn't stop a document that settles it
+    assert evaluate("241.044 - (28.848 + 48.197)", ",", [(table, "mixed"), (deed, "comma")])[0] == "163.999"
+    for written in ([], [(deed, None)], [(table, "mixed")], [(deed, "comma"), ("Total 28.848 at 1.25 EUR", "point")],
+                    [("Er zijn 28.848 aandelen.", "comma")]):  # nothing, unknown, mixed only, two disagree, 48.197 not written
+        with pytest.raises(CalcError):
+            evaluate("28.848 + 48.197", ",", written)
+    r = CalcRewriter(deed, [(deed, "comma")])
+    assert r.feed("[[calc: 28.848 + 48.197]]") + r.flush() == "28.848 + 48.197 = 77.045"
+    assert (r.calculations[0].read_as, r.calculations[0].read_with) == (["28.848", "48.197"], ",")

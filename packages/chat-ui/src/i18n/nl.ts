@@ -336,6 +336,7 @@ const nl: Messages = {
   calculatedBy: "Berekend door sūveryn, niet uit de documenten gelezen:",
   calcMissing: (figures) => ` Controleer ${figures.join(", ")}: ${figures.length === 1 ? "dat bedrag staat" : "die bedragen staan"} niet in de bronnen.`,
   calcAllSourced: " Elk bedrag komt uit de bronnen.",
+  calcReadAs: (figures, comma) => ` Gelezen zoals de documenten ze schrijven, met decimalen na een ${comma ? "komma" : "punt"}: ${figures.join(", ")}.`,
   unverified: (figures) => {
     const one = figures.length === 1;
     return `Controleer ${figures.join(", ")}: ${one ? "dit bedrag staat" : "deze bedragen staan"} niet in de documenten en ${one ? "werd" : "werden"} niet door sūveryn berekend. Het model heeft ${one ? "het" : "ze"} mogelijk zelf uitgerekend, en dat kan fout zijn.`;

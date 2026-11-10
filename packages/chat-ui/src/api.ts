@@ -23,6 +23,9 @@ export type Calculation = {
   result: string | null;              // null: it couldn't be computed (see error)
   figures_not_in_sources: string[];   // figures to check: they don't appear in the passages given
   error: string | null;
+  /** Figures that read either way ("28.848"), read as the documents that write them write decimals. */
+  read_as?: string[];
+  read_with?: "," | "." | null;
 };
 /** What the source card marks for one marker, from the server (suveryn-tracker#25): the sentences of passage ``n``
  *  the claim rests on, and its facts; [start, end) offsets into the passage's text. */

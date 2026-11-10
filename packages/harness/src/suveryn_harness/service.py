@@ -225,7 +225,7 @@ class ChatService:
 
     async def _grounded(self, response: ChatResponse, citations: list[Citation], req: ChatRequest, owner: str) -> ChatResponse:
         """A grounded answer's checks: its calculations made, its figures and citations checked against the passages."""
-        calc = CalcRewriter(_source(citations))
+        calc = CalcRewriter(_source(citations), _written(citations))
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
                                            "unverified_figures": unverified, "citation_issues": issues,
@@ -271,7 +271,7 @@ class ChatService:
         else:
             yield Status("writing")
         # Grounded answers: calculation markers are replaced as they stream (see ``calc``).
-        calc = CalcRewriter(_source(citations)) if req.document_ids else None
+        calc = CalcRewriter(_source(citations), _written(citations)) if req.document_ids else None
         parts: list[str] = []
         thought: list[str] = []
         began = ended = None  # when the reasoning began, and when the answer's first word came
@@ -379,6 +379,11 @@ def _suspicious(citations: list[Citation], owner: str, model: str) -> list[int]:
               pages=sorted({c.source.page for n, c in enumerate(citations, 1) if n in found and c.source and c.source.page}),
               kinds=sorted({k for kinds in found.values() for k in kinds}), passages=len(found))
     return sorted(found)
+
+
+def _written(citations: list[Citation]) -> list[tuple[str, str | None]]:
+    """Each passage with its document's way of writing decimals, for a figure that reads either way."""
+    return [(c.text, c.source.decimals if c.source else None) for c in citations]
 
 
 def _source(citations: list[Citation]) -> str:

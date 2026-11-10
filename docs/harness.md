@@ -91,9 +91,12 @@ tested:
 - **Calculations** ([`calc.py`](../packages/harness/src/suveryn_harness/calc.py)). The model never
   calculates. Each `[[calc: …]]` is computed exactly by the server and replaced by
   `figures = result` as the answer streams. A figure written ambiguously (`1.250` could be either
-  style) is refused rather than guessed, unless the sources settle it: every such figure is written
-  there, and the text around each writes decimals one way only (`calc.written_style`; a Dutch deed's
-  `28.848` beside its `414.834,24 EUR` is twenty-eight thousand). Decision of 10 November 2026.
+  style) is refused rather than guessed, unless the documents that write it settle it. Each document's
+  way of writing decimals is read once from its whole text (`calc.decimal_style`: "comma", "point",
+  "mixed", or unknown; only amounts and percentages count, never a clause number or a date) and
+  travels with its passages (`SourceRef.decimals`). The figure must be in a passage; the documents
+  writing it must agree; a "mixed" document says nothing either way. The note under the answer says
+  how such figures were read (`Calculation.read_as`). Decision of 10 November 2026.
 - **Figures in no passage** (`unverified_figures`). A figure in the answer that is in none of the
   passages, is no calculation's result and wasn't in the question is listed; the interface
   underlines it. The model worked it out or made it up, which it must never do, so the answer is

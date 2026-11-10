@@ -13,6 +13,7 @@ from pathlib import Path
 
 from suveryn_harness import Citation, PassageContext, SourceRef
 from suveryn_harness.audit import audit
+from suveryn_harness.calc import decimal_style
 from suveryn_harness.guard import instruction_like
 
 from .chunking import Chunk, Chunker, location_label
@@ -290,7 +291,18 @@ class Rag:
         """
         whole = self.store.document_chunks(document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS)
         if whole:
-            return with_context(self.store, whole), True
+            return self._with_decimals(with_context(self.store, whole)), True
         query = self.embedder.embed([question])[0]
         best = self.store.best_chunks(query, question, document_ids, WHOLE_DOCUMENT_CHARS, WHOLE_DOCUMENT_CHUNKS, k)
-        return with_context(self.store, best), False
+        return self._with_decimals(with_context(self.store, best)), False
+
+    def _with_decimals(self, hits: list[RetrievedChunk]) -> list[RetrievedChunk]:
+        """Each passage's source says how its document writes decimals (``calc.decimal_style``), read from the whole
+        document, not from the passage: a calculation reads a figure that reads either way ("28.848") by it."""
+        styles = {}
+        for doc in dict.fromkeys(h.citation.source.document_id for h in hits):
+            rows = self.store.document_chunks([uuid.UUID(doc)], 10**9, 10**6)
+            styles[doc] = decimal_style("\n".join(r.text for r in rows or []))
+        for h in hits:
+            h.citation.source.decimals = styles[h.citation.source.document_id]
+        return hits

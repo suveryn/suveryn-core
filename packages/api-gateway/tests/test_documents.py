@@ -190,7 +190,7 @@ def test_grounded_answer_carries_citations_and_prompt_has_question_last():
     assert r.status_code == 200
     body = r.json()
     assert body["answer"].endswith("[1].")
-    assert body["citations"][0]["source"] == {"document_id": DOC, "page": 2, "location": "p. 2 · Artikel 2"}
+    assert body["citations"][0]["source"] == {"document_id": DOC, "page": 2, "location": "p. 2 · Artikel 2", "decimals": None}
     assert docs.seen == {"question": "Wat is de koopprijs?", "document_ids": [DOC], "k": 6, "owner": "local-dev", "case_id": None}
     sent = captured[-1]["messages"]
     assert sent[0]["role"] == "system" and sent[-1]["content"].endswith("QUESTION: Wat is de koopprijs?")

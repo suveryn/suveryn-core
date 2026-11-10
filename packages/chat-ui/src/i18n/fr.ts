@@ -338,6 +338,7 @@ const fr: Messages = {
   calculatedBy: "Calculé par sūveryn, pas lu dans les documents :",
   calcMissing: (figures) => ` Vérifiez ${figures.join(", ")} : ${figures.length === 1 ? "ce montant n'apparaît" : "ces montants n'apparaissent"} pas dans les sources.`,
   calcAllSourced: " Chaque montant provient des sources.",
+  calcReadAs: (figures, comma) => ` Lus comme les documents les écrivent, avec les décimales après ${comma ? "une virgule" : "un point"} : ${figures.join(", ")}.`,
   unverified: (figures) => {
     const one = figures.length === 1;
     return `Vérifiez ${figures.join(", ")} : ${one ? "ce montant ne figure" : "ces montants ne figurent"} pas dans les documents et ${one ? "n'a" : "n'ont"} pas été ${one ? "calculé" : "calculés"} par sūveryn. Le modèle ${one ? "l'a" : "les a"} peut-être calculé${one ? "" : "s"} lui-même, ce qui peut être faux.`;

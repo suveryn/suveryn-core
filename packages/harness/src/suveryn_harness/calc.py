@@ -60,19 +60,17 @@ class AmbiguousSeparator(CalcError):
     """A figure such as "28.848" reads either way, and the other figures don't say which."""
 
 
-def written_style(figure: str, source: str) -> str | None:
-    """The decimal separator of the text around every place ``figure`` is written in ``source``: "," when the figures
-    near it write decimals with a comma ("414.834,24", "12,50") and none with a point, "." the other way round, None
-    when it isn't written there or the text around it doesn't say, or says both. A Dutch deed's "28.848" beside its
-    "414.834,24 EUR" is twenty-eight thousand; an English agreement's "28,848" beside "414,834.24" is too."""
-    comma = re.compile(r"\d\.\d{3},\d{2}(?![\d.,])|\d,\d{2}(?![\d.,])")
-    point = re.compile(r"\d,\d{3}\.\d{2}(?![\d.,])|\d\.\d{2}(?![\d.,])")
-    styles = set()
-    for m in re.finditer(rf"(?<![\d.,]){re.escape(figure)}(?!\d|[.,]\d)", source):
-        around = source[max(0, m.start() - 300):m.end() + 300]
-        c, p = len(comma.findall(around)), len(point.findall(around))
-        styles.add("," if c and not p else "." if p and not c else None)
-    return styles.pop() if len(styles) == 1 else None
+def decimal_style(text: str) -> str | None:
+    """How a document writes decimals, read once from its whole text: "comma" when its amounts and percentages
+    ("414.834,24 EUR", "6,49%") all write the decimals with a comma, "point" when they all use a point
+    ("414,834.24", "11.50 EUR"), "mixed" when it has both, None when it has neither. Clause numbers ("2.15") and
+    dates say nothing. Decision of 10 November 2026: a figure that reads either way ("28.848") is read in the style
+    of the documents that write it (``evaluate``), never guessed from the text around one passage."""
+    unit = r"\s?(?:%|EUR|€|USD|\$|GBP|£|BEF)"
+    comma = re.compile(rf"\d{{1,3}}(?:\.\d{{3}})+,\d{{2}}(?![\d.,])|\d,\d{{2}}{unit}|(?:EUR|€)\s?\d+,\d{{2}}(?![\d.,])")
+    point = re.compile(rf"\d{{1,3}}(?:,\d{{3}})+\.\d{{2}}(?![\d.,])|\d\.\d{{2}}{unit}|(?:EUR|€|USD|\$)\s?\d+\.\d{{2}}(?![\d.,])")
+    c, p = bool(comma.search(text)), bool(point.search(text))
+    return "mixed" if c and p else "comma" if c else "point" if p else None
 
 
 def _check_style(figure: str, sep: str | None) -> None:
@@ -157,29 +155,35 @@ class _Parser:
         raise CalcError("unexpected text in the calculation")
 
 
-def evaluate(expression: str, default_sep: str | None = None, source: str | None = None) -> tuple[str, list[str]]:
+def evaluate(expression: str, default_sep: str | None = None,
+             written: list[tuple[str, str | None]] | None = None) -> tuple[str, list[str], list[str]]:
     """Compute an expression; return the formatted result and the figures it used, as written.
 
     ``default_sep`` is the decimal separator to use for the result when no figure has decimals
     (``CalcRewriter`` takes it from the sources). Raises ``CalcError`` for anything it can't do
     unambiguously; no other exception escapes.
 
-    A figure that reads either way ("28.848") is read as the ``source`` writes it, and only then: every
-    such figure must be written there, and the text around each must write decimals one way only
-    (``written_style``; decision of 10 November 2026: a sum across a Dutch deed's share counts was refused,
-    and the model did the arithmetic itself). Otherwise it is refused, as before.
+    A figure that reads either way ("28.848") is read in the style of the documents that write it
+    (``written``: each passage's text with its document's ``decimal_style``): every such figure must be in a
+    passage, the documents writing them must agree on one style, and a "mixed" document says nothing either
+    way; otherwise it is refused, as before. The figures read that way are returned as ``read_as``.
     """
     try:
         try:
-            return _evaluate(expression, default_sep)
+            return (*_evaluate(expression, default_sep), [])
         except AmbiguousSeparator:
-            if not source:
+            if not written:
                 raise
             ambiguous = [f for f in re.findall(NUMBER.pattern, expression) if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d{4,}", f)]
-            styles = {written_style(f, source) for f in ambiguous}
-            if len(styles) != 1 or None in styles:
+            styles: set[str] = set()
+            for f in ambiguous:
+                where = [style for text, style in written if found_in(f, text)]
+                if not where:
+                    raise  # not written in the excerpts: the model's figure, not a document's
+                styles |= {style for style in where if style in ("comma", "point")}
+            if len(styles) != 1:  # no document settles it, or two disagree
                 raise
-            return _evaluate(expression, default_sep, forced=styles.pop())
+            return (*_evaluate(expression, default_sep, forced="," if styles == {"comma"} else "."), ambiguous)
     except CalcError:
         raise
     except (ArithmeticError, ValueError) as e:  # decimal errors (e.g. precision), malformed numbers
@@ -296,10 +300,12 @@ class CalcRewriter:
     ``feed`` returns the text that is safe to show now; text from an unfinished "[[" is held
     back until its "]]" arrives (or ``MAX_MARKER`` characters pass). Call ``flush`` at the end,
     then ``check_figures`` with the passages the answer cites. ``source`` (all passages given)
-    sets the decimal separator for whole-number results.
+    sets the decimal separator for whole-number results; ``written`` (each passage with its document's
+    ``decimal_style``) reads a figure that reads either way as its documents write it.
     """
 
     source: str
+    written: list[tuple[str, str | None]] = field(default_factory=list)
     calculations: list[Calculation] = field(default_factory=list)
     _pending: str = ""
     _figures: list[list[str]] = field(default_factory=list)
@@ -337,12 +343,13 @@ class CalcRewriter:
             return marker
         expression = " ".join(m.group(1).split())
         try:
-            result, figures = evaluate(expression, source_decimal_separator(self.source), self.source)
+            result, figures, read_as = evaluate(expression, source_decimal_separator(self.source), self.written)
         except CalcError as e:
             self.calculations.append(Calculation(expression=expression, result=None, error=str(e)))
             self._figures.append([])
             return f"[calculation not possible: {expression}]"
-        self.calculations.append(Calculation(expression=expression, result=result))
+        self.calculations.append(Calculation(expression=expression, result=result, read_as=read_as,
+                                             read_with=("," if "." in read_as[0] else ".") if read_as else None))
         self._figures.append(list(dict.fromkeys(figures)))
         return f"{expression} = {result}"
 
