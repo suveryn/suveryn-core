@@ -14,8 +14,7 @@ from decimal import Decimal
 from suveryn_playbooks import entry, split
 from suveryn_playbooks.rules import Rule, Term
 
-from .calc import source_decimal_separator
-from .values import as_amount, as_date, as_number
+from .values import Style, as_amount, as_date, as_number, decimal_style
 
 
 EMPTY = object()  # the latest or earliest of a list with no entries
@@ -29,13 +28,13 @@ class CheckResult:
     missing: tuple[str, ...] = ()   # open: the paths whose values the rule needs and can't read
 
 
-def evaluate(rule: Rule, values: dict[str, str], sep: str | None = None) -> CheckResult:
+def evaluate(rule: Rule, values: dict[str, str], style: Style = None) -> CheckResult:
     """``values``: every current value by path (``price``, ``founders[2].contribution``), as written; a
-    missing or empty value is not there. ``sep``: the decimal separator the values use; None: judged
-    from the values themselves."""
-    sep = sep or source_decimal_separator(" ".join(v for v in values.values() if v))
-    left, lm = _value(rule.left, rule.value_kind, values, sep)
-    right, rm = _value(rule.right, rule.value_kind, values, sep)
+    missing or empty value is not there. ``style``: how the values write decimals (``values.decimal_style``);
+    None: judged from the values themselves."""
+    style = style or decimal_style(" ".join(v for v in values.values() if v))
+    left, lm = _value(rule.left, rule.value_kind, values, style)
+    right, rm = _value(rule.right, rule.value_kind, values, style)
     missing = (*lm, *rm)
     if missing or left is None or right is None:
         return CheckResult("open", _show(left), _show(right), missing)
@@ -45,12 +44,12 @@ def evaluate(rule: Rule, values: dict[str, str], sep: str | None = None) -> Chec
     return CheckResult("holds" if holds else "fails", _show(left), _show(right))
 
 
-def _value(term: Term, kind: str, values: dict[str, str], sep: str):
+def _value(term: Term, kind: str, values: dict[str, str], style: Style):
     """What a term yields, and the paths it needs but can't read."""
     if term.kind == "literal":
         return Decimal(term.literal), ()
     if term.kind == "fact":
-        v = _typed(values.get(term.fact, ""), kind, sep)
+        v = _typed(values.get(term.fact, ""), kind, style)
         return v, (() if v is not None else (term.fact,))
     paths = [p for p in values if split(p)[0] == term.fact and p != term.fact]
     entries = sorted({split(p)[1] for p in paths if split(p)[1] is not None})  # type: ignore[misc]
@@ -59,7 +58,7 @@ def _value(term: Term, kind: str, values: dict[str, str], sep: str):
     found, missing = [], []
     for i in entries:
         path = entry(term.fact, i, term.field)
-        v = _typed(values.get(path, ""), kind, sep)
+        v = _typed(values.get(path, ""), kind, style)
         if v is None:
             missing.append(path)
         else:
@@ -73,13 +72,13 @@ def _value(term: Term, kind: str, values: dict[str, str], sep: str):
     return (max(found) if term.kind == "latest" else min(found)), ()
 
 
-def _typed(value: str, kind: str, sep: str):
+def _typed(value: str, kind: str, style: Style):
     if not value:
         return None
     if kind == "amount":
-        return as_amount(value, sep)
+        return as_amount(value, style)
     if kind == "number":
-        return as_number(value, sep)
+        return as_number(value, style)
     d = as_date(value)
     return (d[2], d[1], d[0]) if d else None  # year, month, day: comparable
 

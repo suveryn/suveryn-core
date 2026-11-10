@@ -13,7 +13,7 @@ from contextlib import aclosing
 from dataclasses import dataclass
 
 from .audit import audit
-from .calc import CalcRewriter, unverified_figures
+from .calc import CalcRewriter
 from .grounding import (
     _MARKER,
     PLAIN_INSTRUCTIONS,
@@ -34,8 +34,8 @@ from .schemas import (
     SupportSpan,
     Usage,
 )
-from .marking import Meaning, needs_meaning, support_spans
-from .support import citation_issues
+from .marking import Meaning, cited_style, needs_meaning, support_spans
+from .support import citation_issues, unverified_figures
 
 log = logging.getLogger("suveryn.harness")
 
@@ -348,7 +348,7 @@ def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
     answer = calc.cite_figures(answer, [c.text for c in citations], set(cited_numbers(answer, len(citations))))
     calculations = calc.check_figures(_cited_sources(answer, citations))
     asked = "\n".join(m.content for m in req.messages if m.role == "user")
-    return (answer, calculations, unverified_figures(answer, calculations, _source(citations), asked),
+    return (answer, calculations, unverified_figures(answer, calculations, _source(citations), asked, cited_style(citations)),
             citation_issues(answer, citations, calculations))
 
 

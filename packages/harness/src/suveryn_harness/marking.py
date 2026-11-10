@@ -15,59 +15,18 @@ The word tables (months, number words, abbreviations, words that say nothing) ar
 interface's translation tables.
 """
 
-import math
 import re
 from dataclasses import dataclass
 from functools import lru_cache
 
 from .schemas import Citation, SupportSpan
+from .values import Style, decimal_style, read
 
 # ---------------------------------------------------------------------------------------------- facts
 
 LETTER = r"[^\W\d_]"
 NOT_AFTER_WORD = r"(?<![^\W_])"  # not after a letter or a digit
 NOT_BEFORE_WORD = r"(?![^\W_])"
-
-# A number on its own, not glued to letters ("oyosish4" in OCR noise is no 4). Grouped by . or , or by a (hard)
-# space between thousands ("1 250"), not any space ("2021 12" is two numbers).
-NUMBER = re.compile(NOT_AFTER_WORD + r"(?:\d{1,3}(?:[   ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?!" + LETTER + ")")
-
-MONTHS: dict[str, int] = {}
-for _n, _names in enumerate([
-    "januari jan january janvier janv", "februari feb febr february février fevrier févr fév fevr",
-    "maart mrt mar march mars", "april apr avril avr", "mei may mai", "juni jun june juin",
-    "juli jul july juillet juil", "augustus aug august août aout", "september sep sept septembre",
-    "oktober okt october oct octobre", "november nov novembre", "december dec décembre decembre déc"], 1):
-    for _name in _names.split():
-        MONTHS[_name] = _n
-MONTH = "(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")\.?"
-
-# Words for numbers on their own. "een", "un", "une" and "one" are left out: mostly articles ("a"), not counts.
-NUMBER_WORDS: dict[str, int] = {}
-for _words, _values in [
-    ("nul één twee drie vier vijf zes zeven acht negen tien elf twaalf dertien veertien vijftien zestien zeventien "
-     "achttien negentien", range(20)),
-    ("zéro zero", [0, 0]),
-    ("deux trois quatre cinq six sept huit neuf dix onze douze treize quatorze quinze seize", range(2, 17)),
-    ("two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen "
-     "eighteen nineteen", range(2, 20)),
-    ("twintig dertig veertig vijftig zestig zeventig tachtig negentig", range(20, 100, 10)),
-    ("vingt trente quarante cinquante soixante septante huitante octante nonante", [20, 30, 40, 50, 60, 70, 80, 80, 90]),
-    ("twenty thirty forty fifty sixty seventy eighty ninety", range(20, 100, 10)),
-    ("honderd hundred duizend mille thousand", [100, 100, 1000, 1000, 1000]),
-]:
-    NUMBER_WORDS.update(zip(_words.split(), _values))
-DUTCH_UNITS = {"een": 1, "één": 1, "twee": 2, "drie": 3, "vier": 4, "vijf": 5, "zes": 6, "zeven": 7, "acht": 8, "negen": 9}
-DUTCH_COMPOUND = re.compile(r"^(een|één|twee|drie|vier|vijf|zes|zeven|acht|negen)(?:en|ën)"
-                            r"(twintig|dertig|veertig|vijftig|zestig|zeventig|tachtig|negentig)$")
-# Parts of a hyphenated number ("vingt-et-un", "quatre-vingt-dix", "twenty-one"), where "un" and "one" do count.
-PARTS = {**NUMBER_WORDS, "un": 1, "une": 1, "one": 1, "vingts": 20}
-
-# Scale words after a number: "1,2 miljoen", "two million", "3 mio".
-SCALES = {"duizend": 1e3, "mille": 1e3, "thousand": 1e3, "miljoen": 1e6, "miljoenen": 1e6, "million": 1e6,
-          "millions": 1e6, "mio": 1e6, "mln": 1e6, "miljard": 1e9, "milliard": 1e9, "milliards": 1e9,
-          "billion": 1e9, "mld": 1e9}
-SCALE = re.compile(r"[   ]*(" + "|".join(SCALES) + r")\.?(?!" + LETTER + ")", re.IGNORECASE)
 
 
 @dataclass
@@ -77,120 +36,31 @@ class Fact:
     values: list[str]
 
 
-def number_value(raw: str) -> float:
-    """A written number's value: the last separator is decimal when 1 or 2 digits follow it, or 3 after a lone 0."""
-    s = re.sub(r"[   ]", "", raw)
-    last = re.match(r"^(.*?)([.,])(\d+)$", s)
-    if not last:
-        return float(s)
-    head, _, tail = last.groups()
-    if len(tail) != 3 or head == "0":
-        return float(re.sub(r"[.,]", "", head) + "." + tail)
-    return float(re.sub(r"[.,]", "", s))
-
-
-def show(v: float) -> str:
-    """As the browser writes it: whole numbers without a decimal point, others to two places at most."""
-    if v == int(v):
-        return str(int(v))
-    r = math.floor(v * 100 + 0.5) / 100
-    return str(int(r)) if r == int(r) else repr(r)
-
-
-def word_value(word: str) -> int | None:
-    """A number word's value ("twaalf", "eenentwintig", "vingt-deux", "quatre-vingt-dix", "twenty-one"), or None."""
-    w = word.lower()
-    if w in NUMBER_WORDS:
-        return NUMBER_WORDS[w]
-    if m := DUTCH_COMPOUND.match(w):
-        return DUTCH_UNITS[m.group(1)] + NUMBER_WORDS[m.group(2)]
-    parts = [p for p in re.split(r"[- ]+", w) if p != "et"]
-    if len(parts) < 2 or any(p not in PARTS for p in parts):
-        return None
-    # "quatre-vingt(s)" is 4 × 20; otherwise the parts add up, largest first ("dix-sept", "vingt-et-un").
-    if parts[0] == "quatre" and parts[1] in ("vingt", "vingts"):
-        values = [80, *(PARTS[p] for p in parts[2:])]
-    else:
-        values = [PARTS[p] for p in parts]
-    if values[0] < 10 or any(v >= values[i] for i, v in enumerate(values[1:])):
-        return None
-    return sum(values)
-
-
-def _pad(n: int) -> str:
-    return f"{n:02d}"
-
-
-def _year(y: str) -> int:
-    return int(y) if len(y) == 4 else 2000 + int(y) if int(y) < 50 else 1900 + int(y)
-
-
-def _month(name: str) -> int:
-    return MONTHS.get(name.lower().rstrip("."), 0)
-
-
-def _date(y: int, m: int, d: int) -> list[str] | None:
-    if not 1 <= m <= 12 or not 1 <= d <= 31:
-        return None
-    return [f"d:{y}-{_pad(m)}-{_pad(d)}", f"m:{y}-{_pad(m)}", f"n:{y}"]
-
-
-def _month_year(m: re.Match) -> list[str] | None:
-    mo = _month(m.group(1))
-    return [f"m:{m.group(2)}-{_pad(mo)}", f"n:{m.group(2)}"] if mo else None
-
-
-def _word(m: re.Match) -> list[str] | None:
-    v = word_value(m.group(0).replace(" ", "-"))
-    return None if v is None else [f"n:{v}"]
-
-
-DAY = r"(\d{1,2})(?:er|e|de|ste|st|nd|rd|th)?"
-PATTERNS = [
-    # 2021-03-12
-    (re.compile(r"(?<![\d.,/-])(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)"), lambda m: _date(int(m[1]), int(m[2]), int(m[3]))),
-    # 12/03/2021, 12-03-2021, 12.03.2021, 12/03/21
-    (re.compile(r"(?<![\d.,/-])(\d{1,2})([./-])(\d{1,2})\2(\d{4}|\d{2})(?!\d|[.,]\d)"),
-     lambda m: _date(_year(m[4]), int(m[3]), int(m[1]))),
-    # 12 March 2021, 1er mars 2021
-    (re.compile(NOT_AFTER_WORD + DAY + r"\s+(" + MONTH + r")\s+(\d{4})(?!\d)", re.IGNORECASE),
-     lambda m: _date(int(m[3]), _month(m[2]), int(m[1]))),
-    # March 12, 2021
-    (re.compile(NOT_AFTER_WORD + "(" + MONTH + r")\s+" + DAY + r",?\s+(\d{4})(?!\d)", re.IGNORECASE),
-     lambda m: _date(int(m[3]), _month(m[1]), int(m[2]))),
-    # March 2021
-    (re.compile(NOT_AFTER_WORD + "(" + MONTH + r")\s+(\d{4})(?!\d)", re.IGNORECASE), _month_year),
-    # 1.275.000,00 and 1 250, with a scale word after them
-    (NUMBER, lambda m: [f"n:{show(number_value(m.group(0)))}"]),
-    # vingt et un, twelve, vingt-deux, eenentwintig
-    (re.compile(NOT_AFTER_WORD + r"(?:(?:vingt|trente|quarante|cinquante|soixante) et (?:un|une|onze)|"
-                + LETTER + "+(?:-" + LETTER + "+)*)" + NOT_BEFORE_WORD, re.IGNORECASE), _word),
-]
-
-
-def facts(text: str) -> list[Fact]:
-    """The facts of a text with where they are, earlier patterns (dates) before later ones (numbers) where they overlap."""
+def facts(text: str, style: Style = None) -> list[Fact]:
+    """The facts of a text with where they are, as ``values.read`` reads them (the citation check reads the same),
+    as comparable keys: a number ``n:1275000``, a date ``d:2021-03-12`` with its month and year, a month."""
     out: list[Fact] = []
-    for pattern, read in PATTERNS:
-        for m in pattern.finditer(text):
-            start, end = m.span()
-            if any(start < f.end and end > f.start for f in out):
-                continue
-            values = read(m)
-            if not values:
-                continue
-            # "in acht nemen" ("to take into account") is no 8.
-            if m.group(0).lower() == "acht" and re.search(r"\bin\s+$", text[max(0, start - 4):start], re.IGNORECASE):
-                continue
-            if len(values) == 1 and values[0].startswith("n:") and (scale := SCALE.match(text, end)):
-                values = [f"n:{show(float(values[0][2:]) * SCALES[scale.group(1).lower()])}"]
-                end = scale.end()
-            out.append(Fact(start, end, values))
-    return sorted(out, key=lambda f: f.start)
+    for f in read(text, style):
+        if f.kind == "number":
+            keys = [f"n:{format(f.value.normalize(), 'f')}"]
+        elif f.kind == "date":
+            d, m, y = f.value
+            keys = [f"d:{y}-{m:02d}-{d:02d}", f"m:{y}-{m:02d}", f"n:{y}"]
+        else:
+            m, y = f.value
+            keys = [f"m:{y}-{m:02d}", f"n:{y}"]
+        out.append(Fact(f.start, f.end, keys))
+    return out
 
 
-def fact_values(text: str) -> set[str]:
-    return {v for f in facts(text) for v in f.values}
+def fact_values(text: str, style: Style = None) -> set[str]:
+    return {v for f in facts(text, style) for v in f.values}
+
+
+def cited_style(citations: list[Citation]) -> Style:
+    """How the cited documents write decimals: theirs when they agree, else read from the passages."""
+    styles = {c.source.decimals for c in citations if c.source and c.source.decimals}
+    return styles.pop() if len(styles) == 1 else decimal_style("\n".join(c.text for c in citations))
 
 
 # ------------------------------------------------------------------------------------------- sentences
@@ -289,10 +159,10 @@ def _join_hyphens(text: str) -> str:
     return _HYPHEN.sub(lambda m: m.group(1) + m.group(2) if m.group(2).islower() else m.group(0), text)
 
 
-def tokens(raw: str) -> set[str]:
+def tokens(raw: str, style: Style = None) -> set[str]:
     """The comparable words (``w:``) and facts (``n:``) of a text: words without line-break hyphens, facts normalised."""
     text = _join_hyphens(raw)
-    found = facts(text)
+    found = facts(text, style)
     rest = list(text)
     for f in found:  # the facts' own words ("twelve", "March") count as facts, not words
         rest[f.start:f.end] = " " * (f.end - f.start)
@@ -301,24 +171,24 @@ def tokens(raw: str) -> set[str]:
 
 
 @lru_cache(maxsize=64)
-def _sentences(passage: str) -> tuple[tuple[int, int, frozenset[str]], ...]:
+def _sentences(passage: str, style: Style = None) -> tuple[tuple[int, int, frozenset[str]], ...]:
     """A passage's sentences with their tokens, kept for the answer's other markers citing it."""
-    return tuple((a, z, frozenset(tokens(passage[a:z]))) for a, z in sentence_ranges(passage))
+    return tuple((a, z, frozenset(tokens(passage[a:z], style))) for a, z in sentence_ranges(passage))
 
 
 def _weight(key: str) -> int:
     return 2 if key.startswith("n:") else 1
 
 
-def supporting_ranges(passage: str, claims: list[str]) -> list[tuple[int, int]]:
+def supporting_ranges(passage: str, claims: list[str], style: Style = None) -> list[tuple[int, int]]:
     """Where in a passage each claim comes from: the sentences sharing most of the claim's words and facts (a fact
     counts double). A sentence is taken when it holds at least a third of the claim and nearly as much as the best
     sentence (80%). A claim drawn from several sentences: a further sentence is taken when it adds what the taken
     ones don't hold, at least a fact or two words and a quarter of the claim."""
-    sentences = _sentences(passage)
+    sentences = _sentences(passage, style)
     picked: dict[int, list[set[str]]] = {}
     for claim in claims:
-        own = sorted(tokens(claim))
+        own = sorted(tokens(claim, style))
         total = sum(_weight(k) for k in own)
         if total < 2:
             continue
@@ -422,16 +292,16 @@ def _merge(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return [(a, z) for a, z in out]
 
 
-def marks(passage: str, claim: str, sentences: list[tuple[int, int]] | None = None,
+def marks(passage: str, claim: str, sentences: list[tuple[int, int]] | None = None, style: Style = None,
           ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     """The supporting sentences of one claim in a passage (``sentences`` when already chosen, by meaning), and the
     facts to mark strongly: in those sentences the claim's facts in any form, anywhere its figures, dates and names
     (also in another form). Code-point offsets."""
     terms = terms_of(claim)
-    claim_facts, term_facts = fact_values(claim), {v for t in terms for v in fact_values(t)}
-    ranges = supporting_ranges(passage, [claim]) if sentences is None else sentences
+    claim_facts, term_facts = fact_values(claim, style), {v for t in terms for v in fact_values(t, style)}
+    ranges = supporting_ranges(passage, [claim], style) if sentences is None else sentences
     strong = term_ranges(passage, terms)
-    for f in facts(passage):
+    for f in facts(passage, style):
         in_sentence = any(a <= f.start and f.end <= z for a, z in ranges)
         if any(v in term_facts or (in_sentence and v in claim_facts) for v in f.values):
             strong.append((f.start, f.end))
@@ -468,15 +338,16 @@ def support_spans(answer: str, citations: list[Citation], similarities: dict[int
     """Per valid marker: what in its cited passage to mark (see the module docstring). ``similarities``: per marker
     occurrence that ``needs_meaning`` listed, its claim's similarity to each sentence of its passage."""
     out: list[SupportSpan] = []
+    style = cited_style(citations)
     for occ, (n, claim) in enumerate(marker_claims(answer, len(citations))):
         passage = citations[n - 1].text
         if not claim or not passage:
             continue
         chosen, how = None, "words"
         if similarities and meaning and occ in similarities and (i := meaning.closest(claim, passage, similarities[occ])) is not None:
-            a, z, _ = _sentences(passage)[i]
+            a, z, _ = _sentences(passage, style)[i]
             chosen, how = [(a, z)], "meaning"
-        ranges, strong = marks(passage, claim, chosen)
+        ranges, strong = marks(passage, claim, chosen, style)
         if not ranges and not strong:
             continue
         at = _utf16(passage)

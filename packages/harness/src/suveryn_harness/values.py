@@ -1,25 +1,29 @@
-"""Amounts and dates as a deed writes them: in figures, with a space between the thousands, or in words
-(VM regression 03c8f74, finding 5 and question 1).
+"""How sūveryn reads amounts, numbers and dates: the one reader of the harness (decision of 10 November 2026).
 
-Deeds write "412 500,00 EUR", "zesentwintigduizend achthonderd euro", "le douze mai deux mille quatorze".
-The checks compared figures letter for letter, so a right answer that wrote "412.500" was flagged against
-a passage writing "412 500", and an amount the deed writes out could never be matched. Here they are
-read as values, in Dutch, French and English:
+Deeds write "412 500,00 EUR", "1,2 miljoen", "zesentwintigduizend achthonderd euro", "le douze mai deux mille
+quatorze", "2021-03-12". The citation check (``support``), the source marking (``marking``), a playbook's facts
+(``facts``) and its checks (``checks``) each read them their own way until now, so a check and a marking could
+disagree about the same text: 16 of 31 common forms read differently. Here they are read once, in Dutch, French
+and English, and ``tests/reading_cases.json`` says what each form means:
 
-- ``join_groups``: "412 500" (a space between groups of three digits) as one figure;
-- ``amounts_in``: the amounts a text writes out in words (from a thousand, or followed by euro);
-- ``dates_in``: the dates a text writes with the month's name, the day and the year in figures or words;
-- ``number`` and ``as_amount`` / ``as_date``: one value, for a playbook's fact of kind amount or date.
+- ``decimal_style`` and ``figure_value``: a figure by the document's way of writing decimals;
+- ``read``: every amount, number and date in a text, with where it is;
+- ``number``: number words ("zesentwintigduizend", "quatre-vingt-dix", "two hundred and five");
+- ``as_amount`` / ``as_number`` / ``as_date``: one value, for a playbook's fact of that kind.
 
-Deterministic and small on purpose: a value it can't read is left alone (no warning made up), and the
-check that uses it still compares facts with their passage, never with what a model thinks they mean.
+Deterministic and small on purpose: a value it can't read is left alone (no warning made up), and what uses it
+still compares facts with their passage, never with what a model thinks they mean. Nothing else in the harness
+is imported here.
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 _UNITS_NL = {"nul": 0, "een": 1, "één": 1, "twee": 2, "drie": 3, "vier": 4, "vijf": 5, "zes": 6, "zeven": 7, "acht": 8,
              "negen": 9, "tien": 10, "elf": 11, "twaalf": 12, "dertien": 13, "veertien": 14, "vijftien": 15, "zestien": 16,
@@ -48,19 +52,11 @@ MONTHS = {m: i for i, names in enumerate([
     ("juli", "juillet", "july"), ("augustus", "aout", "august", "aug"),
     ("september", "septembre", "sep", "sept"), ("oktober", "octobre", "october", "okt", "oct"),
     ("november", "novembre", "nov"), ("december", "decembre", "dec")], 1) for m in names}
-_EURO = re.compile(r"^(euro|eur|€)$", re.IGNORECASE)
 _TOKEN = re.compile(r"[^\W_]+|€", re.UNICODE)
-_GROUPED = re.compile(r"(?<=\d) (?=\d{3}(?![\d]))")
 
 
 def fold(word: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", word.casefold()) if not unicodedata.combining(c))
-
-
-def join_groups(text: str) -> str:
-    """"412 500,00" as one figure: a space between groups of three digits becomes a narrow no-break space,
-    which the figure readers already take as a thousands separator."""
-    return _GROUPED.sub(" ", text)
 
 
 def _pieces(word: str) -> list[str] | None:
@@ -78,7 +74,8 @@ def _pieces(word: str) -> list[str] | None:
                 break
         else:
             return None
-    return out if any(p != "en" for p in out) else None
+    # a word ending in "en" is no number ("Tienen", "achten"): Dutch number words never end with the joint
+    return out if any(p != "en" for p in out) and out[-1] != "en" else None
 
 
 def number(words: list[str]) -> int | None:
@@ -115,33 +112,190 @@ def number(words: list[str]) -> int | None:
     return total + small
 
 
-def _runs(text: str) -> list[tuple[list[str], str | None]]:
-    """Runs of number words in a text, each with the word after it."""
-    tokens = _TOKEN.findall(text)
-    runs, current = [], []
-    for i, t in enumerate(tokens):
-        f = fold(t)
-        if (f in _JOIN and current) or (f not in _JOIN and _pieces(f) is not None):
-            current.append(t)
+# ------------------------------------------------------------------------------- how a document writes decimals
+
+Style = Literal["comma", "point", "mixed"] | None
+
+_UNIT = r"\s?(?:%|EUR|€|USD|\$|GBP|£|BEF)"
+_COMMA_STYLE = re.compile(rf"\d{{1,3}}(?:\.\d{{3}})+,\d{{2}}(?![\d.,])|\d,\d{{2}}{_UNIT}|(?:EUR|€)\s?\d+,\d{{2}}(?![\d.,])")
+_POINT_STYLE = re.compile(rf"\d{{1,3}}(?:,\d{{3}})+\.\d{{2}}(?![\d.,])|\d\.\d{{2}}{_UNIT}|(?:EUR|€|USD|\$)\s?\d+\.\d{{2}}(?![\d.,])")
+
+
+def decimal_style(text: str) -> Style:
+    """How a document writes decimals, read once from its whole text: "comma" when its amounts and percentages
+    ("414.834,24 EUR", "6,49%") all write the decimals with a comma, "point" when they all use a point
+    ("414,834.24", "11.50 EUR"), "mixed" when it has both, None when it has neither. Clause numbers ("2.15") and
+    dates say nothing. Decision of 10 November 2026: a figure that reads either way ("28.848") is read in the style
+    of the documents that write it, never guessed from the text around one passage."""
+    c, p = bool(_COMMA_STYLE.search(text)), bool(_POINT_STYLE.search(text))
+    return "mixed" if c and p else "comma" if c else "point" if p else None
+
+
+_SPACES = re.compile(r"[    ]")
+
+
+def figure_value(raw: str, style: Style = None) -> Decimal | None:
+    """A figure's value. Both separators: the last is the decimal one ("1.275.000,00", "1,275,000.00"). One separator
+    more than once: grouping ("1.275.000"). One separator once: decimals when one, two or four and more digits follow
+    ("12,5", "12.5", "0,1234"), or after a lone 0 ("0,125"); three digits after it ("412,500", "1.250") read either
+    way, and the document's ``style`` decides; a document that doesn't say reads them as thousands, as amounts are
+    written far more often than three decimals. Spaces between groups of three are grouping ("1 275 000"). None for
+    what isn't one figure ("2.15.3", a clause number)."""
+    s = _SPACES.sub("", raw)
+    if not re.fullmatch(r"\d+(?:[.,]\d+)*", s):
+        return None
+    if "," in s and "." in s:
+        dec = "," if s.rfind(",") > s.rfind(".") else "."
+        head, _, tail = s.rpartition(dec)
+        groups = head.split("." if dec == "," else ",")
+        if dec in head or not 1 <= len(groups[0]) <= 3 or any(len(g) != 3 for g in groups[1:]):
+            return None
+        return Decimal("".join(groups) + "." + tail)
+    sep = "," if "," in s else "." if "." in s else None
+    if sep is None:
+        return Decimal(s)
+    parts = s.split(sep)
+    if len(parts) > 2:
+        if 1 <= len(parts[0]) <= 3 and all(len(p) == 3 for p in parts[1:]):
+            return Decimal("".join(parts))
+        return None
+    head, tail = parts
+    if len(tail) != 3 or head == "0" or len(head) > 3:
+        return Decimal(head + "." + tail)
+    decimal = (style == "comma" and sep == ",") or (style == "point" and sep == ".")
+    return Decimal(head + "." + tail) if decimal else Decimal(head + tail)
+
+
+# ------------------------------------------------------------------------------------- what a text says
+
+@dataclass(frozen=True)
+class Found:
+    """One amount, number or date in a text, where it is (code-point offsets): ``kind`` "number" (``value`` a
+    Decimal), "date" (day, month, year) or "month" (month, year: "maart 2021"). ``words``: a number written in
+    words; ``currency``: euro written right after it."""
+
+    start: int
+    end: int
+    kind: Literal["number", "date", "month"]
+    value: Decimal | tuple[int, ...]
+    words: bool = False
+    currency: bool = False
+
+
+_NOT_AFTER_WORD = r"(?<![^\W_])"
+_LETTER = r"[^\W\d_]"
+# A figure on its own, not glued to letters ("oyosish4" in OCR noise is no 4): grouped by . or , or by a (no-break)
+# space between groups of three ("1 250"), never by any space ("2021 12" is two numbers).
+_FIGURE = re.compile(_NOT_AFTER_WORD + r"(?:\d{1,3}(?:[    ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?!" + _LETTER + ")")
+# Scale words after a figure: "1,2 miljoen", "two million", "3 mio".
+_FIGURE_SCALES = {"duizend": 10**3, "mille": 10**3, "thousand": 10**3, "miljoen": 10**6, "miljoenen": 10**6,
+                  "million": 10**6, "millions": 10**6, "mio": 10**6, "mln": 10**6, "miljard": 10**9, "milliard": 10**9,
+                  "milliards": 10**9, "billion": 10**9, "mld": 10**9}
+_SCALE_AFTER = re.compile(r"[   ]*(" + "|".join(_FIGURE_SCALES) + r")\.?(?!" + _LETTER + ")", re.IGNORECASE)
+_EURO_AFTER = re.compile(r"\s*(?:euro|eur|€)(?![^\W_])", re.IGNORECASE)
+_EURO_BEFORE = re.compile(r"(?:euro|eur|€)\s*$", re.IGNORECASE)
+_ISO = re.compile(r"(?<![\d.,/-])(\d{4})-(\d{1,2})-(\d{1,2})(?![\d])")
+_NUMERIC_DATE = re.compile(r"(?<![\d.,/-])(\d{1,2})([./-])(\d{1,2})\2(\d{4}|\d{2})(?!\d|[.,]\d)")
+_MONTH_NAME = "(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")"
+_MONTH_FIRST = re.compile(_NOT_AFTER_WORD + r"(" + _MONTH_NAME + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?!\d)")
+# A single word that is an article far more often than a count: "een woning", "un immeuble", "one of them".
+_ARTICLES = {"een", "un", "une", "one"}
+
+
+def _year(y: str) -> int:
+    return int(y) if len(y) == 4 else 2000 + int(y) if int(y) < 50 else 1900 + int(y)
+
+
+def _real(day: int, month: int, year: int) -> bool:
+    try:
+        date(year, month, day)
+    except ValueError:
+        return False
+    return True
+
+
+def read(text: str, style: Style = None) -> list[Found]:
+    """Every amount, number and date in a text, in order, as one reader sees them for the whole harness (the
+    citation check, the source marking, a playbook's facts and checks): ``reading_cases.json`` says what each written
+    form means. ``style``: how the document writes decimals (``decimal_style``). Dates are read first, so a date's
+    figures are no amounts; then figures, with a scale word after them; then numbers in words."""
+    out: list[Found] = []
+
+    def free(a: int, z: int) -> bool:
+        return not any(a < f.end and z > f.start for f in out)
+
+    def add(f: Found) -> None:
+        if free(f.start, f.end):
+            out.append(f)
+
+    folded = fold(text)  # same length as text for the scripts deeds use; MONTHS keys are folded
+    for m in _ISO.finditer(text):
+        y, mo, d = int(m[1]), int(m[2]), int(m[3])
+        if _real(d, mo, y):
+            add(Found(m.start(), m.end(), "date", (d, mo, y)))
+    for m in _NUMERIC_DATE.finditer(text):
+        d, mo, y = int(m[1]), int(m[3]), _year(m[4])
+        if _real(d, mo, y):
+            add(Found(m.start(), m.end(), "date", (d, mo, y)))
+    if len(folded) == len(text):
+        for m in _MONTH_FIRST.finditer(folded):
+            mo, d, y = MONTHS[m[1]], int(m[2]), int(m[3])
+            if _real(d, mo, y):
+                add(Found(m.start(), m.end(), "date", (d, mo, y)))
+    for f in _written_dates(text):
+        add(f)
+    for m in _FIGURE.finditer(text):
+        if not free(m.start(), m.end()):
             continue
-        if current:
-            while current and fold(current[-1]) in _JOIN:
-                current.pop()
-            if current:
-                runs.append((current, t))
-            current = []
-    if current:
-        runs.append((current, None))
-    return runs
+        v = figure_value(m.group(0), style)
+        if v is None:
+            continue
+        end = m.end()
+        if scale := _SCALE_AFTER.match(text, end):
+            v, end = v * _FIGURE_SCALES[scale.group(1).lower()], scale.end()
+        currency = bool(_EURO_AFTER.match(text, end) or _EURO_BEFORE.search(text[max(0, m.start() - 6):m.start()]))
+        add(Found(m.start(), end, "number", v, currency=currency))
+    for f in _word_numbers(text):
+        add(f)
+    return sorted(out, key=lambda f: f.start)
 
 
-def amounts_in(text: str) -> set[Decimal]:
-    """The amounts a text writes out in words: from a thousand, or any written number followed by euro."""
-    out = set()
-    for words, after in _runs(text):
-        n = number(words)
-        if n is not None and (n >= 1000 or (after is not None and _EURO.match(after))):
-            out.add(Decimal(n))
+def _spans(text: str) -> list[re.Match]:
+    return list(_TOKEN.finditer(text))
+
+
+def _written_dates(text: str) -> list[Found]:
+    """Dates with the month's name: the day before it in figures, as an ordinal or in words, the year after it in
+    figures or words ("12 mei 2014", "1er mars 2021", "twaalf mei tweeduizend veertien", "le douze mai deux mille
+    quatorze", "drie en twintig mei", the older notarial form); a month and a year alone are a month."""
+    toks = _spans(text)
+    words = [t.group(0) for t in toks]
+    out: list[Found] = []
+    for i, t in enumerate(toks):
+        month = MONTHS.get(fold(t.group(0)))
+        if month is None:
+            continue
+        year, last = None, i
+        if i + 1 < len(toks) and re.fullmatch(r"\d{4}", words[i + 1]):
+            year, last = int(words[i + 1]), i + 1
+        else:
+            run = []
+            for w in words[i + 1:i + 6]:
+                if _pieces(fold(w)) is None and fold(w) not in _JOIN:
+                    break
+                run.append(w)
+            for k in range(len(run), 0, -1):
+                n = number(run[:k])
+                if n is not None and 1800 <= n <= 2100:
+                    year, last = n, i + k
+                    break
+        if year is None:
+            continue
+        day, first = _day_before(words, i)
+        if day is not None and _real(day, month, year):
+            out.append(Found(toks[first].start(), toks[last].end(), "date", (day, month, year)))
+        elif day is None and last == i + 1 and re.fullmatch(r"\d{4}", words[i + 1]):
+            out.append(Found(t.start(), toks[last].end(), "month", (month, year)))
     return out
 
 
@@ -159,10 +313,10 @@ def _day(token: str) -> int | None:
     return n if n is not None and 1 <= n <= 31 else None
 
 
-def _day_before(tokens: list[str], i: int) -> int | None:
-    """The day written before the month at ``i``: one token ("12", "twaalf", "drieëntwintigste"), or several number
-    words: the older notarial form "drie en twintig", "vijf en twintigste", French "vingt-trois" (split at the hyphen)
-    (VM regression 9c97d76, finding 3). The longest run of up to four words that reads as 1 to 31."""
+def _day_before(tokens: list[str], i: int) -> tuple[int | None, int]:
+    """The day written before the month at ``i`` and the index of its first token: one token ("12", "twaalf",
+    "drieëntwintigste"), or several number words: the older notarial form "drie en twintig", "vijf en twintigste",
+    French "vingt-trois" (VM regression 9c97d76, finding 3). The longest run of up to four words that reads as 1 to 31."""
     for k in (4, 3, 2):
         if i < k:
             continue
@@ -173,81 +327,72 @@ def _day_before(tokens: list[str], i: int) -> int | None:
             continue
         n = number(words)
         if n is not None and 1 <= n <= 31:
-            return n
-    return _day(tokens[i - 1])
+            return n, i - k
+    if i < 1:
+        return None, i
+    return _day(tokens[i - 1]), i - 1
 
 
-def dates_in(text: str) -> set[tuple[int, int, int]]:
-    """Dates written with the month's name, the day and the year in figures or in words:
-    "12 mei 2014", "twaalf mei tweeduizend veertien", "le douze mai deux mille quatorze", "1er janvier 2020"."""
-    tokens = _TOKEN.findall(text)
-    out = set()
-    for i, t in enumerate(tokens):
-        month = MONTHS.get(fold(t).rstrip("."))
-        if month is None or i == 0:
+def _word_numbers(text: str) -> list[Found]:
+    """Numbers written in words: runs of number words ("zesentwintigduizend achthonderd", "deux cent mille", "vingt
+    et un"). Not a scale word alone ("pour cent"), not an article ("een woning"), not "in acht nemen"."""
+    toks = _spans(text)
+    out: list[Found] = []
+    i = 0
+    while i < len(toks):
+        if _pieces(fold(toks[i].group(0))) is None:
+            i += 1
             continue
-        day = _day_before(tokens, i)
-        if day is None:
+        j = i
+        while j + 1 < len(toks) and (_pieces(fold(toks[j + 1].group(0))) is not None
+                                     or (fold(toks[j + 1].group(0)) in _JOIN and j + 2 < len(toks)
+                                         and _pieces(fold(toks[j + 2].group(0))) is not None)) \
+                and not text[toks[j].end():toks[j + 1].start()].strip(" - "):
+            j += 1
+        run = [t.group(0) for t in toks[i:j + 1]]
+        start, end, i = toks[i].start(), toks[j].end(), j + 1
+        pieces = [p for w in run for part in fold(w).split("-") if part and part not in _JOIN for p in (_pieces(part) or [])]
+        if len(pieces) == 1 and pieces[0] in _SCALES:  # a scale word alone: "pour cent", "duizend"
             continue
-        year = None
-        if i + 1 < len(tokens) and re.fullmatch(r"\d{4}", tokens[i + 1]):
-            year = int(tokens[i + 1])
-        else:
-            words = []
-            for t2 in tokens[i + 1:i + 6]:
-                if _pieces(fold(t2)) is None and fold(t2) not in _JOIN:
-                    break
-                words.append(t2)
-            # the longest run of words that reads as a year
-            for k in range(len(words), 0, -1):
-                n = number(words[:k])
-                if n is not None and 1800 <= n <= 2100:
-                    year = n
-                    break
-        if year is not None:
-            out.add((day, month, year))
+        if len(run) == 1 and run[0].lower() in _ARTICLES:
+            continue
+        if fold(run[-1]) == "acht" and len(run) == 1 and re.search(r"\bin\s+$", text[max(0, start - 4):start], re.IGNORECASE):
+            continue
+        n = number(run)
+        if n is None:
+            continue
+        out.append(Found(start, end, "number", Decimal(n), words=True, currency=bool(_EURO_AFTER.match(text, end))))
     return out
 
 
-def as_amount(value: str, sep: str = ",") -> Decimal | None:
-    """One fact's amount: the first figure (read in the sources' decimal style) or the amount in words."""
-    from .calc import TEXT_FIGURE, _value
-    for f in TEXT_FIGURE.findall(join_groups(value)):
-        if (v := _value(f, sep)) is not None and (len(re.sub(r"\D", "", f)) >= 3 or re.search(r"[., ]", f)):
-            return v
-    words = amounts_in(value)
-    return min(words) if words else None
+# ----------------------------------------------------------------------------- one value, for a playbook's fact
+
+def numbers_in(text: str, style: Style = None) -> set[Decimal]:
+    """Every number in a passage, short ones and those in words included: what a ``number`` fact's value is checked
+    against (``as_number``). The citation check leaves short figures out on purpose (``support``), which is right
+    for a chat answer and wrong for a count the playbook asked for."""
+    return {f.value for f in read(text, style) if f.kind == "number"}
 
 
-def as_number(value: str, sep: str = ",") -> Decimal | None:
-    """One fact's number (a count, a share, a percentage: a figure without currency): the first figure,
-    however short ("3 aandelen" -> 3), read in the sources' decimal style, or the number in words."""
-    from .calc import TEXT_FIGURE, _value
-    for f in TEXT_FIGURE.findall(join_groups(value)):
-        if (v := _value(f, sep)) is not None:
-            return v
-    words = amounts_in(value)
-    return min(words) if words else None
+def as_amount(value: str, style: Style = None) -> Decimal | None:
+    """One fact's amount: the first amount in it. A short plain figure ("3 aandelen", "art. 12") is none, nor a
+    number in words under a thousand without euro ("tien procent")."""
+    for f in read(value, style):
+        if f.kind != "number":
+            continue
+        if f.words and (f.value >= 1000 or f.currency):
+            return f.value
+        if not f.words and (f.value >= 100 or re.search(r"[.,\s]", value[f.start:f.end])):
+            return f.value
+    return None
 
 
-def numbers_in(text: str, sep: str = ",") -> set[Decimal]:
-    """Every figure in a passage, short ones included, and the numbers written in words: what a ``number``
-    fact's value is checked against (``as_number``); ``support._figures`` leaves short figures out on purpose,
-    which is right for a chat answer and wrong for a count the playbook asked for."""
-    from .calc import TEXT_FIGURE, _value
-    out: set[Decimal] = set(amounts_in(text))
-    for f in TEXT_FIGURE.findall(join_groups(text)):
-        if (v := _value(f, sep)) is not None:
-            out.add(v)
-    return out
+def as_number(value: str, style: Style = None) -> Decimal | None:
+    """One fact's number (a count, a share, a percentage: a figure without currency): the first number, however
+    short ("3 aandelen" -> 3)."""
+    return next((f.value for f in read(value, style) if f.kind == "number"), None)
 
 
 def as_date(value: str) -> tuple[int, int, int] | None:
     """One fact's date: numeric (12/05/2014) or written (12 mei 2014, in words too)."""
-    from .calc import DATE
-    m = DATE.search(value)
-    if m:
-        d, mo, y = (int(x) for x in re.split(r"[./-]", m.group(0)))
-        return d, mo, y + 2000 if y < 100 else y
-    found = dates_in(value)
-    return min(found) if found else None
+    return next((f.value for f in read(value) if f.kind == "date"), None)

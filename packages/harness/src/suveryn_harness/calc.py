@@ -60,19 +60,6 @@ class AmbiguousSeparator(CalcError):
     """A figure such as "28.848" reads either way, and the other figures don't say which."""
 
 
-def decimal_style(text: str) -> str | None:
-    """How a document writes decimals, read once from its whole text: "comma" when its amounts and percentages
-    ("414.834,24 EUR", "6,49%") all write the decimals with a comma, "point" when they all use a point
-    ("414,834.24", "11.50 EUR"), "mixed" when it has both, None when it has neither. Clause numbers ("2.15") and
-    dates say nothing. Decision of 10 November 2026: a figure that reads either way ("28.848") is read in the style
-    of the documents that write it (``evaluate``), never guessed from the text around one passage."""
-    unit = r"\s?(?:%|EUR|€|USD|\$|GBP|£|BEF)"
-    comma = re.compile(rf"\d{{1,3}}(?:\.\d{{3}})+,\d{{2}}(?![\d.,])|\d,\d{{2}}{unit}|(?:EUR|€)\s?\d+,\d{{2}}(?![\d.,])")
-    point = re.compile(rf"\d{{1,3}}(?:,\d{{3}})+\.\d{{2}}(?![\d.,])|\d\.\d{{2}}{unit}|(?:EUR|€|USD|\$)\s?\d+\.\d{{2}}(?![\d.,])")
-    c, p = bool(comma.search(text)), bool(point.search(text))
-    return "mixed" if c and p else "comma" if c else "point" if p else None
-
-
 def _check_style(figure: str, sep: str | None) -> None:
     """Raise ``CalcError`` unless the figure is well formed in the chosen style.
 
@@ -233,60 +220,10 @@ def found_in(figure: str, source: str) -> bool:
     return re.search(rf"(?<![\d.,]){fig}(?!\d|[.,]\d)", _normalise(source)) is not None
 
 
-def source_decimal_separator(source: str) -> str:
-    """The decimal separator the sources mostly use ("," for most Belgian documents)."""
+def _sources_separator(source: str) -> str:
+    """The decimal separator the sources mostly use ("," for most Belgian documents): a whole-number calculation's
+    result is written with it."""
     return "," if len(re.findall(r"\d,\d{2}\b", source)) >= len(re.findall(r"\d\.\d{2}\b", source)) else "."
-
-
-# Figures in answer text worth checking: grouped or with decimals ("410.000", "6.507,11", "12,5"),
-# or at least five digits. Plain numbers up to four digits (plot 1, page 57, the year 2026, a count)
-# and dates are left alone: they are rarely amounts, and flagging them would bury the real warnings.
-TEXT_FIGURE = re.compile(r"(?<![\d.,])\d+(?:[.,\u00a0\u202f]\d+)*(?![\d])")
-DATE = re.compile(r"\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
-MARKERS = re.compile(r"\[\d{1,2}\]")
-
-
-def _value(figure: str, sep: str) -> Decimal | None:
-    """The figure's value read in the sources' style (``sep`` is the decimal separator), or None."""
-    s = re.sub("[\u00a0\u202f ]", "", figure).replace("." if sep == "," else ",", "")
-    if s.count(sep) > 1:
-        return None
-    try:
-        return Decimal(s.replace(sep, "."))
-    except ArithmeticError:
-        return None
-
-
-def unverified_figures(answer: str, calculations: list[Calculation], source: str, asked: str = "") -> list[str]:
-    """Figures in the answer text that are neither in the passages nor computed by the system.
-
-    The model must not calculate itself (it writes ``[[calc: …]]``); a figure that appears in no
-    passage and is no calculation's result is one it worked out or made up, and the reader must
-    check it. Values are compared, not text: "410.000" matches "410.000,00" in a passage. Figures
-    the user wrote in the question (``asked``) count as given. Shown calculations ("a + b = c") and
-    citation markers are skipped. Returns the figures as the answer writes them, in order, once each.
-    """
-    from .values import amounts_in, join_groups
-    sep = source_decimal_separator(source)
-    known: set[Decimal] = set(amounts_in(source))  # an amount the passage writes out in words is given too
-    for text in (source, asked, *(c.result or "" for c in calculations)):
-        # "412 500" in a passage is one figure, not 412 and 500 (VM regression 03c8f74, finding 5)
-        for f in TEXT_FIGURE.findall(DATE.sub(" ", join_groups(text))):
-            if (v := _value(f, sep)) is not None:
-                known.add(v)
-    text = join_groups(answer)
-    for c in calculations:
-        shown = f"{c.expression} = {c.result}" if c.result is not None else f"[calculation not possible: {c.expression}]"
-        text = text.replace(shown, " ")
-    text = DATE.sub(" ", MARKERS.sub(" ", text))
-    out: list[str] = []
-    for f in TEXT_FIGURE.findall(text):
-        if not re.search(r"[.,\u00a0\u202f]", f) and len(f) < 5:
-            continue
-        v = _value(f, sep)
-        if v is not None and v not in known and f not in out:
-            out.append(f)
-    return out
 
 
 def _normalise(text: str) -> str:
@@ -343,7 +280,7 @@ class CalcRewriter:
             return marker
         expression = " ".join(m.group(1).split())
         try:
-            result, figures, read_as = evaluate(expression, source_decimal_separator(self.source), self.written)
+            result, figures, read_as = evaluate(expression, _sources_separator(self.source), self.written)
         except CalcError as e:
             self.calculations.append(Calculation(expression=expression, result=None, error=str(e)))
             self._figures.append([])
