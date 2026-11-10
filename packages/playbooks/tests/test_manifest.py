@@ -417,6 +417,9 @@ def test_a_choice_is_one_of_its_options_and_a_step_may_turn_on_it():
     assert w.holds("cash") is True and w.holds("in_kind") is False and w.holds("") is None
     assert parse_when("contribution_kind == cash", p).holds("in_kind") is False
     assert read_schema(p.facts)["properties"]["contribution_kind"]["properties"]["value"] == {"enum": ["cash", "in_kind", None]}
+    # a decision against something is the choice's answer, not null (the care mandate on a real deed, 10 November 2026)
+    assert "A choice (contribution_kind) takes the option the documents give, also when they say it was decided against" in p.instructions
+    assert "A choice (" not in answer_scaffold(tuple(x for x in p.facts if x.kind != "choice"))
     from suveryn_playbooks import from_record, to_record
     assert from_record(to_record(p)) == p
     w2 = Wording("F", "f", {"contribution_kind": "Contribution", "contribution_kind.cash": "In cash"}, steps={"bank": "Bank certificate"})

@@ -358,6 +358,13 @@ def answer_scaffold(facts: tuple[Fact, ...]) -> str:
     if lists:
         lines.append("A list (" + ", ".join(f.id for f in lists) + ") has one entry per item the documents name, in the order "
                      "the documents give them, and is [] when they name none.")
+    choices = [f for f in facts if f.kind == "choice"]
+    if choices:
+        # A decision against something is an answer (the care mandate on a real deed, 10 November 2026: "decided not to
+        # appoint a trusted person now" came back null, and the person was asked what the deed already said).
+        lines.append("A choice (" + ", ".join(f.id for f in choices) + ") takes the option the documents give, also when "
+                     "they say it was decided against, refused or not chosen: that is its no or none option. It is null "
+                     "only when the documents say nothing about it.")
     lines.append('A fact the excerpts do not contain gets "value": null and "sources": []. Every value is a string copied '
                  "as the documents write it; never a number or a date in another form.")
     return "\n".join(lines)
