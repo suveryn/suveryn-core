@@ -96,7 +96,7 @@ DEED = "Kavel 1: 200.000,00 EUR. Kavel 2: 150.000,00 EUR. Verleden op 21.01.2026
     ("Kavel 1 is 200.000 EUR [1].", []),                             # same value as the passage's 200.000,00
     ("Verleden op 21.01.2026, kavel 2, pagina 57, 3 kavels.", []),   # dates and small plain numbers aren't amounts
     ("Artikel 3.2 [1].", []),                                        # as written in the passage
-    ("Ongeveer 12,5 % en 1.234.567 EUR.", ["12,5", "1.234.567"]),
+    ("Ongeveer 12,5 % en 1.234.567 EUR.", ["12,5 %", "1.234.567"]),      # a percentage as written, with its sign
     ("Twee keer 350.000,00 en nog eens 350.000,00.", ["350.000,00"]),  # once each
     ("Referentie 4182957.", ["4182957"]),                            # five digits or more are checked
 ])

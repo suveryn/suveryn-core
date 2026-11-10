@@ -385,7 +385,8 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
   **Deed intake 1.3** (4 November 2026) makes the parties and the conditions lists and adds checks,
   keeping 1.0's thirteen ids, questions and labels: a run made under 1.0 reads the same facts.
   **Deed intake 1.4** (6 November 2026) has the deed's deadline and a condition's term count from the
-  agreement's date (`counts_from`, below).
+  agreement's date (`counts_from`, below). **Deed intake 1.6** (10 November 2026) works out a deposit written as
+  a share of the price (`share_of`, below) and a term in working days on the pack's calendar.
 - `check` steps on these typed values: below, "Checks".
 
 ### A date written as a term (6 November 2026, board P01)
@@ -400,9 +401,35 @@ becomes the date as the agreement would write it ("12 februari 2027"), `needs` i
 `computed` keeps the term as written, the date counted from and how (base, amount, unit, direction). The
 fact stays under *Check* until a person confirms it; the card says "Berekend: 12 oktober 2026 plus vier
 maanden.", the source panel "De datum zelf staat niet in de passage.". Not worked out, so the value stays
-as written for a person (`not_a_date`): no date to count from, working days (no calendar of public
-holidays yet), no direction, or more than one term in the value. A list counts as one fact everywhere a
-count is shown ("12 van 13"): found when it has an entry.
+as written for a person (`not_a_date`): no date to count from, working days in a pack without a calendar,
+no direction, or more than one term in the value. A list counts as one fact everywhere a count is shown
+("12 van 13"): found when it has an entry.
+
+### Working days (10 November 2026)
+
+"Binnen tien werkdagen na de ondertekening" counts working days, and which days those are differs per country
+and per law. So the core knows how to count them and nothing about any country: a pack brings its calendar, a
+`calendar.yaml` beside its manifests (`suveryn_playbooks.Calendar`): the weekdays worked, holidays on a fixed
+date (`12-25`), holidays a number of days after Easter Sunday (1: Easter Monday; Easter is computed), and single
+dates for feasts those rules don't express, with its name in each language. The loader checks it and gives it to
+every playbook of the pack; a run keeps it with its manifest. The worked-out note names it: "Berekend: 23 december
+2026 plus tien werkdagen (maandag tot vrijdag, Belgische feestdagen)." A pack without a calendar leaves a term in
+working days as written, for a person: never counted on another country's holidays, nor on weekends alone. The
+calendar follows the pack, not the deed: a Belgian notary with a deed under Dutch law gets the Belgian calendar,
+and the note makes that visible to the person confirming. be-notary's calendar is Monday to Friday without the
+national public holidays; the regional holidays (11 July, 27 September) and a Saturday as a working day under the
+Judicial Code (art. 52) are not counted, to be confirmed by a notary.
+
+### An amount written as a share (10 November 2026)
+
+"Een voorschot van tien procent van de koopprijs" gives no amount. An amount fact may say which amount of the
+playbook such a percentage is a share of: `share_of: price`, an amount fact outside a list that isn't a share of
+another. When the value gives one percentage and nothing else, and the run has that amount, the harness works it
+out (`terms.work_out_share`), written as the amount it is a share of ("EUR 41.250,00"), `needs` is `computed`, and
+the card says "Berekend: 10 % van 412.500.". Anything else (two percentages, an amount besides one) stays as
+written for a person (`not_an_amount`). An amount the document gives as approximate ("ongeveer € 450.000") is read
+and checked like any other, and goes under *Check* (`approximate`): the document isn't exact, and a person decides
+what it means for the deed.
 
 ### Documents by name (3 November 2026)
 

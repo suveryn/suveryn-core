@@ -29,6 +29,8 @@ def test_a_written_form_reads_as_what_it_means(case):
         kind = next(k for k in ("number", "date", "month") if k in case)
         want = case[kind]
         assert got == [(kind, str(Decimal(want).normalize()) if kind == "number" and "." in want else want)]
+        [found] = read(case["written"], case.get("style"))
+        assert (found.percent, found.approximate) == (case.get("percent", False), case.get("approximate", False))
 
 
 def test_positions_point_at_the_written_form():

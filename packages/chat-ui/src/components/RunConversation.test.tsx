@@ -300,6 +300,11 @@ describe("a date sūveryn worked out (board P01)", () => {
   it("is under Check with how it was worked out, the term in ink and its context dimmed", () => {
     expect(reviewGroups(run).check.map((f) => f.id)).toEqual(["deed_deadline"]);
     expect(computedHow(computed, en)).toBe("Worked out: 12 October 2026 plus four months.");
+    // working days name the pack's calendar; a share says of what (decision of 10 November 2026)
+    expect(computedHow({ ...computed, amount: 10, unit: "workday", calendar: { en: "Monday to Friday, Belgian public holidays" } }, en))
+      .toBe("Worked out: 12 October 2026 plus ten working days (Monday to Friday, Belgian public holidays).");
+    expect(computedHow({ kind: "share", written: "tien procent van de koopprijs", from: "price", percent: "10", of: "385000.00", amount: "38500.00" }, en))
+      .toBe("Worked out: 10% of 385,000.");
     const html = renderToStaticMarkup(<RunThread run={run} kase={KASE} playbook={PLAYBOOK} words={dwords} me="u-ines" canAnswer nameOf={names}
                                                  panel={null} onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
     expect(html).toContain("12 februari 2027");

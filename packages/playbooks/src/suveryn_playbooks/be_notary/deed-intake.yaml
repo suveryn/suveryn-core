@@ -26,11 +26,14 @@
 # it. The GPU round's sale file of real length (10 November) found why: read all at once, a 25-page title deed
 # of an earlier sale filled the reading, and the parties and the price of today's agreement were not seen. The
 # facts, the instructions and the checks are 1.4's.
+# 1.6 (November 2026): a deposit written as a share of the price ("tien procent van de koopprijs") is worked out
+# from the price (share_of) and a term in working days from the agreement's date, on the pack's calendar
+# (calendar.yaml); a person checks both. The facts' questions, the routine and the words are 1.5's.
 
 manifest: 3
 id: playbook/be-notary/deed-intake
 pack: pack/be-notary
-version: "1.5"
+version: "1.6"
 name: Deed intake
 case_types: [sale]
 
@@ -65,6 +68,7 @@ facts:
   - id: deposit
     ask: the advance or guarantee paid at signing, and to whom it was paid
     kind: amount
+    share_of: price
   - id: agreement_date
     ask: the date the private agreement was signed
     kind: date

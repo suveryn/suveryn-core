@@ -31,7 +31,7 @@ from decimal import Decimal
 
 from .marking import answer_sentences, cited_style
 from .schemas import Calculation, Citation, CitationIssue
-from .values import MONTHS, Found, Style, decimal_style, fold, read
+from .values import MONTHS, PERCENT_SIGN, Found, Style, decimal_style, fold, read
 
 GROUP = re.compile(r"(?:\[\d{1,2}\])+")
 BOLD = re.compile(r"\*\*[^*]+\*\*")
@@ -54,7 +54,8 @@ def _worth_checking(f: Found, text: str) -> bool:
         return False
     if f.words:
         return f.value >= 1000 or f.currency
-    return bool(re.search(r"[.,\s\u00a0\u202f]", text[f.start:f.end])) or f.value >= 10000
+    figure = PERCENT_SIGN.sub("", text[f.start:f.end]) if f.percent else text[f.start:f.end]  # "10 %" is a short figure
+    return bool(re.search(r"[.,\s\u00a0\u202f]", figure)) or f.value >= 10000
 
 
 def _figures(text: str, style: Style = None) -> dict[Decimal, str]:

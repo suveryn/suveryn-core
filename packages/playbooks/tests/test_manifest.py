@@ -36,17 +36,18 @@ steps:
 WORDS = {lang: Wording("Example", "An example", {"price": "Price", "sellers": "Sellers"}) for lang in ("en", "nl", "fr")}
 
 
-def test_deed_intake_1_5_reads_what_1_0_read():
+def test_deed_intake_reads_what_1_0_read():
     """The snapshot is ``DEED_INTAKE`` 1.0 as main built it in Python (669e5c6). 1.1 added the routine
     (format 2); 1.2 asks for the answer as JSON of the facts' shape instead of a table (format 3); 1.3 makes
     the parties and the conditions lists and adds checks; 1.4 has the deed's deadline and a condition's term count
-    from the agreement's date when written as a term; 1.5 reads each fact from the documents that state it. The thirteen facts are 1.0's by id and order, and
+    from the agreement's date when written as a term; 1.5 reads each fact from the documents that state it; 1.6 works a
+    deposit written as a share of the price out, and working days on the pack's calendar. The thirteen facts are 1.0's by id and order, and
     every 1.0 label is kept byte for byte, so a run made under 1.0 reads the same facts and a notary sees
     the same words; the three lists' entries have words of their own. The instructions keep 1.0's rules
     (as written, never guess, the documents' language) and differ only in the answer's shape."""
     old = json.loads((FIXTURES / "deed-intake-1.0.json").read_text(encoding="utf-8"))
     new = json.loads(json.dumps(dataclasses.asdict(DEED_INTAKE)))  # tuples to lists, as the snapshot has them
-    assert new["version"] == "1.5" and old["version"] == "1.0" and new["format"] == 3
+    assert new["version"] == "1.6" and old["version"] == "1.0" and new["format"] == 3
     for k in ("id", "pack", "name", "case_types"):
         assert new[k] == old[k], k
     assert [f["id"] for f in new["facts"]] == [f["id"] for f in old["facts"]]
@@ -498,3 +499,34 @@ def test_a_wrong_counts_from_is_refused_and_the_error_names_the_fact(old, new, s
     assert old in DEED, old
     with pytest.raises(ManifestError, match=said):
         parse(DEED.replace(old, new, 1), where="deed-intake.yaml")
+
+
+# ------------------------------------------------------------------ a pack's working days, a share of an amount
+
+def test_a_packs_calendar_is_read_beside_its_manifests_and_checked(tmp_path):
+    from suveryn_playbooks.manifest import calendar_from_dir
+    assert calendar_from_dir(tmp_path) is None  # no calendar: working days are left to a person
+    (tmp_path / "calendar.yaml").write_text("name: {en: Weekdays, nl: Weekdagen, fr: Jours}\nworkdays: [mon, tue]\n"
+                                            "fixed: ['12-25']\nafter_easter: [1]\n", encoding="utf-8")
+    cal = calendar_from_dir(tmp_path)
+    assert cal.workdays == (0, 1) and cal.fixed == ("12-25",) and cal.after_easter == (1,) and cal.name["nl"] == "Weekdagen"
+    (tmp_path / "calendar.yaml").write_text("name: {en: Weekdays}\nworkdays: [mon]\nfixed: ['25-12']\n", encoding="utf-8")
+    with pytest.raises(ManifestError, match="missing in nl, fr|is not month-day"):
+        calendar_from_dir(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "fact, said",
+    [
+        ("  - {id: deposit, ask: the deposit, kind: amount, share_of: price}\n", None),
+        ("  - {id: deposit, ask: the deposit, kind: date, share_of: price}\n", "'share_of' only applies to kind amount"),
+        ("  - {id: deposit, ask: the deposit, kind: amount, share_of: sellers}\n", "share_of 'sellers' is not an amount fact"),
+    ],
+    ids=["an-amount-of-an-amount", "not-an-amount", "of-no-amount"])
+def test_share_of_names_an_amount(fact, said):
+    text = MINIMAL.replace("facts:\n", "facts:\n" + fact, 1)
+    if said is None:
+        assert parse(text).to_playbook(WORDS).fact("deposit").share_of == "price"
+    else:
+        with pytest.raises(ManifestError, match=said):
+            parse(text, where="x.yaml")

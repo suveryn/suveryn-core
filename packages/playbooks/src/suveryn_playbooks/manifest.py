@@ -42,13 +42,14 @@ The JSON Schema in ``schema/playbook-manifest.schema.json`` is generated from th
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from ._model import Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
+from ._model import Calendar, Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
 from .paths import MAX_ENTRIES
 
 MANIFEST_VERSIONS = (3,)
@@ -77,6 +78,9 @@ class FieldSpec(BaseModel):
                                     description="date only: the date fact a term written instead of a date counts from "
                                                 "(\"four months after the signing\": agreement_date); sūveryn works the date out, "
                                                 "and a person checks it")
+    share_of: str | None = Field(default=None, pattern=_FACT_ID.pattern,
+                                 description="amount only: the amount fact a percentage written instead of an amount is a share of "
+                                             "(\"10% of the price\": price); sūveryn works the amount out, and a person checks it")
 
     @field_validator("kind")
     @classmethod
@@ -98,6 +102,9 @@ class FactSpec(BaseModel):
                                     description="date only: the date fact a term written instead of a date counts from "
                                                 "(\"four months after the signing\": agreement_date); sūveryn works the date out, "
                                                 "and a person checks it")
+    share_of: str | None = Field(default=None, pattern=_FACT_ID.pattern,
+                                 description="amount only: the amount fact a percentage written instead of an amount is a share of "
+                                             "(\"10% of the price\": price); sūveryn works the amount out, and a person checks it")
 
     @field_validator("options")
     @classmethod
@@ -218,6 +225,7 @@ class Manifest(BaseModel):
         if not self.id.startswith(f"playbook/{pack}/"):
             raise ValueError(f"id {self.id!r} does not belong to pack {self.pack!r}")
         validate_counts_from(self.facts)
+        validate_share_of(self.facts)
         steps = self.resolved_steps()
         validate_steps(steps, {f.id for f in self.facts})
         validate_rules(steps, tuple(_fact(f) for f in self.facts))
@@ -273,13 +281,29 @@ def validate_counts_from(facts: tuple[FactSpec, ...]) -> None:
                                  "(outside a list, and not counted from another)")
 
 
+def validate_share_of(facts: tuple[FactSpec, ...]) -> None:
+    """An amount that is a share of another (``share_of``) is an amount itself, and names an amount fact of the
+    playbook that isn't in a list and isn't itself a share of another."""
+    amounts = {f.id for f in facts if f.kind == "amount" and not f.share_of}
+    for f in facts:
+        for where, spec in [(f.id, f), *((f"{f.id}.{x.id}", x) for x in (f.of if isinstance(f.of, tuple) else ()))]:
+            if spec.share_of is None:
+                continue
+            if spec.kind != "amount":
+                raise ValueError(f"fact {where!r}: 'share_of' only applies to kind amount")
+            if spec.share_of not in amounts:
+                raise ValueError(f"fact {where!r}: share_of {spec.share_of!r} is not an amount fact of this playbook "
+                                 "(outside a list, and not a share of another)")
+
+
 def _fact(f: FactSpec) -> Fact:
     if f.kind == "choice":
         return Fact(f.id, f.ask, "choice", options=tuple(f.options or ()))
     if f.kind != "list":
-        return Fact(f.id, f.ask, f.kind, counts_from=f.counts_from or "")
+        return Fact(f.id, f.ask, f.kind, counts_from=f.counts_from or "", share_of=f.share_of or "")
     if isinstance(f.of, tuple):
-        return Fact(f.id, f.ask, "list", fields=tuple(Fact(x.id, x.ask, x.kind, counts_from=x.counts_from or "") for x in f.of))
+        return Fact(f.id, f.ask, "list", fields=tuple(Fact(x.id, x.ask, x.kind, counts_from=x.counts_from or "",
+                                                           share_of=x.share_of or "") for x in f.of))
     return Fact(f.id, f.ask, "list", item_kind=f.of or "text")
 
 
@@ -508,11 +532,76 @@ def parse(source: str, *, where: str = "<manifest>") -> Manifest:
 
 def load(path: Path, text: dict[str, Wording] | None = None) -> Playbook:
     """The playbook in a manifest file. ``text``: its wording per language; when None, from the
-    pack's ``text/<lang>.json`` next to the file (``pack_text_from_dir``)."""
+    pack's ``text/<lang>.json`` next to the file (``pack_text_from_dir``). Its pack's working days from
+    ``calendar.yaml`` beside it, when the pack has one (``calendar_from_dir``)."""
     m = parse(path.read_text(encoding="utf-8"), where=str(path))
     if text is None:
         text = pack_text_from_dir(path.parent, m.slug, where=str(path))
-    return m.to_playbook(text)
+    return replace(m.to_playbook(text), calendar=calendar_from_dir(path.parent))
+
+
+CALENDAR_FILE = "calendar.yaml"  # a pack's working days, beside its manifests; never a manifest itself
+_DAY = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
+_DATE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
+_WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+class CalendarSpec(BaseModel):
+    """A pack's working days, as written in its ``calendar.yaml``."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: dict[str, str] = Field(description="Per language (en, nl, fr): what the note under a worked-out date calls it")
+    workdays: tuple[Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"], ...] = Field(min_length=1, max_length=7)
+    fixed: tuple[str, ...] = Field(default=(), description="Holidays on the same date every year, month-day: 12-25")
+    after_easter: tuple[int, ...] = Field(default=(), description="Holidays this many days after Easter Sunday: 1 is Easter Monday")
+    dates: tuple[str, ...] = Field(default=(), description="Single holidays, year-month-day, for feasts the rules above don't express")
+
+    @field_validator("fixed")
+    @classmethod
+    def _fixed(cls, v):
+        for d in v:
+            if not _DAY.match(d):
+                raise ValueError(f"fixed: {d!r} is not month-day (12-25)")
+        return v
+
+    @field_validator("dates")
+    @classmethod
+    def _dates(cls, v):
+        for d in v:
+            if not _DATE.match(d):
+                raise ValueError(f"dates: {d!r} is not year-month-day (2027-05-06)")
+        return v
+
+    @field_validator("after_easter")
+    @classmethod
+    def _after(cls, v):
+        if any(not -60 <= n <= 70 for n in v):
+            raise ValueError("after_easter: days between -60 and 70")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v):
+        from ._model import LANGUAGES
+        missing = [lang for lang in LANGUAGES if not v.get(lang, "").strip()]
+        if missing:
+            raise ValueError(f"name: missing in {', '.join(missing)}")
+        return v
+
+
+def calendar_from_dir(pack_dir: Path) -> Calendar | None:
+    """The pack's working days from ``<pack_dir>/calendar.yaml``, or None when it has none: then a term in working
+    days is left as written, for a person (never counted on another country's holidays, nor on weekends alone)."""
+    f = pack_dir / CALENDAR_FILE
+    if not f.is_file():
+        return None
+    try:
+        spec = CalendarSpec.model_validate(yaml.safe_load(f.read_text(encoding="utf-8")))
+    except (ValidationError, yaml.YAMLError) as e:
+        raise ManifestError(f"{f}: {e}") from None
+    return Calendar(name=dict(spec.name), workdays=tuple(_WEEKDAYS.index(d) for d in spec.workdays), fixed=spec.fixed,
+                    after_easter=spec.after_easter, dates=spec.dates)
 
 
 def pack_text_from_dir(pack_dir: Path, slug: str, *, where: str) -> dict[str, Wording]:

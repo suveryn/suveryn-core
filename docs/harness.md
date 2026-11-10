@@ -43,7 +43,10 @@ says what each form means. A figure with three digits after a lone separator ("4
 either way: the document's way of writing decimals decides, and a document that doesn't say reads it as
 thousands. The modules import one way only (`tests/test_layers.py`): `values` uses nothing of the harness;
 the calculator, the checks, the marking and the playbook's facts sit above it. The calculator keeps its own,
-stricter reading of the figures in a calculation: it refuses what it can't compute unambiguously.
+stricter reading of the figures in a calculation: it refuses what it can't compute unambiguously. The reader also
+says whether a number is a percentage ("10%", "tien procent") and whether the text calls it approximate
+("ongeveer", "circa", "environ", "about"); what that means is decided where it is used (a playbook's amount goes
+under *Check*), not by the reader.
 
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
