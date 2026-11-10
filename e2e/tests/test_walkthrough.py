@@ -139,7 +139,7 @@ def test_the_colleague_reads_the_case_and_its_summary(page, deed):
     open_case(page, CASE)
     page.get_by_role("button", name=f"2 documents in case {CASE}").click()
     # the summary is in the case's documents, made by the playbook, never a source
-    expect(page.get_by_text(f"Deed intake {CASE} (1.4)")).to_be_visible()
+    expect(page.get_by_text(re.compile(rf"Deed intake {re.escape(CASE)} \(\d+\.\d+\)"))).to_be_visible()  # any version
     expect(page.get_by_text("Not a source", exact=True)).to_be_visible()
     expect(page.get_by_text("akte-testdorp.pdf")).to_be_visible()
 
@@ -154,7 +154,7 @@ def test_administration_pages_open_and_status_is_sound(page):
     assert page.locator("main").inner_text().count("Working") >= 4
     expect(page.get_by_text("e2e", exact=True)).to_be_visible()  # SUVERYN_VERSION, in the overview
     administration(page, "Playbooks")
-    expect(page.get_by_text(re.compile("Deed intake 1.4")).first).to_be_visible()
+    expect(page.get_by_text(re.compile(r"Deed intake \d+\.\d+")).first).to_be_visible()  # the version shipped, whichever it is
 
 
 def test_a_price_typed_and_saved_without_leaving_the_field_is_saved(page):
