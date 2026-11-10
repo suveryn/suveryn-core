@@ -358,6 +358,76 @@
     }
    ],
    "answer": "Les frais s'élèvent à 2,5 % du prix [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De verkoper ontvangt de prijs van de koper bij het verlijden van de akte.",
+     "decimals": null
+    }
+   ],
+   "answer": "De koper betaalt de prijs aan de verkoper bij de akte [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Het is de koper verboden de overeenkomst over te dragen aan een derde.",
+     "decimals": null
+    }
+   ],
+   "answer": "De koper mag de overeenkomst niet overdragen [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Het goed wordt verkocht voor vrij en onbelast, vrij van elke hypotheek.",
+     "decimals": null
+    }
+   ],
+   "answer": "Er rust geen hypotheek op het goed [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De verkoper levert niet alleen het huis maar ook de garage.",
+     "decimals": null
+    }
+   ],
+   "answer": "De verkoper levert het huis en de garage [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De koper mag de overeenkomst niet overdragen zonder toestemming van de verkoper.",
+     "decimals": null
+    }
+   ],
+   "answer": "De koper mag de overeenkomst overdragen met toestemming van de verkoper [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "De koper mag de overeenkomst niet vroegtijdig beëindigen.",
+     "decimals": null
+    }
+   ],
+   "answer": "The buyer may not terminate the agreement early [1]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Le vendeur doit délivrer le bien libre de toute occupation à la signature de l'acte.",
+     "decimals": null
+    }
+   ],
+   "answer": "Le vendeur doit délivrer le bien libre d'occupation [1]."
   }
  ]
 }

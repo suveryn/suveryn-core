@@ -24,12 +24,18 @@ The result lists, per marker occurrence (the k-th valid marker in the answer, as
 the facts its passages don't contain and which other given passages do. What this can't see: a claim
 whose words are all in the passage but whose meaning isn't ("mag niet" for "mag"). Answers still say
 "check the source"; this makes the obvious mismatches visible.
+
+Two flags on meaning, by rule and without another model call (step 4 of the benchmark, 10 November 2026), for a
+claim that restates a sentence of its cited passage (most of its words are that sentence's): the two differ in a
+negation ("mag" for "mag niet", "ne peut pas" for "peut"), or the claim names one party where the sentence names the
+other (koper for verkoper, vendeur for acheteur, landlord for tenant). A paraphrase is left alone: "verboden" for
+"mag niet", or "de verkoper ontvangt" for "de koper betaalt", shares too few words to say the sentence was restated.
 """
 
 import re
 from decimal import Decimal
 
-from .marking import answer_sentences, cited_style
+from .marking import _sentences, answer_sentences, cited_style, tokens
 from .schemas import Calculation, Citation, CitationIssue
 from .values import MONTHS, PERCENT_SIGN, Found, Style, decimal_style, fold, read
 
@@ -68,6 +74,81 @@ def _figures(text: str, style: Style = None) -> dict[Decimal, str]:
         if _worth_checking(f, text):
             out.setdefault(f.value, text[f.start:f.end])
     return out
+
+
+# ------------------------------------------------------------------------------------ flags on meaning
+
+# A negation, in Dutch, French and English. French needs its "ne" with the second word ("ne … que" is "only"); "no."
+# and "n°" are numbers, not a no; "niet alleen", "not only", "non seulement" add, they don't deny.
+_ONLY = r"(?!\s+(?:alleen|enkel|slechts|uitsluitend|only|merely|seulement|uniquement)(?![^\W_]))"
+NEGATION = re.compile(
+    r"(?<![^\W_])(?:niet|geen|nooit|noch|nergens|niemand|niets|not|never|cannot|neither|nor|none|nobody|nothing|non)(?![^\W_])" + _ONLY
+    + r"|n['’]t(?![^\W_])|(?<![^\W_])no(?![^\W_]|[.°]|\s*\d)"
+    r"|(?<![^\W_])(?:ne\s+|n['’])[^\W_]+(?:\s+[^\W_]+)?\s+(?:pas|jamais|plus|aucune?|rien|guère|point)(?![^\W_])" + _ONLY, re.IGNORECASE)
+# Words that make an exception: "niet zonder toestemming" says what "met toestemming" says, so with one of these on
+# either side a difference in negation says nothing.
+EXCEPTION = re.compile(r"(?<![^\W_])(?:zonder|tenzij|behalve|uitgezonderd|behoudens|sans|sauf|excepté|hormis|à moins|without|unless|"
+                       r"except|save)(?![^\W_])", re.IGNORECASE)
+# The two parties of an act: each word with its role, the roles in opposing pairs. Language data, as the months are.
+ROLES = {
+    **dict.fromkeys(("verkoper", "verkopers", "verkoopster", "vendeur", "vendeurs", "venderesse", "seller", "sellers", "vendor"), "seller"),
+    **dict.fromkeys(("koper", "kopers", "koopster", "acheteur", "acheteurs", "acheteuse", "acquéreur", "acquéreurs", "buyer", "buyers",
+                     "purchaser"), "buyer"),
+    **dict.fromkeys(("verhuurder", "verhuurders", "bailleur", "bailleurs", "bailleresse", "landlord", "lessor"), "landlord"),
+    **dict.fromkeys(("huurder", "huurders", "locataire", "locataires", "preneur", "tenant", "tenants", "lessee"), "tenant"),
+    **dict.fromkeys(("schenker", "schenkers", "donateur", "donatrice", "donor"), "donor"),
+    **dict.fromkeys(("begiftigde", "begiftigden", "donataire", "donataires", "donee"), "donee"),
+    **dict.fromkeys(("uitlener", "kredietgever", "prêteur", "lender"), "lender"),
+    **dict.fromkeys(("ontlener", "kredietnemer", "emprunteur", "emprunteurs", "borrower", "borrowers"), "borrower"),
+}
+OPPOSITE = {"seller": "buyer", "landlord": "tenant", "donor": "donee", "lender": "borrower"}
+OPPOSITE |= {v: k for k, v in OPPOSITE.items()}
+RESTATED = 0.75  # the share of a claim's words and facts a sentence must hold to count as the sentence it restates
+_NEGATION_WORDS = {"niet", "geen", "nooit", "noch", "not", "never", "cannot", "pas", "jamais", "plus", "non", "nor"}
+
+
+def _roles(text: str) -> dict[str, str]:
+    """The parties a text names: role -> the word as written."""
+    out: dict[str, str] = {}
+    for w in WORD.findall(text):
+        w = re.sub(r"^[ldLD]['’]", "", w)  # l'acheteur
+        if (role := ROLES.get(w.lower())) is not None:
+            out.setdefault(role, w)
+    return out
+
+
+def _restated(claim: str, passage: str, style: Style = None) -> list[str]:
+    """The sentences of a passage the claim restates: those holding most of its words and facts (``RESTATED``), the
+    party and negation words left out of the count, as they are what is compared."""
+    own = {t for t in tokens(claim, style) if t[2:] not in ROLES and t[2:] not in _NEGATION_WORDS}
+    total = sum(2 if t.startswith("n:") else 1 for t in own)
+    if total < 3:
+        return []
+    out = []
+    for a, z, held in _sentences(passage, style):
+        if sum(2 if t.startswith("n:") else 1 for t in own if t in held) / total >= RESTATED:
+            out.append(passage[a:z])
+    return out
+
+
+def _meaning(claim: str, n: int, passage: str, style: Style = None) -> tuple[str, str, str | None] | None:
+    """(kind, item, written_as) when the claim restates a sentence of the passage and every sentence it restates differs
+    from it in a negation or names the other party; None otherwise, also when one restated sentence agrees."""
+    sentences = _restated(claim, passage, style)
+    if not sentences:
+        return None
+    negated, mine = NEGATION.search(claim), _roles(claim)
+    found = None
+    for s in sentences:
+        theirs_negated, theirs = NEGATION.search(s), _roles(s)
+        swapped = next(((mine[r], theirs[OPPOSITE[r]]) for r in mine if OPPOSITE[r] in theirs and OPPOSITE[r] not in mine and r not in theirs), None)
+        if swapped:
+            found = found or ("party", swapped[0], swapped[1])
+        elif bool(negated) != bool(theirs_negated) and not EXCEPTION.search(claim) and not EXCEPTION.search(s):
+            found = found or ("negation", (negated or theirs_negated).group(0).strip(), None)
+        else:
+            return None  # a sentence it restates agrees
+    return found
 
 
 def _held(text: str, style: Style = None) -> dict[Decimal, set[str | None]]:
@@ -228,12 +309,18 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
             elif not opens_sentence and (near := _near(name, vocabulary)) is not None:
                 spelled = next(w for w in WORD.findall(everything) if fold(w) == near)
                 found.append((name, [n for n in range(1, len(texts) + 1) if near in words[n - 1]], spelled))
-        if not found:
+        # the flags on meaning: when every cited passage the claim restates a sentence of differs from it
+        meant = [(n, m) for n in cited if _restated(claim, texts[n - 1], style) for m in [_meaning(claim, n, texts[n - 1], style)]]
+        flags = {n: m for n, m in meant if m is not None} if meant and all(m is not None for _, m in meant) else {}
+        if not found and not flags:
             continue
         k = first
         for n in cited:
             for item, other, spelled in found:
                 issues.append(CitationIssue(marker=k, n=n, item=item, found_in=other, written_as=spelled))
+            if n in flags:
+                kind, item, written = flags[n]
+                issues.append(CitationIssue(marker=k, n=n, item=item, written_as=written, kind=kind))
             k += 1
     return issues
 

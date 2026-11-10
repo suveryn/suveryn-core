@@ -153,6 +153,10 @@ class CitationIssue(BaseModel):
     ``marker`` is the 0-based occurrence of the marker in ``answer``, counting only markers that refer
     to an existing citation, in text order; ``n`` is its number. ``found_in`` lists other passages that
     do contain ``item``; ``written_as`` is how a passage spells a name the answer spells differently.
+
+    ``kind``: "missing" (the above), or one of the two flags on meaning (``support``, step 4 of the benchmark): "negation",
+    the sentence and the passage's sentence it restates differ in a "not" (``item``: the word, in whichever has it);
+    "party", the sentence names one party (``item``) where the passage names the other (``written_as``).
     """
 
     marker: int = Field(ge=0)
@@ -160,6 +164,7 @@ class CitationIssue(BaseModel):
     item: str
     found_in: list[int] = Field(default_factory=list)
     written_as: str | None = None
+    kind: Literal["missing", "negation", "party"] = "missing"
 
 
 class SupportSpan(BaseModel):
