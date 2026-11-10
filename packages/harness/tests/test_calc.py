@@ -145,3 +145,13 @@ def test_a_figure_that_reads_either_way_is_read_as_its_documents_write_it_and_on
     r = CalcRewriter(deed, [(deed, "comma")])
     assert r.feed("[[calc: 28.848 + 48.197]]") + r.flush() == "28.848 + 48.197 = 77.045"
     assert (r.calculations[0].read_as, r.calculations[0].read_with) == (["28.848", "48.197"], ",")
+
+
+def test_a_calculations_figure_is_found_in_a_passage_that_writes_it_otherwise():
+    """The calculator read figures by their text, so "412.500,00" was reported missing from a passage writing
+    "412 500,00" (found with the planted-error benchmark, 10 November 2026). It now asks the harness's one reader."""
+    src = "De prijs bedraagt 412 500,00 EUR en de kosten 10 000,00 EUR."
+    text, calcs = rewrite("Samen [[calc: 412.500,00 + 10.000,00]].", src)
+    assert "= 422.500,00" in text and calcs[0].figures_not_in_sources == []
+    text, calcs = rewrite("Samen [[calc: 412.500,00 + 11.000,00]].", src)
+    assert calcs[0].figures_not_in_sources == ["11.000,00"]  # a figure the passage doesn't hold still is

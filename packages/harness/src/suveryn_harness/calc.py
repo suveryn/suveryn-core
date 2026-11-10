@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 from .schemas import Calculation
+from .values import Style, figure_value, read
 
 CALC = re.compile(r"\[\[\s*calc\s*:\s*(.*?)\s*\]\]", re.DOTALL | re.IGNORECASE)
 NUMBER = re.compile(r"\d+(?:[.,   ]\d+)*")
@@ -220,6 +221,16 @@ def found_in(figure: str, source: str) -> bool:
     return re.search(rf"(?<![\d.,]){fig}(?!\d|[.,]\d)", _normalise(source)) is not None
 
 
+def held_by(figure: str, source: str, style: Style = None) -> bool:
+    """True if the source holds the figure: as written, or by value in another notation ("412.500,00" for a
+    passage's "412 500,00", read by ``values``, the harness's one reader). ``style``: how the calculation's figures
+    write decimals."""
+    if found_in(figure, source):
+        return True
+    value = figure_value(figure, style)
+    return value is not None and any(f.kind == "number" and f.value == value for f in read(source, style))
+
+
 def _sources_separator(source: str) -> str:
     """The decimal separator the sources mostly use ("," for most Belgian documents): a whole-number calculation's
     result is written with it."""
@@ -246,6 +257,7 @@ class CalcRewriter:
     calculations: list[Calculation] = field(default_factory=list)
     _pending: str = ""
     _figures: list[list[str]] = field(default_factory=list)
+    _styles: list[Style] = field(default_factory=list)  # per calculation: how its figures write decimals
 
     def feed(self, text: str) -> str:
         self._pending += text
@@ -284,10 +296,16 @@ class CalcRewriter:
         except CalcError as e:
             self.calculations.append(Calculation(expression=expression, result=None, error=str(e)))
             self._figures.append([])
+            self._styles.append(None)
             return f"[calculation not possible: {expression}]"
         self.calculations.append(Calculation(expression=expression, result=result, read_as=read_as,
                                              read_with=("," if "." in read_as[0] else ".") if read_as else None))
         self._figures.append(list(dict.fromkeys(figures)))
+        try:
+            sep = _decimal_separator(figures)
+        except AmbiguousSeparator:
+            sep = self.calculations[-1].read_with
+        self._styles.append("comma" if sep == "," else "point" if sep == "." else None)
         return f"{expression} = {result}"
 
     def cite_figures(self, answer: str, passages: list[str], cited: set[int]) -> str:
@@ -300,7 +318,7 @@ class CalcRewriter:
         ``check_figures``. Run on the complete answer, before ``check_figures``.
         """
         pos = 0
-        for calc, figures in zip(self.calculations, self._figures, strict=True):
+        for calc, figures, style in zip(self.calculations, self._figures, self._styles, strict=True):
             if calc.result is None:
                 continue
             shown = f"{calc.expression} = {calc.result}"
@@ -309,8 +327,8 @@ class CalcRewriter:
                 continue
             pos = at + len(shown)
             covered = "\n".join(passages[n - 1] for n in cited)
-            missing = [f for f in figures if f not in CONSTANTS and not found_in(f, covered)]
-            holders = {n: {f for f in missing if found_in(f, p)} for n, p in enumerate(passages, 1)}
+            missing = [f for f in figures if f not in CONSTANTS and not held_by(f, covered, style)]
+            holders = {n: {f for f in missing if held_by(f, p, style)} for n, p in enumerate(passages, 1)}
             added: list[int] = []
             while missing:
                 n = max(holders, key=lambda k: (len(holders[k] & set(missing)), -k), default=None)
@@ -328,6 +346,6 @@ class CalcRewriter:
     def check_figures(self, cited_sources: list[str]) -> list[Calculation]:
         """Fill in ``figures_not_in_sources`` against the passages the answer cites; return the calculations."""
         text = "\n".join(cited_sources)
-        for calc, figures in zip(self.calculations, self._figures, strict=True):
-            calc.figures_not_in_sources = [f for f in figures if f not in CONSTANTS and not found_in(f, text)]
+        for calc, figures, style in zip(self.calculations, self._figures, self._styles, strict=True):
+            calc.figures_not_in_sources = [f for f in figures if f not in CONSTANTS and not held_by(f, text, style)]
         return self.calculations
