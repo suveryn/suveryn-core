@@ -47,11 +47,14 @@ def _dates(text: str) -> set[tuple[int, int, int]]:
 
 def _worth_checking(f: Found, text: str) -> bool:
     """A figure worth checking: with a separator or a scale word ("410.000", "6.507,11", "12,5", "1,2 miljoen"), of
-    five digits or more, or written in words from a thousand or followed by euro. Plain numbers up to four digits
-    (plot 1, page 57, the year 2026, a count) are left alone: they are rarely amounts, and flagging them would bury
-    the real warnings."""
+    five digits or more, written in words from a thousand, or, however short, one the text says the measure of: money,
+    a percentage, a surface, a time ("€ 500", "6 %", "6 weken"; step 3 of the benchmark, 10 November 2026). Plain
+    numbers up to four digits (plot 1, page 57, the year 2026) and counts of things ("2 kopers": a model may count
+    what a passage lists) are left alone: flagging them would bury the real warnings."""
     if f.kind != "number":
         return False
+    if f.measure:
+        return True
     if f.words:
         return f.value >= 1000 or f.currency
     figure = PERCENT_SIGN.sub("", text[f.start:f.end]) if f.percent else text[f.start:f.end]  # "10 %" is a short figure
@@ -65,6 +68,31 @@ def _figures(text: str, style: Style = None) -> dict[Decimal, str]:
         if _worth_checking(f, text):
             out.setdefault(f.value, text[f.start:f.end])
     return out
+
+
+def _held(text: str, style: Style = None) -> dict[Decimal, set[str | None]]:
+    """Every number a passage holds, short ones too, with what the passage says each measures (None: it doesn't say)."""
+    out: dict[Decimal, set[str | None]] = {}
+    for f in read(text, style):
+        if f.kind == "number":
+            out.setdefault(f.value, set()).add(f.measure)
+    return out
+
+
+def _measured(text: str, style: Style = None) -> dict[Decimal, tuple[str, str | None]]:
+    """A claim's figures worth checking: by value, as written and what the claim says each measures."""
+    out: dict[Decimal, tuple[str, str | None]] = {}
+    for f in read(text, style):
+        if _worth_checking(f, text):
+            out.setdefault(f.value, (text[f.start:f.end], f.measure))
+    return out
+
+
+def _as_measured(held: dict[Decimal, set[str | None]], value: Decimal, measure: str | None) -> bool:
+    """The passage holds the value as the claim measures it: the same measure, or one of the two doesn't say. "€ 12.500"
+    is not held by "12.500 m²", nor "6 weken" by "6 maanden"."""
+    measures = held.get(value)
+    return measures is not None and (measure is None or None in measures or measure in measures)
 
 
 def _years(text: str) -> set[str]:
@@ -161,8 +189,8 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
     texts = [c.text for c in citations]
     everything = "\n".join(texts)
     style = cited_style(citations)
-    computed = {v for c in calculations if c.result for v in _figures(c.result, style)}
-    figures = [set(_figures(t, style)) for t in texts]
+    computed = {v for c in calculations if c.result for v in _held(c.result, style)}
+    figures = [_held(t, style) for t in texts]
     dates = [_dates(t) for t in texts]
     words = [_words(t) for t in texts]
     years = [set(YEAR.findall(t)) for t in texts]
@@ -177,11 +205,12 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
         if not cited:
             continue
         found: list[tuple[str, list[int], str | None]] = []
-        for value, written in _figures(claim, style).items():
+        for value, (written, measure) in _measured(claim, style).items():
             if value in computed or not any(value in f for f in figures):
                 continue  # a calculation's result, or in no passage (unverified_figures reports those)
-            if not _in_cited(figures, value, cited):
-                found.append((written, _elsewhere(figures, value, cited), None))
+            if not any(_as_measured(figures[n - 1], value, measure) for n in cited):  # not there, or there as something else
+                found.append((written, [n for n in range(1, len(figures) + 1)
+                                        if n not in cited and _as_measured(figures[n - 1], value, measure)], None))
         for year in sorted(_years(claim)):
             if not _in_cited(years, year, cited):
                 found.append((year, _elsewhere(years, year, cited), None))

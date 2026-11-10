@@ -58,6 +58,18 @@ of 24); none of a changed percentage, small number or article number, of money t
 out or put in, or of the other party (0 of 35). Those are the checks' known gaps, in numbers: what a number
 measures, what a sentence means, and who does what.
 
+**What a number measures** (step 3, 10 November 2026). The reader says what a number measures when the text says so
+right at it (`Found.measure`): a currency (EUR, USD, GBP), a percentage, a surface (m², ha) or a time (day, week,
+month, year). The checks use it twice. A cited value must be in its passage as the claim measures it: "€ 12.500" is
+not held by "12.500 m²", nor "6 weken" by "6 maanden"; a passage or a claim that doesn't say what it measures
+matches either way. And a short number with a measure ("6 %", "€ 500", "6 weken") is now checked like a long one,
+against every number its passage holds, in figures or words. Counts of things ("2 kopers") and article numbers stay
+unchecked on purpose: a model may count what a passage lists, and the benchmark has such correct answers to keep it
+so. Recorded after this step: 33 correct answers, none flagged; changed percentages 3 of 3, money told as a surface
+8 of 9 (the ninth cites a passage that gives no unit), short numbers 3 of 7 (the times; the counts are the rest).
+One consequence: an answer that states a term or a percentage found in no passage is now asked again once, like any
+figure in no passage.
+
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
 ## 1. Passages
