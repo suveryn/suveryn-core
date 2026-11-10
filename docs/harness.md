@@ -82,6 +82,13 @@ rewords the sentence. Recorded after this step: 40 correct answers, none flagged
 12, the other party 12 of 20 (both 0 before). The rest of what a sentence means stays with the reader, and with the
 measurement of marking by meaning.
 
+**One marking** (step 5, 10 November 2026). What the source panel marks for a playbook's fact was worked out in the
+browser, with a second reader of numbers and dates that was held to none of the reading cases. The server marks it
+now (`facts.marked`: the fact's sentences in each of its passages, and the fact in them however the deed writes it),
+when a run is shown, so a correction is marked as corrected and nothing is stored; the browser's reader and its
+sentence rules are gone (about 330 lines). Writing this showed two misreadings, both fixed in the one reader with a
+case each: Dutch "ten" ("ten laste", "ten kadaster") was read as the English ten, and "412B" as 41.
+
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
 ## 1. Passages

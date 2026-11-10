@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -55,6 +56,7 @@ MONTHS = {m: i for i, names in enumerate([
 _TOKEN = re.compile(r"[^\W_]+|€", re.UNICODE)
 
 
+@lru_cache(maxsize=8192)
 def fold(word: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", word.casefold()) if not unicodedata.combining(c))
 
@@ -192,7 +194,7 @@ _NOT_AFTER_WORD = r"(?<![^\W_])"
 _LETTER = r"[^\W\d_]"
 # A figure on its own, not glued to letters ("oyosish4" in OCR noise is no 4): grouped by . or , or by a (no-break)
 # space between groups of three ("1 250"), never by any space ("2021 12" is two numbers).
-_FIGURE = re.compile(_NOT_AFTER_WORD + r"(?:\d{1,3}(?:[    ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?!" + _LETTER + ")")
+_FIGURE = re.compile(_NOT_AFTER_WORD + r"(?:\d{1,3}(?:[    ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?!\d|" + _LETTER + ")")
 # Scale words after a figure: "1,2 miljoen", "two million", "3 mio".
 _FIGURE_SCALES = {"duizend": 10**3, "mille": 10**3, "thousand": 10**3, "miljoen": 10**6, "miljoenen": 10**6,
                   "million": 10**6, "millions": 10**6, "mio": 10**6, "mln": 10**6, "miljard": 10**9, "milliard": 10**9,
@@ -376,6 +378,10 @@ def _day_before(tokens: list[str], i: int) -> tuple[int | None, int]:
     return _day(tokens[i - 1]), i - 1
 
 
+_TEN_IS_ENGLISH = re.compile(r"\b(?:the|of|and|days?|weeks?|months?|years?|per ?cent|within|shall|is|are|per|for|by)\b|\bten\s*\(10\)",
+                             re.IGNORECASE)
+
+
 def _word_numbers(text: str) -> list[Found]:
     """Numbers written in words: runs of number words ("zesentwintigduizend achthonderd", "deux cent mille", "vingt
     et un"). Not a scale word alone ("pour cent"), not an article ("een woning"), not "in acht nemen"."""
@@ -401,6 +407,9 @@ def _word_numbers(text: str) -> list[Found]:
             continue
         if fold(run[-1]) == "acht" and len(run) == 1 and re.search(r"\bin\s+$", text[max(0, start - 4):start], re.IGNORECASE):
             continue
+        if len(run) == 1 and fold(run[0]) == "ten" and text.strip() != run[0] and not _TEN_IS_ENGLISH.search(
+                text[max(0, start - 60):end + 60]):
+            continue  # Dutch "ten laste", "ten kadaster": ten only where the text around it is English, or says "(10)"
         n = number(run)
         if n is None:
             continue

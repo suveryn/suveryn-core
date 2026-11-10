@@ -37,7 +37,7 @@ export type AssistantTurn = {
   calculations?: Calculation[];
   unverifiedFigures?: string[]; // figures to check: in no source and not calculated by the server
   citationIssues?: CitationIssue[]; // facts a cited source doesn't contain (suveryn-tracker#11)
-  supportSpans?: SupportSpan[]; // what the source card marks, from the server (suveryn-tracker#25); absent (a playbook fact): the rules here
+  supportSpans?: SupportSpan[]; // what the source card marks, from the server (suveryn-tracker#25); absent: the answer was stopped, nothing is marked
   instructionLikeSources?: number[]; // passages given to the model whose text addresses an AI (suveryn-tracker#21)
   /** The chosen documents were too large to read whole: their best-matching passages were read (§10). */
   partial?: boolean;

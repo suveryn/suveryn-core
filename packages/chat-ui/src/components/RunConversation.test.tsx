@@ -27,7 +27,8 @@ const SUMMARY: RunSummary = {
 const RUN: Run = {
   ...SUMMARY, playbook: PLAYBOOK, instruction_like_sources: [], steps: {},
   facts: [
-    { id: "price", value: "EUR 415.000,00", citations: [{ n: 1, document_id: "d1", filename: "akte.pdf", page: 2, location: null, text: "De prijs bedraagt EUR 412.500,00." }],
+    { id: "price", value: "EUR 415.000,00", citations: [{ n: 1, document_id: "d1", filename: "akte.pdf", page: 2, location: null, text: "De prijs bedraagt EUR 412.500,00.",
+                                                         ranges: [[0, 33]], facts: [[18, 21]] }],  // as the server marks it
       issues: ["EUR 415.000,00"], found: true, confirmed: null, source: "document" },
     { id: "buyer", value: "Jan De Smet", citations: [], issues: [], found: false, confirmed: null, source: "person", by: "ines", was: null,
       at: "2026-10-30T10:06:00Z" },
@@ -131,6 +132,7 @@ describe("the facts list", () => {
     const html = renderToStaticMarkup(<RunSourcePanel run={RUN} fact="price" fromList caseRef="2026/0611" present={new Set(["d1"])} caseId="c1"
                                                       onView={noop} onClose={noop} />);
     expect(html).toContain("De prijs bedraagt");
+    expect(html).toContain('<mark class="source-match">EUR</mark>');             // what the server marked, nothing read here
     expect(html).toContain(en.sourceOf(1, 1));                                   // "1 of 1", with its arrows
     expect(html).toContain(en.openAtPage(2));                                    // the document at its page
     expect(html).toContain(en.copyPassage);

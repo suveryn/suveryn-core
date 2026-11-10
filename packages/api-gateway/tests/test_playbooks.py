@@ -356,6 +356,26 @@ def test_cancel_reverts_confirmed_facts_and_withdraws_the_product(office):
 
 
 @needs_db
+def test_a_run_is_shown_with_its_facts_marked_and_stores_no_marking(runs):
+    """What the source panel marks for a fact is the server's, worked out when the run is shown (``facts.marked``):
+    a correction is marked as corrected, and the stored passage carries no marking to go stale."""
+    from suveryn_harness.facts import FactCitation
+
+    cid = uuid.uuid4()
+    rid = uuid.UUID(runs.create(cid, DEED_INTAKE, [DOC], ALICE, None).id)
+    text = "De partijen komen overeen. De prijs bedraagt eenhonderdduizend euro (€ 100.000,00)."
+    cite = FactCitation(n=1, document_id=str(DOC), filename="deed.pdf", text=text).model_dump(exclude={"ranges", "facts"})
+    runs.write_facts(cid, rid, "read", [dict(fact_id="price", kind="amount", value="€ 100.000", status="proposed",
+                                              source={"kind": "document", "citations": [cite]}, by=DEED_INTAKE.id)])
+    shown = runs.facts_for_run(rid)[0].citations[0]
+    assert [text[a:z] for a, z in shown.ranges] == ["De prijs bedraagt eenhonderdduizend euro (€ 100.000,00)."]
+    assert [text[a:z] for a, z in shown.facts] == ["eenhonderdduizend", "100.000,00"]
+    stored = runs.fact_rows(rid)[0]["source"]["citations"][0]
+    assert "ranges" not in stored and "facts" not in stored
+    runs.delete_case(cid)
+
+
+@needs_db
 def test_cancel_supersedes_everything_the_run_established_and_keeps_the_record(runs):
     """Pod check of d0f680e, question Q: a cancelled run leaves nothing of its own as the case's, read
     or confirmed; the rows stay, superseded, so the history is whole (through the store: a routine with

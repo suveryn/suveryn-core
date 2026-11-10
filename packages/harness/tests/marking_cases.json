@@ -1,5 +1,5 @@
 {
- "_about": "Source marking's regression set (suveryn-tracker#25): what the source card must mark for the answer's first marker. Run by the server's marking (test_marking.py) and the browser's fallback (marking.test.ts). Fictional text only.",
+ "_about": "Source marking's regression set (suveryn-tracker#25): what the source card must mark for the answer's first marker. Run by the server's marking (test_marking.py), which is the only one: the browser shows what the server marked. Fictional text only.",
  "cases": [
   {
    "name": "an abbreviation doesn't end a sentence",

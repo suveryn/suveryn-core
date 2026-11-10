@@ -4,7 +4,7 @@
  */
 import type { CitationIssue } from "../api";
 import type { AssistantTurn } from "../types";
-import { claimTerms, claimTexts, markerClaims, markPassage, spanParts, termsOf, type PassagePart } from "./answer";
+import { markerClaims, spanParts, type PassagePart } from "./answer";
 
 type Verdict =
   | { kind: "sentence" }    // opened from a marker: everything in its sentence is in the passage
@@ -24,18 +24,14 @@ export function verdictOf(turn: AssistantTurn, n: number, occ: number | null): V
 
 /**
  * The passage of source ``n`` with what the claim(s) citing it rest on marked: the claim of the marker opened (``occ``),
- * or every claim citing ``n`` (from the source list, or a marker of another source). The server's marking for an
- * answer (suveryn-tracker#25); the rules here for a playbook fact's passages, which the server doesn't mark.
+ * or every claim citing ``n`` (from the source list, or a marker of another source). The marking is the server's, for
+ * an answer (suveryn-tracker#25) and for a playbook fact alike: the browser reads no numbers or dates of its own
+ * (decision of 10 November 2026). An answer that was stopped has none: nothing of it was checked.
  */
 export function sourceParts(turn: AssistantTurn, n: number, occ: number | null): PassagePart[] {
   const passage = turn.citations[n - 1]?.text ?? "";
-  const available = turn.citations.length;
-  const one = occ === null ? undefined : markerClaims(turn.text, available)[occ];
-  if (turn.supportSpans) {
-    return spanParts(passage, turn.supportSpans.filter((s) => s.n === n && (one?.n !== n || s.marker === occ)));
-  }
-  return one?.n === n ? markPassage(passage, [one.claim], termsOf(one.claim))
-    : markPassage(passage, claimTexts(turn.text, available).get(n) ?? [], claimTerms(turn.text, available).get(n) ?? []);
+  const one = occ === null ? undefined : markerClaims(turn.text, turn.citations.length)[occ];
+  return spanParts(passage, (turn.supportSpans ?? []).filter((s) => s.n === n && (one?.n !== n || s.marker === occ)));
 }
 
 /** Whether what ``sourceParts`` marks for this source was found by meaning rather than by the same words. */
