@@ -552,6 +552,7 @@ const nl: Messages = {
   pbDateNotInPassage: "De datum zelf staat niet in de passage.",
   pbNotAnAmount: "Geen bedrag zoals geschreven: reken het uit en kijk na.",
   pbNotANumber: "Geen getal zoals geschreven: reken het uit en kijk na.",
+  pbInvalidNumber: "De controlecijfers kloppen niet: een tikfout, of de scan las een cijfer verkeerd. Kijk het na in het document.",
   // lijsten (formaat 3): een lijst waarvan de documenten geen items noemen, en nog een item voor een lijst die er heeft
   pbNoEntries: "Geen in de documenten",
   pbAddEntry: "Toevoegen",

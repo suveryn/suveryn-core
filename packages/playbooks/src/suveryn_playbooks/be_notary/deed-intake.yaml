@@ -29,11 +29,14 @@
 # 1.6 (November 2026): a deposit written as a share of the price ("tien procent van de koopprijs") is worked out
 # from the price (share_of) and a term in working days from the agreement's date, on the pack's calendar
 # (calendar.yaml); a person checks both. The facts' questions, the routine and the words are 1.5's.
+# 1.7 (November 2026): a party's register number is checked by its check digits (format person_or_company): a
+# national register or an enterprise number that can't be right, a typo or a scan's misreading, goes under Check.
+# The facts, the instructions, the routine and the words are 1.6's.
 
 manifest: 3
 id: playbook/be-notary/deed-intake
 pack: pack/be-notary
-version: "1.6"
+version: "1.7"
 name: Deed intake
 case_types: [sale]
 
@@ -48,6 +51,7 @@ facts:
         ask: the seller's address as written
       - id: register
         ask: the seller's national register number (a company's enterprise number), as written
+        format: person_or_company
   - id: buyers
     ask: the buying party or parties, one entry per buyer
     kind: list
@@ -58,6 +62,7 @@ facts:
         ask: the buyer's address as written
       - id: register
         ask: the buyer's national register number (a company's enterprise number), as written
+        format: person_or_company
   - id: property
     ask: "the property sold: its address and description"
   - id: cadastral

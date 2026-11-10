@@ -915,7 +915,7 @@ export type RunFact = {
   by?: string | null;         // for a person's value: who gave it, in the conversation
   was?: string | null;        // for a correction of a value read from the documents: the value as read
   at?: string | null;         // for a person's value: when it was given
-  needs?: "not_a_date" | "not_an_amount" | "not_a_number" | "approximate" | "computed" | null;  // the value gives no date or amount as such: a person works it out; computed: sūveryn did, from a term
+  needs?: "not_a_date" | "not_an_amount" | "not_a_number" | "approximate" | "invalid_number" | "computed" | null;  // the value gives no date or amount as such: a person works it out; computed: sūveryn did, from a term
   /** A term worked out from the date it counts from (board P01): the term as written, the fact counted from, and how. */
   computed?: Computed | null;
   /** A document added later reads this fact differently from what is confirmed: shown beside it, a person chooses. */

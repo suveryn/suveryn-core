@@ -508,3 +508,21 @@ def test_a_facts_passage_keeps_the_text_around_it_for_the_source_panel():
     ctx = facts["deposit"].citations[0].context
     assert ctx is not None and ctx.text[ctx.start:ctx.end] == text
     assert facts["price"].citations[0].context is None
+
+
+def test_a_register_number_whose_check_digits_dont_match_goes_under_check():
+    """Plan step 3.1: a number that carries its own check is checked by arithmetic, no model (deed intake 1.6: a
+    party's register number, a person's or a company's). One that can't be right goes under Check; never a block."""
+    from suveryn_harness.identifiers import valid
+    good = "85.05.14-243." + f"{97 - 850514243 % 97:02d}"
+    answer = {**ANSWER, "sellers": [{"name": leaf("Jan Peeters", 1), "address": leaf(None), "register": leaf(good, 1)},
+                                    {"name": leaf("Marie Claes", 1), "address": leaf(None), "register": leaf("85.05.14-243.61", 1)}],
+              "buyers": [{"name": leaf("Brugwachter BV", 1), "address": leaf(None), "register": leaf("0878.117.640", 1)}]}
+    passages = [Citation(text=f"Verkopers: Jan Peeters ({good}) en Marie Claes (85.05.14-243.61). Koper: Brugwachter BV (0878.117.640).",
+                         source=SourceRef(document_id=DOC, page=1))]
+    by = {f.id: f for f in read_facts(DEED_INTAKE, response(answer, passages), {DOC: "compromis.pdf"})}
+    assert by["sellers[1].register"].needs is None and by["buyers[1].register"].needs is None
+    assert by["sellers[2].register"].needs == "invalid_number" and by["sellers[2].register"].value == "85.05.14-243.61"
+    assert valid("iban", "BE68 5390 0754 7034") and valid("iban", "BE68 5390 0754 7035") is False
+    assert valid("enterprise", "0792.555.227") and valid("enterprise", "0878 117 641") is False
+    assert valid("national_register", "born in 1961") is None  # no number of that form: nothing to check

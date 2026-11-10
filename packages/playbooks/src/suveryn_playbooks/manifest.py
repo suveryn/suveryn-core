@@ -62,6 +62,10 @@ _FACT_ID = re.compile(r"^[a-z][a-z0-9_]{0,49}$")   # the UI's vocabulary and the
 _CASE_TYPE = re.compile(r"^[a-z][a-z0-9-]{0,49}$")
 
 
+# Numbers that carry their own check (suveryn_harness.identifiers.FORMATS)
+NumberForm = Literal["national_register", "enterprise", "person_or_company", "iban"]
+
+
 class ManifestError(ValueError):
     """A manifest that can't be loaded: the message names the file and what is wrong with it."""
 
@@ -81,6 +85,9 @@ class FieldSpec(BaseModel):
     share_of: str | None = Field(default=None, pattern=_FACT_ID.pattern,
                                  description="amount only: the amount fact a percentage written instead of an amount is a share of "
                                              "(\"10% of the price\": price); sūveryn works the amount out, and a person checks it")
+    format: NumberForm | None = Field(default=None, description="text only: a number that carries its own check: national_register, "
+                                                    "enterprise, person_or_company (either), iban; a value whose check digits don't "
+                                                    "match goes under Check")
 
     @field_validator("kind")
     @classmethod
@@ -105,6 +112,9 @@ class FactSpec(BaseModel):
     share_of: str | None = Field(default=None, pattern=_FACT_ID.pattern,
                                  description="amount only: the amount fact a percentage written instead of an amount is a share of "
                                              "(\"10% of the price\": price); sūveryn works the amount out, and a person checks it")
+    format: NumberForm | None = Field(default=None, description="text only: a number that carries its own check: national_register, "
+                                                    "enterprise, person_or_company (either), iban; a value whose check digits don't "
+                                                    "match goes under Check")
 
     @field_validator("options")
     @classmethod
@@ -226,6 +236,7 @@ class Manifest(BaseModel):
             raise ValueError(f"id {self.id!r} does not belong to pack {self.pack!r}")
         validate_counts_from(self.facts)
         validate_share_of(self.facts)
+        validate_formats(self.facts)
         steps = self.resolved_steps()
         validate_steps(steps, {f.id for f in self.facts})
         validate_rules(steps, tuple(_fact(f) for f in self.facts))
@@ -266,6 +277,14 @@ class Manifest(BaseModel):
         )
 
 
+def validate_formats(facts: tuple[FactSpec, ...]) -> None:
+    """A number's form (``format``) applies to a text value only: a fact, or a list's field."""
+    for spec in facts:
+        for where, x in ((spec.id, spec), *((f"{spec.id}.{f.id}", f) for f in (spec.of if isinstance(spec.of, tuple) else ()))):
+            if x.format is not None and (x.kind != "text"):
+                raise ValueError(f"fact {where!r}: 'format' only applies to kind text")
+
+
 def validate_counts_from(facts: tuple[FactSpec, ...]) -> None:
     """A date that counts from another (``counts_from``) is a date itself, and names a date fact of the playbook
     that isn't in a list and isn't itself counted from another."""
@@ -300,10 +319,10 @@ def _fact(f: FactSpec) -> Fact:
     if f.kind == "choice":
         return Fact(f.id, f.ask, "choice", options=tuple(f.options or ()))
     if f.kind != "list":
-        return Fact(f.id, f.ask, f.kind, counts_from=f.counts_from or "", share_of=f.share_of or "")
+        return Fact(f.id, f.ask, f.kind, counts_from=f.counts_from or "", share_of=f.share_of or "", format=f.format or "")
     if isinstance(f.of, tuple):
         return Fact(f.id, f.ask, "list", fields=tuple(Fact(x.id, x.ask, x.kind, counts_from=x.counts_from or "",
-                                                           share_of=x.share_of or "") for x in f.of))
+                                                           share_of=x.share_of or "", format=x.format or "") for x in f.of))
     return Fact(f.id, f.ask, "list", item_kind=f.of or "text")
 
 

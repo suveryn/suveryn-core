@@ -99,6 +99,25 @@
           "default": null,
           "description": "amount only: the amount fact a percentage written instead of an amount is a share of (\"10% of the price\": price); sūveryn works the amount out, and a person checks it",
           "title": "Share Of"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "enum": [
+                "national_register",
+                "enterprise",
+                "person_or_company",
+                "iban"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "text only: a number that carries its own check: national_register, enterprise, person_or_company (either), iban; a value whose check digits don't match goes under Check",
+          "title": "Format"
         }
       },
       "required": [
@@ -165,6 +184,25 @@
           "default": null,
           "description": "amount only: the amount fact a percentage written instead of an amount is a share of (\"10% of the price\": price); sūveryn works the amount out, and a person checks it",
           "title": "Share Of"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "enum": [
+                "national_register",
+                "enterprise",
+                "person_or_company",
+                "iban"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "text only: a number that carries its own check: national_register, enterprise, person_or_company (either), iban; a value whose check digits don't match goes under Check",
+          "title": "Format"
         }
       },
       "required": [

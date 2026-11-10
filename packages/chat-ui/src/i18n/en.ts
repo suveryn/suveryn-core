@@ -584,6 +584,7 @@ const en = {
   pbDateNotInPassage: "The date itself isn't in the passage.",
   pbNotAnAmount: "Not an amount as written: work it out and check it.",
   pbNotANumber: "Not a number as written: work it out and check it.",
+  pbInvalidNumber: "Its check digits don't match: a typo, or the scan misread a digit. Check it in the document.",
   // lists (format 3): a list the documents name no entries of, and one more entry for a list that has some
   pbNoEntries: "None in the documents",
   pbAddEntry: "Add",

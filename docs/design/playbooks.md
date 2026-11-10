@@ -405,6 +405,18 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
   a share of the price (`share_of`, below) and a term in working days on the pack's calendar.
 - `check` steps on these typed values: below, "Checks".
 
+### A number that carries its own check (10 November 2026)
+
+A text fact (or a list's text field) may name the form of number it holds: `format: national_register`,
+`enterprise`, `person_or_company` (either: a party that is a person or a company) or `iban`. Their check
+digits are checked by arithmetic (`suveryn_harness.identifiers`): the national register number's 97 minus
+its first nine digits modulo 97 (with a 2 in front for a birth from 2000), the enterprise number's 97 minus
+its first eight modulo 97, the IBAN's ISO 13616 remainder. A value read in that form whose digits don't
+match, a typo or a scan that read an 8 as a 3, goes under *Check* (`needs: invalid_number`; "Its check
+digits don't match"), never a block; a value with no number of that form isn't checked. No model is asked.
+**Deed intake 1.6** checks a party's register number this way. The loader refuses `format` on anything but
+text. Plan step 3.1.
+
 ### A date written as a term (6 November 2026, board P01)
 
 An agreement often gives a deadline as a term: "binnen vier maanden na de ondertekening", "dans les deux

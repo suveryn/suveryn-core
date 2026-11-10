@@ -37,7 +37,7 @@ def from_record(record: dict[str, Any]) -> Playbook:
 def _fact(f: dict[str, Any]) -> Fact:
     return Fact(id=f["id"], ask=f["ask"], kind=f.get("kind", "text"), fields=tuple(_fact(x) for x in f.get("fields", ())),
                 item_kind=f.get("item_kind", "text"), options=tuple(f.get("options", ())), counts_from=f.get("counts_from", ""),
-                share_of=f.get("share_of", ""))
+                share_of=f.get("share_of", ""), format=f.get("format", ""))
 
 
 def _plain(v: Any) -> Any:
