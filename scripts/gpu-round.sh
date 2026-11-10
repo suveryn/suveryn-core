@@ -11,6 +11,8 @@
 #   OWN_RUNS=/workspace/own-runs bash scripts/gpu-round.sh  # run specs on your own files too, kept outside the
 #                                             # repositories; a spec with "show_facts": true writes what was read to
 #                                             # results/facts/<run>.txt, for you, never to the summary
+#   OWN_QUESTIONS=/workspace/own-questions bash scripts/gpu-round.sh  # questions about your own files (test_answers_e2e.py:
+#                                             # <name>.json beside its files); answers in results/answers/, for you
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);
@@ -31,6 +33,7 @@ COMPARE="${COMPARE:-}"                      # another llama.cpp tag to compare, 
 RUNS="${RUNS:-1}"                           # the playbook runs through the gateway (4. above)
 PACKS="${PACKS:-}"                          # a suveryn-packs checkout, for its playbooks' runs
 OWN_RUNS="${OWN_RUNS:-}"                    # a folder of run specs on your own files (never in a repository)
+OWN_QUESTIONS="${OWN_QUESTIONS:-}"          # a folder of your own files with questions about them (never in a repository)
 KC_VERSION=26.8.1                           # suveryn-appliance provision/versions.json
 KC_SHA256=4e2740b181faa2ea623a1c2ecf00855935311e546046e2f857615a47ed24cbe8
 UV_VERSION=0.13.7
@@ -174,7 +177,9 @@ for tag in $LLAMA_TAG $COMPARE; do
   nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -lms 500 > "$RESULTS/memory-$tag.csv" &
   MEM_PID=$!
   [ "$tag" = "$LLAMA_TAG" ] && run_test "reader-$tag" test_e2e.py
-  run_test "answers-$tag" test_answers_e2e.py SUVERYN_EVAL_REPORT="$RESULTS/answers-$tag.json"
+  rm -rf "$RESULTS/answers"  # your own questions' answers, this round's only
+  run_test "answers-$tag" test_answers_e2e.py SUVERYN_EVAL_REPORT="$RESULTS/answers-$tag.json" \
+    SUVERYN_EVAL_DIR="${OWN_QUESTIONS:-/nonexistent}" SUVERYN_EVAL_ANSWERS="$RESULTS/answers"
   run_test "reads-$tag" test_playbook_reads_e2e.py SUVERYN_EVAL_REPORT_READS="$RESULTS/reads-$tag.json"
   [ "$tag" = "$LLAMA_TAG" ] && [ "$RUNS" = 1 ] && playbook_runs "$tag"
   stop_all
@@ -219,6 +224,7 @@ for name, r in json.load(open(sys.argv[1])).items():
     [print('  failed:', f) for f in failed]" "$j"
   done
   [ -d "$RESULTS/facts" ] && echo "what was read in your own runs: $RESULTS/facts (for you; not to paste)"
+  [ -d "$RESULTS/answers" ] && echo "the answers to your own questions: $RESULTS/answers (for you; not to paste)"
   for j in "$RESULTS"/reads-*.json; do
     [ -f "$j" ] && uv run python -c "import json,sys; r=json.load(open(sys.argv[1])); print(f\"{sys.argv[1].split('/')[-1]}: {r['playbook']}, {r['retries']} retries, failures: {r['failures'] or 'none'}\")" "$j"
   done

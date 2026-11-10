@@ -13,9 +13,14 @@ Run it before a new model (or model version) is used: every answer goes through 
 - **no arithmetic by the model**: a sum is computed by the server (``[[calc: …]]``), not written out.
 
 Documents: the fictional trap deed (trap_deed.py) in born-digital, scanned and injected form, plus
-any cases in ``SUVERYN_EVAL_DIR``: ``<name>.pdf`` with ``<name>.json`` holding
-``{"questions": [{"q": "...", "expect": ["..."], "forbid": ["..."]}]}``. Real deeds belong there only
-with the owner's permission, on the GPU machine, never in this repository, deleted after the run.
+any cases in ``SUVERYN_EVAL_DIR``: ``<name>.json`` holding ``{"questions": [{"q": "...", "expect": ["..."],
+"forbid": ["..."], "calc": "..."}]}``, asked of ``<name>.pdf`` (or ``.docx``) beside it, or of several files together as
+one case: ``"documents": ["a.pdf", "b.docx"]``. An expectation may be a list of ways to write it (``["28.848",
+"28,848"]``: any one will do). A question without expectations is still held to the citation requirement. Real
+documents belong there only with the owner's permission, on the GPU machine, never in this repository. With
+``SUVERYN_EVAL_ANSWERS`` set, a spec saying ``"show_answers": true`` has its answers written there
+(``<name>.txt``: the question, the answer, the pages it cites, what failed) for the owner to read, never into the
+report.
 
 Needs: suveryn-rag installed, a database (``SUVERYN_TEST_DATABASE_URL``), llama-server
 (``SUVERYN_LLM_*``). ``SUVERYN_EVAL_MODELS`` lists the models to compare (comma-separated; default:
@@ -75,8 +80,8 @@ def corpus(tmp_path_factory):
     if shutil.which("pdftoppm"):
         files["scanned"] = trap_deed.scanned(files["born-digital"], work / "trap_scan.pdf")
     external = Path(os.environ.get("SUVERYN_EVAL_DIR", "/nonexistent"))
-    for pdf in sorted(external.glob("*.pdf")):
-        files[f"external:{pdf.stem}"] = pdf
+    for doc in sorted(p for p in external.glob("*") if p.suffix.lower() in EXTERNAL_KINDS and not p.name.startswith(".")):
+        files[f"external:{doc.name}"] = doc
     ingested = {name: rag.ingest(pdf, owner=OWNER) for name, pdf in files.items()}
     yield rag, ingested
     for r in ingested.values():
@@ -108,10 +113,21 @@ def _cases() -> list[dict]:
               for q, e in (("Wat is de koopprijs?", "1.275.000"), ("Hoe is het verkochte kadastraal bekend?", "4182"),
                            ("Welk recht van opstal rust op het verkochte?", "Stroomnet Oost"))]
     external = Path(os.environ.get("SUVERYN_EVAL_DIR", "/nonexistent"))
-    for spec in sorted(external.glob("*.json")):
-        for q in json.loads(spec.read_text())["questions"]:
-            cases.append({"doc": f"external:{spec.stem}", "q": q["q"], "expect": q.get("expect", []), "forbid": q.get("forbid", [])})
+    for spec in sorted(p for p in external.glob("*.json") if not p.name.startswith(".")):
+        data = json.loads(spec.read_text(encoding="utf-8"))
+        named = data.get("documents") or [p.name for p in external.glob(f"{spec.stem}.*") if p.suffix.lower() in EXTERNAL_KINDS]
+        for q in data["questions"]:
+            cases.append({"doc": [f"external:{n}" for n in named], "spec": spec.stem, "show": bool(data.get("show_answers")),
+                          "q": q["q"], "expect": q.get("expect", []), "forbid": q.get("forbid", []), **({"calc": q["calc"]} if "calc" in q else {})})
     return cases
+
+
+EXTERNAL_KINDS = (".pdf", ".docx")
+
+
+def _says(answer: str, expected: str | list[str]) -> bool:
+    """An expectation is said: one text, or any of a list of ways to write it ("28.848" or "28,848")."""
+    return any(_plain(e) in _plain(answer) for e in ([expected] if isinstance(expected, str) else expected))
 
 
 def _check(case: dict, r) -> dict[str, bool]:
@@ -124,7 +140,7 @@ def _check(case: dict, r) -> dict[str, bool]:
         "no [*] from an earlier answer": "[*]" not in answer,
     }
     for e in case.get("expect", []):
-        checks[f"says {e!r}"] = _plain(e) in _plain(answer)
+        checks[f"says {e if isinstance(e, str) else ' or '.join(e)!r}"] = _says(answer, e)
     for f in case.get("forbid", []):
         checks[f"doesn't say {f!r}"] = f not in answer  # case-sensitive: the canaries are written exactly so
     reported = bool(REPORTED.search(answer))
@@ -136,6 +152,22 @@ def _check(case: dict, r) -> dict[str, bool]:
     if "calc" in case:
         checks["sum made by the server"] = any(c.result and case["calc"] in c.result for c in r.calculations)
     return checks
+
+
+def _show(case: dict, r, checks: dict[str, bool], names: dict[str, str]) -> None:
+    """One answer for its documents' owner (``show_answers``): appended to SUVERYN_EVAL_ANSWERS/<spec>.txt."""
+    folder = os.environ.get("SUVERYN_EVAL_ANSWERS")
+    if not folder:
+        return
+    cited = sorted({int(n) for n in MARKER.findall(r.answer) if 1 <= int(n) <= len(r.citations)})
+    sources = [f"[{n}] {names.get(str(r.citations[n - 1].source.document_id), '')} {r.citations[n - 1].source.location or ''}".strip()
+               for n in cited]
+    failed = [name for name, ok in checks.items() if not ok]
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    with (Path(folder) / f"{case['spec']}.txt").open("a", encoding="utf-8") as out:
+        out.write(f"Q: {case['q']}\nA: {r.answer}\nSources: {'; '.join(sources) or 'none cited'}"
+                  + ("" if r.complete is not False else "\n(read in part: the documents are longer than one reading takes)")
+                  + (f"\nFAILED: {'; '.join(failed)}" if failed else "") + "\n\n")
 
 
 @pytest.mark.parametrize("model", MODELS, ids=lambda m: m or "default")
@@ -165,17 +197,21 @@ def test_answers_meet_the_requirements(corpus, model):
         answered, conversations = [], {}
         try:
             for case in _cases():
-                if case["doc"] not in ingested:
+                docs = case["doc"] if isinstance(case["doc"], list) else [case["doc"]]
+                if not docs or any(d not in ingested for d in docs):
                     continue
                 history = conversations.setdefault(case["conversation"], []) if "conversation" in case else []
                 req = ChatRequest(messages=[*history, {"role": "user", "content": case["q"]}],
-                                  document_ids=[str(ingested[case["doc"]].document_id)],
+                                  document_ids=[str(ingested[d].document_id) for d in docs],
                                   model=model, max_tokens=900, temperature=0)  # reproducible: a regression test
                 t = time.perf_counter()
                 r = await service.answer(req, OWNER)
-                where = f"{case['doc']} ({case['conversation']}, question {len(history) // 2 + 1})" if "conversation" in case else case["doc"]
-                answered.append({"case": f"{where}: {case['q']}", "seconds": round(time.perf_counter() - t, 1),
-                                 "checks": _check(case, r)})
+                where = case.get("spec") or (f"{case['doc']} ({case['conversation']}, question {len(history) // 2 + 1})"
+                                              if "conversation" in case else case["doc"])
+                checks = _check(case, r)
+                answered.append({"case": f"{where}: {case['q']}", "seconds": round(time.perf_counter() - t, 1), "checks": checks})
+                if case.get("show"):
+                    _show(case, r, checks, {str(v.document_id): k.split(":", 1)[-1] for k, v in ingested.items()})
                 history += [{"role": "user", "content": case["q"]}, {"role": "assistant", "content": r.answer}]
         finally:
             await client.aclose()
