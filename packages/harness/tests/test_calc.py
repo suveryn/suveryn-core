@@ -1,11 +1,7 @@
 import pytest
-from suveryn_harness.calc import (
-    CalcError,
-    CalcRewriter,
-    decimal_style,
-    evaluate,
-    unverified_figures,
-)
+from suveryn_harness.calc import CalcError, CalcRewriter, evaluate
+from suveryn_harness.support import unverified_figures
+from suveryn_harness.values import decimal_style
 
 
 def rewrite(answer: str, source: str, cited_sources: list[str] | None = None):

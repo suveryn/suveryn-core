@@ -90,7 +90,7 @@ class SourceRef(BaseModel):
     document_id: str
     page: int | None = Field(default=None, ge=1, description="1-based page number in the source document")
     location: str | None = Field(default=None, description="Finer position, e.g. 'p. 3-4 · Article 2 - Price', 'Article 2 › Price' or 'Prices!A2:D31'")
-    # How the document writes decimals, read once from its whole text (``calc.decimal_style``): settles a figure that
+    # How the document writes decimals, read once from its whole text (``values.decimal_style``): settles a figure that
     # reads either way in a calculation. None when unknown.
     decimals: Literal["comma", "point", "mixed"] | None = None
 

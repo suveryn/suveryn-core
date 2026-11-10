@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from suveryn_harness import service as service_module
-from suveryn_harness.marking import Meaning, answer_sentences, facts, needs_meaning, sentence_ranges, support_spans, word_value
+from suveryn_harness.marking import Meaning, answer_sentences, facts, needs_meaning, sentence_ranges, support_spans
 from suveryn_harness.schemas import Citation, SourceRef
 from suveryn_harness.service import ChatService
 from suveryn_harness.support import _claims
@@ -61,8 +61,8 @@ def test_facts():
     for text in ["12/03/2021", "12.03.2021", "12/03/21", "2021-03-12", "12 March 2021", "March 12, 2021", "12 maart 2021",
                  "12 mars 2021"]:
         assert values(text)[0] == "d:2021-03-12", text
-    assert [word_value(w) for w in ["twaalf", "eenentwintig", "vingt-deux", "quatre-vingt-dix", "twenty-one"]] == [12, 21, 22, 90, 21]
-    assert [word_value(w) for w in ["een", "un", "one", "self-employed"]] == [None] * 4
+    assert [values(w) for w in ["twaalf", "eenentwintig", "vingt-deux", "quatre-vingt-dix", "twenty-one"]] == [["n:12"], ["n:21"], ["n:22"], ["n:90"], ["n:21"]]
+    assert [values(w) for w in ["een", "un", "one", "self-employed"]] == [[]] * 4
     assert values("vingt et un") == ["n:21"]
 
 

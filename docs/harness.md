@@ -26,13 +26,24 @@ question + earlier turns + chosen documents
    │
    ▼
 4. the checks ───────── calculations done by the server                                             calc.py
-   │                    figures that are in no passage                                              calc.py
+   │                    figures that are in no passage                                              support.py
    │                    each citation against its own passage                                       support.py
    │                    what each cited passage says for its claim, to mark                         marking.py
    │                    passages that address an AI                                                  guard.py
    ▼
 answer with [n] markers, its passages, and what the reader should check
 ```
+
+Every amount, number and date the checks, the marking and a playbook's facts and checks look at is read by one
+reader, [`values.py`](../packages/harness/src/suveryn_harness/values.py) (decision of 10 November 2026): "1,2
+miljoen", "zesentwintigduizend achthonderd euro", "2021-03-12", "le douze mai deux mille quatorze" mean one
+thing everywhere, so the citation check and the marking can't disagree about the same text (they read 16 of 31
+common forms differently before). [`tests/reading_cases.json`](../packages/harness/tests/reading_cases.json)
+says what each form means. A figure with three digits after a lone separator ("412,500", "1.250") reads
+either way: the document's way of writing decimals decides, and a document that doesn't say reads it as
+thousands. The modules import one way only (`tests/test_layers.py`): `values` uses nothing of the harness;
+the calculator, the checks, the marking and the playbook's facts sit above it. The calculator keeps its own,
+stricter reading of the figures in a calculation: it refuses what it can't compute unambiguously.
 
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
@@ -92,12 +103,12 @@ tested:
   calculates. Each `[[calc: …]]` is computed exactly by the server and replaced by
   `figures = result` as the answer streams. A figure written ambiguously (`1.250` could be either
   style) is refused rather than guessed, unless the documents that write it settle it. Each document's
-  way of writing decimals is read once from its whole text (`calc.decimal_style`: "comma", "point",
+  way of writing decimals is read once from its whole text (`values.decimal_style`: "comma", "point",
   "mixed", or unknown; only amounts and percentages count, never a clause number or a date) and
   travels with its passages (`SourceRef.decimals`). The figure must be in a passage; the documents
   writing it must agree; a "mixed" document says nothing either way. The note under the answer says
   how such figures were read (`Calculation.read_as`). Decision of 10 November 2026.
-- **Figures in no passage** (`unverified_figures`). A figure in the answer that is in none of the
+- **Figures in no passage** (`unverified_figures` in `support.py`). A figure in the answer that is in none of the
   passages, is no calculation's result and wasn't in the question is listed; the interface
   underlines it. The model worked it out or made it up, which it must never do, so the answer is
   asked for once more, told which figures and that a calculation is written `[[calc: …]]`; the

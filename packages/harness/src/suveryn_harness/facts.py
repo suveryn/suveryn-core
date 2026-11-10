@@ -30,9 +30,9 @@ from suveryn_playbooks.paths import MAX_ENTRIES, root
 
 
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
-from .calc import source_decimal_separator, unverified_figures
-from .support import citation_issues
-from .values import as_amount, as_date, as_number, numbers_in
+from .marking import cited_style
+from .support import _dates, _figures, citation_issues, unverified_figures
+from .values import Style, as_amount, as_date, as_number, numbers_in
 
 MAX_VALUE = 2000        # characters of one fact's value, as read or as confirmed
 READ_TOKENS = 6144      # the JSON: a dozen values with their sources, with room for a list of parties
@@ -103,12 +103,12 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
         return None  # a JSON object, but not the one asked for
     citations = response.citations
     source = "\n".join(c.text for c in citations)
-    sep = source_decimal_separator(source)
+    style = cited_style(citations)
     out: list[RunFact] = []
     for f in facts:
         raw = data.get(f.id)
         if f.kind != "list":
-            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, sep, f.options))
+            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, style, f.options))
             continue
         entries = raw if isinstance(raw, list) else []
         if not entries:
@@ -118,9 +118,9 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
             if f.fields:
                 record = item if isinstance(item, dict) else {}
                 for x in f.fields:
-                    out.append(_leaf(entry(f.id, i, x.id), x.kind, record.get(x.id), citations, filenames, source, sep))
+                    out.append(_leaf(entry(f.id, i, x.id), x.kind, record.get(x.id), citations, filenames, source, style))
             else:
-                out.append(_leaf(entry(f.id, i), f.item_kind, item, citations, filenames, source, sep))
+                out.append(_leaf(entry(f.id, i), f.item_kind, item, citations, filenames, source, style))
     return work_out_terms(playbook, out)
 
 
@@ -167,7 +167,7 @@ def _json_object(answer: str) -> dict | None:
     return None
 
 
-def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filenames: dict[str, str], source: str, sep: str,
+def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filenames: dict[str, str], source: str, style: Style,
           options: tuple[str, ...] = ()) -> RunFact:
     """One value as the model gave it -> the fact, cited and checked. A choice is one of its options, as the
     schema holds the model to; anything else (a server without grammar support) is not found."""
@@ -192,10 +192,10 @@ def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filename
     if cited:
         claim = value + " " + "".join(f"[{n}]" for n in numbers)
         issues = [i.item for i in citation_issues(claim, citations, [])]
-    issues += [u for u in unverified_figures(value, [], source) if u not in issues]
+    issues += [u for u in unverified_figures(value, [], source, style=style) if u not in issues]
     needs = None
     if kind in ("amount", "date", "number"):
-        needs, issue = _by_meaning(kind, value, [c.text for c in cited], sep)
+        needs, issue = _by_meaning(kind, value, [c.text for c in cited], style)
         if issue and not any(i in value for i in issues):  # unless the check already named its figure or date
             issues.append(issue)
     # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
@@ -203,14 +203,13 @@ def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filename
                    source="document", needs=needs)
 
 
-def _by_meaning(kind: str, value: str, passages: list[str], sep: str) -> tuple[str | None, str | None]:
+def _by_meaning(kind: str, value: str, passages: list[str], style: Style) -> tuple[str | None, str | None]:
     """A fact of kind amount, date or number compared by what it means, not how it is spelled (decision,
     1 November 2026): "26.800 euro" against "zesentwintigduizend achthonderd euro" agrees; "28.600 euro"
     doesn't (an issue, the value as written); a value that gives no date, amount or number at all ("vier
     maanden na de ondertekening") needs a person to work it out (``needs``). Without cited passages
     nothing is compared. A number is any figure, short ones included ("3 aandelen"), which the chat's
     figure check skips as too ambiguous; here the playbook asked for a count."""
-    from .support import _dates, _figures
     if kind == "date":
         d = as_date(value)
         if d is None:
@@ -219,16 +218,16 @@ def _by_meaning(kind: str, value: str, passages: list[str], sep: str) -> tuple[s
             return None, value
         return None, None
     if kind == "number":
-        n = as_number(value, sep)
+        n = as_number(value, style)
         if n is None:
             return "not_a_number", None
-        if passages and not any(n in numbers_in(p, sep) for p in passages):
+        if passages and not any(n in numbers_in(p, style) for p in passages):
             return None, value
         return None, None
-    a = as_amount(value, sep)
+    a = as_amount(value, style)
     if a is None:
         return "not_an_amount", None
-    if passages and not any(a in _figures(p, sep) for p in passages):
+    if passages and not any(a in _figures(p, style) for p in passages):
         return None, value
     return None, None
 

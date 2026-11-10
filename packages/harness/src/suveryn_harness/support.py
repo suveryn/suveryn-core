@@ -1,15 +1,16 @@
-"""Does the cited source say it? A check of every citation marker against its own passage (suveryn-tracker#11).
+"""Does the source say it? Two checks of an answer against its passages, read through ``values`` (the one reader of
+amounts, numbers and dates, so a check and the source marking can't disagree).
 
-``unverified_figures`` (calc.py) already flags figures that are in *no* passage. This module checks
-the citations themselves: for each claim in the answer, the concrete facts in it must be in the
+``unverified_figures`` flags figures that are in *no* passage and no calculation made (suveryn-tracker#11).
+``citation_issues`` checks the citations themselves: for each claim in the answer, the concrete facts in it must be in the
 passages it cites, not merely somewhere in the documents. A claim is the text from the previous
 marker group (or the start of the sentence) up to a marker group such as ``[2]`` or ``[1][3]``.
 
 Facts checked, deterministically and without another model call:
-- **figures**: amounts and other numbers with a separator or of 5+ digits (as ``unverified_figures``),
-  compared by value ("410.000" matches "410.000,00"); figures that are a calculation's result, or in
-  no passage at all (already reported), are skipped;
-- **dates**: numeric (12/03/2021) and written (12 maart 2021, 12 mars 2021, 12 March 2021), compared as
+- **figures**: amounts and other numbers with a separator, of 5+ digits, with a scale word ("1,2 miljoen") or
+  in words from a thousand (as ``unverified_figures``), compared by value ("410.000" matches "410.000,00");
+  figures that are a calculation's result, or in no passage at all (already reported), are skipped;
+- **dates**: however written (12/03/2021, 2021-03-12, 12 maart 2021, March 12, 2021, in words), compared as
   day, month and year;
 - **years** on their own (1800-2099): a cited year must be in the cited passage, also inside a date
   there ("1989" in "12 maart 1989"). Unlike other four-digit numbers (article numbers, counts), a year
@@ -26,60 +27,81 @@ whose words are all in the passage but whose meaning isn't ("mag niet" for "mag"
 """
 
 import re
-import unicodedata
 from decimal import Decimal
 
-from .calc import DATE, TEXT_FIGURE, _value, source_decimal_separator
-from .marking import answer_sentences
+from .marking import answer_sentences, cited_style
 from .schemas import Calculation, Citation, CitationIssue
-from .values import amounts_in, dates_in, join_groups
+from .values import MONTHS, Found, Style, decimal_style, fold, read
 
 GROUP = re.compile(r"(?:\[\d{1,2}\])+")
 BOLD = re.compile(r"\*\*[^*]+\*\*")
 ONE = re.compile(r"\[(\d{1,2})\]")
 WORD = re.compile(r"[^\W\d_][\w'’-]*")
-MONTHS = {m: i for i, names in enumerate([
-    ("januari", "janvier", "january", "jan"), ("februari", "février", "fevrier", "february", "feb"),
-    ("maart", "mars", "march", "mrt"), ("april", "avril", "apr"), ("mei", "mai", "may"), ("juni", "juin", "june"),
-    ("juli", "juillet", "july"), ("augustus", "août", "aout", "august", "aug"),
-    ("september", "septembre", "sep", "sept"), ("oktober", "octobre", "october", "okt", "oct"),
-    ("november", "novembre", "nov"), ("december", "décembre", "decembre", "dec")], 1) for m in names}
-WRITTEN_DATE = re.compile(r"\b(\d{1,2})(?:e|er|ste|de)?\s+([^\W\d_]{3,})\.?\s+(\d{4})\b", re.IGNORECASE)
 MIN_NAME = 4
 YEAR = re.compile(r"(?<![\d.,/-])(?:1[89]|20)\d\d(?![\d.,/-]\d)")
 
 
-def _fold(text: str) -> str:
-    """Lower case without accents, for comparing words."""
-    return "".join(c for c in unicodedata.normalize("NFKD", text.casefold()) if not unicodedata.combining(c))
-
-
 def _dates(text: str) -> set[tuple[int, int, int]]:
-    out = set(dates_in(text))  # also in words: "twaalf mei tweeduizend veertien" (VM regression 03c8f74, finding 5)
-    for m in DATE.finditer(text):
-        d, mo, y = (int(x) for x in re.split(r"[./-]", m.group(0)))
-        out.add((d, mo, y + 2000 if y < 100 else y))
-    for m in WRITTEN_DATE.finditer(text):
-        if (mo := MONTHS.get(_fold(m.group(2)))) is not None:
-            out.add((int(m.group(1)), mo, int(m.group(3))))
+    return {f.value for f in read(text) if f.kind == "date"}
+
+
+def _worth_checking(f: Found, text: str) -> bool:
+    """A figure worth checking: with a separator or a scale word ("410.000", "6.507,11", "12,5", "1,2 miljoen"), of
+    five digits or more, or written in words from a thousand or followed by euro. Plain numbers up to four digits
+    (plot 1, page 57, the year 2026, a count) are left alone: they are rarely amounts, and flagging them would bury
+    the real warnings."""
+    if f.kind != "number":
+        return False
+    if f.words:
+        return f.value >= 1000 or f.currency
+    return bool(re.search(r"[.,\s\u00a0\u202f]", text[f.start:f.end])) or f.value >= 10000
+
+
+def _figures(text: str, style: Style = None) -> dict[Decimal, str]:
+    """Figures worth checking, by value, as written (dates aren't figures)."""
+    out: dict[Decimal, str] = {}
+    for f in read(text, style):
+        if _worth_checking(f, text):
+            out.setdefault(f.value, text[f.start:f.end])
     return out
 
 
-def _figures(text: str, sep: str) -> dict[Decimal, str]:
-    """Figures worth checking, by value, as written: "412 500" as one figure, and amounts written out in words
-    (VM regression 03c8f74, finding 5). Dates are taken out first."""
-    out: dict[Decimal, str] = {v: str(v) for v in amounts_in(text)}
-    text = WRITTEN_DATE.sub(" ", DATE.sub(" ", join_groups(text)))
-    for f in TEXT_FIGURE.findall(text):
-        if not re.search(r"[.,  ]", f) and len(f) < 5:
-            continue  # article numbers, counts, years: too ambiguous to check
-        if (v := _value(f, sep)) is not None:
-            out.setdefault(v, f)
+def _years(text: str) -> set[str]:
+    """Years on their own: those outside a date."""
+    for f in reversed([f for f in read(text) if f.kind in ("date", "month")]):
+        text = text[:f.start] + " " * (f.end - f.start) + text[f.end:]
+    return set(YEAR.findall(text))
+
+
+MARKERS = re.compile(r"\[\d{1,2}\]")
+
+
+def unverified_figures(answer: str, calculations: list[Calculation], source: str, asked: str = "", style: Style = None) -> list[str]:
+    """Figures in the answer text that are neither in the passages nor computed by the system.
+
+    The model must not calculate itself (it writes ``[[calc: …]]``); a figure that appears in no
+    passage and is no calculation's result is one it worked out or made up, and the reader must
+    check it. Values are compared, not text: "410.000" matches "410.000,00" in a passage. Figures
+    the user wrote in the question (``asked``) count as given. Shown calculations ("a + b = c") and
+    citation markers are skipped. Returns the figures as the answer writes them, in order, once each.
+    """
+    style = style or decimal_style(source)
+    known = {f.value for text in (source, asked, *(c.result or "" for c in calculations))
+             for f in read(text, style) if f.kind == "number"}
+    for c in calculations:
+        shown = f"{c.expression} = {c.result}" if c.result is not None else f"[calculation not possible: {c.expression}]"
+        answer = answer.replace(shown, " ")
+    answer = MARKERS.sub(" ", answer)
+    out: list[str] = []
+    for f in read(answer, style):
+        written = answer[f.start:f.end]
+        if _worth_checking(f, answer) and f.value not in known and written not in out:
+            out.append(written)
     return out
 
 
 def _words(text: str) -> set[str]:
-    return {_fold(w) for w in WORD.findall(text)}
+    return {fold(w) for w in WORD.findall(text)}
 
 
 def _names(claim: str, sentence_start: bool, lowercase_in_sources: set[str]) -> list[tuple[str, bool]]:
@@ -88,16 +110,16 @@ def _names(claim: str, sentence_start: bool, lowercase_in_sources: set[str]) -> 
     out: list[tuple[str, bool]] = []
     for i, m in enumerate(WORD.finditer(claim)):
         w = m.group(0)
-        if len(w) < MIN_NAME or not w[0].isupper() or _fold(w) in MONTHS:
+        if len(w) < MIN_NAME or not w[0].isupper() or fold(w) in MONTHS:
             continue
-        if _fold(w) not in lowercase_in_sources and w not in (x for x, _ in out):
+        if fold(w) not in lowercase_in_sources and w not in (x for x, _ in out):
             out.append((w, i == 0 and sentence_start))
     return out
 
 
 def _near(word: str, vocabulary: set[str]) -> str | None:
     """A word in the passages one edit away (two for long words), with the same first letter."""
-    w = _fold(word)
+    w = fold(word)
     limit = 1 if len(w) < 9 else 2
     for v in vocabulary:
         if v[:1] == w[:1] and abs(len(v) - len(w)) <= limit and v != w and _distance(v, w, limit) <= limit:
@@ -137,14 +159,14 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
         return []
     texts = [c.text for c in citations]
     everything = "\n".join(texts)
-    sep = source_decimal_separator(everything)
-    computed = {v for c in calculations if c.result for v in _figures(c.result, sep)}
-    figures = [set(_figures(t, sep)) for t in texts]
+    style = cited_style(citations)
+    computed = {v for c in calculations if c.result for v in _figures(c.result, style)}
+    figures = [set(_figures(t, style)) for t in texts]
     dates = [_dates(t) for t in texts]
     words = [_words(t) for t in texts]
     years = [set(YEAR.findall(t)) for t in texts]
     vocabulary = set().union(*words)
-    lowercase = {_fold(w) for w in WORD.findall(everything) if w[0].islower()}
+    lowercase = {fold(w) for w in WORD.findall(everything) if w[0].islower()}
     for c in calculations:  # the shown "a + b = c" isn't a claim about the sources
         if c.result is not None:
             answer = answer.replace(f"{c.expression} = {c.result}", " ")
@@ -154,12 +176,12 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
         if not cited:
             continue
         found: list[tuple[str, list[int], str | None]] = []
-        for value, written in _figures(claim, sep).items():
+        for value, written in _figures(claim, style).items():
             if value in computed or not any(value in f for f in figures):
                 continue  # a calculation's result, or in no passage (unverified_figures reports those)
             if not _in_cited(figures, value, cited):
                 found.append((written, _elsewhere(figures, value, cited), None))
-        for year in sorted(set(YEAR.findall(WRITTEN_DATE.sub(" ", DATE.sub(" ", claim))))):
+        for year in sorted(_years(claim)):
             if not _in_cited(years, year, cited):
                 found.append((year, _elsewhere(years, year, cited), None))
         for d in _dates(claim):
@@ -168,13 +190,13 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
         # Bold text is the model's own label ("**Kettingbeding en Bodemrapport**: …"), not a fact from the
         # source: its words aren't checked as names (figures and dates in bold still are). Seen on the pod.
         for name, opens_sentence in _names(BOLD.sub(" ", claim), sentence_start, lowercase):
-            key = _fold(name)
+            key = fold(name)
             if _in_cited(words, key, cited):
                 continue
             if key in vocabulary:
                 found.append((name, _elsewhere(words, key, cited), None))
             elif not opens_sentence and (near := _near(name, vocabulary)) is not None:
-                spelled = next(w for w in WORD.findall(everything) if _fold(w) == near)
+                spelled = next(w for w in WORD.findall(everything) if fold(w) == near)
                 found.append((name, [n for n in range(1, len(texts) + 1) if near in words[n - 1]], spelled))
         if not found:
             continue
@@ -196,10 +218,4 @@ def _elsewhere(per_source: list, item, cited: list[int]) -> list[int]:
 
 
 def _written_date(claim: str, d: tuple[int, int, int]) -> str:
-    for m in DATE.finditer(claim):
-        if _dates(m.group(0)) == {d}:
-            return m.group(0)
-    for m in WRITTEN_DATE.finditer(claim):
-        if _dates(m.group(0)) == {d}:
-            return m.group(0)
-    return f"{d[0]}/{d[1]}/{d[2]}"
+    return next((claim[f.start:f.end] for f in read(claim) if f.kind == "date" and f.value == d), f"{d[0]}/{d[1]}/{d[2]}")
