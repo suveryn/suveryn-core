@@ -1,0 +1,303 @@
+{
+ "_about": "The planted-error benchmark's correct answers (check_benchmark.py): each answer says only what its passages say, some in another notation than the passage (a correct answer must never be flagged). Errors are planted by rule. Fictional text only.",
+ "cases": [
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De koopprijs bedraagt 412.500,00 EUR, te betalen bij het verlijden van de akte.",
+     "decimals": "comma"
+    },
+    {
+     "text": "De koper, de heer Jan Peeters, betaalt een voorschot van 41.250,00 EUR aan de notaris.",
+     "decimals": "comma"
+    }
+   ],
+   "answer": "De koopprijs bedraagt 412.500,00 EUR [1]. De koper Jan Peeters betaalt een voorschot van 41.250,00 EUR [2].",
+   "name": "Peeters"
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De overeenkomst werd ondertekend op 12 oktober 2026 te Gent.",
+     "decimals": null
+    },
+    {
+     "text": "De authentieke akte wordt verleden uiterlijk op 12 februari 2027.",
+     "decimals": null
+    }
+   ],
+   "answer": "De overeenkomst is ondertekend op 12 oktober 2026 [1] en de akte wordt uiterlijk op 12 februari 2027 verleden [2]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De rente bedraagt 6 % per jaar op het openstaande saldo.",
+     "decimals": null
+    }
+   ],
+   "answer": "De rente bedraagt 6 % per jaar [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De koper mag de overeenkomst niet vroegtijdig beëindigen.",
+     "decimals": null
+    }
+   ],
+   "answer": "De koper mag de overeenkomst niet vroegtijdig beëindigen [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De verkoper mag het goed tot het verlijden van de akte blijven bewonen.",
+     "decimals": null
+    }
+   ],
+   "answer": "De verkoper mag het goed tot de akte blijven bewonen [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Er zijn 2 kopers: de heer Peeters en mevrouw Claes.",
+     "decimals": null
+    }
+   ],
+   "answer": "Er zijn 2 kopers [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Artikel 9. De koper betaalt de kosten van de akte.",
+     "decimals": null
+    }
+   ],
+   "answer": "Volgens artikel 9 betaalt de koper de kosten van de akte [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De verkoper moet het goed vrij van huur leveren op 01/03/2027.",
+     "decimals": null
+    }
+   ],
+   "answer": "De verkoper moet het goed vrij van huur leveren op 01/03/2027 [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Het perceel heeft een oppervlakte van 12.500 m² en is gekadastreerd sectie B nummer 114.",
+     "decimals": null
+    },
+    {
+     "text": "De prijs bedraagt € 385.000.",
+     "decimals": null
+    }
+   ],
+   "answer": "Het perceel is 12.500 m² groot [1] en de prijs bedraagt € 385.000 [2]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De hypotheek bedraagt 1 250 000,00 EUR ten gunste van de bank.",
+     "decimals": "comma"
+    }
+   ],
+   "answer": "De hypotheek bedraagt 1.250.000 EUR [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Het voorschot bedraagt zesentwintigduizend achthonderd euro.",
+     "decimals": null
+    }
+   ],
+   "answer": "Het voorschot bedraagt 26.800 euro [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De opschortende voorwaarde van financiering vervalt binnen 6 weken na de ondertekening.",
+     "decimals": null
+    }
+   ],
+   "answer": "De financieringsvoorwaarde vervalt binnen 6 weken na de ondertekening [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De heer Van de Plas is eigenaar sinds 14 april 1998.",
+     "decimals": null
+    }
+   ],
+   "answer": "Van de Plas is eigenaar sinds 14 april 1998 [1].",
+   "name": "Plas"
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Le prix de vente s'élève à 385.000,00 EUR, payable à la signature de l'acte.",
+     "decimals": "comma"
+    },
+    {
+     "text": "L'acheteur, Monsieur Luc Dubois, verse un acompte de 38.500,00 EUR.",
+     "decimals": "comma"
+    }
+   ],
+   "answer": "Le prix de vente s'élève à 385.000,00 EUR [1]. L'acheteur Luc Dubois verse un acompte de 38.500,00 EUR [2].",
+   "name": "Dubois"
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Le compromis a été signé le 3 mars 2026 à Namur.",
+     "decimals": null
+    },
+    {
+     "text": "L'acte authentique sera passé au plus tard le 3 juillet 2026.",
+     "decimals": null
+    }
+   ],
+   "answer": "Le compromis a été signé le 3 mars 2026 [1] et l'acte sera passé au plus tard le 3 juillet 2026 [2]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Le vendeur ne peut pas résilier la convention avant le 15 mars 2027.",
+     "decimals": null
+    }
+   ],
+   "answer": "Le vendeur ne peut pas résilier la convention avant le 15 mars 2027 [1]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "L'acheteur doit verser le solde du prix à la signature de l'acte.",
+     "decimals": null
+    }
+   ],
+   "answer": "L'acheteur doit verser le solde à la signature de l'acte [1]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Le taux d'intérêt est de 5 % l'an.",
+     "decimals": null
+    }
+   ],
+   "answer": "Le taux d'intérêt est de 5 % l'an [1]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "La société compte 3 fondateurs, chacun titulaire de 100 actions.",
+     "decimals": null
+    }
+   ],
+   "answer": "La société compte 3 fondateurs [1]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Le capital s'élève à deux cent mille euros, entièrement libéré.",
+     "decimals": null
+    }
+   ],
+   "answer": "Le capital s'élève à 200.000 euros [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "The purchase price is 1,275,000.00 USD, payable at closing.",
+     "decimals": "point"
+    },
+    {
+     "text": "The buyer, Mr John Carter, pays a deposit of 127,500.00 USD.",
+     "decimals": "point"
+    }
+   ],
+   "answer": "The purchase price is 1,275,000.00 USD [1]. The buyer John Carter pays a deposit of 127,500.00 USD [2].",
+   "name": "Carter"
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "The agreement was signed on March 12, 2021 in London.",
+     "decimals": null
+    }
+   ],
+   "answer": "The agreement was signed on 12 March 2021 [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "The seller may not assign this agreement without consent.",
+     "decimals": null
+    }
+   ],
+   "answer": "The seller may not assign this agreement without consent [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "The buyer must insure the property from the day of signing.",
+     "decimals": null
+    }
+   ],
+   "answer": "The buyer must insure the property from the signing [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "Interest accrues at 4 % per year.",
+     "decimals": null
+    }
+   ],
+   "answer": "Interest accrues at 4 % per year [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "The company has 2 directors and 150 shares.",
+     "decimals": null
+    }
+   ],
+   "answer": "The company has 2 directors [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "The loan amounts to 1.2 million EUR.",
+     "decimals": null
+    }
+   ],
+   "answer": "The loan amounts to EUR 1,200,000 [1]."
+  }
+ ]
+}

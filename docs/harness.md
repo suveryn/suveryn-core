@@ -48,6 +48,16 @@ says whether a number is a percentage ("10%", "tien procent") and whether the te
 ("ongeveer", "circa", "environ", "about"); what that means is decided where it is used (a playbook's amount goes
 under *Check*), not by the reader.
 
+**How good the checks are is measured** (10 November 2026), not judged from the last finding. The planted-error
+benchmark ([`tests/check_benchmark.py`](../packages/harness/tests/check_benchmark.py)) takes correct answers on
+fictional passages (`check_cases.json`, some writing a figure or a date in another form than the passage), plants
+one kind of mistake at a time by rule, and counts what the checks report. A test holds the checks to the recorded
+result (`check_benchmark.json`): a change may catch more, never fewer, and may never flag more correct answers. As
+first recorded: no correct answer flagged; every changed amount, date, misspelled name and wrong source caught (24
+of 24); none of a changed percentage, small number or article number, of money told as a surface, of a "not" taken
+out or put in, or of the other party (0 of 35). Those are the checks' known gaps, in numbers: what a number
+measures, what a sentence means, and who does what.
+
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
 ## 1. Passages
