@@ -426,13 +426,56 @@ def test_a_term_is_worked_out_from_the_date_it_counts_from_and_says_how():
     assert facts["agreement_date"].needs is None and facts["agreement_date"].computed is None
 
 
-def test_a_term_without_a_date_to_count_from_or_in_working_days_stays_as_written():
+def test_a_term_without_a_date_to_count_from_stays_as_written():
     passages = [*PASSAGES, TERM]
     no_base = {**ANSWER, "agreement_date": leaf(None), "deed_deadline": leaf("binnen vier maanden na de ondertekening", 3)}
     deadline = {f.id: f for f in read_facts(DEED_INTAKE, response(no_base, passages), {})}["deed_deadline"]
     assert (deadline.value, deadline.needs, deadline.computed) == ("binnen vier maanden na de ondertekening", "not_a_date", None)
+
+
+def test_working_days_are_counted_on_the_packs_calendar_and_only_on_it():
+    """Decision of 10 November 2026: working days differ per country, so they are the pack's (be-notary's
+    calendar.yaml). 3 October 2026 (a Saturday) plus fifteen working days is Friday 23 October; the note names the
+    calendar. A pack without one leaves the term to a person."""
+    from dataclasses import replace
+    passages = [*PASSAGES, TERM]
     working = {**ANSWER, "deed_deadline": leaf("binnen vijftien werkdagen na de ondertekening", 3)}
-    assert {f.id: f for f in read_facts(DEED_INTAKE, response(working, passages), {})}["deed_deadline"].needs == "not_a_date"
+    deadline = {f.id: f for f in read_facts(DEED_INTAKE, response(working, passages), {})}["deed_deadline"]
+    assert (deadline.value, deadline.needs) == ("23 oktober 2026", "computed")
+    assert deadline.computed["unit"] == "workday" and deadline.computed["calendar"]["nl"] == "maandag tot vrijdag, Belgische feestdagen"
+    elsewhere = replace(DEED_INTAKE, calendar=None)
+    assert {f.id: f for f in read_facts(elsewhere, response(working, passages), {})}["deed_deadline"].needs == "not_a_date"
+
+
+@pytest.mark.parametrize("base, days, expect", [
+    ((23, 12, 2026), 10, "8 januari 2027"),    # Christmas and New Year are no working days
+    ((25, 3, 2027), 3, "31 maart 2027"),        # nor Easter Monday (28 March 2027 is Easter)
+    ((3, 5, 2027), 3, "7 mei 2027"),            # nor Ascension (Thursday 6 May 2027)
+    ((10, 11, 2026), 1, "12 november 2026"),    # nor Armistice
+    ((8, 1, 2027), -5, "31 december 2026"),    # and back ("vijf werkdagen voor"), over New Year
+])
+def test_working_days_skip_the_calendars_holidays(base, days, expect):
+    from suveryn_harness.terms import work_out
+    term = f"{abs(days)} werkdagen {'voor de akte' if days < 0 else 'na de ondertekening'}"
+    assert work_out(term, base, DEED_INTAKE.calendar)[0] == expect
+
+
+def test_an_amount_written_as_a_share_is_worked_out_from_the_amount_it_is_a_share_of():
+    """Deed intake: "een voorschot van tien procent van de koopprijs" is 10% of the price, worked out, written as the
+    price is written, and to check; an amount with more than a percentage in it is left to a person."""
+    answer = {**ANSWER, "deposit": leaf("tien procent van de koopprijs", 2)}
+    deposit = {f.id: f for f in read_facts(DEED_INTAKE, response(answer, PASSAGES), {})}["deposit"]
+    assert (deposit.value, deposit.needs) == ("EUR 41.250,00", "computed")
+    assert deposit.computed == {"written": "tien procent van de koopprijs", "from": "price", "kind": "share", "percent": "10",
+                                "of": "412500.00", "amount": "41250.00"}
+    vague = {**ANSWER, "deposit": leaf("10% of 5% naargelang de financiering", 2)}
+    assert {f.id: f for f in read_facts(DEED_INTAKE, response(vague, PASSAGES), {})}["deposit"].needs == "not_an_amount"
+
+
+def test_an_amount_the_document_gives_as_approximate_goes_under_check():
+    from suveryn_harness.facts import _by_meaning
+    assert _by_meaning("amount", "ongeveer € 450.000", ["Een prijs van ongeveer € 450.000."], "comma") == ("approximate", None)
+    assert _by_meaning("amount", "€ 450.000", ["Een prijs van € 450.000."], "comma") == (None, None)
 
 
 @pytest.mark.parametrize("written, base, expect", [

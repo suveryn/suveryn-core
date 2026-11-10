@@ -1,0 +1,13 @@
+# The working days of the be-notary pack: what "werkdagen", "jours ouvrables" and "working days" in a Belgian deed
+# count, for a term the playbook works out (docs/design/playbooks.md, "Working days"). Monday to Friday, without the
+# national public holidays (Wet van 4 januari 1974 / Loi du 4 janvier 1974): New Year, Easter Monday, Labour Day,
+# Ascension, Whit Monday, the national holiday, the Assumption, All Saints, Armistice, Christmas. The regional
+# holidays (11 July, 27 September) and a Saturday as a working day under the Judicial Code (art. 52) are not counted:
+# to be confirmed by a notary. The note under every date worked out names this calendar, so it can be checked.
+name:
+  en: Monday to Friday, Belgian public holidays
+  nl: maandag tot vrijdag, Belgische feestdagen
+  fr: du lundi au vendredi, jours fériés belges
+workdays: [mon, tue, wed, thu, fri]
+fixed: ["01-01", "05-01", "07-21", "08-15", "11-01", "11-11", "12-25"]
+after_easter: [1, 39, 50]

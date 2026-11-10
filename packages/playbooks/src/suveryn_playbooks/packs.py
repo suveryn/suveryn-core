@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 from ._model import Playbook
-from .manifest import ManifestError, load
+from .manifest import CALENDAR_FILE, ManifestError, load
 
 ENV = "SUVERYN_PACKS_DIR"
 
@@ -38,7 +38,7 @@ def load_dir(path: Path, taken: tuple[Playbook, ...] = ()) -> tuple[Playbook, ..
     if not path.is_dir():
         raise ManifestError(f"{path}: not a directory of packs")
     for pack_dir in sorted(d for d in path.iterdir() if d.is_dir() and not d.name.startswith(".")):
-        manifests = sorted(pack_dir.glob("*.yaml"))
+        manifests = sorted(p for p in pack_dir.glob("*.yaml") if p.name != CALENDAR_FILE)
         if not manifests:
             continue
         for m in manifests:

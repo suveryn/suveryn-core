@@ -32,7 +32,7 @@ from suveryn_playbooks.paths import MAX_ENTRIES, root
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
 from .marking import cited_style
 from .support import _dates, _figures, citation_issues, unverified_figures
-from .values import Style, as_amount, as_date, as_number, numbers_in
+from .values import Style, as_date, as_number, first_amount, numbers_in
 
 MAX_VALUE = 2000        # characters of one fact's value, as read or as confirmed
 READ_TOKENS = 6144      # the JSON: a dozen values with their sources, with room for a list of parties
@@ -70,11 +70,13 @@ class RunFact(BaseModel):
     at: datetime | None = None           # for a person's value: when it was given
     # A date, an amount or a number the value doesn't give as one ("uiterlijk vier maanden na de ondertekening"): a
     # person works it out and checks it (``not_a_date``, ``not_an_amount``, ``not_a_number``; decision, 1 November
-    # 2026: *Kijk na* by meaning).
+    # 2026: *Kijk na* by meaning); an amount the document gives as approximate ("ongeveer € 450.000": ``approximate``).
     needs: str | None = None
-    # A term worked out from the date it counts from (``terms``; board P01): ``needs`` is "computed", ``value`` the date
-    # as worked out, and this how: {"written": the term as the agreement writes it, "from": the fact counted from,
-    # "base", "date" (ISO), "amount", "unit" (day, week, month, year), "direction" (after, before)}.
+    # A value worked out from another fact (``terms``; board P01): ``needs`` is "computed", ``value`` as worked out, and
+    # this how. A term: {"written": the term as the agreement writes it, "from": the fact counted from, "base", "date"
+    # (ISO), "amount", "unit" (day, week, month, year, workday), "direction" (after, before), and for working days
+    # "calendar" (its name per language)}. A share: {"written", "from": the amount it is a share of, "kind": "share",
+    # "percent", "of", "amount" (decimal strings)}.
     computed: dict | None = None
 
 
@@ -125,22 +127,28 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
 
 
 def work_out_terms(playbook: Playbook, facts: list[RunFact]) -> list[RunFact]:
-    """A date written as a term ("binnen vier maanden na de ondertekening") worked out from the date the playbook
-    says it counts from (``counts_from``), when that date was read as a date (``terms``; board P01). The fact stays
-    under *Check* (``needs: computed``) until a person confirms it; without a date to count from, or a term this
-    reads with certainty, it stays as written (``not_a_date``)."""
+    """Values worked out from another fact (``terms``; board P01): a date written as a term ("binnen vier maanden na
+    de ondertekening", "binnen tien werkdagen na …", on the pack's calendar) from the date the playbook says it counts
+    from (``counts_from``), and an amount written as a percentage ("tien procent van de koopprijs") of the amount it
+    is a share of (``share_of``), when that fact was read as such. The fact stays under *Check* (``needs: computed``)
+    until a person confirms it; otherwise it stays as written (``not_a_date``, ``not_an_amount``)."""
+    from .terms import work_out, work_out_share
     by_id = {f.id: f for f in facts}
     out = []
     for f in facts:
         spec = playbook.leaf(f.id)
-        base = by_id.get(spec.counts_from) if spec is not None and spec.counts_from else None
-        if f.needs == "not_a_date" and base is not None and base.found and base.needs is None:
-            from .terms import work_out
-            done = work_out(f.value, as_date(base.value))
-            if done is not None:
-                value, how = done
-                f = f.model_copy(update={"value": value, "needs": "computed",
-                                         "computed": {"written": f.value, "from": spec.counts_from, **how}})
+        done, source = None, ""
+        if spec is not None and spec.counts_from and f.needs == "not_a_date":
+            base = by_id.get(spec.counts_from)
+            if base is not None and base.found and base.needs is None:
+                done, source = work_out(f.value, as_date(base.value), playbook.calendar), spec.counts_from
+        elif spec is not None and spec.share_of and f.needs == "not_an_amount":
+            base = by_id.get(spec.share_of)
+            if base is not None and base.found and base.needs is None:
+                done, source = work_out_share(f.value, base.value), spec.share_of
+        if done is not None:
+            value, how = done
+            f = f.model_copy(update={"value": value, "needs": "computed", "computed": {"written": f.value, "from": source, **how}})
         out.append(f)
     return out
 
@@ -224,12 +232,13 @@ def _by_meaning(kind: str, value: str, passages: list[str], style: Style) -> tup
         if passages and not any(n in numbers_in(p, style) for p in passages):
             return None, value
         return None, None
-    a = as_amount(value, style)
-    if a is None:
+    found = first_amount(value, style)
+    if found is None:
         return "not_an_amount", None
-    if passages and not any(a in _figures(p, style) for p in passages):
-        return None, value
-    return None, None
+    approximate = "approximate" if found.approximate else None  # "ongeveer € 450.000": a person decides what it is
+    if passages and not any(found.value in _figures(p, style) for p in passages):
+        return approximate, value
+    return approximate, None
 
 
 def _option(value: str, options: tuple[str, ...]) -> str | None:

@@ -915,12 +915,17 @@ export type RunFact = {
   by?: string | null;         // for a person's value: who gave it, in the conversation
   was?: string | null;        // for a correction of a value read from the documents: the value as read
   at?: string | null;         // for a person's value: when it was given
-  needs?: "not_a_date" | "not_an_amount" | "not_a_number" | "computed" | null;  // the value gives no date or amount as such: a person works it out; computed: sūveryn did, from a term
+  needs?: "not_a_date" | "not_an_amount" | "not_a_number" | "approximate" | "computed" | null;  // the value gives no date or amount as such: a person works it out; computed: sūveryn did, from a term
   /** A term worked out from the date it counts from (board P01): the term as written, the fact counted from, and how. */
-  computed?: TermComputed | null;
+  computed?: Computed | null;
 };
-export type TermComputed = { written: string; from: string; base: string; date: string; amount: number;
-                             unit: "day" | "week" | "month" | "year"; direction: "after" | "before" };
+/** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount from a share. */
+export type TermComputed = { kind?: undefined; written: string; from: string; base: string; date: string; amount: number;
+                             unit: "day" | "week" | "month" | "year" | "workday"; direction: "after" | "before";
+                             /** working days: the pack's calendar, its name per language */
+                             calendar?: Record<string, string> };
+export type ShareComputed = { kind: "share"; written: string; from: string; percent: string; of: string; amount: string };
+export type Computed = TermComputed | ShareComputed;
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
  *  docs/design/playbooks.md, "A running playbook is visible". */
 export type RunStatus = "reading" | "waiting" | "paused" | "done" | "stopped" | "cancelled" | "failed";

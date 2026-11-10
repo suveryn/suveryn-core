@@ -23,10 +23,10 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import {
   answerRun, confirmRun, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
   type Case, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
-  type TermComputed,
+  type Computed,
 } from "../api";
 import { useWatermark } from "../lib/watermark";
-import { locale, useT } from "../i18n";
+import { lang, locale, useT } from "../i18n";
 import {
   entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, optionLabel, shownFacts, splitPath, type FactGroup, type PlaybookWords,
 } from "../lib/playbooks";
@@ -138,6 +138,7 @@ function checkReason(f: RunFact, m: Words): string {
   if (f.needs === "not_a_date") return m.pbNotADate;
   if (f.needs === "not_an_amount") return m.pbNotAnAmount;
   if (f.needs === "not_a_number") return m.pbNotANumber;
+  if (f.needs === "approximate") return m.pbApproximate;
   return m.pbNotInPassage(f.issues.join(", "));
 }
 
@@ -156,10 +157,16 @@ export const factCounts = (run: Pick<Run, "facts"> & { playbook?: Pick<PlaybookI
   return [groups.filter(groupFound).length, groups.length] as const;
 };
 
-/** How a date was worked out, in words: "Berekend: 12 oktober 2026 plus vier maanden." */
-export function computedHow(c: TermComputed, m: Words): string {
+/** How a value was worked out, in words: "Berekend: 12 oktober 2026 plus vier maanden.", "… plus tien werkdagen
+ *  (maandag tot vrijdag, Belgische feestdagen).", "Berekend: 10 % van 385.000,00." */
+export function computedHow(c: Computed, m: Words): string {
+  if (c.kind === "share") {
+    const number = (v: string) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 2 }).format(Number(v));
+    return m.pbComputedShare(number(c.percent), number(c.of));
+  }
   const base = new Date(`${c.base}T12:00:00`).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
-  return m.pbComputedHow(base, m.pbTerm(c.amount, c.unit), c.direction === "before");
+  const calendar = c.calendar ? (c.calendar[lang()] ?? c.calendar.en ?? "") : "";
+  return m.pbComputedHow(base, m.pbTerm(c.amount, c.unit), c.direction === "before", calendar);
 }
 
 // ------------------------------------------------------------------ the run, kept fresh
@@ -916,7 +923,7 @@ export function RunSourcePanel({ run, fact: factId, fromList, caseRef, present, 
   if (!fact || fact.citations.length === 0) return null;
   const turn = factTurn(fact);
   const filenames = new Map(fact.citations.map((c) => [c.document_id, c.filename]));
-  const verdict = fact.computed ? { ok: false, text: m.pbDateNotInPassage }
+  const verdict = fact.computed ? { ok: false, text: fact.computed.kind === "share" ? m.pbAmountNotInPassage : m.pbDateNotInPassage }
     : fact.needs ? { ok: false, text: checkReason(fact, m) } : undefined;
   const back = () => (fromList ? onView({ kind: "list", from: factId }) : onClose());
   return (

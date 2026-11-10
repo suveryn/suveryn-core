@@ -85,6 +85,20 @@
           "default": null,
           "description": "date only: the date fact a term written instead of a date counts from (\"four months after the signing\": agreement_date); sūveryn works the date out, and a person checks it",
           "title": "Counts From"
+        },
+        "share_of": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,49}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "amount only: the amount fact a percentage written instead of an amount is a share of (\"10% of the price\": price); sūveryn works the amount out, and a person checks it",
+          "title": "Share Of"
         }
       },
       "required": [
@@ -137,6 +151,20 @@
           "default": null,
           "description": "date only: the date fact a term written instead of a date counts from (\"four months after the signing\": agreement_date); sūveryn works the date out, and a person checks it",
           "title": "Counts From"
+        },
+        "share_of": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,49}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "amount only: the amount fact a percentage written instead of an amount is a share of (\"10% of the price\": price); sūveryn works the amount out, and a person checks it",
+          "title": "Share Of"
         }
       },
       "required": [
