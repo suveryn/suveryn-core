@@ -30,7 +30,7 @@ import {
   TextButton, type MenuEntry, type Option, type TableColumn,
 } from "../ui";
 
-export const PAGE = 25;
+const PAGE = 25;
 
 const matches = (q: string, ...texts: (string | null | undefined)[]) =>
   !q || texts.some((t) => (t ?? "").toLowerCase().includes(q));

@@ -7,7 +7,7 @@ from suveryn_playbooks import DEED_INTAKE, Wording
 from suveryn_playbooks.manifest import parse
 
 MINIMAL = """\
-manifest: 2
+manifest: 3
 id: playbook/be-notary/example
 pack: pack/be-notary
 version: "1.0"

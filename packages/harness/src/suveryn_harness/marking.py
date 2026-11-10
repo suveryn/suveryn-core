@@ -3,7 +3,7 @@
 The chat UI marked this with its own rules (``packages/chat-ui/src/lib/answer.ts``). The rules now run here,
 beside the citation check (``support.py``), which reads the answer's claims with the same sentences
 (``answer_sentences``): a marking and a check can't disagree on what a claim is. The UI keeps its copy of the
-rules for saved conversations from before, and the two are held to the same cases
+rules for a playbook fact's passages, which the server doesn't mark, and the two are held to the same cases
 (``tests/marking_cases.json``).
 
 Per valid marker (its occurrence, as the UI and ``citation_issues`` count them): the sentences of the cited

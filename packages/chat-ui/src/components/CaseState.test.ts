@@ -4,7 +4,7 @@ import { setLang, t } from "../i18n";
 import { fateLabel, isDue, onDay } from "./CaseState";
 
 const closed = (over: Partial<Case> = {}): Case => ({
-  id: "c1", reference: "2026/0417", name: "Sale", type: "sale", subject: {}, access: "default", state: "closed",
+  id: "c1", reference: "2026/0417", name: "Sale", type: "sale", access: "default", state: "closed",
   opened_at: "2026-01-10T09:00:00Z", closed_at: "2026-10-01T09:00:00Z", keep_until: "2027-04-01T09:00:00Z", keep: false,
   manager: "alice", created_by: "alice", updated_at: "2026-10-01T09:00:00Z", my_role: "manager", ...over,
 });

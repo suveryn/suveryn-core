@@ -336,9 +336,9 @@ async def _live_run(request: Request, case_id: str, run_id: str, action: str) ->
     run = await run_in_threadpool(store.get, _run_id(run_id), uuid.UUID(case.id))
     if run is None:
         raise HTTPException(404, "Unknown run.")
-    pb = await run_in_threadpool(store.playbook_of, _run_id(run_id), uuid.UUID(case.id)) or find(run.playbook_id)
+    pb = await run_in_threadpool(store.playbook_of, _run_id(run_id), uuid.UUID(case.id))
     if pb is None:
-        raise HTTPException(409, "This run's playbook is no longer installed.")  # an old run, made before manifests were pinned
+        raise HTTPException(404, "Unknown run.")
     return case, store, run, pb
 
 

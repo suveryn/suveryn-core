@@ -9,7 +9,7 @@
 import { reviewPages, type Warning } from "../api";
 import type { Messages } from "../i18n";
 
-export type ReadingNotes = { ai: boolean; aiPages: number[]; recovered: number[]; headers: number[] };
+type ReadingNotes = { ai: boolean; aiPages: number[]; recovered: number[]; headers: number[] };
 
 const pagesOf = (ws: Warning[], kinds: string[]) =>
   [...new Set(ws.filter((w) => kinds.includes(w.kind) && w.page !== null).map((w) => w.page!))].sort((a, b) => a - b);

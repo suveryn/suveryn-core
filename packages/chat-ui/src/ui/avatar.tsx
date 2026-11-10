@@ -13,7 +13,7 @@ import { cx } from "./Button";
 export type AvatarSize = "small" | "normal" | "large" | "huge";  // 24, 32, 48, 96 px
 
 /** What an overlay icon sits on: an icon or the brand mark (14 to 20 px), or an avatar of that size. */
-export type BadgeHost = "icon" | AvatarSize;
+type BadgeHost = "icon" | AvatarSize;
 
 /**
  * An overlay icon: a small icon over the corner of another, saying one thing about it (suveryn-brand

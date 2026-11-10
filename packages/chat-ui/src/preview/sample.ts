@@ -14,11 +14,11 @@ const DAY = 24 * HOUR;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
 // ---------- who is signed in ----------
-export const ME: Me = { username: "test@kantoor.be", name: "Test Beheerder", sub: "u-test", admin: true, office_wide: true,
+const ME: Me = { username: "test@kantoor.be", name: "Test Beheerder", sub: "u-test", admin: true, office_wide: true,
                         cases_keep: "5y", avatar: null, account_url: null,
                         office_name: "Thirdexpert Notarissen", admin_console_url: "https://kantoor.local/idp/admin/suveryn/console/" };
 
-export const HEALTH: Health = {
+const HEALTH: Health = {
   status: "ok",
   backend: { reachable: true, status: "ok", model: "Qwen3.8-27B" },
   documents: { status: "ready", detail: null },
@@ -27,13 +27,13 @@ export const HEALTH: Health = {
   cases: { status: "ready", detail: null },
   directory: { status: "ready", detail: null },
 };
-export const MODELS: ModelInfo[] = [{ id: "Qwen3.8-27B", loaded: true, default: true, thinks: true }, { id: "Gemma-4-12B", loaded: false, default: false, thinks: false }];
+const MODELS: ModelInfo[] = [{ id: "Qwen3.8-27B", loaded: true, default: true, thinks: true }, { id: "Gemma-4-12B", loaded: false, default: false, thinks: false }];
 
 // ---------- people ----------
 const account = (sub: string, name: string, email: string, admin: boolean, enabled: boolean, last: number | null): Account => ({
   sub, username: email, name, email, admin, enabled, last_sign_in: last === null ? null : ago(last),
 });
-export const USERS: UsersList = {
+const USERS: UsersList = {
   agreement_users: 10,
   users: [
     account("u-test", "Test Beheerder", "test@kantoor.be", true, true, 2 * HOUR),
@@ -43,7 +43,7 @@ export const USERS: UsersList = {
     account("u-miet", "Miet Vandenberghe", "miet@kantoor.be", false, false, 34 * DAY),
   ],
 };
-export const ACCOUNT_EVENTS: AccountEvent[] = [
+const ACCOUNT_EVENTS: AccountEvent[] = [
   { at: ago(2 * HOUR), kind: "signed_in", user: "u-test", name: "Test Beheerder", by: null, reason: null },
   { at: ago(3 * HOUR), kind: "signed_in", user: "u-mieke", name: "Mieke Delarivière", by: null, reason: null },
   { at: ago(DAY), kind: "added", user: "u-jonas", name: "Jonas Claes", by: "Test Beheerder", reason: null },
@@ -51,7 +51,7 @@ export const ACCOUNT_EVENTS: AccountEvent[] = [
 const member = (user: string, username: string, name: string, role: Member["role"]): Member => ({
   user, username, name, role, added_by: "u-test", added_at: ago(40 * DAY),
 });
-export const MEMBERS: Member[] = [
+const MEMBERS: Member[] = [
   member("u-test", "test@kantoor.be", "Test Beheerder", "manager"),
   member("u-mieke", "mieke@kantoor.be", "Mieke Delarivière", "contributor"),
   member("u-filip", "filip@kantoor.be", "Filip Tack", "contributor"),
@@ -59,12 +59,12 @@ export const MEMBERS: Member[] = [
 
 // ---------- cases ----------
 const kase = (id: string, reference: string, name: string, type: string, my_role: Case["my_role"], extra: Partial<Case> = {}): Case => ({
-  id, reference, name, type, subject: {}, access: "default", state: "open", opened_at: ago(40 * DAY), closed_at: null,
+  id, reference, name, type, access: "default", state: "open", opened_at: ago(40 * DAY), closed_at: null,
   keep_until: null, keep: false, manager: "u-test", created_by: "u-test", updated_at: ago(HOUR), my_role, ...extra,
 });
-export const CASE_123 = kase("c123", "123", "Thirdexpert Management & Consulting", "sale", "manager", { pinned: true });
+const CASE_123 = kase("c123", "123", "Thirdexpert Management & Consulting", "sale", "manager", { pinned: true });
 export const CASE_124 = kase("c124", "124", "Van Damme · De Smet", "sale", "manager", { pinned: true, updated_at: ago(DAY) });
-export const CASES: Case[] = [
+const CASES: Case[] = [
   CASE_123,
   CASE_124,
   kase("c121", "121", "Hypotheek Wouters", "sale", "contributor", { updated_at: ago(2 * DAY) }),
@@ -74,10 +74,10 @@ export const CASES: Case[] = [
   kase("c109", "109", "Huwelijkscontract Janssens · Maes", "marriage-contract", "contributor", { updated_at: ago(12 * DAY) }),
   kase("c097", "097", "Erfenis Vermeulen", "estate", "reader", { state: "closed", closed_at: ago(5 * 365 * DAY), keep_until: ago(-4 * DAY) }),
 ];
-export const CASES_OVERVIEW: CaseOverview[] = CASES.map((c) => ({
+const CASES_OVERVIEW: CaseOverview[] = CASES.map((c) => ({
   ...c, members: MEMBERS, last_activity_at: c.updated_at, last_activity_by: "Mieke Delarivière",
 }));
-export const CASE_EVENTS: CaseEvent[] = [
+const CASE_EVENTS: CaseEvent[] = [
   { id: 4, user: "u-mieke", at: ago(HOUR), action: "uploaded", detail: {} },
   { id: 3, user: "u-mieke", at: ago(65 * MIN), action: "playbook_started", detail: {} },
   { id: 2, user: "u-filip", at: ago(3 * DAY), action: "access_changed", detail: { access: "restricted" } },
@@ -87,18 +87,18 @@ export const CASE_EVENTS: CaseEvent[] = [
 // ---------- documents ----------
 const doc = (id: string, filename: string, pages: number, when: number, extra: Partial<StoredDocument> = {}): StoredDocument => ({
   id, filename, pages, ocr_pages: 0, status: "ok", warnings: [], created_at: ago(when), origin: "uploaded",
-  uploaded_by: "mieke@kantoor.be", source: true, original: true, ...extra,
+  uploaded_by: "mieke@kantoor.be", source: true, ...extra,
 });
-export const CASE_DOCUMENTS: StoredDocument[] = [
+const CASE_DOCUMENTS: StoredDocument[] = [
   doc("d-compromis", "Compromis_Schipperskaai.pdf", 14, HOUR),
   doc("d-kadaster", "Kadastrale legger Schipperskaai.pdf", 3, 2 * DAY),
   doc("d-bodem", "Bodemattest OVAM.pdf", 2, 2 * DAY),
   doc("d-epc", "EPC-certificaat.pdf", 4, 3 * DAY, { status: "needs_review", ocr_pages: 4 }),
 ];
-export const PERSONAL_DOCUMENTS: StoredDocument[] = [
+const PERSONAL_DOCUMENTS: StoredDocument[] = [
   doc("d-volmacht", "Volmacht_FR.pdf", 2, 5 * DAY),
 ];
-export const ALL_DOCUMENTS = [
+const ALL_DOCUMENTS = [
   ...CASE_DOCUMENTS.map((d) => ({ ...d, case_id: "c123" as string | null })),
   ...PERSONAL_DOCUMENTS.map((d) => ({ ...d, case_id: null as string | null })),
 ];
@@ -108,7 +108,7 @@ const conv = (id: string, title: string, when: number, extra: Partial<Conversati
   id, title, created_at: ago(when + HOUR), updated_at: ago(when), case_id: null, owner: "u-test", messages: 2, ...extra,
 });
 export const CONVERSATION = conv("conv-clauses", "Akte van verkoop: nazicht clausules", 2 * HOUR, { case_id: "c123" });
-export const CASE_CONVERSATIONS: ConversationSummary[] = [
+const CASE_CONVERSATIONS: ConversationSummary[] = [
   conv("conv-prijs", "Prijs en kosten", HOUR, { case_id: "c123" }),
   conv("conv-erf", "Erfdienstbaarheden", 4 * HOUR, { case_id: "c123" }),
   conv("conv-termijnen", "Betalingen en termijnen", 90 * MIN, { case_id: "c123" }),
@@ -118,19 +118,19 @@ export const CASE_CONVERSATIONS: ConversationSummary[] = [
   conv("conv-run", "Akte-intake", 63 * MIN, { case_id: "c124", owner: "u-mieke", owner_name: "Mieke", shared: true, run_id: "run-124" }),
   conv("conv-hypotheek", "Hypotheekvoorwaarden vergelijken", 2 * DAY, { case_id: "c121", owner: "u-mieke", owner_name: "Mieke", shared: true }),
 ];
-export const PERSONAL_CONVERSATIONS: ConversationSummary[] = [
+const PERSONAL_CONVERSATIONS: ConversationSummary[] = [
   conv("conv-brief", "Standaardbrief aan de koper", 5 * HOUR, { pinned: true }),
   conv("conv-huurkoop", "Wat is een huurkoopformule?", DAY),
   conv("conv-onboarding", "Checklist onboarding nieuwe medewerker", 4 * DAY),
 ];
-export const ALL_CONVERSATIONS = [...CASE_CONVERSATIONS, ...PERSONAL_CONVERSATIONS];
+const ALL_CONVERSATIONS = [...CASE_CONVERSATIONS, ...PERSONAL_CONVERSATIONS];
 
 /** A passage with the text around it on its page, as the gateway sends it (board G11). */
 const around = (before: string, text: string, after: string) =>
   ({ text: `${before} ${text} ${after}`, start: before.length + 1, end: before.length + 1 + text.length });
 
 /** The open conversation: a question about the case's documents, answered with two sources (board G02). */
-export const SAVED: SavedConversation = {
+const SAVED: SavedConversation = {
   ...CONVERSATION,
   turns: [
     { id: "t1", role: "user", text: "Welke opschortende voorwaarden staan er in het compromis, en tegen wanneer moet de financiering rond zijn?", attachments: [] },
@@ -153,7 +153,7 @@ export const SAVED: SavedConversation = {
 };
 
 /** A personal conversation without documents (board G03). */
-export const SAVED_PERSONAL: SavedConversation = {
+const SAVED_PERSONAL: SavedConversation = {
   ...PERSONAL_CONVERSATIONS[1],
   turns: [
     { id: "p1", role: "user", text: "Wat is een huurkoopformule, in grote lijnen?", attachments: [] },
@@ -166,15 +166,15 @@ export const SAVED_PERSONAL: SavedConversation = {
 const check = (id: string, extra: Record<string, unknown> = {}) => ({
   id, ok: true, since: null, in_progress: null, waiting: null, free: null, total: null, ...extra,
 });
-export const ADMIN_STATUS = {
+const ADMIN_STATUS = {
   checked_at: ago(0), version: "2026.11.1",
   checks: [check("answering", { in_progress: 1, waiting: 0 }), check("reading", { in_progress: 0, waiting: 0 }), check("signin"),
            check("data"), check("disk", { free: 1_420_000_000_000, total: 2_000_000_000_000 }), check("clock", { offset_ms: 120, synced: true })],
 };
-export const ADMIN_CASES = CASES.map((c) => ({ ...c, manager_username: "test@kantoor.be", manager_name: "Test Beheerder", members: 3 }));
-export const CASE_SETTINGS = { default_access: "office", keep: "5y", conversations_keep: "1y", two_step: false, office_name: "Thirdexpert Notarissen", updated_at: ago(10 * DAY), updated_by: "Test Beheerder" };
+const ADMIN_CASES = CASES.map((c) => ({ ...c, manager_username: "test@kantoor.be", manager_name: "Test Beheerder", members: 3 }));
+const CASE_SETTINGS = { default_access: "office", keep: "5y", conversations_keep: "1y", two_step: false, office_name: "Thirdexpert Notarissen", updated_at: ago(10 * DAY), updated_by: "Test Beheerder" };
 const totals = (requests: number, tokens: number) => ({ requests, prompt_tokens: Math.round(tokens * 0.9), completion_tokens: Math.round(tokens * 0.1), total_tokens: tokens });
-export const OFFICE_USAGE = {
+const OFFICE_USAGE = {
   start: ago(30 * DAY), end: ago(0), step: "1 day", totals: totals(777, 4_200_000), by_kind: { chat: totals(600, 2_980_000), summary: totals(120, 760_000), "playbook-step": totals(57, 460_000) },
   series: Array.from({ length: 30 }, (_, i) => ({ start: ago((30 - i) * DAY), ...totals(10 + ((i * 7) % 30), 60_000 + ((i * 37_000) % 200_000)) })),
   per_user: [
@@ -184,7 +184,7 @@ export const OFFICE_USAGE = {
   ],
   rates: { input_per_million: "0", output_per_million: "0", currency: "EUR" }, cost: "0",
 };
-export const BACKUPS = {
+const BACKUPS = {
   available: true, configured: true, target: "usb", retention_days: 30, last_attempt: ago(7 * HOUR),
   last_success: { at: ago(7 * HOUR), size: 1_234_567_890, on_target: 30, oldest: ago(30 * DAY), disk: "Samsung T7" }, last_error: null,
   key_test: { at: ago(12 * DAY), ok: true }, settings: { target: "usb", disk: "Samsung T7", protocol: null, address: null, user: null,
@@ -196,7 +196,7 @@ const playbook = (slug: string, title: string, version: string, pack: string, ty
   id: `pb-${slug}`, slug, pack, version, name: title, covered, facts: [], case_types: types, active,
   text: { nl: { title, summary: "", labels: {} }, en: { title, summary: "", labels: {} }, fr: { title, summary: "", labels: {} } },
 });
-export const PLAYBOOKS = [
+const PLAYBOOKS = [
   playbook("akte-intake", "Akte-intake", "v1.0", "notariaat-be", ["sale"], true, true),
   playbook("oprichting", "Oprichting vennootschap", "v0.9", "notariaat-be", ["company-formation"], true, true),
   playbook("nalatenschap", "Aangifte nalatenschap", "v0.4", "notariaat-be", ["estate"], true, false),
@@ -217,7 +217,7 @@ const DEED_LABELS = {
 const DEED_FACTS = ["sellers", "buyers", "property", "cadastral", "price", "deposit", "agreement_date", "deed_deadline", "conditions",
                     "title", "epc", "soil", "occupancy"];
 const step = (id: string, kind: PlaybookStep["kind"], needs: string[] = [], facts: string[] = []): PlaybookStep => ({ id, kind, needs, facts });
-export const DEED_INTAKE: PlaybookInfo = {
+const DEED_INTAKE: PlaybookInfo = {
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.4", name: "Deed intake", covered: true,
   facts: DEED_FACTS, case_types: ["sale"], active: true,
   lists: { sellers: ["name", "address", "register"], buyers: ["name", "address", "register"], conditions: ["condition", "term"] },
@@ -238,7 +238,7 @@ const fact = (id: string, value: string, citations: RunFact["citations"], extra:
   id, value, citations, issues: [], found: !!value, confirmed: null, source: value ? "document" : "none", ...extra,
 });
 const RUN_START = ago(70 * MIN);
-export const RUN_SUMMARY: RunSummary = {
+const RUN_SUMMARY: RunSummary = {
   id: "run-124", case_id: "c124", playbook_id: DEED_INTAKE.id, playbook_version: "1.4", status: "waiting", step_kind: "checkpoint", documents: ["d-compromis-124", "d-titel-124", "d-bodem-124"],
   started_by: "mieke@kantoor.be", started_at: RUN_START, finished_at: null, confirmed_by: null, confirmed_at: null, model: "Qwen3.8-27B", error: null,
   result_document_id: null, out_of_date: false, step: "confirm", language: "nl", paused_by: null, paused_at: null, ended_by: null, ended_reason: null,
@@ -281,7 +281,7 @@ export const RUN: Run = {
     { seq: 5, role: "playbook", step_id: "confirm", by: DEED_INTAKE.id, at: ago(63 * MIN), text: "", meta: { kind: "checkpoint", found: 12, total: 13, issues: 1 } },
   ],
 };
-export const CASE_124_DOCUMENTS: StoredDocument[] = [
+const CASE_124_DOCUMENTS: StoredDocument[] = [
   doc("d-compromis-124", "Compromis_DeSmet.pdf", 12, 70 * MIN),
   doc("d-titel-124", "Eigendomstitel_1998.pdf", 4, 70 * MIN),
   doc("d-bodem-124", "Bodemattest_scan.pdf", 2, 70 * MIN, { status: "needs_review", ocr_pages: 2 }),
@@ -360,7 +360,7 @@ export const EMPTY_OFFICE: Route[] = [
 ];
 
 /** The run in another state (board P04): the run itself, the case's live runs and the case's playbooks answer accordingly. */
-export function runIn(change: Partial<Run>): Route[] {
+function runIn(change: Partial<Run>): Route[] {
   const run = { ...RUN, ...change };
   const live = ["reading", "waiting", "paused"].includes(run.status);
   return [

@@ -90,8 +90,6 @@ ACCEPTED = "PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files, or a
 # to MAX_UPLOAD_BYTES). Its documents count against the queue limits like separate uploads.
 MAX_ARCHIVE_ENTRIES = 1000
 MAX_ARCHIVE_UNPACKED = 300 * 1024 * 1024
-# Why an entry of an archive wasn't added, for the interface to say in its language.
-SKIP_REASONS = ("unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged")
 LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv": "CSV"}
 
 
@@ -106,7 +104,8 @@ class UploadRejected(ValueError):
 @dataclass
 class Archive:
     """What an uploaded .zip became: a job per document in it, and the entries left out, with a reason
-    (``SKIP_REASONS``). Holds names only, never content."""
+    (unsupported, archive, encrypted, too_large, empty, invalid or damaged, for the interface to say in its
+    language). Holds names only, never content."""
 
     filename: str
     jobs: list["Job"]

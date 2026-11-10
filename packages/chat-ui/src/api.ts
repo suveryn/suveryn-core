@@ -12,7 +12,7 @@ import type { SavedAnswer } from "./lib/saved";
 type SourceRef = { document_id: string; page: number | null; location: string | null };
 /** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
 /** The text around a cited passage on its page (board G11): the passage is ``text.slice(start, end)``. */
-export type PassageContext = { text: string; start: number; end: number };
+type PassageContext = { text: string; start: number; end: number };
 export type Citation = { text: string; source: SourceRef | null; removed?: boolean; context?: PassageContext | null };
 /** A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11). ``marker`` is the
  *  0-based place of the [n] among the answer's valid markers; ``found_in``: other passages that do contain it. */
@@ -41,7 +41,7 @@ export type ChatResponse = {
   calculations: Calculation[];
   unverified_figures?: string[];      // figures in no passage and no calculation's result: flag them for checking
   citation_issues?: CitationIssue[];  // facts the cited passage doesn't contain: flag the marker
-  support_spans?: SupportSpan[];      // what the source card marks per marker; absent from an older server
+  support_spans: SupportSpan[];       // what the source card marks per marker
   instruction_like_sources?: number[]; // passages whose text addresses an AI: tell the reader (suveryn-tracker#21)
   finish_reason: string | null;
   reasoning?: string;              // *Thorough*: what the model thought before answering, never in ``answer``
@@ -63,7 +63,7 @@ export type Job = {
   error_detail?: Record<string, number>;   // the numbers that needs: pages, max, minutes
   noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
 };
-export const ANSWER_TOKENS = 3000;
+const ANSWER_TOKENS = 3000;
 
 /** What a .zip upload became: a job per document inside it, and the files left out with a reason
  *  (suveryn_rag.service.SKIP_REASONS). */
@@ -72,7 +72,7 @@ export const isArchiveUpload = (r: Job | ArchiveUpload): r is ArchiveUpload => "
 /** sūveryn's export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file. */
 export type Noticed = { ref: string; kind: "answer" | "playbook"; line: string };
 /** More about where a document came from (docs/design/chat-ui.md §6). */
-export type Provenance = {
+type Provenance = {
   playbook?: string; version?: string; run?: string;               // a playbook's result
   noticed?: Noticed; confirmed?: { by: string; at: string };      // an upload that looked like sūveryn's own output
 };
@@ -88,7 +88,6 @@ export type StoredDocument = {
   uploaded_by?: string | null;
   source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)
   provenance?: Provenance | null;
-  original?: boolean;             // the file it was read from is kept: "Open document at p. 3" (board G11)
 };
 export type Health = {
   status: "ok" | "degraded";
@@ -492,13 +491,12 @@ export async function deleteAllConversations(): Promise<void> {
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
  *  name. `my_role`: what the signed-in user may do in it (null: an administrator who sees it exists). */
-export type CaseRole = "reader" | "contributor" | "manager";
+type CaseRole = "reader" | "contributor" | "manager";
 export type Case = {
   id: string;
   reference: string;
   name: string;
   type: string;
-  subject: Record<string, unknown>;
   access: "default" | "restricted";
   state: "open" | "closed";
   opened_at: string;
@@ -512,7 +510,7 @@ export type Case = {
   pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/chat-ui.md)
   confidential?: boolean;     // strictly confidential (docs/design/chat-ui.md §11)
 };
-export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string>;
+export type NewCase = { reference: string; name: string; type: string;
   /** default: as the office's default access; restricted: members only (board G14). */
   access?: "default" | "restricted" };
 
@@ -556,7 +554,7 @@ export async function getCase(id: string): Promise<Case> {
   return r.json();
 }
 
-/** Changes a case's reference, name, type, subject or access (its manager only). */
+/** Changes a case's reference, name, type or access (its manager only). */
 export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"]; confidential?: boolean }): Promise<Case> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
@@ -751,13 +749,13 @@ export type BackupSettings = {
   has_password: boolean; retention_days: BackupRetention; hour: number; recipient: string; next_run: string | null;
 };
 /** What Administration › Backups asks the appliance's backup service for (admin.md, artboard 36). */
-export type BackupRequest =
+type BackupRequest =
   | { kind: "run" } | { kind: "disks" }
   | { kind: "test-share"; protocol: "smb" | "nfs"; address: string; user?: string | null; password?: string | null; keep_password?: boolean }
   | { kind: "settings"; target: "usb" | "share"; disk?: string; protocol?: "smb" | "nfs"; address?: string; user?: string | null;
       password?: string | null; keep_password?: boolean; retention_days: BackupRetention; hour: number; recipient?: string };
 export type BackupDisk = { id: string; name: string; size_bytes: number };
-export type BackupAnswer = {
+type BackupAnswer = {
   id: string; pending: boolean; ok: boolean | null; error: string | null; errors: Record<string, string> | null;
   disks: BackupDisk[] | null; key_changed: boolean | null;
 };
@@ -781,7 +779,7 @@ export async function askBackupService(body: BackupRequest, seconds = 60): Promi
 
 /** Administration › Status (docs/design/admin.md): the five checks, counts only. ``since``: when it was first seen
  *  failing, while it fails. */
-export type StatusCheckId = "answering" | "reading" | "signin" | "data" | "disk" | "clock";
+type StatusCheckId = "answering" | "reading" | "signin" | "data" | "disk" | "clock";
 export type StatusCheck = {
   id: StatusCheckId; ok: boolean; since: string | null;
   in_progress: number | null; waiting: number | null; free: number | null; total: number | null;
@@ -796,7 +794,7 @@ export async function getAdminStatus(): Promise<AdminStatus> {
 }
 
 /** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
-export type ClockAnswer = { id: string; pending: boolean; ok: boolean | null; error: string | null; moved_ms: number | null };
+type ClockAnswer = { id: string; pending: boolean; ok: boolean | null; error: string | null; moved_ms: number | null };
 
 export async function setApplianceClock(measured: { offset_ms: number; rtt_ms: number }): Promise<ClockAnswer> {
   const r = await fetch("/v1/admin/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(measured) });
@@ -817,7 +815,7 @@ export type Account = { sub: string; username: string; name: string; email: stri
 export type UsersList = { users: Account[]; agreement_users: number | null };
 /** A temporary password to pass on, in the answer once and nowhere else. */
 export type TemporaryPassword = { user: Account; address: string; password: string };
-export type AccountEventKind = "signed_in" | "sign_in_failed" | "signed_out" | "added" | "made_admin" | "admin_removed"
+type AccountEventKind = "signed_in" | "sign_in_failed" | "signed_out" | "added" | "made_admin" | "admin_removed"
   | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "switched_off" | "switched_on" | "changed" | "deleted";
 export type AccountEvent = {
   at: string; kind: AccountEventKind; user: string | null; name: string; by: string | null;
@@ -903,9 +901,9 @@ export type PlaybookInfo = { id: string; slug: string; pack: string; version: st
                              /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
                              steps?: PlaybookStep[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
-export type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string;
+type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string;
                              context?: PassageContext | null };
-export type RunCheck = { status: "holds" | "fails" | "open"; rule: string; left: string; right: string; missing: string[] };
+type RunCheck = { status: "holds" | "fails" | "open"; rule: string; left: string; right: string; missing: string[] };
 export type RunFact = {
   id: string;
   value: string;              // as read: the model's, from the documents, or a person's answer to the playbook's question ("" when neither)
@@ -926,7 +924,7 @@ export type TermComputed = { written: string; from: string; base: string; date: 
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
  *  docs/design/playbooks.md, "A running playbook is visible". */
 export type RunStatus = "reading" | "waiting" | "paused" | "done" | "stopped" | "cancelled" | "failed";
-export type StepState = { status: "pending" | "active" | "done" | "skipped"; by: string | null; at: string | null };
+type StepState = { status: "pending" | "active" | "done" | "skipped"; by: string | null; at: string | null };
 /** One line of the run's thread (the ``turns`` table): the playbook's question or a person's answer. */
 export type RunTurn = { seq: number; role: "user" | "assistant" | "playbook"; step_id: string | null; by: string; at: string; text: string;
                      meta: Record<string, unknown> };
@@ -943,8 +941,8 @@ export type RunSummary = {
   conversation_id?: string;     // the run's conversation, in the case's list of conversations
 };
 export type Run = RunSummary & {
-  /** The playbook the run started under, from its own record (a run keeps its manifest); null for a run made before that: use the installed one. */
-  playbook?: PlaybookInfo | null;
+  /** The playbook the run started under, from its own record (a run keeps its manifest). */
+  playbook: PlaybookInfo;
   /** Per named request (step id), the documents that answered it. */
   requested?: Record<string, string[]>;
   /** Per check step (step id), its result on the values as they stand: the rule holds, fails (both sides as computed) or is open. */

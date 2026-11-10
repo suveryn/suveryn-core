@@ -6,7 +6,7 @@ const conv = (over: Partial<ConversationSummary> = {}): ConversationSummary => (
   id: "c1", title: "Sale", created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-01T10:00:00Z", owner: "alice", ...over,
 });
 const kase = (over: Partial<Case> = {}): Case => ({
-  id: "k1", reference: "2026/0417", name: "Sale", type: "sale", subject: {}, access: "default", state: "open",
+  id: "k1", reference: "2026/0417", name: "Sale", type: "sale", access: "default", state: "open",
   opened_at: "", closed_at: null, keep_until: null, keep: false, manager: "alice", created_by: "alice", updated_at: "",
   my_role: "contributor", ...over,
 });

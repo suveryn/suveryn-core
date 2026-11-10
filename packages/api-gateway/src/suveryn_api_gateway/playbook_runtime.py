@@ -247,9 +247,6 @@ class Runtime:
 
     def _playbook_steps(self, run: Run) -> tuple[Step, ...]:
         pb = self.store.playbook_of(uuid.UUID(run.id), uuid.UUID(run.case_id))
-        if pb is None:
-            from suveryn_playbooks import find
-            pb = find(run.playbook_id)
         return pb.steps if pb else ()
 
     def finish_read(self, run: Run, playbook: Playbook, step: Step, facts: list[RunFact], model: str | None,

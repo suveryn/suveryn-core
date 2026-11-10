@@ -24,7 +24,7 @@ function segmentSources(segments: Segment[]): number[] {
   return out;
 }
 
-export type CellValue = { value: string | number; format?: string };
+type CellValue = { value: string | number; format?: string };
 
 const COMMA_DECIMAL = [/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/, /^\d+,\d+$/];  // 1.275.000,00 · 12,5
 const DOT_DECIMAL = [/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/, /^\d+\.\d+$/];   // 1,275,000.00 · 12.5

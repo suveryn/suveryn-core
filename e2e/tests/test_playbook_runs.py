@@ -172,8 +172,7 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
     folder = documents_for(spec, spec_path)
     api = Api()
     reference = f"RUN/{spec_path.stem}/{uuid.uuid4().hex[:6]}"
-    case = api("POST", "/v1/cases", json={"reference": reference, "name": spec["title"], "type": spec["case_type"],
-                                          "subject": {"description": "fictional"}}).json()
+    case = api("POST", "/v1/cases", json={"reference": reference, "name": spec["title"], "type": spec["case_type"]}).json()
     cid = case["id"]
     named = spec.get("documents", {})
     for name in named.get("*", []):

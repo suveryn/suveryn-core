@@ -18,7 +18,7 @@ import { AS_READER_123 } from "./sample";
 import { AS_READER, EMPTY_OFFICE, KEY_TEST_DUE, NO_RUN, RUN_DONE, RUN_CANCELLED, RUN_FAILED, RUN_PAUSED, RUN_READING, RUN_STOPPED } from "./sample";
 import type { Lang } from "../i18n";
 
-export type Preview = {
+type Preview = {
   id: string; board: string; title: string; render: () => ReactNode;
   /** The board's language (the dialog boards are English, the rest Dutch); ?lang= overrides it. */
   lang?: Lang;

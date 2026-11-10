@@ -11,7 +11,7 @@
 import type { FieldErrors } from "../ui";
 import type { Text } from "./i18n";
 
-export const MIN_PASSWORD = 15;
+const MIN_PASSWORD = 15;
 
 const COMMON = new Set([
   "passwordpassword", "password1234567", "123456789012345", "1234567890123456", "qwertyuiopasdfgh",

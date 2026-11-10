@@ -444,7 +444,7 @@ function Chat({ me }: { me: Me }) {
   // may name documents that are gone; asking about them would fail).
   const conversationDocs = useMemo(() => conversationDocuments(turns, documents, documentsReady), [turns, documents, documentsReady]);
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
-  const kept = useMemo(() => new Set(documents.filter((d) => d.original).map((d) => d.id)), [documents]);
+  const present = useMemo(() => new Set(documents.map((d) => d.id)), [documents]);  // a fact's source may since be deleted
 
   const disabledReason =
     !reachable ? m.offlineSend :
@@ -671,7 +671,6 @@ function Chat({ me }: { me: Me }) {
             <ActionMenu className="case-menu" aria-label={m.caseMenu(currentCase!.reference)} menuLabel={m.caseMenu(currentCase!.reference)}
                         placement="bottom end"
                         header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase!.type, m)}
-                          {typeof currentCase!.subject.description === "string" && ` · ${currentCase!.subject.description}`}
                           {role && ` · ${roleLabel(role, m)}`}</span>}
                         entries={[
                           { id: "members", label: m.members, icon: <Users size={16} /> },
@@ -772,13 +771,13 @@ function Chat({ me }: { me: Me }) {
   const sourceTurn = source ? turns.find((t): t is AssistantTurn => t.id === source.turnId && t.role === "assistant") : undefined;
   const sourcePanel = view === "chat" && source && sourceTurn && sourceTurn.citations[source.n - 1] && (
     <SourcePanel key={source.turnId} turn={sourceTurn} open={source} filenames={filenames} caseRef={currentCase?.reference ?? null}
-                 kept={kept} caseId={caseId}
+                 present={present} caseId={caseId}
                  onSource={openSource(source.turnId)} onClose={() => setSource(null)} />
   );
 
   // The open run's playbook, its words, and the facts panel beside it (in the source panel's place).
   // the run's own playbook (the manifest it started under) before the installed one, which may be newer
-  const runPlaybook = playbookOfRun(openRun, playbooks);
+  const runPlaybook = playbookOfRun(openRun);
   const nameOfUsername = (u: string) => memberName(caseMembers, u);
   const runChanged = (r: Run) => {
     setOpenRun(r);
@@ -794,7 +793,7 @@ function Chat({ me }: { me: Me }) {
   // a fact's source opens the conversation's own source panel (board P02); the list is the playbook's own (P03)
   const factsPanel = view === "chat" && openRun && currentCase && runPanel && openRun.facts.length > 0 && (runPanel.kind === "source"
     ? <RunSourcePanel key={`${openRun.id}-${runPanel.fact}`} run={openRun} fact={runPanel.fact} fromList={runPanel.fromList}
-                      caseRef={currentCase.reference} kept={kept} caseId={currentCase.id} onView={showRunPanel} onClose={() => showRunPanel(null)} />
+                      caseRef={currentCase.reference} present={present} caseId={currentCase.id} onView={showRunPanel} onClose={() => showRunPanel(null)} />
     : <RunPanel key={openRun.id} run={openRun} words={playbookWords(runPlaybook, language)} view={runPanel} onView={showRunPanel}
                 lists={runPlaybook?.lists ?? {}} steps={runPlaybook?.steps ?? []} kase={currentCase}
                 canAnswer={contributes && !closed} onChanged={runChanged} onClose={() => showRunPanel(null)} />);

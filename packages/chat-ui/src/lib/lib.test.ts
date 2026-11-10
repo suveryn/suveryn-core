@@ -3,7 +3,7 @@ import { citedNumbers, instructionLikeWarning, stripMarkers, tableCells, toBlock
 import { cellValue, checkLines, segmentText, tableRows } from "./export";
 
 import {
-  formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName, sourcesDocument, sourcesMarkdown,
+  formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
 } from "./copy";
 import { conversationHistory, HISTORY_CHARS } from "./history";
 import { modelName } from "./model";
@@ -108,12 +108,6 @@ describe("downloading sources", () => {
     expect(safeFileName("A table of the parties, with their role.")).toBe("A_table_of_the_parties_with_their_role");  // no "..md"
     expect(safeFileName("...hidden")).toBe("hidden");
   });
-
-  it("puts the question and date above the sources", () => {
-    const doc = sourcesDocument("Wat is de koopprijs?", "[1] akte.pdf, p. 2\nTekst", new Date(2026, 9, 9, 15, 30));
-    expect(doc.split("\n").slice(0, 3)).toEqual(["Sources cited by sūveryn", "Question: Wat is de koopprijs?", "Date: 9 October 2026 at 15:30"]);
-    expect(doc).toContain("[1] akte.pdf, p. 2\nTekst");
-  });
 });
 
 describe("Markdown downloads", () => {
@@ -123,11 +117,6 @@ describe("Markdown downloads", () => {
     expect(formatSourceMarkdown(1, cit, "akte.pdf"))
       .toBe("### [1] akte.pdf — p. 2 · Artikel 2\n\n> De koopprijs bedraagt\n> EUR 412.500,00 *exclusief* kosten.");
     expect(sourceFileName(1, "akte.pdf", 2, "md")).toBe("source-1_akte_p2.md");
-  });
-
-  it("heads the all-sources file with the question and date", () => {
-    const md = sourcesMarkdown("Wat is de koopprijs?", [{ n: 1, citation: cit, filename: "akte.pdf" }], new Date(2026, 9, 9, 15, 30));
-    expect(md.startsWith("# Sources cited by sūveryn\n\n**Question:** Wat is de koopprijs?  \n**Date:** 9 October 2026 at 15:30\n\n### [1]")).toBe(true);
   });
 });
 

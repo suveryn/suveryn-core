@@ -37,7 +37,7 @@ export function toSaved(turns: Turn[]): Turn[] {
 /** Turns read back from the server. An answer saved mid-stream (it shouldn't be) shows as interrupted. */
 export function fromSaved(turns: Turn[]): Turn[] {
   return turns.map((saved, i) => {
-    // A turn saved without the UI's own fields (through the API, or by an older version) opens all the same:
+    // A turn saved without the UI's own fields (through the API) opens all the same:
     // the lists default to empty, the id and status to something usable (VM regression of 29 October, finding 10).
     const turn = { ...saved, id: saved.id || `saved-${i}`, text: saved.text ?? "" } as Turn;
     if (turn.role === "user") return { ...turn, attachments: Array.isArray(turn.attachments) ? turn.attachments : [] };

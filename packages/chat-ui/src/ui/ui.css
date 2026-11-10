@@ -662,13 +662,10 @@ tfoot.ui-foot b, tfoot.ui-foot .ui-total { color: var(--text); font-weight: 600;
 .ui-pick-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ui-pick-label { overflow-wrap: anywhere; }
 .ui-pick-meta { font-size: var(--text-caption); color: var(--text-dim); }
-.ui-pick-box, .ui-pick-radio { width: 16px; height: 16px; flex: none; box-sizing: border-box; border: 1.5px solid var(--text-dim);
-                               display: grid; place-items: center; color: var(--bg); }
+.ui-pick-box { width: 16px; height: 16px; flex: none; box-sizing: border-box; border: 1.5px solid var(--text-dim);
+                display: grid; place-items: center; color: var(--bg); }
 .ui-pick-box { border-radius: 4px; }
 .ui-pick-box[data-on] { background: var(--text); border-color: var(--text); }
-.ui-pick-radio { border-radius: 9999px; }
-.ui-pick-radio[data-on] { border-color: var(--text); }
-.ui-pick-radio[data-on]::after { content: ""; width: 8px; height: 8px; border-radius: 9999px; background: var(--text); }
 .ui-pick-icon { flex: none; color: var(--text-dim); }
 .ui-pick-rule { height: 1px; background: var(--line); margin: var(--space-1); flex: none; }
 .ui-pick-search { margin: 2px var(--space-1); }

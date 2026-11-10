@@ -47,14 +47,15 @@ The **type** says what kind of file it is and decides which playbooks fit: for n
 company formation, estate, gift, marriage contract, care mandate (4 November 2026, for the pack's care-mandate playbook); other sectors bring their own list. Types are
 data, not code: a short list per appliance, with sūveryn's own per sector.
 
-With the type comes a **subject**: what the case is about, in the type's terms. A property for a
-sale, a person for a patient file, an application number for a patent, a dispute for a matter. One
-short free text and, where the type defines them, a few named fields the playbooks read.
+What a case is about in its type's terms (a property for a sale, an application number for a patent)
+is not stored on the case yet. A free-form `subject` was removed on 10 November 2026: no screen set
+it after board G14, and an open field invites a client's name on the label. When named fields per
+type are decided (#29), they come as typed fields, likely shown from the case's confirmed facts.
 
 ## The data model
 
 ```text
-cases             id, reference, name, type, subject jsonb, access (default|restricted),
+cases             id, reference, name, type, access (default|restricted),
                   state (open|closed), opened_at, closed_at, keep_until, keep (bool), confidential (bool),
                   manager (Keycloak sub), created_by, created_at, updated_at
 case_members      case_id, user (sub), role (reader|contributor|manager), added_by, added_at, username, name
@@ -85,7 +86,7 @@ One function decides every request: `may(user, case, action)`.
 5. Personal space: the owner only, as today.
 
 Every check runs on the server (api-gateway); the UI only hides what it already knows is refused.
-Documents stored before cases existed have no `case_id` and keep their owner: fail closed, as today.
+A personal document has no `case_id` and only its owner sees it: fail closed.
 
 ## The screens (chat-ui)
 
@@ -93,7 +94,7 @@ Documents stored before cases existed have no `case_id` and keep their owner: fa
   search on reference and name; closed cases behind a filter.
 - **A case**: its documents (with origin, uploader and date), its conversations (mine, and shared),
   playbook results, members. "Ask about this case" starts a conversation limited to it.
-- **New case**: reference, name, type, subject; the creator is its manager; access from the
+- **New case**: reference, name, type; the creator is its manager; access from the
   appliance's default, changeable here.
 - **Closing**: a confirmation that says what closing means and when the case will be deleted under
   the office's keep period.
@@ -121,7 +122,7 @@ syncing cases with the practice software (a connector, later).
 
 ## Open
 
-- Which named subject fields each notarial type defines (with the playbooks, #29).
+- Which named fields each notarial type defines, and whether they come from the case's confirmed facts (with the playbooks, #29).
 - Whether a reader may start a playbook run (proposed: no).
 - The wording of the closing confirmation and the deletion warning, in three languages: a first version is in the chat UI (stage 3); to be read by a notary.
 - Syncing cases with the practice software (a connector, later), and several people in one live conversation (a separate concept): both out of scope, as above.

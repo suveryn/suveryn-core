@@ -316,21 +316,18 @@ def test_no_vector_index_is_kept_and_the_list_doesnt_count_chunks():
 
 def test_the_file_a_document_was_read_from_is_kept_in_its_scope_and_goes_with_it():
     """Board G11, "Open document at p. 3": the upload itself is kept beside its passages, read only in its own
-    scope, replaced when the document is read again, and deleted with the document."""
+    scope, replaced when the document is read again, and deleted with the document. Text sūveryn stored itself
+    has none."""
     store = Store(URL, DIM)
     owner, other = f"o-{uuid.uuid4()}", f"o-{uuid.uuid4()}"
     pdf = Original("application/pdf", b"%PDF-1.7 the file")
     chunks = [Chunk(0, "the passage text here", "the passage text here", 1, 1, [])]
     doc = store.add_document("akte.pdf", f"sha-{uuid.uuid4()}", 1, 0, chunks, np.stack([unit(1)]), owner=owner, original=pdf)
-    old = store.add_document("old.pdf", f"sha-{uuid.uuid4()}", 1, 0, chunks, np.stack([unit(1)]), owner=owner)
+    saved = store.add_document("answer.md", f"sha-{uuid.uuid4()}", 0, 0, chunks, np.stack([unit(1)]), owner=owner, origin="answer")
     try:
         assert store.original(doc, Scope.personal(owner)) == ("akte.pdf", pdf)
         assert store.original(doc, Scope.personal(other)) is None  # never from another scope
-        assert store.original(old, Scope.personal(owner)) is None  # stored before files were kept
-        listed = {d["id"]: d["original"] for d in store.list_documents(Scope.personal(owner))}
-        assert listed == {doc: True, old: False}
-        assert store.keep_original_if_missing(old, pdf) and not store.keep_original_if_missing(old, Original("x", b"y"))
-        assert store.original(old, Scope.personal(owner))[1] == pdf
+        assert store.original(saved, Scope.personal(owner)) is None  # no upload behind it
         again = Original("application/pdf", b"%PDF-1.7 read again")
         store.replace_document(doc, "akte.pdf", 1, 0, chunks, np.stack([unit(1)]), original=again)
         assert store.original(doc, Scope.personal(owner))[1] == again
@@ -338,7 +335,7 @@ def test_the_file_a_document_was_read_from_is_kept_in_its_scope_and_goes_with_it
         assert store._conn.execute("SELECT count(*) FROM originals WHERE document_id = %s", (doc,)).fetchone()[0] == 0
     finally:
         store.delete_document(doc)
-        store.delete_document(old)
+        store.delete_document(saved)
         store.close()
 
 

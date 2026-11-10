@@ -17,12 +17,6 @@ describe("Ask about", () => {
     expect(restoreAbout([asked("whole case")])).toEqual([]);
   });
 
-  it("takes a conversation from before Ask about at its attached documents", () => {
-    const att = (id: string, status = "ready") => ({ key: id, filename: `${id}.pdf`, status, documentId: id });
-    const turns = [asked("one", { attachments: [att("a"), att("x", "failed")] }), asked("two", { attachments: [att("a"), att("b", "needs_review")] })];
-    expect(restoreAbout(turns as Turn[])).toEqual([{ documentId: "a", filename: "a.pdf" }, { documentId: "b", filename: "b.pdf" }]);
-  });
-
   it("offers only the case's sources, newest first", () => {
     const docs = [doc("old", 1), doc("answer", 9, { origin: "answer" }), doc("new", 5), doc("waiting", 6, { source: false })];
     expect(choosable(docs).map((d) => d.id)).toEqual(["new", "old"]);

@@ -8,16 +8,10 @@ import type { Chosen, Turn } from "../types";
 import { formatName } from "./formats";
 import { originKind } from "./origin";
 
-/** The choice when a conversation is opened again: the last question's. A conversation saved before
- *  *Ask about* chose by attaching, so its attached documents are its choice. */
+/** The choice when a conversation is opened again: the last question's (none: the whole case). */
 export function restoreAbout(turns: Turn[]): Chosen[] {
   const asked = turns.filter((t) => t.role === "user");
-  const last = asked[asked.length - 1];
-  if (last?.about) return last.about.filter((c) => !c.removed);
-  const seen = new Map<string, Chosen>();
-  for (const t of asked) for (const a of t.attachments)
-    if (a.documentId && !a.removed && (a.status === "ready" || a.status === "needs_review")) seen.set(a.documentId, { documentId: a.documentId, filename: a.filename });
-  return [...seen.values()];
+  return (asked[asked.length - 1]?.about ?? []).filter((c) => !c.removed);
 }
 
 /** The case's documents that may be chosen: its sources, newest first. */

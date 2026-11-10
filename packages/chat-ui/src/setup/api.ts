@@ -56,7 +56,7 @@ export type UsbDisk = { id: string; name: string; size_bytes: number; bus: strin
 /** Where a replacement appliance finds the office's backups, and the recovery key (the text of the file
  *  setup made, or just its AGE-SECRET-KEY-1… line). The key and a share's password are kept on the
  *  appliance only until the restore, then deleted. */
-export type RestoreAnswer =
+type RestoreAnswer =
   | { target: "usb"; disk: string; key: string }
   | { target: "share"; protocol: "smb" | "nfs"; address: string; user?: string; password?: string; key: string };
 export type RestoreStepId = "database" | "restore" | "models" | "network" | "services";

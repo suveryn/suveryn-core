@@ -271,18 +271,18 @@ async def save_answer(case_id: str, body: SaveAnswerIn, request: Request, respon
 
 
 @router.get("/v1/documents/{document_id}/original", response_class=Response,
-            responses={200: {"content": {"application/pdf": {}}}, 404: {"description": "Not here, or its file isn't kept"}})
+            responses={200: {"content": {"application/pdf": {}}}, 404: {"description": "Not here, or not an upload"}})
 async def document_original(document_id: str, request: Request, case: str | None = None):
     """The file a document was read from, as uploaded (board G11, "Open document at p. 3"): for whoever may read
     its passages, and noted in the case's access log. A PDF opens in the browser (the page follows as
-    ``#page=3``), Markdown and CSV show as plain text, Word and Excel are downloaded. Documents stored before
-    files were kept have none (404)."""
+    ``#page=3``), Markdown and CSV show as plain text, Word and Excel are downloaded. Text sūveryn stored
+    itself (a saved answer, a playbook's summary) has none (404)."""
     docs = docs_or_503(request)
     _document_id(document_id)
     scope = await scope_of(request, case, "read")
     found = await run_in_threadpool(docs.original, document_id, scope)
     if found is None:
-        raise HTTPException(404, "This document's file isn't kept.")
+        raise HTTPException(404, "This document has no uploaded file.")
     filename, original = found
     await log_access(request, scope.case_id, "document_opened", {"document": document_id})
     shown = original.content_type == "application/pdf" or original.content_type.startswith("text/plain")

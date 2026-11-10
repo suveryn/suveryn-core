@@ -27,7 +27,7 @@ kind: text, amount, date or number; a `list` of entries, each a record of `of` f
 kind `of`), the instructions the model gets and the routine's `steps` (`request`, `read`, `ask`,
 `checkpoint`, `produce`, `check`, each with `needs` and, for a branch, `when` on a `choice` fact (`conditions.py`); a
 request may be named with `expects` and a read aimed at named requests with `documents`; a check states one
-`rule`, `rules.py`); `manifest: 2` or `3` (3: number, choice and list). The shape of
+`rule`, `rules.py`); `manifest: 3`. The shape of
 the model's answer is the runtime's: the loader derives its JSON Schema from the facts (`read_schema`,
 which the model server enforces by grammar) and appends it in words to the instructions. A list's
 values are named by path (`founders[2].name`, `paths.py`); the wording per language is the pack's, in

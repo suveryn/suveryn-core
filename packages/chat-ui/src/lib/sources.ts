@@ -6,7 +6,7 @@ import type { CitationIssue } from "../api";
 import type { AssistantTurn } from "../types";
 import { claimTerms, claimTexts, markerClaims, markPassage, spanParts, termsOf, type PassagePart } from "./answer";
 
-export type Verdict =
+type Verdict =
   | { kind: "sentence" }    // opened from a marker: everything in its sentence is in the passage
   | { kind: "source" }      // opened from the source list: everything the answer takes from it is
   | { kind: "unchecked" }   // the answer was stopped: nothing was checked
@@ -24,8 +24,8 @@ export function verdictOf(turn: AssistantTurn, n: number, occ: number | null): V
 
 /**
  * The passage of source ``n`` with what the claim(s) citing it rest on marked: the claim of the marker opened (``occ``),
- * or every claim citing ``n`` (from the source list, or a marker of another source). The server's marking when the
- * answer has it (suveryn-tracker#25); the rules here for answers from before, or from an older server.
+ * or every claim citing ``n`` (from the source list, or a marker of another source). The server's marking for an
+ * answer (suveryn-tracker#25); the rules here for a playbook fact's passages, which the server doesn't mark.
  */
 export function sourceParts(turn: AssistantTurn, n: number, occ: number | null): PassagePart[] {
   const passage = turn.citations[n - 1]?.text ?? "";
