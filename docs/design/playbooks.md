@@ -228,6 +228,7 @@ POST   /v1/cases/{id}/playbooks/runs/{run}/say      {text?, documents?, unknown?
 POST   /v1/cases/{id}/playbooks/runs/{run}/answer   {step_id, text?, facts?, none?}: an ask's facts, or a request  (contributor)
 PUT    /v1/cases/{id}/playbooks/runs/{run}/facts    the checkpoint: {facts: [{id, confirmed}]}  (contributor)
 PUT    /v1/cases/{id}/playbooks/runs/{run}/facts/{fact}   a card's value {value}: a new version; the same value: checked  (contributor)
+POST   /v1/cases/{id}/playbooks/runs/{run}/documents  {step_id, documents, text?}: documents for a request already answered  (contributor)
 POST   …/runs/{run}/pause | /resume           anyone who contributes
 POST   …/runs/{run}/stop | /cancel {reason}   the starter or the case manager
 ```
@@ -248,6 +249,21 @@ sweep fails one that has been reading for over thirty minutes, so nobody waits o
 call that no longer exists. A case closed while a run waits keeps the run; the UI says to reopen
 the case to go on. Every act is in the case's access log: `playbook_started`, `playbook_answered`,
 `playbook_confirmed`, `playbook_paused`, `playbook_resumed`, `playbook_stopped`, `playbook_cancelled`.
+
+**A document that comes later** (decision of 10 November 2026). The bank certificate a week after the
+plan: `POST …/documents` names the request it belongs to (a named one, `expects`), while the run waits
+elsewhere or after it is confirmed; a request the run hasn't reached yet, or one its `when` skipped, is
+refused. The documents are recorded as that request's, and **only the reads aimed at it** are read
+again: no other fact can move. The checkpoint and the summary follow again; a confirmed run is
+**reopened**, its summary out of date (`out_of_date`) until the facts are confirmed again and a new
+summary is made (the earlier ones stay). The reading again keeps what stands: a fact it doesn't find,
+or finds as it stands (an amount, a number or a date by meaning), keeps its version; one only read so
+far, or left empty, takes the new reading; one a person confirmed or answered keeps its value, and
+the new reading **waits beside it** (`case_facts.source.competes`; `RunFact.alternative`) until a
+person chooses at the checkpoint: a later document isn't always the right one. The checkpoint's turn
+counts them (`differ`); confirming settles them. The thread says which documents came and what is read
+again (`late_documents`). The screens for this (adding a document to a request already answered, the
+choice at the checkpoint) wait for their design board; the API is there.
 
 **Provenance in the result.** The summary document is named with the playbook's title in the run's
 language, the case's reference and the run's version ("Akte-intake 2026/0417 (1.1)"). It and its name carry the run's `playbook_id` and
@@ -388,6 +404,18 @@ format 3 is it: **a playbook's facts describe a shape, and the whole pipeline wo
   agreement's date (`counts_from`, below). **Deed intake 1.6** (10 November 2026) works out a deposit written as
   a share of the price (`share_of`, below) and a term in working days on the pack's calendar.
 - `check` steps on these typed values: below, "Checks".
+
+### A number that carries its own check (10 November 2026)
+
+A text fact (or a list's text field) may name the form of number it holds: `format: national_register`,
+`enterprise`, `person_or_company` (either: a party that is a person or a company) or `iban`. Their check
+digits are checked by arithmetic (`suveryn_harness.identifiers`): the national register number's 97 minus
+its first nine digits modulo 97 (with a 2 in front for a birth from 2000), the enterprise number's 97 minus
+its first eight modulo 97, the IBAN's ISO 13616 remainder. A value read in that form whose digits don't
+match, a typo or a scan that read an 8 as a 3, goes under *Check* (`needs: invalid_number`; "Its check
+digits don't match"), never a block; a value with no number of that form isn't checked. No model is asked.
+**Deed intake 1.6** checks a party's register number this way. The loader refuses `format` on anything but
+text. Plan step 3.1.
 
 ### A date written as a term (6 November 2026, board P01)
 

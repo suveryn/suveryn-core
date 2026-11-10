@@ -38,6 +38,7 @@ from ..playbooks import (
     CancelIn,
     ConfirmIn,
     FactIn,
+    LateIn,
     PlaybookOut,
     Run,
     RunStore,
@@ -462,6 +463,48 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     return await _walk(request, run, pb, case)
 
 
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/documents", response_model=Run, responses={
+    404: {"description": "Unknown document, or no such request in this playbook"},
+    409: {"description": "The run can't take a document now, or the request doesn't apply"},
+})
+async def add_documents(case_id: str, run_id: str, body: LateIn, request: Request):
+    """Documents that came after their request was answered: the bank certificate a week after the plan (decision of
+    10 November 2026). They are recorded as that request's, the reads aimed at it are read again, and the checkpoint
+    follows again; a confirmed run is reopened, its summary out of date until confirmed again. A reading that differs
+    from a confirmed value waits beside it for a person to choose. While the request itself is the step the run waits
+    on, it is answered as usual (``/say``, ``/answer``)."""
+    case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
+    step = pb.step(body.step_id)
+    if step is None or step.kind != "request" or not step.expects:
+        raise HTTPException(404, "No such request in this playbook.")
+    if run.status not in ("waiting", "done"):
+        raise HTTPException(409, "The run is paused." if run.status == "paused" else "The run can't take a document now.")
+    state = run.steps.get(step.id)
+    if run.status == "waiting" and run.step == step.id:
+        raise HTTPException(409, "The run is waiting on this request: answer it.")
+    if state is None or state.status not in ("done", "skipped") or (state.status == "skipped" and state.because):
+        raise HTTPException(409, "This request doesn't apply to this run." if state is not None and state.because
+                            else "The run hasn't come to this request yet.")
+    cid = uuid.UUID(case.id)
+    if run.status == "done":
+        live = await run_in_threadpool(store.active, cid, pb.id)
+        if live is not None and live.id != run.id:
+            raise HTTPException(409, detail={"message": "This playbook is already going in this case.", "run": live.id})
+    uploaded = await run_in_threadpool(_uploaded_in(request), cid)
+    if any(d not in uploaded for d in body.documents):
+        raise HTTPException(404, "Unknown document.")
+    username, runtime = who(request)[0], _runtime(request)
+    await run_in_threadpool(store.say, run, "user", username, body.text.strip(), step.id,
+                            {"attachments": [{"documentId": d, "filename": uploaded[d]} for d in body.documents], "late": True})
+    try:
+        run = await run_in_threadpool(runtime.add_documents, run, pb, step, body.documents, username)
+    except ValueError:
+        raise HTTPException(409, "The run can't take a document now.") from None
+    await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
+    await touch_case(request, Scope.case(cid))
+    return await _walk(request, run, pb, case)
+
+
 @router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts/{fact_id}", response_model=Run, responses={
     409: {"description": "The run isn't waiting at its checkpoint"},
 })
@@ -584,7 +627,7 @@ async def resume_run(case_id: str, run_id: str, request: Request):
     403: {"description": "Not the starter or the manager"}, 409: {"description": "Already ended"}})
 async def stop_run(case_id: str, run_id: str, request: Request):
     """End early, keeping what was achieved: confirmed facts stay the case's; proposed ones go;
-    a product made so far stays as a document. A new run reads the confirmed facts and doesn't ask twice."""
+    a product made so far stays as a document. A new run asks again: the confirmed facts aren't offered to it yet."""
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     _may_end(request, case, run)
     rid = uuid.UUID(run.id)

@@ -139,6 +139,7 @@ function checkReason(f: RunFact, m: Words): string {
   if (f.needs === "not_an_amount") return m.pbNotAnAmount;
   if (f.needs === "not_a_number") return m.pbNotANumber;
   if (f.needs === "approximate") return m.pbApproximate;
+  if (f.needs === "invalid_number") return m.pbInvalidNumber;
   return m.pbNotInPassage(f.issues.join(", "));
 }
 

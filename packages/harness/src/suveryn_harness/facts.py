@@ -31,6 +31,7 @@ from suveryn_playbooks.paths import MAX_ENTRIES, root
 
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
 from .marking import cited_style
+from .identifiers import valid
 from .support import _dates, _figures, citation_issues, unverified_figures
 from .values import Style, as_date, as_number, first_amount, numbers_in
 
@@ -57,6 +58,13 @@ class FactCitation(BaseModel):
     context: PassageContext | None = None  # the text around it on its page, for the source panel (board P02)
 
 
+class FactAlternative(BaseModel):
+    """A later document's reading that differs from what a person confirmed (or answered): shown beside it until a
+    person chooses at the checkpoint; the confirmed value stands meanwhile (decision of 10 November 2026)."""
+    value: str
+    citations: list[FactCitation] = Field(default_factory=list)
+
+
 class RunFact(BaseModel):
     id: str
     value: str = ""                      # as the model read it, copied from the documents
@@ -78,6 +86,8 @@ class RunFact(BaseModel):
     # "calendar" (its name per language)}. A share: {"written", "from": the amount it is a share of, "kind": "share",
     # "percent", "of", "amount" (decimal strings)}.
     computed: dict | None = None
+    # A document added later reads this fact differently from what is confirmed: both are shown, a person chooses.
+    alternative: FactAlternative | None = None
 
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
@@ -110,7 +120,7 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
     for f in facts:
         raw = data.get(f.id)
         if f.kind != "list":
-            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, style, f.options))
+            out.append(_leaf(f.id, f.leaf_kind, raw, citations, filenames, source, style, f.options, f.format))
             continue
         entries = raw if isinstance(raw, list) else []
         if not entries:
@@ -120,7 +130,8 @@ def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, 
             if f.fields:
                 record = item if isinstance(item, dict) else {}
                 for x in f.fields:
-                    out.append(_leaf(entry(f.id, i, x.id), x.kind, record.get(x.id), citations, filenames, source, style))
+                    out.append(_leaf(entry(f.id, i, x.id), x.kind, record.get(x.id), citations, filenames, source, style,
+                                      form=x.format))
             else:
                 out.append(_leaf(entry(f.id, i), f.item_kind, item, citations, filenames, source, style))
     return work_out_terms(playbook, out)
@@ -176,7 +187,7 @@ def _json_object(answer: str) -> dict | None:
 
 
 def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filenames: dict[str, str], source: str, style: Style,
-          options: tuple[str, ...] = ()) -> RunFact:
+          options: tuple[str, ...] = (), form: str = "") -> RunFact:
     """One value as the model gave it -> the fact, cited and checked. A choice is one of its options, as the
     schema holds the model to; anything else (a server without grammar support) is not found."""
     if isinstance(raw, dict):
@@ -206,6 +217,8 @@ def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filename
         needs, issue = _by_meaning(kind, value, [c.text for c in cited], style)
         if issue and not any(i in value for i in issues):  # unless the check already named its figure or date
             issues.append(issue)
+    if form and valid(form, value) is False:
+        needs = "invalid_number"  # its check digits don't match: a typo, or a scan's misreading (``identifiers``)
     # a value is kept to MAX_VALUE characters: a fact is a line, not a page; what is cut is still in the passage
     return RunFact(id=path, value=value[:MAX_VALUE], citations=cited, issues=list(dict.fromkeys(issues)), found=True,
                    source="document", needs=needs)

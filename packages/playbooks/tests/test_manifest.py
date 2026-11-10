@@ -41,13 +41,13 @@ def test_deed_intake_reads_what_1_0_read():
     (format 2); 1.2 asks for the answer as JSON of the facts' shape instead of a table (format 3); 1.3 makes
     the parties and the conditions lists and adds checks; 1.4 has the deed's deadline and a condition's term count
     from the agreement's date when written as a term; 1.5 reads each fact from the documents that state it; 1.6 works a
-    deposit written as a share of the price out, and working days on the pack's calendar. The thirteen facts are 1.0's by id and order, and
+    deposit written as a share of the price out, and working days on the pack's calendar; 1.7 checks a party's register number by its check digits. The thirteen facts are 1.0's by id and order, and
     every 1.0 label is kept byte for byte, so a run made under 1.0 reads the same facts and a notary sees
     the same words; the three lists' entries have words of their own. The instructions keep 1.0's rules
     (as written, never guess, the documents' language) and differ only in the answer's shape."""
     old = json.loads((FIXTURES / "deed-intake-1.0.json").read_text(encoding="utf-8"))
     new = json.loads(json.dumps(dataclasses.asdict(DEED_INTAKE)))  # tuples to lists, as the snapshot has them
-    assert new["version"] == "1.6" and old["version"] == "1.0" and new["format"] == 3
+    assert new["version"] == "1.7" and old["version"] == "1.0" and new["format"] == 3
     for k in ("id", "pack", "name", "case_types"):
         assert new[k] == old[k], k
     assert [f["id"] for f in new["facts"]] == [f["id"] for f in old["facts"]]

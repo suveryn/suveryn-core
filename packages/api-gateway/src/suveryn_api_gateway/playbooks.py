@@ -48,7 +48,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from suveryn_harness.facts import MAX_VALUE, FactCitation, RunFact
+from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact
 from suveryn_playbooks import Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
@@ -291,6 +291,16 @@ class PlaybookOut(BaseModel):
     steps: list[StepOut] = Field(default_factory=list)  # the routine, so the UI can name the step a run is on
 
 
+class LateIn(BaseModel):
+    """Body of ``POST …/runs/{run}/documents``: documents that came after their request was answered (decision of
+    10 November 2026). ``step_id`` names the request they belong to (a named one: the bank certificate);
+    ``documents`` are ids in the case; ``text`` is what the person wrote with them, if anything."""
+
+    step_id: str = Field(min_length=1, max_length=64)
+    documents: list[str] = Field(min_length=1, max_length=50)
+    text: str = Field(default="", max_length=MAX_ANSWER)
+
+
 class ActiveIn(BaseModel):
     """Body of ``PUT /v1/admin/playbooks/{slug}``."""
 
@@ -499,7 +509,8 @@ class RunStore(TurnStore):
         self._execute("UPDATE playbook_runs SET confirmed_by = %s, confirmed_at = now() WHERE id = %s", (by, run_id))
 
     def set_result(self, run_id: uuid.UUID, document_id: str) -> None:
-        self._execute("UPDATE playbook_runs SET result_document_id = %s WHERE id = %s", (uuid.UUID(document_id), run_id))
+        """The run's summary: a new one is current, so the run is no longer out of date (the earlier ones stay)."""
+        self._execute("UPDATE playbook_runs SET result_document_id = %s, out_of_date = false WHERE id = %s", (uuid.UUID(document_id), run_id))
 
     def mark_out_of_date(self, case_id: uuid.UUID, document_id: str) -> int:
         """A document a run read was deleted (cases.md): the run stays, marked; how many."""
@@ -549,12 +560,27 @@ class RunStore(TurnStore):
                      replaces=r[10]) for r in rows]
 
     def current_versions(self, run_id: uuid.UUID) -> dict[str, dict]:
-        """Per fact, the newest version that isn't superseded."""
+        """Per fact, the newest version that isn't superseded. A later document's reading that competes with a
+        confirmed or answered value (``source.competes``) is not current: it waits beside it (``alternatives``)."""
         out: dict[str, dict] = {}
         for row in self.fact_rows(run_id):
-            if row["status"] != "superseded":
+            if row["status"] != "superseded" and not row["source"].get("competes"):
                 out[row["fact_id"]] = row
         return out
+
+    def alternatives(self, run_id: uuid.UUID) -> dict[str, dict]:
+        """Per fact, the newest competing reading still waiting for a person to choose."""
+        out: dict[str, dict] = {}
+        for row in self.fact_rows(run_id):
+            if row["status"] != "superseded" and row["source"].get("competes"):
+                out[row["fact_id"]] = row
+        return out
+
+    def reopen(self, run_id: uuid.UUID) -> bool:
+        """A confirmed run with a document added later goes back to waiting; its summary is out of date until a new
+        one is made. False when the run isn't done (or meanwhile isn't)."""
+        return self._execute("UPDATE playbook_runs SET status = 'waiting', out_of_date = true, finished_at = NULL"
+                             " WHERE id = %s AND status = 'done'", (run_id,)).rowcount == 1
 
     def facts_for_run(self, run_id: uuid.UUID) -> list[RunFact]:
         """``Run.facts`` as the UI knows them, from the versions: the value as read (the model's, or a
@@ -568,8 +594,13 @@ class RunStore(TurnStore):
             if row["fact_id"] not in order:
                 order.append(row["fact_id"])
             kind, at_checkpoint = row["source"].get("kind"), bool(row["source"].get("checkpoint"))
-            if kind in ("document", "none") and not at_checkpoint and "read" not in slot:
-                slot["read"] = row                       # the model's reading: the first version
+            if row["source"].get("competes"):
+                if row["status"] != "superseded":
+                    slot["alternative"] = row            # a later document's differing reading, waiting for a choice
+                else:
+                    slot.pop("alternative", None)
+            elif kind in ("document", "none") and not at_checkpoint and ("read" not in slot or row["status"] != "superseded"):
+                slot["read"] = row                       # the model's reading: the first, or a later one that replaced it
             elif kind == "person" and not at_checkpoint:
                 slot["answer"] = row                     # a person's answer to an ask, or a correction in words: the newest
             if at_checkpoint and row["status"] in ("confirmed", "not_established"):
@@ -587,7 +618,10 @@ class RunStore(TurnStore):
                                by=answer["by"] if answer else None, at=answer["at"] if answer else None,
                                needs=(read or {}).get("source", {}).get("needs") if found and not answer else None,
                                computed=(read or {}).get("source", {}).get("computed") if found and not answer else None,
-                               was=read["value"] if answer and found and read else None))
+                               was=read["value"] if answer and found and read else None,
+                               alternative=FactAlternative(value=slot["alternative"]["value"], citations=[
+                                   FactCitation(**c) for c in slot["alternative"]["source"].get("citations", [])])
+                               if slot.get("alternative") else None))
         return out
 
     def discard_proposed(self, run_id: uuid.UUID) -> int:

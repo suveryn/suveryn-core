@@ -98,6 +98,9 @@ class Fact:
     # amount: the amount fact a percentage written instead of an amount is a share of ("10% of the price": ``price``);
     # the harness works the amount out (``suveryn_harness.terms``) and a person checks it
     share_of: str = ""
+    # text: a number that carries its own check (``national_register``, ``enterprise``, ``person_or_company``, ``iban``);
+    # a value read in that form whose check digits don't match goes under *Check* (``suveryn_harness.identifiers``)
+    format: str = ""
 
     @property
     def leaf_kind(self) -> LeafKind:

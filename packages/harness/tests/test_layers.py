@@ -8,7 +8,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "suveryn_harness"
 
 # Lowest first. A module may import only from modules in a lower layer.
 LAYERS = [
-    {"values", "schemas", "config", "audit", "usage", "guard", "thinking"},   # reading, shapes, settings: no harness logic
+    {"values", "identifiers", "schemas", "config", "audit", "usage", "guard", "thinking"},  # reading, shapes, settings
     {"calc", "terms", "grounding", "llm"},                                     # computing, terms, the prompt, the model client
     {"marking"},                                                               # where a claim's support is in its passage
     {"support", "checks"},                                                     # does the source say it; a playbook's checks

@@ -554,6 +554,7 @@ const fr: Messages = {
   pbDateNotInPassage: "La date elle-même ne figure pas dans le passage.",
   pbNotAnAmount: "Pas un montant tel qu'écrit : calculez-le et vérifiez.",
   pbNotANumber: "Pas un nombre tel qu'écrit : calculez-le et vérifiez.",
+  pbInvalidNumber: "Les chiffres de contrôle ne correspondent pas : une faute de frappe, ou le scan a mal lu un chiffre. Vérifiez-le dans le document.",
   // listes (format 3) : une liste dont les documents ne nomment aucune entrée, et une entrée de plus pour une liste qui en a
   pbNoEntries: "Aucune dans les documents",
   pbAddEntry: "Ajouter",
