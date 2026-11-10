@@ -12,7 +12,7 @@ def test_citation_source_is_nullable_now_and_structured_later():
     unsourced = Citation(text="EUR 230.000,00")
     assert unsourced.model_dump() == {"text": "EUR 230.000,00", "source": None, "context": None}  # no text around it either
     sourced = Citation(text="EUR 230.000,00", source=SourceRef(document_id="doc-1", page=3, location="art. 2"))
-    assert sourced.model_dump()["source"] == {"document_id": "doc-1", "page": 3, "location": "art. 2"}
+    assert sourced.model_dump()["source"] == {"document_id": "doc-1", "page": 3, "location": "art. 2", "decimals": None}
 
 
 def test_a_conversation_too_long_to_send_is_refused_before_any_work():

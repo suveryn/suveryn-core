@@ -357,6 +357,7 @@ const en = {
   calculatedBy: "Calculated by sūveryn, not read from the documents:",
   calcMissing: (figures: string[]) => ` Check ${figures.join(", ")}: ${figures.length === 1 ? "it doesn't" : "they don't"} appear in the sources.`,
   calcAllSourced: " Every figure comes from the sources.",
+  calcReadAs: (figures: string[], comma: boolean) => ` Read as the documents write them, with decimals after a ${comma ? "comma" : "point"}: ${figures.join(", ")}.`,
   unverified: (figures: string[]) => {
     const one = figures.length === 1;
     return `Check ${figures.join(", ")}: ${one ? "this figure isn't" : "these figures aren't"} in the documents and ${one ? "wasn't" : "weren't"} calculated by sūveryn. The model may have worked ${one ? "it" : "them"} out itself, which can be wrong.`;

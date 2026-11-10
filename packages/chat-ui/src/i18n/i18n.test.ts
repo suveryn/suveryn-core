@@ -13,6 +13,7 @@ const SAMPLES: Record<string, unknown[][]> = {
   deleteDocumentDialogBody: [[1], [3]], deleteDocumentAndConversations: [[1], [3]],
   instructionLike: [[[2]], [[1, 3]]],
   exportMark: [["answer", "2026/0611", "19-10-2026", "A-3f9c2e1b"], ["playbook", null, "19-10-2026", "P-0a1b2c3d"]],
+  calcReadAs: [[["28.848", "48.197"], true], [["28,848"], false]],
   originPlaybook: [["1.0"], [null]], originWasOutput: [["answer"], ["playbook"]], noticedTitle: [["answer"], ["playbook"]],
 };
 const texts = (l: Lang) => strings(TABLES[l], SAMPLES);

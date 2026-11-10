@@ -615,6 +615,7 @@ function CalculationNote({ calc }: { calc: Calculation }) {
     <InlineNotice icon={missing.length ? <CircleAlert size={14} /> : <Calculator size={14} />} tone={missing.length ? "error" : "note"}>
       {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.
       {missing.length > 0 ? m.calcMissing(missing) : m.calcAllSourced}
+      {calc.read_as?.length ? m.calcReadAs(calc.read_as, calc.read_with === ",") : null}
     </InlineNotice>
   );
 }

@@ -90,6 +90,9 @@ class SourceRef(BaseModel):
     document_id: str
     page: int | None = Field(default=None, ge=1, description="1-based page number in the source document")
     location: str | None = Field(default=None, description="Finer position, e.g. 'p. 3-4 · Article 2 - Price', 'Article 2 › Price' or 'Prices!A2:D31'")
+    # How the document writes decimals, read once from its whole text (``calc.decimal_style``): settles a figure that
+    # reads either way in a calculation. None when unknown.
+    decimals: Literal["comma", "point", "mixed"] | None = None
 
 
 class PassageContext(BaseModel):
@@ -138,6 +141,10 @@ class Calculation(BaseModel):
     result: str | None
     figures_not_in_sources: list[str] = Field(default_factory=list)
     error: str | None = None
+    # Figures that read either way ("28.848"), read as the documents that write them write decimals: the reader is
+    # told, so the reading is seen and not trusted blindly (decision of 10 November 2026).
+    read_as: list[str] = Field(default_factory=list)
+    read_with: Literal[",", "."] | None = None   # the decimal separator they were read with
 
 
 class CitationIssue(BaseModel):
