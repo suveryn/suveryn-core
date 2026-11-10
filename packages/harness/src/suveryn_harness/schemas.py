@@ -64,6 +64,9 @@ class ChatRequest(BaseModel):
     # the model server holds the model to it by grammar, so the answer parses by construction. None: free text.
     # Bounded: a schema is a grammar the server compiles per request.
     json_schema: dict[str, Any] | None = None
+    # What to search the documents for, when it isn't the question (a playbook's read: its facts' questions and labels,
+    # not its instructions, which name no fact the documents contain). None: the question, as ``search_text`` takes it.
+    search: str | None = Field(default=None, max_length=8000)
 
     @field_validator("json_schema")
     @classmethod

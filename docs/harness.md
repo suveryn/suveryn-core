@@ -47,7 +47,9 @@ text through one interface, `Retriever`; finding the text is the job of `package
   reading order.
 
 The search text is the last question together with the one before it, so a follow-up such as
-"calculate it" still finds the right passages. Only the case's or the person's own documents can be
+"calculate it" still finds the right passages. A playbook's read searches with its facts instead
+(`ChatRequest.search`, `facts.search_for`: each fact's question and its labels in every language); its
+instructions name no fact the documents contain. Only the case's or the person's own documents can be
 returned, and never sūveryn's own output (a saved answer, a playbook result): those are not sources.
 
 ## 2. The prompt

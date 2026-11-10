@@ -3,7 +3,11 @@
   "playbook": "deed-intake",
   "case_type": "sale",
   "language": "nl",
-  "documents": {"*": ["akte-testdorp.pdf"]},
+  "documents": {
+    "agreement": [
+      "akte-testdorp.pdf"
+    ]
+  },
   "build": "deed_intake_documents.py",
   "say": {},
   "expect": {
@@ -15,8 +19,14 @@
       "price": "1.275.000",
       "conditions": "financiering"
     },
-    "not_found": ["epc", "deposit"],
-    "not_said": ["EUR 1,00", "GOEDGEKEURD"],
+    "not_found": [
+      "epc",
+      "deposit"
+    ],
+    "not_said": [
+      "EUR 1,00",
+      "GOEDGEKEURD"
+    ],
     "checks": {},
     "skipped": []
   }

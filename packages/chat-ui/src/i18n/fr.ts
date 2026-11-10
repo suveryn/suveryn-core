@@ -533,6 +533,7 @@ const fr: Messages = {
   stopRunMenuHint: "Garde ce qui est déjà confirmé.",
   retryRun: "Réessayer",
   runUseCaseDocuments: "Utiliser les documents déjà dans le dossier",
+  runNoDocument: "Il n'y en a pas",
   runSummaryCard: "Résumé",
   // les cartes du playbook et la liste des données (passation du 31 octobre 2026)
   sourcesLabel: "Sources :",

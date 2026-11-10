@@ -4,9 +4,13 @@
   "case_type": "sale",
   "language": "nl",
   "documents": {
-    "*": [
-      "compromis-kerkweg-41.pdf",
-      "eigendomstitel-1998.pdf",
+    "agreement": [
+      "compromis-kerkweg-41.pdf"
+    ],
+    "title_deed": [
+      "eigendomstitel-1998.pdf"
+    ],
+    "certificates": [
       "attesten-kerkweg-41.pdf"
     ]
   },
@@ -44,7 +48,7 @@
       "deed_after_agreement": "holds"
     },
     "read_in_part": [
-      "read"
+      "title_read"
     ],
     "skipped": []
   }

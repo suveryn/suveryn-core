@@ -144,7 +144,7 @@ The routine is in the manifest (formats 2 and 3, below): steps of six kinds, eac
 | Kind | What the runtime does | Waits for |
 |---|---|---|
 | `request` | Puts the pack's question for documents in the thread; named (`expects`), it records which documents answered it | `min` uploaded documents in the case (for a named request: documents that answered it), or a person saying there is none (`allow_none`) |
-| `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those. Documents longer than one reading takes (the whole-document budget, architecture.md) are read by their best-matching passages: the step keeps their names (`in_part`), and the thread says so before anything waits on what was found | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
+| `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those. Documents longer than one reading takes (the whole-document budget, architecture.md) are read by their best-matching passages, searched for the step's facts (their questions and their labels in every language), not the instructions; the facts still not found are then looked for in each document alone, in the order the step names them, and a fact found is never replaced by a later document. The step keeps their names (`in_part`), and the thread says so once per document before anything waits on what was found | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
 | `check` | Evaluates one rule on the values as they stand (`suveryn_harness.checks`); the result is shown at the checkpoint and in the summary, never a block | Nothing |
@@ -155,8 +155,9 @@ Any step may carry `when` (a condition on a choice fact, "Choices" below): a ste
 The runtime (`suveryn_api_gateway/playbook_runtime.py`) walks the graph: `next_step` is the first
 step, in the manifest's order, that isn't done and whose needs all are; `advance` does what needs
 nobody (a request already satisfied, an ask with nothing to ask, the summary) and stops where the
-run waits. It takes its stores as arguments and is tested without a request. Deed intake 1.1 is
-the first routine: agreement (request), read, missing (ask), confirm, summary.
+run waits. It takes its stores as arguments and is tested without a request. Deed intake 1.5's routine:
+the agreement, the title deed and the certificates (requests, the last two may be answered "there is none"), a read
+of each aimed at the documents that state its facts, missing (ask), the checks, confirm, summary.
 
 **Facts have a record of their own**: `case_facts`, one row per **version**, never rewritten.
 The model's reading is `proposed` (or `not_established` when the documents don't contain it); a
@@ -201,7 +202,8 @@ with the live run's id.
 The upload hook is a person's act: the documents come into the case through the composer's paperclip
 and with the person's turn (a line and its documents are one turn), and the runtime counts the case's
 uploaded documents. **A request always asks first**, even when the case already holds documents: it is met
-once a person has answered it, with documents or with *Use the documents already in the case*, and the
+once a person has answered it, with documents, with *Use the documents already in the case*, or, at a request
+that allows it (`allow_none`), with *There is none*, and the
 case has what it needs; documents that came with the turn are what the read reads, so a deed already in the case is never read as the agreement without a word. The playbook never
 writes the same line twice in a row (two answers at the same moment wrote its question twice). Nothing
 advances on a GET.

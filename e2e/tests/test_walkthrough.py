@@ -101,6 +101,10 @@ def test_a_case_with_a_colleague_and_deed_intake_to_its_summary(page, deed):
     page.get_by_role("menuitem", name=re.compile("^Deed intake")).click()
     page.get_by_text("Nora Notaris started Deed intake").wait_for()
     page.get_by_role("button", name="Use the documents already in the case").click()
+    # deed intake 1.5 also asks for the title deed and the certificates, by name; this case has neither
+    for _ in range(2):
+        page.get_by_role("button", name="There is none").click()
+        page.wait_for_timeout(500)
     # the parties and the conditions are lists; a list is one fact (board P01), so the count is the thirteen facts
     page.get_by_text(re.compile(r"\d+ of 13 facts found\. Not in the documents:")).wait_for(timeout=120_000)
     # the facts the documents lack are asked; "Not known yet" answers each question until the review

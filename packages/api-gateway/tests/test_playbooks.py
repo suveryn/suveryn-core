@@ -95,7 +95,7 @@ def test_a_term_worked_out_from_the_agreements_date_is_kept_with_how(runs):
         cid, alice, _ = a_case_with_a_contributor(c, kc)
         rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
         docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
-        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis."}, headers=alice)
+        deliver(c, RUN.format(cid=cid, rid=rid), alice, text="Het compromis.")
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
         deadline = {f["id"]: f for f in run["facts"]}["deed_deadline"]
         assert (deadline["value"], deadline["needs"]) == ("3 februari 2027", "computed")
@@ -112,12 +112,12 @@ def test_a_read_of_documents_longer_than_one_reading_says_so(office):
     cid, alice, _ = a_case_with_a_contributor(c, kc)
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
-    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis."}, headers=alice)
+    deliver(c, RUN.format(cid=cid, rid=rid), alice, text="Het compromis.")
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
-    in_part = run["steps"]["read"]["in_part"]
+    in_part = run["steps"]["agreement_read"]["in_part"]
     assert len(in_part) == 1 and in_part[0]  # the document's name, as the run read it
     said = [t for t in run["turns"] if t["meta"].get("kind") == "read_in_part"]
-    assert len(said) == 1 and said[0]["meta"]["step"] == "read" and said[0]["meta"]["documents"] == run["steps"]["read"]["in_part"]
+    assert len(said) == 1 and said[0]["meta"]["step"] == "agreement_read" and said[0]["meta"]["documents"] == run["steps"]["agreement_read"]["in_part"]
     kinds = [t["meta"].get("kind") for t in run["turns"] if t["role"] == "playbook"]
     assert kinds.index("read_in_part") < len(kinds) - 1  # said before what the run now waits on
 
@@ -127,10 +127,21 @@ def test_the_summary_ends_with_the_documents_read_in_part():
     facts = read_facts(DEED_INTAKE, response(), {TABLE_DOC: "compromis.pdf"})
     run = Run(id=str(uuid.uuid4()), case_id=str(uuid.uuid4()), playbook_id=DEED_INTAKE.id, playbook_version="1.4",
               status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts,
-              steps={"read": StepState(status="done", in_part=["eigendomstitel.pdf"])})
+              steps={"title_read": StepState(status="done", in_part=["eigendomstitel.pdf"])})
     assert summary_text(DEED_INTAKE, "2026/0417", run, "nl").endswith("Gedeeltelijk gelezen, niet elke pagina: eigendomstitel.pdf")
-    whole = run.model_copy(update={"steps": {"read": StepState(status="done")}})
+    whole = run.model_copy(update={"steps": {"title_read": StepState(status="done")}})
     assert "Gedeeltelijk" not in summary_text(DEED_INTAKE, "2026/0417", whole, "nl")
+
+
+def deliver(c, url, headers, **body):
+    """Deed intake's three requests (1.5): the agreement as given (``body``: its words, its documents), then no title
+    deed and no certificates. The last answer, or the agreement's when it was refused."""
+    r = c.post(url + "/answer", json={"step_id": "agreement", **body}, headers=headers)
+    if r.status_code >= 400:
+        return r
+    for step in ("title_deed", "certificates"):
+        r = c.post(url + "/answer", json={"step_id": step, "none": True}, headers=headers)
+    return r
 
 
 def wait_for(c, url, headers, status, tries=50):
@@ -165,8 +176,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "playbook")  # an earlier result: never read
     # which playbooks fit: a sale gets deed intake 1.1, covered, with its routine and its words in every language
     fits = c.get(f"/v1/cases/{cid}/playbooks", headers=bob).json()
-    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.4")]
-    assert [s["kind"] for s in fits[0]["steps"]] == ["request", "read", "ask", *["check"] * 5, "checkpoint", "produce"]
+    assert [(p["id"], p["covered"], p["version"]) for p in fits] == [("playbook/be-notary/deed-intake", True, "1.5")]
+    assert [s["kind"] for s in fits[0]["steps"]] == [*["request"] * 3, *["read"] * 3, "ask", *["check"] * 5, "checkpoint", "produce"]
     assert fits[0]["lists"]["sellers"] == ["name", "address", "register"] and fits[0]["kinds"]["conditions.term"] == "date"
     assert set(fits[0]["text"]) == {"en", "nl", "fr"} and fits[0]["text"]["en"]["labels"]["price"] == "Price"
     assert "{label}" in fits[0]["text"]["nl"]["questions"]["missing"]
@@ -177,8 +188,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert r.status_code == 202
     run = r.json()
     rid = run["id"]
-    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.4")
-    assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["read"]["status"] == "pending"
+    assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.5")
+    assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["agreement_read"]["status"] == "pending"
     assert [(t["role"], t["step_id"], t["by"]) for t in run["turns"]] == [("playbook", "agreement", "playbook/be-notary/deed-intake")]
     assert run["turns"][0]["text"].startswith("Laad de ondertekende verkoopovereenkomst op")
     # one live run per playbook per case
@@ -194,13 +205,13 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "waiting" and r.json()["step"] == "agreement"  # still no document
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
-    r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis staat erin."}, headers=alice)
-    assert r.status_code == 200 and r.json()["status"] == "reading" and r.json()["step"] == "read" and r.json()["documents"] == [DOC]
+    r = deliver(c, RUN.format(cid=cid, rid=rid), alice, text="Het compromis staat erin.")
+    assert r.status_code == 200 and r.json()["status"] == "reading" and r.json()["step"] == "agreement_read" and r.json()["documents"] == [DOC]
     assert '"sellers": [\n    {\n      "name": {"value": <' in captured[-1]["messages"][-1]["content"]  # the playbook's instructions went to the model
     assert captured[-1]["response_format"]["json_schema"]["schema"]["required"][0] == "sellers"  # and the shape the server enforces
     # the model answered; the cadastral data wasn't in the documents, so the playbook asks for it, in Dutch, and waits
     run = wait_for(c, RUN.format(cid=cid, rid=rid), bob, "waiting")
-    assert run["step"] == "missing" and run["steps"]["read"]["status"] == "done" and run["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
+    assert run["step"] == "missing" and run["steps"]["agreement_read"]["status"] == "done" and run["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
     by = {f["id"]: f for f in run["facts"]}
     assert by["price"]["value"] == "EUR 412.500,00" and by["price"]["citations"][0]["filename"] == "akte.pdf" and by["price"]["source"] == "document"
     assert by["cadastral"]["found"] is False and by["cadastral"]["source"] == "none" and by["cadastral"]["confirmed"] is None
@@ -215,7 +226,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     found, total = 9, 13
     assert [t["meta"] for t in asked] == [{"kind": "ask", "facts": not_found, "found": found, "total": total}]
     assert not_found[0] == "cadastral" and "Cadastral" in asked[0]["text"]
-    assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook"]
+    # the three requests, each answered (the agreement first without its document), then the ask
+    assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook", "user", "playbook", "user", "playbook"]
     # the answer: a proposed fact from a person; a fact not asked is refused
     assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"price": "1"}}, headers=alice).status_code == 422
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"cadastral": "Gent 5e afd., sectie B, nr. 123"}}, headers=alice)
@@ -246,13 +258,13 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the summary is a document in the case with origin playbook, named after the playbook, the case and the run's version,
     # in the run's language; its text is what 1.0 wrote for the same confirmed facts
     name, text = docs.stored_text
-    assert name == "Akte-intake 2026/0417 (1.4)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.4")
+    assert name == "Akte-intake 2026/0417 (1.5)" and text.startswith("Akte-intake 2026/0417\n\nplaybook/be-notary/deed-intake 1.5")
     assert "Prijs: EUR 412.000,00 (akte.pdf p. 2)" in text and "Kadastrale gegevens: Gent 5e afd., sectie B, nr. 123" in text
     assert "Verkoper(s) 1 · Naam: Jan Peeters" in text and "Verkoper(s) 2 · Naam: Marie Claes" in text and "Koper(s) 1 · Naam: Tom Janssens" in text
     assert "Opschortende voorwaarden 1 · Te vervullen tegen: 2 november 2026" in text
     assert "Het voorschot of de waarborg ligt binnen de prijs: klopt" in text  # the price as confirmed: 41.250 within 412.000
     assert "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte: klopt" in text
-    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.4", "run": rid}
+    assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.5", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice).status_code == 409
     assert cid not in c.get("/v1/playbooks/runs/active", headers=alice).json()  # done: no chip
@@ -297,7 +309,7 @@ def test_stop_keeps_confirmed_facts_and_drops_proposed_ones(office):
     cid, alice, bob = a_case_with_a_contributor(c, kc, "contributor")
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).json()["id"]
-    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
+    deliver(c, RUN.format(cid=cid, rid=rid), alice)
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
     assert run["step"] == "missing"
     # a contributor who didn't start it and doesn't manage the case can't end it; the starter can
@@ -319,7 +331,7 @@ def test_cancel_reverts_confirmed_facts_and_withdraws_the_product(office):
     cid, alice, bob = a_case_with_a_contributor(c, kc, "contributor")
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=bob).json()["id"]  # bob starts it
-    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=bob)
+    deliver(c, RUN.format(cid=cid, rid=rid), bob)
     wait_for(c, RUN.format(cid=cid, rid=rid), bob, "waiting")
     c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"cadastral": "Gent"}}, headers=bob)
     r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "price", "confirmed": "EUR 1"}]}, headers=bob)
@@ -331,7 +343,7 @@ def test_cancel_reverts_confirmed_facts_and_withdraws_the_product(office):
     assert r.status_code == 409  # a finished run is not cancelled: its facts are the case's now (stop/cancel act on live runs)
     # a live run, then: start again, confirm nothing yet, cancel at the checkpoint after answering
     rid2 = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=bob).json()["id"]
-    c.post(RUN.format(cid=cid, rid=rid2) + "/answer", json={"step_id": "agreement"}, headers=bob)
+    deliver(c, RUN.format(cid=cid, rid=rid2), bob)
     wait_for(c, RUN.format(cid=cid, rid=rid2), bob, "waiting")
     c.post(RUN.format(cid=cid, rid=rid2) + "/answer", json={"step_id": "missing", "facts": {"cadastral": "Gent"}}, headers=bob)
     r = c.post(RUN.format(cid=cid, rid=rid2) + "/cancel", json={"reason": "wrong file"}, headers=alice)
@@ -404,9 +416,9 @@ def test_a_run_fails_by_kind_when_the_answer_isnt_the_table(runs):
         assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"document_ids": [str(uuid.uuid4())]}, headers=alice).status_code == 404
         docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
         rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"document_ids": [DOC]}, headers=alice).json()["id"]
-        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
+        deliver(c, RUN.format(cid=cid, rid=rid), alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "failed")
-        assert run["error"] == "unreadable_answer" and run["facts"] == [] and run["step"] == "read"
+        assert run["error"] == "unreadable_answer" and run["facts"] == [] and run["step"] == "agreement_read"
 
 
 @needs_db
@@ -426,9 +438,10 @@ def test_an_unreadable_answer_is_asked_for_once_more_with_a_stricter_reminder(ru
         cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
         docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
         rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).json()["id"]
-        c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
+        deliver(c, RUN.format(cid=cid, rid=rid), alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
-        assert len(captured) == 2 and "could not be read" in captured[1]["messages"][-1]["content"]
+        # each of the three reads asked twice: the first answer can't be read, the second, reminded, can
+        assert len(captured) == 6 and all("could not be read" in captured[i]["messages"][-1]["content"] for i in (1, 3, 5))
         assert captured[1]["max_tokens"] == 6144 and len(run["facts"]) == 21  # READ_TOKENS: the JSON with room for a list; 1.3's lines
 
 
@@ -517,7 +530,7 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
                 c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
                 docs.docs[str(uuid.uuid4())] = (Scope.case(uuid.UUID(cid)), "uploaded")
                 run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=who).json()
-                return c.post(RUN.format(cid=cid, rid=run["id"]) + "/answer", json={"step_id": "agreement"}, headers=who), cid
+                return deliver(c, RUN.format(cid=cid, rid=run["id"]), who), cid
 
             codes = [start(alice)[0].status_code for _ in range(3)]
             assert codes == [200, 200, 429]  # two of hers at once
@@ -577,8 +590,11 @@ def test_people_answer_and_correct_a_playbook_in_words(talking):
     assert c.post(url + "/say", json={"documents": [DOC]}, headers=alice).status_code == 404  # not in the case yet
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
     r = c.post(url + "/say", json={"text": "Hier is het compromis.", "documents": [DOC]}, headers=alice)
+    assert r.status_code == 200 and (r.json()["status"], r.json()["step"]) == ("waiting", "title_deed")  # the next request
+    for step in ("title_deed", "certificates"):
+        r = c.post(url + "/answer", json={"step_id": step, "none": True}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "reading"
-    assert r.json()["turns"][-1]["meta"]["attachments"] == [{"documentId": DOC, "filename": "akte.pdf"}]
+    assert [{"documentId": DOC, "filename": "akte.pdf"}] in [t["meta"].get("attachments") for t in r.json()["turns"]]
     run = wait_for(c, url, alice, "waiting")
     assert run["step"] == "missing" and run["turns"][-1]["meta"]["kind"] == "ask"
     # an answer the model can't place: the playbook asks again in words, the step waits
@@ -630,7 +646,7 @@ def test_the_request_asks_even_when_the_case_has_documents_and_the_question_is_w
     run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers={**alice, "Accept-Language": "fr-BE,fr;q=0.9"}).json()
     assert run["status"] == "waiting" and run["step"] == "agreement" and run["language"] == "fr"
     url = RUN.format(cid=cid, rid=run["id"])
-    assert c.post(url + "/answer", json={"step_id": "agreement", "text": "Celui du dossier."}, headers=alice).json()["status"] == "reading"
+    assert deliver(c, url, alice, text="Celui du dossier.").json()["status"] == "reading"
     run = wait_for(c, url, alice, "waiting")
     asks = [t for t in run["turns"] if t["meta"].get("kind") == "ask"]
     assert len(asks) == 1
@@ -834,7 +850,7 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
-    assert run["playbook"]["version"] == "1.4" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
+    assert run["playbook"]["version"] == "1.5" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Prijs"
     assert run["playbook"]["lists"]["conditions"] == ["condition", "term"] and run["playbook"]["kinds"]["price"] == "amount"
     # "the next release" renames a label and bumps the version; the run doesn't follow it
     store = c.app.state.runs.get()
@@ -843,9 +859,9 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     store._execute("UPDATE playbook_runs SET manifest = %s WHERE id = %s", (json.dumps(record), uuid.UUID(rid)))
     run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
     assert run["playbook"]["version"] == "0.9" and run["playbook"]["text"]["nl"]["labels"]["price"] == "Koopsom"
-    assert run["playbook_version"] == "1.4"  # what was recorded at the start stays the run's version
+    assert run["playbook_version"] == "1.5"  # what was recorded at the start stays the run's version
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
-    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
+    deliver(c, RUN.format(cid=cid, rid=rid), alice)
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
     c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {}}, headers=alice)
     r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}, headers=alice)

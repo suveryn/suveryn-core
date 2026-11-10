@@ -270,8 +270,9 @@ class Runtime:
         states = dict(run.steps)
         in_part = list(documents or []) if complete is False else []
         states[step.id] = StepState(status="done", at=_now(), in_part=in_part)
-        if in_part:
-            self._say(run, playbook, step.id, *self.in_part_turn(step, in_part))
+        said = {name for state in run.steps.values() for name in state.in_part}
+        if new := [name for name in in_part if name not in said]:  # a document is named once per run, not per read
+            self._say(run, playbook, step.id, *self.in_part_turn(step, new))
         # still ``reading`` until ``advance`` has found the next wait: a poll between the two must not see a half-moved run
         if not self.store.set_step(rid, step.id, "reading", states, model=model, suspicious=suspicious):
             return None

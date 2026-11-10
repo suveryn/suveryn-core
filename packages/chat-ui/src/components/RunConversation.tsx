@@ -239,6 +239,12 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
                               : canAnswer && run.status === "waiting" && t.step_id === run.step && stepKind(run, playbook) === "request"
                                 && i === run.turns.length - 1 && t.role === "playbook" && !t.meta.kind
                               ? { label: m.runUseCaseDocuments, send: () => sayInRun(kase.id, run.id, { text: m.runUseCaseDocuments }).then(onChanged) }
+                              : null}
+                            // a request the playbook can do without (the title deed, the certificates): "There is none"
+                            noneReply={canAnswer && run.status === "waiting" && t.step_id === run.step && stepKind(run, playbook) === "request"
+                                && i === run.turns.length - 1 && t.role === "playbook" && !t.meta.kind
+                                && playbook?.steps?.find((s) => s.id === run.step)?.allow_none
+                              ? { label: m.runNoDocument, send: () => answerRun(kase.id, run.id, run.step ?? "", { text: m.runNoDocument, none: true }).then(onChanged) }
                               : null} />))}
         {run.status === "reading" && (
           <div className="turn-assistant">
@@ -271,11 +277,13 @@ function Speaking() {
   return <IconBadge badge={<Route />} host="icon" tone="system"><AssistantMark /></IconBadge>;
 }
 
-function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, choices = [] }: {
+function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, noneReply = null, choices = [] }: {
   turn: RunTurn; title: string; showSpeaker: boolean; words: PlaybookWords;
   /** At review: the cards, under the message's own words. */
   review: ReactNode | null;
   quickReply: { label: string; send: () => Promise<void> } | null;
+  /** At a request a playbook can do without: "There is none", beside the quick reply. */
+  noneReply?: { label: string; send: () => Promise<void> } | null;
   /** At an ask about a choice: the fact's options as buttons. */
   choices?: { fact: string; label: string; options: { id: string; label: string; send: () => Promise<void> }[] }[];
 }) {
@@ -308,10 +316,12 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, cho
             ))}
           </div>
         ))}
-        {quickReply && (
+        {(quickReply || noneReply) && (
           <div className="run-quick">
-            <Button variant="secondary" size="small" isDisabled={sending}
-                    onPress={() => { setSending(true); quickReply.send().finally(() => setSending(false)); }}>{quickReply.label}</Button>
+            {[quickReply, noneReply].filter((r): r is { label: string; send: () => Promise<void> } => r !== null).map((r) => (
+              <Button key={r.label} variant="secondary" size="small" isDisabled={sending}
+                      onPress={() => { setSending(true); r.send().finally(() => setSending(false)); }}>{r.label}</Button>
+            ))}
           </div>
         )}
       </div>

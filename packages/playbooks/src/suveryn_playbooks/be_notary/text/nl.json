@@ -27,8 +27,10 @@
       "occupancy": "Bewoning bij levering"
     },
     "questions": {
-      "agreement": "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
-      "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet."
+      "agreement": "Laad de ondertekende verkoopovereenkomst op. Ga daarna verder.",
+      "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+      "title_deed": "Laad de eigendomstitel van de verkoper op: de vorige akte waarmee de verkoper het goed verkreeg. Hebt u die niet bij de hand, zeg dan dat er geen is.",
+      "certificates": "Laad de attesten op: het energieprestatiecertificaat en het bodemattest. Hebt u die niet bij de hand, zeg dan dat er geen zijn."
     },
     "checks": {
       "a_seller": "Er is minstens één verkoper",
@@ -36,6 +38,14 @@
       "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs",
       "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
       "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte"
+    },
+    "steps": {
+      "agreement": "Verkoopovereenkomst",
+      "title_deed": "Eigendomstitel",
+      "certificates": "Attesten",
+      "agreement_read": "Lezen van de overeenkomst",
+      "title_read": "Lezen van de eigendomstitel",
+      "certificates_read": "Lezen van de attesten"
     }
   }
 }

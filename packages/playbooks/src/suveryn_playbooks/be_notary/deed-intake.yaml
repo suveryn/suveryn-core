@@ -5,7 +5,8 @@
 # Every fact is a line the notary has to check; the parties and the conditions are lists, one entry
 # each, so a second seller is a second entry and not a longer sentence.
 #
-# The routine: ask for the agreement, read the documents, ask about what was not found, the checks,
+# The routine: ask for the agreement, the title deed and the certificates, read each fact from the documents
+# that state it, ask about what was not found, the checks,
 # the checkpoint, the summary. The questions' words and the labels per language are in
 # text/<lang>.json beside this file; the shape the model fills in is the runtime's, appended by the loader.
 #
@@ -20,11 +21,16 @@
 # 1.4 (November 2026): the deed's deadline and a condition's term count from the agreement's date when the
 # agreement gives a term instead of a date ("within four months of the signing"): sūveryn works the date out
 # and says how, and a person checks it (board P01). The facts, the instructions and the words are 1.3's.
+# 1.5 (November 2026): the documents by name (format 3, "Documents by name"): the sale agreement, the seller's
+# title deed and the certificates are asked for as such, and each fact is read from the documents that state
+# it. The GPU round's sale file of real length (10 November) found why: read all at once, a 25-page title deed
+# of an earlier sale filled the reading, and the parties and the price of today's agreement were not seen. The
+# facts, the instructions and the checks are 1.4's.
 
 manifest: 3
 id: playbook/be-notary/deed-intake
 pack: pack/be-notary
-version: "1.4"
+version: "1.5"
 name: Deed intake
 case_types: [sale]
 
@@ -92,12 +98,32 @@ instructions: >-
   in from general knowledge. Answer in the language of the documents.
 
 steps:
-  - id: agreement          # the signed sale agreement and what the parties sent
+  - id: agreement          # the signed sale agreement: the parties, the property, the price, the dates
     kind: request
+    expects: sale_agreement
     min: 1
-  - id: read
+  - id: title_deed         # the seller's title: the earlier deed by which the seller acquired the property
+    kind: request
+    expects: title_deed
+    min: 1
+    allow_none: true
+  - id: certificates       # the energy performance certificate, the soil certificate
+    kind: request
+    expects: certificates
+    min: 1
+    allow_none: true
+  - id: agreement_read     # today's sale, from today's agreement only: an earlier deed names other parties
     kind: read
-    facts: all
+    documents: [sale_agreement]
+    facts: [sellers, buyers, property, cadastral, price, deposit, agreement_date, deed_deadline, conditions, occupancy]
+  - id: title_read         # the seller's title: the agreement says where it comes from, the title deed in full
+    kind: read
+    documents: [sale_agreement, title_deed]
+    facts: [title]
+  - id: certificates_read  # the certificates, or the agreement's lines about them
+    kind: read
+    documents: [certificates, sale_agreement]
+    facts: [epc, soil]
   - id: missing            # one question per fact the documents did not contain
     kind: ask
     facts: all

@@ -561,6 +561,7 @@ const en = {
   stopRunMenuHint: "Keeps what is already confirmed.",
   retryRun: "Try again",
   runUseCaseDocuments: "Use the documents already in the case",
+  runNoDocument: "There is none",
   runSummaryCard: "Summary",
   // the playbook's cards and the facts list (handover of 31 October 2026)
   sourcesLabel: "Sources:",
