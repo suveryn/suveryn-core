@@ -70,6 +70,18 @@ so. Recorded after this step: 33 correct answers, none flagged; changed percenta
 One consequence: an answer that states a term or a percentage found in no passage is now asked again once, like any
 figure in no passage.
 
+**Two flags on meaning** (step 4, 10 November 2026), by rule and without another model call. For a claim that
+restates a sentence of its cited passage (three quarters of its words and facts are that sentence's), the check
+flags a difference in a negation ("mag" for "mag niet", "peut" for "ne peut pas") and the other party named (koper
+for verkoper, vendeur for acheteur, landlord for tenant): `CitationIssue.kind` is `negation` or `party`, and the note
+under the answer says which word. Left alone on purpose, each with a correct answer in the benchmark to keep it so:
+a paraphrase ("verboden" for "mag niet", "vrij van hypotheek" for "geen hypotheek"), "niet alleen … maar ook", an
+exception ("niet zonder toestemming" told as "met toestemming"), both parties named in the sentence, and a claim two
+passages are cited for when one agrees. Not caught: an answer in another language than its passage, or one that
+rewords the sentence. Recorded after this step: 40 correct answers, none flagged; a "not" taken out or put in 7 of
+12, the other party 12 of 20 (both 0 before). The rest of what a sentence means stays with the reader, and with the
+measurement of marking by meaning.
+
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
 ## 1. Passages
