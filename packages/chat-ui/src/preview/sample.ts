@@ -59,7 +59,7 @@ const MEMBERS: Member[] = [
 
 // ---------- cases ----------
 const kase = (id: string, reference: string, name: string, type: string, my_role: Case["my_role"], extra: Partial<Case> = {}): Case => ({
-  id, reference, name, type, subject: {}, access: "default", state: "open", opened_at: ago(40 * DAY), closed_at: null,
+  id, reference, name, type, access: "default", state: "open", opened_at: ago(40 * DAY), closed_at: null,
   keep_until: null, keep: false, manager: "u-test", created_by: "u-test", updated_at: ago(HOUR), my_role, ...extra,
 });
 const CASE_123 = kase("c123", "123", "Thirdexpert Management & Consulting", "sale", "manager", { pinned: true });

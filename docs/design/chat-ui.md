@@ -576,7 +576,7 @@ under professional secrecy, so the ordinary level has no label.
 - **Administrators who aren't members** see that the case exists, by its reference only, with
   "Strictly confidential" where the name would be, in the Cases overview and in *Administration*, so
   they can hand it over, close or delete it, and they can open its access log. The gateway leaves the
-  name and the subject out of every answer to them (`shielded`; decision, 29 October, after the external
+  name out of every answer to them (`shielded`; decision, 29 October, after the external
   review's pass 7). They never see its documents, its conversations or their titles. Its manager and
   members still show, for handing it over.
 

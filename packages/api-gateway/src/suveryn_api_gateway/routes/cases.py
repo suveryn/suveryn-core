@@ -109,7 +109,7 @@ async def get_case(case_id: str, request: Request):
     403: {"description": "Not the case's manager, or the case is closed"}, 404: {"description": "Unknown case"},
     409: {"description": "A case with this reference exists, or the access can't be opened while strictly confidential"}})
 async def update_case(case_id: str, body: CaseUpdate, request: Request):
-    """Change a case's reference, name, type, subject, access or strictly confidential label (its
+    """Change a case's reference, name, type, access or strictly confidential label (its
     manager only). Turning the label on restricts the access and unshares the case's conversations."""
     case = await case_for(request, case_id, "manage")
     try:

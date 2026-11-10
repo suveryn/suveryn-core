@@ -39,13 +39,13 @@ from test_documents import DOC, FakeDocuments, llm_transport
 ALICE, BOB, CARLA, ADMIN = "alice-sub", "bob-sub", "carla-sub", "admin-sub"
 PEOPLE = [Person(sub=ALICE, username="alice", name="Alice Peeters"), Person(sub=BOB, username="bob", name="Bob Janssens"),
           Person(sub=CARLA, username="carla", name="Carla Maes"), Person(sub=ADMIN, username="admin", name="The Administrator")]
-NEW = {"reference": "2026/0417", "name": "Verkoop Kerkstraat 12", "type": "sale", "subject": {"property": "Kerkstraat 12, Gent"}}
+NEW = {"reference": "2026/0417", "name": "Verkoop Kerkstraat 12", "type": "sale"}
 
 
 # ------------------------------------------------------------------ the rules
 def case(state="open", access="default", manager=ALICE) -> Case:
     now = datetime.now(UTC)
-    return Case(id=str(uuid.uuid4()), reference="2026/0417", name="Verkoop", type="sale", subject={}, access=access,
+    return Case(id=str(uuid.uuid4()), reference="2026/0417", name="Verkoop", type="sale", access=access,
                 state=state, opened_at=now, closed_at=None, keep_until=None, keep=False, manager=manager,
                 created_by=manager, created_at=now, updated_at=now)
 
@@ -364,7 +364,7 @@ def test_create_list_and_open_a_case(office):
     assert made["reference"] == "2026/0417" and made["manager"] == ALICE and made["my_role"] == "manager"
     assert made["state"] == "open" and made["access"] == "default"
     assert [x["id"] for x in c.get("/v1/cases", headers=alice).json()] == [made["id"]]
-    assert c.get(f"/v1/cases/{made['id']}", headers=alice).json()["subject"] == {"property": "Kerkstraat 12, Gent"}
+    assert "subject" not in c.get(f"/v1/cases/{made['id']}", headers=alice).json()
     # members only: Bob doesn't see it, and it is "unknown" to him, not "forbidden"
     assert c.get("/v1/cases", headers=bob).json() == []
     assert c.get(f"/v1/cases/{made['id']}", headers=bob).status_code == 404
@@ -1042,7 +1042,7 @@ def test_store_creates_lists_updates_and_deletes(store):
     s = store
     alice, bob = f"alice-{uuid.uuid4()}", f"bob-{uuid.uuid4()}"
     c = s.create(CaseIn(**NEW), alice)
-    assert c.my_role == "manager" and c.manager == alice and c.state == "open" and c.subject == NEW["subject"]
+    assert c.my_role == "manager" and c.manager == alice and c.state == "open"
     assert s.role_of(uuid.UUID(c.id), alice) == "manager" and s.role_of(uuid.UUID(c.id), bob) is None
     assert s.get(uuid.UUID(c.id), bob).my_role is None and s.get(uuid.uuid4(), alice) is None
     assert [x.id for x in s.list(alice, office_wide=False)] == [c.id]
@@ -1056,8 +1056,8 @@ def test_store_creates_lists_updates_and_deletes(store):
     assert not s.list(bob, office_wide=True)[0].pinned  # someone else's pin
     s.set_pinned(uuid.UUID(c.id), alice, False)
     assert not s.get(uuid.UUID(c.id), alice).pinned
-    changed = s.update(uuid.UUID(c.id), CaseUpdate(access="restricted", subject={"property": "elsewhere"}))
-    assert changed.access == "restricted" and changed.subject == {"property": "elsewhere"} and changed.updated_at > c.updated_at
+    changed = s.update(uuid.UUID(c.id), CaseUpdate(access="restricted"))
+    assert changed.access == "restricted" and changed.updated_at > c.updated_at
     assert [x.id for x in s.list(bob, office_wide=True) if x.id == c.id] == []
     assert s.update(uuid.uuid4(), CaseUpdate(name="x")) is None
     assert s.manages(alice) == 1
@@ -1286,7 +1286,6 @@ def test_an_administrator_lists_every_case_and_changes_the_offices_settings(offi
     assert [(x["id"], x["state"], x["manager"], x["members"]) for x in listed] == [
         (cid, "open", ALICE, 2), (other, "closed", BOB, 1)]
     assert all(x["manager_name"] and x["manager_username"] for x in listed)  # the name as when the case was opened
-    assert all("subject" not in x or x["subject"] == NEW["subject"] for x in listed)  # the case's label, nothing inside it
     # the settings: as provisioned (members, 6m) until changed here, then effective at once
     before = c.get("/v1/admin/cases/settings", headers=admin).json()
     assert before == {"default_access": "members", "keep": "6m", "conversations_keep": "manual", "two_step": False,
@@ -1527,7 +1526,7 @@ def test_the_sign_in_check_needs_keycloaks_database(monkeypatch):
 def test_an_administrator_outside_a_strictly_confidential_case_sees_its_number_only(office):
     """Decision, 29 October (external review, pass 7, item 9): an administrator who isn't a member sees that a
     strictly confidential case exists, by its reference, with its manager, to hand it over or close it; never
-    its name or subject. Every other case, and for its members, as before."""
+    its name. Every other case, and for its members, as before."""
     c, kc, cases, _, _ = office
     alice, admin = as_user(kc, ALICE), admin_headers(kc)
     secret = c.post("/v1/cases", json={**NEW, "confidential": True}, headers=alice).json()["id"]
@@ -1540,25 +1539,25 @@ def test_an_administrator_outside_a_strictly_confidential_case_sees_its_number_o
     for rows in (c.get("/v1/cases", headers=admin).json(), c.get("/v1/cases/overview", headers=admin).json(),
                  c.get("/v1/admin/cases", headers=admin).json()):
         seen = by_id(rows)
-        assert seen[secret]["reference"] == "2026/0417" and seen[secret]["name"] == "" and seen[secret]["subject"] == {}
+        assert seen[secret]["reference"] == "2026/0417" and seen[secret]["name"] == ""
         assert seen[plain]["name"] == "Verkoop Kerkstraat 12"  # not strictly confidential: as before
     assert by_id(c.get("/v1/admin/cases", headers=admin).json())[secret]["manager_name"]  # who manages it, to hand over
     # handed over by the administrator, the answer still holds no name
     handed = c.post(f"/v1/cases/{secret}/handover", json={"user": BOB}, headers=admin).json()
-    assert handed["reference"] == "2026/0417" and handed["name"] == "" and handed["subject"] == {}
+    assert handed["reference"] == "2026/0417" and handed["name"] == ""
 
 
 def test_store_shows_a_strictly_confidential_case_by_its_number_outside_it(store):
     """The real store's lists: an administrator outside a strictly confidential case gets its reference,
-    no name and no subject (list, list_all); its member gets all of it."""
+    no name (list, list_all); its member gets all of it."""
     s = store
     alice, admin = f"alice-{uuid.uuid4()}", f"admin-{uuid.uuid4()}"
     c = s.create(CaseIn(**{**NEW, "reference": f"S-{uuid.uuid4().hex[:8]}", "confidential": True}), alice, "alice", "Alice")
     outside = next(x for x in s.list(admin, office_wide=False, admin=True) if x.id == c.id)
-    assert (outside.name, outside.subject, outside.my_role) == ("", {}, None) and outside.reference == c.reference
+    assert (outside.name, outside.my_role) == ("", None) and outside.reference == c.reference
     assert next(x for x in s.list_all(admin) if x.id == c.id).name == ""
     assert next(x for x in s.list_all(alice) if x.id == c.id).name == NEW["name"]
-    assert next(x for x in s.list(alice, office_wide=False) if x.id == c.id).subject == NEW["subject"]
+    assert next(x for x in s.list(alice, office_wide=False) if x.id == c.id).name == NEW["name"]
 
 
 def test_a_due_case_left_while_documents_start_is_deleted_minutes_later_not_an_hour(monkeypatch):

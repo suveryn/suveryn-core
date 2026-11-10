@@ -2,7 +2,7 @@
  * Cases (suveryn-tracker#10): opening a new case, closing one (stage 3), and deleting one.
  *
  * A new case asks for the office's own file number, a name, the type and, when the office's default is the
- * whole office, who sees it (board G14; the subject left this dialog, it stays on the case). A taken reference
+ * whole office, who sees it (board G14). A taken reference
  * says so under its field, with a link to that case when the person sees it. The hint under the name says
  * what the design decided: no client names on the label; the parties are in the documents. The type is a combo box: the notarial list as suggestions (stored by their id, so the
  * label follows the interface language), or another sector's own word, stored as typed (types are
@@ -64,7 +64,7 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
     setBusy(true);
     setError(null);
     setTaken(null);
-    const body: NewCase = { reference: reference.trim(), name: name.trim(), type: typeId, subject: {}, access };
+    const body: NewCase = { reference: reference.trim(), name: name.trim(), type: typeId, access };
     try {
       created.current = await createCase(body);
       return {};

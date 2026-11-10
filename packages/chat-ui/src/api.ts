@@ -497,7 +497,6 @@ export type Case = {
   reference: string;
   name: string;
   type: string;
-  subject: Record<string, unknown>;
   access: "default" | "restricted";
   state: "open" | "closed";
   opened_at: string;
@@ -511,7 +510,7 @@ export type Case = {
   pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/chat-ui.md)
   confidential?: boolean;     // strictly confidential (docs/design/chat-ui.md §11)
 };
-export type NewCase = { reference: string; name: string; type: string; subject: Record<string, string>;
+export type NewCase = { reference: string; name: string; type: string;
   /** default: as the office's default access; restricted: members only (board G14). */
   access?: "default" | "restricted" };
 
@@ -555,7 +554,7 @@ export async function getCase(id: string): Promise<Case> {
   return r.json();
 }
 
-/** Changes a case's reference, name, type, subject or access (its manager only). */
+/** Changes a case's reference, name, type or access (its manager only). */
 export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"]; confidential?: boolean }): Promise<Case> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),

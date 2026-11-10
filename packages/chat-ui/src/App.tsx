@@ -671,7 +671,6 @@ function Chat({ me }: { me: Me }) {
             <ActionMenu className="case-menu" aria-label={m.caseMenu(currentCase!.reference)} menuLabel={m.caseMenu(currentCase!.reference)}
                         placement="bottom end"
                         header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase!.type, m)}
-                          {typeof currentCase!.subject.description === "string" && ` · ${currentCase!.subject.description}`}
                           {role && ` · ${roleLabel(role, m)}`}</span>}
                         entries={[
                           { id: "members", label: m.members, icon: <Users size={16} /> },

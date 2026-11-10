@@ -23,8 +23,8 @@ the table what an administrator chose since (``CaseStore.overrides``), and the g
 them on every request (``CaseSettings.with_overrides``). An administrator also lists every case
 (``list_all``, with who manages it) and hands cases over from there.
 
-What is stored: the office's own file number (``reference``), a name, the case type, a short
-subject, who manages it and when it was opened. Never a client's name as a label (decision 2):
+What is stored: the office's own file number (``reference``), a name, the case type, who manages
+it and when it was opened. Never a client's name as a label (decision 2):
 the parties are information inside the case's documents. The gateway never reads a case's
 documents here; they live in the rag store, keyed by ``case_id``.
 
@@ -69,7 +69,6 @@ CONTRIBUTE: frozenset[str] = READ | {"contribute"}
 MANAGE: frozenset[str] = CONTRIBUTE | {"manage", "close", "reopen", "read_log", "set_keep"}
 ADMIN: frozenset[str] = frozenset({"list", "handover", "read_log", "set_keep"})
 RIGHTS: dict[str, frozenset[str]] = {"reader": READ, "contributor": CONTRIBUTE, "manager": MANAGE}
-MAX_SUBJECT_BYTES = 8 * 1024
 EVENT_RETENTION_DAYS = 180  # as the sign-in events (suveryn-tracker#16)
 MAX_EVENTS = 1000           # one listing of the access log
 KEEP_PERIODS: dict[str, timedelta | None] = {"6m": timedelta(days=183), "1y": timedelta(days=366),
@@ -81,7 +80,6 @@ CREATE TABLE IF NOT EXISTS cases (
     reference   text NOT NULL,
     name        text NOT NULL,
     type        text NOT NULL,
-    subject     jsonb NOT NULL DEFAULT '{}'::jsonb,
     access      text NOT NULL DEFAULT 'default' CHECK (access IN ('default', 'restricted')),
     state       text NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'closed')),
     opened_at   timestamptz NOT NULL DEFAULT now(),
@@ -207,12 +205,11 @@ class CaseSettings:
 
 
 class CaseIn(BaseModel):
-    """Body of ``POST /v1/cases``: the office's file number, a name, the type and the subject."""
+    """Body of ``POST /v1/cases``: the office's file number, a name and the type."""
 
     reference: str = Field(min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")
     name: str = Field(min_length=1, max_length=200, pattern=r"^\S(.*\S)?$")
     type: str = Field(min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
-    subject: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     access: Access = "default"
     # Strictly confidential from the start (VM check of 28 October, finding 14: it was silently ignored here and
     # only a PATCH set it). Members only, so the access is restricted too.
@@ -225,7 +222,6 @@ class CaseUpdate(BaseModel):
     reference: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")
     name: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^\S(.*\S)?$")
     type: str | None = Field(default=None, min_length=1, max_length=50, pattern=r"^\S(.*\S)?$")
-    subject: dict[str, str | int | float | bool | None] | None = None
     access: Access | None = None
     # Strictly confidential (docs/design/chat-ui.md §11): members only, no shared conversations,
     # watermarked exports, shielded titles in the lists. Turning it on restricts the access too.
@@ -240,7 +236,6 @@ class Case(BaseModel):
     reference: str
     name: str
     type: str
-    subject: dict
     access: Access
     state: State
     opened_at: datetime
@@ -257,14 +252,14 @@ class Case(BaseModel):
 
 
 def shielded(case: "Case", role: "Role | None" = ...) -> "Case":
-    """A strictly confidential case as someone outside it sees it: its reference only, no name and no subject
+    """A strictly confidential case as someone outside it sees it: its reference only, no name
     (decision, 29 October 2026, after the external review's pass 7). An administrator who isn't a member sees it
     exists, by its number, to hand it over, close or delete it; its manager and members stay, for that. Every
     other case, or for a member, as it is. ``role``: the viewer's, when ``case.my_role`` isn't theirs."""
     role = case.my_role if role is ... else role
     if not case.confidential or role is not None:
         return case
-    return case.model_copy(update={"name": "", "subject": {}})
+    return case.model_copy(update={"name": ""})
 
 
 class CaseOverview(Case):
@@ -417,7 +412,7 @@ class CaseStore(PgStore):
         self._overrides: dict[str, str] | None = None
         self._overrides_meta: tuple[datetime, str] | None = None
 
-    COLUMNS = ("id", "reference", "name", "type", "subject", "access", "state", "opened_at", "closed_at",
+    COLUMNS = ("id", "reference", "name", "type", "access", "state", "opened_at", "closed_at",
                "keep_until", "keep", "manager", "created_by", "created_at", "updated_at", "confidential")
     _COLS = ", ".join(COLUMNS)
     _SELECT = "SELECT " + ", ".join(f"c.{c}" for c in COLUMNS)
@@ -434,9 +429,9 @@ class CaseStore(PgStore):
         try:
             with self.transaction():  # the case, its manager and the first log line: all or nothing
                 row = self._execute(
-                    "INSERT INTO cases (id, reference, name, type, subject, access, confidential, manager, created_by)"
-                    f" VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING {self._COLS}",
-                    (case_id, body.reference, body.name, body.type, json.dumps(body.subject),
+                    "INSERT INTO cases (id, reference, name, type, access, confidential, manager, created_by)"
+                    f" VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING {self._COLS}",
+                    (case_id, body.reference, body.name, body.type,
                      "restricted" if body.confidential else body.access, body.confidential, user, user)).fetchone()
                 self._execute('INSERT INTO case_members (case_id, "user", role, added_by, username, name)'
                               " VALUES (%s, %s, %s, %s, %s, %s)", (case_id, user, "manager", user, username, name))
@@ -477,7 +472,7 @@ class CaseStore(PgStore):
         cases = []
         for row in rows:
             role, pinned = row[-2], row[-1]
-            if role is None and office_wide and row[5] == "default":
+            if role is None and office_wide and row[self.COLUMNS.index("access")] == "default":
                 role = "reader"
             cases.append(shielded(self._case(row[:-2], role, pinned)))
         return cases
@@ -511,8 +506,6 @@ class CaseStore(PgStore):
         if not fields:
             row = self._execute(f"{self._SELECT} FROM cases c WHERE c.id = %s", (case_id,)).fetchone()
             return self._case(row) if row else None
-        if "subject" in fields:
-            fields["subject"] = json.dumps(fields["subject"])
         sets = ", ".join(f"{k} = %s" for k in fields)
         guard = " AND NOT confidential" if opens else ""
         try:
