@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Literal
@@ -30,7 +31,7 @@ from suveryn_playbooks.paths import MAX_ENTRIES, root
 
 
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
-from .marking import cited_style
+from .marking import _utf16, cited_style, marks
 from .identifiers import valid
 from .support import _dates, _figures, citation_issues, unverified_figures
 from .values import Style, as_date, as_number, first_amount, numbers_in
@@ -56,6 +57,11 @@ class FactCitation(BaseModel):
     location: str | None = None
     text: str
     context: PassageContext | None = None  # the text around it on its page, for the source panel (board P02)
+    decimals: Style = None               # how the documents read with it write decimals, as the checks read it
+    # What the source panel marks (``marked``): the sentences of ``text`` the fact rests on, and in them the fact
+    # itself however the passage writes it. [start, end) in UTF-16 code units, as ``SupportSpan``. Not stored.
+    ranges: list[tuple[int, int]] = Field(default_factory=list)
+    facts: list[tuple[int, int]] = Field(default_factory=list)
 
 
 class FactAlternative(BaseModel):
@@ -205,8 +211,8 @@ def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filename
         value = _option(value, options)
         if value is None:
             return RunFact(id=path, found=False, source="none")
-        return RunFact(id=path, value=value, citations=[_cite(n, citations[n - 1], filenames) for n in numbers], found=True, source="document")
-    cited = [_cite(n, citations[n - 1], filenames) for n in numbers]
+        return RunFact(id=path, value=value, citations=[_cite(n, citations[n - 1], filenames, style) for n in numbers], found=True, source="document")
+    cited = [_cite(n, citations[n - 1], filenames, style) for n in numbers]
     issues: list[str] = []
     if cited:
         claim = value + " " + "".join(f"[{n}]" for n in numbers)
@@ -279,10 +285,34 @@ def _valid(text: str, available: int) -> list[int]:
     return [int(n) for n in _MARKER.findall(text) if 0 < int(n) <= available]
 
 
-def _cite(n: int, c: Citation, filenames: dict[str, str]) -> FactCitation:
+def _cite(n: int, c: Citation, filenames: dict[str, str], style: Style = None) -> FactCitation:
     s = c.source
     return FactCitation(n=n, document_id=s.document_id if s else "", filename=filenames.get(s.document_id, "") if s else "",
-                        page=s.page if s else None, location=s.location if s else None, text=c.text, context=c.context)
+                        page=s.page if s else None, location=s.location if s else None, text=c.text, context=c.context,
+                        decimals=style)
+
+
+def marked(fact: RunFact) -> RunFact:
+    """The fact with what the source panel marks in each of its passages (``marking.marks``, as for an answer's
+    claim): of the term as the agreement writes it for a worked-out value, else what a person confirmed, else the
+    value as read. Worked out when a run is shown, not stored: a correction changes what is marked, and the marking
+    is always the reader's of the day (decision of 10 November 2026: the browser reads no numbers of its own)."""
+    claim = (fact.computed or {}).get("written") or fact.confirmed or fact.value
+    if not claim or not fact.citations:
+        return fact
+    cited = []
+    for c in fact.citations:
+        ranges, strong = _marks(c.text, claim, c.decimals)
+        cited.append(c.model_copy(update={"ranges": list(ranges), "facts": list(strong)}))
+    return fact.model_copy(update={"citations": cited})
+
+
+@lru_cache(maxsize=2048)
+def _marks(passage: str, claim: str, style: Style) -> tuple[tuple[tuple[int, int], ...], tuple[tuple[int, int], ...]]:
+    """A run is fetched again and again while it is open: each passage is marked for a value once."""
+    ranges, strong = marks(passage, claim, None, style)
+    at = _utf16(passage)
+    return tuple((at(a), at(z)) for a, z in ranges), tuple((at(a), at(z)) for a, z in strong)
 
 
 def answer_shape(playbook: Playbook, response: ChatResponse) -> dict[str, int | str | None]:

@@ -526,3 +526,28 @@ def test_a_register_number_whose_check_digits_dont_match_goes_under_check():
     assert valid("iban", "BE68 5390 0754 7034") and valid("iban", "BE68 5390 0754 7035") is False
     assert valid("enterprise", "0792.555.227") and valid("enterprise", "0878 117 641") is False
     assert valid("national_register", "born in 1961") is None  # no number of that form: nothing to check
+
+
+def test_a_facts_passages_are_marked_by_the_server():
+    """What the source panel marks for a fact is worked out here, with the reader the checks use (the browser reads no
+    numbers of its own): the fact's sentence, and the fact in it however the deed writes it. Offsets as the browser
+    counts them (UTF-16)."""
+    from suveryn_harness.facts import FactCitation, RunFact, marked
+
+    text = "Opgemaakt te Gent \U0001f4c4. De koopprijs bedraagt eenhonderdduizend euro (€ 100.000,00). De koper betaalt de kosten."
+    units = text.encode("utf-16-le")
+    cut = lambda a, z: units[2 * a:2 * z].decode("utf-16-le")  # noqa: E731
+    cite = FactCitation(n=1, document_id="d", filename="deed.pdf", text=text)
+
+    c = marked(RunFact(id="price", value="€ 100.000", citations=[cite])).citations[0]
+    assert [cut(a, z) for a, z in c.ranges] == ["De koopprijs bedraagt eenhonderdduizend euro (€ 100.000,00)."]
+    assert [cut(a, z) for a, z in c.facts] == ["eenhonderdduizend", "100.000,00"]
+    # what a person confirmed is what is marked; for a worked-out value, the term as the agreement writes it
+    c = marked(RunFact(id="price", value="€ 100.000", confirmed="De koper betaalt de kosten", citations=[cite])).citations[0]
+    assert [cut(a, z) for a, z in c.ranges] == ["De koper betaalt de kosten."]
+    c = marked(RunFact(id="deadline", value="12 februari 2027", needs="computed", citations=[cite],
+                       computed={"written": "de koopprijs bedraagt eenhonderdduizend euro"})).citations[0]
+    assert [cut(a, z) for a, z in c.ranges] == ["De koopprijs bedraagt eenhonderdduizend euro (€ 100.000,00)."]
+    # nothing cited, nothing marked; a value in no sentence marks none
+    assert marked(RunFact(id="epc", value="B", source="person")).citations == []
+    assert marked(RunFact(id="x", value="Vrij van huur", citations=[cite])).citations[0].ranges == []

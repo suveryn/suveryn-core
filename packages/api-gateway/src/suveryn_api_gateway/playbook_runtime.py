@@ -282,7 +282,7 @@ class Runtime:
             if root(f.id) not in step.facts:
                 continue
             now = current.get(f.id)
-            source = ({"kind": "document", "citations": [c.model_dump() for c in f.citations],
+            source = ({"kind": "document", "citations": [c.model_dump(exclude={"ranges", "facts"}) for c in f.citations],
                        **({"needs": f.needs} if f.needs else {}), **({"computed": f.computed} if f.computed else {})}
                       if f.found else {"kind": "none"})
             if now is None:

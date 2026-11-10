@@ -2,9 +2,9 @@
 
 The chat UI marked this with its own rules (``packages/chat-ui/src/lib/answer.ts``). The rules now run here,
 beside the citation check (``support.py``), which reads the answer's claims with the same sentences
-(``answer_sentences``): a marking and a check can't disagree on what a claim is. The UI keeps its copy of the
-rules for a playbook fact's passages, which the server doesn't mark, and the two are held to the same cases
-(``tests/marking_cases.json``).
+(``answer_sentences``): a marking and a check can't disagree on what a claim is. A playbook fact's passages are marked here too
+(``facts.marked``): the browser shows the marking it is sent and reads no numbers, dates or sentences itself
+(decision of 10 November 2026). The cases it is held to: ``tests/marking_cases.json``.
 
 Per valid marker (its occurrence, as the UI and ``citation_issues`` count them): the sentences of the cited
 passage the claim rests on, and within them the claim's facts however the passage writes them ("12" for
@@ -51,6 +51,12 @@ def facts(text: str, style: Style = None) -> list[Fact]:
             keys = [f"m:{y}-{m:02d}", f"n:{y}"]
         out.append(Fact(f.start, f.end, keys))
     return out
+
+
+@lru_cache(maxsize=64)
+def _passage_facts(passage: str, style: Style = None) -> tuple[Fact, ...]:
+    """A passage's facts, read once: a run's facts are often read from the same few passages."""
+    return tuple(facts(passage, style))
 
 
 def fact_values(text: str, style: Style = None) -> set[str]:
@@ -301,7 +307,7 @@ def marks(passage: str, claim: str, sentences: list[tuple[int, int]] | None = No
     claim_facts, term_facts = fact_values(claim, style), {v for t in terms for v in fact_values(t, style)}
     ranges = supporting_ranges(passage, [claim], style) if sentences is None else sentences
     strong = term_ranges(passage, terms)
-    for f in facts(passage, style):
+    for f in _passage_facts(passage, style):
         in_sentence = any(a <= f.start and f.end <= z for a, z in ranges)
         if any(v in term_facts or (in_sentence and v in claim_facts) for v in f.values):
             strong.append((f.start, f.end))

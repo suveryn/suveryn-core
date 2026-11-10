@@ -905,7 +905,9 @@ export type PlaybookInfo = { id: string; slug: string; pack: string; version: st
                              steps?: PlaybookStep[] };
 /** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
 type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string;
-                             context?: PassageContext | null };
+                             context?: PassageContext | null;
+                             // what the source panel marks, from the server: the fact's sentences, and the fact in them
+                             ranges?: [number, number][]; facts?: [number, number][] };
 type RunCheck = { status: "holds" | "fails" | "open"; rule: string; left: string; right: string; missing: string[] };
 export type RunFact = {
   id: string;

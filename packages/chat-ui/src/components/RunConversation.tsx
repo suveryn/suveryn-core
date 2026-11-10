@@ -935,7 +935,7 @@ export function RunSourcePanel({ run, fact: factId, fromList, caseRef, present, 
 }
 
 /** A fact as an answer the source panel can show: what it cites (the term as written, for a worked-out date) with a
- *  marker per source, and the check's findings as the answer's. */
+ *  marker per source, the check's findings as the answer's, and the server's marking of each passage. */
 function factTurn(fact: RunFact): AssistantTurn {
   const cited = fact.computed?.written ?? fact.confirmed ?? fact.value;
   return {
@@ -943,5 +943,6 @@ function factTurn(fact: RunFact): AssistantTurn {
     text: `${cited} ${fact.citations.map((_, i) => `[${i + 1}]`).join("")}`,
     citations: fact.citations.map((c) => ({ text: c.text, source: { document_id: c.document_id, page: c.page, location: c.location }, context: c.context })),
     citationIssues: fact.computed ? [] : fact.issues.map((item) => ({ marker: 0, n: 1, item, found_in: [], written_as: null })),
+    supportSpans: fact.citations.map((c, i) => ({ marker: i, n: i + 1, ranges: c.ranges ?? [], facts: c.facts ?? [], how: "words" as const })),
   };
 }

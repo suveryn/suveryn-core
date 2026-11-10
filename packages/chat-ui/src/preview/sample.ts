@@ -7,6 +7,7 @@ import type {
   Account, AccountEvent, Case, CaseEvent, CaseOverview, ConversationSummary, Health, Me, Member, ModelInfo, PlaybookInfo, PlaybookStep,
   Job, Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
 } from "../api";
+import type { AssistantTurn } from "../types";
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -126,6 +127,15 @@ const PERSONAL_CONVERSATIONS: ConversationSummary[] = [
 const ALL_CONVERSATIONS = [...CASE_CONVERSATIONS, ...PERSONAL_CONVERSATIONS];
 
 /** A passage with the text around it on its page, as the gateway sends it (board G11). */
+/** What the server marks in a sample passage: the passage as the claim's sentence, and the given words in it. */
+const marks = (text: string, strong: string[]) => ({
+  ranges: [[0, text.length]] as [number, number][],
+  facts: strong.flatMap((w) => (text.includes(w) ? [[text.indexOf(w), text.indexOf(w) + w.length] as [number, number]] : [])),
+});
+/** A sample answer with the server's marking: per marker in the answer's order, its source and the words marked strongly. */
+const marked = (turn: AssistantTurn, ...markers: [number, ...string[]][]): AssistantTurn => ({
+  ...turn, supportSpans: markers.map(([n, ...strong], marker) => ({ marker, n, ...marks(turn.citations[n - 1].text, strong), how: "words" as const })),
+});
 const around = (before: string, text: string, after: string) =>
   ({ text: `${before} ${text} ${after}`, start: before.length + 1, end: before.length + 1 + text.length });
 
@@ -134,7 +144,7 @@ const SAVED: SavedConversation = {
   ...CONVERSATION,
   turns: [
     { id: "t1", role: "user", text: "Welke opschortende voorwaarden staan er in het compromis, en tegen wanneer moet de financiering rond zijn?", attachments: [] },
-    {
+    marked({
       id: "t2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B", thinking: true,
       text: "Het compromis bevat één opschortende voorwaarde: het verkrijgen van een hypothecair krediet door de kopers [1]. "
         + "De kopers moeten de toekenning of weigering van het krediet schriftelijk meedelen binnen vier weken na ondertekening, uiterlijk op [DATUM UIT HET DOCUMENT] [2].\n\n"
@@ -148,7 +158,7 @@ const SAVED: SavedConversation = {
         { text: "De kopers delen de toekenning of weigering van het krediet schriftelijk mee binnen vier weken na ondertekening van deze overeenkomst.",
           source: { document_id: "d-compromis", page: 9, location: null } },
       ],
-    },
+    }, [1], [2, "vier"]),
   ],
 };
 
@@ -231,9 +241,11 @@ const DEED_INTAKE: PlaybookInfo = {
                 checks: { deposit_within_price: "Het voorschot of de waarborg ligt binnen de prijs",
                           deed_after_agreement: "De uiterste datum van de akte valt na de ondertekening van het compromis" } } },
 };
-const cite = (n: number, document_id: string, filename: string, page: number, text: string) => ({ n, document_id, filename, page, location: null, text });
-const COMPROMIS = (page: number, text: string) => cite(1, "d-compromis-124", "Compromis_DeSmet.pdf", page, text);
-const TITEL = (page: number, text: string) => cite(2, "d-titel-124", "Eigendomstitel_1998.pdf", page, text);
+const cite = (n: number, document_id: string, filename: string, page: number, text: string, strong: string[]) =>
+  ({ n, document_id, filename, page, location: null, text, ...marks(text, strong) });
+/** A fact's passage, with the words the server marks strongly in it (as ``harness.facts.marked`` marks these samples). */
+const COMPROMIS = (page: number, text: string, ...strong: string[]) => cite(1, "d-compromis-124", "Compromis_DeSmet.pdf", page, text, strong);
+const TITEL = (page: number, text: string, ...strong: string[]) => cite(2, "d-titel-124", "Eigendomstitel_1998.pdf", page, text, strong);
 const fact = (id: string, value: string, citations: RunFact["citations"], extra: Partial<RunFact> = {}): RunFact => ({
   id, value, citations, issues: [], found: !!value, confirmed: null, source: value ? "document" : "none", ...extra,
 });
@@ -249,24 +261,24 @@ export const RUN: Run = {
   checks: { deposit_within_price: { status: "holds", rule: "deposit <= price", left: "€ 38.500", right: "€ 385.000", missing: [] },
             deed_after_agreement: { status: "holds", rule: "agreement_date < deed_deadline", left: "12 oktober 2026", right: "12 februari 2027", missing: [] } },
   facts: [
-    fact("sellers[1].name", "Jan Van Damme", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.")]),
-    fact("sellers[1].address", "Kerkstraat 14, 9000 Gent", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters, samenwonend te 9000 Gent, Kerkstraat 14.")]),
-    fact("sellers[2].name", "Els Peeters", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.")]),
-    fact("buyers[1].name", "Pieter De Smet", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.")]),
-    fact("buyers[2].name", "An Claes", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.")]),
-    fact("property", "Woning, Kerkstraat 14, 9000 Gent", [COMPROMIS(1, "Een woning gelegen te 9000 Gent, Kerkstraat 14.")]),
+    fact("sellers[1].name", "Jan Van Damme", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.", "Jan Van Damme")]),
+    fact("sellers[1].address", "Kerkstraat 14, 9000 Gent", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters, samenwonend te 9000 Gent, Kerkstraat 14.", "9000", "14")]),
+    fact("sellers[2].name", "Els Peeters", [COMPROMIS(1, "Verkopers: de heer Jan Van Damme en mevrouw Els Peeters.", "Els Peeters")]),
+    fact("buyers[1].name", "Pieter De Smet", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.", "Pieter De Smet")]),
+    fact("buyers[2].name", "An Claes", [COMPROMIS(1, "Kopers: de heer Pieter De Smet en mevrouw An Claes.", "An Claes")]),
+    fact("property", "Woning, Kerkstraat 14, 9000 Gent", [COMPROMIS(1, "Een woning gelegen te 9000 Gent, Kerkstraat 14.", "9000", "14")]),
     fact("cadastral", "Gent, 3e afdeling, sectie B, nr. 412B", [TITEL(1, "Gekend ten kadaster Gent, 3e afdeling, sectie B, nummer 412B.")]),
-    fact("price", "€ 385.000", [COMPROMIS(2, "De verkoop wordt toegestaan en aanvaard voor de prijs van driehonderdvijfentachtigduizend euro (€ 385.000).")]),
-    fact("deposit", "€ 38.500, op de derdenrekening van notaris Claes", [COMPROMIS(2, "Een voorschot van € 38.500 wordt betaald op de derdenrekening van notaris Claes.")]),
-    fact("agreement_date", "12 oktober 2026", [COMPROMIS(9, "Opgemaakt te Gent op 12 oktober 2026.")]),
-    fact("deed_deadline", "12 februari 2027", [{ ...COMPROMIS(4, "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde."),
+    fact("price", "€ 385.000", [COMPROMIS(2, "De verkoop wordt toegestaan en aanvaard voor de prijs van driehonderdvijfentachtigduizend euro (€ 385.000).", "driehonderdvijfentachtigduizend", "385.000")]),
+    fact("deposit", "€ 38.500, op de derdenrekening van notaris Claes", [COMPROMIS(2, "Een voorschot van € 38.500 wordt betaald op de derdenrekening van notaris Claes.", "38.500")]),
+    fact("agreement_date", "12 oktober 2026", [COMPROMIS(9, "Opgemaakt te Gent op 12 oktober 2026.", "12 oktober 2026")]),
+    fact("deed_deadline", "12 februari 2027", [{ ...COMPROMIS(4, "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.", "vier"),
                                                 context: around("Artikel 4. Authentieke akte. De partijen kiezen notaris Claes te Gent.",
                                                                 "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.",
                                                                 "De kosten van de akte zijn ten laste van de kopers.") }],
          { needs: "computed", computed: { written: "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", from: "agreement_date",
                                           base: "2026-10-12", date: "2027-02-12", amount: 4, unit: "month", direction: "after" } }),
-    fact("conditions[1].condition", "Hypothecair krediet, binnen vier weken na ondertekening", [COMPROMIS(5, "Onder de opschortende voorwaarde van het verkrijgen van een hypothecair krediet binnen vier weken na ondertekening.")]),
-    fact("title", "Akte van 3 maart 1998, notaris Verhaeghe", [TITEL(3, "Verleden voor notaris Verhaeghe op 3 maart 1998.")]),
+    fact("conditions[1].condition", "Hypothecair krediet, binnen vier weken na ondertekening", [COMPROMIS(5, "Onder de opschortende voorwaarde van het verkrijgen van een hypothecair krediet binnen vier weken na ondertekening.", "vier")]),
+    fact("title", "Akte van 3 maart 1998, notaris Verhaeghe", [TITEL(3, "Verleden voor notaris Verhaeghe op 3 maart 1998.", "3 maart 1998")]),
     fact("epc", "20260915-0002, label C", [], { source: "person", by: "mieke@kantoor.be", at: ago(64 * MIN), found: false }),
     fact("soil", "", [], { found: false }),
     fact("occupancy", "Vrij bij levering", [COMPROMIS(6, "Het goed wordt vrij van bewoning geleverd.")]),
@@ -392,14 +404,14 @@ const SAVED_ABOUT: SavedConversation = {
   turns: [
     { id: "a1", role: "user", text: "Wat is de verkoopprijs, en wanneer moet die betaald worden?", attachments: [],
       about: [{ documentId: "d-compromis", filename: "Compromis_Schipperskaai.pdf" }] },
-    { id: "a2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
+    marked({ id: "a2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
       text: "De prijs bedraagt € 385.000, te betalen bij het verlijden van de akte [1]. Het voorschot van € 38.500 is betaald bij de ondertekening van het compromis [2].",
       citations: [
         { text: "De verkoop wordt toegestaan en aanvaard voor de prijs van € 385.000, te betalen bij het verlijden van de authentieke akte.",
           source: { document_id: "d-compromis", page: 2, location: null } },
         { text: "Een voorschot van € 38.500 werd betaald bij de ondertekening van deze overeenkomst.",
           source: { document_id: "d-compromis", page: 3, location: null } },
-      ] },
+      ] }, [1, "385.000"], [2, "38.500"]),
   ],
 };
 
@@ -408,14 +420,14 @@ const SAVED_MIXED: SavedConversation = {
   ...conv("conv-erf", "Erfdienstbaarheden", 4 * HOUR, { case_id: "c123" }),
   turns: [
     { id: "e1", role: "user", text: "Welke erfdienstbaarheden rusten op het goed?", attachments: [] },
-    { id: "e2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
+    marked({ id: "e2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
       text: "Op het goed rust een erfdienstbaarheid van doorgang over een strook van drie meter langs de oostelijke grens [1]. Het kadaster vermeldt daarnaast een recht van overgang voor nutsleidingen [2]. Het bodemattest noemt geen beperkingen [3].",
       citations: [
         { text: "Het goed is bezwaard met een erfdienstbaarheid van doorgang over een strook van drie meter langs de oostelijke perceelsgrens.",
           source: { document_id: "d-compromis", page: 4, location: null } },
         { text: "Recht van overgang voor nutsleidingen ten voordele van het openbaar net.", source: { document_id: "d-kadaster", page: 1, location: null } },
         { text: "Voor deze grond zijn geen gegevens over bodemverontreiniging beschikbaar.", source: { document_id: "d-bodem", page: 1, location: null } },
-      ] },
+      ] }, [1, "drie"], [2]),
   ],
 };
 /** Case 123 as a reader (board G19, 6): sees what each question read, asks nothing. */
@@ -433,7 +445,7 @@ const SAVED_TABLE: SavedConversation = {
   ...CASE_CONVERSATIONS[1],
   turns: [
     { id: "b1", role: "user", text: "Zet de bedragen en termijnen uit het compromis in een tabel.", attachments: [] },
-    { id: "b2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
+    marked({ id: "b2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
       saved: { documentId: "d-termijnen", filename: "Betalingen en termijnen.docx" },
       text: "Het compromis noemt vier bedragen met hun termijn.\n\n"
         + "| Wat | Bedrag | Termijn | Bron |\n|---|---:|---|---|\n"
@@ -445,6 +457,6 @@ const SAVED_TABLE: SavedConversation = {
         { text: "De prijs is betaalbaar bij het verlijden van de authentieke akte.", source: { document_id: "d-compromis", page: 3, location: null } },
         { text: "Een voorschot van € 38.500 werd betaald bij de ondertekening.", source: { document_id: "d-compromis", page: 7, location: null } },
         { text: "Alle kosten, rechten en erelonen van de akte zijn ten laste van de koper.", source: { document_id: "d-compromis", page: 9, location: null } },
-      ] },
+      ] }, [1], [2, "38.500"], [1], [3]),
   ],
 };

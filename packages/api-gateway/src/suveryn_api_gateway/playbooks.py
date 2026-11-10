@@ -48,7 +48,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact
+from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
 from suveryn_playbooks import Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
@@ -612,7 +612,7 @@ class RunStore(TurnStore):
             found = bool(read and read["status"] != "not_established" and read["source"].get("kind") == "document")
             value = answer["value"] if answer else (read["value"] if read else "")
             citations = [FactCitation(**c) for c in (read or {}).get("source", {}).get("citations", [])] if found else []
-            out.append(RunFact(id=fact_id, value=value, citations=citations, issues=list((read or {}).get("issues", [])) if found else [],
+            out.append(marked(RunFact(id=fact_id, value=value, citations=citations, issues=list((read or {}).get("issues", [])) if found else [],
                                found=found, confirmed=confirmed["value"] if confirmed else None,
                                source="person" if answer else ("document" if found else "none"),
                                by=answer["by"] if answer else None, at=answer["at"] if answer else None,
@@ -621,7 +621,7 @@ class RunStore(TurnStore):
                                was=read["value"] if answer and found and read else None,
                                alternative=FactAlternative(value=slot["alternative"]["value"], citations=[
                                    FactCitation(**c) for c in slot["alternative"]["source"].get("citations", [])])
-                               if slot.get("alternative") else None))
+                               if slot.get("alternative") else None)))
         return out
 
     def discard_proposed(self, run_id: uuid.UUID) -> int:
