@@ -19,14 +19,19 @@ name for any of its entries, and words its value contains); the facts a person's
 a list's name, and words none of its values may contain: the earlier owners in a title deed are never today's
 sellers); the checks come out as expected (``checks``); the branches a choice leaves out are skipped (``skipped``);
 the read steps whose documents were longer than one reading takes say so (``read_in_part``: step ids). After the confirmation: the run is done and its summary
-is a document in the case. Fictional documents only. ``E2E_RUNS_REPORT``, if set, is a JSON report path: per run
-which checks held, and counts, never a value's text.
+is a document in the case. Fictional documents only, in the repositories. ``E2E_RUNS_REPORT``, if set, is a JSON
+report path: per run which checks held, and counts, never a value's text.
+
+A run on someone's own files (the GPU round's ``OWN_RUNS``: specs kept outside the repositories, on files their
+owner may share) may say ``"show_facts": true``: the facts at its checkpoint, with their sources, and the checks are
+then written to ``E2E_RUNS_FACTS``/<run>.txt for its owner to read, and never into the report or the summary.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import mimetypes
 import os
 import re
 import sys
@@ -44,8 +49,8 @@ from realm import CHAT_SECRET
 pytestmark = pytest.mark.skipif(not REAL_LLM, reason="needs a real model server (E2E_LLM); the stub fills facts by keywords")
 
 SPECS = sorted((E2E / "runs").glob("*.json"))
-if os.environ.get("E2E_RUNS_DIR"):
-    SPECS += sorted(Path(os.environ["E2E_RUNS_DIR"]).glob("*.json"))
+for runs_dir in filter(None, os.environ.get("E2E_RUNS_DIR", "").split(os.pathsep)):  # several, separated by ":"
+    SPECS += sorted(Path(runs_dir).glob("*.json"))
 # Never a hidden file: macOS's tar adds "._name.json" beside each file, its attributes, not a spec (the GPU round of
 # 5 November: two runs failed on them).
 SPECS = [p for p in SPECS if not p.name.startswith(".")]
@@ -81,7 +86,8 @@ class Api:
 def upload(api: Api, case_id: str, path: Path) -> str:
     """One document into the case, waited for until it is read; its id."""
     with path.open("rb") as f:
-        job = api("POST", f"/v1/documents?case={case_id}", files={"file": (path.name, f, "application/pdf")}).json()
+        kind = mimetypes.guess_type(path.name)[0] or "application/octet-stream"  # a Word file among one's own runs
+        job = api("POST", f"/v1/documents?case={case_id}", files={"file": (path.name, f, kind)}).json()
     deadline = time.time() + READ_TIMEOUT_S
     while time.time() < deadline:
         j = api("GET", f"/v1/documents/jobs/{job['id']}").json()
@@ -131,6 +137,22 @@ def holds(run: dict, spec: dict) -> dict[str, bool]:
     out |= {f"step {k} skipped": (run.get("steps", {}).get(k) or {}).get("status") == "skipped" for k in expect.get("skipped", [])}
     out |= {f"step {k} says it read in part": bool((run.get("steps", {}).get(k) or {}).get("in_part")) for k in expect.get("read_in_part", [])}
     return out
+
+
+def facts_text(run: dict) -> str:
+    """The facts at the checkpoint for their owner to read (``show_facts``): one line per fact, its value and where
+    it was read, then the checks and the documents read in part."""
+    lines = []
+    for f in run["facts"]:
+        where = ", ".join(f"{c['filename']} p. {c['page']}" if c.get("page") else c["filename"] for c in f.get("citations") or [])
+        lines.append(f"{f['id']}: {f.get('value') or '(not found)'}" + (f"  [{where}]" if where else "")
+                     + (f"  CHECK: {', '.join(f['issues'])}" if f.get("issues") else ""))
+    for name, c in (run.get("checks") or {}).items():
+        lines.append(f"check {name}: {c.get('status')}" + (f" ({c.get('left')} / {c.get('right')})" if c.get("status") == "fails" else ""))
+    in_part = sorted({d for st in (run.get("steps") or {}).values() for d in st.get("in_part") or []})
+    if in_part:
+        lines.append("read in part: " + ", ".join(in_part))
+    return "\n".join(lines) + "\n"
 
 
 def score(results: dict[str, bool]) -> dict[str, list[int]]:
@@ -223,6 +245,9 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
                               "in_part": sorted({d for st in at_checkpoint.get("steps", {}).values() for d in st.get("in_part") or []})}
     if path := os.environ.get("E2E_RUNS_REPORT"):
         Path(path).write_text(json.dumps(REPORT, indent=1, ensure_ascii=False))
+    if spec.get("show_facts") and (folder_out := os.environ.get("E2E_RUNS_FACTS")):
+        Path(folder_out).mkdir(parents=True, exist_ok=True)
+        (Path(folder_out) / f"{spec_path.stem}.txt").write_text(facts_text(at_checkpoint), encoding="utf-8")
     failures = [name for name, ok in results.items() if not ok]
     print(f"\n{spec_path.stem}: {len(results) - len(failures)}/{len(results)} held, {found} facts found, "
           f"asked at {asked}, {REPORT[spec_path.stem]['seconds']} s")
