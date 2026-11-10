@@ -27,8 +27,10 @@
       "occupancy": "Occupancy at delivery"
     },
     "questions": {
-      "agreement": "Upload the signed sale agreement and what the parties sent (the earlier deed, the certificates). Then continue.",
-      "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet."
+      "agreement": "Upload the signed sale agreement. Then continue.",
+      "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
+      "title_deed": "Upload the seller's title deed, the earlier deed by which the seller acquired the property. If it is not at hand, say there is none.",
+      "certificates": "Upload the certificates: the energy performance certificate and the soil certificate. If they are not at hand, say there are none."
     },
     "checks": {
       "a_seller": "There is at least one seller",
@@ -36,6 +38,14 @@
       "deposit_within_price": "The advance or guarantee is within the price",
       "deed_after_agreement": "The deed's deadline falls after the agreement was signed",
       "conditions_before_deed": "Every suspensive condition's term falls before the deed's deadline"
+    },
+    "steps": {
+      "agreement": "Sale agreement",
+      "title_deed": "Title deed",
+      "certificates": "Certificates",
+      "agreement_read": "Reading the agreement",
+      "title_read": "Reading the title",
+      "certificates_read": "Reading the certificates"
     }
   }
 }

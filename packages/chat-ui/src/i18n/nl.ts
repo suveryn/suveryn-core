@@ -531,6 +531,7 @@ const nl: Messages = {
   stopRunMenuHint: "Houdt wat al bevestigd is.",
   retryRun: "Opnieuw proberen",
   runUseCaseDocuments: "De documenten in het dossier gebruiken",
+  runNoDocument: "Er is er geen",
   runSummaryCard: "Samenvatting",
   // de kaarten van het playbook en de lijst met gegevens (overdracht van 31 oktober 2026)
   sourcesLabel: "Bronnen:",

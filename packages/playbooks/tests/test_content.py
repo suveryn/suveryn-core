@@ -41,7 +41,11 @@ def test_deed_intake_fits_a_sale_and_is_covered():
     assert p is not None and p.id == "playbook/be-notary/deed-intake" and p.pack == "pack/be-notary"
     assert for_case_type("sale") == [p] and for_case_type("estate") == []
     assert find(p.id) is p and covered(p.id) and not covered("playbook/be-notary/nothing")
-    assert len(p.facts) == 13 and p.version == "1.4" and [s.kind for s in p.steps] == ["request", "read", "ask", *["check"] * 5, "checkpoint", "produce"]
+    assert len(p.facts) == 13 and p.version == "1.5" and [s.kind for s in p.steps] == [*["request"] * 3, *["read"] * 3, "ask", *["check"] * 5, "checkpoint", "produce"]
+    # 1.5: each fact read from the documents that state it; together the reads cover every fact once
+    reads = [s for s in p.steps if s.kind == "read"]
+    assert [s.documents for s in reads] == [("sale_agreement",), ("sale_agreement", "title_deed"), ("certificates", "sale_agreement")]
+    assert sorted(f for s in reads for f in s.facts) == sorted(f.id for f in p.facts)
     assert [(f.id, [x.id for x in f.fields]) for f in p.facts if f.kind == "list"] == [
         ("sellers", ["name", "address", "register"]), ("buyers", ["name", "address", "register"]), ("conditions", ["condition", "term"])]
     assert [s.rule for s in p.steps if s.kind == "check"] == ["count(sellers) >= 1", "count(buyers) >= 1", "deposit <= price",

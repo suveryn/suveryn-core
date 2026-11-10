@@ -881,7 +881,9 @@ export async function setRates(rates: Pick<Rates, "input_per_million" | "output_
 /** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/chat-ui.md). */
 export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce" | "check"; needs: string[]; facts: string[];
                              /** checkpoint: who may pass it: anyone who contributes to the case, or its manager (the notary) only. */
-                             by?: "anyone_in_case" | "manager" };
+                             by?: "anyone_in_case" | "manager";
+                             /** request: a person may answer that there is no such document. */
+                             allow_none?: boolean };
 export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
                              case_types?: string[]; active?: boolean;
                              /** Format 3: per list fact, its entries' field ids ([] for a list of plain values), so the view can offer an entry to add. */

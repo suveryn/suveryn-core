@@ -27,8 +27,10 @@
       "occupancy": "Occupation à la délivrance"
     },
     "questions": {
-      "agreement": "Chargez le compromis signé et ce que les parties ont transmis (l'acte antérieur, les certificats). Puis continuez.",
-      "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore."
+      "agreement": "Chargez le compromis signé. Puis continuez.",
+      "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+      "title_deed": "Chargez le titre de propriété du vendeur : l'acte antérieur par lequel le vendeur a acquis le bien. Si vous ne l'avez pas sous la main, dites qu'il n'y en a pas.",
+      "certificates": "Chargez les certificats : le certificat de performance énergétique et l'attestation du sol. Si vous ne les avez pas sous la main, dites qu'il n'y en a pas."
     },
     "checks": {
       "a_seller": "Il y a au moins un vendeur",
@@ -36,6 +38,14 @@
       "deposit_within_price": "L'acompte ou la garantie reste dans le prix",
       "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
       "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte"
+    },
+    "steps": {
+      "agreement": "Compromis de vente",
+      "title_deed": "Titre de propriété",
+      "certificates": "Certificats",
+      "agreement_read": "Lecture du compromis",
+      "title_read": "Lecture du titre",
+      "certificates_read": "Lecture des certificats"
     }
   }
 }

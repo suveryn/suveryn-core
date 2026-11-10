@@ -150,7 +150,8 @@ class ChatService:
         if self.retriever is None:
             raise DocumentsUnavailable("document search is not available on this server")
         *history, last = req.messages
-        hits, complete, *named = await self.retriever(search_text(req.messages), req.document_ids, PASSAGES, owner, req.case_id)
+        hits, complete, *named = await self.retriever(req.search or search_text(req.messages), req.document_ids, PASSAGES, owner,
+                                                     req.case_id)
         citations = [c for c, _ in hits]
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations, complete, (named[0] if named else None)

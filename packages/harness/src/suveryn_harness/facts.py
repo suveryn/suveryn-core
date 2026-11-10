@@ -26,7 +26,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 from suveryn_playbooks import Playbook, entry, read_schema
-from suveryn_playbooks.paths import MAX_ENTRIES
+from suveryn_playbooks.paths import MAX_ENTRIES, root
 
 
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
@@ -276,6 +276,20 @@ def answer_shape(playbook: Playbook, response: ChatResponse) -> dict[str, int | 
             "finish": response.finish_reason, "reasoning_chars": len(response.reasoning or "")}
 
 
+def search_for(playbook: Playbook, facts) -> str:
+    """What a read searches the documents for, when they are longer than one reading takes: each fact's question and
+    its label in every language the pack has ("the sale price", "Prijs", "Prix"), and a list's fields the same way. The
+    instructions are no search: they name no fact, and in a long file the passages that matched them best were the
+    general clauses (the GPU round of 10 November 2026: a 25-page title deed filled the reading, and today's parties
+    and price were not seen)."""
+    lines: list[str] = []
+    for f in facts:
+        for fid, ask in ((f.id, f.ask), *((f"{f.id}.{x.id}", x.ask) for x in f.fields)):
+            labels = dict.fromkeys(playbook.wording(lang).label(fid) for lang in playbook.text)
+            lines.append(" · ".join([ask, *(label for label in labels if label and label != fid)]))
+    return "\n".join(lines)[:8000]
+
+
 async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]], playbook: Playbook, filenames: dict[str, str],
                         case_id: str | None, on_retry: Callable[[int, dict], None] | None = None,
                         fact_ids: set[str] | None = None) -> tuple[list[RunFact], ChatResponse]:
@@ -285,16 +299,43 @@ async def read_playbook(answer: Callable[[ChatRequest], Awaitable[ChatResponse]]
     is asked for once more, with a stricter reminder (review 2026-10-17: a retry is cheaper than a
     person's); then ``Unreadable``. ``answer`` is the grounded call (the caller binds its user); its
     errors pass through. ``on_retry(attempt, shape)`` is told when an answer couldn't be read, with its
-    shape (``answer_shape``: counts only). ``fact_ids``: the read step's facts; None for all."""
-    facts = tuple(f for f in playbook.facts if fact_ids is None or f.id in fact_ids)
+    shape (``answer_shape``: counts only). ``fact_ids``: the read step's facts; None for all.
+
+    When the documents were longer than one reading takes (``complete`` False), the facts still not found are
+    looked for again, one document at a time in the order given, searched for those facts alone
+    (``follow_up``). A fact found stays as found: a later document never replaces it. The response returned
+    is the first one (what was read in part), with the passages addressing an AI of every call."""
+    wanted = {f.id for f in playbook.facts if fact_ids is None or f.id in fact_ids}
+    facts, response = await _read_once(answer, playbook, filenames, case_id, on_retry, wanted)
+    if response.complete is not False:
+        return facts, response
+    suspicious = bool(response.instruction_like_sources)
+    for document_id, name in filenames.items():
+        missing = {f.id for f in facts if not f.found and "[" not in f.id and "." not in f.id}
+        if not missing:
+            break
+        more, extra = await _read_once(answer, playbook, {document_id: name}, case_id, on_retry, missing)
+        found = {root(f.id) for f in more if f.found}
+        facts = [f for f in facts if root(f.id) not in found] + [f for f in more if root(f.id) in found]
+        suspicious = suspicious or bool(extra.instruction_like_sources)
+    order = {f.id: i for i, f in enumerate(playbook.facts)}
+    facts.sort(key=lambda f: order.get(root(f.id), len(order)))  # the playbook's order, entries in theirs (a stable sort)
+    if suspicious and not response.instruction_like_sources:
+        response = response.model_copy(update={"instruction_like_sources": [0]})  # a later call's: shown as one warning
+    return facts, response
+
+
+async def _read_once(answer, playbook: Playbook, filenames: dict[str, str], case_id: str | None, on_retry, wanted: set[str]
+                     ) -> tuple[list[RunFact], ChatResponse]:
+    """One read: asked, and asked once more with a stricter reminder when the answer can't be read."""
+    facts = tuple(f for f in playbook.facts if f.id in wanted)
     schema = read_schema(facts)
-    only = "" if fact_ids is None or len(facts) == len(playbook.facts) else \
-        "\n\nThis time only these facts, as keys: " + ", ".join(f.id for f in facts) + "."
+    only = "" if len(facts) == len(playbook.facts) else "\n\nThis time only these facts, as keys: " + ", ".join(f.id for f in facts) + "."
     for attempt, instructions in enumerate((playbook.instructions + only, playbook.instructions + only + STRICTER)):
         req = ChatRequest(messages=[ChatMessage(role="user", content=instructions)], document_ids=list(filenames),
-                          case_id=case_id, max_tokens=READ_TOKENS, json_schema=schema)
+                          case_id=case_id, max_tokens=READ_TOKENS, json_schema=schema, search=search_for(playbook, facts))
         response = await answer(req)
-        facts_read = read_facts(playbook, response, filenames, fact_ids)
+        facts_read = read_facts(playbook, response, filenames, None if len(facts) == len(playbook.facts) else wanted)
         if facts_read is not None:
             return facts_read, response
         if on_retry is not None:

@@ -135,6 +135,60 @@ def test_a_read_step_over_some_facts_asks_for_those_only():
     assert [(f.id, f.found) for f in facts] == [("price", True), ("deposit", False)]
 
 
+def test_a_read_searches_the_documents_for_its_facts_in_every_language():
+    """The GPU round of 10 November 2026: searched with the instructions, a long file's general clauses filled the
+    reading. A read searches with its own facts' questions and labels (nl, fr, en), and only its own."""
+    seen = []
+
+    async def answer(req):
+        seen.append(req.search)
+        return response({"price": leaf("EUR 412.500,00", 1), "deposit": leaf(None)})
+    asyncio.run(read_playbook(answer, DEED_INTAKE, {DOC: "a.pdf"}, CASE, fact_ids={"price", "deposit"}))
+    assert "the sale price · Price · Prijs · Prix" in seen[0] and "Voorschot of waarborg" in seen[0]
+    assert "Verkoper" not in seen[0] and "never guess" not in seen[0]
+
+
+def test_a_read_in_part_looks_again_for_what_it_missed_one_document_at_a_time():
+    """Documents longer than one reading takes: the facts not found are looked for again in each document alone, in the
+    order the read names them, searched for those facts only. A fact found stays: the title deed of an earlier sale,
+    read after today's agreement, never replaces today's sellers."""
+    calls = []
+    other = "22222222-2222-2222-2222-222222222222"
+
+    async def answer(req):
+        calls.append((req.document_ids, sorted(req.json_schema["properties"]), req.search))
+        if len(calls) == 1:  # both documents, in part: the parties and the price not seen
+            got = {**ANSWER, "sellers": [], "buyers": [], "price": leaf(None), "cadastral": leaf("sectie A, nummer 12", 1),
+                   "title": leaf("akte van 1998", 1), "epc": leaf("label C", 1), "soil": leaf("geen gegevens", 1)}
+            return response(got).model_copy(update={"complete": False})
+        if req.document_ids == [DOC]:  # today's agreement: the price and the sellers, not the buyers
+            return response({"sellers": [party("Jan Peeters", 1)], "buyers": [], "price": leaf("EUR 412.500,00", 1)})
+        title = [Citation(text="Verkoper: Petrus Oud. Koper: Tom Janssens.", source=SourceRef(document_id=other, page=1, location="p. 1"))]
+        return response({"sellers": [party("Petrus Oud", 1)], "buyers": [party("Tom Janssens", 1)], "price": leaf(None)}, title)
+
+    facts, got = asyncio.run(read_playbook(answer, DEED_INTAKE, {DOC: "compromis.pdf", other: "titel.pdf"}, CASE))
+    assert [c[0] for c in calls] == [[DOC, other], [DOC], [other]]
+    assert calls[1][1] == ["buyers", "price", "sellers"] and calls[2][1] == ["buyers"]  # only what is still missing
+    assert "the sale price" in calls[1][2] and "the sale price" not in calls[2][2]
+    by = {f.id: f for f in facts}
+    assert by["sellers[1].name"].value == "Jan Peeters" and "sellers[2].name" not in by  # the earlier deed's never comes in
+    assert by["buyers[1].name"].value == "Tom Janssens" and by["price"].value == "EUR 412.500,00"
+    assert by["deposit"].value == "EUR 41.250,00 aan de notaris"  # what the first read found stays
+    assert got.complete is False  # still read in part: the person is told
+    assert [f.id.split("[")[0].split(".")[0] for f in facts] == sorted(
+        [f.id.split("[")[0].split(".")[0] for f in facts], key=[x.id for x in DEED_INTAKE.facts].index)
+
+
+def test_a_whole_read_is_not_read_again():
+    calls = []
+
+    async def answer(req):
+        calls.append(req.document_ids)
+        return response({**ANSWER, "price": leaf(None)})  # complete is None from the fake: as a whole read
+    asyncio.run(read_playbook(answer, DEED_INTAKE, {DOC: "compromis.pdf"}, CASE))
+    assert len(calls) == 1
+
+
 def test_an_unreadable_answers_shape_is_counts_only():
     """What the gateway logs when an answer isn't the object: never a word of it (VM check 2)."""
     from suveryn_harness.facts import answer_shape

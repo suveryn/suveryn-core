@@ -231,6 +231,20 @@ describe("lists (format 3)", () => {
     expect(html).toContain("reports: skipped, Contribution is not known.");
   });
 
+  it("offers 'There is none' only at a request the playbook can do without", () => {
+    const steps = [{ id: "agreement", kind: "request" as const, needs: [], facts: [] },
+                   { id: "title_deed", kind: "request" as const, needs: ["agreement"], facts: [], allow_none: true }];
+    const playbook: PlaybookInfo = { ...PLAYBOOK, steps };
+    const at = (step: string): Run => ({ ...RUN, step, steps: {}, facts: [], turns: [
+      { seq: 1, role: "playbook", step_id: step, by: PLAYBOOK.id, at: SUMMARY.started_at, text: "Upload it.", meta: {} }] });
+    const html = (run: Run) => renderToStaticMarkup(
+      <RunThread run={run} kase={KASE} playbook={playbook} words={words} me="u-ines" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html(at("agreement"))).toContain(en.runUseCaseDocuments);
+    expect(html(at("agreement"))).not.toContain(en.runNoDocument);
+    expect(html(at("title_deed"))).toContain(`>${en.runNoDocument}</button>`);
+  });
+
   it("says when documents were longer than one reading takes", () => {
     const reading: Run = { ...run, step: "missing", turns: [
       { seq: 1, role: "playbook", step_id: "founders_read", by: FORMATION.id, at: SUMMARY.started_at, text: "x",
