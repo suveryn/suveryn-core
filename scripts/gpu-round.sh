@@ -8,6 +8,9 @@
 #   PACKS=/workspace/suveryn-packs bash scripts/gpu-round.sh  # the packs' playbooks too (a checkout copied in:
 #                                             # the repository is private; their runs are in its tests/runs)
 #     from a Mac: COPYFILE_DISABLE=1 tar -czf - suveryn-packs | ssh … "tar -xzf - -C /workspace"
+#   OWN_RUNS=/workspace/own-runs bash scripts/gpu-round.sh  # run specs on your own files too, kept outside the
+#                                             # repositories; a spec with "show_facts": true writes what was read to
+#                                             # results/facts/<run>.txt, for you, never to the summary
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);
@@ -27,6 +30,7 @@ LLAMA_TAG="${LLAMA_TAG:-b12111}"            # suveryn-appliance provision/versio
 COMPARE="${COMPARE:-}"                      # another llama.cpp tag to compare, or empty
 RUNS="${RUNS:-1}"                           # the playbook runs through the gateway (4. above)
 PACKS="${PACKS:-}"                          # a suveryn-packs checkout, for its playbooks' runs
+OWN_RUNS="${OWN_RUNS:-}"                    # a folder of run specs on your own files (never in a repository)
 KC_VERSION=26.8.1                           # suveryn-appliance provision/versions.json
 KC_SHA256=4e2740b181faa2ea623a1c2ecf00855935311e546046e2f857615a47ed24cbe8
 UV_VERSION=0.13.7
@@ -155,7 +159,7 @@ playbook_runs() {  # a tag: the end-to-end stack's PostgreSQL, Keycloak and gate
     E2E_RAG_DEVICE=cuda E2E_PACKS_DIR="$PACKS"
   set +e
   uv run python e2e/stack.py up 2>&1 | grep -v "health:"
-  E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" \
+  E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}:${OWN_RUNS:-}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" E2E_RUNS_FACTS="$RESULTS/facts" \
     uv run pytest e2e/tests/test_playbook_runs.py -v -rs -s -p no:cacheprovider --junitxml="$RESULTS/runs-$tag.xml" 2>&1 \
     | tee "$RESULTS/runs-$tag.log"
   RC[runs-$tag]=${PIPESTATUS[0]}
@@ -214,6 +218,7 @@ for name, r in json.load(open(sys.argv[1])).items():
         print('  read in part: ' + ', '.join(r['in_part']))
     [print('  failed:', f) for f in failed]" "$j"
   done
+  [ -d "$RESULTS/facts" ] && echo "what was read in your own runs: $RESULTS/facts (for you; not to paste)"
   for j in "$RESULTS"/reads-*.json; do
     [ -f "$j" ] && uv run python -c "import json,sys; r=json.load(open(sys.argv[1])); print(f\"{sys.argv[1].split('/')[-1]}: {r['playbook']}, {r['retries']} retries, failures: {r['failures'] or 'none'}\")" "$j"
   done
