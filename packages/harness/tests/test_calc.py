@@ -4,6 +4,7 @@ from suveryn_harness.calc import (
     CalcRewriter,
     evaluate,
     unverified_figures,
+    written_style,
 )
 
 
@@ -120,3 +121,19 @@ def test_deep_nesting_is_a_calculation_error_not_a_crash():
     for expression in ("(" * 400 + "1" + ")" * 400, "1 " + "- " * 3000 + "1"):
         with pytest.raises(CalcError):
             evaluate(expression)
+
+
+def test_a_figure_that_reads_either_way_is_read_as_its_source_writes_it_and_only_then():
+    """Decision of 10 November 2026: "28.848 + 48.197" across a Dutch deed was refused, and the model did the sum
+    itself. A figure that reads either way is read as the text around it writes decimals, when every such figure is
+    written in the sources and that text writes decimals one way only; otherwise refused, as before."""
+    deed = ("De inbreng in geld ten belope van 414.834,24 EUR, met uitgifte van 28.848 nieuwe aandelen. "
+            "De inbreng in natura ten belope van 554.265,50 EUR, door uitgifte van 48.197 nieuwe aandelen.")
+    agreement = "The Cash Investors invest 414,834.24 EUR for 28,848 Shares; the others 554,265.50 EUR for 48,197 Shares."
+    assert evaluate("28.848 + 48.197", ",", deed)[0] == "77.045"
+    assert evaluate("28,848 + 48,197", ",", agreement)[0] == "77,045"
+    assert rewrite("[[calc: 28.848 + 48.197]]", deed)[0] == "28.848 + 48.197 = 77.045"
+    for source in ("", "Er zijn 28.848 aandelen.", deed.replace("48.197", "48.196"), deed + " Price 1.25 EUR."):
+        with pytest.raises(CalcError):  # not written there, nothing around it says, a figure not in it, both styles
+            evaluate("28.848 + 48.197", ",", source)
+    assert written_style("28.848", deed) == "," and written_style("28,848", agreement) == "." and written_style("99", deed) is None

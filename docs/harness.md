@@ -91,10 +91,17 @@ tested:
 - **Calculations** ([`calc.py`](../packages/harness/src/suveryn_harness/calc.py)). The model never
   calculates. Each `[[calc: …]]` is computed exactly by the server and replaced by
   `figures = result` as the answer streams. A figure written ambiguously (`1.250` could be either
-  style) is refused rather than guessed.
+  style) is refused rather than guessed, unless the sources settle it: every such figure is written
+  there, and the text around each writes decimals one way only (`calc.written_style`; a Dutch deed's
+  `28.848` beside its `414.834,24 EUR` is twenty-eight thousand). Decision of 10 November 2026.
 - **Figures in no passage** (`unverified_figures`). A figure in the answer that is in none of the
   passages, is no calculation's result and wasn't in the question is listed; the interface
-  underlines it.
+  underlines it. The model worked it out or made it up, which it must never do, so the answer is
+  asked for once more, told which figures and that a calculation is written `[[calc: …]]`; the
+  second answer is kept when it has none, else the first, with the warning (`asked_again`). A
+  streamed answer shows *writing* again, and the final answer replaces the streamed text. A
+  playbook's read (an answer of a fixed shape) is never asked again for this: its values are
+  checked one by one.
 - **Each citation against its own passage** ([`support.py`](../packages/harness/src/suveryn_harness/support.py)).
   The figures, dates, years and names before a marker must be in the passage that marker cites, not
   just somewhere in the documents.

@@ -216,6 +216,9 @@ class ChatResponse(BaseModel):
     # Grounded answers: whether the passages were the documents' whole text (True) or a selection of the best-matching
     # passages because the documents are longer than one reading takes (False). None without documents.
     complete: bool | None = None
+    # Grounded answers: the first answer wrote figures in no passage that the server didn't compute, and the model was
+    # asked once more to use [[calc: …]] or quote the passage; this is the second answer if it had none, else the first.
+    asked_again: bool = False
 
 
 class StreamDelta(BaseModel):

@@ -234,3 +234,39 @@ def test_a_grounded_answer_says_whether_it_saw_the_documents_whole(whole):
     whole_answer, streamed, plain = asyncio.run(run())
     assert whole_answer.complete is whole and streamed.complete is whole
     assert plain.complete is None  # no documents, nothing to have read in part
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_an_answer_with_a_figure_it_worked_out_is_asked_again(stream):
+    """The model must never compute: an answer with a figure in no passage that the server didn't compute is asked
+    once more, told which figure; a clean second answer replaces it (GPU round of 10 November 2026)."""
+    from suveryn_harness import Citation, SourceRef
+
+    replies = ["Samen 1.000 aandelen [1].", "Samen [[calc: 400 + 600]] aandelen [1]."]
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
+        payload = json.loads(request.content)
+        seen.append(payload["messages"][-1]["content"])
+        text = replies[min(len(seen) - 1, 1)]
+        if payload["stream"]:
+            body = f"data: {json.dumps({'choices': [{'delta': {'content': text}, 'finish_reason': None}]})}\n\n"
+            body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": {}})
+
+    async def retriever(question, ids, k, owner, case_id):
+        return [(Citation(text="A neemt 400 aandelen, B neemt 600 aandelen.", source=SourceRef(document_id="d1", page=1)), "akte.pdf")], True
+
+    async def run():
+        service = ChatService(LlamaServerClient(LLMSettings(base_url="http://llm", default_model="q"), transport=httpx.MockTransport(handler)), retriever)
+        req = ChatRequest(messages=[ChatMessage(role="user", content="Hoeveel aandelen samen?")], document_ids=["d1"])
+        if stream:
+            return [e async for e in service.answer_stream(req, "alice")][-1].response
+        return await service.answer(req, "alice")
+
+    r = asyncio.run(run())
+    assert r.asked_again and r.unverified_figures == [] and "400 + 600 = 1000" in r.answer
+    assert len(seen) == 2 and "1.000" in seen[1] and "[[calc:" in seen[1]  # told which figure, and how
