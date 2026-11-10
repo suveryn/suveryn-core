@@ -1,0 +1,51 @@
+{
+  "title": "Deed intake on a sale file of real length",
+  "playbook": "deed-intake",
+  "case_type": "sale",
+  "language": "nl",
+  "documents": {
+    "*": [
+      "compromis-kerkweg-41.pdf",
+      "eigendomstitel-1998.pdf",
+      "attesten-kerkweg-41.pdf"
+    ]
+  },
+  "build": "deed_intake_long_documents.py",
+  "say": {},
+  "expect": {
+    "facts": {
+      "sellers": "Veldhoek",
+      "buyers": "Akkerman",
+      "property": "Kerkweg 41",
+      "cadastral": "412K",
+      "price": "368.500",
+      "deposit": "36.850",
+      "agreement_date": "12 september 2026",
+      "deed_deadline": "januari 2027",
+      "conditions": "290.000",
+      "title": "1998",
+      "epc": "287",
+      "soil": "2026-0815-77",
+      "occupancy": "vrij"
+    },
+    "not_in": {
+      "sellers": "Vandamme",
+      "buyers": "Veldhoek",
+      "price": "4.250.000",
+      "cadastral": "412H"
+    },
+    "not_said": [
+      "395.000"
+    ],
+    "checks": {
+      "a_seller": "holds",
+      "a_buyer": "holds",
+      "deposit_within_price": "holds",
+      "deed_after_agreement": "holds"
+    },
+    "read_in_part": [
+      "read"
+    ],
+    "skipped": []
+  }
+}

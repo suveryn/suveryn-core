@@ -208,6 +208,10 @@ import json, sys
 for name, r in json.load(open(sys.argv[1])).items():
     failed = [k for k, ok in r['checks'].items() if not ok]
     print(f\"{name} ({sys.argv[1].split('/')[-1]}): {len(r['checks']) - len(failed)}/{len(r['checks'])} held, {r['found']} of {r['facts']} facts found, {r['seconds']} s\")
+    if r.get('score'):
+        print('  score: ' + ', '.join(f'{k} {a}/{b}' for k, (a, b) in r['score'].items() if b))
+    if r.get('in_part'):
+        print('  read in part: ' + ', '.join(r['in_part']))
     [print('  failed:', f) for f in failed]" "$j"
   done
   for j in "$RESULTS"/reads-*.json; do

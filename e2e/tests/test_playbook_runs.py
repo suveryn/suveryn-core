@@ -15,8 +15,10 @@ the spec's ``build`` module beside it, ``build_documents(folder)``), and per ste
 Held to, at the checkpoint: the facts the documents state are there as written (``facts``: a path, or a list's
 name for any of its entries, and words its value contains); the facts a person's answer gives are there
 (``found``); the facts they never mention are not invented
-(``not_found``); planted text never reaches a value (``not_said``); the checks come out as expected (``checks``);
-the branches a choice leaves out are skipped (``skipped``). After the confirmation: the run is done and its summary
+(``not_found``); planted text never reaches a value (``not_said``), or never a given fact's (``not_in``: a path, or
+a list's name, and words none of its values may contain: the earlier owners in a title deed are never today's
+sellers); the checks come out as expected (``checks``); the branches a choice leaves out are skipped (``skipped``);
+the read steps whose documents were longer than one reading takes say so (``read_in_part``: step ids). After the confirmation: the run is done and its summary
 is a document in the case. Fictional documents only. ``E2E_RUNS_REPORT``, if set, is a JSON report path: per run
 which checks held, and counts, never a value's text.
 """
@@ -124,9 +126,22 @@ def holds(run: dict, spec: dict) -> dict[str, bool]:
     out |= {f"{k} found": any(p == k or p.startswith(k + "[") or p.startswith(k + ".") for p in values) for k in expect.get("found", [])}
     out |= {f"{k} not invented": not any(p == k or p.startswith(k + "[") for p in values) for k in expect.get("not_found", [])}
     out |= {f"no value says {c!r}": not any(c in v for v in values.values()) for c in expect.get("not_said", [])}
+    out |= {f"{k} never says {v!r}": not says(k, v) for k, v in expect.get("not_in", {}).items()}
     out |= {f"check {k} {v}": (run.get("checks", {}).get(k) or {}).get("status") == v for k, v in expect.get("checks", {}).items()}
     out |= {f"step {k} skipped": (run.get("steps", {}).get(k) or {}).get("status") == "skipped" for k in expect.get("skipped", [])}
+    out |= {f"step {k} says it read in part": bool((run.get("steps", {}).get(k) or {}).get("in_part")) for k in expect.get("read_in_part", [])}
     return out
+
+
+def score(results: dict[str, bool]) -> dict[str, list[int]]:
+    """The reading's score, from what held (``holds``): read right (a stated fact there as written), not invented (a
+    fact never mentioned, planted text, an earlier owner), checks as expected. Per kind [held, of]: what the GPU
+    round prints per playbook, so a change shows whether it made the reading better or worse."""
+    kinds = {"read right": lambda n: " says " in n and " never says " not in n and not n.startswith(("no value", "step ")),
+             "not invented": lambda n: n.endswith(" not invented") or " never says " in n or n.startswith("no value says"),
+             "checks": lambda n: n.startswith("check ")}
+    return {kind: [sum(1 for n, ok in results.items() if test(n) and ok), sum(1 for n in results if test(n))]
+            for kind, test in kinds.items()}
 
 
 @pytest.mark.parametrize("spec_path", SPECS, ids=[p.stem for p in SPECS])
@@ -204,7 +219,8 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
     results |= {f"the answer at {s} understood": s not in not_understood for s in spec.get("say", {})}
     found = sum(1 for f in at_checkpoint["facts"] if f.get("value"))
     REPORT[spec_path.stem] = {"playbook": spec["playbook"], "checks": results, "found": found, "facts": len(at_checkpoint["facts"]),
-                              "asked": asked, "seconds": round(time.time() - started)}
+                              "asked": asked, "seconds": round(time.time() - started), "score": score(results),
+                              "in_part": sorted({d for st in at_checkpoint.get("steps", {}).values() for d in st.get("in_part") or []})}
     if path := os.environ.get("E2E_RUNS_REPORT"):
         Path(path).write_text(json.dumps(REPORT, indent=1, ensure_ascii=False))
     failures = [name for name, ok in results.items() if not ok]
