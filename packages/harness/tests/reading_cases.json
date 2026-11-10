@@ -54,6 +54,13 @@
   {"written": "drie en twintig mei tweeduizend veertien", "date": [23, 5, 2014]},
   {"written": "le douze mai deux mille quatorze", "date": [12, 5, 2014]},
   {"written": "maart 2021", "month": [3, 2021]},
+  {"written": "10%", "number": "10", "percent": true},
+  {"written": "tien procent", "number": "10", "percent": true},
+  {"written": "2,5 pour cent", "number": "2.5", "percent": true},
+  {"written": "6,49 %", "number": "6.49", "percent": true},
+  {"written": "ongeveer € 450.000", "number": "450000", "approximate": true, "why": "said to be inexact: a person judges what it qualifies"},
+  {"written": "circa 450 m²", "number": "450", "approximate": true},
+  {"written": "environ 10 %", "number": "10", "percent": true, "approximate": true},
   {"written": "31/02/2021", "no_date": true, "why": "no such day"}
  ]
 }

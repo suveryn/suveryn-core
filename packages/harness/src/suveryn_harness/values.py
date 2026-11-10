@@ -172,7 +172,8 @@ def figure_value(raw: str, style: Style = None) -> Decimal | None:
 class Found:
     """One amount, number or date in a text, where it is (code-point offsets): ``kind`` "number" (``value`` a
     Decimal), "date" (day, month, year) or "month" (month, year: "maart 2021"). ``words``: a number written in
-    words; ``currency``: euro written right after it."""
+    words; ``currency``: euro written right before or after it; ``percent``: a percentage ("10%", "tien procent");
+    ``approximate``: the text says it isn't exact ("ongeveer", "circa", "environ", "about", "±")."""
 
     start: int
     end: int
@@ -180,6 +181,8 @@ class Found:
     value: Decimal | tuple[int, ...]
     words: bool = False
     currency: bool = False
+    percent: bool = False
+    approximate: bool = False
 
 
 _NOT_AFTER_WORD = r"(?<![^\W_])"
@@ -198,6 +201,18 @@ _ISO = re.compile(r"(?<![\d.,/-])(\d{4})-(\d{1,2})-(\d{1,2})(?![\d])")
 _NUMERIC_DATE = re.compile(r"(?<![\d.,/-])(\d{1,2})([./-])(\d{1,2})\2(\d{4}|\d{2})(?!\d|[.,]\d)")
 _MONTH_NAME = "(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")"
 _MONTH_FIRST = re.compile(_NOT_AFTER_WORD + r"(" + _MONTH_NAME + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?!\d)")
+PERCENT_SIGN = re.compile(r"[ \u00a0\u202f]*(?:%|procent|percent|pourcent|pour[ \u00a0]cent|pct\.?)$", re.IGNORECASE)
+_PERCENT_AFTER = re.compile(r"[ \u00a0\u202f]*(?:%|procent|percent|pourcent|pour[ \u00a0]cent|pct\.?)(?![^\W_])", re.IGNORECASE)
+# Words that say a figure isn't exact, right before it (an amount's currency may sit between): "ongeveer € 450.000",
+# "circa 12", "environ 10 %", "about 3", "± 450.000". What they qualify (an amount, a surface) is for the user to judge.
+_APPROXIMATE_BEFORE = re.compile(r"(?:ongeveer|ong\.|circa|ca\.|zowat|nagenoeg|plusminus|environ|approximativement|à peu près|"
+                                 r"approximately|approx\.|about|around|roughly|±|\+/-|~)\s*(?:(?:euro|eur|€)\s*)?$", re.IGNORECASE)
+
+
+def _approximate(text: str, start: int) -> bool:
+    return bool(_APPROXIMATE_BEFORE.search(text[max(0, start - 32):start]))
+
+
 # A single word that is an article far more often than a count: "een woning", "un immeuble", "one of them".
 _ARTICLES = {"een", "un", "une", "one"}
 
@@ -254,7 +269,9 @@ def read(text: str, style: Style = None) -> list[Found]:
         if scale := _SCALE_AFTER.match(text, end):
             v, end = v * _FIGURE_SCALES[scale.group(1).lower()], scale.end()
         currency = bool(_EURO_AFTER.match(text, end) or _EURO_BEFORE.search(text[max(0, m.start() - 6):m.start()]))
-        add(Found(m.start(), end, "number", v, currency=currency))
+        percent = _PERCENT_AFTER.match(text, end)
+        add(Found(m.start(), percent.end() if percent else end, "number", v, currency=currency, percent=bool(percent),
+                  approximate=_approximate(text, m.start())))
     for f in _word_numbers(text):
         add(f)
     return sorted(out, key=lambda f: f.start)
@@ -361,7 +378,9 @@ def _word_numbers(text: str) -> list[Found]:
         n = number(run)
         if n is None:
             continue
-        out.append(Found(start, end, "number", Decimal(n), words=True, currency=bool(_EURO_AFTER.match(text, end))))
+        percent = _PERCENT_AFTER.match(text, end)
+        out.append(Found(start, percent.end() if percent else end, "number", Decimal(n), words=True,
+                         currency=bool(_EURO_AFTER.match(text, end)), percent=bool(percent), approximate=_approximate(text, start)))
     return out
 
 
@@ -374,17 +393,33 @@ def numbers_in(text: str, style: Style = None) -> set[Decimal]:
     return {f.value for f in read(text, style) if f.kind == "number"}
 
 
-def as_amount(value: str, style: Style = None) -> Decimal | None:
-    """One fact's amount: the first amount in it. A short plain figure ("3 aandelen", "art. 12") is none, nor a
-    number in words under a thousand without euro ("tien procent")."""
+def first_amount(value: str, style: Style = None) -> Found | None:
+    """One fact's amount, with what the text says about it (approximate): the first amount in it. A short plain
+    figure ("3 aandelen", "art. 12") is none, nor a percentage, nor a number in words under a thousand without euro."""
     for f in read(value, style):
-        if f.kind != "number":
+        if f.kind != "number" or f.percent:
             continue
         if f.words and (f.value >= 1000 or f.currency):
-            return f.value
+            return f
         if not f.words and (f.value >= 100 or re.search(r"[.,\s]", value[f.start:f.end])):
-            return f.value
+            return f
     return None
+
+
+def as_amount(value: str, style: Style = None) -> Decimal | None:
+    """One fact's amount (``first_amount``), its value only."""
+    f = first_amount(value, style)
+    return f.value if f else None
+
+
+def as_percent(value: str, style: Style = None) -> Decimal | None:
+    """The one percentage a value gives ("10%", "tien procent van de koopprijs", "2,5 pour cent"), or None when it gives
+    none, or two (no guess which), or an amount besides it."""
+    found = [f for f in read(value, style) if f.kind == "number"]
+    shares = [f for f in found if f.percent]
+    if len(shares) != 1 or len(found) != 1 or not 0 < shares[0].value <= 100:
+        return None
+    return shares[0].value
 
 
 def as_number(value: str, style: Style = None) -> Decimal | None:

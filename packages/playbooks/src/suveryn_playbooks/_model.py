@@ -95,6 +95,9 @@ class Fact:
     # date: the date fact a term written instead of a date counts from ("four months after the signing":
     # ``agreement_date``); the harness works the date out (``suveryn_harness.terms``) and a person checks it
     counts_from: str = ""
+    # amount: the amount fact a percentage written instead of an amount is a share of ("10% of the price": ``price``);
+    # the harness works the amount out (``suveryn_harness.terms``) and a person checks it
+    share_of: str = ""
 
     @property
     def leaf_kind(self) -> LeafKind:
@@ -125,6 +128,21 @@ class Step:
 
 
 @dataclass(frozen=True)
+class Calendar:
+    """The days a pack's deeds count as working days (docs/design/playbooks.md, "Working days"): the pack's own data,
+    as the law behind it differs per country (``calendar.yaml`` beside the pack's manifests). ``workdays``: the
+    weekdays worked, 0 for Monday; ``fixed``: holidays on the same date every year ("12-25"); ``after_easter``: holidays
+    a number of days after Easter Sunday (1: Easter Monday); ``dates``: single holidays ("2027-05-06"), for a country
+    whose movable feasts the rules don't express. ``name``: per language, said with every date it worked out."""
+
+    name: dict[str, str]
+    workdays: tuple[int, ...] = (0, 1, 2, 3, 4)
+    fixed: tuple[str, ...] = ()
+    after_easter: tuple[int, ...] = ()
+    dates: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Playbook:
     id: str            # playbook/<pack>/<name>
     pack: str          # pack/<profession-jurisdiction>
@@ -136,6 +154,7 @@ class Playbook:
     text: dict[str, Wording] = field(default_factory=dict)  # per language (LANGUAGES): title, summary, fact labels
     steps: tuple[Step, ...] = ()       # the routine
     format: int = 3                    # the manifest format the playbook was written in
+    calendar: Calendar | None = None   # its pack's working days; None: a term in working days is left to a person
 
     def step(self, step_id: str) -> Step | None:
         return next((s for s in self.steps if s.id == step_id), None)

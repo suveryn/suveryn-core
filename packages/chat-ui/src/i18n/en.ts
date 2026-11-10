@@ -573,9 +573,14 @@ const en = {
   pbNotADate: "Not a date as written: work it out and check it.",
   // a term worked out from the date it counts from (board P01): "Worked out: 12 October 2026 plus four months."
   pbComputedCheck: "Worked out. Check it.",
-  pbComputedHow: (base: string, term: string, before: boolean) => `Worked out: ${base} ${before ? "minus" : "plus"} ${term}.`,
-  pbTerm: (n: number, unit: "day" | "week" | "month" | "year") =>
-    `${["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] ?? n} ${unit}${n === 1 ? "" : "s"}`,
+  pbComputedHow: (base: string, term: string, before: boolean, calendar: string) =>
+    `Worked out: ${base} ${before ? "minus" : "plus"} ${term}${calendar ? ` (${calendar})` : ""}.`,
+  pbTerm: (n: number, unit: "day" | "week" | "month" | "year" | "workday") =>
+    `${["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] ?? n} ${
+      unit === "workday" ? (n === 1 ? "working day" : "working days") : `${unit}${n === 1 ? "" : "s"}`}`,
+  pbComputedShare: (percent: string, of: string) => `Worked out: ${percent}% of ${of}.`,
+  pbApproximate: "The document gives this amount as approximate: check what is meant.",
+  pbAmountNotInPassage: "The amount itself isn't in the passage.",
   pbDateNotInPassage: "The date itself isn't in the passage.",
   pbNotAnAmount: "Not an amount as written: work it out and check it.",
   pbNotANumber: "Not a number as written: work it out and check it.",

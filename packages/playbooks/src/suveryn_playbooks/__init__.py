@@ -28,7 +28,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from ._model import LANGUAGES, Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
-from .manifest import ManifestError, load, read_schema
+from .manifest import CALENDAR_FILE, ManifestError, load, read_schema
 from .paths import entry, root, split
 from .record import from_record, to_record
 
@@ -40,7 +40,8 @@ def _official() -> tuple[Playbook, ...]:
     for pack in OFFICIAL_PACKS:
         pack_dir = Path(str(files(__package__).joinpath(pack)))
         for path in sorted(pack_dir.glob("*.yaml")):
-            out.append(load(path))
+            if path.name != CALENDAR_FILE:
+                out.append(load(path))
     ids = [p.id for p in out]
     if len(set(ids)) != len(ids):
         raise ManifestError("two official manifests declare the same id: " + ", ".join(i for i in ids if ids.count(i) > 1))

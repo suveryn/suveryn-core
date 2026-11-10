@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from ._model import Fact, Playbook, Step, Wording
+from ._model import Calendar, Fact, Playbook, Step, Wording
 
 
 def to_record(playbook: Playbook) -> dict[str, Any]:
@@ -31,12 +31,13 @@ def from_record(record: dict[str, Any]) -> Playbook:
             for lang, w in record.get("text", {}).items()}
     return Playbook(id=record["id"], pack=record["pack"], version=record["version"], name=record["name"],
                     case_types=tuple(record["case_types"]), facts=facts, instructions=record["instructions"], text=text,
-                    steps=steps, format=record["format"])
+                    steps=steps, format=record["format"], calendar=_calendar(record.get("calendar")))
 
 
 def _fact(f: dict[str, Any]) -> Fact:
     return Fact(id=f["id"], ask=f["ask"], kind=f.get("kind", "text"), fields=tuple(_fact(x) for x in f.get("fields", ())),
-                item_kind=f.get("item_kind", "text"), options=tuple(f.get("options", ())), counts_from=f.get("counts_from", ""))
+                item_kind=f.get("item_kind", "text"), options=tuple(f.get("options", ())), counts_from=f.get("counts_from", ""),
+                share_of=f.get("share_of", ""))
 
 
 def _plain(v: Any) -> Any:
@@ -45,3 +46,10 @@ def _plain(v: Any) -> Any:
     if isinstance(v, (list, tuple)):
         return [_plain(x) for x in v]
     return v
+
+
+def _calendar(c: dict[str, Any] | None) -> Calendar | None:
+    if not c:
+        return None
+    return Calendar(name=dict(c["name"]), workdays=tuple(c["workdays"]), fixed=tuple(c["fixed"]),
+                    after_easter=tuple(c["after_easter"]), dates=tuple(c["dates"]))
