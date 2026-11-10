@@ -39,6 +39,11 @@ from .support import citation_issues
 
 log = logging.getLogger("suveryn.harness")
 
+# Said to the model when its answer wrote figures in no passage that the server didn't compute (``_asked_again``).
+AGAIN = ("\n\nYour previous answer to this wrote figures that are in none of the excerpts: {figures}. Never work out a figure "
+         "yourself. Write every sum, difference, product or count as [[calc: …]] with the figures as the excerpts write them, "
+         "or quote the figure exactly as an excerpt writes it. Answer the question again.")
+
 # Passages to answer a question from, within the given documents of one user or case:
 # (question, document_ids, k, owner, case_id) -> ([(citation, filename), ...], complete). The retriever
 # must refuse documents outside the scope: ``owner``'s personal space when ``case_id`` is None, else
@@ -213,12 +218,37 @@ class ChatService:
         if not req.document_ids:
             return response
         response = response.model_copy(update={"narrowed_to": named, "complete": complete})
+        first = await self._grounded(response, citations, req, owner)
+        if first.unverified_figures and req.json_schema is None:
+            return await self._asked_again(prepared, first, citations, req, owner)
+        return first
+
+    async def _grounded(self, response: ChatResponse, citations: list[Citation], req: ChatRequest, owner: str) -> ChatResponse:
+        """A grounded answer's checks: its calculations made, its figures and citations checked against the passages."""
         calc = CalcRewriter(_source(citations))
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
                                            "unverified_figures": unverified, "citation_issues": issues,
                                            "support_spans": await self._support_spans(text, citations),
                                            "instruction_like_sources": _suspicious(citations, owner, response.model)})
+
+    async def _asked_again(self, prepared: ChatRequest, first: ChatResponse, citations: list[Citation], req: ChatRequest,
+                           owner: str) -> ChatResponse:
+        """The answer wrote figures that are in no passage and that sūveryn didn't compute: the model worked them out
+        or made them up, which it must never do (the GPU round of 10 November 2026: 2 answers in 53). It is asked once
+        more, told which figures, and that a sum, a difference or a count is written as ``[[calc: …]]``. The second
+        answer is kept when it has no such figure; else the first stays, with its warning. ``asked_again`` says so."""
+        *history, last = prepared.messages
+        again = prepared.model_copy(update={"messages": [*history, last.model_copy(update={"content": last.content + AGAIN.format(
+            figures=", ".join(first.unverified_figures))})]})
+        log.info("answer asked again: figures in no passage and not computed by the server (count=%d)", len(first.unverified_figures))
+        try:
+            response = await self.llm.complete(again.model_copy(update={"thinking": False}), user=owner, kind="chat")
+        except BackendError:
+            return first.model_copy(update={"asked_again": True})
+        second = await self._grounded(response.model_copy(update={"narrowed_to": first.narrowed_to, "complete": first.complete}),
+                                      citations, req, owner)
+        return (first if second.unverified_figures or not second.answer.strip() else second).model_copy(update={"asked_again": True})
 
     async def _answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
         """Status steps, then for a grounded answer its passages, then in *Thorough* the reasoning, then
@@ -291,13 +321,18 @@ class ChatService:
         if finish_reason == "length":  # counts only: how often Thorough thinks past its budget (Pod check of a318b65)
             log.info("answer stopped at the length limit: thinking=%s reasoning_chars=%d answer_chars=%d",
                      bool(thought), sum(len(x) for x in thought), len(answer))
-        yield Done(ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,
+        done = ChatResponse(id=f"chat-{uuid.uuid4().hex}", model=model, answer=answer,
                                 citations=citations, calculations=calculations, unverified_figures=unverified,
                                 citation_issues=issues, support_spans=await self._support_spans(answer, citations) if calc else [],
                                 instruction_like_sources=_suspicious(citations, owner, model),
                                 finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
                                 thought_seconds=round(ended - began, 1) if began is not None else None, thinking_cut=cut, narrowed_to=named,
-                                complete=complete if req.document_ids else None))
+                                complete=complete if req.document_ids else None)
+        if calc and done.unverified_figures and req.json_schema is None:
+            # the streamed text is replaced by ``Done``'s answer, as the added citation markers already are
+            yield Status("writing")
+            done = await self._asked_again(prepared, done, citations, req, owner)
+        yield Done(done)
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],

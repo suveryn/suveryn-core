@@ -130,6 +130,20 @@ def _says(answer: str, expected: str | list[str]) -> bool:
     return any(_plain(e) in _plain(answer) for e in ([expected] if isinstance(expected, str) else expected))
 
 
+# The words that give a short text's language away; enough to tell a question's language from its answer's.
+COMMON = {"nl": {"de", "het", "een", "en", "van", "is", "zijn", "wordt", "werd", "niet", "voor", "aan", "welke", "hoeveel", "wie"},
+          "fr": {"le", "la", "les", "des", "est", "et", "une", "du", "qui", "quand", "pour", "par", "sont", "être"},
+          "en": {"the", "and", "of", "is", "are", "which", "how", "what", "who", "for", "to", "by", "with", "many"}}
+
+
+def _language(text: str) -> str | None:
+    """The language a text is written in, when its common words say so clearly; else None."""
+    words = re.findall(r"[a-zà-ÿ]+", re.sub(r"\[\d+\]", " ", text.casefold()))
+    counts = {lang: sum(w in common for w in words) for lang, common in COMMON.items()}
+    best = max(counts, key=counts.get)
+    return best if counts[best] >= 2 and all(counts[best] >= 2 * c for lang, c in counts.items() if lang != best) else None
+
+
 def _check(case: dict, r) -> dict[str, bool]:
     """Every check of one answer: name -> passed."""
     answer, cited = r.answer, [int(n) for n in MARKER.findall(r.answer) if 1 <= int(n) <= len(r.citations)]
@@ -139,6 +153,8 @@ def _check(case: dict, r) -> dict[str, bool]:
         "citations match their sources": not r.citation_issues,
         "no [*] from an earlier answer": "[*]" not in answer,
     }
+    if (asked := _language(case["q"])) and (said := _language(answer)):
+        checks["answers in the question's language"] = said == asked
     for e in case.get("expect", []):
         checks[f"says {e if isinstance(e, str) else ' or '.join(e)!r}"] = _says(answer, e)
     for f in case.get("forbid", []):
@@ -167,6 +183,10 @@ def _show(case: dict, r, checks: dict[str, bool], names: dict[str, str]) -> None
     with (Path(folder) / f"{case['spec']}.txt").open("a", encoding="utf-8") as out:
         out.write(f"Q: {case['q']}\nA: {r.answer}\nSources: {'; '.join(sources) or 'none cited'}"
                   + ("" if r.complete is not False else "\n(read in part: the documents are longer than one reading takes)")
+                  + (f"\nFigures in no source, not computed: {', '.join(r.unverified_figures)}" if r.unverified_figures else "")
+                  + "".join(f"\nNot in its cited source [{i.n}]: {i.item}"
+                            + (f" (it is in [{', '.join(str(n) for n in i.found_in)}])" if i.found_in else "") for i in r.citation_issues)
+                  + ("\n(asked again: the first answer had a figure it worked out itself)" if r.asked_again else "")
                   + (f"\nFAILED: {'; '.join(failed)}" if failed else "") + "\n\n")
 
 

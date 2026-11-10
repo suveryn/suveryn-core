@@ -52,8 +52,27 @@ def _decimal_separator(figures: list[str]) -> str | None:
         if any(re.search(rf"\{sep}\d{{1,2}}$", f) or f.count(other) > 1 for f in figures):
             return sep
     if any(re.search(r"[.,]\d{3}$", f) or re.search(r"[.,]\d{4,}$", f) for f in figures):
-        raise CalcError("the figures don't show which separator is the decimal one")
+        raise AmbiguousSeparator("the figures don't show which separator is the decimal one")
     return None
+
+
+class AmbiguousSeparator(CalcError):
+    """A figure such as "28.848" reads either way, and the other figures don't say which."""
+
+
+def written_style(figure: str, source: str) -> str | None:
+    """The decimal separator of the text around every place ``figure`` is written in ``source``: "," when the figures
+    near it write decimals with a comma ("414.834,24", "12,50") and none with a point, "." the other way round, None
+    when it isn't written there or the text around it doesn't say, or says both. A Dutch deed's "28.848" beside its
+    "414.834,24 EUR" is twenty-eight thousand; an English agreement's "28,848" beside "414,834.24" is too."""
+    comma = re.compile(r"\d\.\d{3},\d{2}(?![\d.,])|\d,\d{2}(?![\d.,])")
+    point = re.compile(r"\d,\d{3}\.\d{2}(?![\d.,])|\d\.\d{2}(?![\d.,])")
+    styles = set()
+    for m in re.finditer(rf"(?<![\d.,]){re.escape(figure)}(?!\d|[.,]\d)", source):
+        around = source[max(0, m.start() - 300):m.end() + 300]
+        c, p = len(comma.findall(around)), len(point.findall(around))
+        styles.add("," if c and not p else "." if p and not c else None)
+    return styles.pop() if len(styles) == 1 else None
 
 
 def _check_style(figure: str, sep: str | None) -> None:
@@ -138,15 +157,29 @@ class _Parser:
         raise CalcError("unexpected text in the calculation")
 
 
-def evaluate(expression: str, default_sep: str | None = None) -> tuple[str, list[str]]:
+def evaluate(expression: str, default_sep: str | None = None, source: str | None = None) -> tuple[str, list[str]]:
     """Compute an expression; return the formatted result and the figures it used, as written.
 
     ``default_sep`` is the decimal separator to use for the result when no figure has decimals
     (``CalcRewriter`` takes it from the sources). Raises ``CalcError`` for anything it can't do
     unambiguously; no other exception escapes.
+
+    A figure that reads either way ("28.848") is read as the ``source`` writes it, and only then: every
+    such figure must be written there, and the text around each must write decimals one way only
+    (``written_style``; decision of 10 November 2026: a sum across a Dutch deed's share counts was refused,
+    and the model did the arithmetic itself). Otherwise it is refused, as before.
     """
     try:
-        return _evaluate(expression, default_sep)
+        try:
+            return _evaluate(expression, default_sep)
+        except AmbiguousSeparator:
+            if not source:
+                raise
+            ambiguous = [f for f in re.findall(NUMBER.pattern, expression) if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d{4,}", f)]
+            styles = {written_style(f, source) for f in ambiguous}
+            if len(styles) != 1 or None in styles:
+                raise
+            return _evaluate(expression, default_sep, forced=styles.pop())
     except CalcError:
         raise
     except (ArithmeticError, ValueError) as e:  # decimal errors (e.g. precision), malformed numbers
@@ -155,7 +188,7 @@ def evaluate(expression: str, default_sep: str | None = None) -> tuple[str, list
         raise CalcError("the calculation is nested too deeply") from None
 
 
-def _evaluate(expression: str, default_sep: str | None) -> tuple[str, list[str]]:
+def _evaluate(expression: str, default_sep: str | None, forced: str | None = None) -> tuple[str, list[str]]:
     expression = expression.replace("×", "*").replace("÷", "/").replace("−", "-")
     expression = re.sub(r"\b(EUR|USD|GBP)\b|[€$£]", " ", expression)  # a currency next to a figure is fine
     figures: list[str] = []
@@ -171,7 +204,7 @@ def _evaluate(expression: str, default_sep: str | None) -> tuple[str, list[str]]
             raise CalcError(f"unexpected text in the calculation: {tok!r}")
     if not figures:
         raise CalcError("the calculation has no figures")
-    sep = _decimal_separator(figures)
+    sep = forced or _decimal_separator(figures)
     for f in figures:
         _check_style(f, sep)
     with localcontext() as ctx:
@@ -304,7 +337,7 @@ class CalcRewriter:
             return marker
         expression = " ".join(m.group(1).split())
         try:
-            result, figures = evaluate(expression, source_decimal_separator(self.source))
+            result, figures = evaluate(expression, source_decimal_separator(self.source), self.source)
         except CalcError as e:
             self.calculations.append(Calculation(expression=expression, result=None, error=str(e)))
             self._figures.append([])
