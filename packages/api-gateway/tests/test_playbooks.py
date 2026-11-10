@@ -946,3 +946,91 @@ def test_a_choice_in_words_that_are_none_of_its_options_is_asked_again_not_dropp
         replies.append("contribution_kind: cash")
         run = c.post(url + "/say", json={"text": "Enkel in geld."}, headers=alice).json()
         assert run["step"] == "bank" and {f["id"]: f["value"] for f in run["facts"]}["contribution_kind"] == "cash"
+
+
+# ------------------------------------------------------------------ a document that comes later (decision of 10 November 2026)
+
+def _late_app(runs, replies: list[str]):
+    """An app whose model answers with the last of ``replies`` (a test changes it between reads)."""
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return llm_transport([], text=replies[-1]).handler(request)
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    return app, kc, docs
+
+
+def _to_done(c, url, who):
+    """Walk a run to its end: "not known yet" at the ask, the values as they stand at the checkpoint."""
+    for _ in range(20):
+        run = wait_for(c, url, who, "waiting") if c.get(url, headers=who).json()["status"] == "reading" else c.get(url, headers=who).json()
+        if run["status"] == "done":
+            return run
+        kind = {s["id"]: s["kind"] for s in run["playbook"]["steps"]}[run["step"]]
+        if kind == "ask":
+            c.post(url + "/answer", json={"step_id": run["step"], "facts": {}}, headers=who)
+        elif kind == "checkpoint":
+            c.put(url + "/facts", json={"facts": [{"id": f["id"], "confirmed": f["confirmed"] if f["confirmed"] is not None else f["value"]}
+                                                  for f in run["facts"]]}, headers=who)
+        else:
+            raise AssertionError(f"waiting on a {kind}")
+    raise AssertionError("never done")
+
+
+@needs_db
+def test_a_document_that_comes_later_is_read_for_its_facts_and_a_confirmed_run_is_reopened(runs):
+    """The title deed comes after the run was confirmed: only the read aimed at it runs again, the empty title fact
+    takes its reading, the run goes back to its checkpoint with the summary out of date, and confirmed again it makes
+    a new summary. A later agreement that reads the price differently doesn't replace the confirmed price: both are
+    shown until a person chooses."""
+    from test_facts import leaf
+    replies = [TABLE]
+    app, kc, docs = _late_app(runs, replies)
+    with TestClient(app) as c:
+        cid, alice, bob = a_case_with_a_contributor(c, kc)
+        rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        url = RUN.format(cid=cid, rid=rid)
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        deliver(c, url, alice)
+        first = _to_done(c, url, alice)
+        by = {f["id"]: f for f in first["facts"]}
+        assert first["result_document_id"] and not first["out_of_date"] and by["title"]["confirmed"] == ""
+        # not yet: a request the run hasn't reached, or one that isn't named
+        assert c.post(url + "/documents", json={"step_id": "agreement_read", "documents": [DOC]}, headers=alice).status_code == 404
+        assert c.post(url + "/documents", json={"step_id": "title_deed", "documents": [DOC]}, headers=bob).status_code == 403
+        # the title deed, a week later
+        late = "22222222-2222-2222-2222-222222222222"
+        docs.docs[late] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        replies.append(json.dumps({**ANSWER, "title": leaf("Akte van 3 maart 1998, notaris Peeters", 1),
+                                   "price": leaf("EUR 999.999,00", 1)}, ensure_ascii=False))
+        r = c.post(url + "/documents", json={"step_id": "title_deed", "documents": [late]}, headers=alice)
+        assert r.status_code == 200 and r.json()["status"] == "reading" and r.json()["out_of_date"] is True
+        run = wait_for(c, url, alice, "waiting")
+        assert run["step"] == "confirm" and run["steps"]["title_read"]["status"] == "done"
+        assert run["steps"]["agreement_read"]["status"] == "done" and run["steps"]["certificates_read"]["status"] == "done"
+        by = {f["id"]: f for f in run["facts"]}
+        assert by["title"]["value"] == "Akte van 3 maart 1998, notaris Peeters"  # was empty: it takes the reading
+        assert by["price"]["confirmed"] == "EUR 412.500,00" and by["price"]["alternative"] is None  # not read again: not its read
+        said = [t["meta"] for t in run["turns"] if t["meta"].get("kind") == "late_documents"]
+        assert said == [{"kind": "late_documents", "step": "title_deed", "documents": ["akte.pdf"], "reads": ["title_read"], "reopened": True}]
+        done = _to_done(c, url, alice)
+        assert done["status"] == "done" and not done["out_of_date"] and done["result_document_id"] != first["result_document_id"]
+        assert {f["id"]: f for f in done["facts"]}["title"]["confirmed"] == "Akte van 3 maart 1998, notaris Peeters"
+        # a second agreement that reads the price differently: the confirmed price stands, the new one waits beside it
+        third = "33333333-3333-3333-3333-333333333333"
+        docs.docs[third] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        c.post(url + "/documents", json={"step_id": "agreement", "documents": [third]}, headers=alice)
+        run = wait_for(c, url, alice, "waiting")
+        price = {f["id"]: f for f in run["facts"]}["price"]
+        assert price["confirmed"] == "EUR 412.500,00" and price["alternative"]["value"] == "EUR 999.999,00"
+        assert [t["meta"] for t in run["turns"] if t["meta"].get("kind") == "checkpoint"][-1]["differ"] == 1
+        # the person chooses the new one: the alternative is settled, the choice confirmed
+        facts = [{"id": f["id"], "confirmed": f["confirmed"] if f["confirmed"] is not None else f["value"]} for f in run["facts"]]
+        facts = [{**f, "confirmed": "EUR 999.999,00"} if f["id"] == "price" else f for f in facts]
+        c.put(url + "/facts", json={"facts": facts}, headers=alice)
+        end = wait_for(c, url, alice, "done")
+        price = {f["id"]: f for f in end["facts"]}["price"]
+        assert price["confirmed"] == "EUR 999.999,00" and price["alternative"] is None

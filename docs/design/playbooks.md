@@ -228,6 +228,7 @@ POST   /v1/cases/{id}/playbooks/runs/{run}/say      {text?, documents?, unknown?
 POST   /v1/cases/{id}/playbooks/runs/{run}/answer   {step_id, text?, facts?, none?}: an ask's facts, or a request  (contributor)
 PUT    /v1/cases/{id}/playbooks/runs/{run}/facts    the checkpoint: {facts: [{id, confirmed}]}  (contributor)
 PUT    /v1/cases/{id}/playbooks/runs/{run}/facts/{fact}   a card's value {value}: a new version; the same value: checked  (contributor)
+POST   /v1/cases/{id}/playbooks/runs/{run}/documents  {step_id, documents, text?}: documents for a request already answered  (contributor)
 POST   …/runs/{run}/pause | /resume           anyone who contributes
 POST   …/runs/{run}/stop | /cancel {reason}   the starter or the case manager
 ```
@@ -248,6 +249,21 @@ sweep fails one that has been reading for over thirty minutes, so nobody waits o
 call that no longer exists. A case closed while a run waits keeps the run; the UI says to reopen
 the case to go on. Every act is in the case's access log: `playbook_started`, `playbook_answered`,
 `playbook_confirmed`, `playbook_paused`, `playbook_resumed`, `playbook_stopped`, `playbook_cancelled`.
+
+**A document that comes later** (decision of 10 November 2026). The bank certificate a week after the
+plan: `POST …/documents` names the request it belongs to (a named one, `expects`), while the run waits
+elsewhere or after it is confirmed; a request the run hasn't reached yet, or one its `when` skipped, is
+refused. The documents are recorded as that request's, and **only the reads aimed at it** are read
+again: no other fact can move. The checkpoint and the summary follow again; a confirmed run is
+**reopened**, its summary out of date (`out_of_date`) until the facts are confirmed again and a new
+summary is made (the earlier ones stay). The reading again keeps what stands: a fact it doesn't find,
+or finds as it stands (an amount, a number or a date by meaning), keeps its version; one only read so
+far, or left empty, takes the new reading; one a person confirmed or answered keeps its value, and
+the new reading **waits beside it** (`case_facts.source.competes`; `RunFact.alternative`) until a
+person chooses at the checkpoint: a later document isn't always the right one. The checkpoint's turn
+counts them (`differ`); confirming settles them. The thread says which documents came and what is read
+again (`late_documents`). The screens for this (adding a document to a request already answered, the
+choice at the checkpoint) wait for their design board; the API is there.
 
 **Provenance in the result.** The summary document is named with the playbook's title in the run's
 language, the case's reference and the run's version ("Akte-intake 2026/0417 (1.1)"). It and its name carry the run's `playbook_id` and

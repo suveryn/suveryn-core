@@ -112,6 +112,7 @@ class Runtime:
                 return None
             if step.kind == "checkpoint":
                 if states.get(step.id, StepState()).status != "active":
+                    self.recheck(run, playbook)  # a fact read again for a later document may settle a check, or fail one
                     states[step.id] = StepState(status="active", at=_now())
                     self._say(run, playbook, step.id, *self.checkpoint_turn(run))
                     self.store.set_step(rid, step.id, "waiting", states)
@@ -257,13 +258,7 @@ class Runtime:
         passages that best match the facts; the step keeps their names and the thread says so, before
         anything waits on what was found."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
-        self.store.write_facts(cid, rid, step.id, [
-            dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value if f.found else "",
-                 status="proposed" if f.found else "not_established",
-                 source={"kind": "document", "citations": [c.model_dump() for c in f.citations],
-                         **({"needs": f.needs} if f.needs else {}), **({"computed": f.computed} if f.computed else {})}
-                 if f.found else {"kind": "none"},
-                 issues=f.issues, by=playbook.id) for f in facts if root(f.id) in step.facts])
+        self.store.write_facts(cid, rid, step.id, self.read_rows(playbook, step, facts, self.store.current_versions(rid)))
         states = dict(run.steps)
         in_part = list(documents or []) if complete is False else []
         states[step.id] = StepState(status="done", at=_now(), in_part=in_part)
@@ -274,6 +269,64 @@ class Runtime:
         if not self.store.set_step(rid, step.id, "reading", states, model=model, suspicious=suspicious):
             return None
         return self.store.get(rid, cid)
+
+    @staticmethod
+    def read_rows(playbook: Playbook, step: Step, facts: list[RunFact], current: dict[str, dict]) -> list[dict]:
+        """The versions a read writes. The first read of a fact: what the model read (proposed), or that the documents
+        don't contain it (not_established). A read again after a document came later (``add_documents``): a fact it
+        doesn't find, or finds as it stands, keeps its version; one only read so far, or left empty, takes the new
+        reading; one a person confirmed or answered keeps that value, and the new reading waits beside it (``competes``) until a person
+        chooses at the checkpoint: a later document isn't always the right one (decision of 10 November 2026)."""
+        rows = []
+        for f in facts:
+            if root(f.id) not in step.facts:
+                continue
+            now = current.get(f.id)
+            source = ({"kind": "document", "citations": [c.model_dump() for c in f.citations],
+                       **({"needs": f.needs} if f.needs else {}), **({"computed": f.computed} if f.computed else {})}
+                      if f.found else {"kind": "none"})
+            if now is None:
+                rows.append(dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value if f.found else "",
+                                 status="proposed" if f.found else "not_established", source=source, issues=f.issues, by=playbook.id))
+            elif not f.found or same_value(now["value"], f.value, playbook.leaf_kind(f.id)):
+                continue
+            elif now["value"].strip() and (now["status"] == "confirmed" or now["source"].get("kind") == "person"):
+                rows.append(dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value, status="proposed",
+                                 source={**source, "competes": str(now["id"])}, issues=f.issues, by=playbook.id))
+            else:
+                rows.append(dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value, status="proposed", source=source,
+                                 issues=f.issues, by=playbook.id, replaces=now["id"]))
+        return rows
+
+    def add_documents(self, run: Run, playbook: Playbook, step: Step, documents: list[str], by: str) -> Run:
+        """Documents that came after their request was answered (decision of 10 November 2026: the bank certificate a
+        week after the plan). They are recorded as that request's, and only the reads aimed at it are read again (its
+        facts may change, no other); the checkpoint and the summary follow again. A confirmed run is reopened: its
+        summary is out of date until the facts are confirmed again and a new one is made. The caller checks that the
+        step is a named request that is done or answered "none", and that the run may take documents now."""
+        rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
+        uploaded = self.uploaded(cid)
+        given = [d for d in documents if d in uploaded]
+        if run.status == "done" and not self.store.reopen(rid):
+            raise ValueError("the run is no longer done")
+        self.store.assign_documents(rid, step.id, given)
+        self.store.set_documents(rid, list(dict.fromkeys([*run.documents, *given])))  # a deleted one marks the run out of date
+        states = dict(run.steps)
+        states[step.id] = StepState(status="done", by=by, at=_now())
+        again = [s for s in playbook.steps if s.kind == "read" and step.expects in s.documents
+                 and states.get(s.id, StepState()).status == "done"]
+        for s in again:
+            states[s.id] = StepState(status="pending")
+        for s in playbook.steps:
+            if s.kind in ("checkpoint", "produce") and states.get(s.id, StepState()).status != "pending":
+                states[s.id] = StepState(status="pending")
+        names = [uploaded[d] for d in given]
+        self._say(run, playbook, step.id, f"{', '.join(names)}: added to {playbook.wording('en').step(step.id)}. "
+                  + ("Reading it again for its facts." if again else "It will be read with the others."),
+                  {"kind": "late_documents", "step": step.id, "documents": names, "reads": [s.id for s in again],
+                   "reopened": run.status == "done"})
+        self.store.set_step(rid, step.id, "waiting", states)
+        return self.store.get(rid, cid)  # type: ignore[return-value]
 
     def answer_ask(self, run: Run, playbook: Playbook, step: Step, answers: dict[str, str], by: str) -> Run:
         """A person's answers to an ask: each non-empty one is a proposed fact from that person
@@ -325,7 +378,8 @@ class Runtime:
         for f in run.facts:
             if f.id == root(f.id) and (has_entries(current, f.id) or any(root(a) == f.id for a in added)):
                 continue  # a list with entries: the entries are confirmed, not the list's "none"
-            value = confirmed.get(f.id, f.value).strip()
+            # a fact not named keeps what stands: the value confirmed before (a run reopened for a later document), else as read
+            value = confirmed.get(f.id, f.confirmed if f.confirmed is not None else f.value).strip()
             rows.append(dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=value,
                              status="confirmed" if value else "not_established",
                              source={"kind": "person", "checkpoint": True}, by=by,
@@ -335,6 +389,7 @@ class Runtime:
                              source={"kind": "person", "checkpoint": True}, by=by, replaces=None))
         self.store.write_facts(cid, rid, step.id, rows)
         self._settle_lists(playbook, current, added)
+        self.store.supersede([row["id"] for row in self.store.alternatives(rid).values()])  # chosen now: the person decided
         self.store.set_confirmed(rid, by)
         states = dict(run.steps)
         states[step.id] = StepState(status="done", by=by, at=_now())
@@ -390,8 +445,10 @@ class Runtime:
         found, total = self.counts(fresh)
         issues = sum(1 for f in fresh.facts if f.issues)
         failing = sum(1 for c in fresh.checks.values() if c.status == "fails")
-        return (f"{found} of {total} facts found." + (f" {issues} need checking." if issues else "") + (f" {failing} check(s) do not hold." if failing else ""),
-                {"kind": "checkpoint", "found": found, "total": total, "issues": issues, "failing": failing})
+        differ = sum(1 for f in fresh.facts if f.alternative is not None)
+        return (f"{found} of {total} facts found." + (f" {issues} need checking." if issues else "") + (f" {failing} check(s) do not hold." if failing else "")
+                + (f" {differ} read differently in a document added later: choose." if differ else ""),
+                {"kind": "checkpoint", "found": found, "total": total, "issues": issues, "failing": failing, "differ": differ})
 
     # -- products and the thread
 
@@ -413,6 +470,22 @@ class Runtime:
     def _say(self, run: Run, playbook: Playbook, step_id: str | None, text: str, meta: dict | None = None) -> None:
         if text:
             self.store.say(run, "playbook", playbook.id, text, step_id, meta, once=True)
+
+
+# ------------------------------------------------------------------ a reading again (``Runtime.read_rows``)
+
+def same_value(a: str, b: str, kind: str = "text") -> bool:
+    """Two readings say the same: equal once spaces and case are set aside, or, for an amount, a number or a date,
+    the same value by meaning ("EUR 18.000,00" and "18.000 euro"). Text is never compared by a figure in it: "Havenlaan
+    2" and "Havenlaan 2, 9999 Testdorp" differ."""
+    from suveryn_harness.values import as_amount, as_date, as_number
+    if " ".join(a.split()).casefold() == " ".join(b.split()).casefold():
+        return True
+    parse = {"amount": as_amount, "number": as_number, "date": as_date}.get(kind)
+    if parse is None:
+        return False
+    x, y = parse(a), parse(b)
+    return x is not None and x == y
 
 
 # ------------------------------------------------------------------ lists (format 3, suveryn_playbooks.paths)

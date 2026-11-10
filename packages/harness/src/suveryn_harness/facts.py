@@ -57,6 +57,13 @@ class FactCitation(BaseModel):
     context: PassageContext | None = None  # the text around it on its page, for the source panel (board P02)
 
 
+class FactAlternative(BaseModel):
+    """A later document's reading that differs from what a person confirmed (or answered): shown beside it until a
+    person chooses at the checkpoint; the confirmed value stands meanwhile (decision of 10 November 2026)."""
+    value: str
+    citations: list[FactCitation] = Field(default_factory=list)
+
+
 class RunFact(BaseModel):
     id: str
     value: str = ""                      # as the model read it, copied from the documents
@@ -78,6 +85,8 @@ class RunFact(BaseModel):
     # "calendar" (its name per language)}. A share: {"written", "from": the amount it is a share of, "kind": "share",
     # "percent", "of", "amount" (decimal strings)}.
     computed: dict | None = None
+    # A document added later reads this fact differently from what is confirmed: both are shown, a person chooses.
+    alternative: FactAlternative | None = None
 
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")

@@ -918,6 +918,8 @@ export type RunFact = {
   needs?: "not_a_date" | "not_an_amount" | "not_a_number" | "approximate" | "computed" | null;  // the value gives no date or amount as such: a person works it out; computed: sūveryn did, from a term
   /** A term worked out from the date it counts from (board P01): the term as written, the fact counted from, and how. */
   computed?: Computed | null;
+  /** A document added later reads this fact differently from what is confirmed: shown beside it, a person chooses. */
+  alternative?: { value: string; citations: FactCitation[] } | null;
 };
 /** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount from a share. */
 export type TermComputed = { kind?: undefined; written: string; from: string; base: string; date: string; amount: number;
