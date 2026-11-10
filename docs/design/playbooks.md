@@ -471,7 +471,10 @@ of the foundation brief.
   the pack's labels (`contribution_kind.cash`). The model reads it when the documents say it, held to
   the options by the schema (an enum); otherwise an `ask` step asks, and the thread offers the options
   as buttons; an answer in words is mapped to an option by its id or its words in the run's language.
-  A choice is a fact of its own, never a list's field. It is not a value a check compares.
+  A choice is a fact of its own, never a list's field. It is not a value a check compares. A document
+  that says something was decided against or not chosen gives the choice's no or none option; only
+  silence is null (the loader's answer scaffold says so; a real care mandate's "decided not to appoint a
+  trusted person now" came back null, 10 November 2026).
 - Any step may carry `when`: `contribution_kind != in_kind`, one condition on one choice, `==` or `!=`,
   and nothing more (`suveryn_playbooks.conditions`); the loader refuses anything else, and a `when`
   on a choice no read or ask step before it settles. When the step is reached and the condition
