@@ -31,6 +31,8 @@ def test_a_written_form_reads_as_what_it_means(case):
         assert got == [(kind, str(Decimal(want).normalize()) if kind == "number" and "." in want else want)]
         [found] = read(case["written"], case.get("style"))
         assert (found.percent, found.approximate) == (case.get("percent", False), case.get("approximate", False))
+        if "measure" in case:
+            assert found.measure == case["measure"]
 
 
 def test_positions_point_at_the_written_form():

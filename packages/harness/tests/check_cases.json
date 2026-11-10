@@ -298,6 +298,66 @@
     }
    ],
    "answer": "The loan amounts to EUR 1,200,000 [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De verkopers zijn de heer Peeters en mevrouw Claes, samenwonend te Gent.",
+     "decimals": null
+    }
+   ],
+   "answer": "Er zijn 2 verkopers [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De termijn bedraagt zes weken vanaf de ondertekening.",
+     "decimals": null
+    }
+   ],
+   "answer": "De termijn bedraagt 6 weken [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Prijs: 385.000",
+     "decimals": null
+    }
+   ],
+   "answer": "De prijs bedraagt 385.000 euro [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De koper betaalt een voorschot van 500 euro.",
+     "decimals": null
+    }
+   ],
+   "answer": "Het voorschot bedraagt € 500 [1]."
+  },
+  {
+   "lang": "en",
+   "passages": [
+    {
+     "text": "De koper beschikt over 3 maanden om een financiering te verkrijgen.",
+     "decimals": null
+    }
+   ],
+   "answer": "The buyer has 3 months to obtain financing [1]."
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Les frais s'élèvent à 2,5 pour cent du prix de vente.",
+     "decimals": null
+    }
+   ],
+   "answer": "Les frais s'élèvent à 2,5 % du prix [1]."
   }
  ]
 }

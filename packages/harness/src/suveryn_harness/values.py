@@ -172,7 +172,9 @@ def figure_value(raw: str, style: Style = None) -> Decimal | None:
 class Found:
     """One amount, number or date in a text, where it is (code-point offsets): ``kind`` "number" (``value`` a
     Decimal), "date" (day, month, year) or "month" (month, year: "maart 2021"). ``words``: a number written in
-    words; ``currency``: euro written right before or after it; ``percent``: a percentage ("10%", "tien procent");
+    words; ``currency``: a currency written right before or after it; ``percent``: a percentage ("10%", "tien procent");
+    ``measure``: what the number measures, when the text says so right at it: a currency ("EUR", "USD", "GBP"),
+    "percent", "area" (m², ha), or a time ("day", "week", "month", "year"); None for a bare number or a count of things;
     ``approximate``: the text says it isn't exact ("ongeveer", "circa", "environ", "about", "±")."""
 
     start: int
@@ -183,6 +185,7 @@ class Found:
     currency: bool = False
     percent: bool = False
     approximate: bool = False
+    measure: str | None = None
 
 
 _NOT_AFTER_WORD = r"(?<![^\W_])"
@@ -195,8 +198,31 @@ _FIGURE_SCALES = {"duizend": 10**3, "mille": 10**3, "thousand": 10**3, "miljoen"
                   "million": 10**6, "millions": 10**6, "mio": 10**6, "mln": 10**6, "miljard": 10**9, "milliard": 10**9,
                   "milliards": 10**9, "billion": 10**9, "mld": 10**9}
 _SCALE_AFTER = re.compile(r"[   ]*(" + "|".join(_FIGURE_SCALES) + r")\.?(?!" + _LETTER + ")", re.IGNORECASE)
-_EURO_AFTER = re.compile(r"\s*(?:euro|eur|€)(?![^\W_])", re.IGNORECASE)
-_EURO_BEFORE = re.compile(r"(?:euro|eur|€)\s*$", re.IGNORECASE)
+_CURRENCY = r"(euros?|eur|€|usd|us\$|\$|dollars?|gbp|£|pounds?)"
+_EURO_AFTER = re.compile(r"\s*" + _CURRENCY + r"(?![^\W_])", re.IGNORECASE)
+_EURO_BEFORE = re.compile(r"(?<![^\W_])" + _CURRENCY + r"\s*$", re.IGNORECASE)
+_CURRENCIES = {"euro": "EUR", "euros": "EUR", "eur": "EUR", "€": "EUR", "usd": "USD", "us$": "USD", "$": "USD", "dollar": "USD",
+               "dollars": "USD", "gbp": "GBP", "£": "GBP", "pound": "GBP", "pounds": "GBP"}
+_AREA_AFTER = re.compile(r"\s*(?:m²|m2\b|ha\b|vierkante\s+meters?\b|mètres?\s+carrés?\b|square\s+met(?:er|re)s?\b|sq\.?\s?m\b)", re.IGNORECASE)
+_WORD_AFTER = re.compile(r"\s+([^\W\d_]+)")
+# A time a number counts, by the word right after it ("6 weken", "trois mois", "30 days"); working days are days here
+_TIMES = {**dict.fromkeys(("dag", "dagen", "werkdag", "werkdagen", "jour", "jours", "day", "days"), "day"),
+          **dict.fromkeys(("week", "weken", "semaine", "semaines", "weeks"), "week"),
+          **dict.fromkeys(("maand", "maanden", "mois", "month", "months"), "month"),
+          **dict.fromkeys(("jaar", "jaren", "an", "ans", "annee", "annees", "year", "years"), "year")}
+
+
+def _measure(text: str, start: int, end: int, percent: bool) -> tuple[bool, str | None]:
+    """(a currency is written at the number, what the number measures) for the number at ``[start, end)``."""
+    if percent:
+        return False, "percent"
+    money = _EURO_AFTER.match(text, end) or _EURO_BEFORE.search(text[max(0, start - 8):start])
+    if money:
+        return True, _CURRENCIES[money.group(1).lower()]
+    if _AREA_AFTER.match(text, end):
+        return False, "area"
+    word = _WORD_AFTER.match(text, end)
+    return False, _TIMES.get(fold(word.group(1))) if word else None
 _ISO = re.compile(r"(?<![\d.,/-])(\d{4})-(\d{1,2})-(\d{1,2})(?![\d])")
 _NUMERIC_DATE = re.compile(r"(?<![\d.,/-])(\d{1,2})([./-])(\d{1,2})\2(\d{4}|\d{2})(?!\d|[.,]\d)")
 _MONTH_NAME = "(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")"
@@ -268,10 +294,10 @@ def read(text: str, style: Style = None) -> list[Found]:
         end = m.end()
         if scale := _SCALE_AFTER.match(text, end):
             v, end = v * _FIGURE_SCALES[scale.group(1).lower()], scale.end()
-        currency = bool(_EURO_AFTER.match(text, end) or _EURO_BEFORE.search(text[max(0, m.start() - 6):m.start()]))
         percent = _PERCENT_AFTER.match(text, end)
+        currency, measure = _measure(text, m.start(), end, bool(percent))
         add(Found(m.start(), percent.end() if percent else end, "number", v, currency=currency, percent=bool(percent),
-                  approximate=_approximate(text, m.start())))
+                  approximate=_approximate(text, m.start()), measure=measure))
     for f in _word_numbers(text):
         add(f)
     return sorted(out, key=lambda f: f.start)
@@ -379,8 +405,9 @@ def _word_numbers(text: str) -> list[Found]:
         if n is None:
             continue
         percent = _PERCENT_AFTER.match(text, end)
+        currency, measure = _measure(text, start, end, bool(percent))
         out.append(Found(start, percent.end() if percent else end, "number", Decimal(n), words=True,
-                         currency=bool(_EURO_AFTER.match(text, end)), percent=bool(percent), approximate=_approximate(text, start)))
+                         currency=currency, percent=bool(percent), approximate=_approximate(text, start), measure=measure))
     return out
 
 
