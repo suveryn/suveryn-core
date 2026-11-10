@@ -281,7 +281,7 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, cho
 }) {
   const m = useT();
   const [sending, setSending] = useState(false);
-  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string; step?: string; when?: string };
+  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string; step?: string; when?: string; documents?: string[] };
   const label = (id: string) => factLabel(words, id);
   const text = meta.kind === "ask" ? m.runAskTurn(meta.found ?? 0, meta.total ?? 0, (meta.facts ?? []).map(label).join(", "))
     : meta.kind === "skipped_step" ? (meta.value
@@ -291,6 +291,7 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, cho
     : meta.kind === "changed" ? m.runChanged(label(meta.fact ?? ""), meta.value ?? "")
     : meta.kind === "unplaced" ? (meta.facts ? m.runUnplacedAsk : m.runUnplacedChange)
     : meta.kind === "already_unknown" ? m.runAlreadyUnknown((meta.facts ?? []).map(label).join(", "))
+    : meta.kind === "read_in_part" ? m.runReadInPart((meta.documents ?? []).join(", "))
     : turn.text;
   return (
     <div className="turn-assistant run-turn">

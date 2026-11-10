@@ -144,7 +144,7 @@ The routine is in the manifest (formats 2 and 3, below): steps of six kinds, eac
 | Kind | What the runtime does | Waits for |
 |---|---|---|
 | `request` | Puts the pack's question for documents in the thread; named (`expects`), it records which documents answered it | `min` uploaded documents in the case (for a named request: documents that answered it), or a person saying there is none (`allow_none`) |
-| `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
+| `read` | The grounded model call for the step's facts over the case's uploaded documents, or, aimed at named requests (`documents`), over the documents that answered those. Documents longer than one reading takes (the whole-document budget, architecture.md) are read by their best-matching passages: the step keeps their names (`in_part`), and the thread says so before anything waits on what was found | The model; nothing, when every request it is aimed at was skipped: its facts are then not established without a call |
 | `ask` | One question per fact the documents didn't contain, in the pack's words | A person's answers (empty: not known yet) |
 | `checkpoint` | Shows every fact with its evidence | A person confirming, correcting or clearing each |
 | `check` | Evaluates one rule on the values as they stand (`suveryn_harness.checks`); the result is shown at the checkpoint and in the summary, never a block | Nothing |
@@ -265,6 +265,11 @@ series of its turns. Its messages are short and name the problem, never a place 
 reply (*Not known yet*) goes once the question is answered. Pausing, resuming, stopping, cancelling and
 confirming are centred lines; done is "Confirmed by …" in teal and the summary as a document card with
 its Word download.
+
+**A read in part is said.** When a read's documents were longer than one reading takes, the playbook says so in
+the thread, naming them: "akte.pdf: longer than sūveryn reads at once. It read the passages that best match the
+facts, not every page: a fact not found may still be in them." The summary ends with the same names ("Read in
+part, not every page"). Reading every page of a long document is the next step (the plan of 10 November 2026).
 
 **Review is in the playbook's message.** At the checkpoint its message says how many facts were found
 and how many need attention, then one card per fact that needs the person, in two groups: *Check*, a

@@ -253,9 +253,12 @@ class Runtime:
         return pb.steps if pb else ()
 
     def finish_read(self, run: Run, playbook: Playbook, step: Step, facts: list[RunFact], model: str | None,
-                    suspicious: list[int]) -> Run | None:
+                    suspicious: list[int], complete: bool | None = None, documents: list[str] | None = None) -> Run | None:
         """The model answered: its reading becomes the facts' first versions (proposed, or
-        not_established), the step is done. None if the run ended meanwhile."""
+        not_established), the step is done. None if the run ended meanwhile. ``complete`` False: the
+        documents (``documents``, their names) were longer than one reading takes and the model saw the
+        passages that best match the facts; the step keeps their names and the thread says so, before
+        anything waits on what was found."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         self.store.write_facts(cid, rid, step.id, [
             dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value if f.found else "",
@@ -265,7 +268,10 @@ class Runtime:
                  if f.found else {"kind": "none"},
                  issues=f.issues, by=playbook.id) for f in facts if root(f.id) in step.facts])
         states = dict(run.steps)
-        states[step.id] = StepState(status="done", at=_now())
+        in_part = list(documents or []) if complete is False else []
+        states[step.id] = StepState(status="done", at=_now(), in_part=in_part)
+        if in_part:
+            self._say(run, playbook, step.id, *self.in_part_turn(step, in_part))
         # still ``reading`` until ``advance`` has found the next wait: a poll between the two must not see a half-moved run
         if not self.store.set_step(rid, step.id, "reading", states, model=model, suspicious=suspicious):
             return None
@@ -367,6 +373,11 @@ class Runtime:
         for f in shown_facts(run.facts):
             found[root(f.id)] = found.get(root(f.id), False) or bool(f.value)
         return sum(found.values()), len(found)
+
+    def in_part_turn(self, step: Step, documents: list[str]) -> tuple[str, dict]:
+        return (f"{', '.join(documents)}: longer than sūveryn reads at once. It read the passages that best match the facts, "
+                "not every page: a fact not found may still be in them.",
+                {"kind": "read_in_part", "step": step.id, "documents": documents})
 
     def ask_turn(self, run: Run, playbook: Playbook, open_facts: list[str]) -> tuple[str, dict]:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run

@@ -34,6 +34,7 @@ class FakeDocuments:
         self.docs = {DOC: (Scope.personal(owner), "uploaded")}  # document id -> (scope, origin)
         self.noticed, self.confirmed = {}, {}  # document id -> the mark noticed; -> who confirmed it
         self.uploaders = {}  # document id -> who uploaded it (default local-dev)
+        self.whole = True  # the passages are the documents' whole text (False: longer than one reading takes)
 
     def accept_upload(self, src, filename, owner, case_id=None):
         self.uploads.append((filename, owner, case_id))
@@ -106,7 +107,7 @@ class FakeDocuments:
         self.seen = {"question": question, "document_ids": document_ids, "k": k, "owner": scope.owner,
                      "case_id": scope.case_id}
         return [(Citation(text="De koopprijs bedraagt EUR 412.500,00.",
-                          source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], True
+                          source=SourceRef(document_id=DOC, page=2, location="p. 2 · Artikel 2")), "akte.pdf")], self.whole
 
     def withdraw(self, document_id, scope, by, reason=""):
         """A cancelled playbook run's result (docs/design/playbooks.md): marked, never deleted."""

@@ -155,9 +155,8 @@ class ChatService:
         messages = grounded_messages(history, last.content, citations, [name for _, name in hits], complete)
         return req.model_copy(update={"messages": messages}), citations, complete, (named[0] if named else None)
 
-    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], str | None]:
-        prepared, citations, _, named = await self._retrieve(req, owner)
-        return prepared, citations, named
+    async def _prepare(self, req: ChatRequest, owner: str) -> tuple[ChatRequest, list[Citation], bool, str | None]:
+        return await self._retrieve(req, owner)
 
     async def _model_to_load(self, req: ChatRequest) -> str | None:
         """The model that must be loaded before this answer can start, or None if it is loaded."""
@@ -191,7 +190,7 @@ class ChatService:
 
     async def _answer(self, req: ChatRequest, owner: str) -> ChatResponse:
         """Whole answer at once, grounded only in ``owner``'s documents."""
-        prepared, citations, named = await self._prepare(req, owner)
+        prepared, citations, complete, named = await self._prepare(req, owner)
         began = time.monotonic()
         response = await self.llm.complete(prepared, user=owner, kind="chat")
         took = time.monotonic() - began
@@ -212,7 +211,7 @@ class ChatService:
         response = response.model_copy(update={"thinking_cut": cut})
         if not req.document_ids:
             return response
-        response = response.model_copy(update={"narrowed_to": named})
+        response = response.model_copy(update={"narrowed_to": named, "complete": complete})
         calc = CalcRewriter(_source(citations))
         text, calculations, unverified, issues = _finish(calc, calc.feed(response.answer) + calc.flush(), citations, req)
         return response.model_copy(update={"answer": text, "citations": citations, "calculations": calculations,
@@ -296,7 +295,8 @@ class ChatService:
                                 citation_issues=issues, support_spans=await self._support_spans(answer, citations) if calc else [],
                                 instruction_like_sources=_suspicious(citations, owner, model),
                                 finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
-                                thought_seconds=round(ended - began, 1) if began is not None else None, thinking_cut=cut, narrowed_to=named))
+                                thought_seconds=round(ended - began, 1) if began is not None else None, thinking_cut=cut, narrowed_to=named,
+                                complete=complete if req.document_ids else None))
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],

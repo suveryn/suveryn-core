@@ -143,6 +143,9 @@ class StepState(BaseModel):
     by: str | None = None
     at: datetime | None = None
     because: str | None = None   # skipped by its ``when``: the condition as written, and the choice's value ("contribution_kind == cash; in_kind")
+    # a read whose documents were longer than one reading takes: their names. The model saw the passages that best
+    # match the facts, not every page, so a fact not found may still be in them (said in the thread and the summary).
+    in_part: list[str] = Field(default_factory=list)
 
 
 class RunSummary(BaseModel):
@@ -338,6 +341,9 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
                 "open": CHECK_WORDS[language if language in CHECK_WORDS else "en"][2]}[c.status]
         detail = f" ({c.left} / {c.right})" if c.status == "fails" else ""
         lines.append(f"{said}: {word}{detail}")
+    in_part = list(dict.fromkeys(name for state in run.steps.values() for name in state.in_part))
+    if in_part:
+        lines.append(f"{IN_PART_WORDS[language if language in IN_PART_WORDS else 'en']}: {', '.join(in_part)}")
     return "\n\n".join(lines)
 
 
@@ -345,6 +351,9 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
 # languages, one list); the chat UI has the same three in its own files.
 CHECK_WORDS = {"en": ("holds", "does not hold", "not checked"), "nl": ("klopt", "klopt niet", "niet nagekeken"),
                "fr": ("exact", "inexact", "non vérifié")}
+# The summary's line for documents read in part (``StepState.in_part``), per language as ``CHECK_WORDS``.
+IN_PART_WORDS = {"en": "Read in part, not every page", "nl": "Gedeeltelijk gelezen, niet elke pagina",
+                 "fr": "Lus en partie, pas chaque page"}
 
 
 # ------------------------------------------------------------------------- the store

@@ -213,3 +213,24 @@ def test_without_streaming_thinking_without_an_answer_is_asked_again_too(caplog)
     assert any("asked again without thinking" in r.getMessage() for r in caplog.records)
     plain = asyncio.run(ChatService(_thinker(0)).answer(ask(thinking=False), "alice"))
     assert plain.answer == "EUR 1." and not plain.thinking_cut and plain.thought_seconds is None
+
+
+@pytest.mark.parametrize("whole", [True, False])
+def test_a_grounded_answer_says_whether_it_saw_the_documents_whole(whole):
+    """A playbook's read tells the person when the documents were longer than one reading takes (the answer read
+    the best-matching passages, not every page): the answer carries the retriever's word for it, whole or streamed."""
+    from suveryn_harness import Citation, SourceRef
+
+    async def retriever(question, ids, k, owner, case_id):
+        return [(Citation(text="Price: EUR 1.", source=SourceRef(document_id="d1", page=1)), "deed.pdf")], whole
+
+    async def run():
+        req = ChatRequest(messages=[ChatMessage(role="user", content="The price?")], document_ids=["d1"])
+        whole_answer = await ChatService(client([{"content": "EUR 1 [1]."}], {}), retriever).answer(req, "alice")
+        streamed = [e async for e in ChatService(client([{"content": "EUR 1 [1]."}], {}), retriever).answer_stream(req, "alice")]
+        plain = await ChatService(client([{"content": "EUR 1."}], {}), retriever).answer(ask(), "alice")
+        return whole_answer, streamed[-1].response, plain
+
+    whole_answer, streamed, plain = asyncio.run(run())
+    assert whole_answer.complete is whole and streamed.complete is whole
+    assert plain.complete is None  # no documents, nothing to have read in part

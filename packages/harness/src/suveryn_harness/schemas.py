@@ -210,6 +210,9 @@ class ChatResponse(BaseModel):
     thinking_cut: bool = False
     # The question named one of the documents ("de Franstalige volmacht"): only that one was read, by this name.
     narrowed_to: str | None = None
+    # Grounded answers: whether the passages were the documents' whole text (True) or a selection of the best-matching
+    # passages because the documents are longer than one reading takes (False). None without documents.
+    complete: bool | None = None
 
 
 class StreamDelta(BaseModel):

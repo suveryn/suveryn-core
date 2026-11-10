@@ -231,6 +231,18 @@ describe("lists (format 3)", () => {
     expect(html).toContain("reports: skipped, Contribution is not known.");
   });
 
+  it("says when documents were longer than one reading takes", () => {
+    const reading: Run = { ...run, step: "missing", turns: [
+      { seq: 1, role: "playbook", step_id: "founders_read", by: FORMATION.id, at: SUMMARY.started_at, text: "x",
+        meta: { kind: "read_in_part", step: "founders_read", documents: ["financial-plan.pdf", "statutes.pdf"] } },
+    ] };
+    const html = renderToStaticMarkup(
+      <RunThread run={reading} kase={KASE} playbook={FORMATION} words={fwords} me="u-ines" canAnswer nameOf={names} panel={null}
+                 onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
+    expect(html).toContain("financial-plan.pdf, statutes.pdf: longer than sūveryn reads at once.");
+    expect(html).toContain("a fact not found may still be in them.");
+  });
+
   it("leaves confirming to the case manager when the checkpoint says so; others still see the cards", () => {
     const playbook: PlaybookInfo = { ...FORMATION, steps: FORMATION.steps!.map((s) => s.id === "confirm" ? { ...s, by: "manager" as const } : s) };
     const asClerk = renderToStaticMarkup(

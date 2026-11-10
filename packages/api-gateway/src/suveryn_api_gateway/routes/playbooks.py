@@ -319,7 +319,8 @@ async def _read_one(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbo
         log.error("playbook run failed: %s", type(e).__name__)
         await run_in_threadpool(store.fail, run_id, "server_error")
         return None
-    fresh = await run_in_threadpool(runtime.finish_read, run, pb, step, facts, response.model, response.instruction_like_sources)
+    fresh = await run_in_threadpool(runtime.finish_read, run, pb, step, facts, response.model, response.instruction_like_sources,
+                                    response.complete, list(filenames.values()))
     if fresh is None:
         return None  # stopped or cancelled while reading
     try:

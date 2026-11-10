@@ -508,6 +508,7 @@ const nl: Messages = {
   runUnplacedAsk: "Dat kon niet geplaatst worden. Over welk gegeven gaat het, en wat is de waarde?",
   runUnplacedChange: "Dat kon niet geplaatst worden. Welk gegeven moet anders, en hoe?",
   runAlreadyUnknown: (facts) => `${facts} staat al als nog niet bekend.`,
+  runReadInPart: (documents) => `${documents}: langer dan sūveryn in één keer leest. Gelezen zijn de passages die het best bij de gegevens passen, niet elke pagina: een gegeven dat niet gevonden is, kan er nog in staan.`,
   factCheckThis: "Staat zo niet in de aangehaalde passage. Kijk na.",
   changeValue: (label, value) => `${label}, ${value}, aanpassen`,
   factsCount: (found, total) => `${found} van ${total}`,

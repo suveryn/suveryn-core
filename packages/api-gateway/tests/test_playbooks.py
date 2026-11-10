@@ -103,6 +103,36 @@ def test_a_term_worked_out_from_the_agreements_date_is_kept_with_how(runs):
         assert (deadline["computed"]["base"], deadline["computed"]["date"]) == ("2026-10-03", "2027-02-03")
 
 
+@needs_db
+def test_a_read_of_documents_longer_than_one_reading_says_so(office):
+    """Documents longer than one reading takes are read by their best-matching passages, not every page: the read
+    step keeps their names, the thread says so before the ask, and the summary ends with it."""
+    c, kc, cases, docs, _ = office
+    docs.whole = False
+    cid, alice, _ = a_case_with_a_contributor(c, kc)
+    rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "text": "Het compromis."}, headers=alice)
+    run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
+    in_part = run["steps"]["read"]["in_part"]
+    assert len(in_part) == 1 and in_part[0]  # the document's name, as the run read it
+    said = [t for t in run["turns"] if t["meta"].get("kind") == "read_in_part"]
+    assert len(said) == 1 and said[0]["meta"]["step"] == "read" and said[0]["meta"]["documents"] == run["steps"]["read"]["in_part"]
+    kinds = [t["meta"].get("kind") for t in run["turns"] if t["role"] == "playbook"]
+    assert kinds.index("read_in_part") < len(kinds) - 1  # said before what the run now waits on
+
+
+def test_the_summary_ends_with_the_documents_read_in_part():
+    from suveryn_api_gateway.playbooks import Run, StepState
+    facts = read_facts(DEED_INTAKE, response(), {TABLE_DOC: "compromis.pdf"})
+    run = Run(id=str(uuid.uuid4()), case_id=str(uuid.uuid4()), playbook_id=DEED_INTAKE.id, playbook_version="1.4",
+              status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts,
+              steps={"read": StepState(status="done", in_part=["eigendomstitel.pdf"])})
+    assert summary_text(DEED_INTAKE, "2026/0417", run, "nl").endswith("Gedeeltelijk gelezen, niet elke pagina: eigendomstitel.pdf")
+    whole = run.model_copy(update={"steps": {"read": StepState(status="done")}})
+    assert "Gedeeltelijk" not in summary_text(DEED_INTAKE, "2026/0417", whole, "nl")
+
+
 def wait_for(c, url, headers, status, tries=50):
     for _ in range(tries):
         run = c.get(url, headers=headers).json()
