@@ -17,7 +17,7 @@ import { createCase, HttpError, type Case, type KeepPeriod, type NewCase } from 
 import { useT } from "../i18n";
 import { ComboBoxField, Dialog, Form, RadioCards, TextButton, TextField } from "../ui";
 
-export const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract", "care-mandate"] as const;
+const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract", "care-mandate"] as const;
 
 /** The type's label in the interface language; an unknown type (another sector's) is shown as is. */
 export function caseTypeLabel(type: string, m: ReturnType<typeof useT>): string {

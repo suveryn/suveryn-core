@@ -8,7 +8,7 @@ import qrcode from "qrcode-generator";
 import { useMemo } from "react";
 
 /** The dark modules of a QR code for `text` (error correction M), as one SVG path, and its size. */
-export function qrPath(text: string): { size: number; d: string } {
+function qrPath(text: string): { size: number; d: string } {
   const qr = qrcode(0, "M");
   qr.addData(text, "Byte");
   qr.make();

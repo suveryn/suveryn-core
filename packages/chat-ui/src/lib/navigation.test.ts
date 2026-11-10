@@ -21,15 +21,12 @@ describe("places (App.tsx, now lib/navigation.ts)", () => {
 });
 
 describe("playbook runs", () => {
-  const installed = [{ id: "pb/deed-intake", version: "1.3" }] as PlaybookInfo[];
   const run = (extra: Partial<Run>) => ({ playbook_id: "pb/deed-intake", status: "waiting", ...extra }) as Run;
 
-  it("show the playbook they started under before the installed one, which may be newer", () => {
+  it("show the playbook they started under, whatever is installed now", () => {
     const own = { id: "pb/deed-intake", version: "1.1" } as PlaybookInfo;
-    expect(runPlaybook(run({ playbook: own }), installed)).toBe(own);
-    expect(runPlaybook(run({}), installed)).toBe(installed[0]);
-    expect(runPlaybook(run({ playbook_id: "pb/gone" }), installed)).toBeNull();
-    expect(runPlaybook(null, installed)).toBeNull();
+    expect(runPlaybook(run({ playbook: own }))).toBe(own);
+    expect(runPlaybook(null)).toBeNull();
   });
 
   it("are live while reading, waiting or paused", () => {

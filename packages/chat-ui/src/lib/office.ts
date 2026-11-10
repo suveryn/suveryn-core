@@ -132,7 +132,7 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText):
   return writeExcelFile(sheets as never).toBlob();
 }
 
-export type IntakeExport = {
+type IntakeExport = {
   title: string; caseName: string; version: string; confirmedOn: string;
   facts: { label: string; value: string; sources: string[] }[];
   sourcesHeading: string; emptyValue: string; disclaimer: string;

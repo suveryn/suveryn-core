@@ -23,7 +23,7 @@ import { AttachmentCard } from "./Chips";
 import { defaultModel, loadingNote, ModelPicker } from "./ModelPicker";
 
 /** Ask about (docs/design/chat-ui.md §10): the case's documents to choose from, and the choice. */
-export type AskAbout = {
+type AskAbout = {
   items: PickItem[];
   selected: string[];
   /** The chosen documents' names, in order, for the button. */

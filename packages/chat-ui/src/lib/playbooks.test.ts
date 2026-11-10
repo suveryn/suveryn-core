@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, shownFacts, splitPath, stepQuestion } from "./playbooks";
+import { entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, shownFacts, splitPath } from "./playbooks";
 
 const words = { title: "Formation", summary: "", labels: { founders: "Founder(s)", "founders.name": "Name", conditions: "Conditions", price: "Price" },
                 questions: { missing: "The documents don't mention {label}." } };
@@ -19,7 +19,6 @@ describe("paths into a list (format 3)", () => {
     expect(factLabel(words, "founders[2].age")).toBe("Founder(s) 2 · age");
     expect(factLabel(words, "conditions[1]")).toBe("Conditions 1");
     expect(factLabel(words, "nobody")).toBe("nobody");
-    expect(stepQuestion(words, "missing", "founders[1].name")).toBe("The documents don't mention Founder(s) 1 · Name.");
   });
   it("hides a list behind its entries and numbers the next one", () => {
     const facts = [{ id: "founders" }, { id: "founders[1].name" }, { id: "founders[3].name" }, { id: "conditions" }];

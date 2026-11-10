@@ -30,7 +30,7 @@ class Wording:
     title: str
     summary: str
     labels: dict[str, str]
-    # The routine's questions (format 2): keyed by step id for a ``request`` and for an ``ask`` step's
+    # The routine's questions: keyed by step id for a ``request`` and for an ``ask`` step's
     # one template (``{label}`` is the fact's label), or by ``<step id>.<fact id>`` for one fact's own.
     questions: dict[str, str] = field(default_factory=dict)
     # A sentence per check step (format 3): what the check says when it holds ("The founders' shares add up
@@ -135,7 +135,7 @@ class Playbook:
     instructions: str  # what the model is told, after the grounded instructions, before the excerpts
     text: dict[str, Wording] = field(default_factory=dict)  # per language (LANGUAGES): title, summary, fact labels
     steps: tuple[Step, ...] = ()       # the routine
-    format: int = 2                    # the manifest format the playbook was written in
+    format: int = 3                    # the manifest format the playbook was written in
 
     def step(self, step_id: str) -> Step | None:
         return next((s for s in self.steps if s.id == step_id), None)

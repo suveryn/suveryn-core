@@ -31,7 +31,7 @@ def from_record(record: dict[str, Any]) -> Playbook:
             for lang, w in record.get("text", {}).items()}
     return Playbook(id=record["id"], pack=record["pack"], version=record["version"], name=record["name"],
                     case_types=tuple(record["case_types"]), facts=facts, instructions=record["instructions"], text=text,
-                    steps=steps, format=record.get("format", 2))
+                    steps=steps, format=record["format"])
 
 
 def _fact(f: dict[str, Any]) -> Fact:

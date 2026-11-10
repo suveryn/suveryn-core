@@ -25,10 +25,10 @@ import { Dialog as AriaDialog, Heading, Modal, ModalOverlay } from "react-aria-c
 import { Button, IconButton } from "./Button";
 import { InlineNotice } from "./layout";
 
-export type DialogKind = "confirmation" | "choice" | "form" | "information";
+type DialogKind = "confirmation" | "choice" | "form" | "information";
 
 /** A button of the row. `form` submits that form (a form dialog's main action) instead of `onPress`. */
-export type DialogAction = {
+type DialogAction = {
   label: string;
   onPress?: () => void;
   form?: string;
@@ -39,7 +39,7 @@ export type DialogAction = {
   running?: boolean;
 };
 /** A helper that doesn't close the dialog (Copy, Print): quiet, with its icon, at the left. */
-export type DialogHelper = { label: string; icon: ReactNode; onPress: () => void };
+type DialogHelper = { label: string; icon: ReactNode; onPress: () => void };
 
 export function Dialog({ isOpen, onClose, kind, title, children, primary, secondary, cancel, helpers, risky, busy, error, closeLabel }: {
   isOpen: boolean;

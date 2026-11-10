@@ -38,7 +38,3 @@ def root(path: str) -> str:
 def entry(root_id: str, index: int, field_id: str | None = None) -> str:
     """The path of one entry's value: ``entry("founders", 2, "name")`` -> ``founders[2].name``."""
     return f"{root_id}[{index}]" + (f".{field_id}" if field_id else "")
-
-
-def is_path(text: str) -> bool:
-    return split(text)[0] is not None

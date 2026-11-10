@@ -20,14 +20,12 @@ What the manifest does *not* carry, on purpose:
   manifest's slug. Whether an office's own playbook may carry its wording inline is open
   (docs/design/playbooks.md, "Open").
 - Products beyond the summary, model roles, conditions. Those join with later formats; a manifest
-  names its format version so an old file is read as what it is.
+  names its format version so a file is read as what it is.
 
-Two formats load: ``manifest: 2``, identity, facts, instructions and ``steps``, the routine itself
-(format 1, without steps, was retired before any was published; review pass 8), and ``manifest: 3``,
-format 2 plus two kinds of fact: ``number`` (a figure without currency) and ``list`` (several entries,
-each a record of plain-valued ``of`` fields, or one plain value of kind ``of``; see ``paths``). A
-format-2 file loads unchanged; a format-2 file that uses a format-3 kind is refused with the fact
-named, so a file says what it needs. A ``read`` step's answer is JSON of the facts' shape
+One format loads, ``manifest: 3`` (formats 1 and 2 were retired before any playbook was published):
+identity, facts, instructions and ``steps``, the routine itself. A fact is text, an amount, a date, a
+``number`` (a figure without currency), a ``choice`` or a ``list`` (several entries, each a record of
+plain-valued ``of`` fields, or one plain value of kind ``of``; see ``paths``). A ``read`` step's answer is JSON of the facts' shape
 (``read_schema``), which the model server holds the model to by grammar; the loader appends that shape
 in words to the instructions (``answer_scaffold``). ``request`` a
 document, ``read`` facts from the documents, ``ask`` about the facts not found, a ``checkpoint`` where
@@ -53,8 +51,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from ._model import Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
 from .paths import MAX_ENTRIES
 
-MANIFEST_VERSIONS = (2, 3)
-FORMAT_3_KINDS = ("number", "list", "choice")
+MANIFEST_VERSIONS = (3,)
 _STEP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 
 _ID = re.compile(r"^playbook/[a-z0-9-]+/[a-z0-9-]+$")
@@ -142,7 +139,7 @@ class FactSpec(BaseModel):
 
 
 class StepSpec(BaseModel):
-    """One step as written (format 2). Which fields apply depends on ``kind``; the others are refused."""
+    """One step as written. Which fields apply depends on ``kind``; the others are refused."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -184,7 +181,7 @@ class Manifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    manifest: Literal[2, 3] = Field(description="The manifest format's version: 2 (facts, instructions and steps) or 3 (number and list facts too)")
+    manifest: Literal[3] = Field(description="The manifest format's version: 3")
     id: str = Field(pattern=_ID.pattern, description="playbook/<pack>/<name>; never changes once published")
     pack: str = Field(pattern=_PACK.pattern, description="pack/<profession-jurisdiction>")
     version: str = Field(pattern=_VERSION.pattern, description="major.minor, separate from the id")
@@ -220,10 +217,6 @@ class Manifest(BaseModel):
         pack = self.pack.removeprefix("pack/")
         if not self.id.startswith(f"playbook/{pack}/"):
             raise ValueError(f"id {self.id!r} does not belong to pack {self.pack!r}")
-        if self.manifest < 3:
-            for f in self.facts:
-                if f.kind in FORMAT_3_KINDS:
-                    raise ValueError(f"fact {f.id!r}: kind {f.kind} needs manifest: 3")
         validate_counts_from(self.facts)
         steps = self.resolved_steps()
         validate_steps(steps, {f.id for f in self.facts})
@@ -548,7 +541,7 @@ def json_schema() -> dict[str, Any]:
     s["$schema"] = "https://json-schema.org/draft/2020-12/schema"
     s["$id"] = "https://suveryn.com/schema/playbook-manifest.json"
     s["title"] = "Sūveryn playbook manifest"
-    s["description"] = "A playbook as a file: identity, case types, facts, instructions and, in format 2, the routine's steps."
+    s["description"] = "A playbook as a file: identity, case types, facts, instructions and the routine's steps."
     return s
 
 

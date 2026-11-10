@@ -5,13 +5,13 @@
  */
 import type { BackupStatus } from "../api";
 
-export type BackupState =
+type BackupState =
   | { kind: "unavailable" }                                  // no backup service has run (not an appliance yet)
   | { kind: "not_set_up" }                                   // the office chose "later"
   | { kind: "never"; failing: BackupStatus["last_error"] }   // set up, nothing written yet
   | { kind: "ok" | "stale" | "failing"; status: BackupStatus };
 
-export const STALE_HOURS = 48;
+const STALE_HOURS = 48;
 
 export function backupState(s: BackupStatus | null, now: Date = new Date()): BackupState {
   if (!s || !s.available) return { kind: "unavailable" };
@@ -23,10 +23,10 @@ export function backupState(s: BackupStatus | null, now: Date = new Date()): Bac
 }
 
 /** How often the office should test its recovery key: a lost key shows only on the day of a restore. */
-export const KEY_TEST_DAYS = 90;
+const KEY_TEST_DAYS = 90;
 const DAY = 24 * 3600_000;
 
-export type KeyTestState =
+type KeyTestState =
   | { kind: "testing" }
   | { kind: "never" }                                                        // no test since backups began
   | { kind: "failed" | "ok" | "due"; test: NonNullable<BackupStatus["key_test"]> }

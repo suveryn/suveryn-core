@@ -40,7 +40,7 @@ server. The rules, from the design:
    reader of an unrestricted case. Membership adds rights, never takes them away.
 4. A closed case allows reading and exporting only, for everyone; and ``reopen`` and ``set_keep``
    for its manager (``close`` is the manager's on an open case).
-5. The personal space is its owner's only, as before cases existed.
+5. The personal space is its owner's only.
 
 Fail closed: the default access, when the appliance hasn't chosen one, is members only.
 """

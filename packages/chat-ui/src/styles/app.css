@@ -281,7 +281,6 @@ span.chip-run { cursor: default; }
 .run-review-actions .ui-button[data-blocked] { opacity: 0.5; cursor: default; }
 .run-all-facts { color: var(--text); font-size: var(--text-ui-sm); }
 .case-facts[aria-pressed="true"] { background: var(--surface-alt); }
-.facts-back { padding: var(--space-2) var(--space-4); background: var(--surface-alt); border-bottom: 1px solid var(--line); }
 /* the facts list, in the source panel's place: every fact, nothing edited */
 .facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .fact { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) 0; border-top: 1px solid var(--line); }
@@ -411,13 +410,6 @@ span.chip-run { cursor: default; }
 .sources-item { display: inline-flex; align-items: baseline; gap: var(--space-2); }
 .sources-sep { color: var(--text-dimmer); }
 .cite-num { font-variant-numeric: tabular-nums; }
-.source-card { margin: var(--space-3) 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--line);
-               border-radius: var(--radius-md); }
-.source-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-2); }
-.source-head .label { color: var(--teal-ink); }
-.source-file { font-weight: 600; font-size: var(--text-body-sm); }
-.source-where { color: var(--text-dim); font-size: var(--text-caption); }
-.source-actions { margin-left: auto; display: inline-flex; gap: var(--space-2); }
 .copy-button { display: inline-flex; align-items: center; gap: var(--space-1); background: transparent; border: 1px solid var(--line);
                border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); font-size: var(--text-caption); color: var(--text); cursor: pointer; }
 .copy-button:hover { background: var(--surface-alt); }
@@ -426,10 +418,6 @@ span.chip-run { cursor: default; }
 .copy-button.source-open { border: 1px solid var(--line); padding: var(--space-1) var(--space-2); font-size: var(--text-caption); font-weight: 400;
                            color: var(--text); text-decoration: none; }
 .copy-button.source-open[data-focus-visible] { border-radius: var(--radius-pill); }
-.source-text { margin: 0 0 var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line);
-               font-size: var(--text-body-sm); white-space: pre-wrap; max-height: 240px; overflow-y: auto; }
-/* Facts of the citing sentence, marked in the passage (teal wash, like citations), which scrolls to the first. */
-.source-text { position: relative; }
 /* The sentences a claim rests on, lightly; the claim's figures, dates and names in them, stronger. */
 .source-span { background: oklch(from var(--teal) l c h / 0.12); color: inherit; border-radius: 3px; }
 .source-match { background: oklch(from var(--teal) l c h / 0.28); color: inherit; border-radius: 3px; padding: 0 1px; }
@@ -904,7 +892,7 @@ span.chip-run { cursor: default; }
 .backup-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
 .backup-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); padding: var(--space-3) var(--space-4);
                border: 1px solid var(--line); border-radius: var(--radius-md); min-width: 0; }
-.backup-card .ui-inline-notice, .backup-card .inline-notice { margin: 0; }
+.backup-card .ui-inline-notice { margin: 0; }
 .backup-card-label { margin: 0; display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-caption); font-weight: 400; color: var(--text-dim); }
 .backup-card-value { margin: 0; font-size: var(--text-ui); font-weight: 600; }
 .backup-card-detail { margin: 0; font-size: var(--text-caption); color: var(--text-dim); }

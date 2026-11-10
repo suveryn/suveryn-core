@@ -12,15 +12,15 @@ import { LOCALES, useLang, useText, type Text } from "../i18n";
 import { checkThenSave, errorsFrom, StepFooter } from "./common";
 
 /** The portal's registration page (placeholder until the portal exists; the console's C8 uses the same). */
-export const PORTAL_REGISTER = "https://portal.suveryn.com/r";
+const PORTAL_REGISTER = "https://portal.suveryn.com/r";
 export const registrationUrl = (id: string, fingerprint: string) => `${PORTAL_REGISTER}/${id}?k=${fingerprint.slice(0, 16)}`;
 
 /** "SHA256:" and the hex fingerprint in groups of four, as the console shows it. */
 export const groupedFingerprint = (fp: string) => `SHA256:${fp.match(/.{1,4}/g)!.join(" ")}`;
 /** Its first 24 characters, on one line (the design's short form); Copy both still copies the whole. */
-export const shortFingerprint = (fp: string) => groupedFingerprint(fp.slice(0, 24));
+const shortFingerprint = (fp: string) => groupedFingerprint(fp.slice(0, 24));
 /** "7f3c9a2e-…-2e5d18b07f41", in one piece: non-breaking hyphens, so a line never breaks inside it. */
-export const shortApplianceId = (id: string) => `${id.slice(0, 8)}-…-${id.slice(-12)}`.replaceAll("-", "\u2011");
+const shortApplianceId = (id: string) => `${id.slice(0, 8)}-…-${id.slice(-12)}`.replaceAll("-", "\u2011");
 
 type Props = { state: SetupState; onBack: () => void; onDone: (m: Manifest | null) => void; headingId: string };
 

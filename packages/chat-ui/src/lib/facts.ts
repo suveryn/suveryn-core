@@ -10,7 +10,7 @@ export type Fact = { start: number; end: number; values: string[] };
 
 // A number on its own, not glued to letters ("oyosish4" in OCR noise is no 4).
 // Grouped by . or , or by a (hard) space between thousands ("1 250"), not any space ("2021 12" is two numbers).
-export const NUMBER = /(?<![\p{L}\d])(?:\d{1,3}(?:[   ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?![\p{L}])/gu;
+const NUMBER = /(?<![\p{L}\d])(?:\d{1,3}(?:[   ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?![\p{L}])/gu;
 
 const MONTHS: Record<string, number> = {};
 const monthNames: [number, string][] = [

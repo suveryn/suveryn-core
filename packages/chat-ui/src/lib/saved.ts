@@ -24,7 +24,7 @@ export type SavedAnswer = {
   calculations: AssistantTurn["calculations"];
   unverifiedFigures: string[];
   citationIssues: AssistantTurn["citationIssues"];
-  supportSpans?: AssistantTurn["supportSpans"];  // absent in answers saved before suveryn-tracker#25
+  supportSpans?: AssistantTurn["supportSpans"];
   instructionLikeSources: number[];
   filenames: Record<string, string>;  // the sources' file names, as they were
   turnId: string;                      // the answer's id: the mark's reference stays the same

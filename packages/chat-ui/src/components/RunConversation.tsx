@@ -54,7 +54,7 @@ export function statusLabel(status: RunStatus, m: Words): string {
 }
 
 /** The step's kind, from the playbook's routine (the server also sends it as ``step_kind``). */
-export function stepKind(run: Pick<RunSummary, "step" | "step_kind">, playbook: Pick<PlaybookInfo, "steps"> | null | undefined): string | null {
+function stepKind(run: Pick<RunSummary, "step" | "step_kind">, playbook: Pick<PlaybookInfo, "steps"> | null | undefined): string | null {
   return run.step_kind ?? playbook?.steps?.find((s) => s.id === run.step)?.kind ?? null;
 }
 
@@ -905,9 +905,9 @@ function ListBlock({ group, fields, words, canAdd, onSource, onAdd }: {
 /** A fact's source in the conversation's own source panel (board P02, agreed on 31 October): the file and page, "1 of 1"
  *  with its arrows, the passage with the cited words marked, what the check found, how a date was worked out, and
  *  *Open document at p. 4* with *Copy passage*. Closing goes back to the list when it was opened from there. */
-export function RunSourcePanel({ run, fact: factId, fromList, caseRef, kept, caseId, onView, onClose }: {
+export function RunSourcePanel({ run, fact: factId, fromList, caseRef, present, caseId, onView, onClose }: {
   run: Run; fact: string; fromList: boolean; caseRef: string | null;
-  kept?: ReadonlySet<string>; caseId?: string | null;
+  present?: ReadonlySet<string>; caseId?: string | null;
   onView: (view: RunPanelView) => void; onClose: () => void;
 }) {
   const m = useT();
@@ -920,7 +920,7 @@ export function RunSourcePanel({ run, fact: factId, fromList, caseRef, kept, cas
     : fact.needs ? { ok: false, text: checkReason(fact, m) } : undefined;
   const back = () => (fromList ? onView({ kind: "list", from: factId }) : onClose());
   return (
-    <SourcePanel turn={turn} open={{ n, occ: null }} filenames={filenames} caseRef={caseRef} kept={kept} caseId={caseId}
+    <SourcePanel turn={turn} open={{ n, occ: null }} filenames={filenames} caseRef={caseRef} present={present} caseId={caseId}
                  verdict={verdict} note={fact.computed ? computedHow(fact.computed, m) : undefined} countAlways
                  onSource={(o) => setN(o.n)} onClose={back} />
   );
@@ -928,7 +928,7 @@ export function RunSourcePanel({ run, fact: factId, fromList, caseRef, kept, cas
 
 /** A fact as an answer the source panel can show: what it cites (the term as written, for a worked-out date) with a
  *  marker per source, and the check's findings as the answer's. */
-export function factTurn(fact: RunFact): AssistantTurn {
+function factTurn(fact: RunFact): AssistantTurn {
   const cited = fact.computed?.written ?? fact.confirmed ?? fact.value;
   return {
     id: `fact-${fact.id}`, role: "assistant", status: "done", grounded: true,

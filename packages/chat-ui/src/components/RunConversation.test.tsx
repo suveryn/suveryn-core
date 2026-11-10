@@ -25,7 +25,7 @@ const SUMMARY: RunSummary = {
   ended_reason: null, starter: "u-ines", conversation_id: "conv-1",
 };
 const RUN: Run = {
-  ...SUMMARY, instruction_like_sources: [], steps: {},
+  ...SUMMARY, playbook: PLAYBOOK, instruction_like_sources: [], steps: {},
   facts: [
     { id: "price", value: "EUR 415.000,00", citations: [{ n: 1, document_id: "d1", filename: "akte.pdf", page: 2, location: null, text: "De prijs bedraagt EUR 412.500,00." }],
       issues: ["EUR 415.000,00"], found: true, confirmed: null, source: "document" },
@@ -128,7 +128,7 @@ describe("the facts list", () => {
   });
 
   it("opens a fact's source in the conversation's own source panel (board P02)", () => {
-    const html = renderToStaticMarkup(<RunSourcePanel run={RUN} fact="price" fromList caseRef="2026/0611" kept={new Set(["d1"])} caseId="c1"
+    const html = renderToStaticMarkup(<RunSourcePanel run={RUN} fact="price" fromList caseRef="2026/0611" present={new Set(["d1"])} caseId="c1"
                                                       onView={noop} onClose={noop} />);
     expect(html).toContain("De prijs bedraagt");
     expect(html).toContain(en.sourceOf(1, 1));                                   // "1 of 1", with its arrows

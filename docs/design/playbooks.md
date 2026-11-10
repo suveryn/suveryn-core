@@ -164,9 +164,8 @@ The model's reading is `proposed` (or `not_established` when the documents don't
 person's answer to an ask is `proposed` from a person; the checkpoint writes `confirmed`, or
 `not_established` when the person clears it. A version that replaces another points at it
 (`replaces`) and the older one becomes `superseded`. So a fact's history is readable in plain SQL:
-read as X by the model, answered Y by a person, confirmed Z by another. `Run.facts` keeps the shape
-the UI always had (as read, confirmed, citations), assembled from the current versions; runs made
-before this table keep their facts in `playbook_runs.facts` and can be viewed but not continued.
+read as X by the model, answered Y by a person, confirmed Z by another. `Run.facts` (as read,
+confirmed, citations) is assembled from the current versions.
 The shared facts layer the record deferred (#27) is this table; what recurs between playbooks is
 to be seen from the second one.
 
@@ -337,7 +336,8 @@ wording (`text/<lang>.json`, `questions`: by step id, with `{label}` in an ask's
 `step.fact` for one fact's own words), reviewed and translated like the labels; the model never
 words them. Format 3 (below) brought lists and numbers, documents by name, `check` steps, choices
 with `when`, and `by: manager`; `propose`, a model role per step and products beyond the summary are
-still to come. Open: whether an office's own manifest may carry its wording inline (one file
+still to come. Format 2 was retired in turn on 10 November 2026, before any playbook was published:
+every manifest is `manifest: 3`. Open: whether an office's own manifest may carry its wording inline (one file
 to upload) rather than in a pack's text files.
 
 ### Format 3: lists and numbers (3 November 2026)

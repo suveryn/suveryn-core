@@ -14,8 +14,8 @@ export function failureReason(error: string | undefined): string {
 }
 
 /** Why an upload couldn't be read, in the interface's language: from the reader's code
- *  (suveryn_rag.reading.CODES) and its numbers; without a code (an older server, or the upload itself
- *  was refused, already said in words by api.ts), the server's own reason (``failureReason``). */
+ *  (suveryn_rag.reading.CODES) and its numbers; without a code (the upload itself was refused, already
+ *  said in words by api.ts), the server's own reason (``failureReason``). */
 export function failureText(m: Messages, code: string | undefined, detail: Record<string, number> = {}, error?: string): string {
   switch (code) {
     case "password": return m.failPassword;

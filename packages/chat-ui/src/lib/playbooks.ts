@@ -49,13 +49,6 @@ export function nextEntry(facts: { id: string }[], list: string): number {
   return Math.max(0, ...facts.map((f) => splitPath(f.id)).filter((p) => p.root === list && p.index !== null).map((p) => p.index as number)) + 1;
 }
 
-/** A step's question in the playbook's words (the pack's, never the model's): a fact's own text, else the step's template with the label. */
-export function stepQuestion(words: PlaybookWords, stepId: string, factId?: string): string {
-  const q = words.questions ?? {};
-  if (factId) return q[`${stepId}.${factId}`] || (q[stepId] ?? "{label}").replace("{label}", factLabel(words, factId));
-  return q[stepId] ?? "";
-}
-
 // ------------------------------------------------------------------ facts as the boards count and show them (P01, P03)
 
 /** One fact as a person counts it: a plain fact, or a whole list with its entries' values (board P01: "12 of 13",

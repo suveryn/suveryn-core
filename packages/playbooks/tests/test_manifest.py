@@ -14,7 +14,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 PACK = Path(__file__).parents[1] / "src" / "suveryn_playbooks" / "be_notary"
 
 MINIMAL = """\
-manifest: 2
+manifest: 3
 id: playbook/be-notary/example
 pack: pack/be-notary
 version: "1.0"
@@ -86,12 +86,12 @@ steps:
   - {id: confirm, kind: checkpoint}
   - {id: summary, kind: produce}
 """
-FORMAT_2 = MINIMAL[:MINIMAL.index("steps:\n")] + STEPS
+WITH_STEPS = MINIMAL[:MINIMAL.index("steps:\n")] + STEPS
 
 
-def test_a_format_2_manifest_resolves_its_steps():
-    p = parse(FORMAT_2).to_playbook(WORDS)
-    assert p.format == 2
+def test_a_manifest_resolves_its_steps():
+    p = parse(WITH_STEPS).to_playbook(WORDS)
+    assert p.format == 3
     agreement, read, missing, confirm, summary = p.steps
     assert agreement.kind == "request" and agreement.min == 2 and agreement.allow_none and agreement.needs == ()
     assert read.facts == ("price", "sellers") and read.needs == ("agreement",)   # "all" expanded; needs defaults to the step before
@@ -102,7 +102,7 @@ def test_a_format_2_manifest_resolves_its_steps():
 @pytest.mark.parametrize(
     "old, new, said",
     [
-        ("manifest: 2", "manifest: 1", "'manifest' must be 2 or 3 (the format this product reads); got 1"),
+        ("manifest: 3", "manifest: 2", "'manifest' must be 3 (the format this product reads); got 2"),
         ("  - {id: confirm, kind: checkpoint}\n", "", "needs a checkpoint"),
         ("  - {id: summary, kind: produce}\n", "  - {id: summary, kind: produce, needs: [read]}\n", "nothing is produced before a checkpoint"),
         ("  - {id: missing, kind: ask, facts: [price]}\n", "  - {id: missing, kind: ask, facts: [price], needs: [agreement]}\n", "before any read step it needs reads them"),
@@ -113,12 +113,12 @@ def test_a_format_2_manifest_resolves_its_steps():
         ("  - {id: read, kind: read, facts: all}\n", "  - {id: read, kind: read}\n", "facts is required"),
         ("  - {id: summary, kind: produce}\n", "  - {id: summary, kind: produce, needs: [nowhere]}\n", "needs 'nowhere', which is not a step"),
     ],
-    ids=["format-1-retired", "no-checkpoint", "produce-before-checkpoint", "ask-before-read", "unknown-fact", "cycle",
+    ids=["format-2-retired", "no-checkpoint", "produce-before-checkpoint", "ask-before-read", "unknown-fact", "cycle",
          "step-twice", "field-of-another-kind", "read-without-facts", "unknown-need"],
 )
 def test_a_wrong_routine_is_refused_and_the_error_names_the_step(old, new, said):
-    text = FORMAT_2.replace(old, new, 1)
-    assert text != FORMAT_2
+    text = WITH_STEPS.replace(old, new, 1)
+    assert text != WITH_STEPS
     with pytest.raises(ManifestError) as e:
         parse(text, where="example.yaml")
     assert said in str(e.value), str(e.value)
@@ -141,7 +141,7 @@ def test_questions_come_from_the_packs_wording():
 def test_a_minimal_manifest_loads():
     m = parse(MINIMAL)
     p = m.to_playbook(WORDS)
-    assert p.id == "playbook/be-notary/example" and p.slug == "example" and p.version == "1.0" and p.format == 2
+    assert p.id == "playbook/be-notary/example" and p.slug == "example" and p.version == "1.0" and p.format == 3
     assert [(f.id, f.kind) for f in p.facts] == [("price", "amount"), ("sellers", "text")]
     assert p.instructions == "Read the excerpts and fill in the table.\n\n" + answer_scaffold(p.facts)
     assert p.instructions.endswith('"sources": [<excerpt numbers>]}\n}\nA fact the excerpts do not contain gets "value": null and '
@@ -159,7 +159,7 @@ def test_load_reads_the_packs_wording_beside_the_file():
 @pytest.mark.parametrize(
     "old, new, said",
     [
-        ("manifest: 2\n", "", "'manifest' must be 2 or 3"),                                            # the format version is required
+        ("manifest: 3\n", "", "'manifest' must be 3"),                                            # the format version is required
         ("id: playbook/be-notary/example", "id: playbook/be-lawyer/example", "does not belong to pack"),
         ('version: "1.0"', 'version: "1"', "version: String should match pattern"),
         ("case_types: [sale]", "case_types: [sale, sale]", "listed twice"),
@@ -186,13 +186,13 @@ def test_not_yaml_and_not_a_mapping_are_refused_plainly():
         parse("manifest: [1", where="x.yaml")
     with pytest.raises(ManifestError, match="a manifest is a mapping"):
         parse("- just\n- a list\n", where="x.yaml")
-    with pytest.raises(ManifestError, match="'manifest' must be 2 or 3.*got 4"):
-        parse(MINIMAL.replace("manifest: 2", "manifest: 4"), where="x.yaml")
+    with pytest.raises(ManifestError, match="'manifest' must be 3.*got 4"):
+        parse(MINIMAL.replace("manifest: 3", "manifest: 4"), where="x.yaml")
 
 
-# ------------------------------------------------------------------ format 3: numbers and lists
+# ------------------------------------------------------------------ numbers and lists
 
-LISTS = MINIMAL.replace("manifest: 2", "manifest: 3").replace("  - id: sellers\n    ask: who sells\n", """  - {id: sellers, ask: the sellers}
+LISTS = MINIMAL.replace("  - id: sellers\n    ask: who sells\n", """  - {id: sellers, ask: the sellers}
   - {id: shares, ask: the number of shares, kind: number}
   - id: founders
     ask: the founders, one entry each
@@ -204,7 +204,7 @@ LISTS = MINIMAL.replace("manifest: 2", "manifest: 3").replace("  - id: sellers\n
 """)
 
 
-def test_a_format_3_manifest_has_numbers_and_lists_and_names_their_leaves_by_path():
+def test_a_manifest_has_numbers_and_lists_and_names_their_leaves_by_path():
     p = parse(LISTS).to_playbook(WORDS)
     assert p.format == 3 and [(f.id, f.kind) for f in p.facts] == [("price", "amount"), ("sellers", "text"), ("shares", "number"),
                                                                      ("founders", "list"), ("conditions", "list")]
@@ -223,13 +223,12 @@ def test_a_format_3_manifest_has_numbers_and_lists_and_names_their_leaves_by_pat
 
 
 def test_paths_name_one_value_of_a_list():
-    from suveryn_playbooks.paths import MAX_ENTRIES, entry, is_path, root, split
+    from suveryn_playbooks.paths import MAX_ENTRIES, entry, root, split
     assert split("price") == ("price", None, None) and split("founders[2].name") == ("founders", 2, "name") and split("conditions[1]") == ("conditions", 1, None)
     assert split("founders[0].name") == (None, None, None) and split(f"founders[{MAX_ENTRIES + 1}]") == (None, None, None)
     assert split("Founders[1]") == (None, None, None) and split("") == (None, None, None) and split("a.b") == (None, None, None)
     assert root("founders[2].name") == "founders" and root("price") == "price" and root("not a path") == "not a path"
     assert entry("founders", 2, "name") == "founders[2].name" and entry("conditions", 1) == "conditions[1]"
-    assert is_path("founders[2].name") and not is_path("founders[2].")
 
 
 def test_wording_labels_a_lists_leaves_from_the_lists_and_the_fields_labels():
@@ -243,14 +242,13 @@ def test_wording_labels_a_lists_leaves_from_the_lists_and_the_fields_labels():
 @pytest.mark.parametrize(
     "old, new, said",
     [
-        ("manifest: 3", "manifest: 2", "fact 'shares': kind number needs manifest: 3"),
         ("kind: list\n    of:\n      - {id: name, ask: the full name}\n      - {id: contribution, ask: the contribution, kind: amount}\n", "kind: list\n", "kind list needs 'of'"),
         ("kind: number}", "kind: number, of: text}", "'of' only applies to kind list"),
         ("      - {id: contribution, ask: the contribution, kind: amount}\n", "      - {id: name, ask: again}\n", "field name is listed twice"),
         ("kind: list, of: text}", "kind: list, of: colour}", "of"),
         ("      - {id: contribution, ask: the contribution, kind: amount}\n", "      - {id: contribution, ask: the contribution, kind: list}\n", "kind: Input should be 'text', 'amount', 'date', 'number' or 'choice'"),
     ],
-    ids=["format-2-no-lists", "list-without-of", "of-on-a-number", "field-twice", "of-unknown-kind", "no-list-in-a-list"])
+    ids=["list-without-of", "of-on-a-number", "field-twice", "of-unknown-kind", "no-list-in-a-list"])
 def test_a_wrong_list_is_refused_and_the_error_names_the_fact(old, new, said):
     assert old in LISTS, old
     with pytest.raises(ManifestError, match=said):

@@ -37,12 +37,13 @@ TABLE = json.dumps(ANSWER, ensure_ascii=False)
 
 
 def test_summary_text_uses_the_confirmed_values_and_the_language():
-    from suveryn_api_gateway.playbooks import Run
+    from suveryn_api_gateway.playbooks import Run, playbook_out
     facts = read_facts(DEED_INTAKE, response(), {TABLE_DOC: "compromis.pdf"})
     for f in facts:
         f.confirmed = "EUR 412.000,00" if f.id == "price" else f.value
     run = Run(id=str(uuid.uuid4()), case_id=str(uuid.uuid4()), playbook_id=DEED_INTAKE.id, playbook_version="1.0",
-              status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts)
+              status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts,
+              playbook=playbook_out(DEED_INTAKE))
     # the title and labels are the playbook's own words in that language (suveryn_playbooks, docs/translations.md)
     text = summary_text(DEED_INTAKE, "2026/0417", run, "fr")
     assert text.startswith("Analyse de l'acte 2026/0417\n\nplaybook/be-notary/deed-intake 1.0")
@@ -123,10 +124,10 @@ def test_a_read_of_documents_longer_than_one_reading_says_so(office):
 
 
 def test_the_summary_ends_with_the_documents_read_in_part():
-    from suveryn_api_gateway.playbooks import Run, StepState
+    from suveryn_api_gateway.playbooks import Run, StepState, playbook_out
     facts = read_facts(DEED_INTAKE, response(), {TABLE_DOC: "compromis.pdf"})
     run = Run(id=str(uuid.uuid4()), case_id=str(uuid.uuid4()), playbook_id=DEED_INTAKE.id, playbook_version="1.4",
-              status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts,
+              status="done", documents=[DOC], started_by=ALICE, started_at="2026-10-17T10:00:00Z", facts=facts, playbook=playbook_out(DEED_INTAKE),
               steps={"title_read": StepState(status="done", in_part=["eigendomstitel.pdf"])})
     assert summary_text(DEED_INTAKE, "2026/0417", run, "nl").endswith("Gedeeltelijk gelezen, niet elke pagina: eigendomstitel.pdf")
     whole = run.model_copy(update={"steps": {"title_read": StepState(status="done")}})
@@ -868,10 +869,6 @@ def test_a_run_keeps_the_manifest_it_started_under(office):
     assert r.status_code == 200 and r.json()["status"] == "done"
     _, text = docs.stored_text
     assert "Koopsom: EUR 412.000,00" in text and "Prijs:" not in text  # the summary uses the run's own words
-    # a run from before manifests were pinned reads the installed one
-    store._execute("UPDATE playbook_runs SET manifest = NULL WHERE id = %s", (uuid.UUID(rid),))
-    run = c.get(RUN.format(cid=cid, rid=rid), headers=alice).json()
-    assert run["playbook"] is None
 
 
 CARE_ANSWER = json.dumps({

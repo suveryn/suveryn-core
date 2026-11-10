@@ -11,12 +11,12 @@
 import type { Case, ConversationSummary } from "../api";
 
 export type ConversationAction = "open" | "pin" | "unpin" | "rename" | "move" | "delete";
-export type ActionState = { id: ConversationAction; disabled: boolean; reason?: "followsCase" };
+type ActionState = { id: ConversationAction; disabled: boolean; reason?: "followsCase" };
 
 /** More than this many pinned conversations shows the hint "Five pinned. A case keeps them together." */
 export const PIN_HINT_AFTER = 5;
 
-export function isOwn(c: Pick<ConversationSummary, "owner">, me: string | undefined): boolean {
+function isOwn(c: Pick<ConversationSummary, "owner">, me: string | undefined): boolean {
   return !c.owner || c.owner === me;
 }
 

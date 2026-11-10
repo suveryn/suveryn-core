@@ -16,9 +16,7 @@ model's reading is ``proposed`` (or ``not_established`` when the documents don't
 person's answer to an ``ask`` is ``proposed`` from a person; the checkpoint writes ``confirmed``
 (or ``not_established`` when the person clears it). A version that replaces another points at it
 (``replaces``) and the older one becomes ``superseded``. The model never writes ``confirmed``.
-``Run.facts`` keeps the shape the UI has always had (``RunFact``: as read, confirmed, citations),
-assembled from the current versions; runs made before this table keep their facts in
-``playbook_runs.facts`` and are read from there.
+``Run.facts`` is assembled from the current versions (``RunFact``: as read, confirmed, citations).
 
 **The thread** is a conversation (``conversations``, ``run_id`` set, decision, 30 October 2026): made with
 the run, titled with the playbook, shared with the case, listed beside the case's other
@@ -88,9 +86,8 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     starter text,             -- the starter's id: who may stop or cancel (started_by is the shown name)
     conversation_id uuid NOT NULL,  -- the run's conversation: its thread (conversations.run_id points back)
     -- The manifest the run started under, as a record (suveryn_playbooks.record): its facts, steps,
-    -- instructions and words. A run reads its own, whatever is installed later; NULL for runs made
-    -- before this column, which read the installed manifest.
-    manifest jsonb,
+    -- instructions and words. A run reads its own, whatever is installed later.
+    manifest jsonb NOT NULL,
     -- Which documents answered which named request (request step id -> document ids): what a read
     -- aimed at that request reads (docs/design/playbooks.md, "Documents by name").
     requested jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -98,9 +95,6 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     -- the server on the run's values (docs/design/playbooks.md, "Checks"). Never a block.
     checks jsonb NOT NULL DEFAULT '{}'::jsonb
 );
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS manifest jsonb;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS requested jsonb NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE playbook_runs ADD COLUMN IF NOT EXISTS checks jsonb NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS playbook_runs_case ON playbook_runs (case_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS playbook_settings (
     playbook_id text PRIMARY KEY,
@@ -193,9 +187,8 @@ class Run(RunSummary):
     requested: dict[str, list[str]] = Field(default_factory=dict)
     # Per check step (step id), its result on the run's values as they stand; recomputed when a value changes.
     checks: dict[str, CheckOut] = Field(default_factory=dict)
-    # The playbook the run started under, as the UI needs it (labels, steps, lists), from the run's own
-    # record; None for a run made before manifests were pinned: the UI then uses the installed one.
-    playbook: PlaybookOut | None = None
+    # The playbook the run started under, as the UI needs it (labels, steps, lists), from the run's own record.
+    playbook: PlaybookOut
     instruction_like_sources: list[int] = Field(default_factory=list)
     steps: dict[str, StepState] = Field(default_factory=dict)
     turns: list[Turn] = Field(default_factory=list)
@@ -305,8 +298,7 @@ class ActiveIn(BaseModel):
 
 
 def playbook_out(p: Playbook, inactive: frozenset[str] | set[str] = frozenset()) -> PlaybookOut:
-    """A playbook as the UI needs it: identity, words per language, steps, and for format 3 its lists
-    and the kind of every value."""
+    """A playbook as the UI needs it: identity, words per language, steps, its lists and the kind of every value."""
     return PlaybookOut(id=p.id, slug=p.slug, pack=p.pack, version=p.version, name=p.name, covered=covered(p.id),
                        facts=[f.id for f in p.facts], case_types=list(p.case_types), active=p.id not in inactive,
                        lists={f.id: [x.id for x in f.fields] for f in p.facts if f.kind == "list"},
@@ -423,7 +415,7 @@ class RunStore(TurnStore):
         suspicious, steps, manifest, requested, checks = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3], r[self._N + 4]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
                    steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
-                   playbook=playbook_out(from_record(manifest), self.inactive()) if manifest else None, requested=requested or {},
+                   playbook=playbook_out(from_record(manifest), self.inactive()), requested=requested or {},
                    checks={k: CheckOut(**v) for k, v in (checks or {}).items()})
 
     def set_checks(self, run_id: uuid.UUID, checks: dict[str, dict]) -> None:
@@ -432,10 +424,9 @@ class RunStore(TurnStore):
 
     def playbook_of(self, run_id: uuid.UUID, case_id: uuid.UUID) -> Playbook | None:
         """The playbook the run started under, from its own record (docs/design/playbooks.md, "The data
-        model"): what the runtime walks and the harness reads, whatever is installed now. None for a run
-        made before manifests were pinned; the caller then uses the installed one."""
+        model"): what the runtime walks and the harness reads, whatever is installed now. None: no such run."""
         r = self._execute("SELECT manifest FROM playbook_runs WHERE id = %s AND case_id = %s", (run_id, case_id)).fetchone()
-        return from_record(r[0]) if r and r[0] else None
+        return from_record(r[0]) if r else None
 
     def list(self, case_id: uuid.UUID) -> list[RunSummary]:
         rows = self._execute(f"SELECT {self.COLUMNS} FROM playbook_runs WHERE case_id = %s ORDER BY started_at DESC LIMIT %s",

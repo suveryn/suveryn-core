@@ -31,7 +31,7 @@ import { cx } from "./Button";
  *  usage pages). Both match the buttons of the same size (ui.css, "sizes"). */
 export type FieldSize = "regular" | "small";
 
-export type TextFieldProps = Omit<AriaTextFieldProps, "className" | "children"> & {
+type TextFieldProps = Omit<AriaTextFieldProps, "className" | "children"> & {
   label: string;
   description?: string;
   placeholder?: string;
@@ -52,7 +52,7 @@ export function TextField({ label, description, placeholder, errorAction, hideLa
   );
 }
 
-export type PasswordFieldProps = TextFieldProps & {
+type PasswordFieldProps = TextFieldProps & {
   /** The show/hide button's name, e.g. "Show password" (it is a toggle: pressed means shown). */
   showLabel?: string;
 };

@@ -13,7 +13,7 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, LinkButton, MenuButton, SourceRef, SplitButton, TextButton, Toolbar } from "../ui";
 import { originalUrl, type Calculation, type Citation, type CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
-import { citedNumbers, instructionLikeWarning, markPassage, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
+import { citedNumbers, instructionLikeWarning, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
 import type { AnswerExport } from "../lib/export";
 import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
@@ -88,53 +88,11 @@ function DownloadButton({ filename, text, what }: {
   );
 }
 
-export function SourceCard({ n, citation, filename, terms = [], claims = [] }: { n: number; citation: Citation; filename: string; terms?: string[]; claims?: string[] }) {
-  const m = useT();
-  const quote = useRef<HTMLQuoteElement>(null);
-  // Scroll the passage (not the page) to the first marked fact: a long passage shows only its start.
-  useEffect(() => {
-    const box = quote.current, first = box?.querySelector("mark");
-    // .source-text is position: relative, so a mark's offsetTop is measured from the passage itself.
-    if (box && first instanceof HTMLElement) box.scrollTop = Math.max(0, first.offsetTop - box.clientHeight / 3);
-  }, [n, citation.text]);
-  if (citation.removed) {
-    return (
-      <div className="source-card" role="region" aria-label={m.source(n)}>
-        <div className="source-head">
-          <span className="label">{m.source(n)}</span>
-          <span className="source-file">{m.sourceRemoved}</span>
-        </div>
-        <p className="caption">{m.sourceRemovedCaption}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="source-card" role="region" aria-label={m.source(n)}>
-      <div className="source-head">
-        <span className="label">{m.source(n)}</span>
-        <span className="source-file">{filename}</span>
-        <span className="source-where">{citation.source?.location ?? (citation.source?.page ? `p. ${citation.source.page}` : "")}</span>
-        <span className="source-actions">
-          <CopyButton text={formatSource(n, citation, filename)} label={m.copy} what={m.sourceWithReference(n)} />
-          <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
-                          text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />
-        </span>
-      </div>
-      <blockquote className="source-text" ref={quote}>
-        {markPassage(citation.text, claims, terms).map((part, i) => (part.mark
-          ? <mark key={i} className={part.mark === "term" ? "source-match" : "source-span"}>{part.text}</mark>
-          : <Fragment key={i}>{part.text}</Fragment>))}
-      </blockquote>
-      <p className="caption">{m.sourceCaption}</p>
-    </div>
-  );
-}
-
 /** The id of the source panel: the open citation marker points at it (``aria-controls``). */
-export const SOURCE_PANEL = "source-panel";
+const SOURCE_PANEL = "source-panel";
 
 /** A citation's file name as shown: "Source removed" for a deleted document's, "Unnamed document" if unknown. */
-export function sourceName(c: Citation, filenames: Map<string, string>, m: ReturnType<typeof useT>): string {
+function sourceName(c: Citation, filenames: Map<string, string>, m: ReturnType<typeof useT>): string {
   return c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument;
 }
 
@@ -156,12 +114,12 @@ export function contextAround(c: Citation): { before: string; after: string } | 
  * found, in words; *Open document at p. 3* and *Copy passage*. Esc closes it (from inside it, or anywhere when no
  * answer is being written: App), and the focus goes back to what opened it.
  *
- * *Open document* opens the file as uploaded in a new tab, a PDF at the cited page (board G11). A document
- * stored before files were kept (not in ``kept``) offers the passage's download instead.
+ * *Open document* opens the file as uploaded in a new tab, a PDF at the cited page (board G11). A playbook fact's
+ * passage whose document was deleted since (not in ``present``) offers the passage's download instead.
  */
-export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseId = null, verdict: said, note, countAlways = false, onSource, onClose }: {
+export function SourcePanel({ turn, open, filenames, caseRef, present = NONE, caseId = null, verdict: said, note, countAlways = false, onSource, onClose }: {
   turn: AssistantTurn; open: OpenSource; filenames: Map<string, string>; caseRef: string | null;
-  kept?: ReadonlySet<string>; caseId?: string | null;
+  present?: ReadonlySet<string>; caseId?: string | null;
   /** A playbook's fact (board P02): what its check found, in place of an answer's, and how a date was worked out. */
   verdict?: { ok: boolean; text: string } | null; note?: string;
   /** "1 of 1" and its arrows also for a single source (board P02). */
@@ -240,7 +198,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
       </div>
       {!citation.removed && (
         <footer className="source-panel-actions">
-          {citation.source && kept.has(citation.source.document_id) && (
+          {citation.source && present.has(citation.source.document_id) && (
             <LinkButton variant="text" className="copy-button source-open" newTab
                         href={originalUrl(citation.source.document_id, caseId, citation.source.page)}>
               <ExternalLink size={13} aria-hidden />
@@ -248,7 +206,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, kept = NONE, caseI
             </LinkButton>
           )}
           <CopyButton text={formatSource(n, citation, filename)} label={m.copyPassage} what={m.passageWhat(n)} />
-          {!(citation.source && kept.has(citation.source.document_id)) && <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
+          {!(citation.source && present.has(citation.source.document_id)) && <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
                           text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />}
         </footer>
       )}

@@ -148,7 +148,7 @@
     },
     "StepSpec": {
       "additionalProperties": false,
-      "description": "One step as written (format 2). Which fields apply depends on ``kind``; the others are refused.",
+      "description": "One step as written. Which fields apply depends on ``kind``; the others are refused.",
       "properties": {
         "id": {
           "description": "Stable within the playbook; the run records progress by it",
@@ -333,14 +333,11 @@
     }
   },
   "additionalProperties": false,
-  "description": "A playbook as a file: identity, case types, facts, instructions and, in format 2, the routine's steps.",
+  "description": "A playbook as a file: identity, case types, facts, instructions and the routine's steps.",
   "properties": {
     "manifest": {
-      "description": "The manifest format's version: 2 (facts, instructions and steps) or 3 (number and list facts too)",
-      "enum": [
-        2,
-        3
-      ],
+      "const": 3,
+      "description": "The manifest format's version: 3",
       "title": "Manifest",
       "type": "integer"
     },

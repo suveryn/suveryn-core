@@ -85,7 +85,7 @@ One function decides every request: `may(user, case, action)`.
 5. Personal space: the owner only, as today.
 
 Every check runs on the server (api-gateway); the UI only hides what it already knows is refused.
-Documents stored before cases existed have no `case_id` and keep their owner: fail closed, as today.
+A personal document has no `case_id` and only its owner sees it: fail closed.
 
 ## The screens (chat-ui)
 

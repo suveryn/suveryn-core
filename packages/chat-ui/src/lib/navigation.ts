@@ -22,10 +22,9 @@ export function needsCaseOpen(action: CaseAction): boolean {
   return action === "members" || action === "log" || action === "close";
 }
 
-/** The run's own playbook (the manifest it started under) before the installed one, which may be newer. */
-export function runPlaybook(run: Run | null, installed: PlaybookInfo[]): PlaybookInfo | null {
-  if (!run) return null;
-  return run.playbook ?? installed.find((p) => p.id === run.playbook_id) ?? null;
+/** The run's own playbook (the manifest it started under), whatever is installed now. */
+export function runPlaybook(run: Run | null): PlaybookInfo | null {
+  return run?.playbook ?? null;
 }
 
 /** A run still going: reading, waiting for an answer, or paused. */

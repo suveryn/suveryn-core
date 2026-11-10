@@ -6,10 +6,8 @@
  */
 import { useSyncExternalStore } from "react";
 
-export const FORMATS = { answer: ["docx", "md"], table: ["xlsx", "csv"] } as const;
+const FORMATS = { answer: ["docx", "md"], table: ["xlsx", "csv"] } as const;
 export type FormatKind = keyof typeof FORMATS;
-export type AnswerFormat = (typeof FORMATS)["answer"][number];
-export type TableFormat = (typeof FORMATS)["table"][number];
 type FormatOf<K extends FormatKind> = (typeof FORMATS)[K][number];
 
 const KEY = (kind: FormatKind) => `suveryn.format.${kind}`;

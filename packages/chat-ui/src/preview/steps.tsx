@@ -60,7 +60,7 @@ function pointer(el: HTMLElement, types: string[]) {
   for (const t of types) el.dispatchEvent(t.startsWith("pointer") ? new PointerEvent(t, at) : new MouseEvent(t, at));
 }
 
-export async function play(steps: Step[]): Promise<void> {
+async function play(steps: Step[]): Promise<void> {
   await pause(400); // the screen's first data
   for (const s of steps) {
     if ("wait" in s) { await pause(s.wait); continue; }

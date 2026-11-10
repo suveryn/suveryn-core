@@ -11,7 +11,7 @@ import type { Turn } from "../types";
  * server takes at most 200 per request (a long conversation failed after about 100 questions), and
  * older turns don't fit the model's context anyway.
  */
-export const MAX_HISTORY = 40;
+const MAX_HISTORY = 40;
 /** At most this many characters of earlier turns: the server takes 150,000 for the whole request
  *  (``MAX_TOTAL_CHARS``), and the question and the documents' passages need room too. The oldest
  *  question-and-answer pairs go first. */

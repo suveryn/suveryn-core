@@ -181,8 +181,6 @@ class Rag:
         if existing:
             status, warnings = self.store.document_status(existing)
             if not should_read_again(status, self.store.recovered_share(existing)):
-                # stored before files were kept: keep this one now (board G11)
-                self.store.keep_original_if_missing(existing, original_of(pdf))
                 return IngestResult(existing, name, 0, 0, 0, True, {}, status, warnings)
             # The same file again, and the stored copy was read poorly: read it again, in place (same id).
         ex = self._extractor.extract(pdf, owner=owner, watch=watch)

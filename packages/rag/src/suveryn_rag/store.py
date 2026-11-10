@@ -88,8 +88,8 @@ CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
 -- The file a document was read from, as uploaded (board G11: "Open document at p. 3"). In the database, so it
 -- goes with its document (ON DELETE CASCADE: deleting the document, its case or a keep period deletes it too)
--- and into the backups with everything else (docs/design/data-lifecycle.md). Documents stored before files
--- were kept have none, until the same file is uploaded there again.
+-- and into the backups with everything else (docs/design/data-lifecycle.md). Text sūveryn stored itself (a
+-- saved answer, a playbook's summary) has none: it is never a source.
 CREATE TABLE IF NOT EXISTS originals (
     document_id   uuid PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
     content_type  text NOT NULL,
@@ -114,8 +114,6 @@ def without(content: dict, document_id: str) -> dict:
 
 # A source for answers (cases.md decision 7): uploaded, and not sūveryn's own export coming back
 # unless a person chose to use it anyway (docs/design/chat-ui.md §6). Constants only, no input.
-# Whether the file a document was read from is kept (``originals``).
-HAS_ORIGINAL = "EXISTS (SELECT 1 FROM originals o WHERE o.document_id = d.id)"
 SOURCE = ("d.origin = 'uploaded' AND NOT (coalesce(d.provenance, '{}') ? 'noticed'"
           " AND NOT coalesce(d.provenance, '{}') ? 'confirmed')")
 
@@ -265,14 +263,8 @@ class Store:
             " ON CONFLICT (document_id) DO UPDATE SET content_type = EXCLUDED.content_type, data = EXCLUDED.data",
             (document_id, original.content_type, original.data))
 
-    def keep_original_if_missing(self, document_id: uuid.UUID, original: Original) -> bool:
-        """Keep the file of a document stored before files were kept, when the same file is uploaded again."""
-        return self._conn.execute(
-            "INSERT INTO originals (document_id, content_type, data) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            (document_id, original.content_type, original.data)).rowcount == 1
-
     def original(self, document_id: uuid.UUID, scope: Scope) -> tuple[str, Original] | None:
-        """(file name, the file) of a document in the scope whose file is kept, or None."""
+        """(file name, the file) of an uploaded document in the scope, or None."""
         where, params = scope.where("d")
         row = self._conn.execute(
             "SELECT d.filename, o.content_type, o.data FROM documents d JOIN originals o ON o.document_id = d.id"
@@ -296,10 +288,10 @@ class Store:
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
             "       d.origin, d.owner, d.provenance,"
-            f"       ({SOURCE}), {HAS_ORIGINAL}"
+            f"       ({SOURCE})"
             f"  FROM documents d WHERE {where} ORDER BY d.created_at DESC", params).fetchall()
         keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "origin", "uploaded_by",
-                "provenance", "source", "original")
+                "provenance", "source")
         return [dict(zip(keys, r)) for r in rows]
 
     def list_documents_many(self, owner: str, case_ids: list[uuid.UUID]) -> list[dict]:
@@ -308,11 +300,11 @@ class Store:
         rows = self._conn.execute(
             "SELECT d.id, d.filename, d.pages, d.ocr_pages, d.status, d.warnings, d.created_at,"
             "       d.origin, d.owner, d.case_id, d.provenance,"
-            f"       ({SOURCE}), {HAS_ORIGINAL}"
+            f"       ({SOURCE})"
             "  FROM documents d WHERE (d.case_id IS NULL AND d.owner IS NOT DISTINCT FROM %s) OR d.case_id = ANY(%s)"
             " ORDER BY d.created_at DESC LIMIT 1000", (owner, case_ids)).fetchall()
         keys = ("id", "filename", "pages", "ocr_pages", "status", "warnings", "created_at", "origin", "uploaded_by", "case_id",
-                "provenance", "source", "original")
+                "provenance", "source")
         return [dict(zip(keys, r)) for r in rows]
 
     def document_status(self, document_id: uuid.UUID) -> tuple[str, list[dict]] | None:
