@@ -12,47 +12,33 @@ and English, and ``tests/reading_cases.json`` says what each form means:
 - ``as_amount`` / ``as_number`` / ``as_date``: one value, for a playbook's fact of that kind.
 
 Deterministic and small on purpose: a value it can't read is left alone (no warning made up), and what uses it
-still compares facts with their passage, never with what a model thinks they mean. Nothing else in the harness
-is imported here.
+still compares facts with their passage, never with what a model thinks they mean. Of the harness it uses only
+the languages' words (``language``).
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
-from functools import lru_cache
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-_UNITS_NL = {"nul": 0, "een": 1, "één": 1, "twee": 2, "drie": 3, "vier": 4, "vijf": 5, "zes": 6, "zeven": 7, "acht": 8,
-             "negen": 9, "tien": 10, "elf": 11, "twaalf": 12, "dertien": 13, "veertien": 14, "vijftien": 15, "zestien": 16,
-             "zeventien": 17, "achttien": 18, "negentien": 19, "twintig": 20, "dertig": 30, "veertig": 40, "vijftig": 50,
-             "zestig": 60, "zeventig": 70, "tachtig": 80, "negentig": 90}
-_UNITS_FR = {"zero": 0, "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "six": 6, "sept": 7, "huit": 8,
-             "neuf": 9, "dix": 10, "onze": 11, "douze": 12, "treize": 13, "quatorze": 14, "quinze": 15, "seize": 16,
-             "vingt": 20, "vingts": 20, "trente": 30, "quarante": 40, "cinquante": 50, "soixante": 60,
-             "septante": 70, "huitante": 80, "octante": 80, "nonante": 90}
-_UNITS_EN = {"zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
-             "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
-             "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-             "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
-_SCALES = {"honderd": 100, "cent": 100, "cents": 100, "hundred": 100,
-           "duizend": 1000, "mille": 1000, "mil": 1000, "thousand": 1000,
-           "miljoen": 10**6, "million": 10**6, "millions": 10**6, "miljard": 10**9, "milliard": 10**9, "milliards": 10**9, "billion": 10**9}
+from .language import NUMBER_WORDS, together
+
+# The words for numbers and the months' names come from the languages' files (``language``), generated from the
+# standard spelling rules: every number under a thousand as written, the scale words, the months. None is typed here.
+_NUMBERS = together(NUMBER_WORDS, "numbers")
+_SCALES = together(NUMBER_WORDS, "scales")
+MONTHS = together(NUMBER_WORDS, "months")
+_PARTS = {p for table in NUMBER_WORDS.values() for p in table["parts"]}  # in a number, but no number alone
+_HUNDREDS = [w for w, n in _SCALES.items() if n == 100]
+_BIG = sorted(((w, n) for w, n in _SCALES.items() if n > 100), key=lambda x: -len(x[0]))
+_LONGEST = max(map(len, _NUMBERS))
 _JOIN = {"en": "en", "et": "et", "and": "and"}
 _ORDINALS = {"eerste": 1, "premier": 1, "1er": 1, "first": 1, "derde": 3, "troisieme": 3}
-_SMALL = {**_UNITS_NL, **_UNITS_FR, **_UNITS_EN}
-# The pieces one Dutch word is built of ("zesentwintigduizend"), longest first so "zeventien" wins over "zeven".
-_MORPHEMES = sorted([*_UNITS_NL, *_SCALES, "en", "ën"], key=len, reverse=True)
-
-MONTHS = {m: i for i, names in enumerate([
-    ("januari", "janvier", "january", "jan"), ("februari", "fevrier", "february", "feb"),
-    ("maart", "mars", "march", "mrt"), ("april", "avril", "apr"), ("mei", "mai", "may"), ("juni", "juin", "june"),
-    ("juli", "juillet", "july"), ("augustus", "aout", "august", "aug"),
-    ("september", "septembre", "sep", "sept"), ("oktober", "octobre", "october", "okt", "oct"),
-    ("november", "novembre", "nov"), ("december", "decembre", "dec")], 1) for m in names}
 _TOKEN = re.compile(r"[^\W_]+|€", re.UNICODE)
 
 
@@ -61,57 +47,74 @@ def fold(word: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", word.casefold()) if not unicodedata.combining(c))
 
 
-def _pieces(word: str) -> list[str] | None:
-    """A word as number pieces: "zesentwintigduizend" -> zes, en, twintig, duizend; None if it isn't one."""
+def _after_join(key: str, i: int) -> list[int]:
+    """Where a number can go on after a scale: right there, or after a joining word ("two thousand and five")."""
+    return [i] + [i + len(j) for j in _JOIN if key.startswith(j, i)]
+
+
+def _under_thousand(key: str, i: int) -> list[tuple[int, int]]:
+    """What can stand before a thousand or a million, or end a number, at ``i``: a number under a thousand as the
+    table writes it, or a count of hundreds the table doesn't write ("negentienhonderd achtennegentig", a year), as
+    (value, end), the longest first."""
+    plain = [(_NUMBERS[key[i:z]], z) for z in range(min(len(key), i + _LONGEST), i, -1) if _NUMBERS.get(key[i:z])]
+    out = list(plain)
+    for n, z in [*plain, (1, i)]:
+        if n >= 100:
+            continue
+        for h in _HUNDREDS:
+            if not key.startswith(h, z):
+                continue
+            end = z + len(h)
+            out.append((n * 100, end))
+            for start in _after_join(key, end):
+                out += [(n * 100 + _NUMBERS[key[start:y]], y) for y in range(min(len(key), start + _LONGEST), start, -1)
+                        if 0 < _NUMBERS.get(key[start:y], 0) < 100]
+    return sorted(set(out), key=lambda x: -x[1])
+
+
+def _rest(key: str, i: int, below: int) -> int | None:
+    """The value of ``key`` from ``i``: groups under a thousand, each but the last before a scale smaller than the
+    one before it ("zesentwintig duizend achthonderd", "un million deux cent mille"); a scale alone counts one."""
+    if i == len(key):
+        return 0
+    for n, z in [*_under_thousand(key, i), (None, i)]:
+        for word, scale in _BIG:
+            if scale < below and key.startswith(word, z):
+                for start in _after_join(key, z + len(word)):
+                    rest = _rest(key, start, scale)
+                    if rest is not None:
+                        return (n or 1) * scale + rest
+        if n is not None and z == len(key):
+            return n
+    return None
+
+
+@lru_cache(maxsize=4096)
+def _value(key: str) -> int | None:
+    return _NUMBERS[key] if key in _NUMBERS else _rest(key, 0, 10**12) if key else None
+
+
+@lru_cache(maxsize=8192)
+def _pieces(word: str) -> bool | None:
+    """Whether a word can be part of a number: it is made of number and scale words only ("zesentwintigduizend",
+    "vingt", "cents"); None if not ("Tienen" is tien and "en", which no number ends with)."""
     w = fold(word).replace("-", "")
-    if w in _SMALL or w in _SCALES:
-        return [w]
-    out, i = [], 0
-    while i < len(w):
-        for m in _MORPHEMES:
-            mm = fold(m)
-            if w.startswith(mm, i):
-                out.append(mm)
-                i += len(mm)
-                break
-        else:
-            return None
-    # a word ending in "en" is no number ("Tienen", "achten"): Dutch number words never end with the joint
-    return out if any(p != "en" for p in out) and out[-1] != "en" else None
+    reach = [True] + [False] * len(w)
+    for z in range(1, len(w) + 1):
+        reach[z] = any(reach[a] and (w[a:z] in _NUMBERS or w[a:z] in _SCALES or w[a:z] in _PARTS) for a in range(max(0, z - _LONGEST), z))
+    return True if w and reach[-1] else None
 
 
 def number(words: list[str]) -> int | None:
     """The value of number words ("zesentwintigduizend achthonderd", "deux mille quatorze", "quatre-vingt-dix",
-    "two hundred and five"), or None when a word isn't part of a number."""
-    pieces: list[str] = []
-    for w in words:
-        for part in fold(w).split("-"):
-            if not part:
-                continue
-            if part in _JOIN:
-                pieces.append("en")
-                continue
-            p = _pieces(part)
-            if p is None:
-                return None
-            pieces += p
-    if not any(p in _SMALL or p in _SCALES for p in pieces):
-        return None
-    total, small = 0, 0
-    for p in pieces:
-        if p == "en":
-            continue
-        if p in _SCALES:
-            scale = _SCALES[p]
-            if scale == 100:
-                small = (small or 1) * 100
-            else:
-                total += (small or 1) * scale
-                small = 0
-        else:
-            n = _SMALL[p]
-            small = small * 20 if n == 20 and small and small % 100 == 4 and p.startswith("vingt") else small + n  # quatre-vingt
-    return total + small
+    "two hundred and five", "negentienhonderd achtennegentig"), or None when they aren't one number. The words are
+    read as one, as the table writes them; a joining word the table doesn't write ("honderd en vijf") is left out."""
+    parts = [p for p in (fold(w).replace("-", "") for w in words) if p]
+    for attempt in (parts, [p for p in parts if p not in _JOIN]):
+        n = _value("".join(attempt)) if attempt and not all(p in _JOIN for p in attempt) else None
+        if n is not None:
+            return n
+    return None
 
 
 # ------------------------------------------------------------------------------- how a document writes decimals
@@ -320,6 +323,8 @@ def _written_dates(text: str) -> list[Found]:
         month = MONTHS.get(fold(t.group(0)))
         if month is None:
             continue
+        if fold(t.group(0)) in _NUMBERS and not text.startswith(".", t.end()) and not (i and words[i - 1].isdigit()):
+            continue  # "sept" is seven before it is September: "quatre-vingt-sept mille huit cent" is no date
         year, last = None, i
         if i + 1 < len(toks) and re.fullmatch(r"\d{4}", words[i + 1]):
             year, last = int(words[i + 1]), i + 1
@@ -396,25 +401,27 @@ def _word_numbers(text: str) -> list[Found]:
         while j + 1 < len(toks) and (_pieces(fold(toks[j + 1].group(0))) is not None
                                      or (fold(toks[j + 1].group(0)) in _JOIN and j + 2 < len(toks)
                                          and _pieces(fold(toks[j + 2].group(0))) is not None)) \
-                and not text[toks[j].end():toks[j + 1].start()].strip(" - "):
+                and (not (gap := text[toks[j].end():toks[j + 1].start()]).strip(" - ")
+                     or (gap.strip() == "," and _SCALES.get(fold(toks[j].group(0)), 0) >= 1000)):  # "two thousand, five hundred"
             j += 1
+        while j > i and number([t.group(0) for t in toks[i:j + 1]]) is None:
+            j -= 1  # the longest run that is one number: "twee, drie of vier" is three
         run = [t.group(0) for t in toks[i:j + 1]]
         start, end, i = toks[i].start(), toks[j].end(), j + 1
-        pieces = [p for w in run for part in fold(w).split("-") if part and part not in _JOIN for p in (_pieces(part) or [])]
-        if len(pieces) == 1 and pieces[0] in _SCALES:  # a scale word alone: "pour cent", "duizend"
+        percent = _PERCENT_AFTER.match(text, end)
+        currency, measure = _measure(text, start, end, bool(percent))
+        if len(run) == 1 and fold(run[0]) in _SCALES and not currency:  # a scale word alone: "pour cent", "duizend"
             continue
         if len(run) == 1 and run[0].lower() in _ARTICLES:
             continue
         if fold(run[-1]) == "acht" and len(run) == 1 and re.search(r"\bin\s+$", text[max(0, start - 4):start], re.IGNORECASE):
             continue
-        if len(run) == 1 and fold(run[0]) == "ten" and text.strip() != run[0] and not _TEN_IS_ENGLISH.search(
+        if len(run) == 1 and fold(run[0]) == "ten" and text.strip() != run[0] and not currency and not _TEN_IS_ENGLISH.search(
                 text[max(0, start - 60):end + 60]):
             continue  # Dutch "ten laste", "ten kadaster": ten only where the text around it is English, or says "(10)"
         n = number(run)
         if n is None:
             continue
-        percent = _PERCENT_AFTER.match(text, end)
-        currency, measure = _measure(text, start, end, bool(percent))
         out.append(Found(start, percent.end() if percent else end, "number", Decimal(n), words=True,
                          currency=currency, percent=bool(percent), approximate=_approximate(text, start), measure=measure))
     return out
