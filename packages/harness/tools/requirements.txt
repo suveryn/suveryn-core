@@ -1,0 +1,4 @@
+# What tools/number_words.py runs with, pinned: the files it writes can be made again and compared.
+num2words==0.5.14
+docopt==0.6.2
+babel==2.18.0

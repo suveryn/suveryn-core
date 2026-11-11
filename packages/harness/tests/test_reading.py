@@ -23,6 +23,8 @@ def test_a_written_form_reads_as_what_it_means(case):
     got = [_shown(f) for f in read(case["written"], case.get("style"))]
     if case.get("nothing"):
         assert got == []
+    elif "numbers" in case:
+        assert got == [("number", n) for n in case["numbers"]]
     elif case.get("no_date"):
         assert not any(k in ("date", "month") for k, _ in got)
     else:
@@ -33,6 +35,19 @@ def test_a_written_form_reads_as_what_it_means(case):
         assert (found.percent, found.approximate) == (case.get("percent", False), case.get("approximate", False))
         if "measure" in case:
             assert found.measure == case["measure"]
+
+
+def test_numbers_as_the_standard_spells_them_are_read():
+    """The reader's number words come from the standard spelling rules (``tools/number_words.py``); here it reads a
+    sample of numbers back as that standard writes them, per language: every number from 2 to 199 and three hundred
+    up to two million. (10 November 2026: read by the hand-written tables, French "cent quatre-vingt" was 2 080.)"""
+    cases = json.loads((Path(__file__).parent / "spelled_numbers.json").read_text(encoding="utf-8"))["cases"]
+    wrong = []
+    for c in cases:
+        got = [int(f.value) for f in read(c["written"] + " euro") if f.kind == "number"]
+        if got != [c["number"]]:
+            wrong.append((c["language"], c["written"], got))
+    assert len(cases) > 2000 and wrong == []
 
 
 def test_positions_point_at_the_written_form():

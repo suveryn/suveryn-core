@@ -1,5 +1,5 @@
 """The harness's modules import one way only (decision of 10 November 2026): what a module may use sits in a lower
-layer. ``values`` reads amounts, numbers and dates for everything above it and uses nothing of the harness, so a
+layer. ``values`` reads amounts, numbers and dates for everything above it and uses only the languages' words, so a
 check, a marking and a playbook's facts can't come to read a figure their own way again."""
 import ast
 from pathlib import Path
@@ -8,6 +8,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "suveryn_harness"
 
 # Lowest first. A module may import only from modules in a lower layer.
 LAYERS = [
+    {"language"},                                                              # each language's words, from its files
     {"values", "identifiers", "schemas", "config", "audit", "usage", "guard", "thinking"},  # reading, shapes, settings
     {"calc", "terms", "grounding", "llm"},                                     # computing, terms, the prompt, the model client
     {"marking"},                                                               # where a claim's support is in its passage
@@ -31,8 +32,9 @@ def test_every_module_has_a_layer():
     assert {p.stem for p in SRC.glob("*.py")} == set().union(*LAYERS)
 
 
-def test_values_uses_nothing_of_the_harness():
-    assert _imports(SRC / "values.py") == set()
+def test_values_uses_only_the_languages_words():
+    assert _imports(SRC / "values.py") == {"language"}
+    assert _imports(SRC / "language.py") == set()
 
 
 def test_imports_go_down_only():

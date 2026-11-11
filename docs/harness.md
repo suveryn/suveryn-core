@@ -89,6 +89,17 @@ when a run is shown, so a correction is marked as corrected and nothing is store
 sentence rules are gone (about 330 lines). Writing this showed two misreadings, both fixed in the one reader with a
 case each: Dutch "ten" ("ten laste", "ten kadaster") was read as the English ten, and "412B" as 41.
 
+**The languages the reader knows.** The words for numbers and the months' names are not typed in the reader. They
+are generated from the standard spelling rules ([`tools/number_words.py`](../packages/harness/tools/number_words.py):
+num2words, Unicode CLDR, pinned) into one file per language, `suveryn_harness/lang/<lang>.numbers.json`, loaded by
+`language.py`: every number under a thousand as written, the scale words, the months. The reader puts the entries
+together (thousands, millions, a year written in hundreds). It is held to 2 490 numbers as the standard spells them
+(`tests/spelled_numbers.json`); read back that way, the tables typed by hand had read French "cent
+quatre-vingt-trois" as 2 083. The languages are read together, because one file mixes them; a word that means two
+different numbers in two languages stops the load. Adding a language: add it to the tool's list, run it, and the
+test for a missing language passes ([translations.md](translations.md)). The libraries are a developer's tools, not
+the appliance's.
+
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
 ## 1. Passages
