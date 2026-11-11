@@ -146,7 +146,10 @@ tested:
   "mixed", or unknown; only amounts and percentages count, never a clause number or a date) and
   travels with its passages (`SourceRef.decimals`). The figure must be in a passage; the documents
   writing it must agree; a "mixed" document says nothing either way. The note under the answer says
-  how such figures were read (`Calculation.read_as`). Decision of 10 November 2026.
+  how such figures were read (`Calculation.read_as`). Decision of 10 November 2026. Where no document
+  settles it, the calculation is still made when both readings give the same result: a part of a whole
+  (`250.000 / 750.000 * 100`) is the same percentage either way (suveryn-tracker#112). A sum or a product
+  differs by the reading and is still refused.
 - **Figures in no passage** (`unverified_figures` in `support.py`). A figure in the answer that is in none of the
   passages, is no calculation's result and wasn't in the question is listed; the interface
   underlines it. The model worked it out or made it up, which it must never do, so the answer is

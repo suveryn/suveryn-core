@@ -155,3 +155,18 @@ def test_a_calculations_figure_is_found_in_a_passage_that_writes_it_otherwise():
     assert "= 422.500,00" in text and calcs[0].figures_not_in_sources == []
     text, calcs = rewrite("Samen [[calc: 412.500,00 + 11.000,00]].", src)
     assert calcs[0].figures_not_in_sources == ["11.000,00"]  # a figure the passage doesn't hold still is
+
+
+def test_a_part_of_a_whole_is_computed_when_either_reading_gives_the_same():
+    """suveryn-tracker#112, from the GPU round of 11 November: "250.000 / 750.000 * 100" was refused, because no
+    document said whether its figures are thousands or decimals, and the person got no percentage. Both readings
+    give 33,33, so it is computed. A sum or a product still differs by the reading and is still refused."""
+    assert evaluate("250.000 / 750.000 * 100", ",")[0] == "33,33"
+    assert evaluate("77.045 / 241.044 * 100", ".")[0] == "31.96"
+    assert evaluate("(750.000 - 250.000) / 750.000 * 100", ",")[0] == "66,67"
+    r = CalcRewriter("Er zijn 250.000 aandelen van de 750.000.", [])
+    assert r.feed("[[calc: 250.000 / 750.000 * 100]]") + r.flush() == "250.000 / 750.000 * 100 = 33,33"
+    assert r.calculations[0].error is None and r.calculations[0].read_as == []
+    for expression in ("250.000 + 750.000", "250.000 * 3", "250.000 / 750"):
+        with pytest.raises(CalcError):
+            evaluate(expression, ",")

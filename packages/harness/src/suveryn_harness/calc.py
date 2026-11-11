@@ -154,24 +154,20 @@ def evaluate(expression: str, default_sep: str | None = None,
     A figure that reads either way ("28.848") is read in the style of the documents that write it
     (``written``: each passage's text with its document's ``decimal_style``): every such figure must be in a
     passage, the documents writing them must agree on one style, and a "mixed" document says nothing either
-    way; otherwise it is refused, as before. The figures read that way are returned as ``read_as``.
+    way. The figures read that way are returned as ``read_as``. Where no document settles it, the calculation is
+    still made when both readings give the same result: a part of a whole ("250.000 / 750.000 * 100") is the same
+    percentage whether its figures are thousands or decimals (suveryn-tracker#112). Otherwise it is refused.
     """
     try:
         try:
             return (*_evaluate(expression, default_sep), [])
         except AmbiguousSeparator:
-            if not written:
-                raise
-            ambiguous = [f for f in re.findall(NUMBER.pattern, expression) if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d{4,}", f)]
-            styles: set[str] = set()
-            for f in ambiguous:
-                where = [style for text, style in written if found_in(f, text)]
-                if not where:
-                    raise  # not written in the excerpts: the model's figure, not a document's
-                styles |= {style for style in where if style in ("comma", "point")}
-            if len(styles) != 1:  # no document settles it, or two disagree
-                raise
-            return (*_evaluate(expression, default_sep, forced="," if styles == {"comma"} else "."), ambiguous)
+            return _as_the_documents_write(expression, default_sep, written or [])
+    except AmbiguousSeparator:
+        same = _the_same_either_way(expression, default_sep)
+        if same is None:
+            raise
+        return (*same, [])
     except CalcError:
         raise
     except (ArithmeticError, ValueError) as e:  # decimal errors (e.g. precision), malformed numbers
@@ -180,9 +176,65 @@ def evaluate(expression: str, default_sep: str | None = None,
         raise CalcError("the calculation is nested too deeply") from None
 
 
-def _evaluate(expression: str, default_sep: str | None, forced: str | None = None) -> tuple[str, list[str]]:
+def _the_same_either_way(expression: str, default_sep: str | None) -> tuple[str, list[str]] | None:
+    """The result when reading the figures with a decimal comma and with a decimal point gives one value; else None.
+    It is written as for whole numbers (the figures read as thousands), with the sources' decimal separator."""
+    try:
+        with localcontext() as ctx:
+            ctx.prec = 60
+            if _value(expression, ",") != _value(expression, "."):
+                return None
+        figures = re.findall(NUMBER.pattern, _plain(expression))
+        grouped_by = "." if any("." in f for f in figures) else ","
+        whole = "," if grouped_by == "." else "."          # the reading in which the figures are whole numbers
+        result, used = _evaluate(expression, default_sep, forced=whole)
+        if default_sep in (",", ".") and default_sep != whole:
+            result = result.translate(str.maketrans(",.", ".,"))
+        return result, used
+    except (CalcError, ArithmeticError, ValueError, RecursionError):
+        return None
+
+
+def _value(expression: str, forced: str) -> Decimal:
+    """The expression's value with ``forced`` as the decimal separator of every figure."""
+    expression = _plain(expression)
+    tokens = []
+    for m in re.finditer(rf"{NUMBER.pattern}|[-+*/()]|\S", expression):
+        tok = m.group(0).strip()
+        if NUMBER.fullmatch(tok):
+            _check_style(tok, forced)
+            tokens.append(("num", _to_decimal(tok, forced)))
+        elif tok in "+-*/()":
+            tokens.append(("op", tok))
+        else:
+            raise CalcError(f"unexpected text in the calculation: {tok!r}")
+    return _Parser(tokens).parse()
+
+
+def _plain(expression: str) -> str:
     expression = expression.replace("×", "*").replace("÷", "/").replace("−", "-")
-    expression = re.sub(r"\b(EUR|USD|GBP)\b|[€$£]", " ", expression)  # a currency next to a figure is fine
+    return re.sub(r"\b(EUR|USD|GBP)\b|[€$£]", " ", expression)  # a currency next to a figure is fine
+
+
+def _as_the_documents_write(expression: str, default_sep: str | None,
+                            written: list[tuple[str, str | None]]) -> tuple[str, list[str], list[str]]:
+    """A figure that reads either way, read in the style of the documents that write it: every such figure must be
+    in a passage and the documents writing them must agree on one style. Raises when that doesn't settle it."""
+    unsettled = AmbiguousSeparator("the figures don't show which separator is the decimal one")
+    ambiguous = [f for f in re.findall(NUMBER.pattern, expression) if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d{4,}", f)]
+    styles: set[str] = set()
+    for f in ambiguous:
+        where = [style for text, style in written if found_in(f, text)]
+        if not where:
+            raise unsettled  # not written in the excerpts: the model's figure, not a document's
+        styles |= {style for style in where if style in ("comma", "point")}
+    if len(styles) != 1:  # no document settles it, or two disagree
+        raise unsettled
+    return (*_evaluate(expression, default_sep, forced="," if styles == {"comma"} else "."), ambiguous)
+
+
+def _evaluate(expression: str, default_sep: str | None, forced: str | None = None) -> tuple[str, list[str]]:
+    expression = _plain(expression)
     figures: list[str] = []
     raw: list[tuple[str, str]] = []
     for m in re.finditer(rf"{NUMBER.pattern}|[-+*/()]|\S", expression):
