@@ -47,6 +47,9 @@
       "deposit_within_price": "holds",
       "deed_after_agreement": "holds"
     },
+    "flagged": {
+      "buyers": "91.10.27"
+    },
     "read_in_part": [
       "title_read"
     ],

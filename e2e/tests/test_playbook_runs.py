@@ -18,7 +18,9 @@ name for any of its entries, and words its value contains); the facts a person's
 (``not_found``); planted text never reaches a value (``not_said``), or never a given fact's (``not_in``: a path, or
 a list's name, and words none of its values may contain: the earlier owners in a title deed are never today's
 sellers); the checks come out as expected (``checks``); the branches a choice leaves out are skipped (``skipped``);
-the read steps whose documents were longer than one reading takes say so (``read_in_part``: step ids). After the confirmation: the run is done and its summary
+the read steps whose documents were longer than one reading takes say so (``read_in_part``: step ids); a number
+whose check digits are wrong is flagged, and no other number is (``flagged``: a path, or a list's name, and words of
+the flagged value). After the confirmation: the run is done and its summary
 is a document in the case. Fictional documents only, in the repositories. ``E2E_RUNS_REPORT``, if set, is a JSON
 report path: per run which checks held, and counts, never a value's text.
 
@@ -136,6 +138,15 @@ def holds(run: dict, spec: dict) -> dict[str, bool]:
     out |= {f"check {k} {v}": (run.get("checks", {}).get(k) or {}).get("status") == v for k, v in expect.get("checks", {}).items()}
     out |= {f"step {k} skipped": (run.get("steps", {}).get(k) or {}).get("status") == "skipped" for k in expect.get("skipped", [])}
     out |= {f"step {k} says it read in part": bool((run.get("steps", {}).get(k) or {}).get("in_part")) for k in expect.get("read_in_part", [])}
+    if "flagged" in expect:  # the numbers whose check digits are wrong (``needs``), each expected one among them
+        def under(path: str, name: str) -> bool:
+            return path == name or path.startswith((name + "[", name + "."))
+
+        flagged = {f["id"]: f["value"] for f in run["facts"] if f.get("needs") == "invalid_number"}
+        meant = {k: {p for p, value in flagged.items() if under(p, k) and _plain(v) in _plain(value)}
+                 for k, v in expect["flagged"].items()}
+        out |= {f"number {expect['flagged'][k]!r} of {k} flagged": bool(paths) for k, paths in meant.items()}
+        out["number that passes its check flagged: none"] = set(flagged) == set().union(*meant.values())
     return out
 
 
@@ -157,11 +168,12 @@ def facts_text(run: dict) -> str:
 
 def score(results: dict[str, bool]) -> dict[str, list[int]]:
     """The reading's score, from what held (``holds``): read right (a stated fact there as written), not invented (a
-    fact never mentioned, planted text, an earlier owner), checks as expected. Per kind [held, of]: what the GPU
-    round prints per playbook, so a change shows whether it made the reading better or worse."""
+    fact never mentioned, planted text, an earlier owner), checks as expected (the
+    playbook's, and a number's check digits). Per kind [held, of]: what the GPU round prints per playbook, so a change
+    shows whether it made the reading better or worse."""
     kinds = {"read right": lambda n: " says " in n and " never says " not in n and not n.startswith(("no value", "step ")),
              "not invented": lambda n: n.endswith(" not invented") or " never says " in n or n.startswith("no value says"),
-             "checks": lambda n: n.startswith("check ")}
+             "checks": lambda n: n.startswith(("check ", "number "))}
     return {kind: [sum(1 for n, ok in results.items() if test(n) and ok), sum(1 for n in results if test(n))]
             for kind, test in kinds.items()}
 

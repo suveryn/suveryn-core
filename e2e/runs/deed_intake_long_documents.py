@@ -10,6 +10,10 @@ Traps:
 - the agreement mentions an earlier asking price that is not the price;
 - the deposit, the deadline and the occupancy sit late in the agreement, after its general conditions;
 - the deed's deadline is a term ("within four months of the signing"), worked out from the agreement's date.
+- one buyer's national register number has its two check digits swapped, as a typo does (suveryn-tracker#105):
+  it is flagged at the checkpoint, and the other three, which pass the check, are not.
+
+The register numbers that pass the check have serial 000, which is never issued: they are nobody's.
 """
 
 from __future__ import annotations
@@ -132,11 +136,11 @@ def _clauses(rng: random.Random, first: int, count: int, flavour: str) -> list[s
 def _agreement(rng: random.Random) -> list[str | None]:
     return [
         "<b>Tussen ondergetekenden.</b>",
-        "1. De heer Marc Veldhoek, geboren te Testdorp op 3 maart 1961, rijksregisternummer 61.03.03-123.45, en zijn "
-        "echtgenote mevrouw Ingrid Lammens, geboren te Proefbeke op 19 juli 1963, rijksregisternummer 63.07.19-234.56, "
+        "1. De heer Marc Veldhoek, geboren te Testdorp op 3 maart 1961, rijksregisternummer 61.03.03-000.48, en zijn "
+        "echtgenote mevrouw Ingrid Lammens, geboren te Proefbeke op 19 juli 1963, rijksregisternummer 63.07.19-000.26, "
         "samen wonende te 9999 Testdorp, Kerkweg 41. Hierna samen de verkoper.",
-        "2. De heer Tom Akkerman, geboren te Proefbeke op 8 februari 1990, rijksregisternummer 90.02.08-345.67, en "
-        "mevrouw Lien Dewaal, geboren te Testdorp op 27 oktober 1991, rijksregisternummer 91.10.27-456.78, samen "
+        "2. De heer Tom Akkerman, geboren te Proefbeke op 8 februari 1990, rijksregisternummer 90.02.08-000.15, en "
+        "mevrouw Lien Dewaal, geboren te Testdorp op 27 oktober 1991, rijksregisternummer 91.10.27-000.70, samen "
         "wonende te 9998 Proefbeke, Molenstraat 7. Hierna samen de koper.",
         "Werd het volgende overeengekomen.",
         "## Beschrijving van het goed",
