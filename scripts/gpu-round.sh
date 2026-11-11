@@ -11,6 +11,9 @@
 #   OWN_RUNS=/workspace/own-runs bash scripts/gpu-round.sh  # run specs on your own files too, kept outside the
 #                                             # repositories; a spec with "show_facts": true writes what was read to
 #                                             # results/facts/<run>.txt, for you, never to the summary
+#   MEANING=1 bash scripts/gpu-round.sh       # also: the model judging the planted-error benchmark's answers, beside
+#                                             # the rules (an experiment; MEANING=2: once more with thinking;
+#                                             # ONLY_MEANING=1: nothing but that, a few minutes)
 #   OWN_QUESTIONS=/workspace/own-questions bash scripts/gpu-round.sh  # questions about your own files (test_answers_e2e.py:
 #                                             # <name>.json beside its files); answers in results/answers/, for you
 #
@@ -33,6 +36,7 @@ COMPARE="${COMPARE:-}"                      # another llama.cpp tag to compare, 
 RUNS="${RUNS:-1}"                           # the playbook runs through the gateway (4. above)
 PACKS="${PACKS:-}"                          # a suveryn-packs checkout, for its playbooks' runs
 OWN_RUNS="${OWN_RUNS:-}"                    # a folder of run specs on your own files (never in a repository)
+MEANING="${MEANING:-${ONLY_MEANING:-0}}"                     # 1: the meaning experiment too (harness/tests/meaning_experiment.py); 2: and again with thinking
 OWN_QUESTIONS="${OWN_QUESTIONS:-}"          # a folder of your own files with questions about them (never in a repository)
 KC_VERSION=26.8.1                           # suveryn-appliance provision/versions.json
 KC_SHA256=4e2740b181faa2ea623a1c2ecf00855935311e546046e2f857615a47ed24cbe8
@@ -176,6 +180,19 @@ for tag in $LLAMA_TAG $COMPARE; do
   serve "$tag"
   nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -lms 500 > "$RESULTS/memory-$tag.csv" &
   MEM_PID=$!
+  if [ "$tag" = "$LLAMA_TAG" ] && [ "$MEANING" != 0 ]; then
+    step "meaning experiment"
+    set +e
+    : > "$RESULTS/meaning.txt"
+    for prompt in ${MEANING_PROMPTS:-same follows kind}; do
+      uv run python packages/harness/tests/meaning_experiment.py --url "http://127.0.0.1:$PORT" --prompt "$prompt" \
+        --out "$RESULTS/meaning-$prompt.json" | tee -a "$RESULTS/meaning.txt"
+    done
+    [ "$MEANING" = 2 ] && uv run python packages/harness/tests/meaning_experiment.py --url "http://127.0.0.1:$PORT" \
+      --prompt "${MEANING_THINKING_PROMPT:-kind}" --thinking --out "$RESULTS/meaning-thinking.json" | tee -a "$RESULTS/meaning.txt"
+    set -e
+  fi
+  if [ "${ONLY_MEANING:-0}" = 1 ]; then stop_all; continue; fi
   [ "$tag" = "$LLAMA_TAG" ] && run_test "reader-$tag" test_e2e.py
   rm -rf "$RESULTS/answers"  # your own questions' answers, this round's only
   run_test "answers-$tag" test_answers_e2e.py SUVERYN_EVAL_REPORT="$RESULTS/answers-$tag.json" \
@@ -195,7 +212,9 @@ step "summary"
     tag="$(basename "$csv" .csv)"; tag="${tag#memory-}"
     echo "llama.cpp $tag (${LLAMA_COMMIT[$tag]:0:7}): peak $(sort -n "$csv" | tail -1) MiB used"
   done
+  [ "$MEANING" != 0 ] && [ -f "$RESULTS/meaning.txt" ] && cat "$RESULTS/meaning.txt"
   for xml in "$RESULTS"/*.xml; do
+    [ -f "$xml" ] && [ "${ONLY_MEANING:-0}" != 1 ] || continue
     name="$(basename "$xml" .xml)"
     uv run python - "$xml" "$name" "${RC[$name]:-?}" <<'PY'
 import sys, xml.etree.ElementTree as ET
@@ -206,6 +225,7 @@ print(f"{sys.argv[2]}: {t - f - e - k} passed, {f} failed, {e} errors, {k} skipp
 PY
   done
   for log in "$RESULTS"/reader-*.log; do
+    [ -f "$log" ] || continue
     echo "out of memory in $(basename "$log"): $(grep -ci 'out of memory' "$log" || true)"
   done
   for j in "$RESULTS"/answers-*.json; do
