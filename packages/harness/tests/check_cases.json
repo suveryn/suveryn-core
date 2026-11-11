@@ -499,6 +499,71 @@
     }
    ],
    "answer": "Le vendeur doit délivrer le bien libre d'occupation [1]."
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "Tussen de heer Wout Claessens, hierna de Koper, en mevrouw Nele Baert, hierna de Verkoper, wordt het Goed verkocht.",
+     "decimals": null
+    },
+    {
+     "text": "De Prijs bedraagt 310.000,00 EUR en is betaalbaar bij het verlijden van de Akte.",
+     "decimals": null
+    }
+   ],
+   "answer": "De heer Wout Claessens koopt het Goed van mevrouw Nele Baert [1]. De Koper betaalt de Prijs van 310.000,00 EUR bij het verlijden van de Akte [2].",
+   "name": "Claessens",
+   "why": "a defined term (de Koper) that is in another passage than the one cited is no name (suveryn-tracker#108)"
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "La Partie qui cède ses Actions en informe le Mandataire par écrit. Le Mandataire en avise les autres Parties dans les dix jours.",
+     "decimals": null
+    }
+   ],
+   "answer": "De Partij die haar aandelen overdraagt, brengt de Mandataris schriftelijk op de hoogte [1]. De Mandataris verwittigt de andere partijen [1].",
+   "why": "a Dutch answer on a French passage: Partij is no misspelling of Partie, nor Mandataris of Mandataire"
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "An Active Shareholder works full time for the Company. A Passive Shareholder does not. The Director calls the meeting of the Shareholders.",
+     "decimals": null
+    }
+   ],
+   "answer": "Een Actieve Aandeelhouder werkt voltijds voor de vennootschap, een Passieve Aandeelhouder niet [1]. De Directeur roept de vergadering bijeen [1].",
+   "why": "a Dutch answer on an English passage: Actieve, Passieve and Directeur are translations, not misspelled names"
+  },
+  {
+   "lang": "nl",
+   "passages": [
+    {
+     "text": "De Aandeelhouders beslissen met gewone meerderheid. De Oprichters hebben geen bijzondere rechten.",
+     "decimals": null
+    }
+   ],
+   "answer": "Een Aandeelhouder beslist mee met gewone meerderheid; een Oprichter heeft geen bijzondere rechten [1].",
+   "why": "the singular of a defined term the passage writes in the plural"
+  },
+  {
+   "lang": "fr",
+   "passages": [
+    {
+     "text": "Entre Monsieur Luc Fontaine, ci-après l'Acheteur, et Madame Anne Renard, ci-après le Vendeur.",
+     "decimals": null
+    },
+    {
+     "text": "Le Prix est payable à la signature de l'Acte, par virement sur le compte du notaire.",
+     "decimals": null
+    }
+   ],
+   "answer": "Monsieur Luc Fontaine achète le bien à Madame Anne Renard [1]. L'Acheteur paie le Prix à la signature de l'Acte [2].",
+   "name": "Fontaine",
+   "why": "French defined terms, one written with an elided article"
   }
  ]
 }

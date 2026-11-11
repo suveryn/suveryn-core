@@ -6,6 +6,12 @@
  "one": [
   "een"
  ],
+ "articles": [
+  "de",
+  "het",
+  "een",
+  "'t"
+ ],
  "ordinals": {
   "eerste": 1,
   "derde": 3

@@ -31,7 +31,7 @@ model call, say what they found, and can have an answer asked again once. They r
 through one reader (`values.py`), so two checks can't disagree about the same text.
 
 What rules can't see is measured, not guessed. On the planted-error benchmark they catch every changed amount, date,
-percentage, misspelled name and wrong source, and flag no correct answer of 40. They catch none of a "not" taken
+percentage, misspelled name and wrong source, and flag no correct answer of 45. They catch none of a "not" taken
 out or put in, of the other party named, or of ten wrong answers written by hand that no figure shows ("at the
 latest" told as "at the earliest", informing told as obtaining).
 

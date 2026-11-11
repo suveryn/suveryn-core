@@ -89,3 +89,28 @@ def test_a_date_in_the_older_notarial_form_is_read_as_a_date():
     assert check("L'acte date du 23 mars 1996 [2].") == []
     assert check("Ondertekend op 25 juni 2003 [3].") == []
     assert check("De akte werd verleden op 24/03/1996 [1].") != []  # a wrong day is still flagged
+
+
+def test_a_contracts_defined_term_is_no_name():
+    """suveryn-tracker#108, from real contracts: a capitalised defined term ("de Koper") was checked as a name, and a
+    translated or inflected word as a misspelled one ("Partij" for the French "Partie", "Aandeelhouder" for
+    "Aandeelhouders"). A person's name is still checked: in the wrong passage, or misspelled."""
+    from suveryn_harness.support import _terms
+
+    passages = ["Tussen de heer Jan Peeters, hierna de Koper, en mevrouw Els Maes, hierna de Verkoper. De Verkoper verkoopt aan de Koper het Goed.",
+                "De Prijs bedraagt 250.000 euro, betaalbaar bij de Akte.",
+                "De heer De Smet en de heer Jan de Smet tekenen. Notaris De Smet bevestigt.",
+                "La Partie qui cède ses Actions en informe le Mandataire. De Aandeelhouders beslissen."]
+    cited = [Citation(text=t) for t in passages]
+    terms = _terms("\n".join(passages))
+    assert {"koper", "verkoper", "goed", "prijs", "akte", "partie", "mandataire", "aandeelhouders"} <= terms
+    assert not {"peeters", "maes", "smet"} & terms  # a name after "de heer", or with "de" inside it, is no term
+
+    def flagged(answer):
+        return [i.item for i in citation_issues(answer, cited, [])]
+
+    assert flagged("De Koper betaalt de Prijs van 250.000 euro bij de Akte [2].") == []
+    assert flagged("De Partij brengt de Mandataris op de hoogte [4]. Een Aandeelhouder beslist mee [4].") == []
+    assert flagged("De Verkoper is Els Maes [2].") == ["Maes"]                    # the name is in passage 1
+    assert flagged("Jan Peters is de Koper [1].") == ["Peters"]                   # a name misspelled
+    assert flagged("Notaris De Smet bevestigt de verkoop [2].") == ["Notaris", "Smet"]
