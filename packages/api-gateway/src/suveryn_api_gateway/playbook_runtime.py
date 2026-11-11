@@ -21,12 +21,14 @@ in the run's language, from the pack's wording; people's turns are written by th
 from __future__ import annotations
 
 import logging
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 
 from suveryn_harness.checks import evaluate
 from suveryn_harness.facts import RunFact, option_of
 from suveryn_playbooks import Playbook, Step, entry, root
+from suveryn_playbooks.paths import MAX_ENTRIES, split
 from suveryn_playbooks.conditions import parse_when
 from suveryn_playbooks.rules import parse_rule
 from suveryn_rag.store import Scope
@@ -276,9 +278,10 @@ class Runtime:
         don't contain it (not_established). A read again after a document came later (``add_documents``): a fact it
         doesn't find, or finds as it stands, keeps its version; one only read so far, or left empty, takes the new
         reading; one a person confirmed or answered keeps that value, and the new reading waits beside it (``competes``) until a person
-        chooses at the checkpoint: a later document isn't always the right one (decision of 10 November 2026)."""
+        chooses at the checkpoint: a later document isn't always the right one (decision of 10 November 2026). A list's
+        entries are first matched to the run's by who they are, never by their place (``align_entries``)."""
         rows = []
-        for f in facts:
+        for f in align_entries(playbook, facts, current):
             if root(f.id) not in step.facts:
                 continue
             now = current.get(f.id)
@@ -473,6 +476,68 @@ class Runtime:
 
 
 # ------------------------------------------------------------------ a reading again (``Runtime.read_rows``)
+
+def align_entries(playbook: Playbook, facts: list[RunFact], current: dict[str, dict]) -> list[RunFact]:
+    """A list read again, its entries renumbered to the run's (suveryn-tracker#107). A later document may name the same
+    people in another order; compared by place, the second founder there met the second founder here, another person.
+    An entry is the run's entry when a number with check digits agrees (a field with ``format``: the register number),
+    else when its first field does (the name, its words in any order and case); each of the run's entries is matched
+    once. An entry that matches none is new: it takes the next free number. A list the run has no entries of, and a
+    plain fact, pass as read."""
+    out: list[RunFact] = []
+    lists: dict[str, dict[int, dict[str | None, RunFact]]] = {}
+    for f in facts:
+        list_id, index, field_id = split(f.id)
+        fact = playbook.fact(list_id) if list_id else None
+        if index is None or fact is None or fact.kind != "list":
+            out.append(f)
+        else:
+            lists.setdefault(list_id, {}).setdefault(index, {})[field_id] = f
+    for list_id, entries in lists.items():
+        fact = playbook.fact(list_id)
+        have: dict[int, dict[str | None, str]] = {}
+        for path, version in current.items():
+            r, index, field_id = split(path)
+            if r == list_id and index is not None and version["value"].strip():
+                have.setdefault(index, {})[field_id] = version["value"]
+        numbers = [x.id for x in fact.fields if x.format]
+        first = fact.fields[0].id if fact.fields else None
+        free = sorted(have)
+        placed: dict[int, int] = {}
+        for key, same in ((numbers, _same_number), ([first], _same_words)):
+            for index in sorted(entries):
+                if index in placed:
+                    continue
+                mine = {k: e.value for k, e in entries[index].items() if e.found}
+                match = next((h for h in free if any(k in mine and k in have[h] and same(mine[k], have[h][k]) for k in key)), None)
+                if match is not None:
+                    placed[index] = match
+                    free.remove(match)
+        after = max(have, default=0)
+        for index in sorted(entries):
+            if index not in placed:
+                after += 1
+                placed[index] = after
+        for index in sorted(entries, key=placed.get):
+            if placed[index] > MAX_ENTRIES:
+                continue  # more entries than a list holds: not written, as a first read's aren't
+            out += [e.model_copy(update={"id": entry(list_id, placed[index], field_id)}) for field_id, e in entries[index].items()]
+    return out
+
+
+def _same_number(a: str, b: str) -> bool:
+    """Two numbers with check digits are the same number: their digits agree, however they are written."""
+    x, y = "".join(ch for ch in a if ch.isdigit()), "".join(ch for ch in b if ch.isdigit())
+    return bool(x) and x == y
+
+
+def _same_words(a: str, b: str) -> bool:
+    """Two names are the same: the same words, in any order, case and accents set aside ("PEETERS Jan", "Jan Peeters")."""
+    def words(text: str) -> list[str]:
+        plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().casefold()
+        return sorted("".join(ch if ch.isalnum() else " " for ch in plain).split())
+    return bool(words(a)) and words(a) == words(b)
+
 
 def same_value(a: str, b: str, kind: str = "text") -> bool:
     """Two readings say the same: equal once spaces and case are set aside, or, for an amount, a number or a date,
