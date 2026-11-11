@@ -7,11 +7,21 @@ Start with the private [suveryn-handbook](https://github.com/suveryn/suveryn-han
 | To understand | Read |
 |---|---|
 | What exists, data flow, where confidential data lives, invariants, decisions with evidence, known limitations, the review checklist | [docs/architecture.md](docs/architecture.md) |
-| The grounded prompt, injection handling, server-side calculation, citation checks | [docs/harness.md](docs/harness.md) |
+| The grounded prompt, injection handling, server-side calculation, citation checks | [docs/harness.md](docs/harness.md); what rules check, where each language's words live, and what is proposed for meaning: [docs/design/answer-checks.md](docs/design/answer-checks.md) |
 | The chat interface, screen by screen; sources, playbook messages, administration | [docs/design/chat-ui.md](docs/design/chat-ui.md), [docs/design/admin.md](docs/design/admin.md) |
 | Cases, playbooks, the platform's order of work | [docs/design/cases.md](docs/design/cases.md), [docs/design/playbooks.md](docs/design/playbooks.md), [docs/design/platform.md](docs/design/platform.md); templates, proposed: [docs/design/templates.md](docs/design/templates.md) |
 | Languages and copy rules | [docs/translations.md](docs/translations.md) |
 | Each package | its `README.md` under `packages/` |
+
+## Before you start
+
+<!-- shared: copied from suveryn-handbook/context/claude-md-shared.md; change it there, never here -->
+
+1. **Read the handbook's [*Start here*](https://github.com/suveryn/suveryn-handbook/blob/main/context/development-context.md#start-here)** before any work: the design principles, the project's words, how a change reaches `main`. If you can't open it, stop and say so. In a long session, read it again when the conversation has been summarised.
+2. **One issue, one branch, one PR.** The change has an issue in suveryn-tracker and the branch is named for it. No branch is built on an unmerged branch. A coding agent never pushes: it delivers its branch into the founder's local clone without switching that clone's branch, and only the founder pushes and merges.
+3. **Before you ask for a merge**, say which design principle the change bends, if any, and why. A bent principle needs the founder's decision in the handbook before the merge.
+
+<!-- /shared -->
 
 ## Rules
 
@@ -25,7 +35,8 @@ The handbook's [design principles](https://github.com/suveryn/suveryn-handbook/b
 - **Failures:** the server sends a failure as a code, and the page words it in the reader's language (`failureWords`, `i18n/`).
 - **Screens:** built from the kit in `packages/chat-ui/src/ui/` (React Aria underneath); product components never import React Aria directly, and icons come through the kit. The end-to-end scenarios find every control by its role and name. A screen follows its design board (the handbook's [decision of 6 November](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-06-design-to-code.md)); a change to it updates its preview (`packages/chat-ui/src/preview/`, the README's *Screen previews*) and, once the board agrees, its baseline screenshot (the label *remake the baselines* on the PR; CI commits it) in the same PR; CI fails a screen that moved without one.
 - **Brand:** copied from suveryn-brand at a pinned commit (`brand-lock.json`, `npm run brand:sync`); colours are `oklch(from var(--token) …)`, text sizes the brand's named styles, and spacing is on the brand's 4 px grid (`--space-*` tokens where one exists; the guidelines' *Spacing: a 4 px grid*). Tests fail on a new hex, a font-size literal, or a spacing value off the grid (`src/styles/grid.test.ts`).
-- **Copy and languages:** [docs/translations.md](docs/translations.md) says where every string lives; `src/i18n/rules.ts` checks each against the brand's wording rules, and a missing language fails the build.
+- **Copy and languages:** [docs/translations.md](docs/translations.md) says where every string lives; `src/i18n/rules.ts` checks each against the brand's wording rules, and a missing language fails the build. The words the harness reads in documents (numbers in words, months, abbreviations) follow the same rule: `packages/harness/src/suveryn_harness/lang/<lang>.json`, none in its code, and a test fails on one.
+- **One place:** each thing is known in one place: one reader of amounts and dates (`values.py`), one marking, one list of languages. Where the browser must know what the server knows, one shared case file tests both. Code nothing uses is removed.
 
 ## Verify
 
