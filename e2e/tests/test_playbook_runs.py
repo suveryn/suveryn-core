@@ -38,6 +38,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import sys
 import time
 import uuid
@@ -59,6 +60,7 @@ for runs_dir in filter(None, os.environ.get("E2E_RUNS_DIR", "").split(os.pathsep
 # 5 November: two runs failed on them).
 SPECS = [p for p in SPECS if not p.name.startswith(".")]
 REPORT: dict[str, dict] = {}
+BUILT: set[Path] = set()   # the run folders whose documents this session built
 READ_TIMEOUT_S = 900   # a read with the real model: tens of seconds; the first one also waits for the documents
 
 
@@ -119,9 +121,13 @@ def upload(api: Api, case_id: str, path: Path) -> str:
 
 
 def documents_for(spec: dict, spec_path: Path) -> Path:
-    """The spec's fictional documents, built once into the stack's run folder."""
+    """The spec's fictional documents, built once per test session into the stack's run folder. Never kept from an
+    earlier session: a GPU machine keeps its volume, and the round of 11 November 2026 read documents built before
+    their builder changed."""
     folder = RUN / "runs" / spec_path.stem
-    if not folder.exists() or not any(folder.iterdir()):
+    if folder not in BUILT:
+        BUILT.add(folder)
+        shutil.rmtree(folder, ignore_errors=True)
         folder.mkdir(parents=True, exist_ok=True)
         module = spec_path.parent / spec["build"]
         sys.path.insert(0, str(E2E.parent / "packages" / "rag" / "tests"))  # trap_deed, for core's own specs
