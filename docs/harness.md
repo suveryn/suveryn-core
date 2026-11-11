@@ -84,9 +84,12 @@ num2words, Unicode CLDR, pinned) into one file per language, `suveryn_harness/la
 together (thousands, millions, a year written in hundreds). It is held to 2 490 numbers as the standard spells them
 (`tests/spelled_numbers.json`); read back that way, the tables typed by hand had read French "cent
 quatre-vingt-trois" as 2 083. The languages are read together, because one file mixes them; a word that means two
-different numbers in two languages stops the load. Adding a language: add it to the tool's list, run it, and the
-test for a missing language passes ([translations.md](translations.md)). The libraries are a developer's tools, not
-the appliance's.
+different numbers in two languages stops the load. What no standard holds is in one short file per language written by hand, `lang/<lang>.json`: lists of
+words and phrases a translator can read (the joining words, abbreviations, units, the words for "about" and "not
+found", what reads as a number but isn't one, the words of text that addresses an AI), never patterns; the code
+makes its patterns from them. The harness's code holds no word of a language, and a test keeps it so
+(`tests/test_language.py`). Adding a language: [translations.md](translations.md). The libraries are a developer's
+tools, not the appliance's.
 
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 

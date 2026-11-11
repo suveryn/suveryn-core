@@ -61,6 +61,7 @@ def table(locales: list[str]) -> dict:
     parts: set[str] = set()
     scales: dict[str, int] = {}
     months: dict[str, int] = {}
+    in_a_date = [name for _, name in sorted(get_month_names("wide", locale=locales[0]).items())]  # as a date is written out
     for locale in locales:
         for n in range(1000):
             written = num2words(n, lang=locale)
@@ -78,7 +79,8 @@ def table(locales: list[str]) -> dict:
             for month, name in get_month_names(width, locale=locale).items():
                 months.setdefault(fold(name).rstrip("."), month)
     parts -= set(numbers) | set(scales) | JOINS
-    return {"numbers": dict(sorted(numbers.items())), "parts": sorted(parts), "scales": dict(sorted(scales.items())), "months": dict(sorted(months.items()))}
+    return {"numbers": dict(sorted(numbers.items())), "parts": sorted(parts), "scales": dict(sorted(scales.items())), "months": dict(sorted(months.items())),
+            "months_written": in_a_date}
 
 
 def spelled() -> list[dict]:

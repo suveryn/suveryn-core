@@ -12,6 +12,7 @@ so llama-server's prompt cache can reuse everything before the question.
 import re
 
 from .guard import ZWSP, neutralise
+from .language import WORDS
 from .schemas import ChatMessage, Citation
 
 GROUNDED_INSTRUCTIONS = (
@@ -40,8 +41,9 @@ GROUNDED_INSTRUCTIONS = (
 
 # How to address the person: a notary's office writes formally (Pod check of f0ff96c: a plain answer
 # in Dutch said "je" and "jouw"). The same sentence for grounded and plain answers.
-REGISTER = ("Answer in the language of the question, concisely. Address the person formally: in Dutch "
-            "with \"u\" and \"uw\", never \"je\" or \"jouw\"; in French with \"vous\".")
+# How to address a person formally is said per language, in its file ("formal_address"); English has no formal form.
+REGISTER = ("Answer in the language of the question, concisely. Address the person formally: "
+            + "; ".join(t["formal_address"] for t in WORDS.values() if t["formal_address"]) + ".")
 GROUNDED_INSTRUCTIONS = GROUNDED_INSTRUCTIONS.replace("{register}", REGISTER)
 
 # A plain answer (no documents): only how to answer, nothing about sources.

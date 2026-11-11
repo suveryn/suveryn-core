@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from .schemas import Citation, SupportSpan
+from .language import any_of, words
 from .values import Style, decimal_style, read
 
 # ---------------------------------------------------------------------------------------------- facts
@@ -72,10 +73,7 @@ def cited_style(citations: list[Citation]) -> Style:
 # ------------------------------------------------------------------------------------------- sentences
 
 # Abbreviations whose full stop doesn't end a sentence. A single capital is an initial ("J. Peeters").
-ABBREVIATIONS = set(
-    "art artt nr nrs no nos n° bv b.v vb zgn enz e.a e.g i.e cf vgl al par hfst hfdst afd blz p pp ca resp "
-    "dhr mevr mr mme mlle me dr prof st ste ir ing lic jr sr vs viz approx fig tab vol "
-    "jan feb febr mrt apr jun jul aug sep sept okt oct nov dec".split())
+ABBREVIATIONS = set(words("abbreviations"))
 ABBREVIATION = re.compile(r"(?<![^\W\d_])(?<![°.])((?:[^\W\d_]|°)(?:[^\W\d_]|[°.])*)\.\Z")
 
 
@@ -153,11 +151,7 @@ def sentence_ranges(passage: str) -> list[tuple[int, int]]:
 # --------------------------------------------------------------------------------------- support
 
 # Words that say nothing about which sentence a claim comes from (Dutch, French, English).
-STOP = set((
-    "de het een en van in op te voor met aan is zijn was werd wordt worden door bij als dat die dit deze om tot "
-    "uit naar ook niet maar of er over na hij zij ze we wij u uw hun haar zijn heeft hebben had kan zal zou moet "
-    "le la les un une des du et en au aux est sont par pour sur dans que qui avec ce cette ces il elle "
-    "the a an and of in on to for with is are was were by as that this these from at it be has have").split())
+STOP = set(words("stop_words"))
 _HYPHEN = re.compile(r"([^\W\d_])-[ \t]*\n\s*([^\W\d_])")
 
 
@@ -247,7 +241,7 @@ def _trim_lines(passage: str, a: int, z: int, claims: list[set[str]]) -> tuple[i
 
 # ------------------------------------------------------------------------------------------ terms
 
-PARTICLE = r"(?:van|von|de|der|den|het|ter|ten|te|op|in|'t|du|des|le|la|les|di|da|del|della|d'|l')"
+PARTICLE = any_of(words("name_particles"))  # lower-case words inside a name: "Eric Van de Plas", "Pierre du Pont"
 NAME_WORD = r"(?:[dDlL]['’])?[A-ZÀ-Þ](?:[^\W\d_]|['’-])+"
 NAME = re.compile(NAME_WORD + r"(?:\s+(?:" + PARTICLE + r"\s+)*" + NAME_WORD + ")*")
 FIGURE = re.compile(r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d+(?:[.,\u00a0\u202f]\d+)+|(?<![A-Za-z0-9_])(?:1[89]|20)\d\d(?![A-Za-z0-9_])|\d{5,}")

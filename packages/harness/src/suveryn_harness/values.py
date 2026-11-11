@@ -26,7 +26,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from .language import NUMBER_WORDS, together
+from .language import NUMBER_WORDS, any_of, table, together, words
 
 # The words for numbers and the months' names come from the languages' files (``language``), generated from the
 # standard spelling rules: every number under a thousand as written, the scale words, the months. None is typed here.
@@ -37,8 +37,10 @@ _PARTS = {p for table in NUMBER_WORDS.values() for p in table["parts"]}  # in a 
 _HUNDREDS = [w for w, n in _SCALES.items() if n == 100]
 _BIG = sorted(((w, n) for w, n in _SCALES.items() if n > 100), key=lambda x: -len(x[0]))
 _LONGEST = max(map(len, _NUMBERS))
-_JOIN = {"en": "en", "et": "et", "and": "and"}
-_ORDINALS = {"eerste": 1, "premier": 1, "1er": 1, "first": 1, "derde": 3, "troisieme": 3}
+_JOIN = set(words("joins"))            # between the parts of a number: "vingt et un", "two hundred and five"
+_ORDINALS = table("ordinals")          # a day written as an ordinal word
+_DAY_ENDING = any_of(words("ordinal_endings"))            # after a day in figures: "1er", "12th", "3e"
+_ORDINAL_WORD_ENDING = re.compile(any_of(words("ordinal_word_endings")) + "$") if words("ordinal_word_endings") else None
 _TOKEN = re.compile(r"[^\W_]+|€", re.UNICODE)
 
 
@@ -199,22 +201,17 @@ _LETTER = r"[^\W\d_]"
 # space between groups of three ("1 250"), never by any space ("2021 12" is two numbers).
 _FIGURE = re.compile(_NOT_AFTER_WORD + r"(?:\d{1,3}(?:[    ]\d{3})+(?!\d)|\d+)(?:[.,]\d+)*(?!\d|" + _LETTER + ")")
 # Scale words after a figure: "1,2 miljoen", "two million", "3 mio".
-_FIGURE_SCALES = {"duizend": 10**3, "mille": 10**3, "thousand": 10**3, "miljoen": 10**6, "miljoenen": 10**6,
-                  "million": 10**6, "millions": 10**6, "mio": 10**6, "mln": 10**6, "miljard": 10**9, "milliard": 10**9,
-                  "milliards": 10**9, "billion": 10**9, "mld": 10**9}
-_SCALE_AFTER = re.compile(r"[   ]*(" + "|".join(_FIGURE_SCALES) + r")\.?(?!" + _LETTER + ")", re.IGNORECASE)
-_CURRENCY = r"(euros?|eur|€|usd|us\$|\$|dollars?|gbp|£|pounds?)"
+_FIGURE_SCALES = table("figure_scales")
+_SCALE_AFTER = re.compile(r"[   ]*(" + any_of(_FIGURE_SCALES)[3:-1] + r")\.?(?!" + _LETTER + ")", re.IGNORECASE)
+# A currency at a number: its sign or code (the same in every language) or its word.
+_CURRENCIES = {"eur": "EUR", "€": "EUR", "usd": "USD", "us$": "USD", "$": "USD", "gbp": "GBP", "£": "GBP", **table("currencies")}
+_CURRENCY = "(" + any_of(_CURRENCIES)[3:-1] + ")"
 _EURO_AFTER = re.compile(r"\s*" + _CURRENCY + r"(?![^\W_])", re.IGNORECASE)
 _EURO_BEFORE = re.compile(r"(?<![^\W_])" + _CURRENCY + r"\s*$", re.IGNORECASE)
-_CURRENCIES = {"euro": "EUR", "euros": "EUR", "eur": "EUR", "€": "EUR", "usd": "USD", "us$": "USD", "$": "USD", "dollar": "USD",
-               "dollars": "USD", "gbp": "GBP", "£": "GBP", "pound": "GBP", "pounds": "GBP"}
-_AREA_AFTER = re.compile(r"\s*(?:m²|m2\b|ha\b|vierkante\s+meters?\b|mètres?\s+carrés?\b|square\s+met(?:er|re)s?\b|sq\.?\s?m\b)", re.IGNORECASE)
+_AREA_AFTER = re.compile(r"\s*(?:m²|m2\b|ha\b|" + any_of(words("areas")) + r"\b)", re.IGNORECASE)
 _WORD_AFTER = re.compile(r"\s+([^\W\d_]+)")
 # A time a number counts, by the word right after it ("6 weken", "trois mois", "30 days"); working days are days here
-_TIMES = {**dict.fromkeys(("dag", "dagen", "werkdag", "werkdagen", "jour", "jours", "day", "days"), "day"),
-          **dict.fromkeys(("week", "weken", "semaine", "semaines", "weeks"), "week"),
-          **dict.fromkeys(("maand", "maanden", "mois", "month", "months"), "month"),
-          **dict.fromkeys(("jaar", "jaren", "an", "ans", "annee", "annees", "year", "years"), "year")}
+_TIMES = {word: "day" if unit == "workday" else unit for word, unit in table("time_units").items()}
 
 
 def _measure(text: str, start: int, end: int, percent: bool) -> tuple[bool, str | None]:
@@ -231,13 +228,13 @@ def _measure(text: str, start: int, end: int, percent: bool) -> tuple[bool, str 
 _ISO = re.compile(r"(?<![\d.,/-])(\d{4})-(\d{1,2})-(\d{1,2})(?![\d])")
 _NUMERIC_DATE = re.compile(r"(?<![\d.,/-])(\d{1,2})([./-])(\d{1,2})\2(\d{4}|\d{2})(?!\d|[.,]\d)")
 _MONTH_NAME = "(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")"
-_MONTH_FIRST = re.compile(_NOT_AFTER_WORD + r"(" + _MONTH_NAME + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?!\d)")
-PERCENT_SIGN = re.compile(r"[ \u00a0\u202f]*(?:%|procent|percent|pourcent|pour[ \u00a0]cent|pct\.?)$", re.IGNORECASE)
-_PERCENT_AFTER = re.compile(r"[ \u00a0\u202f]*(?:%|procent|percent|pourcent|pour[ \u00a0]cent|pct\.?)(?![^\W_])", re.IGNORECASE)
+_MONTH_FIRST = re.compile(_NOT_AFTER_WORD + r"(" + _MONTH_NAME + r")\.?\s+(\d{1,2})" + _DAY_ENDING + r"?,?\s+(\d{4})(?!\d)")
+_PERCENT = r"[ \u00a0\u202f]*(?:%|" + any_of(words("percent"), space=r"[ \u00a0]")[3:]
+PERCENT_SIGN = re.compile(_PERCENT + "$", re.IGNORECASE)
+_PERCENT_AFTER = re.compile(_PERCENT + r"(?![^\W_])", re.IGNORECASE)
 # Words that say a figure isn't exact, right before it (an amount's currency may sit between): "ongeveer € 450.000",
 # "circa 12", "environ 10 %", "about 3", "± 450.000". What they qualify (an amount, a surface) is for the user to judge.
-_APPROXIMATE_BEFORE = re.compile(r"(?:ongeveer|ong\.|circa|ca\.|zowat|nagenoeg|plusminus|environ|approximativement|à peu près|"
-                                 r"approximately|approx\.|about|around|roughly|±|\+/-|~)\s*(?:(?:euro|eur|€)\s*)?$", re.IGNORECASE)
+_APPROXIMATE_BEFORE = re.compile(r"(?:" + any_of(words("approximately"), space=" ")[3:-1] + r"|±|\+/-|~)\s*(?:" + _CURRENCY + r"\s*)?$", re.IGNORECASE)
 
 
 def _approximate(text: str, start: int) -> bool:
@@ -245,7 +242,11 @@ def _approximate(text: str, start: int) -> bool:
 
 
 # A single word that is an article far more often than a count: "een woning", "un immeuble", "one of them".
-_ARTICLES = {"een", "un", "une", "one"}
+_ARTICLES = set(words("one"))
+# A word that is no number after another ("in acht nemen"), and one that is a number only where the text around it is
+# in its own language (English "ten" in "ten laste"), unless its figure follows in brackets or it is money.
+_NO_NUMBER_AFTER = {word: set(before) for word, before in table("no_number_after").items()}
+_ONLY_NEAR = {word: re.compile(r"\b" + any_of(near, space=" ?") + r"\b", re.IGNORECASE) for word, near in table("number_only_near").items()}
 
 
 def _year(y: str) -> int:
@@ -353,12 +354,12 @@ def _day(token: str) -> int | None:
     f = fold(token)
     if f in _ORDINALS:
         return _ORDINALS[f]
-    m = re.fullmatch(r"(\d{1,2})(?:e|er|ste|de|st|nd|rd|th)?", f)
+    m = re.fullmatch(r"(\d{1,2})" + _DAY_ENDING + "?", f)
     if m:
         return int(m.group(1))
     n = number([f])
     if n is None:  # an ordinal in words: "drieëntwintigste", "tweede"
-        stem = re.sub(r"(ste|de)$", "", f)
+        stem = _ORDINAL_WORD_ENDING.sub("", f) if _ORDINAL_WORD_ENDING else f
         n = number([stem]) if stem != f else None
     return n if n is not None and 1 <= n <= 31 else None
 
@@ -372,7 +373,7 @@ def _day_before(tokens: list[str], i: int) -> tuple[int | None, int]:
             continue
         words = [fold(w) for w in tokens[i - k:i]]
         if words[-1] not in _JOIN and _pieces(words[-1]) is None:
-            words[-1] = re.sub(r"(ste|de)$", "", words[-1])  # an ordinal's last word
+            words[-1] = _ORDINAL_WORD_ENDING.sub("", words[-1]) if _ORDINAL_WORD_ENDING else words[-1]  # an ordinal's last word
         if words[0] in _JOIN or words[-1] in _JOIN or not all(w in _JOIN or _pieces(w) is not None for w in words):
             continue
         n = number(words)
@@ -381,10 +382,6 @@ def _day_before(tokens: list[str], i: int) -> tuple[int | None, int]:
     if i < 1:
         return None, i
     return _day(tokens[i - 1]), i - 1
-
-
-_TEN_IS_ENGLISH = re.compile(r"\b(?:the|of|and|days?|weeks?|months?|years?|per ?cent|within|shall|is|are|per|for|by)\b|\bten\s*\(10\)",
-                             re.IGNORECASE)
 
 
 def _word_numbers(text: str) -> list[Found]:
@@ -414,11 +411,14 @@ def _word_numbers(text: str) -> list[Found]:
             continue
         if len(run) == 1 and run[0].lower() in _ARTICLES:
             continue
-        if fold(run[-1]) == "acht" and len(run) == 1 and re.search(r"\bin\s+$", text[max(0, start - 4):start], re.IGNORECASE):
+        if len(run) == 1 and (before := _NO_NUMBER_AFTER.get(fold(run[0]))) and j > 0 and fold(toks[j - 1].group(0)) in before \
+                and not text[toks[j - 1].end():start].strip():
             continue
-        if len(run) == 1 and fold(run[0]) == "ten" and text.strip() != run[0] and not currency and not _TEN_IS_ENGLISH.search(
-                text[max(0, start - 60):end + 60]):
-            continue  # Dutch "ten laste", "ten kadaster": ten only where the text around it is English, or says "(10)"
+        only_near = _ONLY_NEAR.get(fold(run[0])) if len(run) == 1 else None
+        if only_near and text.strip() != run[0] and not currency and not only_near.search(text[max(0, start - 60):end + 60]):
+            n = number(run)
+            if not re.match(rf"\s*\(\s*{n}\s*\)", text[end:]):
+                continue  # Dutch "ten laste", "ten kadaster": the English ten only where the text is English, or says "(10)"
         n = number(run)
         if n is None:
             continue

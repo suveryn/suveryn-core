@@ -17,6 +17,7 @@ import re
 import sys
 from pathlib import Path
 
+from suveryn_harness.language import NUMBER_WORDS, any_of
 from suveryn_harness.marking import cited_style
 from suveryn_harness.schemas import Citation, SourceRef
 from suveryn_harness.support import citation_issues, unverified_figures
@@ -26,9 +27,10 @@ CASES = HERE / "check_cases.json"
 RECORD = HERE / "check_benchmark.json"
 
 FIGURE = r"\d{1,3}(?:[.,   ]\d{3})+(?:[.,]\d{2})?"
-MONTH = (r"(?:januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|janvier|février|mars|avril|"
-         r"mai|juin|juillet|août|septembre|octobre|novembre|décembre|January|February|March|April|May|June|July|August|"
-         r"September|October|November|December)")
+MONTH = any_of(name for table in NUMBER_WORDS.values() for name in table["months_written"])
+# What a planted mistake changes, per language of a case: test data about a language, kept with the cases.
+PLANT = json.loads(CASES.read_text(encoding="utf-8"))["plant"]
+ARTICLE = any_of(word for words in PLANT["article"].values() for word in words)
 
 
 def _bump(digits: str) -> str:
@@ -68,7 +70,7 @@ def count(a: str, case: dict) -> str | None:
     """Another small number before a word: "2 kopers" -> "3 kopers", "6 weken" -> "7 weken"."""
     for m in re.finditer(r"(?<![\d\[/.,])\b(\d{1,2})(?=\s+[a-zé])", a):
         before, after = a[max(0, m.start() - 9):m.start()].lower(), a[m.end():]
-        if re.search(r"(artikel|article|art\.)\s$", before) or re.match(rf"(?:er)?\s+{MONTH}\b", after, re.IGNORECASE):
+        if re.search(ARTICLE + r"\s$", before) or re.match(rf"(?:er)?\s+{MONTH}\b", after, re.IGNORECASE):
             continue
         return a[:m.start()] + _bump(m.group(1)) + a[m.end():]
     return None
@@ -76,7 +78,7 @@ def count(a: str, case: dict) -> str | None:
 
 def article(a: str, case: dict) -> str | None:
     """Another article: "artikel 9" -> "artikel 10"."""
-    m = re.search(r"(?i)\b(?:artikel|article|art\.)\s+(\d+)", a)
+    m = re.search(r"(?i)\b" + ARTICLE + r"\s+(\d+)", a)
     return a[:m.start(1)] + _bump(m.group(1)) + a[m.end(1):] if m else None
 
 
@@ -92,24 +94,26 @@ def unit(a: str, case: dict) -> str | None:
 def negation(a: str, case: dict) -> str | None:
     """The opposite: a "not" taken out, or put in after may, must, can ("mag" -> "mag niet")."""
     lang = case["lang"]
-    take = {"nl": (r"\s(niet|geen)\b", ""), "fr": (r"\bne (\w+) pas\b", r"\1"), "en": (r"\snot\b", "")}[lang]
+    take = PLANT["take_not"][lang]
     out, n = re.subn(take[0], take[1], a, count=1)
     if n:
         return out
-    put = {"nl": (r"\b(mag|moet|kan|zal)\b", r"\1 niet"), "fr": (r"\b(peut|doit)\b", r"ne \1 pas"), "en": (r"\b(may|must|shall)\b", r"\1 not")}[lang]
+    put = PLANT["put_not"][lang]
     out, n = re.subn(put[0], put[1], a, count=1)
     return out if n else None
 
 
 def party(a: str, case: dict) -> str | None:
     """The other party: koper for verkoper, acheteur for vendeur, buyer for seller."""
-    pairs = {"nl": ("verkoper", "koper"), "fr": ("vendeur", "acheteur"), "en": ("seller", "buyer")}[case["lang"]]
+    pairs = tuple(PLANT["party"][case["lang"]])
     for x, y in (pairs, pairs[::-1]):
         m = re.search(rf"(?i)(?<![a-zé]){x}", a)
         if m:
             other = y.capitalize() if m.group(0)[0].isupper() else y
             out = a[:m.start()] + other + a[m.end():]
-            return out.replace("L'vendeur", "Le vendeur").replace("Le acheteur", "L'acheteur")  # the French article follows
+            for wrong, right in PLANT["party_article"].get(case["lang"], []):  # the article follows the word
+                out = out.replace(wrong, right)
+            return out
     return None
 
 

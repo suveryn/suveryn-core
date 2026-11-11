@@ -1,0 +1,264 @@
+{
+ "_about": "The words of this language the harness reads in documents, by hand (lang/README.md says what each list is for). Lower case; a phrase's space matches any white space.",
+ "joins": [
+  "en"
+ ],
+ "one": [
+  "een"
+ ],
+ "ordinals": {
+  "eerste": 1,
+  "derde": 3
+ },
+ "ordinal_endings": [
+  "e",
+  "ste",
+  "de"
+ ],
+ "ordinal_word_endings": [
+  "ste",
+  "de"
+ ],
+ "no_number_after": {
+  "acht": [
+   "in"
+  ]
+ },
+ "number_only_near": {},
+ "figure_scales": {
+  "duizend": 1000,
+  "miljoen": 1000000,
+  "miljoenen": 1000000,
+  "mio": 1000000,
+  "mln": 1000000,
+  "miljard": 1000000000,
+  "mld": 1000000000
+ },
+ "currencies": {
+  "euro": "EUR",
+  "euros": "EUR",
+  "dollar": "USD",
+  "dollars": "USD"
+ },
+ "areas": [
+  "vierkante meter",
+  "vierkante meters"
+ ],
+ "percent": [
+  "procent",
+  "pct.",
+  "pct"
+ ],
+ "approximately": [
+  "ongeveer",
+  "ong.",
+  "circa",
+  "ca.",
+  "zowat",
+  "nagenoeg",
+  "plusminus"
+ ],
+ "time_units": {
+  "dag": "day",
+  "dagen": "day",
+  "week": "week",
+  "weken": "week",
+  "maand": "month",
+  "maanden": "month",
+  "jaar": "year",
+  "jaren": "year",
+  "werkdag": "workday",
+  "werkdagen": "workday",
+  "bankwerkdag": "workday",
+  "bankwerkdagen": "workday"
+ },
+ "term_before": [
+  "voor",
+  "voorafgaand"
+ ],
+ "term_after": [
+  "na",
+  "vanaf",
+  "volgend",
+  "volgende",
+  "rekenen"
+ ],
+ "term_after_right_behind": [],
+ "working_after": [],
+ "working_before": [],
+ "abbreviations": [
+  "art",
+  "artt",
+  "nr",
+  "nrs",
+  "bv",
+  "b.v",
+  "vb",
+  "zgn",
+  "enz",
+  "e.a",
+  "vgl",
+  "al",
+  "par",
+  "hfst",
+  "hfdst",
+  "afd",
+  "blz",
+  "ca",
+  "resp",
+  "dhr",
+  "mevr",
+  "mr",
+  "dr",
+  "prof",
+  "st",
+  "ste",
+  "ir",
+  "ing",
+  "lic",
+  "jr",
+  "sr",
+  "fig",
+  "tab",
+  "vol",
+  "jan",
+  "feb",
+  "febr",
+  "mrt",
+  "apr",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "sept",
+  "okt",
+  "nov",
+  "dec"
+ ],
+ "stop_words": [
+  "de",
+  "het",
+  "een",
+  "en",
+  "van",
+  "in",
+  "op",
+  "te",
+  "voor",
+  "met",
+  "aan",
+  "is",
+  "zijn",
+  "was",
+  "werd",
+  "wordt",
+  "worden",
+  "door",
+  "bij",
+  "als",
+  "dat",
+  "die",
+  "dit",
+  "deze",
+  "om",
+  "tot",
+  "uit",
+  "naar",
+  "ook",
+  "niet",
+  "maar",
+  "of",
+  "er",
+  "over",
+  "na",
+  "hij",
+  "zij",
+  "ze",
+  "we",
+  "wij",
+  "u",
+  "uw",
+  "hun",
+  "haar",
+  "heeft",
+  "hebben",
+  "had",
+  "kan",
+  "zal",
+  "zou",
+  "moet"
+ ],
+ "name_particles": [
+  "van",
+  "von",
+  "de",
+  "der",
+  "den",
+  "het",
+  "ter",
+  "ten",
+  "te",
+  "op",
+  "in",
+  "'t"
+ ],
+ "not_found": [
+  "niet gevonden",
+  "niet vermeld"
+ ],
+ "not_known_yet": [
+  "nog niet bekend",
+  "nog niet gekend",
+  "nog niet beschikbaar",
+  "nog niet ontvangen",
+  "onbekend",
+  "nog onbekend",
+  "niet gekend",
+  "volgt later",
+  "volgen later",
+  "volgt nog",
+  "volgen nog",
+  "komt later",
+  "komen later"
+ ],
+ "ai_ignore": [
+  "negeer",
+  "vergeet"
+ ],
+ "ai_previous": [
+  "vorige",
+  "eerdere",
+  "bovenstaande",
+  "alle",
+  "je",
+  "uw",
+  "deze"
+ ],
+ "ai_instructions": [
+  "instructie",
+  "instructies",
+  "regels",
+  "opdracht",
+  "opdrachten"
+ ],
+ "ai_role_change": [
+  "je bent nu",
+  "u bent nu",
+  "vanaf nu ben je",
+  "vanaf nu ben u"
+ ],
+ "ai_address": [
+  "aan de"
+ ],
+ "ai_names": [
+  "ai",
+  "assistent"
+ ],
+ "ai_system_prompt": [
+  "systeemprompt"
+ ],
+ "ai_role_headers": [
+  "systeem"
+ ],
+ "formal_address": "in Dutch with \"u\" and \"uw\", never \"je\" or \"jouw\""
+}

@@ -2536,5 +2536,19 @@
 "octobre": 10,
 "sept": 9,
 "septembre": 9
-}
+},
+"months_written": [
+"janvier",
+"février",
+"mars",
+"avril",
+"mai",
+"juin",
+"juillet",
+"août",
+"septembre",
+"octobre",
+"novembre",
+"décembre"
+]
 }

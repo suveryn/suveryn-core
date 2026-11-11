@@ -31,6 +31,7 @@ from suveryn_playbooks.paths import MAX_ENTRIES, root
 
 
 from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
+from .language import any_of, words
 from .marking import _utf16, cited_style, marks
 from .identifiers import valid
 from .support import _dates, _figures, citation_issues, unverified_figures
@@ -98,7 +99,7 @@ class RunFact(BaseModel):
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*|\s*```$")
-_NOT_FOUND = re.compile(r"^\s*(-|—|n/?a|none|niet (gevonden|vermeld)|non (trouvé|mentionné)|not (found|mentioned|stated))\s*\.?\s*$", re.IGNORECASE)
+_NOT_FOUND = re.compile(r"^\s*(-|—|" + any_of(words("not_found"), space=" ") + r")\s*\.?\s*$", re.IGNORECASE)
 
 
 def read_facts(playbook: Playbook, response: ChatResponse, filenames: dict[str, str],
@@ -451,10 +452,7 @@ def read_mapping(answer: str, labels: dict[str, str], choices: dict[str, dict[st
 # "Not known yet" in a person's words, nl, fr and en (folded: lower case, no accents): at the checkpoint the
 # mapping leaves such a fact out (MAP_INSTRUCTIONS), so "Bodemattest: nog niet bekend." placed nothing and got
 # "that couldn't be placed" (VM regression 03c8f74, finding 8).
-_UNKNOWN_WORDS = re.compile(
-    r"\b(nog niet (bekend|gekend|beschikbaar|ontvangen)|(nog )?onbekend|niet gekend|volg(t|en) (later|nog)|kom(t|en) later"
-    r"|pas encore (connu|connue|disponible|recu|recue)|inconnu|inconnue|suivra|a suivre"
-    r"|not (yet )?known|unknown|not available yet|to follow|will follow|tbc|tbd)\b")
+_UNKNOWN_WORDS = re.compile(r"\b" + any_of(words("not_known_yet"), space=" ") + r"\b")
 
 
 def said_unknown(text: str, labels: dict[str, str]) -> list[str]:
