@@ -16,6 +16,11 @@
 #                                             # ONLY_MEANING=1: nothing but that, a few minutes)
 #   OWN_QUESTIONS=/workspace/own-questions bash scripts/gpu-round.sh  # questions about your own files (test_answers_e2e.py:
 #                                             # <name>.json beside its files); answers in results/answers/, for you
+#   PEOPLE="1 2 4 8" bash scripts/gpu-round.sh  # also: that many people at work at the same moment (e2e/tests/
+#                                             # test_several_people.py): how long each waits for documents, answers
+#                                             # and a playbook, and what fails. PEOPLE_SPEC=<a run spec>: on that
+#                                             # run's documents and playbook (your own, say) instead of core's deed
+#                                             # intake; ONLY_PEOPLE=1: nothing but that step
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);
@@ -23,7 +28,8 @@
 #   3. test_playbook_reads_e2e.py (deed intake read by the model);
 #   4. e2e/tests/test_playbook_runs.py (every playbook run start to finish through the gateway's API, with
 #      PostgreSQL and Keycloak as the end-to-end stack runs them: the reads, the answers in words, the checks,
-#      the checkpoint and the summary). RUNS=0 leaves it out.
+#      the checkpoint and the summary). RUNS=0 leaves it out;
+#   5. with PEOPLE, on the same stack: several people at the same moment.
 # It ends with a summary to paste back: the card, the versions, the peak memory, pass or fail per run. The reports
 # hold per check whether it held, never document or answer text. Only the fictional trap deed is read.
 # Safe to run again: the downloads, the build and the database are kept in $WORK and reused.
@@ -37,6 +43,9 @@ RUNS="${RUNS:-1}"                           # the playbook runs through the gate
 PACKS="${PACKS:-}"                          # a suveryn-packs checkout, for its playbooks' runs
 OWN_RUNS="${OWN_RUNS:-}"                    # a folder of run specs on your own files (never in a repository)
 MEANING="${MEANING:-${ONLY_MEANING:-0}}"                     # 1: the meaning experiment too (harness/tests/meaning_experiment.py); 2: and again with thinking
+PEOPLE="${PEOPLE:-}"                        # numbers of people at work at the same moment, as "1 2 4 8"; empty: not run
+PEOPLE_SPEC="${PEOPLE_SPEC:-}"              # the run spec they work on; empty: core's deed intake on the trap deed
+ONLY_PEOPLE="${ONLY_PEOPLE:-0}"             # 1: only the several-people step
 OWN_QUESTIONS="${OWN_QUESTIONS:-}"          # a folder of your own files with questions about them (never in a repository)
 KC_VERSION=26.8.1                           # suveryn-appliance provision/versions.json
 KC_SHA256=4e2740b181faa2ea623a1c2ecf00855935311e546046e2f857615a47ed24cbe8
@@ -166,10 +175,19 @@ playbook_runs() {  # a tag: the end-to-end stack's PostgreSQL, Keycloak and gate
     E2E_RAG_DEVICE=cuda E2E_PACKS_DIR="$PACKS"
   set +e
   uv run python e2e/stack.py up 2>&1 | grep -v "health:"
-  E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}:${OWN_RUNS:-}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" E2E_RUNS_FACTS="$RESULTS/facts" \
-    uv run pytest e2e/tests/test_playbook_runs.py -v -rs -s -p no:cacheprovider --junitxml="$RESULTS/runs-$tag.xml" 2>&1 \
-    | tee "$RESULTS/runs-$tag.log"
-  RC[runs-$tag]=${PIPESTATUS[0]}
+  if [ "$ONLY_PEOPLE" != 1 ]; then
+    E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}:${OWN_RUNS:-}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" E2E_RUNS_FACTS="$RESULTS/facts" \
+      uv run pytest e2e/tests/test_playbook_runs.py -v -rs -s -p no:cacheprovider --junitxml="$RESULTS/runs-$tag.xml" 2>&1 \
+      | tee "$RESULTS/runs-$tag.log"
+    RC[runs-$tag]=${PIPESTATUS[0]}
+  fi
+  if [ -n "$PEOPLE" ]; then
+    step "several people-$tag: $PEOPLE"
+    E2E_PEOPLE="$PEOPLE" E2E_PEOPLE_SPEC="$PEOPLE_SPEC" E2E_PEOPLE_REPORT="$RESULTS/people-$tag.json" \
+      uv run pytest e2e/tests/test_several_people.py -v -rs -s -p no:cacheprovider --junitxml="$RESULTS/people-$tag.xml" 2>&1 \
+      | tee "$RESULTS/people-$tag.log"
+    RC[people-$tag]=${PIPESTATUS[0]}
+  fi
   uv run python e2e/stack.py stop gateway; uv run python e2e/stack.py stop keycloak  # PostgreSQL stays for what follows
   set -e
   unset E2E_SERVICES E2E_KEYCLOAK_HOME E2E_LLM E2E_NO_UI E2E_RAG_DEVICE E2E_PACKS_DIR
@@ -193,6 +211,10 @@ for tag in $LLAMA_TAG $COMPARE; do
     set -e
   fi
   if [ "${ONLY_MEANING:-0}" = 1 ]; then stop_all; continue; fi
+  if [ "$ONLY_PEOPLE" = 1 ]; then
+    [ "$tag" = "$LLAMA_TAG" ] && playbook_runs "$tag"
+    stop_all; continue
+  fi
   [ "$tag" = "$LLAMA_TAG" ] && run_test "reader-$tag" test_e2e.py
   rm -rf "$RESULTS/answers"  # your own questions' answers, this round's only
   run_test "answers-$tag" test_answers_e2e.py SUVERYN_EVAL_REPORT="$RESULTS/answers-$tag.json" \
@@ -243,6 +265,18 @@ for name, r in json.load(open(sys.argv[1])).items():
     if r.get('in_part'):
         print('  read in part: ' + ', '.join(r['in_part']))
     [print('  failed:', f) for f in failed]" "$j"
+  done
+  for j in "$RESULTS"/people-*.json; do
+    [ -f "$j" ] && uv run python -c "
+import json, sys
+r = json.load(open(sys.argv[1]))
+print(f\"several people ({sys.argv[1].split('/')[-1]}), {r['playbook']} on {r['spec']}: seconds as median (worst)\")
+for l in r['levels']:
+    t = lambda k: f\"{l[k]['median']} ({l[k]['worst']})\" if l[k] else '-'
+    print(f\"  {l['people']} people: documents read {t('documents')}, first words {t('first_words')}, whole answer {t('answer')}, \"
+          f\"playbook {t('playbook')}; told to wait {l['told_to_wait']}, playbook refused as busy {l['runs_refused']}, \"
+          f\"failed {len(l['failed'])}, peak {l['peak_mib']} MiB, {l['seconds']} s in all\")
+    [print('    failed:', f) for f in l['failed']]" "$j"
   done
   [ -d "$RESULTS/facts" ] && echo "what was read in your own runs: $RESULTS/facts (for you; not to paste)"
   [ -d "$RESULTS/answers" ] && echo "the answers to your own questions: $RESULTS/answers (for you; not to paste)"

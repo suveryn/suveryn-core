@@ -60,27 +60,43 @@ REPORT: dict[str, dict] = {}
 READ_TIMEOUT_S = 900   # a read with the real model: tens of seconds; the first one also waits for the documents
 
 
-def token() -> str:
-    """A bearer token for the administrator test account (the test realm's password grant, e2e/realm.py)."""
+def token(account: dict = ADMIN) -> str:
+    """A bearer token for a test account (the test realm's password grant, e2e/realm.py)."""
     r = httpx.post(f"{KC_URL}/realms/suveryn/protocol/openid-connect/token", timeout=20.0, data={
         "grant_type": "password", "client_id": "suveryn-chat", "client_secret": CHAT_SECRET,
-        "username": ADMIN["username"], "password": ADMIN["password"], "scope": "openid profile"})
+        "username": account["username"], "password": account["password"], "scope": "openid profile"})
     r.raise_for_status()
     return r.json()["access_token"]
 
 
-class Api:
-    """The gateway's API as the administrator, a fresh token per call (a run outlives one)."""
+class ToldToWait(AssertionError):
+    """The gateway still said to wait (429) when the patience ran out."""
 
-    def __init__(self):
+
+class Api:
+    """The gateway's API as one test account (the administrator unless said), with a fresh token every half minute
+    (a run outlives one). ``waits`` counts the times the gateway said to wait (429); ``patience`` is how often one
+    request is tried again before that counts as a failure."""
+
+    def __init__(self, account: dict = ADMIN, patience: int = 10):
         self.client = httpx.Client(base_url=GATEWAY, timeout=120.0)
+        self.account, self.patience, self.waits = account, patience, 0
+        self._token, self._until = "", 0.0
+
+    def headers(self) -> dict[str, str]:
+        if time.time() >= self._until:
+            self._token, self._until = token(self.account), time.time() + 30
+        return {"Authorization": f"Bearer {self._token}"}
 
     def __call__(self, method: str, path: str, **kw) -> httpx.Response:
-        for _ in range(10):  # the per-person limits on questions and answers (a person types slower than this test)
-            r = self.client.request(method, path, headers={"Authorization": f"Bearer {token()}"}, **kw)
+        for _ in range(self.patience):  # the per-person limits on questions and answers (a person types slower than this test)
+            r = self.client.request(method, path, headers=self.headers(), **kw)
             if r.status_code != 429:
                 break
+            self.waits += 1
             time.sleep(int(r.headers.get("retry-after", "10")) + 1)
+        if r.status_code == 429:
+            raise ToldToWait(f"{method} {path}: 429 after {self.patience} tries")
         assert r.status_code < 400, f"{method} {path}: {r.status_code} {r.text[:300]}"
         return r
 
@@ -178,19 +194,16 @@ def score(results: dict[str, bool]) -> dict[str, list[int]]:
             for kind, test in kinds.items()}
 
 
-@pytest.mark.parametrize("spec_path", SPECS, ids=[p.stem for p in SPECS])
-def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path):
-    spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    folder = documents_for(spec, spec_path)
-    api = Api()
-    reference = f"RUN/{spec_path.stem}/{uuid.uuid4().hex[:6]}"
-    case = api("POST", "/v1/cases", json={"reference": reference, "name": spec["title"], "type": spec["case_type"]}).json()
-    cid = case["id"]
-    named = spec.get("documents", {})
-    for name in named.get("*", []):
-        upload(api, cid, folder / name)
+def drive(api: Api, cid: str, spec: dict, folder: Path, name: str,
+          have: dict[str, str] | None = None) -> tuple[dict, dict | None, list[str], list[str]]:
+    """One run of the spec's playbook in a case, driven as a person would to its end: its documents given at each
+    request (``have``: the ones in the case already, file name -> id, not uploaded again), its asks answered, the
+    facts confirmed as read. The run at its end, the run as it stood at the checkpoint, the asks it made and the ones
+    whose answer in words it didn't understand."""
+    named, have = spec.get("documents", {}), have or {}
+    for filename in named.get("*", []):
+        have.get(filename) or upload(api, cid, folder / filename)
 
-    started = time.time()
     run = api("POST", f"/v1/cases/{cid}/playbooks/{spec['playbook']}/runs", json={"language": spec.get("language", "en")}).json()
     base = f"/v1/cases/{cid}/playbooks/runs/{run['id']}"
     at_checkpoint, asked, acted, answered, not_understood = None, [], {}, set(), []
@@ -201,15 +214,15 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
         if status == "reading":
             time.sleep(2)
             continue
-        assert status in ("waiting", "done"), f"{spec_path.stem}: the run is {status} ({run.get('error')}) at {step}"
+        assert status in ("waiting", "done"), f"{name}: the run is {status} ({run.get('error')}) at {step}"
         if status == "done":
             break
         acted[step] = acted.get(step, 0) + 1  # an ask may come back with its next question: answered again
-        assert acted[step] <= 40, f"{spec_path.stem}: {step} keeps waiting"
+        assert acted[step] <= 40, f"{name}: {step} keeps waiting"
         if kind == "request":
             names = named.get(step, [])
             if names:
-                ids = [upload(api, cid, folder / n) for n in names]
+                ids = [have.get(n) or upload(api, cid, folder / n) for n in names]
                 api("POST", f"{base}/answer", json={"step_id": step, "documents": ids})
             elif "*" in named:
                 api("POST", f"{base}/answer", json={"step_id": step})  # the documents are in the case already
@@ -242,10 +255,22 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
             confirmed = [{"id": f["id"], "confirmed": f.get("value") or ""} for f in run["facts"]]
             api("PUT", f"{base}/facts", json={"facts": confirmed})
         else:
-            raise AssertionError(f"{spec_path.stem}: waiting on a {kind} step ({step})")
+            raise AssertionError(f"{name}: waiting on a {kind} step ({step})")
     else:
-        raise AssertionError(f"{spec_path.stem}: not done in 30 minutes, at {run.get('step')}")
+        raise AssertionError(f"{name}: not done in 30 minutes, at {run.get('step')}")
 
+    return run, at_checkpoint, asked, not_understood
+
+
+@pytest.mark.parametrize("spec_path", SPECS, ids=[p.stem for p in SPECS])
+def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path):
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    folder = documents_for(spec, spec_path)
+    api = Api()
+    reference = f"RUN/{spec_path.stem}/{uuid.uuid4().hex[:6]}"
+    case = api("POST", "/v1/cases", json={"reference": reference, "name": spec["title"], "type": spec["case_type"]}).json()
+    started = time.time()
+    run, at_checkpoint, asked, not_understood = drive(api, case["id"], spec, folder, spec_path.stem)
     assert at_checkpoint is not None, f"{spec_path.stem}: never reached its checkpoint"
     results = holds(at_checkpoint, spec)
     results["done, with its summary in the case"] = run["status"] == "done" and bool(run.get("result_document_id"))

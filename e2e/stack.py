@@ -183,12 +183,13 @@ def kc_token() -> str:
     raise RuntimeError("unreachable")
 
 
-def seed_accounts() -> None:
-    """The two test accounts, with their passwords set and no required actions, so a scenario signs in at once."""
+def seed_accounts(accounts: list[dict] | None = None) -> None:
+    """The two test accounts (or the ones given: the several people of tests/test_several_people.py), with their
+    passwords set and no required actions, so a scenario signs in at once."""
     h = {"Authorization": f"Bearer {kc_token()}"}
     base = f"{KC_URL}/admin/realms/suveryn"
     role = httpx.get(f"{base}/roles/suveryn-admin", headers=h, timeout=10.0).json()
-    for a in ACCOUNTS:
+    for a in ACCOUNTS if accounts is None else accounts:
         existing = httpx.get(f"{base}/users", headers=h, params={"username": a["username"], "exact": "true"}, timeout=10.0).json()
         if existing:
             uid = existing[0]["id"]
