@@ -341,6 +341,8 @@ def _written_dates(text: str) -> list[Found]:
                     year, last = n, i + k
                     break
         if year is None:
+            if found := _year_first(text, toks, words, i, month):
+                out.append(found)
             continue
         day, first = _day_before(words, i)
         if day is not None and _real(day, month, year):
@@ -348,6 +350,37 @@ def _written_dates(text: str) -> list[Found]:
         elif day is None and last == i + 1 and re.fullmatch(r"\d{4}", words[i + 1]):
             out.append(Found(t.start(), toks[last].end(), "month", (month, year)))
     return out
+
+
+# A deed opens with the year, then the day and the month: "Het jaar tweeduizend zesentwintig, op tweeëntwintig
+# oktober", "L'an deux mille vingt-six, le vingt-deux octobre" (suveryn-tracker#113). The words that announce the year
+# and the day are in the languages' files, as token runs.
+_YEAR_FIRST = [tuple(fold(t) for t in _TOKEN.findall(phrase)) for phrase in words("year_first")]
+_DAY_INTRO = {fold(w) for w in words("day_intro")}
+_YEAR_GAP = 12   # characters between the year and the day: ", ", ". ", a line or two
+
+
+def _year_first(text: str, toks: list[re.Match], tokens: list[str], i: int, month: int) -> Found | None:
+    """The date whose month is at ``i`` when its year stands before the day, announced as a deed does."""
+    day, first = _day_before(tokens, i)
+    if day is None:
+        return None
+    start = first
+    while start > 0 and first - start < 2 and fold(tokens[start - 1]) in _DAY_INTRO:
+        start -= 1
+    for length in range(6, 0, -1):          # the year: four figures, or words ("negentienhonderd negen en negentig")
+        begin = start - length
+        if begin < 1:
+            continue
+        run = tokens[begin:start]
+        year = int(run[0]) if length == 1 and re.fullmatch(r"\d{4}", run[0]) else number(run) if not any(w.isdigit() for w in run) else None
+        if year is None or not 1800 <= year <= 2100 or len(text[toks[start - 1].end():toks[start].start()]) > _YEAR_GAP:
+            continue
+        before = tuple(fold(w) for w in tokens[:begin])
+        intro = next((p for p in _YEAR_FIRST if before[-len(p):] == p), None)
+        if intro and _real(day, month, year):
+            return Found(toks[begin - len(intro)].start(), toks[i].end(), "date", (day, month, year))
+    return None
 
 
 def _day(token: str) -> int | None:

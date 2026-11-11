@@ -25,6 +25,15 @@
   "ste",
   "de"
  ],
+ "year_first": [
+  "het jaar",
+  "in het jaar"
+ ],
+ "day_intro": [
+  "op",
+  "de",
+  "den"
+ ],
  "no_number_after": {
   "acht": [
    "in"
