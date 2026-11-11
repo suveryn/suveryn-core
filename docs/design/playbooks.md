@@ -261,7 +261,10 @@ or finds as it stands (an amount, a number or a date by meaning), keeps its vers
 far, or left empty, takes the new reading; one a person confirmed or answered keeps its value, and
 the new reading **waits beside it** (`case_facts.source.competes`; `RunFact.alternative`) until a
 person chooses at the checkpoint: a later document isn't always the right one. The checkpoint's turn
-counts them (`differ`); confirming settles them. The thread says which documents came and what is read
+counts them (`differ`); confirming settles them. A list read again is matched to the run's entries by
+who they are, never by their place (`align_entries`, #107): by a number with check digits when the
+entry has one (`format`), else by its first field, the name, its words in any order; an entry that
+matches none is new and takes the next number. The thread says which documents came and what is read
 again (`late_documents`). The screens for this (adding a document to a request already answered, the
 choice at the checkpoint) wait for their design board; the API is there.
 

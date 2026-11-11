@@ -92,3 +92,35 @@ def test_a_reading_again_keeps_what_stands_and_never_replaces_a_confirmed_value(
     assert rows["cadastral"]["status"] == "not_established"  # never read before: as a first read
     assert "agreement_date" not in rows and "title" not in rows  # the same date by meaning; another read's fact
     assert same_value("EUR 18.000,00", "18.000 euro", "amount") and not same_value("Havenlaan 2", "Havenlaan 2, 9999 Testdorp")
+
+
+def test_a_list_read_again_is_matched_by_who_its_entries_are_never_by_place():
+    """suveryn-tracker#107: a later document names the same sellers in another order. Its entries take the run's
+    numbers by register number, else by name (any order of the words, any case); one that matches none is new and
+    takes the next number. So a person's confirmed value is only ever compared with the same person's."""
+    from suveryn_api_gateway.playbook_runtime import Runtime, align_entries
+    from suveryn_harness.facts import RunFact
+    from suveryn_playbooks import DEED_INTAKE
+    step = next(s for s in DEED_INTAKE.steps if s.id == "agreement_read")
+
+    def version(value, status="confirmed"):
+        return {"id": f"v-{value}", "value": value, "status": status, "source": {"kind": "person"}}
+    current = {"sellers[1].name": version("Jan Peeters"), "sellers[1].register": version("85.05.14-243.11"),
+               "sellers[1].address": version("Kerkstraat 1"),
+               "sellers[2].name": version("Marie Claes"), "sellers[2].address": version("Dorp 2"),
+               "conditions[1].condition": version("Financing"), "price": version("EUR 1")}
+    read = [RunFact(id="sellers[1].name", value="CLAES Marie"), RunFact(id="sellers[1].address", value="Dorp 2"),
+            RunFact(id="sellers[2].name", value="Johan Peeters"), RunFact(id="sellers[2].register", value="850514 243 11"),
+            RunFact(id="sellers[2].address", value="Kerkstraat 1A"),
+            RunFact(id="sellers[3].name", value="Tom Nieuw"), RunFact(id="price", value="EUR 1")]
+    by = {f.id: f.value for f in align_entries(DEED_INTAKE, read, current)}
+    assert by["sellers[2].name"] == "CLAES Marie" and by["sellers[2].address"] == "Dorp 2"       # by name, words in any order
+    assert by["sellers[1].name"] == "Johan Peeters" and by["sellers[1].address"] == "Kerkstraat 1A"  # by register number
+    assert by["sellers[3].name"] == "Tom Nieuw" and by["price"] == "EUR 1"                           # new: the next number
+    rows = {r["fact_id"]: r for r in Runtime.read_rows(DEED_INTAKE, step, read, current)}
+    # the same person's name read differently waits beside the confirmed one; nothing of Marie lands on Jan
+    assert rows["sellers[1].name"]["source"]["competes"] == "v-Jan Peeters" and rows["sellers[1].address"]["value"] == "Kerkstraat 1A"
+    assert "sellers[2].name" in rows and rows["sellers[2].name"]["value"] == "CLAES Marie" and "sellers[2].address" not in rows
+    assert rows["sellers[3].name"]["status"] == "proposed" and "competes" not in rows["sellers[3].name"]["source"]
+    # a first read (the run has no entries yet) keeps the documents' numbering
+    assert {f.id: f.value for f in align_entries(DEED_INTAKE, read, {})} == {f.id: f.value for f in read}
