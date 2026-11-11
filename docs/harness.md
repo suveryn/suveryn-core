@@ -48,34 +48,27 @@ says whether a number is a percentage ("10%", "tien procent") and whether the te
 ("ongeveer", "circa", "environ", "about"); what that means is decided where it is used (a playbook's amount goes
 under *Check*), not by the reader.
 
-**How good the checks are is measured** (10 November 2026), not judged from the last finding. The planted-error
-benchmark ([`tests/check_benchmark.py`](../packages/harness/tests/check_benchmark.py)) takes correct answers on
-fictional passages (`check_cases.json`, some writing a figure or a date in another form than the passage), plants
-one kind of mistake at a time by rule, and counts what the checks report. A test holds the checks to the recorded
-result (`check_benchmark.json`): a change may catch more, never fewer, and may never flag more correct answers. As
-first recorded: no correct answer flagged; every changed amount, date, misspelled name and wrong source caught (24
-of 24); none of a changed percentage, small number or article number, of money told as a surface, of a "not" taken
-out or put in, or of the other party (0 of 35). Those are the checks' known gaps, in numbers: what a number
-measures, what a sentence means, and who does what.
+**How good the checks are is measured**, not judged from the last finding. The planted-error benchmark
+([`tests/check_benchmark.py`](../packages/harness/tests/check_benchmark.py)) takes correct answers on fictional
+passages, plants one kind of mistake at a time by rule, and counts what the checks report. A test holds the checks
+to the recorded result (`check_benchmark.json`): a change may catch more, never fewer, and may never flag more
+correct answers. As recorded: no correct answer of 40 flagged; every changed amount, date, percentage, misspelled
+name and wrong source caught; money told as a surface 8 of 9; a changed count of things or article number mostly
+not, on purpose (a model may count what a passage lists); a "not" taken out or the other party named, never: what
+a sentence means is beyond rules. [How an answer is checked](design/answer-checks.md) says what is proposed for
+that; the measurements are in suveryn-docs
+([Answer checks, November 2026](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-11-answer-checks.md)).
 
-**What a number measures** (step 3, 10 November 2026). The reader says what a number measures when the text says so
-right at it (`Found.measure`): a currency (EUR, USD, GBP), a percentage, a surface (m², ha) or a time (day, week,
-month, year). The checks use it twice. A cited value must be in its passage as the claim measures it: "€ 12.500" is
-not held by "12.500 m²", nor "6 weken" by "6 maanden"; a passage or a claim that doesn't say what it measures
-matches either way. And a short number with a measure ("6 %", "€ 500", "6 weken") is now checked like a long one,
-against every number its passage holds, in figures or words. Counts of things ("2 kopers") and article numbers stay
-unchecked on purpose: a model may count what a passage lists, and the benchmark has such correct answers to keep it
-so. Recorded after this step: 33 correct answers, none flagged; changed percentages 3 of 3, money told as a surface
-8 of 9 (the ninth cites a passage that gives no unit), short numbers 3 of 7 (the times; the counts are the rest).
-One consequence: an answer that states a term or a percentage found in no passage is now asked again once, like any
+**What a number measures.** The reader says what a number measures when the text says so right at it
+(`Found.measure`): a currency, a percentage, a surface or a time. A cited value must be in its passage as the claim
+measures it: an amount in euro is not held by the same number of square metres, nor six weeks by six months; a
+passage or a claim that doesn't say what it measures matches either way. A short number with a measure is checked
+like a long one. An answer that states a term or a percentage found in no passage is asked again once, like any
 figure in no passage.
 
-**One marking** (step 5, 10 November 2026). What the source panel marks for a playbook's fact was worked out in the
-browser, with a second reader of numbers and dates that was held to none of the reading cases. The server marks it
-now (`facts.marked`: the fact's sentences in each of its passages, and the fact in them however the deed writes it),
-when a run is shown, so a correction is marked as corrected and nothing is stored; the browser's reader and its
-sentence rules are gone (about 330 lines). Writing this showed two misreadings, both fixed in the one reader with a
-case each: Dutch "ten" ("ten laste", "ten kadaster") was read as the English ten, and "412B" as 41.
+**One marking.** What the source panel marks is worked out on the server, for an answer and for a playbook's fact
+alike (`facts.marked`, when a run is shown, so a correction is marked as corrected); the browser reads no numbers
+or dates of its own.
 
 **The languages the reader knows.** The words for numbers and the months' names are not typed in the reader. They
 are generated from the standard spelling rules ([`tools/number_words.py`](../packages/harness/tools/number_words.py):
