@@ -1,5 +1,76 @@
 {
  "_about": "The planted-error benchmark's correct answers (check_benchmark.py): each answer says only what its passages say, some in another notation than the passage (a correct answer must never be flagged). Errors are planted by rule. Fictional text only.",
+ "plant": {
+  "_about": "What check_benchmark.py changes to plant a mistake, per language of a case: a pattern and what replaces it.",
+  "take_not": {
+   "nl": [
+    "\\s(niet|geen)\\b",
+    ""
+   ],
+   "fr": [
+    "\\bne (\\w+) pas\\b",
+    "\\1"
+   ],
+   "en": [
+    "\\snot\\b",
+    ""
+   ]
+  },
+  "put_not": {
+   "nl": [
+    "\\b(mag|moet|kan|zal)\\b",
+    "\\1 niet"
+   ],
+   "fr": [
+    "\\b(peut|doit)\\b",
+    "ne \\1 pas"
+   ],
+   "en": [
+    "\\b(may|must|shall)\\b",
+    "\\1 not"
+   ]
+  },
+  "party": {
+   "nl": [
+    "verkoper",
+    "koper"
+   ],
+   "fr": [
+    "vendeur",
+    "acheteur"
+   ],
+   "en": [
+    "seller",
+    "buyer"
+   ]
+  },
+  "party_article": {
+   "fr": [
+    [
+     "L'vendeur",
+     "Le vendeur"
+    ],
+    [
+     "Le acheteur",
+     "L'acheteur"
+    ]
+   ]
+  },
+  "article": {
+   "nl": [
+    "artikel",
+    "art."
+   ],
+   "fr": [
+    "article",
+    "art."
+   ],
+   "en": [
+    "article",
+    "art."
+   ]
+  }
+ },
  "cases": [
   {
    "lang": "nl",

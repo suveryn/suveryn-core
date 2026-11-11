@@ -89,31 +89,3 @@ def test_a_date_in_the_older_notarial_form_is_read_as_a_date():
     assert check("L'acte date du 23 mars 1996 [2].") == []
     assert check("Ondertekend op 25 juni 2003 [3].") == []
     assert check("De akte werd verleden op 24/03/1996 [1].") != []  # a wrong day is still flagged
-
-
-def _flags(answer: str, *passages: str):
-    cits = [Citation(text=p, source=SourceRef(document_id=f"d{i}", page=1)) for i, p in enumerate(passages)]
-    return [(i.kind, i.item, i.written_as) for i in citation_issues(answer, cits, [])]
-
-
-def test_a_restated_sentence_that_differs_in_a_not_or_names_the_other_party_is_flagged():
-    """Step 4 of the planted-error benchmark (10 November 2026): by rule, for a claim that restates its passage's sentence."""
-    deed = "De koper mag de overeenkomst niet vroegtijdig beëindigen."
-    assert _flags("De koper mag de overeenkomst vroegtijdig beëindigen [1].", deed) == [("negation", "niet", None)]
-    assert _flags("De verkoper mag de overeenkomst niet vroegtijdig beëindigen [1].", deed) == [("party", "verkoper", "koper")]
-    assert _flags("De koper mag de overeenkomst niet vroegtijdig beëindigen [1].", deed) == []
-    assert _flags("Le vendeur peut résilier la convention avant le 15 mars 2027 [1].",
-                  "Le vendeur ne peut pas résilier la convention avant le 15 mars 2027.") == [("negation", "ne peut pas", None)]
-    assert _flags("L'acheteur doit verser le solde à la signature de l'acte [1].",
-                  "Le vendeur doit verser le solde du prix à la signature de l'acte.") == [("party", "acheteur", "vendeur")]
-
-
-def test_a_paraphrase_is_not_flagged_for_its_meaning():
-    assert _flags("De koper mag de overeenkomst niet overdragen [1].", "Het is de koper verboden de overeenkomst over te dragen aan een derde.") == []
-    assert _flags("De verkoper levert het huis en de garage [1].", "De verkoper levert niet alleen het huis maar ook de garage.") == []
-    assert _flags("De koper mag de overeenkomst overdragen met toestemming van de verkoper [1].",
-                  "De koper mag de overeenkomst niet overdragen zonder toestemming van de verkoper.") == []
-    assert _flags("De koper betaalt de prijs aan de verkoper bij de akte [1].", "De verkoper ontvangt de prijs van de koper bij het verlijden van de akte.") == []
-    # one of two cited passages agrees: the claim is supported
-    assert _flags("De koper mag de overeenkomst vroegtijdig beëindigen [1][2].", "De koper mag de overeenkomst niet vroegtijdig beëindigen voor 2027.",
-                  "Vanaf 2027 mag de koper de overeenkomst vroegtijdig beëindigen.") == []

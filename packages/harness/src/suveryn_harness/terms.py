@@ -27,6 +27,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Protocol
 
+from .language import NUMBER_WORDS, languages_of, table, words
 from .values import Style, as_amount, as_percent, decimal_style, fold, number, read
 
 
@@ -39,32 +40,31 @@ class Calendar(Protocol):
     after_easter: tuple[int, ...]
     dates: tuple[str, ...]
 
-UNITS = {
-    "dag": "day", "dagen": "day", "jour": "day", "jours": "day", "day": "day", "days": "day",
-    "week": "week", "weken": "week", "semaine": "week", "semaines": "week", "weeks": "week",
-    "maand": "month", "maanden": "month", "mois": "month", "month": "month", "months": "month",
-    "jaar": "year", "jaren": "year", "an": "year", "ans": "year", "annee": "year", "annees": "year", "year": "year", "years": "year",
-    "werkdag": "workday", "werkdagen": "workday", "bankwerkdag": "workday", "bankwerkdagen": "workday",
-}
-LANGUAGE = {**{w: "nl" for w in ("dag", "dagen", "week", "weken", "maand", "maanden", "jaar", "jaren", "werkdag", "werkdagen",
-                                 "bankwerkdag", "bankwerkdagen")},
-            **{w: "fr" for w in ("jour", "jours", "semaine", "semaines", "mois", "an", "ans", "annee", "annees")},
-            **{w: "en" for w in ("day", "days", "weeks", "month", "months", "year", "years")}}
-BEFORE = {"voor", "voorafgaand", "avant", "precedant", "before", "prior", "preceding"}
+# The words of a term come from the languages' files (``language``): the unit, what makes it a term before or after
+# an event, what makes days working days, and "one" before a unit.
+UNITS = table("time_units")                               # "maanden", "jours", "werkdagen" -> month, day, workday
+BEFORE = set(words("term_before"))
 # "binnen vier maanden na", "dans les deux mois de", "within four months of": the term is the period after the event
-# ("de" and "of" read as after only right behind the unit; "vóór" is folded to "voor")
-STRONG_AFTER = {"na", "vanaf", "volgend", "volgende", "rekenen", "apres", "compter", "suivant", "after", "from", "following"}
+STRONG_AFTER = set(words("term_after"))
+AFTER_RIGHT_BEHIND = set(words("term_after_right_behind"))  # "de", "of": after only right behind the unit
 # "jours ouvrables", "business days": the word that makes days working days, after or before the unit
-WORKING_AFTER = {"ouvrable", "ouvrables", "ouvre", "ouvres"}
-WORKING_BEFORE = {"business", "working"}
-ONE = {"een", "un", "une", "one", "a"}
+WORKING_AFTER = set(words("working_after"))
+WORKING_BEFORE = set(words("working_before"))
+ONE = set(words("one"))
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
+MONTH_NAMES = {lang: t["months_written"] for lang, t in NUMBER_WORDS.items()}
 
-MONTH_NAMES = {
-    "nl": ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"],
-    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
-    "en": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-}
+
+def _language(unit_word: str, direction_words: list[str]) -> str:
+    """The language a term is written in: its unit's, and where a unit is the same word in two languages ("week"),
+    that of the word that says before or after."""
+    of_unit = languages_of("time_units", unit_word)
+    for name in ("term_before", "term_after", "term_after_right_behind"):
+        for w in direction_words:
+            both = [lang for lang in languages_of(name, w) if lang in of_unit]
+            if both:
+                return both[0]
+    return of_unit[0] if of_unit else "en"
 
 
 def read_term(text: str) -> tuple[int, str, int, str] | None:
@@ -87,11 +87,11 @@ def read_term(text: str) -> tuple[int, str, int, str] | None:
             continue
         if any(a in BEFORE for a in after[:2]):
             direction = -1
-        elif any(a in STRONG_AFTER for a in after[:3]) or (after[:1] and after[0] in {"de", "of"}):
+        elif any(a in STRONG_AFTER for a in after[:3]) or (after[:1] and after[0] in AFTER_RIGHT_BEHIND):
             direction = 1
         else:
             continue
-        found.append((how_many, unit, direction, LANGUAGE.get(w, "en")))
+        found.append((how_many, unit, direction, _language(w, after[:3])))
     return found[0] if len(found) == 1 else None
 
 

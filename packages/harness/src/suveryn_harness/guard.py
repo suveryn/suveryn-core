@@ -19,6 +19,8 @@ Nothing here changes stored documents or cited passages; it applies to the promp
 
 import re
 
+from .language import WORDS, any_of, words
+
 ZWSP = "\u200b"
 
 # Turn and role markers of the chat templates sūveryn's models use (Qwen: ChatML; Mistral: [INST],
@@ -28,20 +30,17 @@ CONTROL = re.compile(
     r"|<(?:start|end)_of_turn>|</?think>",
     re.IGNORECASE)
 
-# Text addressed to an AI, in English, Dutch and French. Each pattern has a short kind for logs.
+# Text addressed to an AI, in every language of ``language``: its words are in the languages' files, the shapes here.
+_AI = any_of(words("ai_names"))
 INSTRUCTION_LIKE: list[tuple[str, re.Pattern]] = [(kind, re.compile(p, re.IGNORECASE)) for kind, p in [
-    ("ignore-instructions",
-     (r"\b(?:ignore|disregard|forget)\b.{0,40}\b(?:previous|prior|above|earlier|all|your|these)\b.{0,30}\b(?:instructions?|rules|prompts?|directions)"
-     r"|\b(?:negeer|vergeet)\b.{0,40}\b(?:vorige|eerdere|bovenstaande|alle|je|uw|deze)\b.{0,30}\b(?:instructies?|regels|opdrachten?)"
-     r"|\b(?:ignorez|ignore|oubliez)\b.{0,40}\b(?:précédentes?|precedentes?|toutes|vos|ces)\b.{0,30}\b(?:instructions?|règles|consignes)")),
-    ("role-change",
-     (r"\byou are now\b|\bfrom now on,? you\b|\bact as (?:an? )?(?:ai|assistant|chatbot|language model)\b"
-     r"|\bje bent nu\b|\bu bent nu\b|\bvanaf nu ben (?:je|u)\b|\btu es (?:maintenant|désormais)\b|\bvous êtes (?:maintenant|désormais)\b")),
+    # "ignore ... previous ... instructions", per language so one language's words aren't mixed with another's
+    ("ignore-instructions", "|".join(
+        rf"\b{any_of(t['ai_ignore'])}\b.{{0,40}}\b{any_of(t['ai_previous'])}\b.{{0,30}}\b{any_of(t['ai_instructions'])}"
+        for t in WORDS.values())),
+    ("role-change", r"\b" + any_of(words("ai_role_change"), space=" ") + r"\b"),
     ("addressed-to-ai",
-     (r"\b(?:as an? |dear |attention,? |note to (?:the )?)(?:ai|llm|assistant|chatbot|language model)\b"
-     r"|\b(?:system prompt|systeemprompt|prompt système|invite système)\b"
-     r"|\b(?:aan de|à l'|to the) (?:ai|ia|assistent|assistant)\b")),
-    ("role-header", r"(?m)^\s*(?:#{1,6}\s*)?(?:system|assistant|systeem|système)\s*:"),
+     rf"\b{any_of(words('ai_address'), space=' ')} ?{_AI}\b|\b{any_of(words('ai_system_prompt'), space=' ')}\b"),
+    ("role-header", r"(?m)^\s*(?:#{1,6}\s*)?" + any_of(words("ai_role_headers")) + r"\s*:"),
     ("control-token", CONTROL.pattern),
 ]]
 

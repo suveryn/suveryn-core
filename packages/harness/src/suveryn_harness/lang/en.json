@@ -1,0 +1,251 @@
+{
+ "_about": "The words of this language the harness reads in documents, by hand (lang/README.md says what each list is for). Lower case; a phrase's space matches any white space.",
+ "joins": [
+  "and"
+ ],
+ "one": [
+  "one",
+  "a"
+ ],
+ "ordinals": {
+  "first": 1
+ },
+ "ordinal_endings": [
+  "st",
+  "nd",
+  "rd",
+  "th"
+ ],
+ "ordinal_word_endings": [],
+ "no_number_after": {},
+ "number_only_near": {
+  "ten": [
+   "the",
+   "of",
+   "and",
+   "day",
+   "days",
+   "week",
+   "weeks",
+   "month",
+   "months",
+   "year",
+   "years",
+   "percent",
+   "per cent",
+   "within",
+   "shall",
+   "is",
+   "are",
+   "per",
+   "for",
+   "by"
+  ]
+ },
+ "figure_scales": {
+  "thousand": 1000,
+  "million": 1000000,
+  "billion": 1000000000
+ },
+ "currencies": {
+  "euro": "EUR",
+  "euros": "EUR",
+  "dollar": "USD",
+  "dollars": "USD",
+  "pound": "GBP",
+  "pounds": "GBP"
+ },
+ "areas": [
+  "square meter",
+  "square meters",
+  "square metre",
+  "square metres",
+  "sq m",
+  "sq. m",
+  "sq.m",
+  "sqm"
+ ],
+ "percent": [
+  "percent"
+ ],
+ "approximately": [
+  "approximately",
+  "approx.",
+  "about",
+  "around",
+  "roughly",
+  "circa"
+ ],
+ "time_units": {
+  "day": "day",
+  "days": "day",
+  "week": "week",
+  "weeks": "week",
+  "month": "month",
+  "months": "month",
+  "year": "year",
+  "years": "year"
+ },
+ "term_before": [
+  "before",
+  "prior",
+  "preceding"
+ ],
+ "term_after": [
+  "after",
+  "from",
+  "following"
+ ],
+ "term_after_right_behind": [
+  "of"
+ ],
+ "working_after": [],
+ "working_before": [
+  "business",
+  "working"
+ ],
+ "abbreviations": [
+  "art",
+  "no",
+  "nos",
+  "e.g",
+  "i.e",
+  "cf",
+  "p",
+  "pp",
+  "ca",
+  "mr",
+  "dr",
+  "prof",
+  "st",
+  "jr",
+  "sr",
+  "vs",
+  "viz",
+  "approx",
+  "fig",
+  "tab",
+  "vol",
+  "jan",
+  "feb",
+  "apr",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "sept",
+  "oct",
+  "nov",
+  "dec"
+ ],
+ "stop_words": [
+  "the",
+  "a",
+  "an",
+  "and",
+  "of",
+  "in",
+  "on",
+  "to",
+  "for",
+  "with",
+  "is",
+  "are",
+  "was",
+  "were",
+  "by",
+  "as",
+  "that",
+  "this",
+  "these",
+  "from",
+  "at",
+  "it",
+  "be",
+  "has",
+  "have"
+ ],
+ "name_particles": [],
+ "not_found": [
+  "none",
+  "not found",
+  "not mentioned",
+  "not stated",
+  "n/a",
+  "na"
+ ],
+ "not_known_yet": [
+  "not known",
+  "not yet known",
+  "unknown",
+  "not available yet",
+  "to follow",
+  "will follow",
+  "tbc",
+  "tbd"
+ ],
+ "ai_ignore": [
+  "ignore",
+  "disregard",
+  "forget"
+ ],
+ "ai_previous": [
+  "previous",
+  "prior",
+  "above",
+  "earlier",
+  "all",
+  "your",
+  "these"
+ ],
+ "ai_instructions": [
+  "instruction",
+  "instructions",
+  "rules",
+  "prompt",
+  "prompts",
+  "directions"
+ ],
+ "ai_role_change": [
+  "you are now",
+  "from now on you",
+  "from now on, you",
+  "act as ai",
+  "act as an ai",
+  "act as a ai",
+  "act as assistant",
+  "act as an assistant",
+  "act as a assistant",
+  "act as chatbot",
+  "act as a chatbot",
+  "act as an chatbot",
+  "act as language model",
+  "act as a language model",
+  "act as an language model"
+ ],
+ "ai_address": [
+  "as a",
+  "as an",
+  "dear",
+  "attention",
+  "attention,",
+  "note to",
+  "note to the",
+  "to the"
+ ],
+ "ai_names": [
+  "ai",
+  "llm",
+  "assistant",
+  "chatbot",
+  "language model"
+ ],
+ "ai_system_prompt": [
+  "system prompt"
+ ],
+ "ai_role_headers": [
+  "system",
+  "assistant"
+ ],
+ "formal_address": ""
+}

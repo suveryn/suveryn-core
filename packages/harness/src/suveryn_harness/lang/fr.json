@@ -1,0 +1,202 @@
+{
+ "_about": "The words of this language the harness reads in documents, by hand (lang/README.md says what each list is for). Lower case; a phrase's space matches any white space.",
+ "joins": [
+  "et"
+ ],
+ "one": [
+  "un",
+  "une"
+ ],
+ "ordinals": {
+  "premier": 1,
+  "1er": 1,
+  "troisieme": 3
+ },
+ "ordinal_endings": [
+  "er"
+ ],
+ "ordinal_word_endings": [],
+ "no_number_after": {},
+ "number_only_near": {},
+ "figure_scales": {
+  "mille": 1000,
+  "million": 1000000,
+  "millions": 1000000,
+  "milliard": 1000000000,
+  "milliards": 1000000000
+ },
+ "currencies": {
+  "euro": "EUR",
+  "euros": "EUR",
+  "dollar": "USD",
+  "dollars": "USD"
+ },
+ "areas": [
+  "mètre carré",
+  "mètres carrés",
+  "mètre carrés",
+  "mètres carré"
+ ],
+ "percent": [
+  "pourcent",
+  "pour cent"
+ ],
+ "approximately": [
+  "environ",
+  "approximativement",
+  "à peu près"
+ ],
+ "time_units": {
+  "jour": "day",
+  "jours": "day",
+  "semaine": "week",
+  "semaines": "week",
+  "mois": "month",
+  "an": "year",
+  "ans": "year",
+  "annee": "year",
+  "annees": "year"
+ },
+ "term_before": [
+  "avant",
+  "precedant"
+ ],
+ "term_after": [
+  "apres",
+  "compter",
+  "suivant"
+ ],
+ "term_after_right_behind": [
+  "de"
+ ],
+ "working_after": [
+  "ouvrable",
+  "ouvrables",
+  "ouvre",
+  "ouvres"
+ ],
+ "working_before": [],
+ "abbreviations": [
+  "art",
+  "no",
+  "nos",
+  "n°",
+  "cf",
+  "al",
+  "par",
+  "p",
+  "pp",
+  "mr",
+  "mme",
+  "mlle",
+  "me",
+  "dr",
+  "prof",
+  "st",
+  "ste",
+  "fig",
+  "tab",
+  "vol",
+  "sept",
+  "oct",
+  "nov",
+  "dec"
+ ],
+ "stop_words": [
+  "le",
+  "la",
+  "les",
+  "un",
+  "une",
+  "des",
+  "du",
+  "et",
+  "en",
+  "au",
+  "aux",
+  "est",
+  "sont",
+  "par",
+  "pour",
+  "sur",
+  "dans",
+  "que",
+  "qui",
+  "avec",
+  "ce",
+  "cette",
+  "ces",
+  "il",
+  "elle"
+ ],
+ "name_particles": [
+  "de",
+  "du",
+  "des",
+  "le",
+  "la",
+  "les",
+  "d'",
+  "l'",
+  "di",
+  "da",
+  "del",
+  "della"
+ ],
+ "not_found": [
+  "non trouvé",
+  "non mentionné"
+ ],
+ "not_known_yet": [
+  "pas encore connu",
+  "pas encore connue",
+  "pas encore disponible",
+  "pas encore recu",
+  "pas encore recue",
+  "inconnu",
+  "inconnue",
+  "suivra",
+  "a suivre"
+ ],
+ "ai_ignore": [
+  "ignorez",
+  "ignore",
+  "oubliez"
+ ],
+ "ai_previous": [
+  "précédente",
+  "précédentes",
+  "precedente",
+  "precedentes",
+  "toutes",
+  "vos",
+  "ces"
+ ],
+ "ai_instructions": [
+  "instruction",
+  "instructions",
+  "règles",
+  "consignes"
+ ],
+ "ai_role_change": [
+  "tu es maintenant",
+  "tu es désormais",
+  "vous êtes maintenant",
+  "vous êtes désormais"
+ ],
+ "ai_address": [
+  "à l'"
+ ],
+ "ai_names": [
+  "ia",
+  "assistant"
+ ],
+ "ai_system_prompt": [
+  "prompt système",
+  "invite système"
+ ],
+ "ai_role_headers": [
+  "système"
+ ],
+ "formal_address": "in French with \"vous\""
+}

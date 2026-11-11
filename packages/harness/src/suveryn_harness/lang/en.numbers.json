@@ -1924,5 +1924,19 @@
 "october": 10,
 "sep": 9,
 "september": 9
-}
+},
+"months_written": [
+"January",
+"February",
+"March",
+"April",
+"May",
+"June",
+"July",
+"August",
+"September",
+"October",
+"November",
+"December"
+]
 }

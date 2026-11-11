@@ -439,10 +439,8 @@ const nl: Messages = {
     `${n === 1 ? "Eén gesprek citeert" : `${n} gesprekken citeren`} dit document. De passages verdwijnen eruit.`,
   deleteDocumentKeepConversations: "Document verwijderen, gesprekken behouden",
   deleteDocumentAndConversations: (n) => (n === 1 ? "Document en gesprek verwijderen" : `Document en ${n} gesprekken verwijderen`),
-  citationIssue: (n, item, foundIn, writtenAs, kind) =>
-    kind === "negation" ? `Controleer bron ${n}: de bron en deze zin verschillen in „${item}”. De ene zegt het, de andere niet.`
-    : kind === "party" ? `Controleer bron ${n}: daar staat „${writtenAs}” waar deze zin „${item}” zegt.`
-    : writtenAs ? `Controleer bron ${n}: daar staat „${writtenAs}”, niet „${item}”.`
+  citationIssue: (n, item, foundIn, writtenAs) =>
+    writtenAs ? `Controleer bron ${n}: daar staat „${writtenAs}”, niet „${item}”.`
     : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${foundIn.length > 1 ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
     : `Controleer bron ${n}: „${item}” staat er niet in.`,
   citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",

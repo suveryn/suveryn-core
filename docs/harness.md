@@ -70,18 +70,6 @@ so. Recorded after this step: 33 correct answers, none flagged; changed percenta
 One consequence: an answer that states a term or a percentage found in no passage is now asked again once, like any
 figure in no passage.
 
-**Two flags on meaning** (step 4, 10 November 2026), by rule and without another model call. For a claim that
-restates a sentence of its cited passage (three quarters of its words and facts are that sentence's), the check
-flags a difference in a negation ("mag" for "mag niet", "peut" for "ne peut pas") and the other party named (koper
-for verkoper, vendeur for acheteur, landlord for tenant): `CitationIssue.kind` is `negation` or `party`, and the note
-under the answer says which word. Left alone on purpose, each with a correct answer in the benchmark to keep it so:
-a paraphrase ("verboden" for "mag niet", "vrij van hypotheek" for "geen hypotheek"), "niet alleen … maar ook", an
-exception ("niet zonder toestemming" told as "met toestemming"), both parties named in the sentence, and a claim two
-passages are cited for when one agrees. Not caught: an answer in another language than its passage, or one that
-rewords the sentence. Recorded after this step: 40 correct answers, none flagged; a "not" taken out or put in 7 of
-12, the other party 12 of 20 (both 0 before). The rest of what a sentence means stays with the reader, and with the
-measurement of marking by meaning.
-
 **One marking** (step 5, 10 November 2026). What the source panel marks for a playbook's fact was worked out in the
 browser, with a second reader of numbers and dates that was held to none of the reading cases. The server marks it
 now (`facts.marked`: the fact's sentences in each of its passages, and the fact in them however the deed writes it),
@@ -96,9 +84,12 @@ num2words, Unicode CLDR, pinned) into one file per language, `suveryn_harness/la
 together (thousands, millions, a year written in hundreds). It is held to 2 490 numbers as the standard spells them
 (`tests/spelled_numbers.json`); read back that way, the tables typed by hand had read French "cent
 quatre-vingt-trois" as 2 083. The languages are read together, because one file mixes them; a word that means two
-different numbers in two languages stops the load. Adding a language: add it to the tool's list, run it, and the
-test for a missing language passes ([translations.md](translations.md)). The libraries are a developer's tools, not
-the appliance's.
+different numbers in two languages stops the load. What no standard holds is in one short file per language written by hand, `lang/<lang>.json`: lists of
+words and phrases a translator can read (the joining words, abbreviations, units, the words for "about" and "not
+found", what reads as a number but isn't one, the words of text that addresses an AI), never patterns; the code
+makes its patterns from them. The harness's code holds no word of a language, and a test keeps it so
+(`tests/test_language.py`). Adding a language: [translations.md](translations.md). The libraries are a developer's
+tools, not the appliance's.
 
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 

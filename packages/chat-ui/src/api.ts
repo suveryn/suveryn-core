@@ -16,10 +16,7 @@ type PassageContext = { text: string; start: number; end: number };
 export type Citation = { text: string; source: SourceRef | null; removed?: boolean; context?: PassageContext | null };
 /** A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11). ``marker`` is the
  *  0-based place of the [n] among the answer's valid markers; ``found_in``: other passages that do contain it. */
-export type CitationIssue = { marker: number; n: number; item: string; found_in: number[]; written_as: string | null;
-  /** missing (default): the item isn't in the passage. negation: the sentence and the passage differ in a "not" (item: the word).
-   *  party: the sentence names one party (item) where the passage names the other (written_as). */
-  kind?: "missing" | "negation" | "party" };
+export type CitationIssue = { marker: number; n: number; item: string; found_in: number[]; written_as: string | null };
 /** A calculation the server computed exactly; the model only chose the figures. */
 export type Calculation = {
   expression: string;

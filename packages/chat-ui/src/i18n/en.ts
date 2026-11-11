@@ -465,10 +465,8 @@ const en = {
   deleteDocumentKeepConversations: "Delete the document, keep the conversations",
   deleteDocumentAndConversations: (n: number) => (n === 1 ? "Delete the document and the conversation" : `Delete the document and ${n} conversations`),
   // citations checked against their source (suveryn-tracker#11)
-  citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null, kind?: "missing" | "negation" | "party") =>
-    kind === "negation" ? `Check source ${n}: it and this sentence differ in "${item}". One says it, the other doesn't.`
-    : kind === "party" ? `Check source ${n}: it says "${writtenAs}" where this sentence says "${item}".`
-    : writtenAs ? `Check source ${n}: it writes "${writtenAs}", not "${item}".`
+  citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null) =>
+    writtenAs ? `Check source ${n}: it writes "${writtenAs}", not "${item}".`
     : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${foundIn.length > 1 ? "sources" : "source"} ${foundIn.join(", ")}.`
     : `Check source ${n}: "${item}" isn't in it.`,
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
