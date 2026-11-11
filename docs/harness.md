@@ -52,7 +52,7 @@ under *Check*), not by the reader.
 ([`tests/check_benchmark.py`](../packages/harness/tests/check_benchmark.py)) takes correct answers on fictional
 passages, plants one kind of mistake at a time by rule, and counts what the checks report. A test holds the checks
 to the recorded result (`check_benchmark.json`): a change may catch more, never fewer, and may never flag more
-correct answers. As recorded: no correct answer of 40 flagged; every changed amount, date, percentage, misspelled
+correct answers. As recorded: no correct answer of 45 flagged; every changed amount, date, percentage, misspelled
 name and wrong source caught; money told as a surface 8 of 9; a changed count of things or article number mostly
 not, on purpose (a model may count what a passage lists); a "not" taken out or the other party named, never: what
 a sentence means is beyond rules. [How an answer is checked](design/answer-checks.md) says what is proposed for
@@ -157,7 +157,11 @@ tested:
   checked one by one.
 - **Each citation against its own passage** ([`support.py`](../packages/harness/src/suveryn_harness/support.py)).
   The figures, dates, years and names before a marker must be in the passage that marker cites, not
-  just somewhere in the documents.
+  just somewhere in the documents. A name is a capitalised word the passages write as one: not a word they
+  also write in lower case, and not a contract's defined term ("de Koper", "the Buyer": a capitalised word
+  that follows an article). A name spelled one letter off is flagged only against such names, so a
+  translated or inflected word is no misspelling (suveryn-tracker#108: on real contracts most name flags
+  were defined terms).
 - **What to mark in each cited passage** ([`marking.py`](../packages/harness/src/suveryn_harness/marking.py),
   suveryn-tracker#25). Per marker, the sentences of its passage the claim rests on, and the claim's facts in
   them however the passage writes them ("12" for "twelve", "12/03/2021" for "12 March 2021"). It reads the

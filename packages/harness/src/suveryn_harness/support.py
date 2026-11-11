@@ -29,6 +29,7 @@ whose words are all in the passage but whose meaning isn't ("mag niet" for "mag"
 import re
 from decimal import Decimal
 
+from .language import words as language_words
 from .marking import answer_sentences, cited_style
 from .schemas import Calculation, Citation, CitationIssue
 from .values import MONTHS, PERCENT_SIGN, Found, Style, decimal_style, fold, read
@@ -133,13 +134,49 @@ def _words(text: str) -> set[str]:
     return {fold(w) for w in WORD.findall(text)}
 
 
-def _names(claim: str, sentence_start: bool, lowercase_in_sources: set[str]) -> list[tuple[str, bool]]:
-    """Capitalised words in the claim that the passages never write in lower case, each with whether
-    it opens the sentence (then it may just be a capitalised common word: see ``citation_issues``)."""
+ARTICLES = set(language_words("articles"))
+ELIDED = tuple(a for a in ARTICLES if a.endswith("'"))  # "l'Acheteur": the article is written onto the word
+TERM_SHARE = 0.3  # of a capitalised word's uses in the passages that follow an article, for it to be a term
+
+
+def _terms(passages: str) -> set[str]:
+    """Capitalised words the passages use as a contract's defined terms, not as names (suveryn-tracker#108): "de
+    Koper", "the Buyer", "l'Acheteur", "de Passieve Aandeelhouder". A term follows an article, a name doesn't
+    ("de heer Peeters"; in "Jan de Smet" the "de" follows a name, and in "de heer De Smet" it has a capital inside
+    the sentence: neither is an article). A word is a term when a fair share of its capitalised uses follow an
+    article; one such use could be chance. Read twice: an article after a term is one ("aan de Koper het Goed")."""
+    terms: set[str] = set()
+    for _ in range(2):
+        uses: dict[str, list[int]] = {}
+        previous, previous_start, previous_end, before_previous = "", 0, 0, ""
+        for m in WORD.finditer(passages):
+            w = m.group(0).replace("’", "'")
+            elided = next((a for a in ELIDED if w.lower().startswith(a) and w[len(a):len(a) + 1].isupper()), None)
+            word, after_article = w, False
+            if elided:
+                word, after_article = w[len(elided):], True
+            elif w[0].isupper() and not passages[previous_end:m.start()].strip():
+                head = passages[:previous_start]
+                opens = not head.strip() or head.rstrip()[-1:] in ".:;!?" or "\n" in head[len(head.rstrip()):]
+                inside_a_name = before_previous[:1].isupper() and fold(before_previous) not in terms
+                after_article = (previous.lower() in ARTICLES and opens) or (previous in ARTICLES and not inside_a_name)
+            if word[0].isupper() and len(word) >= MIN_NAME:
+                count = uses.setdefault(fold(word), [0, 0])
+                count[0] += after_article
+                count[1] += 1
+            before_previous, previous, previous_start, previous_end = previous, w, m.start(), m.end()
+        terms = {word for word, (after, total) in uses.items() if after and after >= TERM_SHARE * total}
+    return terms
+
+
+def _names(claim: str, sentence_start: bool, lowercase_in_sources: set[str], terms: set[str] = frozenset()) -> list[tuple[str, bool]]:
+    """Capitalised words in the claim that the passages never write in lower case and don't use as a defined term
+    (``_terms``), each with whether it opens the sentence (then it may just be a capitalised common word: see
+    ``citation_issues``)."""
     out: list[tuple[str, bool]] = []
     for i, m in enumerate(WORD.finditer(claim)):
         w = m.group(0)
-        if len(w) < MIN_NAME or not w[0].isupper() or fold(w) in MONTHS:
+        if len(w) < MIN_NAME or not w[0].isupper() or fold(w) in MONTHS or fold(w) in terms:
             continue
         if fold(w) not in lowercase_in_sources and w not in (x for x, _ in out):
             out.append((w, i == 0 and sentence_start))
@@ -196,6 +233,11 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
     years = [set(YEAR.findall(t)) for t in texts]
     vocabulary = set().union(*words)
     lowercase = {fold(w) for w in WORD.findall(everything) if w[0].islower()}
+    terms = _terms(everything)
+    # What a name in the claim may be a misspelling of: a word the passages write as a name (always with a capital,
+    # not a defined term), never an ordinary word. "Partij" is no misspelling of the French "partie", nor "Actieve"
+    # of "Active", nor "Aandeelhouder" of "Aandeelhouders" (suveryn-tracker#108).
+    names_in_sources = {fold(w) for w in WORD.findall(everything) if w[0].isupper()} - lowercase - terms
     for c in calculations:  # the shown "a + b = c" isn't a claim about the sources
         if c.result is not None:
             answer = answer.replace(f"{c.expression} = {c.result}", " ")
@@ -219,13 +261,13 @@ def citation_issues(answer: str, citations: list[Citation], calculations: list[C
                 found.append((_written_date(claim, d), _elsewhere(dates, d, cited), None))
         # Bold text is the model's own label ("**Kettingbeding en Bodemrapport**: …"), not a fact from the
         # source: its words aren't checked as names (figures and dates in bold still are). Seen on the pod.
-        for name, opens_sentence in _names(BOLD.sub(" ", claim), sentence_start, lowercase):
+        for name, opens_sentence in _names(BOLD.sub(" ", claim), sentence_start, lowercase, terms):
             key = fold(name)
             if _in_cited(words, key, cited):
                 continue
             if key in vocabulary:
                 found.append((name, _elsewhere(words, key, cited), None))
-            elif not opens_sentence and (near := _near(name, vocabulary)) is not None:
+            elif not opens_sentence and (near := _near(name, names_in_sources)) is not None:
                 spelled = next(w for w in WORD.findall(everything) if fold(w) == near)
                 found.append((name, [n for n in range(1, len(texts) + 1) if near in words[n - 1]], spelled))
         if not found:

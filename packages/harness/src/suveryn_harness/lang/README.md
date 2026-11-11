@@ -20,6 +20,7 @@ written without accents.
 |---|---|
 | `joins` | The word between the parts of a number: "vingt et un" |
 | `one` | "One" before a unit, which alone is an article and no count |
+| `articles` | The articles: a capitalised word after one is a contract's defined term, not a name |
 | `ordinals`, `ordinal_endings`, `ordinal_word_endings` | A day written as an ordinal: the word, the ending after a figure, the ending of a number word |
 | `no_number_after` | A number word that is no number after another word |
 | `number_only_near` | A number word that is another language's ordinary word: a number only near these words of its own language |

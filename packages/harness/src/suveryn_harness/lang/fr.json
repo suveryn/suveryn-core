@@ -7,6 +7,19 @@
   "un",
   "une"
  ],
+ "articles": [
+  "le",
+  "la",
+  "les",
+  "un",
+  "une",
+  "du",
+  "des",
+  "au",
+  "aux",
+  "l'",
+  "d'"
+ ],
  "ordinals": {
   "premier": 1,
   "1er": 1,

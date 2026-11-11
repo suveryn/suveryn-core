@@ -1,23 +1,23 @@
 {
  "_about": "The planted-error benchmark as last recorded (check_benchmark.py --update): per kind of mistake, how many the checks caught of how many were planted, and how many correct answers they flagged.",
- "cases": 40,
+ "cases": 45,
  "false_alarms": 0,
  "caught": {
   "amount": [
-   9,
-   9
+   10,
+   10
   ],
   "date": [
    6,
    6
   ],
   "name": [
-   4,
-   4
-  ],
-  "source": [
    6,
    6
+  ],
+  "source": [
+   8,
+   8
   ],
   "percentage": [
    3,
@@ -32,16 +32,16 @@
    1
   ],
   "unit": [
-   8,
-   9
+   9,
+   10
   ],
   "negation": [
    0,
-   12
+   14
   ],
   "party": [
    0,
-   20
+   22
   ]
  }
 }
