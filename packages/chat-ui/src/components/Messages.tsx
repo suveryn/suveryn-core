@@ -156,7 +156,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, present = NONE, ca
   const found = verdictOf(turn, n, occ);
   const verdict = said !== undefined ? said : found === null ? null
     : found.kind === "unchecked" ? { ok: false, text: m.verdictUnchecked }
-    : found.kind === "issues" ? { ok: false, text: [...new Set(found.issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as, i.kind)))].join(" ") }
+    : found.kind === "issues" ? { ok: false, text: [...new Set(found.issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))].join(" ") }
     : { ok: true, text: found.kind === "source" ? m.verdictSource : m.verdictSentence };
   const go = (to: number) => onSource({ n: cited[to], occ: null });
 
@@ -551,7 +551,7 @@ function SaveToCaseActions({ save }: { save: SaveToCase }) {
  */
 function CitationIssuesNote({ issues }: { issues: CitationIssue[] }) {
   const m = useT();
-  const lines = [...new Set(issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as, i.kind)))];
+  const lines = [...new Set(issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))];
   return (
     <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{lines.join(" ")}</InlineNotice>
   );

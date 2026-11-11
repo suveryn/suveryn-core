@@ -80,7 +80,7 @@ export function tableRows(table: Table, sourceColumn: string): { header: string[
 /** Everything an exported answer says besides its text: what to check, and how figures were made. */
 export function checkLines(calculations: Calculation[], unverified: string[], issues: CitationIssue[], text: {
   calcFailed: (e: string, why: string) => string; calculatedBy: string; calcMissing: (f: string[]) => string;
-  unverified: (f: string[]) => string; citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null, kind?: CitationIssue["kind"]) => string;
+  unverified: (f: string[]) => string; citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null) => string;
 }): string[] {
   const lines: string[] = [];
   for (const c of calculations) {
@@ -89,7 +89,7 @@ export function checkLines(calculations: Calculation[], unverified: string[], is
   }
   if (unverified.length) lines.push(text.unverified(unverified));
   for (const i of issues) {
-    const line = text.citationIssue(i.n, i.item, i.found_in, i.written_as, i.kind);
+    const line = text.citationIssue(i.n, i.item, i.found_in, i.written_as);
     if (!lines.includes(line)) lines.push(line);
   }
   return lines;

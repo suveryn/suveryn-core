@@ -441,10 +441,8 @@ const fr: Messages = {
     `${n === 1 ? "Une conversation cite" : `${n} conversations citent`} ce document. Les passages en sont retirés.`,
   deleteDocumentKeepConversations: "Supprimer le document, garder les conversations",
   deleteDocumentAndConversations: (n) => (n === 1 ? "Supprimer le document et la conversation" : `Supprimer le document et ${n} conversations`),
-  citationIssue: (n, item, foundIn, writtenAs, kind) =>
-    kind === "negation" ? `Vérifiez la source ${n} : elle et cette phrase diffèrent par « ${item} ». L'une le dit, l'autre non.`
-    : kind === "party" ? `Vérifiez la source ${n} : elle dit « ${writtenAs} » là où cette phrase dit « ${item} ».`
-    : writtenAs ? `Vérifiez la source ${n} : elle écrit « ${writtenAs} », pas « ${item} ».`
+  citationIssue: (n, item, foundIn, writtenAs) =>
+    writtenAs ? `Vérifiez la source ${n} : elle écrit « ${writtenAs} », pas « ${item} ».`
     : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${foundIn.length > 1 ? "les sources" : "la source"} ${foundIn.join(", ")}.`
     : `Vérifiez la source ${n} : « ${item} » n'y figure pas.`,
   citationIssueTitle: "Cette source ne contient pas tout ce que dit la phrase. Vérifiez-la.",

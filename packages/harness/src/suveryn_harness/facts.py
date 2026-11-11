@@ -216,7 +216,7 @@ def _leaf(path: str, kind: str, raw: object, citations: list[Citation], filename
     issues: list[str] = []
     if cited:
         claim = value + " " + "".join(f"[{n}]" for n in numbers)
-        issues = [i.item for i in citation_issues(claim, citations, []) if i.kind == "missing"]  # a value is no sentence
+        issues = [i.item for i in citation_issues(claim, citations, [])]
     issues += [u for u in unverified_figures(value, [], source, style=style) if u not in issues]
     needs = None
     if kind in ("amount", "date", "number"):
