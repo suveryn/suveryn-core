@@ -27,6 +27,8 @@ report path: per run which checks held, and counts, never a value's text.
 A run on someone's own files (the GPU round's ``OWN_RUNS``: specs kept outside the repositories, on files their
 owner may share) may say ``"show_facts": true``: the facts at its checkpoint, with their sources, and the checks are
 then written to ``E2E_RUNS_FACTS``/<run>.txt for its owner to read, and never into the report or the summary.
+``E2E_RUNS_SHOW_ALL=1`` (the GPU round's ``SHOW_FACTS=1``) writes them for every run, the fictional ones too: to see
+what a failed expectation read instead.
 """
 
 from __future__ import annotations
@@ -173,7 +175,8 @@ def facts_text(run: dict) -> str:
     for f in run["facts"]:
         where = ", ".join(f"{c['filename']} p. {c['page']}" if c.get("page") else c["filename"] for c in f.get("citations") or [])
         lines.append(f"{f['id']}: {f.get('value') or '(not found)'}" + (f"  [{where}]" if where else "")
-                     + (f"  CHECK: {', '.join(f['issues'])}" if f.get("issues") else ""))
+                     + (f"  CHECK: {', '.join(f['issues'])}" if f.get("issues") else "")
+                     + ("  CHECK DIGITS WRONG" if f.get("needs") == "invalid_number" else ""))
     for name, c in (run.get("checks") or {}).items():
         lines.append(f"check {name}: {c.get('status')}" + (f" ({c.get('left')} / {c.get('right')})" if c.get("status") == "fails" else ""))
     in_part = sorted({d for st in (run.get("steps") or {}).values() for d in st.get("in_part") or []})
@@ -281,7 +284,7 @@ def test_a_playbook_runs_to_its_summary_with_the_real_model(stack_up, spec_path)
                               "in_part": sorted({d for st in at_checkpoint.get("steps", {}).values() for d in st.get("in_part") or []})}
     if path := os.environ.get("E2E_RUNS_REPORT"):
         Path(path).write_text(json.dumps(REPORT, indent=1, ensure_ascii=False))
-    if spec.get("show_facts") and (folder_out := os.environ.get("E2E_RUNS_FACTS")):
+    if (spec.get("show_facts") or os.environ.get("E2E_RUNS_SHOW_ALL") == "1") and (folder_out := os.environ.get("E2E_RUNS_FACTS")):
         Path(folder_out).mkdir(parents=True, exist_ok=True)
         (Path(folder_out) / f"{spec_path.stem}.txt").write_text(facts_text(at_checkpoint), encoding="utf-8")
     failures = [name for name, ok in results.items() if not ok]

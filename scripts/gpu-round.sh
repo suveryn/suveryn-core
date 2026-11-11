@@ -21,6 +21,8 @@
 #                                             # and a playbook, and what fails. PEOPLE_SPEC=<a run spec>: on that
 #                                             # run's documents and playbook (your own, say) instead of core's deed
 #                                             # intake; ONLY_PEOPLE=1: nothing but that step
+#   ONLY_RUNS=1 bash scripts/gpu-round.sh     # only the playbook runs (and PEOPLE, if given); SHOW_FACTS=1: what every
+#                                             # run read, the fictional ones too, in results/facts/<run>.txt
 #
 # What it runs, in order, with llama-server holding the model on the same card as the appliance does:
 #   1. test_e2e.py on the GPU (Docling and bge-m3 next to the model: does it all fit?);
@@ -45,6 +47,8 @@ OWN_RUNS="${OWN_RUNS:-}"                    # a folder of run specs on your own 
 MEANING="${MEANING:-${ONLY_MEANING:-0}}"                     # 1: the meaning experiment too (harness/tests/meaning_experiment.py); 2: and again with thinking
 PEOPLE="${PEOPLE:-}"                        # numbers of people at work at the same moment, as "1 2 4 8"; empty: not run
 PEOPLE_SPEC="${PEOPLE_SPEC:-}"              # the run spec they work on; empty: core's deed intake on the trap deed
+ONLY_RUNS="${ONLY_RUNS:-0}"                 # 1: only the playbook runs
+SHOW_FACTS="${SHOW_FACTS:-0}"               # 1: write what every run read, not only the runs that ask for it
 ONLY_PEOPLE="${ONLY_PEOPLE:-0}"             # 1: only the several-people step
 OWN_QUESTIONS="${OWN_QUESTIONS:-}"          # a folder of your own files with questions about them (never in a repository)
 KC_VERSION=26.8.1                           # suveryn-appliance provision/versions.json
@@ -176,7 +180,7 @@ playbook_runs() {  # a tag: the end-to-end stack's PostgreSQL, Keycloak and gate
   set +e
   uv run python e2e/stack.py up 2>&1 | grep -v "health:"
   if [ "$ONLY_PEOPLE" != 1 ]; then
-    E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}:${OWN_RUNS:-}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" E2E_RUNS_FACTS="$RESULTS/facts" \
+    E2E_RUNS_DIR="${PACKS:+$PACKS/tests/runs}:${OWN_RUNS:-}" E2E_RUNS_REPORT="$RESULTS/runs-$tag.json" E2E_RUNS_FACTS="$RESULTS/facts" E2E_RUNS_SHOW_ALL="$SHOW_FACTS" \
       uv run pytest e2e/tests/test_playbook_runs.py -v -rs -s -p no:cacheprovider --junitxml="$RESULTS/runs-$tag.xml" 2>&1 \
       | tee "$RESULTS/runs-$tag.log"
     RC[runs-$tag]=${PIPESTATUS[0]}
@@ -211,7 +215,7 @@ for tag in $LLAMA_TAG $COMPARE; do
     set -e
   fi
   if [ "${ONLY_MEANING:-0}" = 1 ]; then stop_all; continue; fi
-  if [ "$ONLY_PEOPLE" = 1 ]; then
+  if [ "$ONLY_PEOPLE" = 1 ] || [ "$ONLY_RUNS" = 1 ]; then
     [ "$tag" = "$LLAMA_TAG" ] && playbook_runs "$tag"
     stop_all; continue
   fi
