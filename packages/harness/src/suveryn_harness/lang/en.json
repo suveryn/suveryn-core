@@ -22,6 +22,13 @@
   "th"
  ],
  "ordinal_word_endings": [],
+ "year_first": [
+  "in the year"
+ ],
+ "day_intro": [
+  "on",
+  "the"
+ ],
  "no_number_after": {},
  "number_only_near": {
   "ten": [
