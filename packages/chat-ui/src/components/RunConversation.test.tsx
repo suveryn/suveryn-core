@@ -35,7 +35,7 @@ const RUN: Run = {
     { id: "epc", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" },
   ],
   turns: [
-    { seq: 1, role: "playbook", step_id: "agreement", by: PLAYBOOK.id, at: SUMMARY.started_at, text: "Upload the agreement.", meta: {} },
+    { seq: 1, role: "playbook", step_id: "agreement", by: PLAYBOOK.id, at: SUMMARY.started_at, text: "", meta: { kind: "request" } },
     { seq: 2, role: "user", step_id: "agreement", by: "ines", at: SUMMARY.started_at, text: "Here it is.",
       meta: { attachments: [{ documentId: "d1", filename: "akte.pdf" }] } },
     { seq: 3, role: "playbook", step_id: "missing", by: PLAYBOOK.id, at: SUMMARY.started_at, text: "1 of 2 facts found.",
@@ -48,7 +48,8 @@ const RUN: Run = {
   ],
 };
 const KASE = { id: "c1", reference: "2026/0611", name: "Verkoop Peeters", type: "sale", state: "open", manager: "u-ines" } as unknown as Case;
-const words = { title: "Deed intake", summary: "", labels: { price: "Price", epc: "EPC", buyer: "Buyer" }, facts_title: "Facts for the deed" };
+const words = { title: "Deed intake", summary: "", labels: { price: "Price", epc: "EPC", buyer: "Buyer" }, facts_title: "Facts for the deed",
+                questions: { agreement: "Upload the agreement." } };
 const names = (u: string) => ({ ines: "Ines Wouters", lotte: "Lotte Verbeke" }[u] ?? u);
 const noop = () => undefined;
 /** As React writes it into markup. */
@@ -63,7 +64,7 @@ describe("the thread", () => {
     expect(html).toContain("Ines Wouters started Deed intake 1.1");
     expect(html).toContain(en.runAskTurn(1, 2, "EPC"));
     expect(html).toContain(en.runChanged("Price", "EUR 415.000,00"));
-    expect(html).toContain("Upload the agreement.");  // the pack's question as written
+    expect(html).toContain("Upload the agreement.");  // the request's turn has no text: the pack's question, in the reader's words
   });
 
   it("names the playbook as speaker once per series, with the route badge, and shows events as lines", () => {
@@ -238,7 +239,7 @@ describe("lists (format 3)", () => {
                    { id: "title_deed", kind: "request" as const, needs: ["agreement"], facts: [], allow_none: true }];
     const playbook: PlaybookInfo = { ...PLAYBOOK, steps };
     const at = (step: string): Run => ({ ...RUN, step, steps: {}, facts: [], turns: [
-      { seq: 1, role: "playbook", step_id: step, by: PLAYBOOK.id, at: SUMMARY.started_at, text: "Upload it.", meta: {} }] });
+      { seq: 1, role: "playbook", step_id: step, by: PLAYBOOK.id, at: SUMMARY.started_at, text: "", meta: { kind: "request" } }] });
     const html = (run: Run) => renderToStaticMarkup(
       <RunThread run={run} kase={KASE} playbook={playbook} words={words} me="u-ines" canAnswer nameOf={names} panel={null}
                  onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);

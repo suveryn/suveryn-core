@@ -171,12 +171,21 @@ to be seen from the second one.
 
 **The thread is a conversation** (decision, 30 October 2026). Starting a run makes a conversation in the
 case (`conversations.run_id`; `playbook_runs.conversation_id` points back), titled with the playbook in
-the run's language, its starter its owner, shared with the case from the start: it is listed, opened
+every language (`conversations.titles`, the pack's words; each reader's list shows theirs), its starter its owner, shared with the case from the start: it is listed, opened
 and named like any other conversation, with the route icon. It goes with its case, not with the
 conversations' keep period, "Delete history" or its owner's account, and it can't be unshared, moved,
 saved over or deleted on its own (stop or cancel the run). Every conversation's turns, ordinary chat
 included, are rows in `turns` (`conversations.py`, `TurnStore`): one per turn, stamped with who and
-when. A playbook's thread is appended by the server and never rewritten; the chat UI still saves its
+when. A playbook's thread is appended by the server and never rewritten. **A playbook's own turn is its
+meaning, never a sentence** (the handbook's decision of 12 November 2026, *Meaning on the server, words at the
+edge*; suveryn-tracker#126): no text, and in `meta` its kind (one of `suveryn_api_gateway/turn_kinds.json`: a
+request, an ask, a skipped step, a checkpoint, documents read in part or added late, an answer that couldn't be
+placed, a change, the events) and its facts, values and counts. The chat UI words each in its reader's language
+(`src/lib/runTurns.ts`), a request with the pack's question for that step; `RunStore.say` refuses a playbook turn
+with text or of another kind, and both sides' tests read the kinds file. A person's turn keeps what they wrote;
+a button or form answer is its values (`answers`, `none`, `case_documents`, `unknown`), worded by the screen
+too. So everyone in a case reads the whole run in their own language. Turns stored before keep their text, and
+the screen shows it; the chat UI still saves its
 own conversation whole, and the rows are brought in line with it (a changed turn rewritten in place,
 new ones appended, dropped ones deleted). No upgrade from the earlier blob: there are no appliances in
 production (decision, 31 October 2026). Event-sourcing the run (deriving steps, facts and turns from one

@@ -79,7 +79,7 @@ class Runtime:
                 because = self.skipped_because(run, playbook, step)
                 if because is not None:
                     states[step.id] = StepState(status="skipped", at=_now(), because=because)
-                    self._say(run, playbook, step.id, *self.skipped_turn(run, playbook, step, because))
+                    self._say(run, playbook, step.id, self.skipped_turn(run, playbook, step, because))
                     continue
             if step.kind == "request":
                 if self._request_satisfied(run, step, states):
@@ -87,7 +87,7 @@ class Runtime:
                     continue
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
-                    self._say(run, playbook, step.id, playbook.wording(run.language).question(step.id))
+                    self._say(run, playbook, step.id, {"kind": "request"})  # the pack's question, in each reader's language
                     self.store.set_step(rid, step.id, "waiting", states)
                 return None
             if step.kind == "read":
@@ -109,14 +109,14 @@ class Runtime:
                     continue
                 if states.get(step.id, StepState()).status != "active":
                     states[step.id] = StepState(status="active", at=_now())
-                    self._say(run, playbook, step.id, *self.ask_turn(run, playbook, open_facts))
+                    self._say(run, playbook, step.id, self.ask_turn(run, open_facts))
                     self.store.set_step(rid, step.id, "waiting", states)
                 return None
             if step.kind == "checkpoint":
                 if states.get(step.id, StepState()).status != "active":
                     self.recheck(run, playbook)  # a fact read again for a later document may settle a check, or fail one
                     states[step.id] = StepState(status="active", at=_now())
-                    self._say(run, playbook, step.id, *self.checkpoint_turn(run))
+                    self._say(run, playbook, step.id, self.checkpoint_turn(run))
                     self.store.set_step(rid, step.id, "waiting", states)
                 return None
             if step.kind == "check":
@@ -191,13 +191,10 @@ class Runtime:
             return None
         return f"{w}; {value or '?'}"
 
-    def skipped_turn(self, run: Run, playbook: Playbook, step: Step, because: str) -> tuple[str, dict]:
+    def skipped_turn(self, run: Run, playbook: Playbook, step: Step, because: str) -> dict:
         w = parse_when(step.when, playbook)
         value = because.rsplit("; ", 1)[-1]
-        words = playbook.wording("en")
-        said = (f"{words.step(step.id)}: not needed, {words.label(w.fact)} is {words.option(w.fact, value)}." if value != "?"
-                else f"{words.step(step.id)}: skipped, {words.label(w.fact)} is not known.")
-        return said, {"kind": "skipped_step", "step": step.id, "fact": w.fact, "value": "" if value == "?" else value, "when": str(w)}
+        return {"kind": "skipped_step", "step": step.id, "fact": w.fact, "value": "" if value == "?" else value, "when": str(w)}
 
     def normalise(self, playbook: Playbook, fact_id: str, value: str, language: str) -> str:
         """A person's value for a choice as its option id, from the id or the option's words in the run's
@@ -266,7 +263,7 @@ class Runtime:
         states[step.id] = StepState(status="done", at=_now(), in_part=in_part)
         said = {name for state in run.steps.values() for name in state.in_part}
         if new := [name for name in in_part if name not in said]:  # a document is named once per run, not per read
-            self._say(run, playbook, step.id, *self.in_part_turn(step, new))
+            self._say(run, playbook, step.id, self.in_part_turn(step, new))
         # still ``reading`` until ``advance`` has found the next wait: a poll between the two must not see a half-moved run
         if not self.store.set_step(rid, step.id, "reading", states, model=model, suspicious=suspicious):
             return None
@@ -324,10 +321,8 @@ class Runtime:
             if s.kind in ("checkpoint", "produce") and states.get(s.id, StepState()).status != "pending":
                 states[s.id] = StepState(status="pending")
         names = [uploaded[d] for d in given]
-        self._say(run, playbook, step.id, f"{', '.join(names)}: added to {playbook.wording('en').step(step.id)}. "
-                  + ("Reading it again for its facts." if again else "It will be read with the others."),
-                  {"kind": "late_documents", "step": step.id, "documents": names, "reads": [s.id for s in again],
-                   "reopened": run.status == "done"})
+        self._say(run, playbook, step.id, {"kind": "late_documents", "step": step.id, "documents": names,
+                                           "reads": [s.id for s in again], "reopened": run.status == "done"})
         self.store.set_step(rid, step.id, "waiting", states)
         return self.store.get(rid, cid)  # type: ignore[return-value]
 
@@ -430,28 +425,24 @@ class Runtime:
             found[root(f.id)] = found.get(root(f.id), False) or bool(f.value)
         return sum(found.values()), len(found)
 
-    def in_part_turn(self, step: Step, documents: list[str]) -> tuple[str, dict]:
-        return (f"{', '.join(documents)}: longer than sūveryn reads at once. It read the passages that best match the facts, "
-                "not every page: a fact not found may still be in them.",
-                {"kind": "read_in_part", "step": step.id, "documents": documents})
+    # The playbook's own turns are their meaning only (``meta``), never a sentence: the screen words each in its
+    # reader's language (decision of 12 November 2026, *Meaning on the server*; the kinds: ``TURN_KINDS``).
 
-    def ask_turn(self, run: Run, playbook: Playbook, open_facts: list[str]) -> tuple[str, dict]:
+    def in_part_turn(self, step: Step, documents: list[str]) -> dict:
+        return {"kind": "read_in_part", "step": step.id, "documents": documents}
+
+    def ask_turn(self, run: Run, open_facts: list[str]) -> dict:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
         found, total = self.counts(fresh)
-        words = playbook.wording("en")
-        missing = ", ".join(words.label(f) for f in open_facts)
-        return (f"{found} of {total} facts found. Not in the documents: {missing}. Do you know them?",
-                {"kind": "ask", "facts": open_facts, "found": found, "total": total})
+        return {"kind": "ask", "facts": open_facts, "found": found, "total": total}
 
-    def checkpoint_turn(self, run: Run) -> tuple[str, dict]:
+    def checkpoint_turn(self, run: Run) -> dict:
         fresh = self.store.get(uuid.UUID(run.id), uuid.UUID(run.case_id)) or run
         found, total = self.counts(fresh)
         issues = sum(1 for f in fresh.facts if f.issues)
         failing = sum(1 for c in fresh.checks.values() if c.status == "fails")
         differ = sum(1 for f in fresh.facts if f.alternative is not None)
-        return (f"{found} of {total} facts found." + (f" {issues} need checking." if issues else "") + (f" {failing} check(s) do not hold." if failing else "")
-                + (f" {differ} read differently in a document added later: choose." if differ else ""),
-                {"kind": "checkpoint", "found": found, "total": total, "issues": issues, "failing": failing, "differ": differ})
+        return {"kind": "checkpoint", "found": found, "total": total, "issues": issues, "failing": failing, "differ": differ}
 
     # -- products and the thread
 
@@ -470,9 +461,9 @@ class Runtime:
         except Exception as e:  # noqa: BLE001 - the confirmation stands; the document can be made again
             log.error("playbook result not stored: %s", type(e).__name__)
 
-    def _say(self, run: Run, playbook: Playbook, step_id: str | None, text: str, meta: dict | None = None) -> None:
-        if text:
-            self.store.say(run, "playbook", playbook.id, text, step_id, meta, once=True)
+    def _say(self, run: Run, playbook: Playbook, step_id: str | None, meta: dict) -> None:
+        """A playbook turn: its meaning, no text."""
+        self.store.say(run, "playbook", playbook.id, "", step_id, meta, once=True)
 
 
 # ------------------------------------------------------------------ a reading again (``Runtime.read_rows``)

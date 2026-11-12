@@ -35,6 +35,7 @@ import { failureText } from "../lib/review";
 import { dayLabel } from "../lib/conversations";
 import { checkJob, LOST_TRACK } from "../lib/uploads";
 import { exportRef } from "../lib/marks";
+import { EVENTS, eventText, personTurnText, playbookTurnText, type TurnMeta } from "../lib/runTurns";
 import {
   ActionMenu, Button, Card, Dialog, IconBadge, IconButton, InlineNotice, SourceRef, TextArea, TextButton, useFilePicker, type MenuEntry,
 } from "../ui";
@@ -229,30 +230,30 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
         {run.turns.map((t, i) => (isEvent(t)
           ? <EventLine key={t.seq} turn={t} nameOf={nameOf} />
           : t.role === "user"
-            ? <PersonTurn key={t.seq} turn={t} nameOf={nameOf} />
+            ? <PersonTurn key={t.seq} turn={t} nameOf={nameOf} words={words} />
             : <PlaybookTurn key={t.seq} turn={t} title={title} showSpeaker={speaker(i)} words={words}
                             // a choice the playbook asks about: its options as buttons (format 3, "Choices")
                             choices={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
                               ? ((t.meta.facts as string[] | undefined) ?? []).filter((f) => playbook?.choices?.[f]).map((f) => ({
                                   fact: f, label: factLabel(words, f),
                                   options: playbook!.choices![f].map((o) => ({ id: o, label: optionLabel(words, f, o),
-                                    send: () => answerRun(kase.id, run.id, run.step ?? "", { text: `${factLabel(words, f)}: ${optionLabel(words, f, o)}`, facts: { [f]: o } }).then(onChanged) })) }))
+                                    send: () => answerRun(kase.id, run.id, run.step ?? "", { facts: { [f]: o } }).then(onChanged) })) }))
                               : []}
                             review={t.seq === reviewAt
                               ? <Review run={run} kase={kase} words={words} lists={playbook?.lists ?? {}} steps={playbook?.steps ?? []} canAnswer={canAnswer} me={me} panel={panel} onPanel={onPanel} onChanged={onChanged} />
                               : null}
                             quickReply={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
-                              ? { label: m.answerPlaceholder, send: () => sayInRun(kase.id, run.id, { text: m.answerPlaceholder, unknown: true }).then(onChanged) }
+                              ? { label: m.answerPlaceholder, send: () => sayInRun(kase.id, run.id, { unknown: true }).then(onChanged) }
                               // the request always asks; the documents may already be in the case (question 1)
                               : canAnswer && run.status === "waiting" && t.step_id === run.step && stepKind(run, playbook) === "request"
-                                && i === run.turns.length - 1 && t.role === "playbook" && !t.meta.kind
-                              ? { label: m.runUseCaseDocuments, send: () => sayInRun(kase.id, run.id, { text: m.runUseCaseDocuments }).then(onChanged) }
+                                && i === run.turns.length - 1 && t.role === "playbook" && t.meta.kind === "request"
+                              ? { label: m.runUseCaseDocuments, send: () => sayInRun(kase.id, run.id, { case_documents: true }).then(onChanged) }
                               : null}
                             // a request the playbook can do without (the title deed, the certificates): "There is none"
                             noneReply={canAnswer && run.status === "waiting" && t.step_id === run.step && stepKind(run, playbook) === "request"
-                                && i === run.turns.length - 1 && t.role === "playbook" && !t.meta.kind
+                                && i === run.turns.length - 1 && t.role === "playbook" && t.meta.kind === "request"
                                 && playbook?.steps?.find((s) => s.id === run.step)?.allow_none
-                              ? { label: m.runNoDocument, send: () => answerRun(kase.id, run.id, run.step ?? "", { text: m.runNoDocument, none: true }).then(onChanged) }
+                              ? { label: m.runNoDocument, send: () => answerRun(kase.id, run.id, run.step ?? "", { none: true }).then(onChanged) }
                               : null} />))}
         {run.status === "reading" && (
           <div className="turn-assistant">
@@ -277,7 +278,6 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
   );
 }
 
-const EVENTS = new Set(["paused", "resumed", "stopped", "cancelled", "confirmed"]);
 const isEvent = (t: RunTurn) => t.role === "playbook" && typeof t.meta.kind === "string" && EVENTS.has(t.meta.kind);
 
 /** The brand mark with the route badge: a playbook speaking (badge-icon, system). */
@@ -297,18 +297,9 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, non
 }) {
   const m = useT();
   const [sending, setSending] = useState(false);
-  const meta = turn.meta as { kind?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string; step?: string; when?: string; documents?: string[] };
-  const label = (id: string) => factLabel(words, id);
-  const text = meta.kind === "ask" ? m.runAskTurn(meta.found ?? 0, meta.total ?? 0, (meta.facts ?? []).map(label).join(", "))
-    : meta.kind === "skipped_step" ? (meta.value
-        ? m.runStepNotNeeded(words.steps?.[meta.step ?? ""] ?? meta.step ?? "", label(meta.fact ?? ""), optionLabel(words, meta.fact ?? "", meta.value))
-        : m.runStepUnknown(words.steps?.[meta.step ?? ""] ?? meta.step ?? "", label(meta.fact ?? "")))
-    : meta.kind === "checkpoint" ? (review ? null : m.pbReviewIntroNone(meta.found ?? 0, meta.total ?? 0))
-    : meta.kind === "changed" ? m.runChanged(label(meta.fact ?? ""), meta.value ?? "")
-    : meta.kind === "unplaced" ? (meta.facts ? m.runUnplacedAsk : m.runUnplacedChange)
-    : meta.kind === "already_unknown" ? m.runAlreadyUnknown((meta.facts ?? []).map(label).join(", "))
-    : meta.kind === "read_in_part" ? m.runReadInPart((meta.documents ?? []).join(", "))
-    : turn.text;
+  const meta = { step: turn.step_id ?? undefined, ...(turn.meta as TurnMeta) };  // a request's step is the turn's
+  // the meaning in the reader's words (lib/runTurns.ts); a turn stored before 12 November keeps its text
+  const text = meta.kind === "checkpoint" && review ? null : meta.kind ? playbookTurnText(meta, m, words) : turn.text;
   return (
     <div className="turn-assistant run-turn">
       <Speaking />
@@ -548,7 +539,9 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd, inline = f
   );
 }
 
-function PersonTurn({ turn, nameOf }: { turn: RunTurn; nameOf: (u: string) => string }) {
+function PersonTurn({ turn, nameOf, words }: { turn: RunTurn; nameOf: (u: string) => string; words: PlaybookWords }) {
+  const m = useT();
+  const said = personTurnText(turn, m, words);
   const attachments = (turn.meta.attachments as { documentId: string; filename: string }[] | undefined) ?? [];
   return (
     <div className="turn-user">
@@ -557,7 +550,7 @@ function PersonTurn({ turn, nameOf }: { turn: RunTurn; nameOf: (u: string) => st
           {attachments.map((a) => <span key={a.documentId} className="chip-attachment"><FileText size={13} aria-hidden /> {a.filename}</span>)}
         </div>
       )}
-      {turn.text && <div className="bubble">{turn.text}</div>}
+      {said && <div className="bubble">{said}</div>}
       <span className="caption">{nameOf(turn.by)} · {dayAndTime(turn.at)}</span>
     </div>
   );
@@ -568,11 +561,9 @@ function EventLine({ turn, nameOf }: { turn: RunTurn; nameOf: (u: string) => str
   const m = useT();
   const who = nameOf(turn.by), at = dayAndTime(turn.at);
   const kind = turn.meta.kind as string;
-  const [icon, text] = kind === "confirmed" ? [<Check size={13} key="i" />, m.runConfirmedLine(who, at)]
-    : kind === "paused" ? [<Pause size={13} key="i" />, m.runPausedLine(who, at)]
-    : kind === "resumed" ? [<Play size={13} key="i" />, m.runResumedLine(who, at)]
-    : kind === "stopped" ? [<Square size={13} key="i" />, m.runStoppedLine(who, at)]
-    : [<CircleX size={13} key="i" />, m.runCancelledLine(who, at, String(turn.meta.reason ?? ""))];
+  const icon = kind === "confirmed" ? <Check size={13} /> : kind === "paused" ? <Pause size={13} />
+    : kind === "resumed" ? <Play size={13} /> : kind === "stopped" ? <Square size={13} /> : <CircleX size={13} />;
+  const text = eventText(turn.meta as TurnMeta, who, at, m);
   return <p className="run-line" data-kind={kind}><span aria-hidden>{icon}</span> {text}</p>;
 }
 

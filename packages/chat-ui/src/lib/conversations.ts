@@ -2,7 +2,7 @@
  * Saved conversations (suveryn-tracker#5): what is sent to the server and how it comes back.
  * The server stores the turns as given, under the signed-in user; see the gateway's conversations.py.
  */
-import { locale, t } from "../i18n";
+import { lang, locale, t } from "../i18n";
 import type { Turn } from "../types";
 
 /** A random UUID (v4). Not crypto.randomUUID: that needs a secure context, and an appliance may be reached over plain http. */
@@ -86,6 +86,7 @@ export function withoutDocument(turns: Turn[], documentId: string): Turn[] {
 
 /** A conversation's name in a list: its title, or "Shielded conversation" for one in a strictly
  *  confidential case, whose title the lists that span cases don't carry (docs/design/chat-ui.md §11). */
-export function listedTitle(c: { title: string | null; shielded?: boolean }): string {
-  return c.shielded || c.title === null ? t().shieldedConversation : c.title;
+export function listedTitle(c: { title: string | null; shielded?: boolean; titles?: Record<string, string> | null }): string {
+  // a playbook run's: its title in the reader's language, the pack's words (decision of 12 November 2026)
+  return c.shielded || c.title === null ? t().shieldedConversation : c.titles?.[lang()] || c.title;
 }

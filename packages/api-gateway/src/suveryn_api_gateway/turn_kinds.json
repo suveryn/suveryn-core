@@ -1,0 +1,5 @@
+{
+ "_about": "The kinds of a playbook's own turn. The server stores a playbook turn as its meaning only: its kind and facts, no text; the chat UI words each kind in its reader's language (src/lib/runTurns.ts). Read by both sides' tests, so a kind the screen can't word fails. Decision of 12 November 2026, Meaning on the server, words at the edge.",
+ "kinds": ["request", "skipped_step", "ask", "read_in_part", "checkpoint", "late_documents", "unplaced", "already_unknown",
+           "changed", "confirmed", "paused", "resumed", "stopped", "cancelled"]
+}

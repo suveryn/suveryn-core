@@ -284,7 +284,7 @@ export const RUN: Run = {
     fact("occupancy", "Vrij bij levering", [COMPROMIS(6, "Het goed wordt vrij van bewoning geleverd.")]),
   ],
   turns: [
-    { seq: 1, role: "playbook", step_id: "agreement", by: DEED_INTAKE.id, at: RUN_START, text: "", meta: {} },
+    { seq: 1, role: "playbook", step_id: "agreement", by: DEED_INTAKE.id, at: RUN_START, text: "", meta: { kind: "request" } },
     { seq: 2, role: "user", step_id: "agreement", by: "mieke@kantoor.be", at: ago(69 * MIN), text: "Hier zijn ze.",
       meta: { attachments: [{ documentId: "d-compromis-124", filename: "Compromis_DeSmet.pdf" }, { documentId: "d-titel-124", filename: "Eigendomstitel_1998.pdf" },
                             { documentId: "d-bodem-124", filename: "Bodemattest_scan.pdf" }] } },

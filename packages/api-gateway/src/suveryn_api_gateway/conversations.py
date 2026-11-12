@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     pinned_at   timestamptz,
     renamed     boolean NOT NULL DEFAULT false,
     run_id      uuid UNIQUE,               -- a playbook run's conversation (playbook_runs.conversation_id)
+    titles      jsonb,                     -- a run's: its title in every language, the pack's words; the UI shows the reader's
     -- Kept beside the turns on every change, so lists and look-ups don't open them: how many turns,
     -- and which documents the turns cite or attach (``cited_documents``).
     messages    integer NOT NULL DEFAULT 0,
@@ -181,6 +182,8 @@ class ConversationSummary(BaseModel):
     shielded: bool = False
     pinned: bool = False   # a personal conversation pinned by its owner (docs/design/chat-ui.md §3)
     run_id: str | None = None  # a playbook run's conversation (its icon is the route; it goes with its case)
+    # A run's title in every language (the pack's words): the UI shows the reader's; ``title`` is the starter's.
+    titles: dict[str, str] | None = None
 
 
 class PinIn(BaseModel):
@@ -286,8 +289,10 @@ class TurnStore(PgStore):
                meta: dict | None = None, once: bool = False) -> Turn:
         """Add a turn at the end of a conversation (a playbook's thread). The conversation's row is
         locked while the next ``seq`` is taken, so two writers at once never pick the same one. ``once``:
-        not when the last turn already says the same (role, step, text): two requests walking the run at
-        the same moment wrote the playbook's question twice (VM regression e0f2e26, finding 2)."""
+        not when the last turn already says the same (role, step, text and meta): two requests walking the run
+        at the same moment wrote the playbook's question twice (VM regression e0f2e26, finding 2). A playbook's
+        own turn has no text, only its meaning (``meta``; the decision of 12 November 2026, *Meaning on the
+        server*), so the meaning is compared too."""
         text = text[:MAX_TURN_TEXT]
         with self.transaction():
             n = self._execute("SELECT messages FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,)).fetchone()
@@ -296,7 +301,7 @@ class TurnStore(PgStore):
             if once:
                 last = self._execute(f"SELECT {self.TURN} FROM turns WHERE conversation_id = %s ORDER BY seq DESC LIMIT 1",
                                      (conversation_id,)).fetchone()
-                if last is not None and (last[1], last[2], last[5]) == (role, step_id, text):
+                if last is not None and (last[1], last[2], last[5], last[6]) == (role, step_id, text, meta or {}):
                     return self._turn(last)
             seq = self._execute("SELECT coalesce(max(seq), 0) + 1 FROM turns WHERE conversation_id = %s", (conversation_id,)).fetchone()[0]
             r = self._execute(f"INSERT INTO turns (conversation_id, seq, role, step_id, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s, %s)"
@@ -304,10 +309,13 @@ class TurnStore(PgStore):
             self._execute("UPDATE conversations SET messages = messages + 1, updated_at = now() WHERE id = %s", (conversation_id,))
         return self._turn(r)
 
-    def create_for_run(self, conversation_id: uuid.UUID, run_id: uuid.UUID, owner: str, title: str, case_id: uuid.UUID) -> None:
-        """A playbook run's conversation: in its case, shared with it from the start, owned by its starter."""
-        self._execute("INSERT INTO conversations (id, owner, title, case_id, shared, run_id) VALUES (%s, %s, %s, %s, true, %s)",
-                      (conversation_id, owner, title[:MAX_TITLE], case_id, run_id))
+    def create_for_run(self, conversation_id: uuid.UUID, run_id: uuid.UUID, owner: str, title: str, case_id: uuid.UUID,
+                       titles: dict[str, str] | None = None) -> None:
+        """A playbook run's conversation: in its case, shared with it from the start, owned by its starter.
+        ``titles``: the playbook's title in every language, so each reader sees it in theirs."""
+        self._execute("INSERT INTO conversations (id, owner, title, case_id, shared, run_id, titles) VALUES (%s, %s, %s, %s, true, %s, %s)",
+                      (conversation_id, owner, title[:MAX_TITLE], case_id, run_id,
+                       json.dumps({k: v[:MAX_TITLE] for k, v in titles.items()}) if titles else None))
 
     def _write_turns(self, conversation_id: uuid.UUID, turns: list[dict], by: str) -> None:
         """Bring the conversation's rows in line with ``turns`` (the chat UI's whole list), inside the
@@ -368,13 +376,13 @@ class ConversationStore(TurnStore):
         return n
 
     # ``messages``, not ``jsonb_array_length(turns)``: counting opened every conversation's turns for a list.
-    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, messages, pinned_at IS NOT NULL, run_id"
+    SUMMARY = "id, title, created_at, updated_at, case_id, owner, shared, messages, pinned_at IS NOT NULL, run_id, titles"
 
     @staticmethod
     def _summary(r) -> ConversationSummary:
         return ConversationSummary(id=str(r[0]), title=r[1], created_at=r[2], updated_at=r[3],
                                    case_id=str(r[4]) if r[4] else None, owner=r[5], shared=r[6], messages=r[7],
-                                   pinned=bool(r[8]), run_id=str(r[9]) if r[9] else None)
+                                   pinned=bool(r[8]), run_id=str(r[9]) if r[9] else None, titles=r[10])
 
     def summaries(self, owner: str, case_id: uuid.UUID | None = None) -> list[ConversationSummary]:
         """The conversations in one place, most recently changed first: the owner's own in their

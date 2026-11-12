@@ -507,6 +507,9 @@ const fr: Messages = {
   runUnplacedChange: "Cela n'a pas pu être placé. Quelle donnée faut-il changer, et comment ?",
   runAlreadyUnknown: (facts) => `${facts} : déjà indiqué comme pas encore connu.`,
   runReadInPart: (documents) => `${documents} : plus long que ce que sūveryn lit en une fois. Il a lu les passages qui correspondent le mieux aux données, pas chaque page : une donnée non trouvée peut encore s'y trouver.`,
+  runLateDocuments: (documents, step, count, again) => `${documents} : ${singular(count) ? "ajouté" : "ajoutés"} à ${step}. Sūveryn ${again
+    ? (singular(count) ? "le relit pour les données qu'il contient." : "les relit pour les données qu'ils contiennent.")
+    : `${singular(count) ? "le" : "les"} lira avec les autres.`}`,
   factCheckThis: "Ne figure pas ainsi dans le passage cité. Vérifiez.",
   changeValue: (label, value) => `${label}, ${value}, modifier`,
   factsCount: (found, total) => `${found} sur ${total}`,
