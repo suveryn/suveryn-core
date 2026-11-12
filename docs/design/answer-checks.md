@@ -84,13 +84,19 @@ difference, it flagged right answers that merely shorten their source.
 correct answers are few, and it was one model. A wrong flag costs trust, and a model's reading can't show its
 reason as a rule can.
 
+**On real answers** (11 November 2026, the same model and question, 106 answers on real contracts and deeds, 861
+cited sentences): it said 166 sentences (19%) are not carried by their passage, in 58 of the 106 answers; the rules
+flag 20. Of 12 of its flags read by hand, about 3 were real mistakes (a figure from a table given the wrong
+meaning), 2 unclear and 7 wrong: a nitpick on wording, or the model misreading a table or a form. It took 1.4
+seconds a sentence, about 11 an answer. As it stands it flags too much to show to a user.
+
 **What decides it.** The French real-deed benchmark (suveryn-tracker#50) and the GPU round's own answers, read by
 both models sūveryn ships. If the founder then decides for it, what must hold is written here so it isn't
 rediscovered: it goes through the harness like every model call (client, usage, audit: kinds and counts, never
 text); passage text is made inert as in the grounded prompt; it runs after the answer is shown, at low priority,
-so it never slows an answer; when it can't run the answer says so; its place on the screen has a board first. How
-it relates to marking by meaning (built, off, not measured either) is decided with it: both are a model's reading of
-what a sentence means, and one of them may be enough.
+so it never slows an answer; when it can't run the answer says so; its place on the screen has a board first. Marking
+by meaning is not part of that decision: it marks a sentence for the reader and checks nothing, and it is on since
+12 November 2026 (suveryn-tracker#123).
 
 ## What was rejected
 
