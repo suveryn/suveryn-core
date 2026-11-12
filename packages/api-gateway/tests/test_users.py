@@ -269,7 +269,7 @@ def test_there_is_always_one_administrator(setup):
     assert c.put(f"/v1/admin/users/{ALICE}/admin", json={"admin": False}, headers=admin).status_code == 200  # Bob is one now
     assert api.admins == {BOB}
     r = c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
-    assert r.status_code == 403 and r.json()["reason"] == "rights_removed"  # Alice isn't one any more
+    assert r.status_code == 403 and r.json()["code"] == "user.rights_removed"  # Alice isn't one any more
     bob = as_user(kc, BOB, admin=True)
     assert c.put(f"/v1/admin/users/{ALICE}/enabled", json={"enabled": False}, headers=bob).status_code == 200
     assert c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=bob).status_code == 409  # the last one
@@ -375,7 +375,7 @@ def test_a_role_without_its_composites_says_the_rights_were_refused(setup):
     c, kc, api, _ = setup
     api.no_composites = True
     r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
-    assert r.status_code == 503 and r.json()["reason"] == "rights"
+    assert r.status_code == 503 and r.json()["code"] == "user.rights_refused"
 
 
 def test_an_account_is_deleted_only_once_it_is_off_and_its_name_stays(setup):
@@ -444,7 +444,7 @@ def test_two_administrators_removing_each_other_at_once_leave_one(setup):
         assert len(api.admins) == 1
         assert answers[0].status_code == 200 and answers[1].status_code in (403, 409)
         if answers[1].status_code == 403:
-            assert answers[1].json()["reason"] == "rights_removed"
+            assert answers[1].json()["code"] == "user.rights_removed"
 
 
 def test_rights_removed_meanwhile_are_told_apart_from_a_role_without_its_rights(setup):
@@ -456,10 +456,10 @@ def test_rights_removed_meanwhile_are_told_apart_from_a_role_without_its_rights(
     dirk = as_user(kc, "user-d", admin=True)  # issued while he was one
     api.admins.discard("user-d")
     r = c.get("/v1/admin/users", headers=dirk)
-    assert r.status_code == 403 and r.json()["reason"] == "rights_removed"
+    assert r.status_code == 403 and r.json()["code"] == "user.rights_removed"
     api.no_composites = True
     r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
-    assert r.status_code == 503 and r.json()["reason"] == "rights"
+    assert r.status_code == 503 and r.json()["code"] == "user.rights_refused"
 
 
 class FakeDocuments:
@@ -566,7 +566,7 @@ def test_a_deletion_stopped_partway_says_so_and_finishes_when_done_again(stores,
         api._answer = lambda path, method, body: (httpx.Response(500) if method == "DELETE" and getattr(api, "down_on_delete", False)
                                                   else original(path, method, body))
     r = c.delete(f"/v1/admin/users/{BOB}", headers=admin)
-    assert r.status_code == 503 and r.json()["reason"] == "unfinished"
+    assert r.status_code == 503 and r.json()["code"] == "user.deletion_unfinished"
     assert BOB in api.users and api.users[BOB]["enabled"] is False  # still there, still off
     docs.fail = history.fail = api.down_on_delete = False
     assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 204

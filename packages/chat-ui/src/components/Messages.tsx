@@ -27,6 +27,7 @@ import {
 } from "../lib/copy";
 import type { AssistantTurn, UserTurn } from "../types";
 import { AssistantMark } from "./Brand";
+import { messageText } from "../lib/messages";
 import { AttachmentChip } from "./Chips";
 
 /** Why an answer failed, in the reader's language now: from its code when it has one, else the words kept. */
@@ -565,7 +566,7 @@ function CalculationNote({ calc }: { calc: Calculation }) {
   const m = useT();
   if (calc.result === null) {
     return (
-      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed(calc.expression, calc.reason ?? "")}</InlineNotice>
+      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed(calc.expression, messageText({ kind: "warning", code: calc.code ?? "calc.syntax" }, m))}</InlineNotice>
     );
   }
   const missing = calc.figures_not_in_sources;

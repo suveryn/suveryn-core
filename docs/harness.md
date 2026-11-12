@@ -143,8 +143,9 @@ tested:
 - **Calculations** ([`calc.py`](../packages/harness/src/suveryn_harness/calc.py)). The model never
   calculates. Each `[[calc: …]]` is computed exactly by the server and replaced by
   `figures = result` as the answer streams; one that can't be done by `figures = ?`, no words, and its
-  `Calculation.reason` (`calc.REASONS`: `number_style`, `decimal_separator`, `division_by_zero`,
-  `no_figures`, `syntax`) for the note under the answer to say why in its reader's language (failures are
+  `Calculation.code` (a code of the registry of messages, [design/messages.md](design/messages.md):
+  `calc.number_style`, `calc.decimal_separator`, `calc.division_by_zero`, `calc.no_figures`,
+  `calc.syntax`) for the note under the answer to say why in its reader's language (failures are
   codes, the handbook's decision of 12 November 2026; `error` stays English, for developers). A figure written ambiguously (`1.250` could be either
   style) is refused rather than guessed, unless the documents that write it settle it. Each document's
   way of writing decimals is read once from its whole text (`values.decimal_style`: "comma", "point",

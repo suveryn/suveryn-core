@@ -140,9 +140,9 @@ class Calculation(BaseModel):
     expression: str
     result: str | None
     figures_not_in_sources: list[str] = Field(default_factory=list)
-    error: str | None = None   # English, for developers; the screen words ``reason``
-    # Why it couldn't be computed, a code of ``calc.REASONS`` (decision of 12 November 2026: failures are codes).
-    reason: Literal["number_style", "decimal_separator", "division_by_zero", "no_figures", "syntax"] | None = None
+    error: str | None = None   # English, for developers; the screen words ``code``
+    # Why it couldn't be computed: a code of the registry of messages (``messages.json``, ``calc.*``).
+    code: str | None = None
     # Figures that read either way ("28.848"), read as the documents that write them write decimals: the reader is
     # told, so the reading is seen and not trusted blindly (decision of 10 November 2026).
     read_as: list[str] = Field(default_factory=list)

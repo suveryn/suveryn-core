@@ -17,7 +17,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -286,9 +286,8 @@ async def delete_user(sub: str, request: Request):
         raise  # its own sentence (app.py); deleting again once the rights are back finishes it
     except Exception as e:  # noqa: BLE001 - whichever step failed, the answer is the same
         log.warning("account %s: deletion stopped partway (%s); deleting again finishes it", sub, type(e).__name__)
-        return JSONResponse({"detail": "The deletion stopped partway: the account is still there, switched off, and part "
-                                       "of its own space may be gone. Delete it again to finish.", "reason": "unfinished"},
-                            status_code=503)
+        raise Problem("user.deletion_unfinished", "The deletion stopped partway: the account is still there, switched off, "
+                      "and part of its own space may be gone. Delete it again to finish.") from None
     request.app.state.auth.drop_user(sub)
     flush_soon(request.app)
     log.info("account %s deleted by an administrator", sub)

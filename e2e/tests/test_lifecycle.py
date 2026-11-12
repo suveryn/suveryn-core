@@ -44,7 +44,7 @@ def test_postgresql_restarts_and_nobody_is_signed_out(page, deed, restored):
     # deleting a document while the conversations can't be read is refused with a sentence, nothing deleted
     r = page.request.get("/v1/documents")
     assert r.status == 503, r.status
-    assert "database" in r.json().get("detail", "").lower() or r.json().get("reason") == "database"
+    assert r.json().get("code") == "system.database_unavailable"
     start(restored, "postgres")
     wait_until(lambda: database_back() and health_part("documents") == "ready", 90, what="the stores reconnecting")
     # the same session, no new sign-in: the stores reconnected by themselves (Pod check of f0ff96c)

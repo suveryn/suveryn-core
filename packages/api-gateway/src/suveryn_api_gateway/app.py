@@ -65,7 +65,7 @@ from suveryn_harness import (
     UsageRecord,
 )
 
-from . import routes
+from . import problems, routes
 from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
 from .avatars import MAX_UPLOAD_BYTES as AVATAR_MAX_BYTES
 from .avatars import AvatarStore
@@ -82,7 +82,6 @@ from .routes.common import (
     LOCAL_OWNER,
     MAX_UPLOAD_BYTES,
     CleanupUnavailable,
-    Refused,
     Database,
     DocumentNotFound,
     Scope,
@@ -130,8 +129,8 @@ STALE_RUN_S = 30 * 60    # a playbook run reading this long has lost its model c
 
 
 def _too_many(wait: int) -> JSONResponse:
-    return JSONResponse({"detail": f"Too many requests. Try again in {wait} seconds."}, status_code=429,
-                        headers={"Retry-After": str(wait)})
+    return problems.answer("request.too_many", f"Too many requests. Try again in {wait} seconds.",
+                           headers={"Retry-After": str(wait)}, seconds=wait)
 
 
 def _default_documents():
@@ -165,7 +164,7 @@ def _connector(factory, settings):
 
 def sign_in_unavailable(e: Exception) -> JSONResponse:
     """Keycloak can't be reached or has a problem (its database stopped): 503, with ``reason`` for the page."""
-    return JSONResponse({"detail": f"Sign-in is not available: {e}.", "reason": "signin"}, status_code=503)
+    return problems.answer("auth.unavailable", f"Sign-in is not available: {e}.")
 
 def create_app(client: LlamaServerClient | None = None, documents=None, *, load_documents: bool = True,
                auth: Authenticator | None = None, conversations=None, usage=None, cases=None,
@@ -324,6 +323,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     show_docs = os.environ.get("SUVERYN_API_DOCS") == "1"
     app = FastAPI(title="Sūveryn API", version="0.2.0", lifespan=lifespan,
                   docs_url="/docs" if show_docs else None, redoc_url=None)
+    problems.install(app)  # every refusal and failure in the one shape (Problem Details with a code)
 
     # What the routes read (routes/common.py): set before the app starts, unchanged after.
     app.state.auth = authenticator
@@ -349,8 +349,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             # app can also be started with bare uvicorn: refuse anyone who isn't on this machine.
             host = request.client.host if request.client else None
             if host not in LOCAL_CLIENTS:
-                return JSONResponse({"detail": "Sign-in is turned off; only this machine may use the API."},
-                                    status_code=403)
+                return problems.answer("request.forbidden", "Sign-in is turned off; only this machine may use the API.")
         if not request.url.path.startswith("/v1/") or not authenticator.enabled:
             request.state.user = None
             return await call_next(request)
@@ -363,42 +362,36 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 if user is not None and request.method in UNSAFE_METHODS:
                     origin = request.headers.get("origin")
                     if origin != settings.public_origin:
-                        return JSONResponse({"detail": "Request from another site refused."}, status_code=403)
+                        return problems.answer("request.forbidden", "Request from another site refused.")
         except AuthUnavailable as e:
             return sign_in_unavailable(e)
         except AuthError:
             user = None
         if user is None:
-            return JSONResponse({"detail": "Sign in to continue."}, status_code=401,
-                                headers={"WWW-Authenticate": 'Bearer realm="suveryn"'})
+            return problems.answer("auth.signed_out", "Sign in to continue.",
+                                   headers={"WWW-Authenticate": 'Bearer realm="suveryn"'})
         request.state.user = user
         if request.url.path.startswith("/v1/admin/") and ADMIN_ROLE not in user.roles:
             # Administration, refused before anything reads the request's body: a malformed body from someone
             # who isn't an administrator got 422, not 403 (VM regression of 29 October, finding 11). Each route
             # still checks for itself.
-            return JSONResponse({"detail": "Only administrators can see this."}, status_code=403)
+            return problems.answer("request.forbidden", "Only administrators can see this.")
         limiter = per_user_limits.get((request.method, _limit_path(request.url.path)))
         if limiter is not None and (wait := limiter.hit(user.sub)) is not None:
             return _too_many(wait)
         return await call_next(request)
 
-    @app.exception_handler(Refused)
-    async def refused(request: Request, exc: Refused):
-        """A refusal with a code: ``reason`` for the page to word, ``detail`` in English for developers."""
-        return JSONResponse({"detail": exc.detail, "reason": exc.reason}, status_code=exc.status_code, headers=exc.headers)
-
     @app.exception_handler(SearchUnavailable)
     async def search_unavailable(request: Request, exc: SearchUnavailable):
-        return JSONResponse({"detail": str(exc)}, status_code=503)
+        return problems.answer("system.documents_unavailable", str(exc))
 
     @app.exception_handler(psycopg.OperationalError)
     async def database_unavailable(request: Request, exc: psycopg.OperationalError):
         """The database can't be reached (stopped, restarting): 503 and a sentence, not a 500. The
         next request reconnects (db.PgStore). The error's own text may name the server: not sent."""
         log.error("database unavailable: %s", type(exc).__name__)
-        # ``reason``: the page says which part is down in the person's language (api.ts httpErrorText).
-        return JSONResponse({"detail": "The database can't be reached right now. Try again shortly.", "reason": "database"},
-                            status_code=503)
+        # the code says which part is down, so the page can say it in the person's language
+        return problems.answer("system.database_unavailable", "The database can't be reached right now. Try again shortly.")
 
     @app.exception_handler(RightsRefused)
     async def rights_refused(request: Request, exc: RightsRefused):
@@ -411,10 +404,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         holds = await directory.holds_admin(owner_of(request)) if directory is not None and hasattr(directory, "holds_admin") else None
         if holds is False:
             log.info("accounts: an administrator's rights were removed meanwhile")
-            return JSONResponse({"detail": "Your administrator rights were removed meanwhile.", "reason": "rights_removed"},
-                                status_code=403)
+            return problems.answer("user.rights_removed", "Your administrator rights were removed meanwhile.")
         log.warning("accounts: %s", exc)
-        return JSONResponse({"detail": str(exc), "reason": "rights"}, status_code=503)
+        return problems.answer("user.rights_refused", str(exc))
 
     @app.exception_handler(AuthUnavailable)
     async def auth_unavailable(request: Request, exc: AuthUnavailable):
@@ -426,24 +418,24 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         if request.method == "POST" and request.url.path == "/v1/documents":
             length = request.headers.get("content-length")
             if length is None:
-                return JSONResponse({"detail": "Uploads need a Content-Length header."}, status_code=411)
+                return problems.answer("request.invalid", "Uploads need a Content-Length header.", 411)
             if not length.isdigit() or int(length) > MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD:
-                return JSONResponse({"detail": f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
-                                     "reason": "too_large"}, status_code=413)
+                return problems.answer("upload.too_large", f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                                       max_mb=MAX_UPLOAD_BYTES // (1024 * 1024))
         if request.method == "PUT" and request.url.path == "/v1/me/avatar":
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > AVATAR_MAX_BYTES:
-                return JSONResponse({"detail": "The picture is larger than 2 MB.", "reason": "picture_too_large"}, status_code=413)
+                return problems.answer("user.picture_too_large", "The picture is larger than 2 MB.", max_mb=AVATAR_MAX_BYTES // (1024 * 1024))
         if request.method == "PUT" and request.url.path.startswith("/v1/conversations/"):
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > MAX_CONVERSATION_BYTES:
-                return JSONResponse({"detail": "This conversation is too long to save.", "reason": "conversation_too_long"},
-                                    status_code=413)
+                return problems.answer("conversation.too_long", "This conversation is too long to save.")
         return await call_next(request)
 
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
                    routes.conversations, routes.usage, routes.backups, routes.status, routes.users, routes.clock):
         app.include_router(module.router)
+    problems.catch_all(app)  # last, so outermost: anything nobody planned for gets a reference
     return app
 
 

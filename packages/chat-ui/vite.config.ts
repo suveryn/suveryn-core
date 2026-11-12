@@ -81,8 +81,9 @@ export default defineConfig({
     // /auth: the sign-in routes; SUVERYN_PUBLIC_URL on the gateway must be this dev server's URL
     // (http://localhost:5173), because Keycloak redirects the browser back to /auth/callback here.
     proxy: { "/v1": api, "/health": api, "/auth": api },
-    // The chat reads the harness's word lists (src/lib/answer.ts: abbreviations), outside this package.
-    fs: { allow: [searchForWorkspaceRoot(process.cwd()), resolve(import.meta.dirname, "../harness/src/suveryn_harness/lang")] },
+    // The chat reads the harness's word lists (src/lib/answer.ts: abbreviations) and its registry of messages
+    // (src/lib/messages.ts), outside this package.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), resolve(import.meta.dirname, "../harness/src/suveryn_harness")] },
   },
   // In development, React Aria is bundled by Vite's dependency optimiser rather than transformed per
   // file; leave it out of that so the CSP replacement above applies there too.

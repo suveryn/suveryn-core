@@ -369,8 +369,10 @@ describe("tables in answers (Word and Excel)", () => {
     });
 
   it("lists what to check: calculations, figures and citations, each once", () => {
-    const m = { calcFailed: (e: string) => `fail ${e}`, calculatedBy: "Calc:", calcMissing: (f: string[]) => ` missing ${f}`,
+    const m = { ...TABLES_FOR_TESTS.en, calcFailed: (e: string, why: string) => `fail ${e}: ${why}`, calculatedBy: "Calc:", calcMissing: (f: string[]) => ` missing ${f}`,
                 unverified: (f: string[]) => `check ${f}`, citationIssue: (n: number, item: string) => `source ${n} lacks ${item}` };
+    expect(checkLines([{ expression: "1 / 0", result: null, figures_not_in_sources: [], error: "division by zero", code: "calc.division_by_zero" }], [], [], m))
+      .toEqual(["fail 1 / 0: it divides by zero"]);
     const issue = { marker: 0, n: 2, item: "X", found_in: [3], written_as: null };
     expect(checkLines([{ expression: "1 + 1", result: "2", figures_not_in_sources: [], error: null }], ["9"], [issue, { ...issue, marker: 4 }], m))
       .toEqual(["Calc: 1 + 1 = 2.", "check 9", "source 2 lacks X"]);
@@ -380,15 +382,16 @@ describe("tables in answers (Word and Excel)", () => {
 describe("server errors and long conversations", () => {
   it("says what went wrong in the interface's language, not as HTTP codes", () => {
     setLang("nl", false);
-    expect(httpErrorText(429, "Too many requests. Try again in 12 seconds.", "12")).toBe("te veel verzoeken; probeer het over 12 seconden opnieuw");
-    expect(httpErrorText(422, [{ loc: ["body", "messages"], msg: "too long" }])).toBe("de server kon dit verzoek niet aanvaarden");  // was "HTTP 422"
-    expect(httpErrorText(413, "This conversation is too long to save.", null, "conversation_too_long")).toMatch(/^dit gesprek is te lang/);
-    expect(httpErrorText(413, "The file is larger than 100 MB.")).toMatch(/^het bestand is groter/);
-    expect(httpErrorText(418, "I'm a teapot")).toBe("I'm a teapot");  // others keep the server's text
+    const problem = (code: string, params = {}) => ({ kind: "refused", code, params, detail: "English, for developers" });
+    expect(httpErrorText(429, problem("request.too_many", { seconds: 12 }))).toBe("te veel verzoeken; probeer het over 12 seconden opnieuw");
+    expect(httpErrorText(422, problem("request.invalid"))).toBe("de server kon dit verzoek niet aanvaarden");  // was "HTTP 422"
+    expect(httpErrorText(413, problem("conversation.too_long"))).toMatch(/^dit gesprek is te lang/);
+    expect(httpErrorText(413, problem("upload.too_large", { max_mb: 100 }))).toBe("het bestand is groter dan 100 MB");
+    expect(httpErrorText(418, { detail: "I'm a teapot" })).toBe("de server kon dit verzoek niet aanvaarden");  // never the server's English
     // Which part is down, when the gateway says (Pod check of cbccd38)
-    expect(httpErrorText(503, "The database can't be reached right now.", null, "database")).toMatch(/^de database antwoordt niet/);
-    expect(httpErrorText(503, "Sign-in is not available: …", null, "signin")).toMatch(/^aanmelden werkt nu niet/);
-    expect(httpErrorText(503, "Document search is unavailable.")).toBe("dit deel van de server is nu niet beschikbaar; probeer het later opnieuw");
+    expect(httpErrorText(503, { kind: "unavailable", code: "system.database_unavailable" })).toMatch(/^de database antwoordt niet/);
+    expect(httpErrorText(503, { kind: "unavailable", code: "auth.unavailable" })).toMatch(/^aanmelden werkt nu niet/);
+    expect(httpErrorText(503, "Bad Gateway")).toBe("dit deel van de server is nu niet beschikbaar; probeer het later opnieuw");  // a proxy's own answer
     setLang("en", false);
   });
 
