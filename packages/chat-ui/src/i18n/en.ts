@@ -534,6 +534,9 @@ const en = {
   runUnplacedChange: "That couldn't be placed. Which fact should change, and to what?",
   runAlreadyUnknown: (facts: string) => `${facts}: already not known yet.`,
   runReadInPart: (documents: string) => `${documents}: longer than sūveryn reads at once. It read the passages that best match the facts, not every page: a fact not found may still be in them.`,
+  runLateDocuments: (documents: string, step: string, count: number, again: boolean) => `${documents}: added to ${step}. ${again
+    ? (singular(count) ? "Reading it again for its facts." : "Reading them again for their facts.")
+    : (singular(count) ? "It will be read with the others." : "They will be read with the others.")}`,
   factCheckThis: "Not in the cited passage as written. Check it.",
   changeValue: (label: string, value: string) => `${label}, ${value}, change`,
   factsCount: (found: number, total: number) => `${found} of ${total}`,

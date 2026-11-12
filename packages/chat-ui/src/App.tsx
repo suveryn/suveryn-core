@@ -1090,7 +1090,7 @@ function Chat({ me }: { me: Me }) {
             <span className="top-bar-where">
               {currentCase && <span className="top-bar-case">{closed ? <Lock size={12} aria-hidden /> : <Folder size={12} aria-hidden />} <b>{currentCase.reference}</b> {currentCase.name}</span>}
               <span className="top-bar-title">{view === "chat" ? (openRunId && openRun
-                ? (current?.title ?? playbookWords(runPlaybook, language).title)
+                ? (playbookWords(runPlaybook, language).title || current?.title || "")
                   + (runLive && runStatusWord(openRun, runPlaybook, m) ? ` · ${runStatusWord(openRun, runPlaybook, m)}` : "")
                 : current?.title ?? (turns.length ? conversationTitle(turns) : m.newConversation)) : viewTitle}</span>
             </span>
@@ -1160,7 +1160,7 @@ function Chat({ me }: { me: Me }) {
             {openRunId && openRun ? <>
               <span className="case-sep" aria-hidden>/</span>
               {/* a playbook's conversation: its title and, while it runs, its state: the one place the state is said */}
-              <span className="case-title">{current?.title ?? playbookWords(runPlaybook, language).title}
+              <span className="case-title">{playbookWords(runPlaybook, language).title || current?.title}
                 {runLive && runStatusWord(openRun, runPlaybook, m) ? ` · ${runStatusWord(openRun, runPlaybook, m)}` : ""}</span>
             </> : !openRunId && (current || turns.length > 0) && <>
               <span className="case-sep" aria-hidden>/</span>

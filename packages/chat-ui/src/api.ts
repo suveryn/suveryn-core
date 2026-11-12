@@ -407,6 +407,7 @@ export type ConversationSummary = {
   owner_name?: string;  // a colleague's shared conversation: their name as the case knows it
   pinned?: boolean;     // a personal conversation its owner pinned in the sidebar (§3); one in a case follows its case
   run_id?: string | null;  // a playbook run's conversation: opens the run; its icon is the route; it goes with its case
+  titles?: Record<string, string> | null;  // a run's title in every language (the pack's words): listedTitle shows the reader's
 };
 export type SavedConversation = ConversationSummary & { turns: Turn[] };
 
@@ -1022,7 +1023,8 @@ export async function answerRun(caseId: string, runId: string, stepId: string,
 
 /** Writes in the run's conversation (a playbook is a conversation): the documents just added, an answer in words (mapped to the facts
  *  asked), ``unknown`` (the quick reply), or a correction at the checkpoint. The run walks on as far as it can. */
-export async function sayInRun(caseId: string, runId: string, said: { text?: string; documents?: string[]; unknown?: boolean }): Promise<Run> {
+export async function sayInRun(caseId: string, runId: string,
+                               said: { text?: string; documents?: string[]; unknown?: boolean; case_documents?: boolean }): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/say`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(said),
   });

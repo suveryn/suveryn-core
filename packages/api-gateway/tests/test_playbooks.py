@@ -192,7 +192,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert (run["status"], run["step"], run["language"], run["playbook_version"]) == ("waiting", "agreement", "nl", "1.7")
     assert run["steps"]["agreement"]["status"] == "active" and run["steps"]["agreement_read"]["status"] == "pending"
     assert [(t["role"], t["step_id"], t["by"]) for t in run["turns"]] == [("playbook", "agreement", "playbook/be-notary/deed-intake")]
-    assert run["turns"][0]["text"].startswith("Laad de ondertekende verkoopovereenkomst op")
+    # the playbook's turn is its meaning, no sentence: each reader's screen asks in their language (decision of 12 November)
+    assert (run["turns"][0]["text"], run["turns"][0]["meta"]) == ("", {"kind": "request"})
     # one live run per playbook per case
     r = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice)
     assert r.status_code == 409 and r.json()["detail"]["run"] == rid
@@ -226,7 +227,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert (len(run["facts"]), sum(1 for f in run["facts"] if f["found"])) == (21, 11)
     found, total = 9, 13
     assert [t["meta"] for t in asked] == [{"kind": "ask", "facts": not_found, "found": found, "total": total}]
-    assert not_found[0] == "cadastral" and "Cadastral" in asked[0]["text"]
+    assert not_found[0] == "cadastral" and asked[0]["text"] == ""
     # the three requests, each answered (the agreement first without its document), then the ask
     assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook", "user", "playbook", "user", "playbook"]
     # the answer: a proposed fact from a person; a fact not asked is refused
@@ -236,7 +237,8 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     by = {f["id"]: f for f in r.json()["facts"]}
     assert by["cadastral"]["value"].startswith("Gent") and by["cadastral"]["source"] == "person" and by["cadastral"]["found"] is False
     assert by["cadastral"]["confirmed"] is None  # a person answered; nobody confirmed yet
-    assert [t["role"] for t in r.json()["turns"][-2:]] == ["user", "playbook"] and "Gent" in r.json()["turns"][-2]["text"]
+    assert [t["role"] for t in r.json()["turns"][-2:]] == ["user", "playbook"]
+    assert r.json()["turns"][-2]["meta"] == {"answers": {"cadastral": "Gent 5e afd., sectie B, nr. 123"}}  # the values, worded by the screen
     assert r.json()["turns"][-1]["meta"]["kind"] == "checkpoint"  # then the checkpoint says what to check
     # the five checks of 1.3 ran on the way: two sellers, one buyer, the advance within the price, the deed after the
     # agreement, the one condition's term before the deed
@@ -504,12 +506,21 @@ def test_store_deletes_runs_with_the_case(runs):
     run = runs.create(cid, DEED_INTAKE, [DOC], ALICE, None, "nl", ALICE)
     rid, conv = uuid.UUID(run.id), uuid.UUID(run.conversation_id)
     assert runs.get(rid, cid).status == "waiting" and runs.get(rid, uuid.uuid4()) is None
-    # the run is a conversation in its case (decision, 30 October 2026): titled with the playbook, shared, its starter's
-    row = runs._execute("SELECT title, case_id, shared, owner, run_id FROM conversations WHERE id = %s", (conv,)).fetchone()
-    assert row == (DEED_INTAKE.wording("nl").title, cid, True, ALICE, rid)
-    runs.say(run, "playbook", DEED_INTAKE.id, "Upload the agreement.", "agreement")
+    # the run is a conversation in its case (decision, 30 October 2026): titled with the playbook, shared, its starter's;
+    # its title in every language, so each reader's list shows theirs (decision of 12 November 2026)
+    row = runs._execute("SELECT title, case_id, shared, owner, run_id, titles FROM conversations WHERE id = %s", (conv,)).fetchone()
+    assert row == (DEED_INTAKE.wording("nl").title, cid, True, ALICE, rid,
+                   {"en": "Deed intake", "nl": DEED_INTAKE.wording("nl").title, "fr": DEED_INTAKE.wording("fr").title})
+    # a playbook's turn is its meaning, never a sentence: one with text, or of no known kind, is refused
+    with pytest.raises(ValueError):
+        runs.say(run, "playbook", DEED_INTAKE.id, "Upload the agreement.", "agreement", {"kind": "request"})
+    with pytest.raises(ValueError):
+        runs.say(run, "playbook", DEED_INTAKE.id, "", "agreement", {"kind": "a sentence"})
+    runs.say(run, "playbook", DEED_INTAKE.id, "", "agreement", {"kind": "request"}, once=True)
+    runs.say(run, "playbook", DEED_INTAKE.id, "", "agreement", {"kind": "request"}, once=True)  # the same turn again: once
+    runs.say(run, "playbook", DEED_INTAKE.id, "", "agreement", {"kind": "unplaced"}, once=True)  # another meaning: kept
     runs.write_facts(cid, rid, "read", [dict(fact_id="price", kind="amount", value="1", status="proposed", source={"kind": "none"}, by="x")])
-    assert [t.text for t in runs.get(rid, cid).turns] == ["Upload the agreement."] and len(runs.fact_rows(rid)) == 1
+    assert [t.meta["kind"] for t in runs.get(rid, cid).turns] == ["request", "unplaced"] and len(runs.fact_rows(rid)) == 1
     assert runs.delete_case(cid) == 1 and runs.list(cid) == []
     assert runs.turns_of(conv) == [] and runs.fact_rows(rid) == []  # the conversation, its turns and the facts went with the case
     assert runs._execute("SELECT count(*) FROM conversations WHERE id = %s", (conv,)).fetchone()[0] == 0
@@ -755,7 +766,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert run["steps"]["reports_read"]["status"] == "skipped" and "contribution_in_kind" not in by and "auditor" not in by
         skipped = [t for t in run["turns"] if t["meta"].get("kind") == "skipped_step"]
         assert [(t["meta"]["step"], t["meta"]["value"]) for t in skipped] == [("reports", "cash"), ("reports_read", "cash")]
-        assert skipped[0]["text"] == "Reports on the contribution in kind: not needed, Contribution is In cash."
+        assert skipped[0]["text"] == "" and skipped[0]["meta"]["fact"] == "contribution_kind"  # worded by the screen
         by = {f["id"]: f for f in run["facts"]}
         # the entries, by path; the number of shares isn't in the cited passage: *Check*
         assert by["founders[1].name"]["value"] == "Filip Tack" and by["founders[1].name"]["source"] == "document"
@@ -781,7 +792,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.status_code == 200
         by = {f["id"]: f for f in r.json()["facts"]}
         assert by["founders[2].name"]["source"] == "person" and by["founders[2].shares"]["value"] == "400"
-        assert r.json()["turns"][-1]["text"] == "Changed: Founder(s) 2 · Shares is now 400."
+        assert (r.json()["turns"][-1]["text"], r.json()["turns"][-1]["meta"]) == ("", {"kind": "changed", "fact": "founders[2].shares", "value": "400"})
         # a value given at the checkpoint recomputes the checks: the shares issued, filled in, settles one and fails none
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/shares", json={"value": "1.000"}, headers=alice)
         assert r.json()["checks"]["shares_add_up"] == {"status": "holds", "rule": "sum(founders.shares) == shares", "left": "1000", "right": "1000", "missing": []}
@@ -1054,3 +1065,27 @@ def test_a_document_that_comes_later_is_read_for_its_facts_and_a_confirmed_run_i
         end = wait_for(c, url, alice, "done")
         price = {f["id"]: f for f in end["facts"]}["price"]
         assert price["confirmed"] == "EUR 999.999,00" and price["alternative"] is None
+
+
+def test_every_kind_of_playbook_turn_the_server_writes_is_listed_for_the_screen():
+    """The kinds in turn_kinds.json are what the server writes and what the chat UI words (its test reads the same file):
+    a kind written but not listed, or listed but never written, fails (decision of 12 November 2026)."""
+    import ast
+    from pathlib import Path
+
+    from suveryn_api_gateway.playbooks import TURN_KINDS
+    src = Path(__file__).resolve().parents[1] / "src" / "suveryn_api_gateway"
+    written = set()
+    for path in (src / "playbook_runtime.py", src / "routes" / "playbooks.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        says = ("say", "_say")  # called, or handed to run_in_threadpool
+        nodes = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and (getattr(n.func, "attr", None) in says
+                                                                           or any(getattr(a, "attr", None) in says for a in n.args))]
+        nodes += [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name.endswith("_turn")]
+        for node in nodes:
+            for d in ast.walk(node):
+                if isinstance(d, ast.Dict):
+                    for k, v in zip(d.keys, d.values):
+                        if isinstance(k, ast.Constant) and k.value == "kind" and isinstance(v, ast.Constant):
+                            written.add(v.value)
+    assert written == set(TURN_KINDS)

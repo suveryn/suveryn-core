@@ -51,7 +51,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
 from suveryn_harness.language import load
-from suveryn_playbooks import Playbook, covered, from_record, to_record
+from suveryn_playbooks import LANGUAGES, Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
 from .conversations import Turn, TurnStore
@@ -208,7 +208,8 @@ class AnswerIn(BaseModel):
     """Body of ``POST …/runs/{run}/answer``: a person's answer to the step the run is waiting on.
     For an ``ask``: ``facts`` (a value per fact asked; empty: not known yet). For a ``request``:
     nothing (the documents are in the case; the runtime counts them) or ``none: true`` (there is no
-    such document, when the step allows it). ``text`` is what is written in the thread."""
+    such document, when the step allows it). ``text`` is what the person wrote, if anything: the thread keeps the
+    values given (``answers``) and the screen words them in each reader's language."""
 
     step_id: str = Field(min_length=1, max_length=50)
     text: str = Field(default="", max_length=MAX_ANSWER)
@@ -249,6 +250,7 @@ class SayIn(BaseModel):
     text: str = Field(default="", max_length=MAX_ANSWER)
     documents: list[str] = Field(default_factory=list, max_length=50)
     unknown: bool = False
+    case_documents: bool = False  # at a ``request``: the quick reply "Use the documents in the case", no words needed
 
 
 class PlaybookWords(BaseModel):
@@ -353,6 +355,8 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
     return "\n\n".join(lines)
 
 
+# The kinds of a playbook's own turn, shared with the chat UI, which words each (turn_kinds.json).
+TURN_KINDS = frozenset(json.loads((Path(__file__).parent / "turn_kinds.json").read_text(encoding="utf-8"))["kinds"])
 # The words the gateway writes itself, per language (docs/translations.md): a check's result and the line for
 # documents read in part in the summary; the chat UI has the check's three words in its own files.
 WORDS = load(Path(__file__).parent / "lang")
@@ -381,12 +385,13 @@ class RunStore(TurnStore):
     def create(self, case_id: uuid.UUID, playbook: Playbook, documents: list[str], started_by: str, model: str | None,
                language: str = "en", starter: str | None = None) -> Run:
         """A new run at its first step (the runtime sets the step and status straight after), with its
-        conversation in the case, titled with the playbook in the run's language. ``started_by`` is the
+        conversation in the case, titled with the playbook in every language. ``started_by`` is the
         name shown; ``starter`` the id rights are checked against, and the conversation's owner."""
         run_id, conversation_id = uuid.uuid4(), uuid.uuid4()
         steps = {s.id: StepState().model_dump(mode="json") for s in playbook.steps}
         with self.transaction():
-            self.create_for_run(conversation_id, run_id, starter or started_by, playbook.wording(language).title, case_id)
+            self.create_for_run(conversation_id, run_id, starter or started_by, playbook.wording(language).title, case_id,
+                                {lang: playbook.wording(lang).title for lang in LANGUAGES})
             self._execute("INSERT INTO playbook_runs (id, case_id, playbook_id, playbook_version, status, documents, started_by, model,"
                           " steps, language, starter, conversation_id, manifest) VALUES (%s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s, %s, %s, %s)",
                           (run_id, case_id, playbook.id, playbook.version, [uuid.UUID(d) for d in documents], started_by, model,
@@ -395,7 +400,11 @@ class RunStore(TurnStore):
 
     def say(self, run: RunSummary, role: str, by: str, text: str, step_id: str | None = None, meta: dict | None = None,
             once: bool = False) -> Turn:
-        """A turn at the end of the run's conversation (``once``: not if the last turn says the same)."""
+        """A turn at the end of the run's conversation (``once``: not if the last turn says the same). A person's turn
+        holds what they wrote; a playbook's holds its meaning only, a kind of ``TURN_KINDS`` and its facts, never a
+        sentence: the screen words it in each reader's language (decision of 12 November 2026)."""
+        if role == "playbook" and (text or (meta or {}).get("kind") not in TURN_KINDS):
+            raise ValueError(f"a playbook turn is a kind of TURN_KINDS without text, not {(meta or {}).get('kind')!r}")
         return self.append(uuid.UUID(run.conversation_id), role, by, text, step_id, meta, once)
 
     def active(self, case_id: uuid.UUID, playbook_id: str) -> RunSummary | None:

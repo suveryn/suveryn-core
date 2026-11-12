@@ -368,13 +368,14 @@ async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request
         given = {k: v for k, v in (body.facts or {}).items() if k in asked or (root(k) in asked and pb.leaf(k) is not None)}
         if (body.facts or {}).keys() - given.keys():
             raise HTTPException(422, "A fact that isn't asked here.")
-        text = body.text or "\n".join(f"{pb.wording(run.language).label(k)}: {v}" for k, v in given.items() if v.strip())
-        await run_in_threadpool(store.say, run, "user", username, text or "—", step.id, {"facts": sorted(given)})
+        # what the person wrote, or else only what they gave: the screen words the values in each reader's language
+        await run_in_threadpool(store.say, run, "user", username, body.text.strip(), step.id, {"answers": given})
         run = await run_in_threadpool(runtime.answer_ask, run, pb, step, given, username)
     else:
         if body.none and not step.allow_none:
             raise HTTPException(422, "This step needs the document.")
-        await run_in_threadpool(store.say, run, "user", username, body.text or ("—" if body.none else "✓"), step.id, {"none": body.none})
+        await run_in_threadpool(store.say, run, "user", username, body.text.strip(), step.id,
+                                {"none": True} if body.none else {"case_documents": True})
         run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none, body.documents)
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     await touch_case(request, Scope.case(cid))
@@ -412,6 +413,8 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         meta["attachments"] = [{"documentId": d, "filename": uploaded[d]} for d in body.documents]
     if body.unknown:
         meta["unknown"] = True
+    if body.case_documents:
+        meta["case_documents"] = True  # the quick reply "Use the documents in the case"
     text = body.text.strip()
     if not text and not meta:
         raise HTTPException(422, "Nothing was said.")
@@ -431,8 +434,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         if not body.unknown and not mapped and said_unknown(text, labels):
             pass  # "nog niet bekend" in words: as the quick reply, they stay unknown (VM regression 03c8f74, finding 8)
         elif not body.unknown and not mapped:
-            await run_in_threadpool(store.say, run, "playbook", pb.id, "That couldn't be placed. Which fact does it give, and what is the value?",
-                                    step.id, {"kind": "unplaced", "facts": asked})
+            await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "unplaced", "facts": asked})
             return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         run = await run_in_threadpool(runtime.answer_ask, run, pb, step, mapped, username)
     else:
@@ -444,18 +446,14 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         if unknown and not any(current.get(f) for f in unknown):
             # "Bodemattest: nog niet bekend." of a fact that is unknown already: said so, rather than "that couldn't be
             # placed" (VM regression 03c8f74, finding 8). A value isn't emptied in words, as it isn't on a card.
-            await run_in_threadpool(store.say, run, "playbook", pb.id,
-                                    f"Already not known yet: {', '.join(pb.wording('en').label(f) for f in unknown)}.",
-                                    step.id, {"kind": "already_unknown", "facts": unknown})
+            await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "already_unknown", "facts": unknown})
             return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         if not changed:
-            await run_in_threadpool(store.say, run, "playbook", pb.id, "That couldn't be placed. Which fact should change, and to what?",
-                                    step.id, {"kind": "unplaced"})
+            await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "unplaced"})
             return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
         run = await run_in_threadpool(runtime.correct, run, pb, step, changed, username)
         for fid, value in changed.items():
-            await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').label(fid)} is now {value}.",
-                                    step.id, {"kind": "changed", "fact": fid, "value": value})
+            await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "changed", "fact": fid, "value": value})
         await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
         return await run_in_threadpool(store.get, uuid.UUID(run.id), cid)
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
@@ -524,8 +522,7 @@ async def set_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, reques
         raise HTTPException(422, "Not one of the options.")  # a choice takes an option id or its words
     run = await run_in_threadpool(runtime.correct, run, pb, step, {fact_id: value}, username)
     if value != current.get(fact_id, ""):
-        await run_in_threadpool(store.say, run, "playbook", pb.id, f"Changed: {pb.wording('en').label(fact_id)} is now {value}.",
-                                step.id, {"kind": "changed", "fact": fact_id, "value": value})
+        await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "changed", "fact": fact_id, "value": value})
     await log_access(request, uuid.UUID(case.id), "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
 
@@ -585,7 +582,7 @@ async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Reque
         raise HTTPException(422, "A fact that isn't in this run.")
     username = who(request)[0]
     run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username)
-    await run_in_threadpool(store.say, run, "playbook", username, f"Confirmed by {username}.", None, {"kind": "confirmed"})
+    await run_in_threadpool(store.say, run, "playbook", username, "", None, {"kind": "confirmed"})
     await log_access(request, uuid.UUID(case.id), "playbook_confirmed", {"playbook": pb.id, "run": run.id})
     await touch_case(request, Scope.case(uuid.UUID(case.id)))
     return await _walk(request, run, pb, case)
@@ -607,7 +604,7 @@ async def pause_run(case_id: str, run_id: str, request: Request):
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.pause, uuid.UUID(run.id), who(request)[0]):
         raise HTTPException(409, "Only a run that is waiting can be paused.")
-    await run_in_threadpool(store.say, run, "playbook", who(request)[0], f"Paused by {who(request)[0]}.", None, {"kind": "paused"})
+    await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None, {"kind": "paused"})
     await log_access(request, uuid.UUID(case.id), "playbook_paused", {"playbook": pb.id, "run": run.id})
     return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
 
@@ -617,7 +614,7 @@ async def resume_run(case_id: str, run_id: str, request: Request):
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.resume, uuid.UUID(run.id)):
         raise HTTPException(409, "This run isn't paused.")
-    await run_in_threadpool(store.say, run, "playbook", who(request)[0], f"Resumed by {who(request)[0]}.", None, {"kind": "resumed"})
+    await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None, {"kind": "resumed"})
     await log_access(request, uuid.UUID(case.id), "playbook_resumed", {"playbook": pb.id, "run": run.id})
     fresh = await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
     return await _walk(request, fresh, pb, case)
@@ -634,7 +631,7 @@ async def stop_run(case_id: str, run_id: str, request: Request):
     if not await run_in_threadpool(store.end, rid, "stopped", who(request)[0]):
         raise HTTPException(409, "This run has already ended.")
     await run_in_threadpool(store.discard_proposed, rid)
-    await run_in_threadpool(store.say, run, "playbook", who(request)[0], f"Stopped by {who(request)[0]}. What was confirmed stays.", None,
+    await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None,
                             {"kind": "stopped"})
     await log_access(request, uuid.UUID(case.id), "playbook_stopped", {"playbook": pb.id, "run": run.id})
     return await run_in_threadpool(store.get, rid, uuid.UUID(case.id))
@@ -652,7 +649,7 @@ async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request
     if not await run_in_threadpool(store.end, rid, "cancelled", username, body.reason):
         raise HTTPException(409, "This run has already ended.")
     await run_in_threadpool(store.discard_all, rid)
-    await run_in_threadpool(store.say, run, "playbook", username, f"Cancelled by {username}. The facts no longer count.", None,
+    await run_in_threadpool(store.say, run, "playbook", username, "", None,
                             {"kind": "cancelled", "reason": body.reason})
     if run.result_document_id:
         try:

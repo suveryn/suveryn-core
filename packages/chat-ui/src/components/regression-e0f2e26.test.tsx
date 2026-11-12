@@ -40,7 +40,7 @@ describe("the run's quick replies", () => {
 
   it("offer the documents already in the case at the request, which always asks (question 1)", () => {
     const run = { ...BASE, step: "agreement", turns: [
-      { seq: 1, role: "playbook", step_id: "agreement", by: PLAYBOOK.id, at, text: "Upload the signed sale agreement.", meta: {} },
+      { seq: 1, role: "playbook", step_id: "agreement", by: PLAYBOOK.id, at, text: "", meta: { kind: "request" } },
     ] } as Run;
     expect(thread(run)).toContain(en.runUseCaseDocuments);
   });
