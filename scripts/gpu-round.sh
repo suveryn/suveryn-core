@@ -118,11 +118,12 @@ for tag in $LLAMA_TAG $COMPARE; do step "llama.cpp $tag"; build_llama "$tag"; do
 
 manifest() { uv run python -c "import json,sys; m=next(m for m in json.load(open('models/manifest.json'))['models'] if m.get('default') and m['role']=='llm'); print(m[sys.argv[1]])" "$1"; }
 MODEL_FILE="$(manifest file)"; MODEL_SHA="$(manifest sha256)"; MODEL_SRC="$(manifest source)"; MODEL_ARGS="$(manifest llama_server_args)"
+MODEL_REV="$(manifest revision)"   # the publisher's commit that holds this file: `main` moves (suveryn-tracker#134)
 MODEL="$WORK/models/$MODEL_FILE"
 step "model $MODEL_FILE"
 mkdir -p "$WORK/models"
 if [ ! -f "$MODEL.ok" ]; then
-  curl -fL --retry 5 -C - -o "$MODEL" "$MODEL_SRC/resolve/main/$MODEL_FILE"
+  curl -fL --retry 5 -C - -o "$MODEL" "$MODEL_SRC/resolve/$MODEL_REV/$MODEL_FILE"
   echo "$MODEL_SHA  $MODEL" | sha256sum -c --quiet || die "the model doesn't match the manifest's checksum (delete $MODEL and run again)"
   touch "$MODEL.ok"
 fi
