@@ -19,6 +19,7 @@ import { Button, Facts, FilePick, Form, InlineNotice, LinkButton, Notice, Passwo
          StatusList, TextField, type FieldErrors, type StatusItem } from "../../ui";
 import { getRestore, getState, saveRestore, startRestore, type RestoreProgress, type SetupState, type UsbDisk } from "../api";
 import { LOCALES, useLang, useText, type Text } from "../i18n";
+import { messageText } from "../../lib/messages";
 import { checkThenSave, StepFooter } from "./common";
 import { diskSize } from "./Backups";
 
@@ -68,7 +69,7 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
   const [password, setPassword] = useState("");
   const [keyFile, setKeyFile] = useState<File | null>(null);
   const result = useRef<RestoreProgress | null>(null);  // read by onValid in the same render, so not state
-  const failed = state.restore?.state === "failed" ? state.restore.error : undefined;
+  const failed = state.restore?.state === "failed" ? state.restore.message ?? {} : undefined;
 
   const check = async (): Promise<FieldErrors> => {
     const errors: FieldErrors = {};
@@ -80,7 +81,7 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
     if (!keyFile) errors.key = t.errKeyFileMissing;
     if (Object.keys(errors).length) return errors;
     const key = await readText(keyFile!);
-    if (key === null) return { key: t.errors.key_invalid };
+    if (key === null) return { key: t.messages["setup.key_invalid"] };
     return checkThenSave({}, async () => {
       result.current = (await saveRestore(target === "usb" ? { target, disk, key }
         : { target, protocol, address: address.trim(), ...(protocol === "smb" ? { user: user.trim(), password } : {}), key }));
@@ -94,7 +95,7 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
       {failed && (
         <div className="setup-block-tight" role="alert">
           <Notice icon={<TriangleAlert size={16} />} tone="warning" title={t.restoreCheckFailed}>
-            {t.restoreErrors[failed] ?? t.errUnexpected}
+            {messageText(failed, t)}
           </Notice>
         </div>
       )}

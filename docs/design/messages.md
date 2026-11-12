@@ -1,7 +1,7 @@
 # Messages: what the server says when something goes wrong, or needs checking
 
 The handbook's decision of 12 November 2026, [*Messages are codes*](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-12-messages-are-codes.md),
-as it is built here (suveryn-tracker#139). In one line: **the server sends, stores and logs a code with parameters,
+as it is built here (suveryn-tracker#139; the appliance's web setup, #141). In one line: **the server sends, stores and logs a code with parameters,
 never a sentence, and each screen words the code in its reader's language.**
 
 ## The four kinds
@@ -19,8 +19,8 @@ By what the person can do, not by how bad it is.
 
 [`packages/harness/src/suveryn_harness/messages.json`](../../packages/harness/src/suveryn_harness/messages.json) lists
 every code. It is the contract: the server may only use a listed code, the chat UI's build fails on a listed code
-without words in every language, the appliance reads it at its pinned core commit, and a partner gets it with the
-API. A line:
+without words in every language, the appliance's web setup may only say a code listed here (its tests check its
+list against this file), and a partner gets it with the API. A line:
 
 ```json
 "upload.too_large": {"kind": "refused", "status": 413, "title": "The file is larger than `max_mb`.",
@@ -78,6 +78,24 @@ the screen still gets a sentence in the reader's language. The tables are typed 
 `messages.test.ts` fails on a code, area or kind without words in a language. An answer that isn't the gateway's (a
 proxy's 502) gets its status's general code.
 
+## The appliance's web setup
+
+The setup's API is not the gateway: it is a small service in suveryn-appliance (`setup/suveryn-setup`) that runs
+before there is a database or a sign-in. It says the same thing in the same shape (suveryn-tracker#141):
+
+- Its codes are the registry's `setup` area. A refusal is Problem Details with `type`, `status`, `kind`, `code` and
+  `params`; the English `title` stays here in the registry. An answer refused field by field is `request.invalid`
+  with `fields`: `{"password": {"kind": "refused", "code": "setup.password_short", "params": {"min": 15}}}`.
+- What is stored or travels inside an answer is a message, `{kind, code, params}`: a share's test, why a restore's
+  check failed, the step where provisioning stopped (`setup.provisioning_failed`, its `step` an id the screen names).
+- Anything unplanned is `system.internal` with a reference, logged by the service with the request, the exception's
+  type and where it was raised, never its message. The screen says the reference instead of "HTTP 500".
+
+Two screens word codes, each for its own reader. The chat's tables (`src/i18n/<lang>.ts`) word every code but the
+`setup` area; the setup's tables (`src/setup/i18n/<lang>.ts`) word that area in full sentences that speak of the
+appliance and the partner, and its own `messageKinds` say anything else. `setup/screens.test.ts` fails on a `setup`
+code without words in a language, and on words for a code the registry doesn't list.
+
 ## Moving the rest over
 
 The foundation moved what already had a code: uploads, the busy and too-large refusals, the parts that are down, a
@@ -86,8 +104,11 @@ calculation's reason. What remains is counted, and the count may only go down:
 - `api-gateway/tests/test_problems.py`, `PLAIN_REFUSALS`: the plain `HTTPException`s still in the gateway. A PR that
   moves an area lowers the number; a new refusal is a `Problem`.
 - Still under their own names, each its own issue: an upload job's `error_code` and the warnings of ingestion, a
-  run's stored `error`, the chat stream's `failure`, the answer's checks, backups and the clock; in the appliance,
-  the web setup and the console.
+  run's stored `error`, the chat stream's `failure`, the answer's checks, backups and the clock. The backup service's
+  codes (`login`, `write`, `unreachable` …) are worded for Administration › Backups from `backupErrors` in the setup's
+  tables until then.
+- The console installer is not a server and keeps its own text file (`installer-text.json`, its keys are its codes);
+  its engine gives the screens a code, not an English sentence to recognise (suveryn-appliance, #141).
 - Status shows recent references to the administrator, with the support request: with the appliance's part.
 
 Keycloak's own pages and e-mails keep Keycloak's message files; this is for what sūveryn's server says.

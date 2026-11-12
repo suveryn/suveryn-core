@@ -9,6 +9,9 @@ import { singularIn } from "../../i18n/plural";
 /** Whether a count takes the singular here (CLDR's rules for fr; i18n/plural.ts). */
 const singular = singularIn(LOCALES.fr);
 
+/** What the screen says when the appliance gives no better reason. */
+const UNEXPECTED = "L'appliance n'a pas pu enregistrer ceci. Réessayez ; si cela se reproduit, redémarrez l'appliance depuis sa console et rechargez cette page.";
+
 const fr: Text = {
   language: "Langue",
   tagline: "AI for work that can't leave the premises.",
@@ -68,7 +71,7 @@ const fr: Text = {
   edit: "Modifier",
   editLabel: (what) => `Modifier : ${what}`,
   chooseFile: "Choisir un fichier",
-  errUnexpected: "L'appliance n'a pas pu enregistrer ceci. Réessayez ; si cela se reproduit, redémarrez l'appliance depuis sa console et rechargez cette page.",
+  errUnexpected: UNEXPECTED,
   stateText: { done: "terminé", running: "en cours", waiting: "en attente", failed: "échoué" },
 
   welcomeTitle: "Configurer votre appliance sūveryn",
@@ -220,7 +223,6 @@ const fr: Text = {
   doNotTurnOff: "N'éteignez pas l'appliance.",
   doNotTurnOffMore: "Un arrêt en cours de route peut laisser des services à moitié configurés.",
   provFailedTitle: "La mise en service s'est arrêtée",
-  provFailedText: (step) => `Elle s'est arrêtée à « ${step} ». Rien de ce que vous avez saisi n'est perdu. Réessayez ; si elle s'arrête encore, redémarrez l'appliance depuis sa console et rechargez cette page.`,
   tryAgain: "Réessayer",
 
   completeTitle: "Configuration terminée",
@@ -250,15 +252,6 @@ const fr: Text = {
   errKeyFileMissing: "Choisissez le fichier de la clé de récupération.",
   restoreFind: "Chercher la sauvegarde",
   restoreCheckFailed: "Aucune sauvegarde n'a pu être restaurée",
-  restoreErrors: {
-    wrong_key: "La clé de récupération n'ouvre pas cette sauvegarde. Choisissez le fichier de clé de l'appliance qui l'a faite.",
-    no_backup: "Il n'y a pas de sauvegarde sūveryn à cet endroit. Vérifiez le disque ou l'adresse du partage.",
-    unreachable: "L'appliance n'a pas pu atteindre les sauvegardes. Vérifiez le disque, ou l'adresse, le nom d'utilisateur et le mot de passe du partage.",
-    damaged: "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée.",
-    newer: "La sauvegarde la plus récente à cet endroit a été faite par une version de sūveryn plus récente que celle de cette appliance. Contactez votre partenaire pour mettre d'abord cette appliance à jour.",
-    invalid: "Les réponses étaient incomplètes. Saisissez-les à nouveau.",
-    restore: "La restauration s'est arrêtée en cours de route. Choisissez à nouveau la clé de récupération et réessayez ; si elle s'arrête encore, contactez votre partenaire.",
-  } as Record<string, string>,
   restoreChecking: "Recherche de la sauvegarde",
   restoreCheckingLead: "L'appliance cherche la sauvegarde la plus récente et la vérifie avec la clé. Pour une grande sauvegarde, cela peut prendre quelques minutes.",
   restoreConfirmTitle: "Restaurer cette sauvegarde ?",
@@ -286,35 +279,58 @@ const fr: Text = {
   restoreSupportTitle: "Enregistrez cette appliance auprès du support",
   restoreSupportText: "Cette appliance a son propre identifiant : le contrat de support de l'ancienne ne s'applique pas encore à elle. Enregistrez-la depuis le tableau de bord d'administration ; votre partenaire transfère le contrat.",
 
-  errors: {
-    name_missing: "Saisissez votre nom complet.",
-    email_invalid: "Saisissez une adresse e-mail comme nom@exemple.be.",
-    password_short: "Utilisez au moins 15 caractères.",
-    password_common: "Ce mot de passe est trop courant ou a fuité lors d'une violation de données. Choisissez-en un autre.",
-    password_personal: "N'utilisez pas votre nom, votre adresse e-mail ni le nom de l'appliance dans le mot de passe.",
-    not_a_certificate: "Ce n'est pas un certificat au format PEM.",
-    not_a_key: "Ce n'est pas une clé privée au format PEM, ou elle est protégée par une phrase secrète.",
-    key_mismatch: "Cette clé n'appartient pas au certificat.",
-    name_not_covered: "Le certificat n'est pas valable pour le nom de l'appliance.",
-    expired: "Ce certificat a expiré.",
-    chain_invalid: "Ces certificats ne mènent pas au certificat.",
-    manifest_format: "Ce n'est pas un fichier manifeste (.yaml).",
-    manifest_signature: "Ce manifeste n'est pas signé par Sūveryn Labs, ou il a été modifié après la signature.",
-    manifest_other_appliance: "Ce manifeste est destiné à une autre appliance.",
-    manifest_expired: "Ce manifeste a expiré.",
+  // The backup service's own codes, worded for Administration › Backups, which shares this step's screen. They
+  // move to the registry's `backup` area with the rest of that service's messages (docs/design/messages.md).
+  backupErrors: {
     address: "Saisissez l'adresse comme \\\\serveur\\partage (SMB) ou serveur:/chemin (NFS).",
     unreachable: "L'appliance ne peut pas atteindre ce partage. Vérifiez l'adresse et que le partage autorise cette appliance.",
-    denied: "Le partage a refusé le nom d'utilisateur ou le mot de passe.",
-    not_writable: "L'appliance peut atteindre le partage mais ne peut pas y écrire.",
-    not_local: "Cette adresse n'est pas sur votre propre réseau.",
     login: "Le partage a refusé le nom d'utilisateur ou le mot de passe.",
     write: "Connexion réussie, mais l'appliance ne peut pas y écrire.",
     disk_gone: "Ce disque n'est plus branché. Cherchez à nouveau.",
-    not_answered: "Certaines étapes ne sont pas encore complétées. Revenez en arrière pour les compléter.",
-    provisioning_started: "La mise en service a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
-    key_invalid: "Ce n'est pas un fichier de clé de récupération. Choisissez le fichier .txt créé lors de la configuration des sauvegardes.",
-    restore_started: "Une restauration a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
-    not_checked: "La sauvegarde n'a pas encore été vérifiée. Revenez en arrière et cherchez-la à nouveau.",
+  } as Record<string, string>,
+
+  // What the appliance says as a code (suveryn-core's registry, suveryn_harness/messages.json, area `setup`;
+  // docs/design/messages.md), worded for the setup's screens: a code's own words, else its kind's (messageKinds).
+  messages: {
+    "setup.name_missing": "Saisissez votre nom complet.",
+    "setup.email_invalid": "Saisissez une adresse e-mail comme nom@exemple.be.",
+    "setup.password_short": (p) => `Utilisez au moins ${p.min ?? 15} caractères.`,
+    "setup.password_common": "Ce mot de passe est trop courant ou a fuité lors d'une violation de données. Choisissez-en un autre.",
+    "setup.password_personal": "N'utilisez pas votre nom, votre adresse e-mail ni le nom de l'appliance dans le mot de passe.",
+    "setup.not_a_certificate": "Ce n'est pas un certificat au format PEM.",
+    "setup.not_a_key": "Ce n'est pas une clé privée au format PEM, ou elle est protégée par une phrase secrète.",
+    "setup.key_mismatch": "Cette clé n'appartient pas au certificat.",
+    "setup.name_not_covered": "Le certificat n'est pas valable pour le nom de l'appliance.",
+    "setup.certificate_expired": "Ce certificat a expiré.",
+    "setup.chain_invalid": "Ces certificats ne mènent pas au certificat.",
+    "setup.manifest_format": "Ce n'est pas un fichier manifeste (.yaml).",
+    "setup.manifest_signature": "Ce manifeste n'est pas signé par Sūveryn Labs, ou il a été modifié après la signature.",
+    "setup.manifest_other_appliance": "Ce manifeste est destiné à une autre appliance.",
+    "setup.manifest_expired": "Ce manifeste a expiré.",
+    "setup.share_address": "Saisissez l'adresse comme \\\\serveur\\partage (SMB) ou serveur:/chemin (NFS).",
+    "setup.share_unreachable": "L'appliance ne peut pas atteindre ce partage. Vérifiez l'adresse et que le partage autorise cette appliance.",
+    "setup.share_not_local": "Cette adresse n'est pas sur votre propre réseau.",
+    "setup.disk_gone": "Ce disque n'est plus branché. Cherchez à nouveau.",
+    "setup.not_answered": "Certaines étapes ne sont pas encore complétées. Revenez en arrière pour les compléter.",
+    "setup.provisioning_started": "La mise en service a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
+    "setup.key_invalid": "Ce n'est pas un fichier de clé de récupération. Choisissez le fichier .txt créé lors de la configuration des sauvegardes.",
+    "setup.restore_started": "Une restauration a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
+    "setup.not_checked": "La sauvegarde n'a pas encore été vérifiée. Revenez en arrière et cherchez-la à nouveau.",
+    "setup.restore_wrong_key": "La clé de récupération n'ouvre pas cette sauvegarde. Choisissez le fichier de clé de l'appliance qui l'a faite.",
+    "setup.restore_no_backup": "Il n'y a pas de sauvegarde sūveryn à cet endroit. Vérifiez le disque ou l'adresse du partage.",
+    "setup.restore_unreachable": "L'appliance n'a pas pu atteindre les sauvegardes. Vérifiez le disque, ou l'adresse, le nom d'utilisateur et le mot de passe du partage.",
+    "setup.restore_damaged": "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée.",
+    "setup.restore_newer": "La sauvegarde la plus récente à cet endroit a été faite par une version de sūveryn plus récente que celle de cette appliance. Contactez votre partenaire pour mettre d'abord cette appliance à jour.",
+    "setup.restore_failed": "La restauration s'est arrêtée en cours de route. Choisissez à nouveau la clé de récupération et réessayez ; si elle s'arrête encore, contactez votre partenaire.",
+    "setup.provisioning_failed": (p) => `Elle s'est arrêtée${p.step ? ` à « ${p.step} »` : ""}. Rien de ce que vous avez saisi n'est perdu. Réessayez ; si elle s'arrête encore, redémarrez l'appliance depuis sa console et rechargez cette page.`,
+    "request.invalid": "Les réponses étaient incomplètes. Saisissez-les à nouveau.",
+  },
+  messageAreas: { setup: UNEXPECTED },
+  messageKinds: {
+    refused: UNEXPECTED,
+    unavailable: UNEXPECTED,
+    internal: (p) => (p.ref ? `Une erreur s'est produite sur l'appliance. Réessayez ; si cela se reproduit, communiquez cette référence à votre partenaire : ${p.ref}` : UNEXPECTED),
+    warning: "C'est fait, mais un point est à vérifier.",
   },
 };
 

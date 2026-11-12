@@ -7,12 +7,16 @@
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { Refused } from "./api";
+import { refusal, Refused } from "./api";
+import { messageText, problemOf } from "../lib/messages";
 import { bech32, makeRecoveryKey, recoveryKeyFile } from "./recoveryKey";
 import { diskSize } from "./steps/Backups";
 import { errorsFrom } from "./steps/common";
 import { groupedFingerprint, registrationUrl } from "./steps/Support";
 import { TEXT } from "./i18n";
+
+const REGISTRY: { codes: Record<string, { kind: string }> } = JSON.parse(readFileSync(
+  new URL("../../../harness/src/suveryn_harness/messages.json", import.meta.url), "utf8"));
 
 const CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /** The 32 bytes in a bech32 string (without checking its checksum). */
@@ -80,16 +84,38 @@ describe("the rest", () => {
     expect(diskSize(500_107_862_016, "nl-BE")).toBe("500 GB");
     expect(diskSize(2_500_000_000_000, "fr-BE")).toBe("2,5 To");  // octets in French
   });
-  it("turns the appliance's refusal codes into messages, and anything else into one message", () => {
+  it("words the appliance's codes by field, a code it doesn't know by its kind, and no answer at all as one message", () => {
     const t = TEXT.nl;
-    expect(errorsFrom(new Refused({ key: "key_mismatch", _: "nonsense" }), t)).toEqual({ key: t.errors.key_mismatch, _: t.errUnexpected });
-    expect(errorsFrom(new Error("HTTP 500"), t)).toEqual({ _: t.errUnexpected });
+    expect(errorsFrom(new Refused({ key: refusal("key_mismatch"), _: refusal("something_new") }), t))
+      .toEqual({ key: t.messages["setup.key_mismatch"], _: t.errUnexpected });
+    expect(errorsFrom(new Refused({ password: refusal("password_short", { min: 15 }) }), t).password).toContain("15");
+    expect(errorsFrom(new TypeError("Failed to fetch"), t)).toEqual({ _: t.errUnexpected });
   });
-  it("has a message for every code in every language", () => {
-    for (const code of Object.keys(TEXT.en.errors)) {
-      expect(TEXT.nl.errors[code], code).toBeTruthy();
-      expect(TEXT.fr.errors[code], code).toBeTruthy();
+  it("gives a failure nobody planned for its reference, never a status number (suveryn-tracker#141)", () => {
+    for (const t of Object.values(TEXT)) {
+      const said = errorsFrom(new Refused({ _: problemOf(500, { kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } }) }), t)._;
+      expect(said).toContain("7F3K-92QD");
+      expect(said).not.toMatch(/HTTP|500/);
+      expect(errorsFrom(new Refused({ _: problemOf(502, "<html>Bad Gateway</html>") }), t)._).toBe(t.errUnexpected);
     }
+  });
+  it("has words in every language for every code of the registry's setup area, and for no code the registry doesn't list", () => {
+    const setup = Object.keys(REGISTRY.codes).filter((c) => c.startsWith("setup."));
+    expect(setup.length).toBeGreaterThan(20);
+    for (const [lang, t] of Object.entries(TEXT)) {
+      const worded = Object.keys(t.messages);
+      expect(worded.filter((c) => c.startsWith("setup.")).sort(), lang).toEqual([...setup].sort());
+      for (const code of worded) {
+        expect(REGISTRY.codes[code], `${lang} ${code}`).toBeTruthy();
+        for (const params of [{ min: 15, step: "Database" }, {}]) {
+          expect(messageText({ kind: REGISTRY.codes[code].kind, code, params }, t), `${lang} ${code}`).not.toMatch(/undefined|null|\[object|^$/);
+        }
+      }
+      expect(Object.keys(t.messageKinds).sort(), lang).toEqual(["internal", "refused", "unavailable", "warning"]);
+    }
+  });
+  it("names the step where provisioning stopped by its label", () => {
+    expect(messageText({ code: "setup.provisioning_failed", params: { step: TEXT.en.stepLabel.signin } }, TEXT.en)).toContain(`"${TEXT.en.stepLabel.signin}"`);
   });
   it("loads the demo answers only in development and the preview build", () => {
     const api = readFileSync(new URL("./api.ts", import.meta.url), "utf8");

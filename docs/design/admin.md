@@ -141,7 +141,7 @@ missed check-in, an expiry), each in ink with a way out, and "Nothing is blocked
 agreement from the manifest (edition, users, valid until, next check-in), the QR code for the
 quarterly check-in, the appliance ID and key fingerprint with *Copy*, and the manifest drop zone.
 Uploading the manifest in the browser is fine: it is a small text file, checked on the appliance,
-with the setup's four errors.
+with the setup's four refusals (`setup.manifest_…`).
 
 **Updates and models** (33, 38, 41), depending on #40, which isn't built: until it is, the page
 shows the version and the models only.

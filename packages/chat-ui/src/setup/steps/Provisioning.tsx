@@ -8,6 +8,7 @@ import { Check, CircleAlert, Info, LoaderCircle, Lock, TriangleAlert } from "luc
 import { useEffect, useState } from "react";
 import { Button, LinkButton, Notice, Progress, StatusList, type StatusItem } from "../../ui";
 import { getProgress, startProvisioning, type Progress as ProgressState, type SetupState, type StepId } from "../api";
+import { messageText } from "../../lib/messages";
 import { useText, type Text } from "../i18n";
 
 function items(p: ProgressState, state: SetupState, t: Text): StatusItem[] {
@@ -49,6 +50,9 @@ export function Provisioning({ state, onDone, headingId }: { state: SetupState; 
   const done = steps.filter((s) => s.state === "done").length;
   const running = steps.find((s) => s.state === "running");
   const failed = steps.find((s) => s.state === "failed");
+  // the step is an id on the wire and its label on the screen
+  const failedMessage = failed?.message?.code === "setup.provisioning_failed" || !failed?.message
+    ? { kind: "unavailable", code: "setup.provisioning_failed", params: { step: failed ? t.stepLabel[failed.id] : undefined } } : failed.message;
 
   return (
     <div className="setup-final">
@@ -66,7 +70,7 @@ export function Provisioning({ state, onDone, headingId }: { state: SetupState; 
           <>
             <div role="alert">
               <Notice icon={<TriangleAlert size={16} />} tone="warning" title={t.provFailedTitle}>
-                {t.provFailedText(t.stepLabel[failed.id])}
+                {messageText(failedMessage, t)}
               </Notice>
             </div>
             <Button variant="primary" className="setup-wide" onPress={() => setRestart((r) => r + 1)}>{t.tryAgain}</Button>

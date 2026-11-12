@@ -1,5 +1,5 @@
 {
- "_about": "Every message sūveryn's server sends or stores about what went wrong or what to check: a code with parameters, never a sentence (the handbook's decision of 12 November 2026, Messages are codes; docs/design/messages.md). A screen words each code in its reader's language; `title` is English, for developers, never shown to a person. A code, once released, is never renamed or reused. kind: refused | unavailable | internal | warning. A parameter's type: number | string | id; `private` marks client data, which is never logged.",
+ "_about": "Every message sūveryn's server, and the appliance's web setup, sends or stores about what went wrong or what to check: a code with parameters, never a sentence (the handbook's decision of 12 November 2026, Messages are codes; docs/design/messages.md). A screen words each code in its reader's language; `title` is English, for developers, never shown to a person. A code, once released, is never renamed or reused. kind: refused | unavailable | internal | warning. A parameter's type: number | string | id; `private` marks client data, which is never logged.",
  "areas": [
   "system",
   "auth",
@@ -14,7 +14,8 @@
   "answer",
   "backup",
   "clock",
-  "settings"
+  "settings",
+  "setup"
  ],
  "codes": {
   "system.internal": {
@@ -270,6 +271,205 @@
   "calc.syntax": {
    "kind": "warning",
    "title": "A calculation couldn't be read.",
+   "since": "0.2.0"
+  },
+  "setup.name_missing": {
+   "kind": "refused",
+   "title": "The administrator has no name.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.email_invalid": {
+   "kind": "refused",
+   "title": "The administrator's email address isn't one.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.password_short": {
+   "kind": "refused",
+   "title": "The administrator's password is shorter than `min` characters.",
+   "status": 422,
+   "params": {
+    "min": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "setup.password_common": {
+   "kind": "refused",
+   "title": "The administrator's password is on the list of common passwords.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.password_personal": {
+   "kind": "refused",
+   "title": "The administrator's password holds the name, the email address or the appliance's name.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.not_a_certificate": {
+   "kind": "refused",
+   "title": "The file isn't a certificate in PEM format.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.not_a_key": {
+   "kind": "refused",
+   "title": "The file isn't an unencrypted private key in PEM format.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.key_mismatch": {
+   "kind": "refused",
+   "title": "The private key doesn't belong to the certificate.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.name_not_covered": {
+   "kind": "refused",
+   "title": "The certificate doesn't cover the appliance's name.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.certificate_expired": {
+   "kind": "refused",
+   "title": "The certificate has expired.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.chain_invalid": {
+   "kind": "refused",
+   "title": "The chain doesn't lead to the certificate.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.manifest_format": {
+   "kind": "refused",
+   "title": "The file isn't a support manifest.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.manifest_signature": {
+   "kind": "refused",
+   "title": "The support manifest isn't signed by a trusted key, or was changed after signing.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.manifest_other_appliance": {
+   "kind": "refused",
+   "title": "The support manifest is for another appliance.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.manifest_expired": {
+   "kind": "refused",
+   "title": "The support manifest has expired.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.share_address": {
+   "kind": "refused",
+   "title": "The share's address isn't `\\\\server\\share` (SMB) or `server:/path` (NFS).",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.share_not_local": {
+   "kind": "refused",
+   "title": "The share's server isn't on the office's own network.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.share_unreachable": {
+   "kind": "refused",
+   "title": "The appliance can't reach the share's server.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.disk_gone": {
+   "kind": "refused",
+   "title": "The USB disk chosen isn't plugged in any more.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.key_invalid": {
+   "kind": "refused",
+   "title": "The file holds no recovery key.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.not_answered": {
+   "kind": "refused",
+   "title": "Provisioning was asked for before every step was answered.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "setup.provisioning_started": {
+   "kind": "refused",
+   "title": "Provisioning has started: answers can't change now.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "setup.restore_started": {
+   "kind": "refused",
+   "title": "A restore has started: answers can't change now.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "setup.not_checked": {
+   "kind": "refused",
+   "title": "A restore was asked for before the backup was found and checked.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "setup.restore_wrong_key": {
+   "kind": "refused",
+   "title": "The recovery key doesn't open the backup.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.restore_no_backup": {
+   "kind": "refused",
+   "title": "There is no backup where the office said.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.restore_damaged": {
+   "kind": "refused",
+   "title": "The newest backup is damaged.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.restore_newer": {
+   "kind": "refused",
+   "title": "The newest backup was made by a newer version than this appliance has.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "setup.restore_unreachable": {
+   "kind": "unavailable",
+   "title": "The appliance couldn't reach the disk or share with the backups.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "setup.restore_failed": {
+   "kind": "unavailable",
+   "title": "The restore stopped partway; the restore log has the detail.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "setup.provisioning_failed": {
+   "kind": "unavailable",
+   "title": "Provisioning stopped at `step`; the provisioning log has the detail.",
+   "status": 503,
+   "retry": true,
+   "params": {
+    "step": {
+     "type": "id"
+    }
+   },
    "since": "0.2.0"
   }
  }

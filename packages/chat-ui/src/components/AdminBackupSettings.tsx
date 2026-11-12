@@ -130,7 +130,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
     try {
       const a = await askBackupService({ kind: "test-share", protocol: form.protocol, address: form.address.trim(),
         ...(form.protocol === "smb" ? { user: form.user.trim() || null, password: form.password || null, keep_password: keepPassword } : {}) }, 60);
-      setTest(a.ok ? { state: "ok", for: shareKey } : { state: "failed", message: t.errors[a.error as keyof typeof t.errors] ?? t.errUnexpected });
+      setTest(a.ok ? { state: "ok", for: shareKey } : { state: "failed", message: t.backupErrors[a.error ?? ""] ?? t.errUnexpected });
     } catch (e) { setTest({ state: "failed", message: (e as Error).message }); }  // the test's own reason, not saving's
   };
 
@@ -177,7 +177,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
       });
       if (a.ok) { setDone(true); setForm((f) => ({ ...f, password: "" })); onSaved(); }
       else setErrors(Object.fromEntries(Object.entries(a.errors ?? { _: a.error ?? "" }).map(([field, code]) =>
-        [field, t.errors[code as keyof typeof t.errors] ?? t.errUnexpected])));
+        [field, t.backupErrors[code] ?? t.errUnexpected])));
     } catch (e) { setErrors({ _: (e as Error).message }); } finally { setBusy(false); }
   };
 
