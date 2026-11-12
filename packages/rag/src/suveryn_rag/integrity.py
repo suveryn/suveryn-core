@@ -23,9 +23,22 @@ import math
 import re
 import unicodedata
 from dataclasses import dataclass
+from pathlib import Path
 
+from suveryn_harness.language import any_of, load
+
+# The words of each language are in lang/<lang>.json (docs/translations.md), read together.
+WORDS = load(Path(__file__).parent / "lang")
+
+
+def _all(name: str) -> list[str]:
+    return list(dict.fromkeys(w for table in WORDS.values() for w in table[name]))
+
+
+# A page number standing alone: "12", "p. 3", "blz. 4 van 9", "page 2 sur 5", "3/7".
 PAGE_NUMBER = re.compile(
-    r"^\W*((pagina|page|blz|p)\.?\s*)?\d{1,4}(\s*(/|van|of|sur|de)\s*\d{1,4})?\W*$", re.IGNORECASE)
+    rf"^\W*({any_of(_all('page_words'))}\.?\s*)?\d{{1,4}}(\s*(/|{any_of(_all('page_of'))})\s*\d{{1,4}})?\W*$",
+    re.IGNORECASE)
 COVERAGE_THRESHOLD = 0.95  # share of a page's words that must be found in stored text
 MIN_MISSING_WORDS = 3      # ignore tiny shortfalls (hyphenation, stray OCR marks)
 
@@ -213,7 +226,8 @@ def lines_with(page_text: str, missing: set[str]) -> str:
 
 
 # ---------------------------------------------------------------- keyword search helpers
-STOPWORDS = {"wat", "welke", "welk", "wie", "waar", "wanneer", "hoe", "hoeveel", "waarom", "waarvoor", "is", "zijn", "er", "een", "de", "het", "van", "voor", "in", "op", "aan", "met", "door", "bij", "naar", "en", "of", "te", "die", "dat", "dit", "deze", "heeft", "hebben", "wordt", "worden", "kan", "mag", "moet", "ook", "nog", "niet", "geen", "als", "om", "tot", "uit", "over", "onder", "the", "an", "what", "which", "who", "whom", "when", "where", "how", "much", "many", "does", "do", "did", "are", "was", "were", "be", "to", "for", "on", "and", "or", "with", "by", "at", "from", "le", "la", "les", "des", "du", "un", "une", "quel", "quelle", "quels", "quelles", "qui", "que", "est", "et", "ou", "au", "aux", "pour", "par", "sur", "dans"}
+# Words of a question that are no search term.
+STOPWORDS = set(_all("search_stop_words"))
 
 
 def query_terms(question: str) -> list[str]:

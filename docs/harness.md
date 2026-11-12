@@ -80,8 +80,8 @@ quatre-vingt-trois" as 2 083. The languages are read together, because one file 
 different numbers in two languages stops the load. What no standard holds is in one short file per language written by hand, `lang/<lang>.json`: lists of
 words and phrases a translator can read (the joining words, abbreviations, units, the words for "about" and "not
 found", what reads as a number but isn't one, the words of text that addresses an AI), never patterns; the code
-makes its patterns from them. The harness's code holds no word of a language, and a test keeps it so
-(`tests/test_language.py`). A deed's own date is read too: the year first, then the day and the month ("Het jaar tweeduizend
+makes its patterns from them. The harness's code holds no word of a language, nor any other package's, and a test keeps it so
+(`tests/test_language.py`); the rag and the gateway keep their own words the same way, loaded with `language.load`. A deed's own date is read too: the year first, then the day and the month ("Het jaar tweeduizend
 zesentwintig, op tweeëntwintig oktober", "L'an deux mille vingt-six, le vingt-deux octobre"; suveryn-tracker#113).
 Adding a language: [translations.md](translations.md). The libraries are a developer's
 tools, not the appliance's.

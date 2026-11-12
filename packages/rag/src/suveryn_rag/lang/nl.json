@@ -1,0 +1,154 @@
+{
+ "_about": "Dutch words the rag reads in questions and file names (lang/README.md). Lower case, without accents. A native speaker reviews this file.",
+ "document_kinds": {
+  "attorney": [
+   "volmacht",
+   "volmachten"
+  ],
+  "care_mandate": [
+   "zorgvolmacht"
+  ],
+  "statutes": [
+   "statuten",
+   "statutenwijziging"
+  ],
+  "incorporation": [
+   "oprichtingsakte"
+  ],
+  "shareholders": [
+   "aandeelhoudersovereenkomst"
+  ],
+  "subscription": [
+   "inschrijvingsovereenkomst"
+  ],
+  "warrant": [
+   "warrantovereenkomst"
+  ],
+  "issue": [
+   "uitgifteakte",
+   "akte van uitgifte"
+  ],
+  "sale": [
+   "compromis",
+   "verkoopovereenkomst",
+   "koopovereenkomst"
+  ],
+  "mortgage": [
+   "hypotheekakte"
+  ],
+  "prospectus": [
+   "prospectus"
+  ]
+ },
+ "file_words": {
+  "care_mandate": [
+   "zvlm"
+  ],
+  "incorporation": [
+   "oprichting"
+  ],
+  "issue": [
+   "uitgifte"
+  ],
+  "mortgage": [
+   "hypotheek"
+  ]
+ },
+ "language_names": {
+  "fr": [
+   "franstalig",
+   "franstalige",
+   "frans",
+   "franse"
+  ],
+  "nl": [
+   "nederlandstalig",
+   "nederlandstalige",
+   "nederlands",
+   "nederlandse"
+  ],
+  "en": [
+   "engelstalig",
+   "engelstalige",
+   "engels",
+   "engelse"
+  ]
+ },
+ "file_markers": [
+  "nl",
+  "ned"
+ ],
+ "common_words": [
+  "het",
+  "een",
+  "van",
+  "dat",
+  "voor",
+  "met",
+  "zijn",
+  "wordt",
+  "niet",
+  "bij",
+  "door",
+  "deze"
+ ],
+ "search_stop_words": [
+  "wat",
+  "welke",
+  "welk",
+  "wie",
+  "waar",
+  "wanneer",
+  "hoe",
+  "hoeveel",
+  "waarom",
+  "waarvoor",
+  "is",
+  "zijn",
+  "er",
+  "een",
+  "de",
+  "het",
+  "van",
+  "voor",
+  "in",
+  "op",
+  "aan",
+  "met",
+  "door",
+  "bij",
+  "naar",
+  "en",
+  "of",
+  "te",
+  "die",
+  "dat",
+  "dit",
+  "deze",
+  "heeft",
+  "hebben",
+  "wordt",
+  "worden",
+  "kan",
+  "mag",
+  "moet",
+  "ook",
+  "nog",
+  "niet",
+  "geen",
+  "als",
+  "om",
+  "tot",
+  "uit",
+  "over",
+  "onder"
+ ],
+ "page_words": [
+  "pagina",
+  "blz",
+  "p"
+ ],
+ "page_of": [
+  "van"
+ ]
+}

@@ -17,8 +17,15 @@ from suveryn_playbooks import LANGUAGES
 DIR = Path(__file__).parent / "lang"
 
 
+def load(directory: Path, suffix: str = ".json") -> dict[str, dict]:
+    """Every language's file ``<lang><suffix>`` in ``directory``. The harness's own words are in ``lang/`` here; a
+    package with words of its own keeps them in a ``lang/`` of its own and loads them with this (the rag, the
+    gateway). A language without its file stops the load."""
+    return {lang: json.loads((directory / f"{lang}{suffix}").read_text(encoding="utf-8")) for lang in LANGUAGES}
+
+
 def _load(suffix: str) -> dict[str, dict]:
-    return {lang: json.loads((DIR / f"{lang}{suffix}").read_text(encoding="utf-8")) for lang in LANGUAGES}
+    return load(DIR, suffix)
 
 
 def together(tables: dict[str, dict], name: str) -> dict:

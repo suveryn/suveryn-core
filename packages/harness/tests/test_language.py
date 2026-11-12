@@ -1,5 +1,7 @@
 """Each language sūveryn speaks has its files of words the harness reads in documents (docs/translations.md:
 one list of languages, one file per language per place, a test that fails when one is missing)."""
+from pathlib import Path
+
 from suveryn_playbooks import LANGUAGES
 
 from suveryn_harness import language
@@ -36,6 +38,24 @@ def _tokens(text: str) -> set[str]:
     return {fold(w) for w in re.findall(r"[^\W\d_]{3,}", text)}
 
 
+# Every package that holds words of a language keeps them in ``lang/<lang>.json`` of its own (docs/translations.md):
+# the harness, the rag, the gateway. The chat UI's words are its tables (src/i18n), checked by its own tests.
+PACKAGES = Path(__file__).resolve().parents[2]
+LANG_DIRS = sorted(PACKAGES.glob("*/src/*/lang"))
+# Lists that are not a language's words: an English instruction quoting them, a file name's language codes.
+NOT_WORDS = {"formal_address", "file_markers"}
+
+
+def test_every_package_has_every_language_with_the_same_lists():
+    """A package's word files: one per language, each with the lists of the others, so a new language can't miss
+    one."""
+    assert {d.parent.name for d in LANG_DIRS} >= {"suveryn_harness", "suveryn_rag", "suveryn_api_gateway"}
+    for directory in LANG_DIRS:
+        tables = language.load(directory)
+        keys = {lang: set(t) for lang, t in tables.items()}
+        assert all(k == keys["en"] for k in keys.values()), (directory, keys)
+
+
 def _words_of(lang: str) -> set[str]:
     out: set[str] = set()
 
@@ -49,8 +69,9 @@ def _words_of(lang: str) -> set[str]:
         elif isinstance(value, list):
             for v in value:
                 take(v)
-    # "formal_address" is an English instruction to the model that quotes the language's words
-    take({k: v for k, v in language.WORDS[lang].items() if not k.startswith("_") and k != "formal_address"})
+    for directory in LANG_DIRS:
+        table = language.load(directory)[lang]
+        take({k: v for k, v in table.items() if not k.startswith("_") and k not in NOT_WORDS})
     numbers = language.NUMBER_WORDS[lang]
     take([numbers["months_written"], list(numbers["months"]), list(numbers["scales"]), list(numbers["parts"])])
     out.update(w for w in numbers["numbers"] if len(w) >= 3)
@@ -58,20 +79,19 @@ def _words_of(lang: str) -> set[str]:
 
 
 # Words of Dutch or French that are also English, or the code's own: what a word list can't tell apart.
-ALSO_CODE = {"day", "week", "month", "year", "workday", "eur", "usd", "gbp", "later"}
+ALSO_CODE = {"day", "week", "month", "year", "workday", "eur", "usd", "gbp", "later", "exact"}
 
 
 def test_no_word_of_a_language_is_in_the_code():
-    """Code is English; a language's words are in its files only (docs/translations.md). Every text the code holds
-    (not its comments or docstrings, which may quote an example) is read for a Dutch or French word of the languages'
-    files that isn't English too."""
+    """Code is English; a language's words are in its files only (docs/translations.md, principles 5 and 6). Every
+    text the code of every Python package holds (not its comments or docstrings, which may quote an example) is read
+    for a Dutch or French word of the languages' files that isn't English too. The chat UI has the same test
+    (src/i18n/words-in-code.test.ts)."""
     import ast
-    from pathlib import Path
 
     foreign = (_words_of("nl") | _words_of("fr")) - _words_of("en") - ALSO_CODE
-    src = Path(language.__file__).parent
     found = {}
-    for path in sorted(src.glob("*.py")):
+    for path in sorted(PACKAGES.glob("*/src/**/*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         docstrings = {id(n.body[0].value) for n in ast.walk(tree)
                       if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and n.body
@@ -81,5 +101,5 @@ def test_no_word_of_a_language_is_in_the_code():
             if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
                 hits |= _tokens(node.value) & foreign
         if hits:
-            found[path.name] = sorted(hits)
+            found[str(path.relative_to(PACKAGES))] = sorted(hits)
     assert found == {}

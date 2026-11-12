@@ -2,7 +2,7 @@
 import optimizeLocales from "@react-aria/optimize-locales-plugin";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
 
 // In development the UI runs on Vite (port 5173) and proxies the API to the gateway.
 // SUVERYN_API defaults to a local gateway, e.g. one reached through an SSH tunnel to the GPU box.
@@ -81,6 +81,8 @@ export default defineConfig({
     // /auth: the sign-in routes; SUVERYN_PUBLIC_URL on the gateway must be this dev server's URL
     // (http://localhost:5173), because Keycloak redirects the browser back to /auth/callback here.
     proxy: { "/v1": api, "/health": api, "/auth": api },
+    // The chat reads the harness's word lists (src/lib/answer.ts: abbreviations), outside this package.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), resolve(import.meta.dirname, "../harness/src/suveryn_harness/lang")] },
   },
   // In development, React Aria is bundled by Vite's dependency optimiser rather than transformed per
   // file; leave it out of that so the CSP replacement above applies there too.

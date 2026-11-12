@@ -1,0 +1,122 @@
+{
+ "_about": "French words the rag reads in questions and file names (lang/README.md). Lower case, without accents. A native speaker reviews this file.",
+ "document_kinds": {
+  "attorney": [
+   "procuration",
+   "procurations"
+  ],
+  "care_mandate": [
+   "mandat de protection",
+   "mandat extrajudiciaire"
+  ],
+  "statutes": [
+   "statuts",
+   "modification des statuts"
+  ],
+  "incorporation": [
+   "acte constitutif",
+   "acte constitutive"
+  ],
+  "shareholders": [
+   "convention d'actionnaires",
+   "pacte d'actionnaires"
+  ],
+  "subscription": [
+   "convention de souscription"
+  ],
+  "warrant": [],
+  "issue": [],
+  "sale": [
+   "compromis",
+   "compromis de vente"
+  ],
+  "mortgage": [
+   "acte d'hypotheque"
+  ],
+  "prospectus": [
+   "prospectus"
+  ]
+ },
+ "file_words": {
+  "attorney": [
+   "mandat"
+  ],
+  "incorporation": [
+   "constitution"
+  ],
+  "issue": [
+   "emission"
+  ],
+  "mortgage": [
+   "hypotheque"
+  ]
+ },
+ "language_names": {
+  "fr": [
+   "francais",
+   "francaise",
+   "en francais"
+  ],
+  "nl": [
+   "neerlandais",
+   "neerlandaise"
+  ],
+  "en": [
+   "anglais",
+   "anglaise"
+  ]
+ },
+ "file_markers": [
+  "fr",
+  "fra"
+ ],
+ "common_words": [
+  "le",
+  "la",
+  "les",
+  "des",
+  "du",
+  "une",
+  "que",
+  "pour",
+  "par",
+  "est",
+  "aux",
+  "sont",
+  "dans"
+ ],
+ "search_stop_words": [
+  "le",
+  "la",
+  "les",
+  "des",
+  "du",
+  "un",
+  "une",
+  "quel",
+  "quelle",
+  "quels",
+  "quelles",
+  "qui",
+  "que",
+  "est",
+  "et",
+  "ou",
+  "au",
+  "aux",
+  "pour",
+  "par",
+  "sur",
+  "dans",
+  "de",
+  "en"
+ ],
+ "page_words": [
+  "page",
+  "p"
+ ],
+ "page_of": [
+  "sur",
+  "de"
+ ]
+}
