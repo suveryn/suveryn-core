@@ -15,41 +15,36 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from pathlib import Path
 
-# kind -> the ways nl, fr and en name such a document in a question (folded: lower case, no accents). Only
+from suveryn_harness.language import load
+
+# The words of each language are in lang/<lang>.json (docs/translations.md), read together: a question in Dutch can
+# name a French document.
+WORDS = load(Path(__file__).parent / "lang")
+
+
+def _merged(name: str) -> dict[str, tuple[str, ...]]:
+    """Every language's entries of a table of lists (kind -> words), merged by key in the order first met."""
+    out: dict[str, list[str]] = {}
+    for table in WORDS.values():
+        for key, words in table[name].items():
+            out.setdefault(key, []).extend(w for w in words if w not in out[key])
+    return {key: tuple(words) for key, words in out.items() if words}
+
+
+# kind -> the ways the languages name such a document in a question (folded: lower case, no accents). Only
 # nouns for the document itself: "warrants" or "de hypotheek" in a question is what it asks about, not which file.
-KINDS: dict[str, tuple[str, ...]] = {
-    "attorney": ("volmacht", "volmachten", "procuration", "procurations", "power of attorney", "powers of attorney"),
-    "care_mandate": ("zorgvolmacht", "mandat de protection", "mandat extrajudiciaire"),
-    "statutes": ("statuten", "statutenwijziging", "statuts", "modification des statuts", "articles of association", "statutes"),
-    "incorporation": ("oprichtingsakte", "acte constitutif", "acte constitutive", "deed of incorporation"),
-    "shareholders": ("aandeelhoudersovereenkomst", "shareholders agreement", "shareholders' agreement", "sha",
-                     "convention d'actionnaires", "pacte d'actionnaires"),
-    "subscription": ("inschrijvingsovereenkomst", "subscription agreement", "convention de souscription"),
-    "warrant": ("warrantovereenkomst", "warrant agreement"),
-    "issue": ("uitgifteakte", "akte van uitgifte", "issue deed"),
-    "sale": ("compromis", "verkoopovereenkomst", "koopovereenkomst", "sale agreement", "compromis de vente"),
-    "mortgage": ("hypotheekakte", "acte d'hypotheque", "mortgage deed"),
-    "prospectus": ("prospectus",),
-}
+KINDS = _merged("document_kinds")
 # What a file name may say besides: a kind's topic word names the file ("Uitgifte_2150512.pdf").
-FILE_WORDS: dict[str, tuple[str, ...]] = {
-    "care_mandate": ("zvlm",), "incorporation": ("oprichting", "incorporation", "constitution"),
-    "warrant": ("warrant", "warrants"), "issue": ("uitgifte", "emission"), "mortgage": ("hypotheek", "hypotheque", "mortgage"),
-    "attorney": ("mandat",),
-}
-LANGUAGE_WORDS: dict[str, tuple[str, ...]] = {
-    "fr": ("franstalig", "franstalige", "frans", "franse", "french", "francais", "francaise", "en francais"),
-    "nl": ("nederlandstalig", "nederlandstalige", "nederlands", "nederlandse", "dutch", "neerlandais", "neerlandaise"),
-    "en": ("engelstalig", "engelstalige", "engels", "engelse", "english", "anglais", "anglaise"),
-}
-_FILE_LANGUAGE = {"fr": re.compile(r"[(\[ _-](fr|fra)[)\] _.-]"), "nl": re.compile(r"[(\[ _-](nl|ned)[)\] _.-]"),
-                  "en": re.compile(r"[(\[ _-](en|eng)[)\] _.-]")}
-_STOPWORDS = {
-    "nl": {"het", "een", "van", "dat", "voor", "met", "zijn", "wordt", "niet", "bij", "door", "deze"},
-    "fr": {"le", "la", "les", "des", "du", "une", "que", "pour", "par", "est", "aux", "sont", "dans"},
-    "en": {"the", "of", "and", "to", "with", "that", "shall", "this", "by", "is", "be", "any"},
-}
+FILE_WORDS = _merged("file_words")
+# language -> how the languages call it in a question ("de Franstalige volmacht").
+LANGUAGE_WORDS = _merged("language_names")
+# A file name's marker of its language ("Power of Attorney (FR)").
+_FILE_LANGUAGE = {lang: re.compile(rf"[(\[ _-]({'|'.join(map(re.escape, t['file_markers']))})[)\] _.-]")
+                  for lang, t in WORDS.items()}
+# The common short words that tell a text's language.
+_STOPWORDS = {lang: set(t["common_words"]) for lang, t in WORDS.items()}
 
 
 def fold(text: str) -> str:

@@ -1,0 +1,121 @@
+{
+ "_about": "English words the rag reads in questions and file names (lang/README.md). Lower case.",
+ "document_kinds": {
+  "attorney": [
+   "power of attorney",
+   "powers of attorney"
+  ],
+  "care_mandate": [],
+  "statutes": [
+   "articles of association",
+   "statutes"
+  ],
+  "incorporation": [
+   "deed of incorporation"
+  ],
+  "shareholders": [
+   "shareholders agreement",
+   "shareholders' agreement",
+   "sha"
+  ],
+  "subscription": [
+   "subscription agreement"
+  ],
+  "warrant": [
+   "warrant agreement"
+  ],
+  "issue": [
+   "issue deed"
+  ],
+  "sale": [
+   "sale agreement"
+  ],
+  "mortgage": [
+   "mortgage deed"
+  ],
+  "prospectus": [
+   "prospectus"
+  ]
+ },
+ "file_words": {
+  "incorporation": [
+   "incorporation"
+  ],
+  "warrant": [
+   "warrant",
+   "warrants"
+  ],
+  "mortgage": [
+   "mortgage"
+  ]
+ },
+ "language_names": {
+  "fr": [
+   "french"
+  ],
+  "nl": [
+   "dutch"
+  ],
+  "en": [
+   "english"
+  ]
+ },
+ "file_markers": [
+  "en",
+  "eng"
+ ],
+ "common_words": [
+  "the",
+  "of",
+  "and",
+  "to",
+  "with",
+  "that",
+  "shall",
+  "this",
+  "by",
+  "is",
+  "be",
+  "any"
+ ],
+ "search_stop_words": [
+  "the",
+  "an",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "when",
+  "where",
+  "how",
+  "much",
+  "many",
+  "does",
+  "do",
+  "did",
+  "are",
+  "was",
+  "were",
+  "be",
+  "to",
+  "for",
+  "on",
+  "and",
+  "or",
+  "with",
+  "by",
+  "at",
+  "from",
+  "is",
+  "in",
+  "of",
+  "over"
+ ],
+ "page_words": [
+  "page",
+  "p"
+ ],
+ "page_of": [
+  "of"
+ ]
+}

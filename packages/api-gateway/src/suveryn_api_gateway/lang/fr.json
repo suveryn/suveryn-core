@@ -1,0 +1,8 @@
+{
+ "_about": "French words of what the gateway writes itself: the playbook summary document (lang/README.md). A native speaker reviews this file.",
+ "check_holds": "exact",
+ "check_fails": "inexact",
+ "check_open": "non vérifié",
+ "read_in_part": "Lus en partie, pas chaque page",
+ "page": "p."
+}

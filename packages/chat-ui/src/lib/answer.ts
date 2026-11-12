@@ -4,6 +4,9 @@
  * positional citation contract). Rendering goes through React, so model output is never
  * injected as HTML.
  */
+import enWords from "../../../harness/src/suveryn_harness/lang/en.json";
+import frWords from "../../../harness/src/suveryn_harness/lang/fr.json";
+import nlWords from "../../../harness/src/suveryn_harness/lang/nl.json";
 
 export type Segment =
   | { kind: "text"; text: string }
@@ -149,11 +152,10 @@ export function markerClaims(text: string, available: number): { n: number; clai
   return out;
 }
 
-// Abbreviations whose full stop doesn't end a sentence (legal and everyday Dutch, French and English; language data,
-// like the translation tables). A single capital is an initial ("J. Peeters").
-const ABBREVIATIONS = new Set(("art artt nr nrs no nos n° bv b.v vb zgn enz e.a e.g i.e cf vgl al par hfst hfdst afd blz p pp ca resp " +
-  "dhr mevr mr mme mlle me dr prof st ste ir ing lic jr sr vs viz approx fig tab vol " +
-  "jan feb febr mrt apr jun jul aug sep sept okt oct nov dec").split(" "));
+// Abbreviations whose full stop doesn't end a sentence ("art. 3"): the harness's lists, one per language
+// (packages/harness/src/suveryn_harness/lang/<lang>.json), read here as they are, so the browser and the server
+// split an answer at the same places. A single capital is an initial ("J. Peeters").
+const ABBREVIATIONS = new Set([...enWords.abbreviations, ...nlWords.abbreviations, ...frWords.abbreviations]);
 
 /** Whether the full stop just before ``at`` closes an abbreviation or an initial rather than a sentence. */
 function abbreviated(text: string, at: number): boolean {

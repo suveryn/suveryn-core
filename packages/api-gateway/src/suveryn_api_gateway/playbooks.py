@@ -45,10 +45,12 @@ import json
 import logging
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
+from suveryn_harness.language import load
 from suveryn_playbooks import Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
@@ -330,34 +332,30 @@ def summary_text(playbook: Playbook, reference: str, run: Run, language: str) ->
     (review 2026-10-17). ``playbook`` only supplies the labels."""
     from .playbook_runtime import shown_facts
     words = playbook.wording(language)
+    said = WORDS.get(language, WORDS["en"])  # the gateway's own words for the summary (lang/<lang>.json)
+    page = said["page"]
     lines = [f"{words.title} {reference}", f"{run.playbook_id} {run.playbook_version}"]
     for f in shown_facts(run.facts):
         value = f.confirmed if f.confirmed is not None else f.value
-        sources = ", ".join(f"{c.filename}{f' p. {c.page}' if c.page else ''}" for c in f.citations)
+        sources = ", ".join(f"{c.filename}{f' {page} {c.page}' if c.page else ''}" for c in f.citations)
         lines.append(f"{words.label(f.id)}: {value or '—'}" + (f" ({sources})" if sources and value else ""))
     # the checks, as last computed on the confirmed values: what each says, and whether it holds
     for step in playbook.steps:
         c = run.checks.get(step.id)
         if step.kind != "check" or c is None:
             continue  # a check skipped by its when has no result and no line
-        said = words.checks.get(step.id, step.rule)
-        word = {"holds": CHECK_WORDS[language if language in CHECK_WORDS else "en"][0], "fails": CHECK_WORDS[language if language in CHECK_WORDS else "en"][1],
-                "open": CHECK_WORDS[language if language in CHECK_WORDS else "en"][2]}[c.status]
+        rule = words.checks.get(step.id, step.rule)
         detail = f" ({c.left} / {c.right})" if c.status == "fails" else ""
-        lines.append(f"{said}: {word}{detail}")
+        lines.append(f"{rule}: {said['check_' + c.status]}{detail}")
     in_part = list(dict.fromkeys(name for state in run.steps.values() for name in state.in_part))
     if in_part:
-        lines.append(f"{IN_PART_WORDS[language if language in IN_PART_WORDS else 'en']}: {', '.join(in_part)}")
+        lines.append(f"{said['read_in_part']}: {', '.join(in_part)}")
     return "\n\n".join(lines)
 
 
-# The three words of a check's result in the summary, per language (docs/translations.md: the interface's
-# languages, one list); the chat UI has the same three in its own files.
-CHECK_WORDS = {"en": ("holds", "does not hold", "not checked"), "nl": ("klopt", "klopt niet", "niet nagekeken"),
-               "fr": ("exact", "inexact", "non vérifié")}
-# The summary's line for documents read in part (``StepState.in_part``), per language as ``CHECK_WORDS``.
-IN_PART_WORDS = {"en": "Read in part, not every page", "nl": "Gedeeltelijk gelezen, niet elke pagina",
-                 "fr": "Lus en partie, pas chaque page"}
+# The words the gateway writes itself, per language (docs/translations.md): a check's result and the line for
+# documents read in part in the summary; the chat UI has the check's three words in its own files.
+WORDS = load(Path(__file__).parent / "lang")
 
 
 # ------------------------------------------------------------------------- the store

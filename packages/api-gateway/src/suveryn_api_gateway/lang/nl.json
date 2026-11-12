@@ -1,0 +1,8 @@
+{
+ "_about": "Dutch words of what the gateway writes itself: the playbook summary document (lang/README.md). A native speaker reviews this file.",
+ "check_holds": "klopt",
+ "check_fails": "klopt niet",
+ "check_open": "niet nagekeken",
+ "read_in_part": "Gedeeltelijk gelezen, niet elke pagina",
+ "page": "p."
+}

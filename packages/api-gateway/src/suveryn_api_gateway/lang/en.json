@@ -1,0 +1,8 @@
+{
+ "_about": "English words of what the gateway writes itself: the playbook summary document (lang/README.md).",
+ "check_holds": "holds",
+ "check_fails": "does not hold",
+ "check_open": "not checked",
+ "read_in_part": "Read in part, not every page",
+ "page": "p."
+}
