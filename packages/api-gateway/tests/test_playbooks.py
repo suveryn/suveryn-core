@@ -307,6 +307,37 @@ def test_a_run_is_paused_and_resumed_by_anyone_who_contributes(office):
 
 
 @needs_db
+def test_a_confirmation_from_an_old_screen_is_refused_and_writes_nothing(office):
+    """suveryn-tracker#135: the screen sends every fact's value when a person confirms. A colleague's change a moment
+    before would be put back, confirmed, without a word. The confirmation says which state of the facts it saw."""
+    c, kc, _, docs, _ = office
+    cid, alice, bob = a_case_with_a_contributor(c, kc, "contributor")
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).json()["id"]
+    url = RUN.format(cid=cid, rid=rid)
+    deliver(c, url, alice)
+    wait_for(c, url, alice, "waiting")
+    alices = c.post(url + "/answer", json={"step_id": "missing", "facts": {}}, headers=alice).json()  # her screen, at the checkpoint
+    assert alices["step"] == "confirm" and alices["facts_seq"] > 0
+    as_shown = {"facts": [{"id": f["id"], "confirmed": f["value"]} for f in alices["facts"]], "seen": alices["facts_seq"]}
+    # Bob adjusts the price; Alice's screen still shows the old one
+    bobs = c.put(url + "/facts/price", json={"value": "EUR 415.000,00"}, headers=bob).json()
+    assert bobs["facts_seq"] > alices["facts_seq"]
+    r = c.put(url + "/facts", json=as_shown, headers=alice)
+    assert r.status_code == 409 and r.json()["code"] == "run.facts_changed" and r.json()["kind"] == "refused"  # a code: the page words it
+    now = c.get(url, headers=alice).json()
+    price = {f["id"]: f for f in now["facts"]}["price"]
+    assert now["status"] == "waiting" and now["step"] == "confirm" and now["confirmed_by"] is None  # nothing was confirmed
+    assert price["value"] == "EUR 415.000,00" and price["by"] == "bob.test" and price["confirmed"] is None
+    assert now["facts_seq"] == bobs["facts_seq"]  # and nothing was written
+    # what stands now, confirmed: Bob's value
+    r = c.put(url + "/facts", json={"facts": [{"id": f["id"], "confirmed": f["value"]} for f in now["facts"]], "seen": now["facts_seq"]},
+              headers=alice)
+    assert r.status_code == 200 and r.json()["status"] == "done"
+    assert {f["id"]: f for f in r.json()["facts"]}["price"]["confirmed"] == "EUR 415.000,00"
+
+
+@needs_db
 def test_stop_keeps_confirmed_facts_and_drops_proposed_ones(office):
     c, kc, _, docs, _ = office
     cid, alice, bob = a_case_with_a_contributor(c, kc, "contributor")

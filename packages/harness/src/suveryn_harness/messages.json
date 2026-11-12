@@ -205,6 +205,12 @@
    },
    "since": "0.2.0"
   },
+  "run.facts_changed": {
+   "kind": "refused",
+   "title": "A fact of the run changed since the state this confirmation saw; nothing was confirmed.",
+   "status": 409,
+   "since": "0.2.0"
+  },
   "conversation.too_long": {
    "kind": "refused",
    "title": "The conversation is too long to save.",

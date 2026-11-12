@@ -63,6 +63,7 @@ const fr: Messages = {
     "upload.inbox_unavailable": "les documents ne peuvent pas être ajoutés pour le moment ; demandez à votre administrateur de consulter État",
     "run.busy": "trop de playbooks sont en cours ; lancez celui-ci dès que l'un d'eux est terminé",
     "run.already_going": "ce playbook est déjà en cours dans ce dossier",
+    "run.facts_changed": "un collègue a modifié un fait entre-temps ; les faits sont de nouveau affichés : vérifiez-les, puis confirmez",
     "conversation.too_long": "cette conversation est trop longue ; commencez-en une nouvelle",
     "user.picture_too_large": (p) => `la photo dépasse ${p.max_mb ?? 2} Mo`,
     "user.rights_removed": "vos droits d'administrateur ont été retirés entre-temps par un autre administrateur",

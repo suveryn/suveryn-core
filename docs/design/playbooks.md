@@ -259,6 +259,12 @@ call that no longer exists. A case closed while a run waits keeps the run; the U
 the case to go on. Every act is in the case's access log: `playbook_started`, `playbook_answered`,
 `playbook_confirmed`, `playbook_paused`, `playbook_resumed`, `playbook_stopped`, `playbook_cancelled`.
 
+**Two people at one checkpoint.** Every change to a fact is a version of its own, by name; the newest stands and
+the thread says "Changed". A confirmation sends every fact's value as the screen shows it, so it also says which
+state of the facts that screen showed (`Run.facts_seq`, sent back as `seen`): when a colleague changed a fact
+since, the confirmation is refused (409, `run.facts_changed`), nothing is written, and the screen reads the run
+again for the person to confirm what stands (suveryn-tracker#135). Compared and written as one.
+
 **A document that comes later** (decision of 10 November 2026). The bank certificate a week after the
 plan: `POST …/documents` names the request it belongs to (a named one, `expects`), while the run waits
 elsewhere or after it is confirmed; a request the run hasn't reached yet, or one its `when` skipped, is

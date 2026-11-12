@@ -363,9 +363,11 @@ class Runtime:
         self.store.set_step(rid, step.id, "waiting", states)
         return self.store.get(rid, cid)  # type: ignore[return-value]
 
-    def confirm(self, run: Run, playbook: Playbook, step: Step, confirmed: dict[str, str], by: str) -> Run:
+    def confirm(self, run: Run, playbook: Playbook, step: Step, confirmed: dict[str, str], by: str,
+                seen: int | None = None) -> Run:
         """The checkpoint: a version per fact, confirmed (or not_established when cleared), by this
-        person, replacing the current one. Facts not named keep their value as read."""
+        person, replacing the current one. Facts not named keep their value as read. ``seen`` is the state of
+        the facts the person confirmed (``Run.facts_seq``): moved since, nothing is written (``StaleFacts``)."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
         current = self.store.current_versions(rid)
         rows = []
@@ -385,7 +387,7 @@ class Runtime:
         for fid in added:
             rows.append(dict(fact_id=fid, kind=playbook.leaf_kind(fid), value=confirmed[fid].strip(), status="confirmed",
                              source={"kind": "person", "checkpoint": True}, by=by, replaces=None))
-        self.store.write_facts(cid, rid, step.id, rows)
+        self.store.write_facts(cid, rid, step.id, rows, seen)
         self._settle_lists(playbook, current, added)
         self.store.supersede([row["id"] for row in self.store.alternatives(rid).values()])  # chosen now: the person decided
         self.store.set_confirmed(rid, by)

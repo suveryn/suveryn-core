@@ -45,6 +45,7 @@ from ..playbooks import (
     RunStore,
     RunSummary,
     SayIn,
+    StaleFacts,
     StartIn,
     playbook_out,
 )
@@ -568,7 +569,7 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
 
 
 @router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts", response_model=Run, responses={
-    409: {"description": "The run isn't waiting at its checkpoint"},
+    409: {"description": "The run isn't waiting at its checkpoint, or its facts changed since ``seen``"},
 })
 async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Request):
     """The checkpoint (a contributor's right; the case manager's when the step says ``by: manager``): every
@@ -582,7 +583,13 @@ async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Reque
     if any(f.id not in known and not (pb.leaf(f.id) is not None and f.id != root(f.id)) for f in body.facts):
         raise HTTPException(422, "A fact that isn't in this run.")
     username = who(request)[0]
-    run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username)
+    try:
+        run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username,
+                                      body.seen)
+    except StaleFacts:
+        # A colleague changed a fact after this person's screen was drawn: nothing is confirmed, the screen reads the
+        # run again and the person confirms what stands (suveryn-tracker#135). A code, worded by the page.
+        raise Problem("run.facts_changed", "the run's facts changed since the state this confirmation saw; nothing was confirmed") from None
     await run_in_threadpool(store.say, run, "playbook", username, "", None, {"kind": "confirmed"})
     await log_access(request, uuid.UUID(case.id), "playbook_confirmed", {"playbook": pb.id, "run": run.id})
     await touch_case(request, Scope.case(uuid.UUID(case.id)))

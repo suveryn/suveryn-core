@@ -936,7 +936,9 @@ export type Run = RunSummary & {
   requested?: Record<string, string[]>;
   /** Per check step (step id), its result on the values as they stand: the rule holds, fails (both sides as computed) or is open. */
   checks?: Record<string, RunCheck>;
-  facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[] };
+  facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[];
+  /** Which state of the facts this is; sent back when confirming (`confirmRun`'s `seen`). */
+  facts_seq?: number };
 
 export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks`);
@@ -1030,10 +1032,12 @@ export async function runAction(caseId: string, runId: string, action: "pause" |
   return r.json();
 }
 
-/** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. */
-export async function confirmRun(caseId: string, runId: string, facts: { id: string; confirmed: string }[]): Promise<Run> {
+/** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. `seen` is
+ *  the state of the facts on this screen (`Run.facts_seq`): when a colleague changed one since, the server refuses
+ *  (409, `run.facts_changed`) and writes nothing, so an old screen can't put a value back (suveryn-tracker#135). */
+export async function confirmRun(caseId: string, runId: string, facts: { id: string; confirmed: string }[], seen?: number): Promise<Run> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/facts`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ facts }),
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ facts, seen }),
   });
   if (!r.ok) throw await responseError(r);
   return r.json();

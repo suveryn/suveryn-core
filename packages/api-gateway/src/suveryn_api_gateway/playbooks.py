@@ -183,8 +183,15 @@ class CheckOut(BaseModel):
     missing: list[str] = Field(default_factory=list)
 
 
+class StaleFacts(Exception):
+    """A confirmation made on values that have changed since the person saw them (suveryn-tracker#135)."""
+
+
 class Run(RunSummary):
     facts: list[RunFact] = Field(default_factory=list)
+    # Which state of the facts this is: it moves with every version written. A confirmation sends it back
+    # (``ConfirmIn.seen``), so the server knows the person confirmed what stands (suveryn-tracker#135).
+    facts_seq: int = 0
     # Per named request (step id), the documents that answered it (ids in the case): what a read aimed at it reads.
     requested: dict[str, list[str]] = Field(default_factory=dict)
     # Per check step (step id), its result on the run's values as they stand; recomputed when a value changes.
@@ -228,6 +235,10 @@ class ConfirmIn(BaseModel):
     read, or empty). The summary is written in the run's language, the thread's."""
 
     facts: list[ConfirmedFact] = Field(min_length=1, max_length=1000)
+    # ``Run.facts_seq`` of the run as the person saw it. When a colleague changed a fact since, the confirmation is
+    # refused (409) and nothing is written: an old screen can't put a value back (suveryn-tracker#135). The chat
+    # UI always sends it; without it nothing is compared.
+    seen: int | None = Field(default=None, ge=0)
 
 
 class CancelIn(BaseModel):
@@ -430,7 +441,8 @@ class RunStore(TurnStore):
             return None
         summary = self._summary(r)
         suspicious, steps, manifest, requested, checks = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3], r[self._N + 4]
-        return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), instruction_like_sources=suspicious,
+        return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), facts_seq=self.facts_seq(run_id),
+                   instruction_like_sources=suspicious,
                    steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
                    playbook=playbook_out(from_record(manifest), self.inactive()), requested=requested or {},
                    checks={k: CheckOut(**v) for k, v in (checks or {}).items()})
@@ -542,10 +554,17 @@ class RunStore(TurnStore):
 
     # -- facts (case_facts): one row per version
 
-    def write_facts(self, case_id: uuid.UUID, run_id: uuid.UUID, step_id: str, rows: list[dict]) -> None:
+    def facts_seq(self, run_id: uuid.UUID) -> int:
+        """Which state of the run's facts this is: the newest version's number (0: none yet)."""
+        return self._execute("SELECT coalesce(max(seq), 0) FROM case_facts WHERE run_id = %s", (run_id,)).fetchone()[0]
+
+    def write_facts(self, case_id: uuid.UUID, run_id: uuid.UUID, step_id: str, rows: list[dict], seen: int | None = None) -> None:
         """Append versions. Each row: fact_id, kind, value, status, source (dict), issues, by, replaces (id or None).
-        A replaced version becomes ``superseded``."""
+        A replaced version becomes ``superseded``. With ``seen`` (a confirmation), nothing is written when the
+        facts have moved since that state: ``StaleFacts``. Compared and written as one, under the store's lock."""
         with self.transaction():
+            if seen is not None and self.facts_seq(run_id) != seen:
+                raise StaleFacts
             for row in rows:
                 if row.get("replaces"):
                     self._execute("UPDATE case_facts SET status = 'superseded' WHERE id = %s AND status <> 'superseded'", (row["replaces"],))
