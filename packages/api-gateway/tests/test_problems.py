@@ -33,6 +33,12 @@ def an_app():
     async def unplanned():
         raise FileNotFoundError("/srv/suveryn/originals/Echtscheiding Peeters.pdf")
 
+    @app.get("/v1/test/documents/{part}")
+    async def documents_down(part: str):
+        from suveryn_rag.service import SearchUnavailable
+        raise SearchUnavailable("the document database can't be reached", "system.database_unavailable") if part == "database" \
+            else SearchUnavailable("the embedding model isn't loaded")
+
     @app.get("/v1/test/number/{n}")
     async def a_number(n: int):
         return n
@@ -71,6 +77,13 @@ def test_anything_unplanned_gets_a_reference_and_the_log_holds_no_message(caplog
     logged = [m for m in caplog.messages if ref in m]
     # the reference, the kind of exception and where; never its message, which may quote a document or name a file
     assert len(logged) == 1 and "FileNotFoundError" in logged[0] and "unplanned" in logged[0] and "Peeters" not in caplog.text
+
+
+def test_documents_that_cant_be_reached_say_which_part_is_down():
+    with TestClient(an_app()) as c:
+        assert c.get("/v1/test/documents/database").json()["code"] == "system.database_unavailable"
+        r = c.get("/v1/test/documents/embedder")
+        assert (r.status_code, r.json()["code"], r.json()["kind"]) == (503, "system.documents_unavailable", "unavailable")
 
 
 # The refusals still written as plain English sentences, each to become a code of the registry area by area. This

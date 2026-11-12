@@ -242,7 +242,12 @@ class DocumentNotFound(LookupError):
 
 
 class SearchUnavailable(RuntimeError):
-    """The database can't be reached, even after reconnecting."""
+    """Documents can't be read or searched right now. ``code`` says which part is down, a code of the registry of
+    messages (``suveryn_harness.messages``): the database, or document handling itself."""
+
+    def __init__(self, detail: str, code: str = "system.documents_unavailable"):
+        super().__init__(detail)
+        self.code = code
 
 
 @dataclass
@@ -723,7 +728,7 @@ class DocumentService:
                     return call(rag)
                 except Exception as again:
                     if _is_connection_error(again):
-                        raise SearchUnavailable("the document database can't be reached") from again
+                        raise SearchUnavailable("the document database can't be reached", "system.database_unavailable") from again
                     raise
 
     def documents(self, scope: Scope) -> list[dict]:

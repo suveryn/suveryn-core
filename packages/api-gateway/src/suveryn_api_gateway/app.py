@@ -383,7 +383,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     @app.exception_handler(SearchUnavailable)
     async def search_unavailable(request: Request, exc: SearchUnavailable):
-        return problems.answer("system.documents_unavailable", str(exc))
+        # which part is down: the database, or document handling itself (the exception's own code)
+        return problems.answer(getattr(exc, "code", "system.documents_unavailable"), str(exc))
 
     @app.exception_handler(psycopg.OperationalError)
     async def database_unavailable(request: Request, exc: psycopg.OperationalError):
