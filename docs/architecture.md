@@ -261,6 +261,7 @@ Reviewers: check changes against these.
 - [ ] Are new thresholds and constants explained (why this value, measured on what)?
 - [ ] Does a change that writes several rows, files or stores either finish whole or leave nothing (one transaction, or a step that can be repeated)?
 - [ ] Can every new failure reach the reader as a sentence in their language, never an empty answer or a blank screen?
+- [ ] Does the server store or send a sentence where it could send meaning: a turn's text instead of its kind and facts, a failure as words instead of a code? Does anything format a date, number or list outside the formats module, or choose a plural by comparing with 1? ([words at the edge](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-12-meaning-on-the-server.md))
 - [ ] Does new code come with its tests, and a fix with the test that would have found it?
 - [ ] Does it add a second place that knows something another place already knows (a reader, a list, a rule, a language's words)? Then use the first, or test both with one shared set of cases. Is anything it made unused removed?
 - [ ] Does it bend a design principle? Then the handbook has the founder's decision before the merge.
