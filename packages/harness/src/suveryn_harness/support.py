@@ -29,6 +29,7 @@ whose words are all in the passage but whose meaning isn't ("mag niet" for "mag"
 import re
 from decimal import Decimal
 
+from .calc import failed_marker
 from .language import words as language_words
 from .marking import answer_sentences, cited_style
 from .schemas import Calculation, Citation, CitationIssue
@@ -119,7 +120,7 @@ def unverified_figures(answer: str, calculations: list[Calculation], source: str
     known = {f.value for text in (source, asked, *(c.result or "" for c in calculations))
              for f in read(text, style) if f.kind == "number"}
     for c in calculations:
-        shown = f"{c.expression} = {c.result}" if c.result is not None else f"[calculation not possible: {c.expression}]"
+        shown = f"{c.expression} = {c.result}" if c.result is not None else failed_marker(c.expression)
         answer = answer.replace(shown, " ")
     answer = MARKERS.sub(" ", answer)
     out: list[str] = []

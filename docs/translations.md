@@ -30,7 +30,8 @@ reads every string in every Python package, and the chat UI's `src/i18n/words-in
 code; each fails on a Dutch or French word of the word files that isn't English too. Not read by the chat UI's: its
 tables, its tests, and the screen previews (`src/preview`), whose fictional sample case is in Dutch like the design
 boards it is compared with. Messages from the server (error details) are English; the UI says what happened in
-its own words by HTTP status (`api.ts`, `responseError`).
+its own words, from the code the server sends with it (`reason`, `error_code`, a calculation's `reason`) or else
+by HTTP status (`api.ts`, `httpErrorText`), never by matching the server's English (`lib/failures.test.ts`).
 
 ## The rules every language follows
 

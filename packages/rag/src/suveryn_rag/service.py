@@ -94,11 +94,14 @@ LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv"
 
 
 class UploadRejected(ValueError):
-    """The upload is not a file type sūveryn reads, is empty, or is too large. ``status`` is the HTTP status to answer with."""
+    """The upload is not a file type sūveryn reads, is empty, or is too large. ``status`` is the HTTP status to answer
+    with; ``reason`` a code the interface words in its reader's language (decision of 12 November 2026: failures are
+    codes); the message is English, for developers."""
 
-    def __init__(self, message: str, status: int):
+    def __init__(self, message: str, status: int, reason: str):
         super().__init__(message)
         self.status = status
+        self.reason = reason
 
 
 @dataclass
@@ -481,9 +484,9 @@ class DocumentService:
 
     def _check_inbox(self) -> None:
         if not self._inbox.is_dir():  # provisioned, not created here: its group must be the reader's
-            raise UploadRejected("the upload inbox doesn't exist; provision it (owner the gateway, group the reader, 2750)", 503)
+            raise UploadRejected("the upload inbox doesn't exist; provision it (owner the gateway, group the reader, 2750)", 503, "inbox")
         if self._inbox.stat().st_mode & 0o007:
-            raise UploadRejected("the upload inbox is readable by other users; fix its permissions (2750)", 503)
+            raise UploadRejected("the upload inbox is readable by other users; fix its permissions (2750)", 503, "inbox")
 
     def _remove_leftovers(self) -> None:
         """Uploads and OCR work folders left by a process that didn't shut down cleanly."""
@@ -498,7 +501,7 @@ class DocumentService:
         first bytes must fit (``formats.looks_like``); the reader checks the rest. Raises ``UploadRejected``."""
         kind = kind_of(filename or "document.pdf")
         if kind is None:
-            raise UploadRejected(f"only {ACCEPTED} can be added", 415)
+            raise UploadRejected(f"only {ACCEPTED} can be added", 415, "type")
         self._prepare_uploads()
         job = Job(id=uuid.uuid4().hex, filename=clean_name(filename or "document.pdf"), owner=owner,
                   case_id=case_id, status="receiving")
@@ -513,15 +516,15 @@ class DocumentService:
             with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
                 head = src.read(8)
                 if not head:
-                    raise UploadRejected("the file is empty", 415)
+                    raise UploadRejected("the file is empty", 415, "empty")
                 if not looks_like(kind, head):
-                    raise UploadRejected(f"the file is not a valid {LABELS[kind]} file", 415)
+                    raise UploadRejected(f"the file is not a valid {LABELS[kind]} file", 415, "invalid")
                 out.write(head)
                 size = len(head)
                 while block := src.read(1 << 20):
                     size += len(block)
                     if size > MAX_UPLOAD_BYTES:
-                        raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", 413)
+                        raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", 413, "too_large")
                     out.write(block)
         except BaseException:
             path.unlink(missing_ok=True)
@@ -542,7 +545,7 @@ class DocumentService:
         self._prune()
         waiting = {(j.owner, j.upload or j.id) for j in self._jobs.values() if j.status in WAITING}
         if len(waiting) >= MAX_QUEUED or sum(o == owner for o, _ in waiting) >= MAX_QUEUED_PER_OWNER:
-            raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429)
+            raise UploadRejected("too many documents are waiting to be read; try again when some are done", 429, "queue_full")
 
     def accept_archive(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Archive:
         """A .zip upload: each PDF, Word, Excel, Markdown or CSV file inside becomes a job of its own, named
@@ -559,41 +562,41 @@ class DocumentService:
             with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
                 head = src.read(4)
                 if not head:
-                    raise UploadRejected("the file is empty", 415)
+                    raise UploadRejected("the file is empty", 415, "empty")
                 if head not in (b"PK\x03\x04", b"PK\x05\x06"):
-                    raise UploadRejected("the file is not a valid ZIP archive", 415)
+                    raise UploadRejected("the file is not a valid ZIP archive", 415, "not_zip")
                 out.write(head)
                 size = len(head)
                 while block := src.read(1 << 20):
                     size += len(block)
                     if size > MAX_UPLOAD_BYTES:
-                        raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", 413)
+                        raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", 413, "too_large")
                     out.write(block)
             try:
                 with zipfile.ZipFile(path) as z:
                     entries = z.infolist()
                     if len(entries) > MAX_ARCHIVE_ENTRIES:
-                        raise UploadRejected(f"the archive holds more than {MAX_ARCHIVE_ENTRIES} files", 415)
+                        raise UploadRejected(f"the archive holds more than {MAX_ARCHIVE_ENTRIES} files", 415, "archive_too_many")
                     # What the archive says it unpacks to, before anything is read: a zip bomb declares its size,
                     # and is refused here rather than accepted and its entry skipped later (VM regression
                     # e0f2e26, finding 15). An archive that lies is still stopped by the reading below.
                     if sum(e.file_size for e in entries) > MAX_ARCHIVE_UNPACKED:
-                        raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413)
+                        raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413, "archive_too_big")
                     wanted, skipped = self._sort_entries(entries)
                     if not wanted and not skipped:
-                        raise UploadRejected("the archive is empty", 415)
+                        raise UploadRejected("the archive is empty", 415, "archive_empty")
                     good, unpacked = [], 0
                     for entry, kind in wanted:
                         reason, size = self._check_entry(z, entry, kind, MAX_ARCHIVE_UNPACKED - unpacked)
                         unpacked += size
                         if reason == "limit":
-                            raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413)
+                            raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", 413, "archive_too_big")
                         if reason:
                             skipped.append({"name": clean_name(entry.filename), "reason": reason})
                         else:
                             good.append((entry, kind))
             except zipfile.BadZipFile:
-                raise UploadRejected("the file is not a valid ZIP archive", 415) from None
+                raise UploadRejected("the file is not a valid ZIP archive", 415, "not_zip") from None
             skipped.sort(key=lambda e: e["name"].lower())
             if not good:  # nothing to read: say why for each file, and keep nothing
                 return Archive(filename=name, jobs=[], skipped=skipped)

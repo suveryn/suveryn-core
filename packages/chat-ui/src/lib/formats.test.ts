@@ -33,13 +33,15 @@ describe("the files sūveryn reads", () => {
   it("says why a .zip couldn't be added, and why a file in it was left out", async () => {
     const { TABLES_FOR_TESTS: TEXT } = await import("../i18n");
     setLang("nl", false);
-    expect(httpErrorText(413, "the file is larger than 100 MB")).toBe(TEXT.nl.fileTooLarge);
-    expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.archiveEmpty);
-    expect(httpErrorText(413, "the archive unpacks to more than 300 MB")).toBe(TEXT.nl.archiveTooBig);
-    expect(httpErrorText(415, "the file is not a valid ZIP archive")).toBe(TEXT.nl.archiveInvalid);
-    expect(httpErrorText(429, "too many documents are waiting to be read; try again when some are done")).toBe(TEXT.nl.tooManyWaiting);
+    // by the server's code (``reason``), never by its English words (decision of 12 November 2026)
+    expect(httpErrorText(413, "the file is larger than 100 MB", null, "too_large")).toBe(TEXT.nl.fileTooLarge);
+    expect(httpErrorText(415, "the archive is empty", null, "archive_empty")).toBe(TEXT.nl.archiveEmpty);
+    expect(httpErrorText(413, "the archive unpacks to more than 300 MB", null, "archive_too_big")).toBe(TEXT.nl.archiveTooBig);
+    expect(httpErrorText(415, "the file is not a valid ZIP archive", null, "not_zip")).toBe(TEXT.nl.archiveInvalid);
+    expect(httpErrorText(429, "too many documents are waiting to be read", null, "queue_full")).toBe(TEXT.nl.tooManyWaiting);
     expect(httpErrorText(429, "slow down", "30")).toMatch(/30 seconden/);
-    expect(httpErrorText(429, "too many playbook runs are reading; start this one when one has finished")).toBe(TEXT.nl.playbooksBusy);
+    expect(httpErrorText(429, "too many playbook runs are reading", null, "playbooks_busy")).toBe(TEXT.nl.playbooksBusy);
+    expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.fileNotSupported);  // the words alone mean nothing here
     setLang("en", false);
     for (const t of Object.values(TEXT)) {
       for (const reason of ["unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged"]) {

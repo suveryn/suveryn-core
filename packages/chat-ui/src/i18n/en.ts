@@ -351,7 +351,13 @@ const en = {
   sourceN: (n: number) => `source ${n}`,
   sourceCaption: "As read. Check the original page.",
   markedByMeaning: "Same meaning, other words. Check it.",
-  calcFailed: (expression: string, why: string) => `Couldn't calculate ${expression}: ${why}.`,
+  // why, by the server's code (suveryn_harness.calc.REASONS)
+  calcFailed: (expression: string, reason: string) => `Couldn't calculate ${expression}: ${({
+    number_style: "the figures are written in different number styles",
+    decimal_separator: "the figures don't show which separator is the decimal one",
+    division_by_zero: "it divides by zero",
+    no_figures: "it has no figures",
+  } as Record<string, string>)[reason] ?? "the calculation couldn't be read"}.`,
   calculatedBy: "Calculated by sūveryn, not read from the documents:",
   calcMissing: (figures: string[]) => ` Check ${figures.join(", ")}: ${singular(figures.length) ? "it doesn't" : "they don't"} appear in the sources.`,
   calcAllSourced: " Every figure comes from the sources.",

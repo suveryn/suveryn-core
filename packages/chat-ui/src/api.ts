@@ -20,9 +20,10 @@ export type CitationIssue = { marker: number; n: number; item: string; found_in:
 /** A calculation the server computed exactly; the model only chose the figures. */
 export type Calculation = {
   expression: string;
-  result: string | null;              // null: it couldn't be computed (see error)
+  result: string | null;              // null: it couldn't be computed (see reason)
   figures_not_in_sources: string[];   // figures to check: they don't appear in the passages given
-  error: string | null;
+  error: string | null;               // English, for developers
+  reason?: string | null;             // why it couldn't be computed, a code (suveryn_harness.calc.REASONS) calcFailed words
   /** Figures that read either way ("28.848"), read as the documents that write them write decimals. */
   read_as?: string[];
   read_with?: "," | "." | null;
@@ -188,18 +189,16 @@ export async function signOut(): Promise<void> {
 export function httpErrorText(status: number, detail: unknown, retryAfter: string | null = null, reason: unknown = null): string {
   const m = t();
   switch (status) {
+    // ``reason``: the server's code for what was refused (decision of 12 November 2026: failures are codes, never
+    // recognised by their English words; suveryn_rag UploadRejected, the gateway's Refused)
     case 429:
-      if (typeof detail === "string" && /documents are waiting/.test(detail)) return m.tooManyWaiting;
-      if (typeof detail === "string" && /playbook runs are reading/.test(detail)) return m.playbooksBusy;
+      if (reason === "queue_full") return m.tooManyWaiting;
+      if (reason === "playbooks_busy") return m.playbooksBusy;
       return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
-    case 413: {
-      if (typeof detail === "string" && /archive unpacks/.test(detail)) return m.archiveTooBig;
-      return typeof detail === "string" && /conversation/i.test(detail) ? m.conversationTooLong : m.fileTooLarge;
-    }
+    case 413:
+      return reason === "archive_too_big" ? m.archiveTooBig : reason === "conversation_too_long" ? m.conversationTooLong : m.fileTooLarge;
     case 415:
-      if (typeof detail === "string" && /archive is empty/.test(detail)) return m.archiveEmpty;
-      if (typeof detail === "string" && /not a valid ZIP/.test(detail)) return m.archiveInvalid;
-      return m.fileNotSupported;
+      return reason === "archive_empty" ? m.archiveEmpty : reason === "not_zip" ? m.archiveInvalid : m.fileNotSupported;
     case 422: return m.requestRejected;
     case 404: return m.notFound;
     case 403: return reason === "rights_removed" ? m.adminRightsRemoved : m.forbidden;
@@ -297,8 +296,8 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
         const text = httpErrorText(xhr.status, detail, after, xhr.response?.reason);
         // The per-person rate limit, or a full reading queue: the chat waits its turn (lib/turns.ts). The queue
         // names no time; it empties as documents are read, so the chat looks again every 10 seconds.
-        const queueFull = typeof detail === "string" && /documents are waiting/.test(detail);
-        const rateLimited = xhr.status === 429 && !(typeof detail === "string" && /playbook runs/.test(detail));
+        const queueFull = xhr.response?.reason === "queue_full";
+        const rateLimited = xhr.status === 429 && xhr.response?.reason !== "playbooks_busy";
         reject(rateLimited ? new RateLimited(text, after && /^\d+$/.test(after) ? Number(after) : queueFull ? 10 : 30) : new Error(text));
       }
     };

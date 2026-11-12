@@ -332,7 +332,12 @@ const fr: Messages = {
   sourceN: (n) => `la source ${n}`,
   sourceCaption: "Tel que lu. Vérifiez la page originale.",
   markedByMeaning: "Même sens, autres mots. Vérifiez-le.",
-  calcFailed: (expression, why) => `Impossible de calculer ${expression} : ${why}.`,
+  calcFailed: (expression, reason) => `Impossible de calculer ${expression} : ${({
+    number_style: "les montants sont écrits dans des formats différents",
+    decimal_separator: "les montants ne montrent pas quel signe sépare les décimales",
+    division_by_zero: "il divise par zéro",
+    no_figures: "il ne contient aucun chiffre",
+  } as Record<string, string>)[reason] ?? "le calcul n'a pas pu être lu"}.`,
   calculatedBy: "Calculé par sūveryn, pas lu dans les documents :",
   calcMissing: (figures) => ` Vérifiez ${figures.join(", ")} : ${singular(figures.length) ? "ce montant n'apparaît" : "ces montants n'apparaissent"} pas dans les sources.`,
   calcAllSourced: " Chaque montant provient des sources.",

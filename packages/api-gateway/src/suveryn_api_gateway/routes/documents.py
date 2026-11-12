@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..conversations import ConversationSummary
 from .status import disk_low
 from .common import (
+    Refused,
     UploadRejected,
     docs_or_503,
     flush_soon,
@@ -65,7 +66,7 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
         else:
             result = await run_in_threadpool(docs.accept_upload, file.file, filename, owner_of(request), scope.case_id)
     except UploadRejected as e:
-        raise HTTPException(e.status, str(e)) from e
+        raise Refused(e.status, str(e), e.reason) from e
     await touch_case(request, scope)
     for job in (result.jobs if archive else [result]):
         await log_access(request, scope.case_id, "uploaded", {"job": job.id})

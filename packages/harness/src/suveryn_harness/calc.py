@@ -38,7 +38,17 @@ MAX_PRODUCT_PLACES = 6
 
 
 class CalcError(ValueError):
-    """The calculation can't be done: syntax, ambiguous number style, or division by zero."""
+    """The calculation can't be done: syntax, ambiguous number style, or division by zero. ``reason`` is a code the
+    screen words in its reader's language (``REASONS``); the message is English, for developers."""
+
+    def __init__(self, message: str, reason: str = "syntax"):
+        super().__init__(message)
+        self.reason = reason
+
+
+# Why a calculation can't be done, as codes (decision of 12 November 2026: failures are codes; the chat UI's
+# ``calcFailed`` words each).
+REASONS = ("number_style", "decimal_separator", "division_by_zero", "no_figures", "syntax")
 
 
 def _decimal_separator(figures: list[str]) -> str | None:
@@ -53,8 +63,14 @@ def _decimal_separator(figures: list[str]) -> str | None:
         if any(re.search(rf"\{sep}\d{{1,2}}$", f) or f.count(other) > 1 for f in figures):
             return sep
     if any(re.search(r"[.,]\d{3}$", f) or re.search(r"[.,]\d{4,}$", f) for f in figures):
-        raise AmbiguousSeparator("the figures don't show which separator is the decimal one")
+        raise AmbiguousSeparator("the figures don't show which separator is the decimal one", "decimal_separator")
     return None
+
+
+def failed_marker(expression: str) -> str:
+    """What the answer shows where a calculation couldn't be done: the calculation and a question mark, no words, so
+    it reads the same in every language; the note under the answer says why in the reader's (``reason``)."""
+    return f"{expression} = ?"
 
 
 class AmbiguousSeparator(CalcError):
@@ -70,7 +86,7 @@ def _check_style(figure: str, sep: str | None) -> None:
     group = re.escape(("." if sep == "," else ",") if sep else "") + GROUPING_SPACES
     decimals = rf"(?:{re.escape(sep)}\d+)?" if sep else ""
     if not re.fullmatch(rf"\d+{decimals}|\d{{1,3}}(?:[{group}]\d{{3}})+{decimals}", figure):
-        raise CalcError(f"{figure} doesn't match the number style of the other figures")
+        raise CalcError(f"{figure} doesn't match the number style of the other figures", "number_style")
 
 
 def _to_decimal(figure: str, sep: str | None) -> Decimal:
@@ -120,7 +136,7 @@ class _Parser:
             self.i += 1
             right = self.factor()
             if op == "/" and right == 0:
-                raise CalcError("division by zero")
+                raise CalcError("division by zero", "division_by_zero")
             value = value * right if op == "*" else value / right
         return value
 
@@ -220,7 +236,7 @@ def _as_the_documents_write(expression: str, default_sep: str | None,
                             written: list[tuple[str, str | None]]) -> tuple[str, list[str], list[str]]:
     """A figure that reads either way, read in the style of the documents that write it: every such figure must be
     in a passage and the documents writing them must agree on one style. Raises when that doesn't settle it."""
-    unsettled = AmbiguousSeparator("the figures don't show which separator is the decimal one")
+    unsettled = AmbiguousSeparator("the figures don't show which separator is the decimal one", "decimal_separator")
     ambiguous = [f for f in re.findall(NUMBER.pattern, expression) if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d{4,}", f)]
     styles: set[str] = set()
     for f in ambiguous:
@@ -247,7 +263,7 @@ def _evaluate(expression: str, default_sep: str | None, forced: str | None = Non
         else:
             raise CalcError(f"unexpected text in the calculation: {tok!r}")
     if not figures:
-        raise CalcError("the calculation has no figures")
+        raise CalcError("the calculation has no figures", "no_figures")
     sep = forced or _decimal_separator(figures)
     for f in figures:
         _check_style(f, sep)
@@ -346,10 +362,10 @@ class CalcRewriter:
         try:
             result, figures, read_as = evaluate(expression, _sources_separator(self.source), self.written)
         except CalcError as e:
-            self.calculations.append(Calculation(expression=expression, result=None, error=str(e)))
+            self.calculations.append(Calculation(expression=expression, result=None, error=str(e), reason=e.reason))
             self._figures.append([])
             self._styles.append(None)
-            return f"[calculation not possible: {expression}]"
+            return failed_marker(expression)
         self.calculations.append(Calculation(expression=expression, result=result, read_as=read_as,
                                              read_with=("," if "." in read_as[0] else ".") if read_as else None))
         self._figures.append(list(dict.fromkeys(figures)))
