@@ -3,6 +3,11 @@
  * wording; rules: docs/translations.md.
  */
 import type { Text } from "./en";
+import { LOCALES } from "../../i18n/languages";
+import { singularIn } from "../../i18n/plural";
+
+/** Whether a count takes the singular here (CLDR's rules for fr; i18n/plural.ts). */
+const singular = singularIn(LOCALES.fr);
 
 const fr: Text = {
   language: "Langue",
@@ -130,7 +135,7 @@ const fr: Text = {
   nextCheckIn: "Prochain check-in",
   checkInDetail: "Scannez un code QR depuis le tableau de bord d'administration. Cela prend une minute.",
   certified: "Certifiés",
-  certifiedValue: (c, p) => `${c} ${c === 1 ? "connecteur" : "connecteurs"} · ${p} ${p === 1 ? "playbook" : "playbooks"}`,
+  certifiedValue: (c, p) => `${c} ${singular(c) ? "connecteur" : "connecteurs"} · ${p} ${singular(p) ? "playbook" : "playbooks"}`,
   certifiedDetail: "Les playbooks propres à votre étude n'ont jamais besoin d'être certifiés.",
   replaceManifest: "Remplacer le manifeste",
   noManifest: "Aucun manifeste valable",

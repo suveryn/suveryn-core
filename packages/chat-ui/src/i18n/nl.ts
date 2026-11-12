@@ -1,8 +1,13 @@
 /** Dutch interface text: formal (u/uw), as everywhere in sūveryn. Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
+import { LOCALES } from "./languages";
+import { singularIn } from "./plural";
+
+/** Whether a count takes the singular here (CLDR's rules for nl; ./plural.ts). */
+const singular = singularIn(LOCALES.nl);
 
 /** "op pagina 4", "op pagina's 2 en 7", "op pagina's 2, 5 en 7" */
-const nlPages = (p: number[]) => (p.length > 1 ? `op pagina's ${p.slice(0, -1).join(", ")} en ${p[p.length - 1]}` : `op pagina ${p[0]}`);
+const nlPages = (p: number[]) => (!singular(p.length) ? `op pagina's ${p.slice(0, -1).join(", ")} en ${p[p.length - 1]}` : `op pagina ${p[0]}`);
 
 const nl: Messages = {
   language: "Taal",
@@ -70,7 +75,7 @@ const nl: Messages = {
   delete: "Verwijderen",
   documents: "Documenten",
   documentsEmpty: "Nog geen documenten.",
-  pages: (n) => `${n} ${n === 1 ? "pagina" : "pagina's"}`,
+  pages: (n) => `${n} ${singular(n) ? "pagina" : "pagina's"}`,
   checkPages: (pages) => ` · controleer ${pages}`,
   useInConversation: "Gebruiken in dit gesprek",
   signOut: "Uitloggen",
@@ -120,7 +125,7 @@ const nl: Messages = {
   roleContributor: "medewerker",
   roleReader: "lezer",
   members: "Leden",
-  membersCount: (n) => `${n} ${n === 1 ? "lid" : "leden"}`,
+  membersCount: (n) => `${n} ${singular(n) ? "lid" : "leden"}`,
   membersTitle: (reference) => `Leden van dossier ${reference}`,
   membersAccessTitle: (reference) => `Leden en toegang van dossier ${reference}`,
   close: "Sluiten",
@@ -147,7 +152,7 @@ const nl: Messages = {
   eventOpened: "opende het dossier",
   eventDocuments: "bekeek de documenten",
   eventUploaded: "voegde een document toe",
-  eventAsked: (n) => `stelde een vraag${n ? ` over ${n} ${n === 1 ? "document" : "documenten"}` : ""}`,
+  eventAsked: (n) => `stelde een vraag${n ? ` over ${n} ${singular(n) ? "document" : "documenten"}` : ""}`,
   eventDocumentDeleted: "verwijderde een document",
   eventChanged: "wijzigde de gegevens van het dossier",
   eventRestricted: "beperkte het dossier tot de leden",
@@ -183,7 +188,7 @@ const nl: Messages = {
   keepCase: "Bewaren",
   unkeepCase: "Termijn laten lopen",
   caseIsClosed: "Afgesloten: alleen lezen.",
-  casesDue: (n) => `${n} ${n === 1 ? "dossier wordt" : "dossiers worden"} binnenkort verwijderd`,
+  casesDue: (n) => `${n} ${singular(n) ? "dossier wordt" : "dossiers worden"} binnenkort verwijderd`,
   showClosed: "Afgesloten tonen",
   caseChangeFailed: (why) => `De wijziging is niet doorgevoerd: ${why}`,
   eventClosed: "sloot het dossier af",
@@ -269,9 +274,9 @@ const nl: Messages = {
   sourceLabel: (n, file, page) => `Bron ${n}: ${file}${page ? `, pagina ${page}` : ""}`,
   pageShort: (page) => `p.${page}`,
 
-  pageList: (pages) => `${pages.length > 1 ? "pp." : "p."} ${pages}`,
+  pageList: (pages) => `${!singular(pages.length) ? "pp." : "p."} ${pages}`,
   reviewHint: (pages) => {
-    const where = !pages?.length ? "op sommige pagina's" : pages.length > 1 ? `op pagina's ${pages}` : `op pagina ${pages[0]}`;
+    const where = !pages?.length ? "op sommige pagina's" : !singular(pages.length) ? `op pagina's ${pages}` : `op pagina ${pages[0]}`;
     return `Klaar voor gebruik. Sommige tekst ${where} is mogelijk niet goed gelezen; controleer antwoorden die daarop steunen dus met het origineel.`;
   },
 
@@ -279,7 +284,7 @@ const nl: Messages = {
   statusSearching: "Uw documenten worden doorzocht…",
   statusReadingAll: (passages) => `Uw documenten worden gelezen (${passages})…`,
   statusReadingBest: (passages) => `De ${passages} die het best bij uw vraag passen, worden gelezen…`,
-  passages: (n) => `${n} ${n === 1 ? "passage" : "passages"}`,
+  passages: (n) => `${n} ${singular(n) ? "passage" : "passages"}`,
   statusLoading: (model) => `${model ?? "Het model"} wordt geladen…`,
   statusWriting: "Het antwoord wordt geschreven…",
   statusThinking: "Denkt eerst na…",
@@ -327,11 +332,11 @@ const nl: Messages = {
   markedByMeaning: "Zelfde betekenis, andere woorden. Controleer het.",
   calcFailed: (expression, why) => `${expression} kon niet worden berekend: ${why}.`,
   calculatedBy: "Berekend door sūveryn, niet uit de documenten gelezen:",
-  calcMissing: (figures) => ` Controleer ${figures.join(", ")}: ${figures.length === 1 ? "dat bedrag staat" : "die bedragen staan"} niet in de bronnen.`,
+  calcMissing: (figures) => ` Controleer ${figures.join(", ")}: ${singular(figures.length) ? "dat bedrag staat" : "die bedragen staan"} niet in de bronnen.`,
   calcAllSourced: " Elk bedrag komt uit de bronnen.",
   calcReadAs: (figures, comma) => ` Gelezen zoals de documenten ze schrijven, met decimalen na een ${comma ? "komma" : "punt"}: ${figures.join(", ")}.`,
   unverified: (figures) => {
-    const one = figures.length === 1;
+    const one = singular(figures.length);
     return `Controleer ${figures.join(", ")}: ${one ? "dit bedrag staat" : "deze bedragen staan"} niet in de documenten en ${one ? "werd" : "werden"} niet door sūveryn berekend. Het model heeft ${one ? "het" : "ze"} mogelijk zelf uitgerekend, en dat kan fout zijn.`;
   },
   unverifiedTitle: "Niet in de documenten en niet berekend. Controleer dit bedrag.",
@@ -383,8 +388,8 @@ const nl: Messages = {
   askAbout: "Vraag over:",
   askAboutTitle: "Vraag over",
   askAboutAll: "alle documenten",
-  askAboutCount: (n) => (n === 1 ? "1 document" : `${n} documenten`),
-  askAboutLabel: (n) => (n === 0 ? "Vraag over, alle documenten" : n === 1 ? "Vraag over, 1 document gekozen" : `Vraag over, ${n} documenten gekozen`),
+  askAboutCount: (n) => (singular(n) ? "1 document" : `${n} documenten`),
+  askAboutLabel: (n) => (n === 0 ? "Vraag over, alle documenten" : singular(n) ? "Vraag over, 1 document gekozen" : `Vraag over, ${n} documenten gekozen`),
   askAboutChosen: (n) => `Gekozen · ${n}`,
   askAboutMatching: (q, n) => `Met ‘${q}’ · ${n}`,
   askAboutSearch: "Zoek in de documenten",
@@ -394,12 +399,12 @@ const nl: Messages = {
   askAboutEverything: "Alle documenten",
   askAboutEverythingHint: "Het hele dossier, ook wat later wordt toegevoegd",
   askAboutPicked: (n, total) => `${n} van ${total} gekozen`,
-  answersUseOnly: (n, name) => (n === 1 ? `Antwoorden gebruiken alleen ${name}.` : `Antwoorden gebruiken alleen de ${n} gekozen documenten.`),
+  answersUseOnly: (n, name) => (singular(n) ? `Antwoorden gebruiken alleen ${name}.` : `Antwoorden gebruiken alleen de ${n} gekozen documenten.`),
   chosenGone: "De gekozen documenten zijn weg. Antwoorden gebruiken weer het hele dossier.",
   chosenDeletedMeanwhile: "een gekozen document werd intussen uit het dossier verwijderd; kijk de keuze bij Vraag over na",
   partialRead: "Te groot: alleen de best passende passages zijn gelezen.",
   caseChooseHint: (n) => `Uw vraag gaat over alle ${n} documenten. Kies er één bij Vraag over.`,
-  basedOn: (count, names) => (count === 1 ? `Op basis van ${names}` : `Op basis van ${count} documenten: ${names}`),
+  basedOn: (count, names) => (singular(count) ? `Op basis van ${names}` : `Op basis van ${count} documenten: ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Dit antwoord downloaden als Word-document, met de bronnen",
   downloadWordWhatConfidential: "Dit antwoord downloaden als Word-document, met de bronnen en het watermerk Strikt vertrouwelijk",
@@ -436,17 +441,17 @@ const nl: Messages = {
   documentRemoved: "Verwijderd document",
   deleteDocumentDialogTitle: (file) => `${file} verwijderen?`,
   deleteDocumentDialogBody: (n) =>
-    `${n === 1 ? "Eén gesprek citeert" : `${n} gesprekken citeren`} dit document. De passages verdwijnen eruit.`,
+    `${singular(n) ? "Eén gesprek citeert" : `${n} gesprekken citeren`} dit document. De passages verdwijnen eruit.`,
   deleteDocumentKeepConversations: "Document verwijderen, gesprekken behouden",
-  deleteDocumentAndConversations: (n) => (n === 1 ? "Document en gesprek verwijderen" : `Document en ${n} gesprekken verwijderen`),
+  deleteDocumentAndConversations: (n) => (singular(n) ? "Document en gesprek verwijderen" : `Document en ${n} gesprekken verwijderen`),
   citationIssue: (n, item, foundIn, writtenAs) =>
     writtenAs ? `Controleer bron ${n}: daar staat „${writtenAs}”, niet „${item}”.`
-    : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${foundIn.length > 1 ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
+    : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${!singular(foundIn.length) ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
     : `Controleer bron ${n}: „${item}” staat er niet in.`,
   citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",
   instructionLikeUncited: "Een passage die het model kreeg, bevat tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.",
   instructionLike: (sources) =>
-    `${sources.length > 1 ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.`,
+    `${!singular(sources.length) ? `Bronnen ${sources.join(", ")} bevatten` : `Bron ${sources[0]} bevat`} tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.`,
   // playbooks (suveryn-tracker#51): intake akte
   playbookNotCovered: "Niet gedekt door uw overeenkomst: geen certificering, updates of ondersteuning.",
   playbookVersion: (v: string) => `Intake akte ${v}`,
@@ -494,7 +499,7 @@ const nl: Messages = {
   // een playbook is een gesprek (overdracht van 30 oktober 2026, borden 52 tot 54)
   runStartLine: (name, playbook, version, time) => `${name} startte ${playbook} ${version} · ${time}`,
   runAskTurn: (found, total, list) => `${found} van de ${total} gegevens gevonden. Niet in de documenten: ${list}. Weet u ze?`,
-  runReadingTurn: (n) => (n === 1 ? "Het document wordt gelezen…" : `De ${n} documenten worden gelezen…`),
+  runReadingTurn: (n) => (singular(n) ? "Het document wordt gelezen…" : `De ${n} documenten worden gelezen…`),
   runChanged: (label, value) => `Aangepast: ${label} is nu ${value}.`,
   runUnplacedAsk: "Dat kon niet geplaatst worden. Over welk gegeven gaat het, en wat is de waarde?",
   runUnplacedChange: "Dat kon niet geplaatst worden. Welk gegeven moet anders, en hoe?",
@@ -526,7 +531,7 @@ const nl: Messages = {
   runSummaryCard: "Samenvatting",
   // de kaarten van het playbook en de lijst met gegevens (overdracht van 31 oktober 2026)
   sourcesLabel: "Bronnen:",
-  pbReviewIntro: (found, total, n) => `${found} van de ${total} gegevens gevonden. ${n === 1 ? "Eén vraagt" : `${n} vragen`} uw aandacht:`,
+  pbReviewIntro: (found, total, n) => `${found} van de ${total} gegevens gevonden. ${singular(n) ? "Eén vraagt" : `${n} vragen`} uw aandacht:`,
   pbReviewIntroNone: (found, total) => `${found} van de ${total} gegevens gevonden.`,
   pbGroupCheck: "Kijk na",
   pbGroupMissing: "Ontbreekt",
@@ -544,8 +549,8 @@ const nl: Messages = {
   pbComputedCheck: "Berekend. Kijk na.",
   pbComputedHow: (base, term, before, calendar) => `Berekend: ${base} ${before ? "min" : "plus"} ${term}${calendar ? ` (${calendar})` : ""}.`,
   pbTerm: (n, unit) => `${["", "één", "twee", "drie", "vier", "vijf", "zes", "zeven", "acht", "negen", "tien", "elf", "twaalf"][n] ?? n} ${
-    { day: n === 1 ? "dag" : "dagen", week: n === 1 ? "week" : "weken", month: n === 1 ? "maand" : "maanden", year: "jaar",
-      workday: n === 1 ? "werkdag" : "werkdagen" }[unit]}`,
+    { day: singular(n) ? "dag" : "dagen", week: singular(n) ? "week" : "weken", month: singular(n) ? "maand" : "maanden", year: "jaar",
+      workday: singular(n) ? "werkdag" : "werkdagen" }[unit]}`,
   pbComputedShare: (percent, of) => `Berekend: ${percent} % van ${of}.`,
   pbApproximate: "Het document geeft dit bedrag bij benadering: kijk na wat bedoeld is.",
   pbAmountNotInPassage: "Het bedrag zelf staat niet in de passage.",
@@ -556,7 +561,7 @@ const nl: Messages = {
   // lijsten (formaat 3): een lijst waarvan de documenten geen items noemen, en nog een item voor een lijst die er heeft
   pbNoEntries: "Geen in de documenten",
   pbAddEntry: "Toevoegen",
-  pbEntries: (n: number) => n === 1 ? "1 item" : `${n} items`,
+  pbEntries: (n: number) => singular(n) ? "1 item" : `${n} items`,
   pbKeepEntry: "Bewaren",
   pbFieldHint: "Enter bewaart, Esc annuleert.",
   pbFromChat: (time) => `Uit het gesprek, ${time}`,
@@ -621,17 +626,17 @@ const nl: Messages = {
   colActivity: "Laatste activiteit",
   colActions: "Acties",
   statusOpen: "Open",
-  statusOpenReview: (n) => `Open · ${n} ${n === 1 ? "document" : "documenten"} na te kijken`,
+  statusOpenReview: (n) => `Open · ${n} ${singular(n) ? "document" : "documenten"} na te kijken`,
   statusClosedUntil: (date) => `Afgesloten · wordt gewist op ${date}`,
   statusClosedKept: "Afgesloten · bewaard tot het gewist wordt",
   membersOnly: "Alleen leden",
   moreMembers: (n) => `+${n}`,
-  documentsOfCase: (ref, n) => `${n} ${n === 1 ? "document" : "documenten"} in dossier ${ref}`,
-  conversationsOfCase: (ref, n) => `${n} ${n === 1 ? "gesprek" : "gesprekken"} in dossier ${ref}`,
+  documentsOfCase: (ref, n) => `${n} ${singular(n) ? "document" : "documenten"} in dossier ${ref}`,
+  conversationsOfCase: (ref, n) => `${n} ${singular(n) ? "gesprek" : "gesprekken"} in dossier ${ref}`,
   pinCase: (ref) => `Dossier ${ref} vastzetten`,
   unpinCase: (ref) => `Dossier ${ref} losmaken`,
   conversationsSummary: (n, personal, inCases) =>
-    `${n} ${n === 1 ? "gesprek" : "gesprekken"}: ${personal} persoonlijk, ${inCases} in een dossier`,
+    `${n} ${singular(n) ? "gesprek" : "gesprekken"}: ${personal} persoonlijk, ${inCases} in een dossier`,
   conversationSearchPlaceholder: "Zoek in titels…",
   filterCase: "Dossier",
   personal: "Persoonlijk",
@@ -648,7 +653,7 @@ const nl: Messages = {
   visReadOnly: "Gedeeld met het dossier · alleen lezen",
   conversationsFootnote: "Een dossiergesprek zet u vast via zijn dossier.",
   documentsSummary: (n, cases) =>
-    `${n} ${n === 1 ? "document" : "documenten"} in ${cases} ${cases === 1 ? "dossier" : "dossiers"} en uw eigen ruimte`,
+    `${n} ${singular(n) ? "document" : "documenten"} in ${cases} ${singular(cases) ? "dossier" : "dossiers"} en uw eigen ruimte`,
   documentSearchPlaceholder: "Zoek op naam of dossier…",
   upload: "Uploaden",
   uploadHint: "Uploaden naar de plaats die open is, klaar om er een vraag over te stellen",
@@ -721,7 +726,7 @@ const nl: Messages = {
   removeFromQuestion: (file) => `${file} uit deze vraag halen`,
   readingCountsLater: "Vragen kan al; documenten tellen mee zodra ze gelezen zijn.",
   offlineTitle: "De sūveryn-server is niet bereikbaar.",
-  offlineRetry: (s) => (s > 0 ? `Nieuwe poging over ${s} ${s === 1 ? "seconde" : "seconden"}.` : "Nieuwe poging…"),
+  offlineRetry: (s) => (s > 0 ? `Nieuwe poging over ${s} ${singular(s) ? "seconde" : "seconden"}.` : "Nieuwe poging…"),
   tryNow: "Nu opnieuw proberen",
   offlineSend: "Verzenden kan zodra de server terug is.",
   answerCutOff: "Antwoord onderbroken: de verbinding viel weg.",
@@ -730,7 +735,7 @@ const nl: Messages = {
   // leesvoortgang, annuleren en waarom lezen mislukte (de codes van de lezer: suveryn_rag.reading)
   cardRecognising: (done, total) => `Tekst wordt herkend · pagina ${done} van ${total}`,
   cardRecognisingStart: "Tekst wordt herkend",
-  cardLayout: (pages) => (pages ? `De opmaak van ${pages} ${pages === 1 ? "pagina" : "pagina's"} wordt gelezen` : "De opmaak wordt gelezen"),
+  cardLayout: (pages) => (pages ? `De opmaak van ${pages} ${singular(pages) ? "pagina" : "pagina's"} wordt gelezen` : "De opmaak wordt gelezen"),
   cardStoring: "Wordt bewaard",
   cancelUpload: (file) => `Het opladen van ${file} annuleren`,
   failPassword: "Het is beveiligd met een wachtwoord.",
@@ -739,7 +744,7 @@ const nl: Messages = {
   failTooLarge: "Het is te groot om te lezen.",
   failNoText: "Er staat geen tekst in om te lezen.",
   failUnsupported: "Dit soort bestand kan niet gelezen worden.",
-  failTimeout: (minutes) => `Lezen duurde langer dan ${minutes} ${minutes === 1 ? "minuut" : "minuten"}.`,
+  failTimeout: (minutes) => `Lezen duurde langer dan ${minutes} ${singular(minutes) ? "minuut" : "minuten"}.`,
   failLostTrack: "Deze pagina is de upload uit het oog verloren. Staat hij niet bij de documenten, voeg hem dan opnieuw toe.",
   failUnreadable: "Probeer het opnieuw, of een ander bestand.",
   recent: "Recent",
@@ -794,9 +799,9 @@ const nl: Messages = {
   noConversationFound: "Geen gesprek gevonden.",
   noDocumentFound: "Geen document gevonden.",
   openCases: "Open",
-  caseCount: (n: number) => `${n} ${n === 1 ? "dossier" : "dossiers"}`,
-  conversationCount: (n: number) => `${n} ${n === 1 ? "gesprek" : "gesprekken"}`,
-  documentCount: (n: number) => `${n} ${n === 1 ? "document" : "documenten"}`,
+  caseCount: (n: number) => `${n} ${singular(n) ? "dossier" : "dossiers"}`,
+  conversationCount: (n: number) => `${n} ${singular(n) ? "gesprek" : "gesprekken"}`,
+  documentCount: (n: number) => `${n} ${singular(n) ? "document" : "documenten"}`,
   playbook: "Playbook",
   playbookMenu: "Playbooks voor dit dossier",
   pbLastRun: (when, state) => `Laatst: ${when}, ${state} · start een nieuw gesprek`,
@@ -815,7 +820,7 @@ const nl: Messages = {
   backupStale: (when) => `Al meer dan twee dagen geen back-up. De laatste werd gemaakt op ${when}.`,
   backupFailed: (when, why) => `De laatste back-up is mislukt (${when}): ${why}.`,
   backupStep: { target: "de back-upschijf of gedeelde map was niet bereikbaar", database: "de database kon niet worden gelezen", write: "de back-up kon niet worden geschreven", encrypt: "de back-up kon niet worden versleuteld", settings: "de back-upinstellingen zijn niet geldig", space: "de back-upschijf is vol", verify: "de back-upschijf gaf niet terug wat erop werd geschreven (ze is mogelijk defect)", link: "een koppeling in de instellingenmap die een herstel zou weigeren; vraag ondersteuning", other: "een onverwachte fout" },
-  backupCount: (n, oldest) => `${n} ${n === 1 ? "back-up" : "back-ups"}${oldest ? `, de oudste van ${oldest}` : ""}`,
+  backupCount: (n, oldest) => `${n} ${singular(n) ? "back-up" : "back-ups"}${oldest ? `, de oudste van ${oldest}` : ""}`,
   backupDisk: "Back-upschijf",
   keyTestTitle: "Herstelsleutel",
   backupLastHeading: "Laatste back-up",
@@ -882,9 +887,9 @@ const nl: Messages = {
   applyNewCases: "Nieuwe dossiers",
   applyAllCases: "Alle dossiers",
   strictlyStays: "Strikt vertrouwelijke dossiers blijven alleen voor de leden.",
-  casesOpened: (n: number) => (n === 1 ? "1 dossier wordt zichtbaar voor iedereen op het kantoor." : `${n} dossiers worden zichtbaar voor iedereen op het kantoor.`),
-  casesClosed: (n: number) => (n === 1 ? "1 dossier wordt alleen nog zichtbaar voor de leden." : `${n} dossiers worden alleen nog zichtbaar voor de leden.`),
-  conversationsDeleted: (n: number) => (n === 1 ? "1 bewaard gesprek wordt verwijderd." : `${n} bewaarde gesprekken worden verwijderd.`),
+  casesOpened: (n: number) => (singular(n) ? "1 dossier wordt zichtbaar voor iedereen op het kantoor." : `${n} dossiers worden zichtbaar voor iedereen op het kantoor.`),
+  casesClosed: (n: number) => (singular(n) ? "1 dossier wordt alleen nog zichtbaar voor de leden." : `${n} dossiers worden alleen nog zichtbaar voor de leden.`),
+  conversationsDeleted: (n: number) => (singular(n) ? "1 bewaard gesprek wordt verwijderd." : `${n} bewaarde gesprekken worden verwijderd.`),
   keepClosedCase: "Een gesloten dossier bewaren",
   keepClosedHint: "Daarna wordt het met alle inhoud verwijderd.",
   keepConversations: "Gesprekken bewaren",
@@ -946,7 +951,7 @@ const nl: Messages = {
   userEmail: "E-mail",
   addUser: "Gebruiker toevoegen",
   userSearch: "Zoek op naam of e-mail",
-  usersCount: (n, max) => (max === null ? `${n} ${n === 1 ? "gebruiker" : "gebruikers"}` : `${n} van ${max} gebruikers`),
+  usersCount: (n, max) => (max === null ? `${n} ${singular(n) ? "gebruiker" : "gebruikers"}` : `${n} van ${max} gebruikers`),
   accountFilter: { on: "Account: aan", off: "Account: uit", all: "Account: alle" },
   noAccountsInFilter: { on: "Er staan geen accounts aan.", off: "Er staan geen accounts uit.", all: "Geen accounts." },
   colUser: "Gebruiker",
@@ -980,7 +985,7 @@ const nl: Messages = {
   print: "Afdrukken",
   done: "Klaar",
   switchOffTitle: (name) => `${name} uitschakelen?`,
-  chooseTakeOver: (n) => `Kies wie ${n === 1 ? "het dossier" : `de ${n} dossiers`} overneemt.`,
+  chooseTakeOver: (n) => `Kies wie ${singular(n) ? "het dossier" : `de ${n} dossiers`} overneemt.`,
   colNewManager: "Nieuwe beheerder",
   chooseSomeone: "Kies iemand",
   conversationsStay: "De gesprekken en documenten blijven.",
@@ -995,9 +1000,9 @@ const nl: Messages = {
   switchOffFirst: "Schakel het account eerst uit.",
   deleteAccountTitle: (name) => `Het account van ${name} verwijderen?`,
   deleteAccountGoes: (documents, conversations) =>
-    `Mee verwijderd: ${documents} eigen ${documents === 1 ? "document" : "documenten"} en ${conversations} ${conversations === 1 ? "gesprek" : "gesprekken"} die niemand anders kan lezen.`,
+    `Mee verwijderd: ${documents} eigen ${singular(documents) ? "document" : "documenten"} en ${conversations} ${singular(conversations) ? "gesprek" : "gesprekken"} die niemand anders kan lezen.`,
   deleteAccountStays: (shared) =>
-    `In de dossiers blijft alles onder dezelfde naam staan: de toegevoegde documenten, het toegangslogboek${shared ? ` en ${shared} ${shared === 1 ? "gedeeld gesprek" : "gedeelde gesprekken"}` : ""}.`,
+    `In de dossiers blijft alles onder dezelfde naam staan: de toegevoegde documenten, het toegangslogboek${shared ? ` en ${shared} ${singular(shared) ? "gedeeld gesprek" : "gedeelde gesprekken"}` : ""}.`,
   deleteAccountAction: "Account verwijderen",
   notForOwnAccount: "Kan niet voor uw eigen account.",
   resetPasswordTitle: (name) => `Wachtwoord van ${name} opnieuw instellen?`,
@@ -1066,7 +1071,7 @@ const nl: Messages = {
   confidentialRules: "Alleen leden · Niet te delen · Exports met watermerk",
   confidentialWhat: "Wat betekent dit?",
   confidentialHint: "Alleen leden. Niet te delen. Exports met watermerk. Titels afgeschermd.",
-  confidentialWillUnshare: (n) => (n === 1 ? "Eén gesprek wordt niet meer gedeeld. De eigenaar houdt het." : `${n} gesprekken worden niet meer gedeeld. Hun eigenaars houden ze.`),
+  confidentialWillUnshare: (n) => (singular(n) ? "Eén gesprek wordt niet meer gedeeld. De eigenaar houdt het." : `${n} gesprekken worden niet meer gedeeld. Hun eigenaars houden ze.`),
   confidentialFilter: "Strikt vertrouwelijk",
   shieldedConversation: "Afgeschermd gesprek",
   shieldedIn: (ref) => `Afgeschermd gesprek in dossier ${ref}`,

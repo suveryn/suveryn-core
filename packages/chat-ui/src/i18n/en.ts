@@ -6,8 +6,13 @@
  * start of a sentence or as the company. The tagline stays in English in every language, as on
  * the website. Server messages (error details, calculation errors) arrive in English.
  */
+import { LOCALES } from "./languages";
+import { singularIn } from "./plural";
+
+/** Whether a count takes the singular here (CLDR's rules for en; ./plural.ts). */
+const singular = singularIn(LOCALES.en);
 /** "page 4", "pages 2 and 7", "pages 2, 5 and 7" */
-const enPages = (p: number[]) => (p.length > 1 ? `pages ${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}` : `page ${p[0]}`);
+const enPages = (p: number[]) => (!singular(p.length) ? `pages ${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}` : `page ${p[0]}`);
 
 const en = {
   language: "Language",
@@ -81,7 +86,7 @@ const en = {
   delete: "Delete",
   documents: "Documents",
   documentsEmpty: "No documents yet.",
-  pages: (n: number) => `${n} ${n === 1 ? "page" : "pages"}`,
+  pages: (n: number) => `${n} ${singular(n) ? "page" : "pages"}`,
   checkPages: (pages: string) => ` · check ${pages}`,
   useInConversation: "Use in this conversation",
   signOut: "Sign out",
@@ -133,7 +138,7 @@ const en = {
   roleReader: "reader",
   // cases, stage 2: members, roles, the access log
   members: "Members",
-  membersCount: (n: number) => `${n} ${n === 1 ? "member" : "members"}`,
+  membersCount: (n: number) => `${n} ${singular(n) ? "member" : "members"}`,
   membersTitle: (reference: string) => `Members of case ${reference}`,
   membersAccessTitle: (reference: string) => `Members and access of case ${reference}`,
   close: "Close",
@@ -160,7 +165,7 @@ const en = {
   eventOpened: "opened the case",
   eventDocuments: "looked at the documents",
   eventUploaded: "added a document",
-  eventAsked: (n: number) => `asked a question${n ? ` about ${n} ${n === 1 ? "document" : "documents"}` : ""}`,
+  eventAsked: (n: number) => `asked a question${n ? ` about ${n} ${singular(n) ? "document" : "documents"}` : ""}`,
   eventDocumentDeleted: "deleted a document",
   eventChanged: "changed the case's details",
   eventRestricted: "restricted the case to its members",
@@ -196,7 +201,7 @@ const en = {
   keepCase: "Keep",
   unkeepCase: "Let the period run",
   caseIsClosed: "Closed: read only.",
-  casesDue: (n: number) => `${n} ${n === 1 ? "case is" : "cases are"} due for deletion`,
+  casesDue: (n: number) => `${n} ${singular(n) ? "case is" : "cases are"} due for deletion`,
   showClosed: "Show closed",
   caseChangeFailed: (why: string) => `The change didn't go through: ${why}`,
   eventClosed: "closed the case",
@@ -287,9 +292,9 @@ const en = {
   pageShort: (page: number) => `p.${page}`,
 
   // pages to check (documents in needs_review)
-  pageList: (pages: number[]) => `${pages.length > 1 ? "pp." : "p."} ${pages.join(", ")}`,
+  pageList: (pages: number[]) => `${!singular(pages.length) ? "pp." : "p."} ${pages.join(", ")}`,
   reviewHint: (pages: number[] | undefined) => {
-    const where = !pages?.length ? "on some pages" : pages.length > 1 ? `on pages ${pages.join(", ")}` : `on page ${pages[0]}`;
+    const where = !pages?.length ? "on some pages" : !singular(pages.length) ? `on pages ${pages.join(", ")}` : `on page ${pages[0]}`;
     return `Ready to use. Some text ${where} may not have been read correctly, so check answers that rely on it against the original.`;
   },
 
@@ -298,7 +303,7 @@ const en = {
   statusSearching: "Searching your documents…",
   statusReadingAll: (passages: string) => `Reading your documents (${passages})…`,
   statusReadingBest: (passages: string) => `Reading the ${passages} that best match your question…`,
-  passages: (n: number) => `${n} ${n === 1 ? "passage" : "passages"}`,
+  passages: (n: number) => `${n} ${singular(n) ? "passage" : "passages"}`,
   statusLoading: (model: string | null) => `${model ?? "The model"} is loading…`,
   statusWriting: "Writing the answer…",
   statusThinking: "Thinking first…",
@@ -348,11 +353,11 @@ const en = {
   markedByMeaning: "Same meaning, other words. Check it.",
   calcFailed: (expression: string, why: string) => `Couldn't calculate ${expression}: ${why}.`,
   calculatedBy: "Calculated by sūveryn, not read from the documents:",
-  calcMissing: (figures: string[]) => ` Check ${figures.join(", ")}: ${figures.length === 1 ? "it doesn't" : "they don't"} appear in the sources.`,
+  calcMissing: (figures: string[]) => ` Check ${figures.join(", ")}: ${singular(figures.length) ? "it doesn't" : "they don't"} appear in the sources.`,
   calcAllSourced: " Every figure comes from the sources.",
   calcReadAs: (figures: string[], comma: boolean) => ` Read as the documents write them, with decimals after a ${comma ? "comma" : "point"}: ${figures.join(", ")}.`,
   unverified: (figures: string[]) => {
-    const one = figures.length === 1;
+    const one = singular(figures.length);
     return `Check ${figures.join(", ")}: ${one ? "this figure isn't" : "these figures aren't"} in the documents and ${one ? "wasn't" : "weren't"} calculated by sūveryn. The model may have worked ${one ? "it" : "them"} out itself, which can be wrong.`;
   },
   unverifiedTitle: "Not in the documents and not calculated. Check this amount.",
@@ -406,8 +411,8 @@ const en = {
   askAbout: "Ask about:",
   askAboutTitle: "Ask about",
   askAboutAll: "all documents",
-  askAboutCount: (n: number) => (n === 1 ? "1 document" : `${n} documents`),
-  askAboutLabel: (n: number) => (n === 0 ? "Ask about, all documents" : n === 1 ? "Ask about, 1 document chosen" : `Ask about, ${n} documents chosen`),
+  askAboutCount: (n: number) => (singular(n) ? "1 document" : `${n} documents`),
+  askAboutLabel: (n: number) => (n === 0 ? "Ask about, all documents" : singular(n) ? "Ask about, 1 document chosen" : `Ask about, ${n} documents chosen`),
   askAboutChosen: (n: number) => `Chosen · ${n}`,
   askAboutMatching: (q: string, n: number) => `Matching ‘${q}’ · ${n}`,
   askAboutSearch: "Search this case's documents",
@@ -417,12 +422,12 @@ const en = {
   askAboutEverything: "All documents",
   askAboutEverythingHint: "The whole case, including what is added later",
   askAboutPicked: (n: number, total: number) => `${n} of ${total} chosen`,
-  answersUseOnly: (n: number, name: string) => (n === 1 ? `Answers use only ${name}.` : `Answers use only the ${n} chosen documents.`),
+  answersUseOnly: (n: number, name: string) => (singular(n) ? `Answers use only ${name}.` : `Answers use only the ${n} chosen documents.`),
   chosenGone: "The chosen documents are gone. Answers use the whole case again.",
   chosenDeletedMeanwhile: "a chosen document was deleted from the case in the meantime; check the choice under Ask about",
   partialRead: "Too large: only the best-matching passages were read.",
   caseChooseHint: (n: number) => `Your question covers all ${n} documents. Pick one under Ask about.`,
-  basedOn: (count: number, names: string) => (count === 1 ? `Based on ${names}` : `Based on ${count} documents: ${names}`),
+  basedOn: (count: number, names: string) => (singular(count) ? `Based on ${names}` : `Based on ${count} documents: ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Download this answer as a Word document, with its sources",
   downloadWordWhatConfidential: "Download this answer as a Word document, with its sources and the Strictly confidential watermark",
@@ -461,20 +466,20 @@ const en = {
   documentRemoved: "Deleted document",
   deleteDocumentDialogTitle: (file: string) => `Delete ${file}?`,
   deleteDocumentDialogBody: (n: number) =>
-    `${n === 1 ? "One conversation cites" : `${n} conversations cite`} this document. The passages are removed from ${n === 1 ? "it" : "them"}.`,
+    `${singular(n) ? "One conversation cites" : `${n} conversations cite`} this document. The passages are removed from ${singular(n) ? "it" : "them"}.`,
   deleteDocumentKeepConversations: "Delete the document, keep the conversations",
-  deleteDocumentAndConversations: (n: number) => (n === 1 ? "Delete the document and the conversation" : `Delete the document and ${n} conversations`),
+  deleteDocumentAndConversations: (n: number) => (singular(n) ? "Delete the document and the conversation" : `Delete the document and ${n} conversations`),
   // citations checked against their source (suveryn-tracker#11)
   citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null) =>
     writtenAs ? `Check source ${n}: it writes "${writtenAs}", not "${item}".`
-    : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${foundIn.length > 1 ? "sources" : "source"} ${foundIn.join(", ")}.`
+    : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${!singular(foundIn.length) ? "sources" : "source"} ${foundIn.join(", ")}.`
     : `Check source ${n}: "${item}" isn't in it.`,
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
   // Text aimed at an AI among the passages the model was given but this answer doesn't cite (pod round of aebf5bc,
   // finding 3): no number, which would point at a source the answer doesn't list.
   instructionLikeUncited: "A passage given to the model contains text aimed at an AI. It wasn't followed; check this answer carefully.",
   instructionLike: (sources: number[]) =>
-    `${sources.length > 1 ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text aimed at an AI. It wasn't followed; check this answer carefully.`,
+    `${!singular(sources.length) ? `Sources ${sources.join(", ")} contain` : `Source ${sources[0]} contains`} text aimed at an AI. It wasn't followed; check this answer carefully.`,
   // downloaded sources
   // playbooks (suveryn-tracker#51): deed intake
   playbookNotCovered: "Not covered by your agreement: no certification, updates or support.",
@@ -523,7 +528,7 @@ const en = {
   // a playbook is a conversation (handover of 30 October 2026, boards 52 to 54)
   runStartLine: (name: string, playbook: string, version: string, time: string) => `${name} started ${playbook} ${version} · ${time}`,
   runAskTurn: (found: number, total: number, list: string) => `${found} of ${total} facts found. Not in the documents: ${list}. Do you know them?`,
-  runReadingTurn: (n: number) => `Reading the ${n} ${n === 1 ? "document" : "documents"}…`,
+  runReadingTurn: (n: number) => `Reading the ${n} ${singular(n) ? "document" : "documents"}…`,
   runChanged: (label: string, value: string) => `Changed: ${label} is now ${value}.`,
   runUnplacedAsk: "That couldn't be placed. Which fact does it give, and what is the value?",
   runUnplacedChange: "That couldn't be placed. Which fact should change, and to what?",
@@ -556,7 +561,7 @@ const en = {
   runSummaryCard: "Summary",
   // the playbook's cards and the facts list (handover of 31 October 2026)
   sourcesLabel: "Sources:",
-  pbReviewIntro: (found: number, total: number, n: number) => `${found} of ${total} facts found. ${n === 1 ? "One needs" : `${n} need`} your attention:`,
+  pbReviewIntro: (found: number, total: number, n: number) => `${found} of ${total} facts found. ${singular(n) ? "One needs" : `${n} need`} your attention:`,
   pbReviewIntroNone: (found: number, total: number) => `${found} of ${total} facts found.`,
   pbGroupCheck: "Check",
   pbGroupMissing: "Missing",
@@ -577,7 +582,7 @@ const en = {
     `Worked out: ${base} ${before ? "minus" : "plus"} ${term}${calendar ? ` (${calendar})` : ""}.`,
   pbTerm: (n: number, unit: "day" | "week" | "month" | "year" | "workday") =>
     `${["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] ?? n} ${
-      unit === "workday" ? (n === 1 ? "working day" : "working days") : `${unit}${n === 1 ? "" : "s"}`}`,
+      unit === "workday" ? (singular(n) ? "working day" : "working days") : `${unit}${singular(n) ? "" : "s"}`}`,
   pbComputedShare: (percent: string, of: string) => `Worked out: ${percent}% of ${of}.`,
   pbApproximate: "The document gives this amount as approximate: check what is meant.",
   pbAmountNotInPassage: "The amount itself isn't in the passage.",
@@ -588,7 +593,7 @@ const en = {
   // lists (format 3): a list the documents name no entries of, and one more entry for a list that has some
   pbNoEntries: "None in the documents",
   pbAddEntry: "Add",
-  pbEntries: (n: number) => n === 1 ? "1 entry" : `${n} entries`,
+  pbEntries: (n: number) => singular(n) ? "1 entry" : `${n} entries`,
   pbKeepEntry: "Keep",
   pbFieldHint: "Enter keeps it, Esc cancels.",
   pbFromChat: (time: string) => `From the conversation, ${time}`,
@@ -654,17 +659,17 @@ const en = {
   colActivity: "Last activity",
   colActions: "Actions",
   statusOpen: "Open",
-  statusOpenReview: (n: number) => `Open · ${n} ${n === 1 ? "document" : "documents"} to check`,
+  statusOpenReview: (n: number) => `Open · ${n} ${singular(n) ? "document" : "documents"} to check`,
   statusClosedUntil: (date: string) => `Closed · deleted on ${date}`,
   statusClosedKept: "Closed · kept until deleted",
   membersOnly: "Members only",
   moreMembers: (n: number) => `+${n}`,
-  documentsOfCase: (ref: string, n: number) => `${n} ${n === 1 ? "document" : "documents"} in case ${ref}`,
-  conversationsOfCase: (ref: string, n: number) => `${n} ${n === 1 ? "conversation" : "conversations"} in case ${ref}`,
+  documentsOfCase: (ref: string, n: number) => `${n} ${singular(n) ? "document" : "documents"} in case ${ref}`,
+  conversationsOfCase: (ref: string, n: number) => `${n} ${singular(n) ? "conversation" : "conversations"} in case ${ref}`,
   pinCase: (ref: string) => `Pin case ${ref}`,
   unpinCase: (ref: string) => `Unpin case ${ref}`,
   conversationsSummary: (n: number, personal: number, inCases: number) =>
-    `${n} ${n === 1 ? "conversation" : "conversations"}: ${personal} personal, ${inCases} in a case`,
+    `${n} ${singular(n) ? "conversation" : "conversations"}: ${personal} personal, ${inCases} in a case`,
   conversationSearchPlaceholder: "Find by title…",
   filterCase: "Case",
   personal: "Personal",
@@ -681,7 +686,7 @@ const en = {
   visReadOnly: "Shared with the case · read-only",
   conversationsFootnote: "Pin a case conversation through its case.",
   documentsSummary: (n: number, cases: number) =>
-    `${n} ${n === 1 ? "document" : "documents"} in ${cases} ${cases === 1 ? "case" : "cases"} and your own space`,
+    `${n} ${singular(n) ? "document" : "documents"} in ${cases} ${singular(cases) ? "case" : "cases"} and your own space`,
   documentSearchPlaceholder: "Find by name or case…",
   upload: "Upload",
   uploadHint: "Upload into the place that is open, ready to ask about",
@@ -757,7 +762,7 @@ const en = {
   removeFromQuestion: (file: string) => `Remove ${file} from this question`,
   readingCountsLater: "You can ask now; documents count once they're read.",
   offlineTitle: "Can't reach the sūveryn server.",
-  offlineRetry: (s: number) => (s > 0 ? `Trying again in ${s} ${s === 1 ? "second" : "seconds"}.` : "Trying again…"),
+  offlineRetry: (s: number) => (s > 0 ? `Trying again in ${s} ${singular(s) ? "second" : "seconds"}.` : "Trying again…"),
   tryNow: "Try now",
   offlineSend: "You can send once the server is back.",
   answerCutOff: "Answer interrupted: the connection dropped.",
@@ -766,7 +771,7 @@ const en = {
   // reading progress, cancelling and why reading failed (the reader's codes: suveryn_rag.reading)
   cardRecognising: (done: number, total: number) => `Recognising text · page ${done} of ${total}`,
   cardRecognisingStart: "Recognising text",
-  cardLayout: (pages: number | null) => (pages ? `Reading the layout of ${pages} ${pages === 1 ? "page" : "pages"}` : "Reading the layout"),
+  cardLayout: (pages: number | null) => (pages ? `Reading the layout of ${pages} ${singular(pages) ? "page" : "pages"}` : "Reading the layout"),
   cardStoring: "Storing",
   cancelUpload: (file: string) => `Cancel the upload of ${file}`,
   failPassword: "It is protected with a password.",
@@ -775,7 +780,7 @@ const en = {
   failTooLarge: "It is too large to be read.",
   failNoText: "It has no text to read.",
   failUnsupported: "This kind of file can't be read.",
-  failTimeout: (minutes: number) => `Reading took longer than ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
+  failTimeout: (minutes: number) => `Reading took longer than ${minutes} ${singular(minutes) ? "minute" : "minutes"}.`,
   failLostTrack: "This page lost track of the upload. If it isn't in the documents, add it again.",
   failUnreadable: "Try again, or another file.",
   // the column, the start screen and narrow screens (docs/design/chat-ui.md §2)
@@ -831,9 +836,9 @@ const en = {
   noConversationFound: "No conversation matches.",
   noDocumentFound: "No document matches.",
   openCases: "Open",
-  caseCount: (n: number) => `${n} ${n === 1 ? "case" : "cases"}`,
-  conversationCount: (n: number) => `${n} ${n === 1 ? "conversation" : "conversations"}`,
-  documentCount: (n: number) => `${n} ${n === 1 ? "document" : "documents"}`,
+  caseCount: (n: number) => `${n} ${singular(n) ? "case" : "cases"}`,
+  conversationCount: (n: number) => `${n} ${singular(n) ? "conversation" : "conversations"}`,
+  documentCount: (n: number) => `${n} ${singular(n) ? "document" : "documents"}`,
   playbook: "Playbook",
   playbookMenu: "Playbooks for this case",
   // the playbook menu (board P04, 9): its last run in this case
@@ -853,7 +858,7 @@ const en = {
   backupStale: (when: string) => `No backup for more than two days. The last one was made ${when}.`,
   backupFailed: (when: string, why: string) => `The last backup failed (${when}): ${why}.`,
   backupStep: { target: "the backup disk or share couldn't be reached", database: "the database couldn't be read", write: "the backup couldn't be written", encrypt: "the backup couldn't be encrypted", settings: "the backup settings aren't valid", space: "the backup disk is full", verify: "the backup disk didn't give back what was written (it may be failing)", link: "a link in the settings folder that a restore would refuse; ask support", other: "an unexpected error" },
-  backupCount: (n: number, oldest: string | null) => `${n} ${n === 1 ? "backup" : "backups"}${oldest ? `, the oldest from ${oldest}` : ""}`,
+  backupCount: (n: number, oldest: string | null) => `${n} ${singular(n) ? "backup" : "backups"}${oldest ? `, the oldest from ${oldest}` : ""}`,
   backupDisk: "Backup disk",
   keyTestTitle: "Recovery key",
   backupLastHeading: "Last backup",
@@ -921,9 +926,9 @@ const en = {
   applyNewCases: "New cases",
   applyAllCases: "All cases",
   strictlyStays: "Strictly confidential cases stay with their members.",
-  casesOpened: (n: number) => (n === 1 ? "1 case becomes visible to everyone in the office." : `${n} cases become visible to everyone in the office.`),
-  casesClosed: (n: number) => (n === 1 ? "1 case becomes visible to its members only." : `${n} cases become visible to their members only.`),
-  conversationsDeleted: (n: number) => (n === 1 ? "1 saved conversation will be deleted." : `${n} saved conversations will be deleted.`),
+  casesOpened: (n: number) => (singular(n) ? "1 case becomes visible to everyone in the office." : `${n} cases become visible to everyone in the office.`),
+  casesClosed: (n: number) => (singular(n) ? "1 case becomes visible to its members only." : `${n} cases become visible to their members only.`),
+  conversationsDeleted: (n: number) => (singular(n) ? "1 saved conversation will be deleted." : `${n} saved conversations will be deleted.`),
   keepClosedCase: "Keep a closed case",
   keepClosedHint: "Then it is deleted with everything in it.",
   keepConversations: "Keep conversations",
@@ -986,7 +991,7 @@ const en = {
   userEmail: "E-mail",
   addUser: "Add user",
   userSearch: "Search by name or e-mail",
-  usersCount: (n: number, max: number | null) => (max === null ? `${n} ${n === 1 ? "user" : "users"}` : `${n} of ${max} users`),
+  usersCount: (n: number, max: number | null) => (max === null ? `${n} ${singular(n) ? "user" : "users"}` : `${n} of ${max} users`),
   accountFilter: { on: "Account: On", off: "Account: Off", all: "Account: All" },
   // The list filtered to nothing (pod round of aebf5bc, finding 8: an empty table under "2 users").
   noAccountsInFilter: { on: "No accounts are on.", off: "No accounts are off.", all: "No accounts." },
@@ -1021,7 +1026,7 @@ const en = {
   print: "Print",
   done: "Done",
   switchOffTitle: (name: string) => `Switch ${name} off?`,
-  chooseTakeOver: (n: number) => `Choose who takes over their ${n} ${n === 1 ? "case" : "cases"}.`,
+  chooseTakeOver: (n: number) => `Choose who takes over their ${n} ${singular(n) ? "case" : "cases"}.`,
   colNewManager: "New manager",
   chooseSomeone: "Choose someone",
   conversationsStay: "Their conversations and documents stay.",
@@ -1036,9 +1041,9 @@ const en = {
   switchOffFirst: "Switch the account off first.",
   deleteAccountTitle: (name: string) => `Delete ${name}'s account?`,
   deleteAccountGoes: (documents: number, conversations: number) =>
-    `Deleted with it: ${documents} ${documents === 1 ? "document" : "documents"} of its own and ${conversations} ${conversations === 1 ? "conversation" : "conversations"} nobody else can read.`,
+    `Deleted with it: ${documents} ${singular(documents) ? "document" : "documents"} of its own and ${conversations} ${singular(conversations) ? "conversation" : "conversations"} nobody else can read.`,
   deleteAccountStays: (shared: number) =>
-    `In the cases, everything stays under the same name: the documents it added, the access log${shared ? ` and ${shared} shared ${shared === 1 ? "conversation" : "conversations"}` : ""}.`,
+    `In the cases, everything stays under the same name: the documents it added, the access log${shared ? ` and ${shared} shared ${singular(shared) ? "conversation" : "conversations"}` : ""}.`,
   deleteAccountAction: "Delete account",
   notForOwnAccount: "Not possible for your own account.",
   resetPasswordTitle: (name: string) => `Reset ${name}'s password?`,
@@ -1108,7 +1113,7 @@ const en = {
   confidentialWhat: "What does this mean?",
   confidentialHint: "Members only. No sharing. Exports watermarked. Titles shielded.",
   // board G21: what Save will do, before it is pressed
-  confidentialWillUnshare: (n: number) => (n === 1 ? "One conversation will no longer be shared. Its owner keeps it." : `${n} conversations will no longer be shared. Their owners keep them.`),
+  confidentialWillUnshare: (n: number) => (singular(n) ? "One conversation will no longer be shared. Its owner keeps it." : `${n} conversations will no longer be shared. Their owners keep them.`),
   confidentialFilter: "Strictly confidential",
   shieldedConversation: "Shielded conversation",
   shieldedIn: (ref: string) => `Shielded conversation in case ${ref}`,

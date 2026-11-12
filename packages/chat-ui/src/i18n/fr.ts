@@ -1,10 +1,15 @@
 /** French interface text: formal (vous). Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
+import { LOCALES } from "./languages";
+import { singularIn } from "./plural";
+
+/** Whether a count takes the singular here (CLDR's rules for fr; ./plural.ts). */
+const singular = singularIn(LOCALES.fr);
 
 /** "à la page 4", "aux pages 2 et 7"; "de la page 4", "des pages 2 et 7" */
 const frList = (p: number[]) => `${p.slice(0, -1).join(", ")} et ${p[p.length - 1]}`;
-const frAt = (p: number[]) => (p.length > 1 ? `aux pages ${frList(p)}` : `à la page ${p[0]}`);
-const frOf = (p: number[]) => (p.length > 1 ? `des pages ${frList(p)}` : `de la page ${p[0]}`);
+const frAt = (p: number[]) => (!singular(p.length) ? `aux pages ${frList(p)}` : `à la page ${p[0]}`);
+const frOf = (p: number[]) => (!singular(p.length) ? `des pages ${frList(p)}` : `de la page ${p[0]}`);
 
 const fr: Messages = {
   language: "Langue",
@@ -72,7 +77,7 @@ const fr: Messages = {
   delete: "Supprimer",
   documents: "Documents",
   documentsEmpty: "Pas encore de documents.",
-  pages: (n) => `${n} ${n === 1 ? "page" : "pages"}`,
+  pages: (n) => `${n} ${singular(n) ? "page" : "pages"}`,
   checkPages: (pages) => ` · vérifier ${pages}`,
   useInConversation: "Utiliser dans cette conversation",
   signOut: "Se déconnecter",
@@ -122,7 +127,7 @@ const fr: Messages = {
   roleContributor: "contributeur",
   roleReader: "lecteur",
   members: "Membres",
-  membersCount: (n) => `${n} membre${n === 1 ? "" : "s"}`,
+  membersCount: (n) => `${n} membre${singular(n) ? "" : "s"}`,
   membersTitle: (reference) => `Membres du dossier ${reference}`,
   membersAccessTitle: (reference) => `Membres et accès du dossier ${reference}`,
   close: "Fermer",
@@ -149,7 +154,7 @@ const fr: Messages = {
   eventOpened: "a ouvert le dossier",
   eventDocuments: "a consulté les documents",
   eventUploaded: "a ajouté un document",
-  eventAsked: (n) => `a posé une question${n ? ` sur ${n} document${n === 1 ? "" : "s"}` : ""}`,
+  eventAsked: (n) => `a posé une question${n ? ` sur ${n} document${singular(n) ? "" : "s"}` : ""}`,
   eventDocumentDeleted: "a supprimé un document",
   eventChanged: "a modifié les détails du dossier",
   eventRestricted: "a restreint le dossier à ses membres",
@@ -185,7 +190,7 @@ const fr: Messages = {
   keepCase: "Conserver",
   unkeepCase: "Laisser courir le délai",
   caseIsClosed: "Clôturé : lecture seule.",
-  casesDue: (n) => `${n} ${n === 1 ? "dossier sera" : "dossiers seront"} bientôt supprimé${n === 1 ? "" : "s"}`,
+  casesDue: (n) => `${n} ${singular(n) ? "dossier sera" : "dossiers seront"} bientôt supprimé${singular(n) ? "" : "s"}`,
   showClosed: "Afficher les clôturés",
   caseChangeFailed: (why) => `La modification n'a pas été appliquée : ${why}`,
   eventClosed: "a clôturé le dossier",
@@ -273,7 +278,7 @@ const fr: Messages = {
 
   pageList: (pages) => `p. ${pages}`,
   reviewHint: (pages) => {
-    const where = !pages?.length ? "sur certaines pages" : pages.length > 1 ? `sur les pages ${pages}` : `sur la page ${pages[0]}`;
+    const where = !pages?.length ? "sur certaines pages" : !singular(pages.length) ? `sur les pages ${pages}` : `sur la page ${pages[0]}`;
     return `Prêt à l'emploi. Une partie du texte ${where} n'a peut-être pas été lue correctement ; vérifiez donc les réponses qui s'y appuient avec l'original.`;
   },
 
@@ -281,7 +286,7 @@ const fr: Messages = {
   statusSearching: "Recherche dans vos documents…",
   statusReadingAll: (passages) => `Lecture de vos documents (${passages})…`,
   statusReadingBest: (passages) => `Lecture des ${passages} qui correspondent le mieux à votre question…`,
-  passages: (n) => `${n} ${n === 1 ? "passage" : "passages"}`,
+  passages: (n) => `${n} ${singular(n) ? "passage" : "passages"}`,
   statusLoading: (model) => `${model ?? "Le modèle"} est en cours de chargement…`,
   statusWriting: "Rédaction de la réponse…",
   statusThinking: "Réflexion en cours…",
@@ -329,11 +334,11 @@ const fr: Messages = {
   markedByMeaning: "Même sens, autres mots. Vérifiez-le.",
   calcFailed: (expression, why) => `Impossible de calculer ${expression} : ${why}.`,
   calculatedBy: "Calculé par sūveryn, pas lu dans les documents :",
-  calcMissing: (figures) => ` Vérifiez ${figures.join(", ")} : ${figures.length === 1 ? "ce montant n'apparaît" : "ces montants n'apparaissent"} pas dans les sources.`,
+  calcMissing: (figures) => ` Vérifiez ${figures.join(", ")} : ${singular(figures.length) ? "ce montant n'apparaît" : "ces montants n'apparaissent"} pas dans les sources.`,
   calcAllSourced: " Chaque montant provient des sources.",
   calcReadAs: (figures, comma) => ` Lus comme les documents les écrivent, avec les décimales après ${comma ? "une virgule" : "un point"} : ${figures.join(", ")}.`,
   unverified: (figures) => {
-    const one = figures.length === 1;
+    const one = singular(figures.length);
     return `Vérifiez ${figures.join(", ")} : ${one ? "ce montant ne figure" : "ces montants ne figurent"} pas dans les documents et ${one ? "n'a" : "n'ont"} pas été ${one ? "calculé" : "calculés"} par sūveryn. Le modèle ${one ? "l'a" : "les a"} peut-être calculé${one ? "" : "s"} lui-même, ce qui peut être faux.`;
   },
   unverifiedTitle: "Absent des documents et non calculé. Vérifiez ce montant.",
@@ -385,8 +390,8 @@ const fr: Messages = {
   askAbout: "Question sur :",
   askAboutTitle: "Question sur",
   askAboutAll: "tous les documents",
-  askAboutCount: (n) => (n === 1 ? "1 document" : `${n} documents`),
-  askAboutLabel: (n) => (n === 0 ? "Question sur, tous les documents" : n === 1 ? "Question sur, 1 document choisi" : `Question sur, ${n} documents choisis`),
+  askAboutCount: (n) => (singular(n) ? "1 document" : `${n} documents`),
+  askAboutLabel: (n) => (n === 0 ? "Question sur, tous les documents" : singular(n) ? "Question sur, 1 document choisi" : `Question sur, ${n} documents choisis`),
   askAboutChosen: (n) => `Choisis · ${n}`,
   askAboutMatching: (q, n) => `Contenant ‘${q}’ · ${n}`,
   askAboutSearch: "Chercher dans les documents",
@@ -396,12 +401,12 @@ const fr: Messages = {
   askAboutEverything: "Tous les documents",
   askAboutEverythingHint: "Tout le dossier, y compris ce qui sera ajouté",
   askAboutPicked: (n, total) => `${n} sur ${total} choisis`,
-  answersUseOnly: (n, name) => (n === 1 ? `Les réponses n'utilisent que ${name}.` : `Les réponses n'utilisent que les ${n} documents choisis.`),
+  answersUseOnly: (n, name) => (singular(n) ? `Les réponses n'utilisent que ${name}.` : `Les réponses n'utilisent que les ${n} documents choisis.`),
   chosenGone: "Les documents choisis ont disparu. Les réponses utilisent à nouveau tout le dossier.",
   chosenDeletedMeanwhile: "un document choisi a entre-temps été supprimé du dossier ; vérifiez le choix sous Question sur",
   partialRead: "Trop volumineux : seuls les passages les plus pertinents ont été lus.",
   caseChooseHint: (n) => `Votre question porte sur les ${n} documents. Choisissez-en un sous Question sur.`,
-  basedOn: (count, names) => (count === 1 ? `D'après ${names}` : `D'après ${count} documents : ${names}`),
+  basedOn: (count, names) => (singular(count) ? `D'après ${names}` : `D'après ${count} documents : ${names}`),
   downloadWord: "Word (.docx)",
   downloadWordWhat: "Télécharger cette réponse comme document Word, avec ses sources",
   downloadWordWhatConfidential: "Télécharger cette réponse comme document Word, avec ses sources et le filigrane Strictement confidentiel",
@@ -438,17 +443,17 @@ const fr: Messages = {
   documentRemoved: "Document supprimé",
   deleteDocumentDialogTitle: (file) => `Supprimer ${file} ?`,
   deleteDocumentDialogBody: (n) =>
-    `${n === 1 ? "Une conversation cite" : `${n} conversations citent`} ce document. Les passages en sont retirés.`,
+    `${singular(n) ? "Une conversation cite" : `${n} conversations citent`} ce document. Les passages en sont retirés.`,
   deleteDocumentKeepConversations: "Supprimer le document, garder les conversations",
-  deleteDocumentAndConversations: (n) => (n === 1 ? "Supprimer le document et la conversation" : `Supprimer le document et ${n} conversations`),
+  deleteDocumentAndConversations: (n) => (singular(n) ? "Supprimer le document et la conversation" : `Supprimer le document et ${n} conversations`),
   citationIssue: (n, item, foundIn, writtenAs) =>
     writtenAs ? `Vérifiez la source ${n} : elle écrit « ${writtenAs} », pas « ${item} ».`
-    : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${foundIn.length > 1 ? "les sources" : "la source"} ${foundIn.join(", ")}.`
+    : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${!singular(foundIn.length) ? "les sources" : "la source"} ${foundIn.join(", ")}.`
     : `Vérifiez la source ${n} : « ${item} » n'y figure pas.`,
   citationIssueTitle: "Cette source ne contient pas tout ce que dit la phrase. Vérifiez-la.",
   instructionLikeUncited: "Un passage transmis au modèle contient un texte adressé à une IA. Il n'a pas été suivi ; vérifiez cette réponse avec soin.",
   instructionLike: (sources) =>
-    `${sources.length > 1 ? `Les sources ${sources.join(", ")} contiennent` : `La source ${sources[0]} contient`} un texte adressé à une IA. Il n'a pas été suivi ; vérifiez cette réponse avec soin.`,
+    `${!singular(sources.length) ? `Les sources ${sources.join(", ")} contiennent` : `La source ${sources[0]} contient`} un texte adressé à une IA. Il n'a pas été suivi ; vérifiez cette réponse avec soin.`,
   // playbooks (suveryn-tracker#51) : analyse de l'acte
   playbookNotCovered: "Non couvert par votre contrat : ni certification, ni mises à jour, ni assistance.",
   playbookVersion: (v: string) => `Analyse de l'acte ${v}`,
@@ -496,7 +501,7 @@ const fr: Messages = {
   // un playbook est une conversation (passation du 30 octobre 2026, planches 52 à 54)
   runStartLine: (name, playbook, version, time) => `${name} a lancé ${playbook} ${version} · ${time}`,
   runAskTurn: (found, total, list) => `${found} données sur ${total} trouvées. Absentes des documents : ${list}. Les connaissez-vous ?`,
-  runReadingTurn: (n) => (n === 1 ? "Lecture du document…" : `Lecture des ${n} documents…`),
+  runReadingTurn: (n) => (singular(n) ? "Lecture du document…" : `Lecture des ${n} documents…`),
   runChanged: (label, value) => `Modifié : ${label} est maintenant ${value}.`,
   runUnplacedAsk: "Cela n'a pas pu être placé. De quelle donnée s'agit-il, et quelle en est la valeur ?",
   runUnplacedChange: "Cela n'a pas pu être placé. Quelle donnée faut-il changer, et comment ?",
@@ -528,7 +533,7 @@ const fr: Messages = {
   runSummaryCard: "Résumé",
   // les cartes du playbook et la liste des données (passation du 31 octobre 2026)
   sourcesLabel: "Sources :",
-  pbReviewIntro: (found, total, n) => `${found} données sur ${total} trouvées. ${n === 1 ? "Une demande" : `${n} demandent`} votre attention :`,
+  pbReviewIntro: (found, total, n) => `${found} données sur ${total} trouvées. ${singular(n) ? "Une demande" : `${n} demandent`} votre attention :`,
   pbReviewIntroNone: (found, total) => `${found} données sur ${total} trouvées.`,
   pbGroupCheck: "À vérifier",
   pbGroupMissing: "Manquant",
@@ -546,8 +551,8 @@ const fr: Messages = {
   pbComputedCheck: "Calculé. À vérifier.",
   pbComputedHow: (base, term, before, calendar) => `Calculé : ${base} ${before ? "moins" : "plus"} ${term}${calendar ? ` (${calendar})` : ""}.`,
   pbTerm: (n, unit) => `${["", unit === "week" ? "une" : "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix", "onze", "douze"][n] ?? n} ${
-    { day: n === 1 ? "jour" : "jours", week: n === 1 ? "semaine" : "semaines", month: "mois", year: n === 1 ? "an" : "ans",
-      workday: n === 1 ? "jour ouvrable" : "jours ouvrables" }[unit]}`,
+    { day: singular(n) ? "jour" : "jours", week: singular(n) ? "semaine" : "semaines", month: "mois", year: singular(n) ? "an" : "ans",
+      workday: singular(n) ? "jour ouvrable" : "jours ouvrables" }[unit]}`,
   pbComputedShare: (percent, of) => `Calculé : ${percent} % de ${of}.`,
   pbApproximate: "Le document donne ce montant de façon approximative : vérifiez ce qui est visé.",
   pbAmountNotInPassage: "Le montant lui-même ne figure pas dans le passage.",
@@ -558,7 +563,7 @@ const fr: Messages = {
   // listes (format 3) : une liste dont les documents ne nomment aucune entrée, et une entrée de plus pour une liste qui en a
   pbNoEntries: "Aucune dans les documents",
   pbAddEntry: "Ajouter",
-  pbEntries: (n: number) => n === 1 ? "1 entrée" : `${n} entrées`,
+  pbEntries: (n: number) => singular(n) ? "1 entrée" : `${n} entrées`,
   pbKeepEntry: "Conserver",
   pbFieldHint: "Entrée garde la valeur, Échap annule.",
   pbFromChat: (time) => `De la conversation, ${time}`,
@@ -623,17 +628,17 @@ const fr: Messages = {
   colActivity: "Dernière activité",
   colActions: "Actions",
   statusOpen: "Ouvert",
-  statusOpenReview: (n) => `Ouvert · ${n} ${n === 1 ? "document" : "documents"} à vérifier`,
+  statusOpenReview: (n) => `Ouvert · ${n} ${singular(n) ? "document" : "documents"} à vérifier`,
   statusClosedUntil: (date) => `Clôturé · supprimé le ${date}`,
   statusClosedKept: "Clôturé · conservé jusqu'à sa suppression",
   membersOnly: "Membres uniquement",
   moreMembers: (n) => `+${n}`,
-  documentsOfCase: (ref, n) => `${n} ${n === 1 ? "document" : "documents"} dans le dossier ${ref}`,
-  conversationsOfCase: (ref, n) => `${n} ${n === 1 ? "conversation" : "conversations"} dans le dossier ${ref}`,
+  documentsOfCase: (ref, n) => `${n} ${singular(n) ? "document" : "documents"} dans le dossier ${ref}`,
+  conversationsOfCase: (ref, n) => `${n} ${singular(n) ? "conversation" : "conversations"} dans le dossier ${ref}`,
   pinCase: (ref) => `Épingler le dossier ${ref}`,
   unpinCase: (ref) => `Désépingler le dossier ${ref}`,
   conversationsSummary: (n, personal, inCases) =>
-    `${n} ${n === 1 ? "conversation" : "conversations"} : ${personal} personnelles, ${inCases} dans un dossier`,
+    `${n} ${singular(n) ? "conversation" : "conversations"} : ${personal} personnelles, ${inCases} dans un dossier`,
   conversationSearchPlaceholder: "Chercher dans les titres…",
   filterCase: "Dossier",
   personal: "Personnelle",
@@ -650,7 +655,7 @@ const fr: Messages = {
   visReadOnly: "Partagée avec le dossier · lecture seule",
   conversationsFootnote: "Épinglez une conversation de dossier depuis son dossier.",
   documentsSummary: (n, cases) =>
-    `${n} ${n === 1 ? "document" : "documents"} dans ${cases} ${cases === 1 ? "dossier" : "dossiers"} et votre propre espace`,
+    `${n} ${singular(n) ? "document" : "documents"} dans ${cases} ${singular(cases) ? "dossier" : "dossiers"} et votre propre espace`,
   documentSearchPlaceholder: "Chercher par nom ou dossier…",
   upload: "Importer",
   uploadHint: "Importer à l'endroit ouvert, prêt pour une question",
@@ -723,7 +728,7 @@ const fr: Messages = {
   removeFromQuestion: (file) => `Retirer ${file} de cette question`,
   readingCountsLater: "Vous pouvez déjà poser vos questions ; les documents comptent dès qu'ils sont lus.",
   offlineTitle: "Le serveur sūveryn est injoignable.",
-  offlineRetry: (s) => (s > 0 ? `Nouvel essai dans ${s} ${s === 1 ? "seconde" : "secondes"}.` : "Nouvel essai…"),
+  offlineRetry: (s) => (s > 0 ? `Nouvel essai dans ${s} ${singular(s) ? "seconde" : "secondes"}.` : "Nouvel essai…"),
   tryNow: "Réessayer maintenant",
   offlineSend: "Vous pourrez envoyer dès que le serveur sera de retour.",
   answerCutOff: "Réponse interrompue : la connexion a été perdue.",
@@ -732,7 +737,7 @@ const fr: Messages = {
   // progression de la lecture, annulation et raisons d'un échec (les codes du lecteur : suveryn_rag.reading)
   cardRecognising: (done, total) => `Reconnaissance du texte · page ${done} sur ${total}`,
   cardRecognisingStart: "Reconnaissance du texte",
-  cardLayout: (pages) => (pages ? `Lecture de la mise en page de ${pages} ${pages === 1 ? "page" : "pages"}` : "Lecture de la mise en page"),
+  cardLayout: (pages) => (pages ? `Lecture de la mise en page de ${pages} ${singular(pages) ? "page" : "pages"}` : "Lecture de la mise en page"),
   cardStoring: "Enregistrement",
   cancelUpload: (file) => `Annuler l'envoi de ${file}`,
   failPassword: "Il est protégé par un mot de passe.",
@@ -741,7 +746,7 @@ const fr: Messages = {
   failTooLarge: "Il est trop volumineux pour être lu.",
   failNoText: "Il ne contient aucun texte à lire.",
   failUnsupported: "Ce type de fichier ne peut pas être lu.",
-  failTimeout: (minutes) => `La lecture a pris plus de ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
+  failTimeout: (minutes) => `La lecture a pris plus de ${minutes} ${singular(minutes) ? "minute" : "minutes"}.`,
   failLostTrack: "Cette page a perdu la trace du téléversement. S'il n'est pas dans les documents, ajoutez-le à nouveau.",
   failUnreadable: "Réessayez, ou choisissez un autre fichier.",
   recent: "Récents",
@@ -796,9 +801,9 @@ const fr: Messages = {
   noConversationFound: "Aucune conversation ne correspond.",
   noDocumentFound: "Aucun document ne correspond.",
   openCases: "Ouverts",
-  caseCount: (n: number) => `${n} ${n === 1 ? "dossier" : "dossiers"}`,
-  conversationCount: (n: number) => `${n} ${n === 1 ? "conversation" : "conversations"}`,
-  documentCount: (n: number) => `${n} ${n === 1 ? "document" : "documents"}`,
+  caseCount: (n: number) => `${n} ${singular(n) ? "dossier" : "dossiers"}`,
+  conversationCount: (n: number) => `${n} ${singular(n) ? "conversation" : "conversations"}`,
+  documentCount: (n: number) => `${n} ${singular(n) ? "document" : "documents"}`,
   playbook: "Playbook",
   playbookMenu: "Playbooks pour ce dossier",
   pbLastRun: (when, state) => `Dernière : ${when}, ${state} · démarre une nouvelle conversation`,
@@ -817,7 +822,7 @@ const fr: Messages = {
   backupStale: (when) => `Aucune sauvegarde depuis plus de deux jours. La dernière date du ${when}.`,
   backupFailed: (when, why) => `La dernière sauvegarde a échoué (${when}) : ${why}.`,
   backupStep: { target: "le disque ou le partage de sauvegarde était inaccessible", database: "la base de données n'a pas pu être lue", write: "la sauvegarde n'a pas pu être écrite", encrypt: "la sauvegarde n'a pas pu être chiffrée", settings: "les réglages de sauvegarde ne sont pas valides", space: "le disque de sauvegarde est plein", verify: "le disque de sauvegarde n'a pas rendu ce qui y a été écrit (il est peut-être défaillant)", link: "un lien dans le dossier des réglages qu'une restauration refuserait ; contactez le support", other: "une erreur inattendue" },
-  backupCount: (n, oldest) => `${n} ${n === 1 ? "sauvegarde" : "sauvegardes"}${oldest ? `, la plus ancienne du ${oldest}` : ""}`,
+  backupCount: (n, oldest) => `${n} ${singular(n) ? "sauvegarde" : "sauvegardes"}${oldest ? `, la plus ancienne du ${oldest}` : ""}`,
   backupDisk: "Disque de sauvegarde",
   keyTestTitle: "Clé de récupération",
   backupLastHeading: "Dernière sauvegarde",
@@ -884,9 +889,9 @@ const fr: Messages = {
   applyNewCases: "Nouveaux dossiers",
   applyAllCases: "Tous les dossiers",
   strictlyStays: "Les dossiers strictement confidentiels restent réservés à leurs membres.",
-  casesOpened: (n: number) => (n === 1 ? "1 dossier devient visible pour toute l'étude." : `${n} dossiers deviennent visibles pour toute l'étude.`),
-  casesClosed: (n: number) => (n === 1 ? "1 dossier n'est plus visible que par ses membres." : `${n} dossiers ne sont plus visibles que par leurs membres.`),
-  conversationsDeleted: (n: number) => (n === 1 ? "1 conversation enregistrée sera supprimée." : `${n} conversations enregistrées seront supprimées.`),
+  casesOpened: (n: number) => (singular(n) ? "1 dossier devient visible pour toute l'étude." : `${n} dossiers deviennent visibles pour toute l'étude.`),
+  casesClosed: (n: number) => (singular(n) ? "1 dossier n'est plus visible que par ses membres." : `${n} dossiers ne sont plus visibles que par leurs membres.`),
+  conversationsDeleted: (n: number) => (singular(n) ? "1 conversation enregistrée sera supprimée." : `${n} conversations enregistrées seront supprimées.`),
   keepClosedCase: "Conserver un dossier clôturé",
   keepClosedHint: "Il est ensuite supprimé avec tout son contenu.",
   keepConversations: "Conserver les conversations",
@@ -948,7 +953,7 @@ const fr: Messages = {
   userEmail: "E-mail",
   addUser: "Ajouter un utilisateur",
   userSearch: "Rechercher par nom ou e-mail",
-  usersCount: (n, max) => (max === null ? `${n} ${n === 1 ? "utilisateur" : "utilisateurs"}` : `${n} utilisateurs sur ${max}`),
+  usersCount: (n, max) => (max === null ? `${n} ${singular(n) ? "utilisateur" : "utilisateurs"}` : `${n} ${singular(n) ? "utilisateur" : "utilisateurs"} sur ${max}`),
   accountFilter: { on: "Compte : activé", off: "Compte : désactivé", all: "Compte : tous" },
   noAccountsInFilter: { on: "Aucun compte n'est activé.", off: "Aucun compte n'est désactivé.", all: "Aucun compte." },
   colUser: "Utilisateur",
@@ -982,7 +987,7 @@ const fr: Messages = {
   print: "Imprimer",
   done: "Terminé",
   switchOffTitle: (name) => `Désactiver ${name} ?`,
-  chooseTakeOver: (n) => `Choisissez qui reprend ${n === 1 ? "son dossier" : `ses ${n} dossiers`}.`,
+  chooseTakeOver: (n) => `Choisissez qui reprend ${singular(n) ? "son dossier" : `ses ${n} dossiers`}.`,
   colNewManager: "Nouveau gestionnaire",
   chooseSomeone: "Choisir quelqu'un",
   conversationsStay: "Ses conversations et documents restent.",
@@ -997,9 +1002,9 @@ const fr: Messages = {
   switchOffFirst: "Désactivez d'abord le compte.",
   deleteAccountTitle: (name) => `Supprimer le compte de ${name} ?`,
   deleteAccountGoes: (documents, conversations) =>
-    `Supprimés avec le compte : ${documents} ${documents === 1 ? "document personnel" : "documents personnels"} et ${conversations} ${conversations === 1 ? "conversation que personne d'autre ne peut lire" : "conversations que personne d'autre ne peut lire"}.`,
+    `Supprimés avec le compte : ${documents} ${singular(documents) ? "document personnel" : "documents personnels"} et ${conversations} ${singular(conversations) ? "conversation que personne d'autre ne peut lire" : "conversations que personne d'autre ne peut lire"}.`,
   deleteAccountStays: (shared) =>
-    `Dans les dossiers, tout reste sous le même nom : les documents ajoutés, le journal d'accès${shared ? ` et ${shared} ${shared === 1 ? "conversation partagée" : "conversations partagées"}` : ""}.`,
+    `Dans les dossiers, tout reste sous le même nom : les documents ajoutés, le journal d'accès${shared ? ` et ${shared} ${singular(shared) ? "conversation partagée" : "conversations partagées"}` : ""}.`,
   deleteAccountAction: "Supprimer le compte",
   notForOwnAccount: "Impossible pour votre propre compte.",
   resetPasswordTitle: (name) => `Réinitialiser le mot de passe de ${name} ?`,
@@ -1068,7 +1073,7 @@ const fr: Messages = {
   confidentialRules: "Membres uniquement · Pas de partage · Exports filigranés",
   confidentialWhat: "Qu'est-ce que cela signifie ?",
   confidentialHint: "Membres uniquement. Pas de partage. Exports filigranés. Titres masqués.",
-  confidentialWillUnshare: (n) => (n === 1 ? "Une conversation ne sera plus partagée. Son propriétaire la garde." : `${n} conversations ne seront plus partagées. Leurs propriétaires les gardent.`),
+  confidentialWillUnshare: (n) => (singular(n) ? "Une conversation ne sera plus partagée. Son propriétaire la garde." : `${n} conversations ne seront plus partagées. Leurs propriétaires les gardent.`),
   confidentialFilter: "Strictement confidentiel",
   shieldedConversation: "Conversation protégée",
   shieldedIn: (ref) => `Conversation protégée dans le dossier ${ref}`,
