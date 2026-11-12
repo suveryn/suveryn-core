@@ -49,6 +49,7 @@ from ..playbooks import (
 )
 from .common import (
     DocumentNotFound,
+    Refused,
     Scope,
     admin_or_403,
     case_for,
@@ -272,7 +273,7 @@ async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: 
     slots = slots_of(request.app)
     if not slots.take(owner):
         await run_in_threadpool(store.fail, rid, "busy")
-        raise HTTPException(429, "too many playbook runs are reading; start this one when one has finished")
+        raise Refused(429, "too many playbook runs are reading; start this one when one has finished", "playbooks_busy")
     task = asyncio.create_task(_read(request.app, runtime, store, run, pb, step, filenames, owner, case.reference))
     request.app.state.running.add(task)
     task.add_done_callback(request.app.state.running.discard)

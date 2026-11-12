@@ -330,7 +330,12 @@ const nl: Messages = {
   sourceN: (n) => `bron ${n}`,
   sourceCaption: "Zoals gelezen. Controleer de oorspronkelijke pagina.",
   markedByMeaning: "Zelfde betekenis, andere woorden. Controleer het.",
-  calcFailed: (expression, why) => `${expression} kon niet worden berekend: ${why}.`,
+  calcFailed: (expression, reason) => `${expression} kon niet worden berekend: ${({
+    number_style: "de bedragen zijn in verschillende notaties geschreven",
+    decimal_separator: "uit de bedragen blijkt niet welk teken de decimalen scheidt",
+    division_by_zero: "er wordt door nul gedeeld",
+    no_figures: "er staan geen getallen in",
+  } as Record<string, string>)[reason] ?? "de berekening kon niet worden gelezen"}.`,
   calculatedBy: "Berekend door sūveryn, niet uit de documenten gelezen:",
   calcMissing: (figures) => ` Controleer ${figures.join(", ")}: ${singular(figures.length) ? "dat bedrag staat" : "die bedragen staan"} niet in de bronnen.`,
   calcAllSourced: " Elk bedrag komt uit de bronnen.",

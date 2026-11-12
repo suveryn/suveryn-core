@@ -51,9 +51,20 @@ except ImportError:
         pass
 
     class UploadRejected(ValueError):  # stand-in; never raised without suveryn-rag
+        status, reason = 415, ""
         status = 415
 
-__all__ = ["MAX_UPLOAD_BYTES", "DocumentNotFound", "Scope", "SearchUnavailable", "UploadRejected"]
+__all__ = ["MAX_UPLOAD_BYTES", "DocumentNotFound", "Refused", "Scope", "SearchUnavailable", "UploadRejected"]
+
+
+class Refused(HTTPException):
+    """A refusal the page words in its reader's language: ``reason`` is a code (api.ts ``httpErrorText``); ``detail``
+    stays English, for developers (decision of 12 November 2026: failures are codes). Answered as
+    ``{"detail", "reason"}`` (app.py)."""
+
+    def __init__(self, status: int, detail: str, reason: str):
+        super().__init__(status, detail)
+        self.reason = reason
 
 log = logging.getLogger("suveryn.gateway")
 

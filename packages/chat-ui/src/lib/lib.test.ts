@@ -382,7 +382,7 @@ describe("server errors and long conversations", () => {
     setLang("nl", false);
     expect(httpErrorText(429, "Too many requests. Try again in 12 seconds.", "12")).toBe("te veel verzoeken; probeer het over 12 seconden opnieuw");
     expect(httpErrorText(422, [{ loc: ["body", "messages"], msg: "too long" }])).toBe("de server kon dit verzoek niet aanvaarden");  // was "HTTP 422"
-    expect(httpErrorText(413, "This conversation is too long to save.")).toMatch(/^dit gesprek is te lang/);
+    expect(httpErrorText(413, "This conversation is too long to save.", null, "conversation_too_long")).toMatch(/^dit gesprek is te lang/);
     expect(httpErrorText(413, "The file is larger than 100 MB.")).toMatch(/^het bestand is groter/);
     expect(httpErrorText(418, "I'm a teapot")).toBe("I'm a teapot");  // others keep the server's text
     // Which part is down, when the gateway says (Pod check of cbccd38)

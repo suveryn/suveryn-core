@@ -559,7 +559,7 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
             assert r.status_code == 200  # someone else's first: three in all
             rid = r.json()["id"]
             r, busy_cid = start(bob)
-            assert r.status_code == 429 and "too many playbook runs" in r.json()["detail"]  # the appliance's three
+            assert r.status_code == 429 and r.json()["reason"] == "playbooks_busy"  # the appliance's three
             busy = c.get(RUNS.format(cid=busy_cid), headers=alice).json()[0]
             assert busy["status"] == "failed" and busy["error"] == "busy"  # the refused run is a record too; start it again later
             release.set()

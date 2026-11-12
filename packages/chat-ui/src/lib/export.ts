@@ -79,12 +79,12 @@ export function tableRows(table: Table, sourceColumn: string): { header: string[
 
 /** Everything an exported answer says besides its text: what to check, and how figures were made. */
 export function checkLines(calculations: Calculation[], unverified: string[], issues: CitationIssue[], text: {
-  calcFailed: (e: string, why: string) => string; calculatedBy: string; calcMissing: (f: string[]) => string;
+  calcFailed: (e: string, reason: string) => string; calculatedBy: string; calcMissing: (f: string[]) => string;
   unverified: (f: string[]) => string; citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null) => string;
 }): string[] {
   const lines: string[] = [];
   for (const c of calculations) {
-    lines.push(c.result === null ? text.calcFailed(c.expression, c.error ?? "")
+    lines.push(c.result === null ? text.calcFailed(c.expression, c.reason ?? "")
       : `${text.calculatedBy} ${c.expression} = ${c.result}.${c.figures_not_in_sources.length ? text.calcMissing(c.figures_not_in_sources) : ""}`);
   }
   if (unverified.length) lines.push(text.unverified(unverified));

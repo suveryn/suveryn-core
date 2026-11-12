@@ -82,6 +82,7 @@ from .routes.common import (
     LOCAL_OWNER,
     MAX_UPLOAD_BYTES,
     CleanupUnavailable,
+    Refused,
     Database,
     DocumentNotFound,
     Scope,
@@ -381,6 +382,11 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             return _too_many(wait)
         return await call_next(request)
 
+    @app.exception_handler(Refused)
+    async def refused(request: Request, exc: Refused):
+        """A refusal with a code: ``reason`` for the page to word, ``detail`` in English for developers."""
+        return JSONResponse({"detail": exc.detail, "reason": exc.reason}, status_code=exc.status_code, headers=exc.headers)
+
     @app.exception_handler(SearchUnavailable)
     async def search_unavailable(request: Request, exc: SearchUnavailable):
         return JSONResponse({"detail": str(exc)}, status_code=503)
@@ -422,16 +428,17 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             if length is None:
                 return JSONResponse({"detail": "Uploads need a Content-Length header."}, status_code=411)
             if not length.isdigit() or int(length) > MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD:
-                return JSONResponse({"detail": f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."},
-                                    status_code=413)
+                return JSONResponse({"detail": f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                                     "reason": "too_large"}, status_code=413)
         if request.method == "PUT" and request.url.path == "/v1/me/avatar":
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > AVATAR_MAX_BYTES:
-                return JSONResponse({"detail": "The picture is larger than 2 MB."}, status_code=413)
+                return JSONResponse({"detail": "The picture is larger than 2 MB.", "reason": "picture_too_large"}, status_code=413)
         if request.method == "PUT" and request.url.path.startswith("/v1/conversations/"):
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > MAX_CONVERSATION_BYTES:
-                return JSONResponse({"detail": "This conversation is too long to save."}, status_code=413)
+                return JSONResponse({"detail": "This conversation is too long to save.", "reason": "conversation_too_long"},
+                                    status_code=413)
         return await call_next(request)
 
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
