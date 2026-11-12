@@ -109,7 +109,7 @@ Settings come from environment variables:
 | `SUVERYN_MAX_PAGES` | `2000`: a PDF with more pages is refused before OCR |
 | `SUVERYN_LAYOUT_BATCH_SIZE`, `SUVERYN_TABLE_BATCH_SIZE` | `4`: pages Docling's layout and table models take at once on the GPU (suveryn-tracker#58) |
 | `SUVERYN_EMBED_BATCH_SIZE` | `16`: passages the embedding model takes at once |
-| `SUVERYN_MARK_BY_MEANING` | `0` (off): the least similarity, by the embedding model, for the source card to mark a sentence that says a claim in other words or another language (suveryn-tracker#25). Set from `scripts/meaning-benchmark` |
+| `SUVERYN_MARK_BY_MEANING` | `0.6`: the least similarity, by the embedding model, for the source card to mark a sentence that says a claim in other words or another language (suveryn-tracker#25, #123). `0` turns it off. The default is set in `config.py` with its measurement; it is no setting for an office |
 | `SUVERYN_EXTRACT_INBOX` | unset: uploads wait in `SUVERYN_WORK_DIR/uploads` (0700). Set when the reader runs as its own user: a provisioned folder, owner the gateway, group the reader, mode 2750; uploads in it are 0640 |
 | `SUVERYN_EXTRACT_WORK_DIR` | unset: `SUVERYN_WORK_DIR`. The reader's own folder for OCR intermediate files and temporary files (0700), when it runs as its own user |
 | `SUVERYN_EXTRACT_ISOLATION` | on; `off` reads PDFs inside the gateway process (debugging only) |

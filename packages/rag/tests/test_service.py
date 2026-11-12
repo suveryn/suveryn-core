@@ -536,3 +536,14 @@ def test_everyones_jobs_are_counted_for_the_administrators_status(tmp_path):
     """Administration › Status: documents being read and waiting, counts only."""
     docs = DocumentService(RagSettings(work_dir=tmp_path))
     assert docs.job_counts() == (0, 0)
+
+
+def test_marking_by_meaning_is_on_and_zero_turns_it_off(monkeypatch):
+    """suveryn-tracker#123: on at the measured 0.6 by default; ``SUVERYN_MARK_BY_MEANING=0`` turns it off."""
+    from suveryn_rag.config import RagSettings
+    monkeypatch.delenv("SUVERYN_MARK_BY_MEANING", raising=False)
+    assert RagSettings.from_env().mark_by_meaning == 0.6
+    monkeypatch.setenv("SUVERYN_MARK_BY_MEANING", "0")
+    assert RagSettings.from_env().mark_by_meaning == 0.0
+    monkeypatch.setenv("SUVERYN_MARK_BY_MEANING", "0.7")
+    assert RagSettings.from_env().mark_by_meaning == 0.7

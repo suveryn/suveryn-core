@@ -54,8 +54,12 @@ class RagSettings:
     embed_batch_size: int = 16
     # Marking by meaning (suveryn-tracker#25, step 3): the least cosine similarity, by the embedding model, for the
     # source card to mark a sentence that shares too few words with its claim (a paraphrase, another language).
-    # 0: off, until measured on a card (scripts/meaning-benchmark).
-    mark_by_meaning: float = 0.0
+    # On at 0.6 (suveryn-tracker#123), measured on 11 November 2026 with bge-m3 on real contracts and deeds, 106
+    # questions: 254 of 1 158 markers had no sentence by their words; at 0.6 a sentence was marked for 130 of them, and
+    # a read sample of 16 was 16 right, each a Dutch answer on an English or French source. A wrong mark costs the
+    # reader a line: it is no check. Before changing the number or the embedding model, measure again
+    # (scripts/meaning-benchmark, and the real-deed round, suveryn-tracker#50). 0: off.
+    mark_by_meaning: float = 0.6
 
     @classmethod
     def from_env(cls) -> "RagSettings":
