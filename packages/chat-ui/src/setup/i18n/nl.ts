@@ -3,6 +3,11 @@
  * wording; rules: docs/translations.md.
  */
 import type { Text } from "./en";
+import { LOCALES } from "../../i18n/languages";
+import { singularIn } from "../../i18n/plural";
+
+/** Whether a count takes the singular here (CLDR's rules for nl; i18n/plural.ts). */
+const singular = singularIn(LOCALES.nl);
 
 const nl: Text = {
   language: "Taal",
@@ -130,7 +135,7 @@ const nl: Text = {
   nextCheckIn: "Volgende check-in",
   checkInDetail: "Scan een QR-code in het beheerdashboard. Duurt een minuut.",
   certified: "Gecertificeerd",
-  certifiedValue: (c, p) => `${c} ${c === 1 ? "connector" : "connectoren"} · ${p} ${p === 1 ? "playbook" : "playbooks"}`,
+  certifiedValue: (c, p) => `${c} ${singular(c) ? "connector" : "connectoren"} · ${p} ${singular(p) ? "playbook" : "playbooks"}`,
   certifiedDetail: "De eigen playbooks van uw kantoor hoeven nooit gecertificeerd te worden.",
   replaceManifest: "Het manifest vervangen",
   noManifest: "Geen geldig manifest",

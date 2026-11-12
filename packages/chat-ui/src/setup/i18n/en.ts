@@ -3,6 +3,11 @@
  * docs/design/first-boot-setup). This table defines every string; nl.ts and fr.ts must have the same
  * (TypeScript checks it). Rules for every language: docs/translations.md. The tagline stays in English.
  */
+import { LOCALES } from "../../i18n/languages";
+import { singularIn } from "../../i18n/plural";
+
+/** Whether a count takes the singular here (CLDR's rules for en; i18n/plural.ts). */
+const singular = singularIn(LOCALES.en);
 const en = {
   language: "Language",
   tagline: "AI for work that can't leave the premises.",
@@ -130,7 +135,7 @@ const en = {
   nextCheckIn: "Next check-in",
   checkInDetail: "Scan a QR code from the admin dashboard. Takes a minute.",
   certified: "Certified",
-  certifiedValue: (c: number, p: number) => `${c} ${c === 1 ? "connector" : "connectors"} · ${p} ${p === 1 ? "playbook" : "playbooks"}`,
+  certifiedValue: (c: number, p: number) => `${c} ${singular(c) ? "connector" : "connectors"} · ${p} ${singular(p) ? "playbook" : "playbooks"}`,
   certifiedDetail: "Your office's own playbooks never need certifying.",
   replaceManifest: "Replace the manifest",
   noManifest: "No valid manifest",

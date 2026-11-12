@@ -37,6 +37,11 @@ web setup by `packages/chat-ui/src/i18n/rules.ts` (`copyProblems`):
 - no em dashes;
 - the tagline stays in English: "AI for work that can't leave the premises".
 
+Counts take the singular or the plural by the language's own rules (CLDR, through the browser's
+`Intl.PluralRules`), never by comparing with 1: each table asks `singular(n)` (`src/i18n/plural.ts`), so
+French writes "0 page" and English "0 pages". `plural.test.ts` fails on a table that compares a count
+with 1. Dates and numbers are formatted for `LOCALES` through `Intl` in the same way.
+
 A string that exists already is reused as it is; a new screen doesn't coin a second wording for the
 same thing. The fixed terms, in every place:
 
@@ -70,14 +75,17 @@ Say German (`de`). In this order:
    the tool (its README): it writes `lang/de.numbers.json` and the numbers the reader is tested on. Copy `lang/en.json`
    to `lang/de.json` and fill every list; add reading cases for what German writes its own way
    (`tests/reading_cases.json`). The harness's code is not touched.
-5. **Formal address.** If the language has a formal and an informal "you", add its informal forms to
+5. **Plural forms.** English, Dutch and French have two, singular and plural. A language with more
+   (Polish's "few" and "many", say) needs `plural.ts` to return the category instead of `singular`, and
+   its table one text per category.
+6. **Formal address.** If the language has a formal and an informal "you", add its informal forms to
    `copyProblems` in `rules.ts`.
-6. **The appliance** (suveryn-appliance): `messages_de.properties` for each Keycloak theme (login,
+7. **The appliance** (suveryn-appliance): `messages_de.properties` for each Keycloak theme (login,
    account, email); a `"de"` beside every key of `installer-text.json` and the console's language menu.
    Its tests name the three languages themselves (`keycloak/theme/tests/test_theme.py`,
    `image/mkosi/test/test_installer_ui.py`): add `de` there too.
-7. **The website**, if it should speak it too.
-8. **A native speaker reviews** every new file before it ships: the translations are machine-drafted
+8. **The website**, if it should speak it too.
+9. **A native speaker reviews** every new file before it ships: the translations are machine-drafted
    until then. The tests catch a sentence of four words or more left identical to the English (a copied
    key never translated); a short text such as "Status" may rightly be the same, and only a reader
    catches a wrong translation.
