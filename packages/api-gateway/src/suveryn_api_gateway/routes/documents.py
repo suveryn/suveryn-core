@@ -15,8 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..conversations import ConversationSummary
 from .status import disk_low
 from .common import (
-    Refused,
-    UploadRejected,
     docs_or_503,
     flush_soon,
     history_or_none,
@@ -60,13 +58,11 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
         raise HTTPException(507, "The appliance's disk is nearly full: no documents can be added until there is room.")
     filename = file.filename or "document.pdf"
     archive = filename.lower().endswith(".zip")
-    try:
-        if archive:
-            result = await run_in_threadpool(docs.accept_archive, file.file, filename, owner_of(request), scope.case_id)
-        else:
-            result = await run_in_threadpool(docs.accept_upload, file.file, filename, owner_of(request), scope.case_id)
-    except UploadRejected as e:
-        raise Refused(e.status, str(e), e.reason) from e
+    # an upload refused (UploadRejected) is a Problem with its own code, upload.*: answered as it is (problems.py)
+    if archive:
+        result = await run_in_threadpool(docs.accept_archive, file.file, filename, owner_of(request), scope.case_id)
+    else:
+        result = await run_in_threadpool(docs.accept_upload, file.file, filename, owner_of(request), scope.case_id)
     await touch_case(request, scope)
     for job in (result.jobs if archive else [result]):
         await log_access(request, scope.case_id, "uploaded", {"job": job.id})

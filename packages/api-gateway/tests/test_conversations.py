@@ -262,7 +262,7 @@ def test_bad_requests(setup):
     assert c.put(url, json={"title": "x", "turns": [{"role": "system", "text": "x"}]}, headers=alice).status_code == 422
     huge = {"title": "x", "turns": [{"role": "user", "text": "a" * 150_000}] * 15}  # over 2 MB
     r = c.put(url, json=huge, headers=alice)
-    assert r.status_code == 413 and r.json()["reason"] == "conversation_too_long"
+    assert r.status_code == 413 and r.json()["code"] == "conversation.too_long"
 
 
 def test_without_a_database_history_is_unavailable():

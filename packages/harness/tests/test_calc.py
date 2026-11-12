@@ -67,12 +67,12 @@ def test_whole_number_division_uses_the_sources_decimal_separator():
 def test_failed_calculation_is_visible_not_silent():
     text, calcs = rewrite("[[calc: 1.250 + 3.000]]", SOURCE)
     assert text == "1.250 + 3.000 = ?"  # no words: the same in every language; the note under the answer says why
-    assert calcs[0].result is None and calcs[0].error and calcs[0].reason == "decimal_separator"
+    assert calcs[0].result is None and calcs[0].error and calcs[0].code == "calc.decimal_separator"
 
 
 def test_why_a_calculation_fails_is_a_code_the_screen_words():
-    reasons = {e: rewrite(f"[[calc: {e}]]", SOURCE)[1][0].reason for e in ("10 / 0", "abc", "6.507,11 + 1,250.5")}
-    assert reasons == {"10 / 0": "division_by_zero", "abc": "syntax", "6.507,11 + 1,250.5": "number_style"}
+    codes = {e: rewrite(f"[[calc: {e}]]", SOURCE)[1][0].code for e in ("10 / 0", "abc", "6.507,11 + 1,250.5")}
+    assert codes == {"10 / 0": "calc.division_by_zero", "abc": "calc.syntax", "6.507,11 + 1,250.5": "calc.number_style"}
 
 
 def test_streaming_marker_split_across_chunks_and_citations_untouched():

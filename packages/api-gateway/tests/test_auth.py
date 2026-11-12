@@ -283,9 +283,9 @@ def test_a_sign_in_service_in_trouble_keeps_the_session_and_says_why(client, kc)
     sign_in(client, kc)
     kc.down = True
     r = client.get("/v1/documents")
-    assert r.status_code == 503 and r.json()["reason"] == "signin"
+    assert r.status_code == 503 and r.json()["code"] == "auth.unavailable"
     me = client.get("/auth/me")
-    assert me.status_code == 503 and me.json()["reason"] == "signin"
+    assert me.status_code == 503 and me.json()["code"] == "auth.unavailable"
     kc.down = False
     assert client.get("/v1/documents").status_code == 200  # still signed in once it is back
 

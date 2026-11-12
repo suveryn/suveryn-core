@@ -60,7 +60,7 @@ describe("words that follow the reader", () => {
   });
 
   it("end a refused setting with a full stop (finding 13)", () => {
-    expect(nl.settingsFailed(nl.adminRightsRefused)).toMatch(/ondersteuning\.$/);
+    expect(nl.settingsFailed(nl.messages["user.rights_refused"])).toMatch(/ondersteuning\.$/);
     expect(en.settingsFailed("done.")).toBe("The settings couldn't be saved: done.");
   });
 });

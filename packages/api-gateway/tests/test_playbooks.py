@@ -196,7 +196,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert (run["turns"][0]["text"], run["turns"][0]["meta"]) == ("", {"kind": "request"})
     # one live run per playbook per case
     r = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice)
-    assert r.status_code == 409 and r.json()["detail"]["run"] == rid
+    assert r.status_code == 409 and (r.json()["code"], r.json()["params"]["run"]) == ("run.already_going", rid)
     # the chip: the live run per readable case
     chip = c.get("/v1/playbooks/runs/active", headers=bob).json()[cid]
     assert chip["step"] == "agreement" and chip["step_kind"] == "request" and chip["title"]["nl"] == "Akte-intake"
@@ -570,7 +570,7 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
             assert r.status_code == 200  # someone else's first: three in all
             rid = r.json()["id"]
             r, busy_cid = start(bob)
-            assert r.status_code == 429 and r.json()["reason"] == "playbooks_busy"  # the appliance's three
+            assert r.status_code == 429 and r.json()["code"] == "run.busy"  # the appliance's three
             busy = c.get(RUNS.format(cid=busy_cid), headers=alice).json()[0]
             assert busy["status"] == "failed" and busy["error"] == "busy"  # the refused run is a record too; start it again later
             release.set()

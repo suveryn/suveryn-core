@@ -117,7 +117,7 @@ export default function App() {
       if (user) { clearRedirect(); setMe(user); return; }
       // The sign-in service keeps its accounts in the same PostgreSQL: with that down, its login page
       // only shows an error of its own. Said here instead, in the person's language (Pod check of cbccd38).
-      if (databaseDown(await getHealth())) { setUnavailable(t().databaseUnavailable); setMe(null); return; }
+      if (databaseDown(await getHealth())) { setUnavailable(t().messages["system.database_unavailable"]); setMe(null); return; }
       const step = claimRedirect();
       if (step === "go") signIn();
       else if (step === "stuck") { setStuck(true); setMe(null); } // "started": already leaving, render nothing
@@ -414,7 +414,7 @@ function Chat({ me }: { me: Me }) {
     const body = JSON.stringify(saved);
     if (body === lastSaved.current) return;
     lastSaved.current = body;
-    if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed(m.conversationTooLong)); return; }  // the server refuses it
+    if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed(m.messages["conversation.too_long"])); return; }  // the server refuses it
     saveConversation(conversationId, conversationTitle(turns), saved, caseId)
       .then(refreshConversations)
       .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed(e.message)); });

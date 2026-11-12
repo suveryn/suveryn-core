@@ -6,6 +6,7 @@ import { clearDraft } from "./lib/draft";
 import { createSSEParser } from "./lib/sse";
 import { RateLimited } from "./lib/turns";
 import { lang, t } from "./i18n";
+import { messageText, problemOf } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
 
@@ -20,10 +21,10 @@ export type CitationIssue = { marker: number; n: number; item: string; found_in:
 /** A calculation the server computed exactly; the model only chose the figures. */
 export type Calculation = {
   expression: string;
-  result: string | null;              // null: it couldn't be computed (see reason)
+  result: string | null;              // null: it couldn't be computed (see code)
   figures_not_in_sources: string[];   // figures to check: they don't appear in the passages given
   error: string | null;               // English, for developers
-  reason?: string | null;             // why it couldn't be computed, a code (suveryn_harness.calc.REASONS) calcFailed words
+  code?: string | null;               // why it couldn't be computed: a code of the registry (calc.*; lib/messages.ts words it)
   /** Figures that read either way ("28.848"), read as the documents that write them write decimals. */
   read_as?: string[];
   read_with?: "," | "." | null;
@@ -134,7 +135,7 @@ export async function listModels(): Promise<ModelInfo[]> {
  * any API call means the session ended: the registered handler shows the sign-in screen.
  */
 class SignedOut extends Error {
-  constructor() { super(t().sessionEndedError); }
+  constructor() { super(messageText({ code: "auth.signed_out" }, t())); }
 }
 let signedOutHandler: () => void = () => {};
 export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
@@ -182,38 +183,17 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * What went wrong, in the interface's language: by HTTP status for the errors a user meets (the server's
- * own text is English, and a validation error's detail is a list, which showed as "HTTP 422"). Other
- * statuses keep the server's text.
+ * What went wrong, in the interface's language: the answer's code (the gateway's Problem Details; lib/messages.ts),
+ * else the general code of its status. The server's own English is never shown.
  */
-export function httpErrorText(status: number, detail: unknown, retryAfter: string | null = null, reason: unknown = null): string {
-  const m = t();
-  switch (status) {
-    // ``reason``: the server's code for what was refused (decision of 12 November 2026: failures are codes, never
-    // recognised by their English words; suveryn_rag UploadRejected, the gateway's Refused)
-    case 429:
-      if (reason === "queue_full") return m.tooManyWaiting;
-      if (reason === "playbooks_busy") return m.playbooksBusy;
-      return m.tooManyRequests(retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
-    case 413:
-      return reason === "archive_too_big" ? m.archiveTooBig : reason === "conversation_too_long" ? m.conversationTooLong : m.fileTooLarge;
-    case 415:
-      return reason === "archive_empty" ? m.archiveEmpty : reason === "not_zip" ? m.archiveInvalid : m.fileNotSupported;
-    case 422: return m.requestRejected;
-    case 404: return m.notFound;
-    case 403: return reason === "rights_removed" ? m.adminRightsRemoved : m.forbidden;
-    // ``reason`` (the gateway's 503s): which part is down, so the person reads what it is.
-    case 502: case 503: return reason === "database" ? m.databaseUnavailable : reason === "signin" ? m.signInServiceUnavailable
-      : reason === "rights" ? m.adminRightsRefused : reason === "unfinished" ? m.accountDeletionUnfinished : m.serverUnavailable;
-    default: return typeof detail === "string" ? detail : `HTTP ${status}`;
-  }
+export function httpErrorText(status: number, body: unknown = null): string {
+  return messageText(problemOf(status, body), t());
 }
 
 async function errorText(r: Response): Promise<string> {
-  let detail: unknown = null;
-  let reason: unknown = null;
-  try { ({ detail, reason } = await r.json()); } catch { /* no JSON body */ }
-  return httpErrorText(r.status, detail, r.headers.get("Retry-After"), reason);
+  let body: unknown = null;
+  try { body = await r.json(); } catch { /* no JSON body */ }
+  return httpErrorText(r.status, body);
 }
 
 export async function getHealth(): Promise<Health | null> {
@@ -292,12 +272,12 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as Job | ArchiveUpload);
       else if (xhr.status === 401) { signedOutHandler(); reject(new SignedOut()); }
       else {
-        const detail = xhr.response?.detail, after = xhr.getResponseHeader("Retry-After");
-        const text = httpErrorText(xhr.status, detail, after, xhr.response?.reason);
+        const after = xhr.getResponseHeader("Retry-After");
+        const text = httpErrorText(xhr.status, xhr.response);
         // The per-person rate limit, or a full reading queue: the chat waits its turn (lib/turns.ts). The queue
         // names no time; it empties as documents are read, so the chat looks again every 10 seconds.
-        const queueFull = xhr.response?.reason === "queue_full";
-        const rateLimited = xhr.status === 429 && xhr.response?.reason !== "playbooks_busy";
+        const queueFull = xhr.response?.code === "upload.queue_full";
+        const rateLimited = xhr.status === 429 && xhr.response?.code !== "run.busy";
         reject(rateLimited ? new RateLimited(text, after && /^\d+$/.test(after) ? Number(after) : queueFull ? 10 : 30) : new Error(text));
       }
     };

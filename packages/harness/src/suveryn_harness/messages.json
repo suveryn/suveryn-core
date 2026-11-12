@@ -1,0 +1,270 @@
+{
+ "_about": "Every message sūveryn's server sends or stores about what went wrong or what to check: a code with parameters, never a sentence (the handbook's decision of 12 November 2026, Messages are codes; docs/design/messages.md). A screen words each code in its reader's language; `title` is English, for developers, never shown to a person. A code, once released, is never renamed or reused. kind: refused | unavailable | internal | warning. A parameter's type: number | string | id; `private` marks client data, which is never logged.",
+ "areas": [
+  "system",
+  "auth",
+  "request",
+  "upload",
+  "document",
+  "run",
+  "case",
+  "conversation",
+  "user",
+  "calc",
+  "answer",
+  "backup",
+  "clock",
+  "settings"
+ ],
+ "codes": {
+  "system.internal": {
+   "kind": "internal",
+   "title": "Something nobody planned for: a bug, a file that should be there. The log has the detail under the reference.",
+   "status": 500,
+   "retry": true,
+   "params": {
+    "ref": {
+     "type": "string"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "system.unavailable": {
+   "kind": "unavailable",
+   "title": "A part of the server isn't available.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "system.database_unavailable": {
+   "kind": "unavailable",
+   "title": "The database can't be reached.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "system.documents_unavailable": {
+   "kind": "unavailable",
+   "title": "Document handling (search, the reader) isn't available.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "auth.signed_out": {
+   "kind": "refused",
+   "title": "No session, or it has ended.",
+   "status": 401,
+   "since": "0.2.0"
+  },
+  "auth.unavailable": {
+   "kind": "unavailable",
+   "title": "The sign-in service can't be reached or has a problem.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "request.invalid": {
+   "kind": "refused",
+   "title": "The request's body or parameters aren't valid.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "request.forbidden": {
+   "kind": "refused",
+   "title": "The caller may not do this.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "request.not_found": {
+   "kind": "refused",
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "status": 404,
+   "since": "0.2.0"
+  },
+  "request.conflict": {
+   "kind": "refused",
+   "title": "It can't be done in the state things are in now; the caller's view may be out of date.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "request.too_large": {
+   "kind": "refused",
+   "title": "What was sent is larger than accepted.",
+   "status": 413,
+   "since": "0.2.0"
+  },
+  "request.unsupported": {
+   "kind": "refused",
+   "title": "What was sent is of a type that isn't accepted.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "request.too_many": {
+   "kind": "refused",
+   "title": "Too many requests from this person; `seconds` until the next is taken.",
+   "status": 429,
+   "retry": true,
+   "params": {
+    "seconds": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "upload.unsupported_type": {
+   "kind": "refused",
+   "title": "Not a file type sūveryn reads.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "upload.empty": {
+   "kind": "refused",
+   "title": "The file is empty.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "upload.invalid": {
+   "kind": "refused",
+   "title": "The file's content doesn't fit its extension.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "upload.too_large": {
+   "kind": "refused",
+   "title": "The file is larger than `max_mb`.",
+   "status": 413,
+   "params": {
+    "max_mb": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "upload.queue_full": {
+   "kind": "refused",
+   "title": "Too many documents are waiting to be read.",
+   "status": 429,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "upload.not_zip": {
+   "kind": "refused",
+   "title": "Not a ZIP archive that can be opened.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "upload.archive_too_many": {
+   "kind": "refused",
+   "title": "The archive holds more than `max` files.",
+   "status": 415,
+   "params": {
+    "max": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "upload.archive_too_big": {
+   "kind": "refused",
+   "title": "The archive unpacks to more than `max_mb`.",
+   "status": 413,
+   "params": {
+    "max_mb": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "upload.archive_empty": {
+   "kind": "refused",
+   "title": "The archive is empty.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "upload.inbox_unavailable": {
+   "kind": "unavailable",
+   "title": "The upload folder is missing or has the wrong permissions.",
+   "status": 503,
+   "since": "0.2.0"
+  },
+  "run.busy": {
+   "kind": "refused",
+   "title": "Too many playbook runs are reading; start this one when one has finished.",
+   "status": 429,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "run.already_going": {
+   "kind": "refused",
+   "title": "A run of this playbook is live in this case: `run`.",
+   "status": 409,
+   "params": {
+    "run": {
+     "type": "id"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "conversation.too_long": {
+   "kind": "refused",
+   "title": "The conversation is too long to save.",
+   "status": 413,
+   "since": "0.2.0"
+  },
+  "user.picture_too_large": {
+   "kind": "refused",
+   "title": "The picture is larger than `max_mb`.",
+   "status": 413,
+   "params": {
+    "max_mb": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "user.rights_removed": {
+   "kind": "refused",
+   "title": "The caller's administrator rights were removed meanwhile.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "user.rights_refused": {
+   "kind": "unavailable",
+   "title": "The sign-in service refused the gateway's administrator rights.",
+   "status": 503,
+   "since": "0.2.0"
+  },
+  "user.deletion_unfinished": {
+   "kind": "unavailable",
+   "title": "An account's deletion stopped partway; deleting again finishes it.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "calc.number_style": {
+   "kind": "warning",
+   "title": "A calculation's figures are written in different number styles.",
+   "since": "0.2.0"
+  },
+  "calc.decimal_separator": {
+   "kind": "warning",
+   "title": "A calculation's figures don't show which separator is the decimal one.",
+   "since": "0.2.0"
+  },
+  "calc.division_by_zero": {
+   "kind": "warning",
+   "title": "A calculation divides by zero.",
+   "since": "0.2.0"
+  },
+  "calc.no_figures": {
+   "kind": "warning",
+   "title": "A calculation has no figures.",
+   "since": "0.2.0"
+  },
+  "calc.syntax": {
+   "kind": "warning",
+   "title": "A calculation couldn't be read.",
+   "since": "0.2.0"
+  }
+ }
+}

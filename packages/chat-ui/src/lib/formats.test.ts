@@ -24,24 +24,25 @@ describe("the files sūveryn reads", () => {
 
   it("says which files can be added when one can't, in the interface's language", () => {
     setLang("en", false);
-    expect(httpErrorText(415, "only PDF ... files can be added")).toBe("this file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip");
+    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported_type" })).toBe("this file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip");
     setLang("fr", false);
-    expect(httpErrorText(415, "the file is not a valid Word file")).toMatch(/^ce type de fichier n'est pas lu/);
+    expect(httpErrorText(415, { kind: "refused", code: "upload.invalid" })).toMatch(/^le contenu de ce fichier ne correspond pas à son type/);
     setLang("en", false);
   });
 
   it("says why a .zip couldn't be added, and why a file in it was left out", async () => {
     const { TABLES_FOR_TESTS: TEXT } = await import("../i18n");
     setLang("nl", false);
-    // by the server's code (``reason``), never by its English words (decision of 12 November 2026)
-    expect(httpErrorText(413, "the file is larger than 100 MB", null, "too_large")).toBe(TEXT.nl.fileTooLarge);
-    expect(httpErrorText(415, "the archive is empty", null, "archive_empty")).toBe(TEXT.nl.archiveEmpty);
-    expect(httpErrorText(413, "the archive unpacks to more than 300 MB", null, "archive_too_big")).toBe(TEXT.nl.archiveTooBig);
-    expect(httpErrorText(415, "the file is not a valid ZIP archive", null, "not_zip")).toBe(TEXT.nl.archiveInvalid);
-    expect(httpErrorText(429, "too many documents are waiting to be read", null, "queue_full")).toBe(TEXT.nl.tooManyWaiting);
-    expect(httpErrorText(429, "slow down", "30")).toMatch(/30 seconden/);
-    expect(httpErrorText(429, "too many playbook runs are reading", null, "playbooks_busy")).toBe(TEXT.nl.playbooksBusy);
-    expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.fileNotSupported);  // the words alone mean nothing here
+    // by the server's code, never by its English words (decision of 12 November 2026, Messages are codes)
+    const refused = (code: string, params = {}) => ({ kind: "refused", code, params, detail: "English, for developers" });
+    expect(httpErrorText(413, refused("upload.too_large"))).toBe("het bestand is groter dan de server aanvaardt");
+    expect(httpErrorText(415, refused("upload.archive_empty"))).toBe(TEXT.nl.messages["upload.archive_empty"]);
+    expect(httpErrorText(413, refused("upload.archive_too_big"))).toBe(TEXT.nl.messages["upload.archive_too_big"]);
+    expect(httpErrorText(415, refused("upload.not_zip"))).toBe(TEXT.nl.messages["upload.not_zip"]);
+    expect(httpErrorText(429, refused("upload.queue_full"))).toBe(TEXT.nl.messages["upload.queue_full"]);
+    expect(httpErrorText(429, refused("request.too_many", { seconds: 30 }))).toMatch(/30 seconden/);
+    expect(httpErrorText(429, refused("run.busy"))).toBe(TEXT.nl.messages["run.busy"]);
+    expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.messages["request.unsupported"]);  // the words alone mean nothing here
     setLang("en", false);
     for (const t of Object.values(TEXT)) {
       for (const reason of ["unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged"]) {

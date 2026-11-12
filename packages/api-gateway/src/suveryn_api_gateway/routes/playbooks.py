@@ -27,6 +27,7 @@ from collections import Counter
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
+from suveryn_harness.messages import Problem
 from suveryn_harness.facts import Unreadable, map_answer, read_playbook, said_unknown
 from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, find, for_case_type, root
 
@@ -49,7 +50,6 @@ from ..playbooks import (
 )
 from .common import (
     DocumentNotFound,
-    Refused,
     Scope,
     admin_or_403,
     case_for,
@@ -230,7 +230,7 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     store, cid = runs_or_503(request), uuid.UUID(case.id)
     live = await run_in_threadpool(store.active, cid, pb.id)
     if live is not None:
-        raise HTTPException(409, detail={"message": "This playbook is already going in this case.", "run": live.id})
+        raise Problem("run.already_going", "This playbook is already going in this case.", run=live.id)
     uploaded = await run_in_threadpool(_uploaded_in(request), cid)
     if any(d not in uploaded for d in body.document_ids):
         raise HTTPException(404, "Unknown document.")
@@ -273,7 +273,7 @@ async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: 
     slots = slots_of(request.app)
     if not slots.take(owner):
         await run_in_threadpool(store.fail, rid, "busy")
-        raise Refused(429, "too many playbook runs are reading; start this one when one has finished", "playbooks_busy")
+        raise Problem("run.busy", "too many playbook runs are reading; start this one when one has finished")
     task = asyncio.create_task(_read(request.app, runtime, store, run, pb, step, filenames, owner, case.reference))
     request.app.state.running.add(task)
     task.add_done_callback(request.app.state.running.discard)
@@ -488,7 +488,7 @@ async def add_documents(case_id: str, run_id: str, body: LateIn, request: Reques
     if run.status == "done":
         live = await run_in_threadpool(store.active, cid, pb.id)
         if live is not None and live.id != run.id:
-            raise HTTPException(409, detail={"message": "This playbook is already going in this case.", "run": live.id})
+            raise Problem("run.already_going", "This playbook is already going in this case.", run=live.id)
     uploaded = await run_in_threadpool(_uploaded_in(request), cid)
     if any(d not in uploaded for d in body.documents):
         raise HTTPException(404, "Unknown document.")
