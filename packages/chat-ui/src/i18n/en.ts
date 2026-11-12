@@ -72,6 +72,7 @@ const en = {
     "upload.inbox_unavailable": "documents can't be added right now; ask your administrator to look at Status",
     "run.busy": "too many playbooks are reading right now; start this one when one has finished",
     "run.already_going": "this playbook is already going in this case",
+    "run.facts_changed": "a colleague changed a fact in the meantime; the facts are shown again: check them, then confirm",
     "conversation.too_long": "this conversation is too long; start a new one",
     "user.picture_too_large": (p: Params) => `the picture is larger than ${p.max_mb ?? 2} MB`,
     "user.rights_removed": "your administrator rights were removed meanwhile, by another administrator",

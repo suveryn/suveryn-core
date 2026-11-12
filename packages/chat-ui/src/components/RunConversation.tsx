@@ -21,7 +21,7 @@ import {
 import { useId } from "react";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  answerRun, confirmRun, getRun, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
+  answerRun, confirmRun, getRun, HttpError, isArchiveUpload, runAction, sayInRun, setRunFact, uploadDocument,
   type Case, type Job, type PlaybookInfo, type Run, type RunFact, type RunStatus, type RunSummary, type RunTurn,
   type Computed,
 } from "../api";
@@ -365,8 +365,12 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
   const confirm = async () => {
     setBusy(true);
     setError(null);
-    try { onChanged(await confirmRun(kase.id, run.id, shownFacts(run.facts).map((f) => ({ id: f.id, confirmed: f.value })))); }
-    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    try { onChanged(await confirmRun(kase.id, run.id, shownFacts(run.facts).map((f) => ({ id: f.id, confirmed: f.value })), run.facts_seq)); }
+    catch (e) {
+      setError((e as Error).message);
+      // refused because a colleague changed a fact meanwhile: show what stands now, the person confirms again
+      if (e instanceof HttpError && e.status === 409) getRun(kase.id, run.id).then(onChanged).catch(() => undefined);
+    } finally { setBusy(false); }
   };
   const blocked = check.length > 0;
   // who confirms: anyone who contributes, or, when the checkpoint says so, the case manager (the notary); others prepare and correct

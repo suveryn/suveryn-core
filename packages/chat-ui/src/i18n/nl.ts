@@ -61,6 +61,7 @@ const nl: Messages = {
     "upload.inbox_unavailable": "documenten kunnen nu niet worden toegevoegd; vraag uw beheerder om Status na te kijken",
     "run.busy": "er lopen nu te veel playbooks; start dit zodra er een klaar is",
     "run.already_going": "dit playbook loopt al in dit dossier",
+    "run.facts_changed": "een collega heeft intussen een feit gewijzigd; de feiten worden opnieuw getoond: kijk ze na en bevestig dan",
     "conversation.too_long": "dit gesprek is te lang; begin een nieuw",
     "user.picture_too_large": (p) => `de foto is groter dan ${p.max_mb ?? 2} MB`,
     "user.rights_removed": "uw beheerrechten werden intussen ingetrokken door een andere beheerder",
