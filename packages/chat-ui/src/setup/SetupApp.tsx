@@ -73,7 +73,7 @@ export function SetupApp({ start }: { start?: PreviewScreen } = {}) {
     restore: t.restoreTitle, "restore-confirm": t.restoreConfirmTitle, "restore-progress": t.restoringTitle,
     "restore-done": t.restoreDoneTitle,
   };
-  useEffect(() => { document.title = t.pageTitle(titles[screen]); });
+  useEffect(() => { document.title = t.pageTitle({ screen: titles[screen] }); });
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     const h = document.getElementById(headingId);
@@ -115,7 +115,7 @@ export function SetupApp({ start }: { start?: PreviewScreen } = {}) {
             <p className="setup-lead setup-no-steps" aria-busy="true">{t.loading}</p>
           ) : (
             <>
-              {typeof screen === "number" && screen > 0 && <Steps text={t.step(screen, TOTAL)} step={screen} total={TOTAL} />}
+              {typeof screen === "number" && screen > 0 && <Steps text={t.step({ n: screen, total: TOTAL })} step={screen} total={TOTAL} />}
               {typeof screen !== "number" || screen === 0 ? <div className="setup-no-steps" /> : null}
               {screen === 0 && <Welcome onStart={() => setScreen(1)} onRestore={() => setScreen("restore")} {...stepProps} />}
               {screen === 1 && <Network state={state} onBack={back(0)} onDone={(network) => done(1, { network })} {...stepProps} />}

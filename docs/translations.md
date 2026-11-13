@@ -46,10 +46,84 @@ web setup by `packages/chat-ui/src/i18n/rules.ts` (`copyProblems`):
 - no em dashes;
 - the tagline stays in English: "AI for work that can't leave the premises".
 
-Counts take the singular or the plural by the language's own rules (CLDR, through the browser's
-`Intl.PluralRules`), never by comparing with 1: each table asks `singular(n)` (`src/i18n/plural.ts`), so
-French writes "0 page" and English "0 pages". `plural.test.ts` fails on a table that compares a count
-with 1. Dates and numbers are formatted for `LOCALES` through `Intl` in the same way.
+Counts take the singular or the plural by the language's own rules (CLDR, from the browser), never by
+comparing with 1, so French writes "0 page" and English "0 pages". Dates, numbers and lists are formatted
+for `LOCALES` through `Intl` in the same way.
+
+## Text, not code
+
+The chat's and the web setup's language files hold text, never program code (the handbook's
+[decision of 13 November 2026](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-13-text-not-code.md);
+suveryn-tracker#147): a translator, or the tool a translator uses, must be able to read every sentence.
+A plain sentence is a string. A sentence with a value or a plural is one message in **ICU
+MessageFormat**, the notation translators' tools read, formatted by `intl-messageformat` (pinned; it
+fetches nothing and runs under the appliance's Content-Security-Policy):
+
+```ts
+pages: m("{n, plural, one {# page} other {# pages}}", "n"),        // en.ts; a screen calls t.pages({ n: 3 })
+pages: m("{n, plural, one {# pagina} other {# pagina''s}}"),        // nl.ts: the text alone
+```
+
+`m` (`src/i18n/message.ts`) adds nothing to the notation: a message is formatted with the values the
+screen gives it, by name. English names each message's values after its text, which gives the screens
+their types; the other languages write the text alone. What to know when writing one:
+
+- A value is `{name}`. A **quantity** is `#` inside its own plural, or `{n, number}`: each language
+  groups and separates it its own way ("1,234", "1.234", "1 234"). A number that names something (a
+  page, a source, a year) stays `{page}` and shows as it is.
+- A choice between a few words, or a yes/no, is a `select`; the words it chooses by are the software's
+  (`manager`, `true`), and the entry's note says what they mean.
+- An apostrophe before `{` is doubled (`l''{name}`).
+- Every language uses the same values as English.
+
+What a message doesn't do, the screen does, once for every language:
+
+- **A value that may be missing.** The screen chooses between two messages (`statusCaseClosed`,
+  `statusCaseClosedOn`); a message never asks whether a value was given.
+- **A list.** The screen gives it as text, joined as the language joins it ("2, 5 and 7", "2, 5 en 7":
+  `listAnd` in `lib/lists.ts`, CLDR's rules from the browser), and how many items it has as `count`,
+  for the plural.
+- **A code's values.** The server's codes come with their values by name (`lib/messages.ts`). A code
+  whose value wasn't sent gets its words without it (`messagesBare`), else its area's or its kind's: a
+  sentence never shows a gap.
+
+## Whole sentences
+
+No sentence is glued from pieces, since the pieces don't fit together the same way in another language:
+
+- **A reason is a sentence of its own**, with a capital and a full stop: every code's words, every
+  area's and kind's, and the reasons of a failed answer, a failed backup and the clock. A screen shows
+  it alone, or after the sentence that says what failed: "The case couldn't be closed. You don't have
+  permission for this.", never "…couldn't be closed: you don't have…".
+- **A word that depends on a value is chosen inside the message** (`select`), never looked up and
+  pasted in: "added a member as reader" is one sentence per role.
+- **No screen changes a text's case or adds its full stop.** A text that is needed in two shapes is
+  two entries.
+- **A label and its value** ("deed.pdf: ready") go through `labelValue`, so the punctuation between
+  them is the language's (French: "deed.pdf : prêt").
+
+- **A value the screen draws itself stays inside the sentence.** A row of a case's access log is one
+  sentence with the person in it ("{who} opened the case"); the screen shows the name in bold through
+  the message's `parts`, which gives the sentence in pieces with the name where the language puts it.
+
+What is left on purpose: labels joined by a middle dot are labels, not a sentence, and a calculation's
+line is a label followed by the calculation.
+
+## Notes for the translator
+
+`src/i18n/notes.ts` (and `src/setup/i18n/notes.ts`) hold what a translator needs beside a sentence:
+where it appears and what its values stand for, in English, by the same keys as `en.ts`; `valueNotes`
+explains the values that mean the same everywhere (`why`, `count`, `pages`). A note can set how many
+characters a label may have (`{ note, max }`), and a test holds every language to it. An entry with a
+`select` must have a note. The export to translators carries them (suveryn-tracker#148).
+
+## What the tests hold
+
+`message.test.ts` fails on a message that doesn't parse in its language, on one whose values differ
+from English's, on an entry that is code, on a value name of our own making, on a reason that isn't a
+whole sentence, on an entry made to be glued on (a space at its start or end, a colon before a reason),
+on a screen that changes a text's case, and on a `select` without a note. `rules.ts` words every branch
+of every message to check it against the copy rules. A missing string still fails the build.
 
 A string that exists already is reused as it is; a new screen doesn't coin a second wording for the
 same thing. The fixed terms, in every place:
@@ -77,7 +151,7 @@ Say German (`de`). In this order:
 1. **The lists.** Add `"de"` to `LANGS`, `LANGUAGE_NAMES` (`"Deutsch"`) and `LOCALES` (`"de-BE"`) in
    `languages.ts`; to `LANGUAGES` in `suveryn_playbooks`; to `supportedLocales` in the realm file.
    From here the build and the tests say what is missing.
-2. **The chat.** Copy `i18n/en.ts` to `i18n/de.ts`, translate, add it to `TABLES` in `i18n/index.ts`.
+2. **The chat.** Copy `i18n/en.ts` to `i18n/de.ts`, translate (a message's text only: its values keep their English names), set its locale in `messagesIn(LOCALES.de)`, add it to `TABLES` in `i18n/index.ts`.
 3. **The web setup.** The same with `setup/i18n/de.ts` and `TEXT` in `setup/i18n/index.ts`.
 4. **The playbooks.** One `text/de.json` per pack.
    **What the harness reads.** Add the language to `LANGUAGES` in `packages/harness/tools/number_words.py` and run

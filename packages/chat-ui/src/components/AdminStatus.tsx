@@ -13,6 +13,7 @@ import { applianceClockAnswer, getAdminStatus, getBackups, listAccounts, setAppl
   type StatusCheck, type UsersList } from "../api";
 import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
+import { whole } from "../lib/usage";
 import { backupAttentions, lastKeyTestOk, sizeLabel } from "../lib/backups";
 import { measureClock, sendClock, type Measured } from "../lib/clock";
 import { Button, Dialog, InlineNotice, Notice } from "../ui";
@@ -122,7 +123,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                         ? <><TriangleAlert size={14} aria-hidden /> {m.statusAlmostFull}</>
                         : c.id === "clock" && c.offset_ms != null
                         ? <><TriangleAlert size={14} aria-hidden /> {offLabel(c.offset_ms, m)}</>
-                        : <><CircleX size={14} aria-hidden /> {m.notWorkingSince(clock(c.since ?? status.checked_at))}</>}</span>}
+                        : <><CircleX size={14} aria-hidden /> {m.notWorkingSince({ time: clock(c.since ?? status.checked_at) })}</>}</span>}
                 </li>
               ))}
             </ul>
@@ -132,7 +133,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             )}
             {clockOutcome && <InlineNotice tone={clockOutcome.ok ? "ok" : "error"} alert={!clockOutcome.ok} status={clockOutcome.ok}
                                            icon={clockOutcome.ok ? <Check size={14} /> : <CircleAlert size={14} />}>{clockOutcome.text}</InlineNotice>}
-            <p className="caption">{m.checkedAt(clock(status.checked_at))}</p>
+            <p className="caption">{m.checkedAt({ time: clock(status.checked_at) })}</p>
           </>
         )}
       </section>
@@ -151,7 +152,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             )}
             {counted !== null && (
               <div className="admin-tile"><span className="admin-tile-label"><Users size={14} aria-hidden /> {m.adminUsers}</span>
-                <b>{m.usersTile(counted, users?.agreement_users ?? null)}</b></div>
+                <b>{users?.agreement_users ? m.usersTile({ n: counted, max: users.agreement_users }) : whole(counted)}</b></div>
             )}
           </div>
         </section>
@@ -177,7 +178,7 @@ export function thisPcOff(c: StatusCheck, thisPc: Measured | null): number | nul
 
 function offLabel(offset: number, m: ReturnType<typeof useT>): string {
   const s = Math.round(Math.abs(offset) / 1000);
-  return offset > 0 ? m.clockAhead(s) : m.clockBehind(s);
+  return offset > 0 ? m.clockAhead({ s }) : m.clockBehind({ s });
 }
 
 /** "Set to this PC's time", for a difference too large to be nudged: a confirmation with both times, then the
@@ -188,7 +189,7 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
   const [busy, setBusy] = useState(false);
   const hms = (ms: number) => new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const now = Date.now();
-  const failed = (code: string | null) => ({ ok: false, text: m.clockSetFailed(m.clockErrors[code ?? "other"] ?? m.clockErrors.other) });
+  const failed = (code: string | null) => ({ ok: false, text: m.clockSetFailed({ why: m.clockErrors[code ?? "other"] ?? m.clockErrors.other }) });
   const set = async () => {
     setBusy(true);
     try {
@@ -210,12 +211,12 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
   return (
     <>
       <p className="caption">
-        {m.clockThisPc(offLabel(offset, m))}{" "}
+        {m.clockThisPc({ difference: offLabel(offset, m) })}{" "}
         <Button size="small" onPress={() => { onOutcome(null); setOpen(true); }}><Clock size={14} aria-hidden /> {m.clockSet}</Button>
       </p>
       <Dialog isOpen={open} onClose={() => setOpen(false)} busy={busy} kind="confirmation" risky title={m.clockSetTitle}
               cancel={{ label: m.cancel }} primary={{ label: m.clockSet, onPress: () => void set(), busyLabel: m.clockSetting }}>
-        <p>{m.clockSetBody(hms(now + offset), hms(now))}</p>
+        <p>{m.clockSetBody({ appliance: hms(now + offset), pc: hms(now) })}</p>
         <p className="caption">{m.clockSetCheck}</p>
       </Dialog>
     </>
@@ -223,11 +224,11 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
 }
 
 function detail(c: StatusCheck, m: ReturnType<typeof useT>): string {
-  if (c.id === "answering" && c.in_progress) return m.nInProgress(c.in_progress);
+  if (c.id === "answering" && c.in_progress) return m.nInProgress({ n: c.in_progress });
   if (c.id === "reading") {
-    return [c.in_progress ? m.nInProgress(c.in_progress) : "", c.waiting ? m.nWaiting(c.waiting) : ""].filter(Boolean).join(" · ");
+    return [c.in_progress ? m.nInProgress({ n: c.in_progress }) : "", c.waiting ? m.nWaiting({ n: c.waiting }) : ""].filter(Boolean).join(" · ");
   }
-  if (c.id === "disk" && c.free != null && c.total != null) return m.freeOf(sizeLabel(c.free, locale()), sizeLabel(c.total, locale()));
+  if (c.id === "disk" && c.free != null && c.total != null) return m.freeOf({ free: sizeLabel(c.free, locale()), total: sizeLabel(c.total, locale()) });
   if (c.id === "clock") return c.synced ? m.clockKeptByServer : m.clockByBrowsers; // the offset only when it is off, in the status column
   return "";
 }
@@ -237,6 +238,6 @@ function detail(c: StatusCheck, m: ReturnType<typeof useT>): string {
 export function keyDueLine(lastOk: string | null, m: ReturnType<typeof useT>, now: Date = new Date()): string {
   if (!lastOk) return m.keyNeverTested;
   const d = new Date(lastOk);
-  return m.keyNotTestedSince(d.toLocaleDateString(locale(), { day: "numeric", month: "long",
-                                                           ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }));
+  return m.keyNotTestedSince({ day: d.toLocaleDateString(locale(), { day: "numeric", month: "long",
+                                                           ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }) });
 }

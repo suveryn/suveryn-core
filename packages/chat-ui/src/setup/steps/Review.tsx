@@ -19,7 +19,7 @@ export function Review({ state, onBack, onEdit, onStart, headingId }: Props) {
   const ip = state.address.split("/")[0];
   const date = (iso: string) => new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
   const edit = (step: Editable, what: string) => (
-    <TextButton link aria-label={t.editLabel(what)} onPress={() => onEdit(step)}>{t.edit}</TextButton>
+    <TextButton link aria-label={t.editLabel({ what })} onPress={() => onEdit(step)}>{t.edit}</TextButton>
   );
   const missing = { value: t.notAnswered };
 
@@ -35,7 +35,7 @@ export function Review({ state, onBack, onEdit, onStart, headingId }: Props) {
     { label: t.rCert, action: edit(3, t.rCert),
       ...(a.certificate ? a.certificate.kind === "self-signed"
         ? { value: t.selfSignedShort, detail: a.certificate.names.join(", ") }
-        : { value: t.ownCertShort, detail: `${a.certificate.names.join(", ")} · ${t.validUntilDate(date(a.certificate.not_after))}` }
+        : { value: t.ownCertShort, detail: `${a.certificate.names.join(", ")} · ${t.validUntilDate({ date: date(a.certificate.not_after) })}` }
         : missing) },
     { label: t.rSupport, action: edit(4, t.rSupport),
       ...(a.support === undefined ? missing : a.support ? { value: a.support.edition, tone: "ok" as const,
@@ -43,7 +43,7 @@ export function Review({ state, onBack, onEdit, onStart, headingId }: Props) {
         : { value: t.noManifest, detail: t.noManifestDetail }) },
     { label: t.rBackups, action: edit(5, t.rBackups),
       ...(a.backups ? a.backups.target === "later" ? { value: t.laterShort, detail: t.laterDetail }
-        : { value: a.backups.target === "usb" ? t.usbDisk : t.networkShare, detail: t.backupsKept(a.backups.retention_days) }
+        : { value: a.backups.target === "usb" ? t.usbDisk : t.networkShare, detail: t.backupsKept({ n: a.backups.retention_days }) }
         : missing) },
   ];
   const complete = !!(a.network && a.administrator && a.certificate && a.support !== undefined && a.backups);

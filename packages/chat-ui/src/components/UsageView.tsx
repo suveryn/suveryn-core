@@ -90,7 +90,7 @@ function Chart({ report }: { report: UsageReport }) {
     const sameDay = previous !== null && new Date(report.series[previous].start).toDateString() === d.toDateString();
     return sameDay ? timeLabel(d) : bucketLabel(report.series[i].start, report.step);
   } : undefined;
-  return <ColumnChart label={m.chartLabel(whole(report.totals.total_tokens), m.stepName(report.step))} series={series}
+  return <ColumnChart label={m.chartLabel({ total: whole(report.totals.total_tokens), step: m.stepName({ step: report.step }) })} series={series}
                       data={data} format={whole} tick={compact} text={text} slots={slots} every={every} markLabel={markLabel} />;
 }
 
@@ -127,7 +127,7 @@ function ByKind({ report }: { report: UsageReport }) {
       </div>
       <figcaption className="kind-bar-legend">
         {kinds.map(([k, v], i) => (
-          <span key={k}><span className="kind-bar-swatch" data-series={i % 4} aria-hidden />{m.kind(k)} <b>{pct(v.total_tokens)}</b></span>
+          <span key={k}><span className="kind-bar-swatch" data-series={i % 4} aria-hidden />{m.kind[k] ?? k} <b>{pct(v.total_tokens)}</b></span>
         ))}
       </figcaption>
     </figure>
@@ -156,11 +156,11 @@ export function UsageView({ onBack }: { onBack: () => void }) {
       <ViewHeader icon={<ChartColumn size={18} aria-hidden />} title={m.yourUsage} onBack={onBack} />
       <p className="view-intro">{m.usageIntro}</p>
       <RangePicker {...r} />
-      {r.error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
+      {r.error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.usageUnavailable({ why: r.error })}</InlineNotice>}
       {r.report && (r.report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
         <>
           <Totals totals={r.report.totals} />
-          {r.report.totals_only_before && <p className="caption">{m.ownUsageKeptFrom(keptFrom(r.report.totals_only_before))}</p>}
+          {r.report.totals_only_before && <p className="caption">{m.ownUsageKeptFrom({ date: keptFrom(r.report.totals_only_before) })}</p>}
           <Chart report={r.report} />
           <ByKind report={r.report} />
         </>
@@ -178,19 +178,19 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   return (
     <>
       <RangePicker {...r} />
-      {r.error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.usageUnavailable(r.error)}</InlineNotice>}
+      {r.error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.usageUnavailable({ why: r.error })}</InlineNotice>}
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
           <Totals totals={report.totals} extra={{ label: m.costTile, value: money(report.cost, report.rates.currency) }} />
-          <p className="caption">{m.costExplain(money(report.cost, report.rates.currency))}</p>
+          <p className="caption">{m.costExplain({ cost: money(report.cost, report.rates.currency) })}</p>
           {report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
             <>
               <Chart report={report} />
               <h2 className="label">{m.kindsLabel}</h2>
               <ByKind report={report} />
               <h2 className="label">{m.perUser}</h2>
-              {report.totals_only_before && <p className="caption">{m.perUserKeptFrom(keptFrom(report.totals_only_before))}</p>}
+              {report.totals_only_before && <p className="caption">{m.perUserKeptFrom({ date: keptFrom(report.totals_only_before) })}</p>}
               <div className="table-wrap">
                 <table className="usage-table">
                   <thead><tr><th scope="col">{m.user}</th><th scope="col">{m.requests}</th><th scope="col">{m.inputTokens}</th>

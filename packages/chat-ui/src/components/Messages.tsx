@@ -14,7 +14,8 @@ import { Button, IconButton, InlineNotice, LinkButton, MenuButton, SourceRef, Sp
 import { originalUrl, type Calculation, type Citation, type CitationIssue } from "../api";
 import { lang, useT } from "../i18n";
 import { citedNumbers, instructionLikeWarning, stripMarkers, toBlocks, type Segment, type Table } from "../lib/answer";
-import type { AnswerExport } from "../lib/export";
+import { citationIssueText, figuresOf, type AnswerExport } from "../lib/export";
+import { listAnd } from "../lib/lists";
 import { rememberFormat, useFormat, type FormatKind } from "../lib/downloadFormat";
 import { answerExport, officeText } from "../lib/saved";
 import { useWatermark, withWatermark } from "../lib/watermark";
@@ -65,7 +66,7 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
     return () => clearTimeout(t);
   }, [state]);
   return (
-    <Button variant="plain" className="copy-button" aria-label={m.copyWhat(what)}
+    <Button variant="plain" className="copy-button" aria-label={m.copyWhat({ what })}
             onPress={async () => setState((await copyText(text)) ? "copied" : "failed")}>
       {state === "copied" ? <Check size={13} aria-hidden className="ui-icon-ok" /> : <Copy size={13} aria-hidden />}
       <span aria-live="polite">{state === "copied" ? m.copied : state === "failed" ? m.copyFailed : label}</span>
@@ -80,7 +81,7 @@ function DownloadButton({ filename, text, what }: {
   const m = useT();
   const mark = useWatermark();  // a strictly confidential case: the watermark is the first line (§11)
   return (
-    <MenuButton className="copy-button" aria-label={m.downloadWhat(what)} menuLabel={m.download}
+    <MenuButton className="copy-button" aria-label={m.downloadWhat({ what })} menuLabel={m.download}
                 items={[{ id: "txt", label: m.textFile }, { id: "md", label: m.markdownFile }]} placement="bottom end"
                 onAction={(f) => downloadText(filename(f as Format), withWatermark(text(f as Format), mark()))}>
       <Download size={13} aria-hidden />
@@ -93,6 +94,12 @@ function DownloadButton({ filename, text, what }: {
 const SOURCE_PANEL = "source-panel";
 
 /** A citation's file name as shown: "Source removed" for a deleted document's, "Unnamed document" if unknown. */
+/** Where a source is: its page, when it has one, and the case it is in or the reader's own space. */
+function sourcePlace(m: ReturnType<typeof useT>, page: number | null | undefined, caseRef: string | null | undefined): string {
+  if (page) return caseRef ? m.sourcePlacePage({ page, ref: caseRef }) : m.sourcePlacePageOwn({ page });
+  return caseRef ? m.sourcePlace({ ref: caseRef }) : m.sourcePlaceOwn;
+}
+
 function sourceName(c: Citation, filenames: Map<string, string>, m: ReturnType<typeof useT>): string {
   return c.removed ? m.sourceRemoved : (c.source && filenames.get(c.source.document_id)) || m.unnamedDocument;
 }
@@ -157,22 +164,22 @@ export function SourcePanel({ turn, open, filenames, caseRef, present = NONE, ca
   const found = verdictOf(turn, n, occ);
   const verdict = said !== undefined ? said : found === null ? null
     : found.kind === "unchecked" ? { ok: false, text: m.verdictUnchecked }
-    : found.kind === "issues" ? { ok: false, text: [...new Set(found.issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))].join(" ") }
+    : found.kind === "issues" ? { ok: false, text: [...new Set(found.issues.map((i) => citationIssueText(i, m)))].join(" ") }
     : { ok: true, text: found.kind === "source" ? m.verdictSource : m.verdictSentence };
   const go = (to: number) => onSource({ n: cited[to], occ: null });
 
   return (
-    <aside id={SOURCE_PANEL} className="source-panel" aria-label={m.source(n)} ref={here} tabIndex={-1}
+    <aside id={SOURCE_PANEL} className="source-panel" aria-label={m.source({ n })} ref={here} tabIndex={-1}
            onKeyDown={(e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); onClose(); } }}>
       <header className="source-panel-head">
         <span className="cite-num source-panel-num" aria-hidden>{n}</span>
         <span className="source-panel-title">
           <span className="source-panel-file">{filename}</span>
-          <span className="source-panel-where">{m.sourcePlace(citation.source?.page ?? null, caseRef)}</span>
+          <span className="source-panel-where">{sourcePlace(m, citation.source?.page, caseRef)}</span>
         </span>
         {(cited.length > 1 || countAlways) && at >= 0 && <>
           <IconButton size="small" label={m.previousSource} isDisabled={at === 0} onPress={() => go(at - 1)}><ChevronLeft size={16} aria-hidden /></IconButton>
-          <span className="source-panel-count">{m.sourceOf(at + 1, cited.length)}</span>
+          <span className="source-panel-count">{m.sourceOf({ i: at + 1, total: cited.length })}</span>
           <IconButton size="small" label={m.nextSource} isDisabled={at === cited.length - 1} onPress={() => go(at + 1)}><ChevronRight size={16} aria-hidden /></IconButton>
         </>}
         <IconButton size="small" label={m.closeSource} onPress={onClose}><X size={16} aria-hidden /></IconButton>
@@ -203,11 +210,11 @@ export function SourcePanel({ turn, open, filenames, caseRef, present = NONE, ca
             <LinkButton variant="text" className="copy-button source-open" newTab
                         href={originalUrl(citation.source.document_id, caseId, citation.source.page)}>
               <ExternalLink size={13} aria-hidden />
-              <span>{citation.source.page ? m.openAtPage(citation.source.page) : m.openDocument}</span>
+              <span>{citation.source.page ? m.openAtPage({ page: citation.source.page }) : m.openDocument}</span>
             </LinkButton>
           )}
-          <CopyButton text={formatSource(n, citation, filename)} label={m.copyPassage} what={m.passageWhat(n)} />
-          {!(citation.source && present.has(citation.source.document_id)) && <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN(n)}
+          <CopyButton text={formatSource(n, citation, filename)} label={m.copyPassage} what={m.passageWhat({ n })} />
+          {!(citation.source && present.has(citation.source.document_id)) && <DownloadButton filename={(f) => sourceFileName(n, filename, citation.source?.page, f)} what={m.sourceN({ n })}
                           text={(f) => (f === "md" ? formatSourceMarkdown(n, citation, filename) : formatSource(n, citation, filename)) + "\n"} />}
         </footer>
       )}
@@ -243,7 +250,7 @@ function ThoughtFor({ reasoning, seconds }: { reasoning: string; seconds?: numbe
     <div className="answer-thought">
       <Button variant="plain" className="answer-thought-toggle" aria-expanded={open} aria-controls={panel} onPress={() => setOpen(!open)}>
         <Brain size={13} aria-hidden />
-        <span>{seconds !== undefined ? m.thoughtFor(thoughtTime(seconds)) : m.reasoningLabel}</span>
+        <span>{seconds !== undefined ? m.thoughtFor({ time: thoughtTime(seconds) }) : m.reasoningLabel}</span>
         <ChevronRight size={13} aria-hidden className="answer-thought-chevron" />
       </Button>
       {open && (
@@ -263,7 +270,7 @@ export function AnswerNotes({ turn }: { turn: Pick<AssistantTurn, "thinkingCut" 
   return (
     <>
       {turn.thinkingCut && <InlineNotice icon={<CircleAlert size={14} />}>{m.thinkingCut}</InlineNotice>}
-      {turn.narrowedTo && <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.narrowedTo(turn.narrowedTo)}</span></p>}
+      {turn.narrowedTo && <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.narrowedTo({ file: turn.narrowedTo })}</span></p>}
     </>
   );
 }
@@ -314,7 +321,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             aria-controls={open === s.n ? SOURCE_PANEL : undefined}
             onPress={() => toggle(s.n, s.occ)} aria-expanded={open === s.n && (openOcc === null || openOcc === s.occ)}
             title={flaggedMarkers.has(s.occ) ? m.citationIssueTitle : undefined}
-            aria-label={m.sourceLabel(s.n, nameOf(turn.citations[s.n - 1]), null)
+            aria-label={m.sourceLabel({ n: s.n, file: nameOf(turn.citations[s.n - 1]) })
                         + (flaggedMarkers.has(s.occ) ? `. ${m.citationIssueTitle}` : "")}>{s.n}</Button>);
 
   if (turn.status === "error") {
@@ -329,7 +336,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             : b.kind === "li" ? <li key={i}>{render(b.segments)}</li> : <p key={i}>{render(b.segments)}</p>))}
           <p className="answer-failed">
             <CircleAlert size={14} aria-hidden />
-            <span>{turn.cutOff ? m.answerCutOff : m.answerFailed(failureWords(turn, m))}</span>
+            <span>{turn.cutOff ? m.answerCutOff : failureWords(turn, m) ? m.answerFailed({ why: failureWords(turn, m) }) : m.answerFailedPlain}</span>
             {onRegenerate && <Button size="small" onPress={onRegenerate} title={m.regenerateWhat}>{m.regenerate}</Button>}
           </p>
         </div>
@@ -350,7 +357,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
             Asked about the whole case, the sources line under the answer says it when they are from one document (board
             G02), and the line shows too when the answer draws on several (board G19, state 4). */}
         {settled && (aboutChosen ? basis.length > 0 : basis.length > 1) && (
-          <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn(basis.length, basis.join(", "))}</span></p>
+          <p className="answer-basis"><FileText size={13} aria-hidden /><span>{m.basedOn({ count: basis.length, names: basis.join(", ") })}</span></p>
         )}
         {settled && turn.partial && <InlineNotice icon={<CircleAlert size={14} />}>{m.partialRead}</InlineNotice>}
         {blocks.map((b, i) => (b.kind === "table"
@@ -382,7 +389,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
                 return (
                   <span key={n} className="sources-item">
                     {i > 0 && <span className="sources-sep" aria-hidden>·</span>}
-                    <SourceRef n={n} text={nameOf(c) + (page ? `, ${m.pageShort(page)}` : "")} name={m.sourceLabel(n, nameOf(c), page)}
+                    <SourceRef n={n} text={nameOf(c) + (page ? `, ${m.pageShort({ page })}` : "")} name={page ? m.sourceLabelPage({ n, file: nameOf(c), page }) : m.sourceLabel({ n, file: nameOf(c) })}
                                active={open === n} removed={!!c.removed} onPress={() => toggle(n)} />
                   </span>
                 );
@@ -433,7 +440,7 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
 function UnverifiedNote({ figures }: { figures: string[] }) {
   const m = useT();
   return (
-    <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.unverified(figures)}</InlineNotice>
+    <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.unverified(figuresOf(figures, m))}</InlineNotice>
   );
 }
 
@@ -532,13 +539,13 @@ function SaveToCaseActions({ save }: { save: SaveToCase }) {
     <span className="save-to-case" ref={here}>
       {save.saved ? (<>
         <span role="status" className="saved-note">
-          <Check size={13} aria-hidden /> {m.savedToCase(save.caseRef)} <strong>{save.saved.filename}</strong>
+          <Check size={13} aria-hidden /> {m.savedToCase({ ref: save.caseRef })} <strong>{save.saved.filename}</strong>
         </span>
         <TextButton link onPress={save.onOpen}>{m.openSaved}</TextButton>
         {save.undoable && <TextButton link isDisabled={busy} onPress={() => act(save.onUndo)}>{m.undoSave}</TextButton>}
       </>) : (
         <Button variant="plain" className="copy-button" isDisabled={busy} onPress={() => act(save.onSave)}
-                aria-label={m.saveToCaseWhat(save.caseRef)} title={m.saveToCaseWhat(save.caseRef)}>
+                aria-label={m.saveToCaseWhat({ ref: save.caseRef })} title={m.saveToCaseWhat({ ref: save.caseRef })}>
           <FolderInput size={13} aria-hidden /><span aria-live="polite">{busy ? m.savingToCase : m.saveToCase}</span>
         </Button>
       )}
@@ -552,7 +559,7 @@ function SaveToCaseActions({ save }: { save: SaveToCase }) {
  */
 function CitationIssuesNote({ issues }: { issues: CitationIssue[] }) {
   const m = useT();
-  const lines = [...new Set(issues.map((i) => m.citationIssue(i.n, i.item, i.found_in, i.written_as)))];
+  const lines = [...new Set(issues.map((i) => citationIssueText(i, m)))];
   return (
     <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{lines.join(" ")}</InlineNotice>
   );
@@ -566,15 +573,15 @@ function CalculationNote({ calc }: { calc: Calculation }) {
   const m = useT();
   if (calc.result === null) {
     return (
-      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed(calc.expression, messageText({ kind: "warning", code: calc.code ?? "calc.syntax" }, m))}</InlineNotice>
+      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed({ expression: calc.expression, why: messageText({ kind: "warning", code: calc.code ?? "calc.syntax" }, m) })}</InlineNotice>
     );
   }
   const missing = calc.figures_not_in_sources;
   return (
     <InlineNotice icon={missing.length ? <CircleAlert size={14} /> : <Calculator size={14} />} tone={missing.length ? "error" : "note"}>
-      {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.
-      {missing.length > 0 ? m.calcMissing(missing) : m.calcAllSourced}
-      {calc.read_as?.length ? m.calcReadAs(calc.read_as, calc.read_with === ",") : null}
+      {m.calculatedBy} {calc.expression} = <strong>{calc.result}</strong>.{" "}
+      {missing.length > 0 ? m.calcMissing(figuresOf(missing, m)) : m.calcAllSourced}
+      {calc.read_as?.length ? ` ${m.calcReadAs({ figures: listAnd(calc.read_as), comma: calc.read_with === "," })}` : null}
     </InlineNotice>
   );
 }

@@ -19,7 +19,7 @@ export function watermark(kase: { reference: string; confidential?: boolean } | 
   if (!kase?.confidential) return undefined;
   const date = now.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
   const time = now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
-  return { label: m.watermarkLabel, line: m.watermarkLine(kase.reference, who, `${date} ${time}`) };
+  return { label: m.watermarkLabel, line: m.watermarkLine({ ref: kase.reference, who, when: `${date} ${time}` }) };
 }
 
 /** A text file's first line: the watermark, then an empty line. */

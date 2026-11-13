@@ -108,7 +108,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
           <Switch label={m.strictlyConfidential} checked={confidentialNow} onChange={setConfidential} isDisabled={busy} />
           <p className="ui-hint">{m.confidentialHint}</p>
           {confidentialNow && !kase.confidential && sharedCount > 0 && (
-            <InlineNotice icon={<Info size={14} />} status>{m.confidentialWillUnshare(sharedCount)}</InlineNotice>
+            <InlineNotice icon={<Info size={14} />} status>{m.confidentialWillUnshare({ n: sharedCount })}</InlineNotice>
           )}
         </div>
       )}
@@ -129,7 +129,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
               <span className="member-name">{member.name || member.username || member.user}</span>
               <span className="member-user">{member.username}</span>
               {canManage && member.role !== "manager" ? (
-                <Select label={m.roleOf(member.name)} options={roleOptions} value={member.role} className="member-role"
+                <Select label={m.roleOf({ name: member.name })} options={roleOptions} value={member.role} className="member-role"
                         onChange={(role) => changeRole(member, role)} />
               ) : (
                 <span className="member-role-text">{roleLabel(member.role, m)}</span>
@@ -150,7 +150,7 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
       )}
       {taking && (
         <InlineNotice icon={<ArrowRightLeft size={14} />}>
-          {m.handOverConfirm(taking.name || taking.username)}{" "}
+          {m.handOverConfirm({ name: taking.name || taking.username })}{" "}
           <TextButton link onPress={confirmHandOver} isDisabled={busy}>{m.handOver}</TextButton>{" "}
           <TextButton onPress={() => setHandingOver(null)} isDisabled={busy}>{m.cancel}</TextButton>
         </InlineNotice>
@@ -171,51 +171,53 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
   );
   // the manager changes the access, applied by Save (board G21); everyone else sees who is in the case
   return canManage ? (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="form" title={m.membersAccessTitle(kase.reference)}
+    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="form" title={m.membersAccessTitle({ reference: kase.reference })}
             cancel={{ label: m.cancel }} primary={{ label: m.save, onPress: save, disabled: !changed }}>
       {body}
     </Dialog>
   ) : (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="information" title={m.membersTitle(kase.reference)}>
+    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="information" title={m.membersTitle({ reference: kase.reference })}>
       {body}
     </Dialog>
   );
 }
 
 /** What an access-log action means, in the interface language. */
-export function eventLabel(e: CaseEvent, m: ReturnType<typeof useT>, nameOf: (user: string) => string = () => "",
-                           playbookTitle: (id: string) => string = () => ""): string {
+/** One row of the access log as a whole sentence, in pieces: the person (``who``, as the screen draws it) where the
+ *  language puts it, and the words around it. */
+export function eventParts<T extends object>(e: CaseEvent, m: ReturnType<typeof useT>, who: T | string, nameOf: (user: string) => string = () => "",
+                                             playbookTitle: (id: string) => string = () => ""): (string | T)[] {
   const d = e.detail as Record<string, string | string[]>;
   switch (e.action) {
-    case "created": return m.eventCreated;
-    case "opened": return m.eventOpened;
-    case "documents": return m.eventDocuments;
-    case "uploaded": return m.eventUploaded;
-    case "asked": return m.eventAsked(Array.isArray(d.documents) ? d.documents.length : 0);
-    case "document_deleted": return m.eventDocumentDeleted;
-    case "source_confirmed": return m.eventSourceConfirmed;
-    case "answer_saved": return m.eventAnswerSaved;
-    case "conversation_moved_in": return m.eventConversationMovedIn;
-    case "changed": return m.eventChanged;
-    case "access_changed": return d.access === "restricted" ? m.eventRestricted : m.eventOpenedToOffice;
-    case "member_added": return m.eventMemberAdded(roleLabel(String(d.role ?? ""), m));
-    case "role_changed": return m.eventRoleChanged(roleLabel(String(d.role ?? ""), m));
-    case "member_removed": return m.eventMemberRemoved;
+    case "created": return m.eventCreated.parts({ who });
+    case "opened": return m.eventOpened.parts({ who });
+    case "documents": return m.eventDocuments.parts({ who });
+    case "uploaded": return m.eventUploaded.parts({ who });
+    case "asked": return m.eventAsked.parts({ who, n: Array.isArray(d.documents) ? d.documents.length : 0 });
+    case "document_deleted": return m.eventDocumentDeleted.parts({ who });
+    case "source_confirmed": return m.eventSourceConfirmed.parts({ who });
+    case "answer_saved": return m.eventAnswerSaved.parts({ who });
+    case "conversation_moved_in": return m.eventConversationMovedIn.parts({ who });
+    case "changed": return m.eventChanged.parts({ who });
+    case "access_changed": return d.access === "restricted" ? m.eventRestricted.parts({ who }) : m.eventOpenedToOffice.parts({ who });
+    case "member_added": return m.eventMemberAdded.parts({ who, role: String(d.role ?? "") });
+    case "role_changed": return m.eventRoleChanged.parts({ who, role: String(d.role ?? "") });
+    case "member_removed": return m.eventMemberRemoved.parts({ who });
     // to whom, and which playbook (VM regression e0f2e26, finding 12)
-    case "handed_over": return nameOf(String(d.manager ?? "")) ? m.eventHandedOverTo(nameOf(String(d.manager))) : m.eventHandedOver;
-    case "closed": return m.eventClosed;
-    case "reopened": return m.eventReopened;
-    case "keep_changed": return m.eventKeepChanged;
-    case "conversation_shared": return m.eventConversationShared;
-    case "conversation_unshared": return m.eventConversationUnshared;
-    case "playbook_started": return playbookTitle(String(d.playbook ?? "")) ? m.eventPlaybookStartedNamed(playbookTitle(String(d.playbook))) : m.eventPlaybookStarted;
-    case "playbook_answered": return m.eventPlaybookAnswered;
-    case "playbook_confirmed": return m.eventPlaybookConfirmed;
-    case "playbook_paused": return m.eventPlaybookPaused;
-    case "playbook_resumed": return m.eventPlaybookResumed;
-    case "playbook_stopped": return m.eventPlaybookStopped;
-    case "playbook_cancelled": return m.eventPlaybookCancelled;
-    default: return e.action;
+    case "handed_over": return nameOf(String(d.manager ?? "")) ? m.eventHandedOverTo.parts({ who, name: nameOf(String(d.manager)) }) : m.eventHandedOver.parts({ who });
+    case "closed": return m.eventClosed.parts({ who });
+    case "reopened": return m.eventReopened.parts({ who });
+    case "keep_changed": return m.eventKeepChanged.parts({ who });
+    case "conversation_shared": return m.eventConversationShared.parts({ who });
+    case "conversation_unshared": return m.eventConversationUnshared.parts({ who });
+    case "playbook_started": return playbookTitle(String(d.playbook ?? "")) ? m.eventPlaybookStartedNamed.parts({ who, title: playbookTitle(String(d.playbook)) }) : m.eventPlaybookStarted.parts({ who });
+    case "playbook_answered": return m.eventPlaybookAnswered.parts({ who });
+    case "playbook_confirmed": return m.eventPlaybookConfirmed.parts({ who });
+    case "playbook_paused": return m.eventPlaybookPaused.parts({ who });
+    case "playbook_resumed": return m.eventPlaybookResumed.parts({ who });
+    case "playbook_stopped": return m.eventPlaybookStopped.parts({ who });
+    case "playbook_cancelled": return m.eventPlaybookCancelled.parts({ who });
+    default: return [who, ` ${e.action}`];
   }
 }
 
@@ -234,7 +236,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
     casePlaybooks(kase.id).then((ps) => setTitles(new Map(ps.map((p) => [p.id, playbookWords(p, lang()).title])))).catch(() => {});
   }, [open, kase.id]);
   return (
-    <Dialog isOpen={open} onClose={onClose} kind="information" title={m.accessLogTitle(kase.reference)} closeLabel={m.close} error={error}>
+    <Dialog isOpen={open} onClose={onClose} kind="information" title={m.accessLogTitle({ reference: kase.reference })} closeLabel={m.close} error={error}>
       <p>{m.accessLogIntro}</p>
       {events === null && !error && <p className="caption">{m.loading}</p>}
       {events && events.length === 0 && <p className="caption">{m.accessLogEmpty}</p>}
@@ -243,8 +245,11 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
           {events.map((e) => (
             <li key={e.id} className="event">
               <span className="event-when">{dayLabel(e.at)} {new Date(e.at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })}</span>
-              <span className="event-who">{e.name || names.get(e.user) || e.user}</span>
-              <span className="event-what"><ScrollText size={12} aria-hidden /> {eventLabel(e, m, (u) => names.get(u) ?? "", (id) => titles.get(id) ?? "")}</span>
+              <span className="event-what"><ScrollText size={12} aria-hidden />
+                {/* one sentence, the person in bold where the language puts them */}
+                <span>{eventParts(e, m, { who: e.name || names.get(e.user) || e.user }, (u) => names.get(u) ?? "", (id) => titles.get(id) ?? "")
+                  .map((part, i) => (typeof part === "string" ? part : <b key={i} className="event-who">{part.who}</b>))}</span>
+              </span>
             </li>
           ))}
         </ol>
@@ -270,7 +275,7 @@ export function CaseFaces({ members }: { members: Member[] }) {
       {others.length > 0 && (
         <span className="case-faces-stack">
           {others.slice(0, 3).map(face)}
-          {others.length > 3 && <span className="case-faces-more">{m.moreMembers(others.length - 3)}</span>}
+          {others.length > 3 && <span className="case-faces-more">{m.moreMembers({ n: others.length - 3 })}</span>}
         </span>
       )}
     </span>

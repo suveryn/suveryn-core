@@ -194,7 +194,7 @@ export function RestoreConfirm({ state, initial, onBack, onStart, headingId }: C
       <Facts facts={[
         { icon: <ArchiveRestore size={18} />, label: t.restoreMade, value: madeAt(b.created, locale) },
         { icon: <HardDrive size={18} />, label: t.restoreFrom, value: `${b.appliance}.local`,
-          detail: b.appliance === state.name ? undefined : t.restoreRenamed(state.name, b.appliance) },
+          detail: b.appliance === state.name ? undefined : t.restoreRenamed({ now: state.name, old: b.appliance }) },
       ]} />
       <div className="setup-stack setup-section">
         <Notice icon={<TriangleAlert size={16} />} tone="warning" title={t.restoreReplacesTitle}>{t.restoreReplacesText}</Notice>
@@ -235,7 +235,7 @@ export function RestoreRunning({ initial, onDone, onAgain, headingId }: Progress
       <div className="setup-stack">
         <div className="setup-progress">
           <Progress value={steps.length ? (done / steps.length) * 100 : 0} label={t.restoringTitle}
-                    valueText={t.provDone(done, steps.length || 5)} />
+                    valueText={t.provDone({ done, total: steps.length || 5 })} />
           <p className="setup-detail-note" aria-live="polite">{running ? t.restoreStepNow[running.id] : ""}</p>
         </div>
         <StatusList items={restoreItems(r, t)} />
@@ -248,8 +248,8 @@ export function RestoreRunning({ initial, onDone, onAgain, headingId }: Progress
           </>
         ) : misses >= 5 && late && r.address ? (
           <div role="status">
-            <Notice icon={<Info size={16} />} title={t.restoreMovedTitle}>{t.restoreMovedText(r.address)}</Notice>
-            <LinkButton href={r.address} className="setup-wide">{t.restoreOpen(r.address)}</LinkButton>
+            <Notice icon={<Info size={16} />} title={t.restoreMovedTitle}>{t.restoreMovedText({ url: r.address })}</Notice>
+            <LinkButton href={r.address} className="setup-wide">{t.restoreOpen({ url: r.address })}</LinkButton>
           </div>
         ) : (
           <Notice icon={<Info size={16} />}><b className="setup-strong">{t.doNotTurnOff}</b> {t.doNotTurnOffMore}</Notice>

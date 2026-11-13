@@ -71,21 +71,27 @@ export function stepLabel(run: Pick<RunSummary, "step" | "status" | "step_kind">
  *  "you" when that is the reader, by first name otherwise. */
 export function waitsFor(run: Pick<RunSummary, "step" | "step_kind" | "starter">, playbook: Pick<PlaybookInfo, "steps"> | null | undefined,
                          m: Words, me?: string, starterName?: string | null): string {
-  if (stepKind(run, playbook) === "checkpoint") return m.waitsForMember;
-  if (me && run.starter === me) return m.waitsForYou;
-  return starterName ? m.waitsFor(starterName.split(" ")[0]) : m.waitsForMember;
+  const { who, name } = waitsForWho(run, playbook, me, starterName);
+  return who === "you" ? m.waitsForYou : who === "name" ? m.waitsFor({ name }) : m.waitsForMember;
+}
+
+/** The same, as a message chooses by it: "member", "you", or "name" with the first name. */
+function waitsForWho(run: Pick<RunSummary, "step" | "step_kind" | "starter">, playbook: Pick<PlaybookInfo, "steps"> | null | undefined,
+                     me?: string, starterName?: string | null): { who: "member" | "you" | "name"; name: string } {
+  if (stepKind(run, playbook) === "checkpoint") return { who: "member", name: "" };
+  if (me && run.starter === me) return { who: "you", name: "" };
+  return starterName ? { who: "name", name: starterName.split(" ")[0] } : { who: "member", name: "" };
 }
 
 /** A playbook's last run in this case, for the line under it in the playbook menu (board P04, 9): "Laatst: vandaag,
  *  klaar · start een nieuw gesprek", or for a run still open "Loopt: wacht op Mieke · opent dat gesprek". */
 export function lastRunLine(run: RunSummary, playbook: Pick<PlaybookInfo, "steps"> | null | undefined, m: Words, me?: string,
                             starterName?: string | null, now: Date = new Date()): string {
-  const low = (s: string) => s.toLocaleLowerCase(locale());
   if (LIVE.includes(run.status)) {
-    return m.pbRunningNow(run.status === "waiting" ? waitsFor(run, playbook, m, me, starterName)
-      : run.status === "reading" ? m.stepReading : low(m.runPaused));
+    const who = waitsForWho(run, playbook, me, starterName);
+    return m.pbRunningNow({ state: run.status === "waiting" ? who.who : run.status === "reading" ? "reading" : "paused", name: who.name });
   }
-  return m.pbLastRun(low(dayLabel(run.finished_at ?? run.started_at, now)), low(statusLabel(run.status, m)));
+  return m.pbLastRun({ when: dayLabel(run.finished_at ?? run.started_at, now), state: statusLabel(run.status, m) });
 }
 
 /** One line for the chip on a case in the case lists: the playbook's title and what the run waits for ("Akte-intake ·
@@ -141,19 +147,24 @@ function checkReason(f: RunFact, m: Words): string {
   if (f.needs === "not_a_number") return m.pbNotANumber;
   if (f.needs === "approximate") return m.pbApproximate;
   if (f.needs === "invalid_number") return m.pbInvalidNumber;
-  return m.pbNotInPassage(f.issues.join(", "));
+  return m.pbNotInPassage({ items: f.issues.join(", ") });
 }
 
 /** A fact's first source as SourceRef shows it. */
 function sourceText(f: RunFact, m: Words): { n: number; text: string; name: string } | null {
   const c = f.citations[0];
-  return c ? { n: c.n, text: c.filename + (c.page ? `, ${m.pageShort(c.page)}` : ""), name: m.sourceLabel(c.n, c.filename, c.page) } : null;
+  return c ? { n: c.n, text: c.filename + (c.page ? `, ${m.pageShort({ page: c.page })}` : ""), name: c.page ? m.sourceLabelPage({ n: c.n, file: c.filename, page: c.page }) : m.sourceLabel({ n: c.n, file: c.filename }) } : null;
 }
 
 /** The panel beside a run: the reference list, or one fact's source (from the list, with a way back; or from a card). */
 export type RunPanelView = { kind: "list"; from?: string } | { kind: "source"; fact: string; fromList: boolean };
 
 /** How many facts have a value, of how many: a list is one fact, found when it has an entry (board P01: "12 of 13"). */
+/** "2 of 3": how many of a run's facts are found. */
+export const factsCountText = (m: Words, run: Parameters<typeof factCounts>[0]): string => {
+  const [found, total] = factCounts(run);
+  return m.factsCount({ found, total });
+};
 export const factCounts = (run: Pick<Run, "facts"> & { playbook?: Pick<PlaybookInfo, "lists"> | null }) => {
   const groups = factGroups(run.facts, run.playbook?.lists ?? {});
   return [groups.filter(groupFound).length, groups.length] as const;
@@ -164,11 +175,12 @@ export const factCounts = (run: Pick<Run, "facts"> & { playbook?: Pick<PlaybookI
 export function computedHow(c: Computed, m: Words): string {
   if (c.kind === "share") {
     const number = (v: string) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 2 }).format(Number(v));
-    return m.pbComputedShare(number(c.percent), number(c.of));
+    return m.pbComputedShare({ percent: number(c.percent), of: number(c.of) });
   }
   const base = new Date(`${c.base}T12:00:00`).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
   const calendar = c.calendar ? (c.calendar[lang()] ?? c.calendar.en ?? "") : "";
-  return m.pbComputedHow(base, m.pbTerm(c.amount, c.unit), c.direction === "before", calendar);
+  const how = { base, term: m.pbTerm({ n: c.amount, unit: c.unit }), before: c.direction === "before" };
+  return calendar ? m.pbComputedHowCalendar({ ...how, calendar }) : m.pbComputedHow(how);
 }
 
 // ------------------------------------------------------------------ the run, kept fresh
@@ -223,7 +235,7 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
   return (
     <>
       <div className="conversation run-thread" aria-live="polite">
-        <p className="run-line">{m.runStartLine(nameOf(run.started_by), title, run.playbook_version, dayAndTime(run.started_at))}</p>
+        <p className="run-line">{m.runStartLine({ name: nameOf(run.started_by), playbook: title, version: run.playbook_version, time: dayAndTime(run.started_at) })}</p>
         {playbook && !playbook.covered && <InlineNotice icon={<TriangleAlert size={14} />}>{m.playbookNotCovered}</InlineNotice>}
         {run.out_of_date && <InlineNotice icon={<TriangleAlert size={14} />}>{m.runOutOfDateHint}</InlineNotice>}
         {run.instruction_like_sources.length > 0 && <InlineNotice icon={<TriangleAlert size={14} />}>{m.runSuspiciousSources}</InlineNotice>}
@@ -259,7 +271,7 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
           <div className="turn-assistant">
             <Speaking />
             <p className="waiting" role="status"><span className="waiting-dots" aria-hidden><i /><i /><i /></span>
-              <span>{m.runReadingTurn(run.documents.length || 1)}</span></p>
+              <span>{m.runReadingTurn({ n: run.documents.length || 1 })}</span></p>
           </div>
         )}
         {run.status === "failed" && (
@@ -389,7 +401,7 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
   const checks = steps.filter((s) => s.kind === "check" && run.checks?.[s.id]?.status === "fails").map((s) => ({ id: s.id, ...run.checks![s.id] }));
   return (
     <div className="run-review">
-      <p>{n ? m.pbReviewIntro(found, total, n) : m.pbReviewIntroNone(found, total)}</p>
+      <p>{n ? m.pbReviewIntro({ found, total, n }) : m.pbReviewIntroNone({ found, total })}</p>
       {checks.length > 0 && (
         <section className="run-group" aria-label={m.pbGroupChecks}>
           <h3 className="run-group-title">{m.pbGroupChecks}</h3>
@@ -399,8 +411,8 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
                 {c.status === "holds" ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
                 <span>
                   <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
-                  <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
-                    : m.pbCheckOpen(c.missing.map((p) => factLabel(words, p)).join(", "))}</span>
+                  <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails({ left: c.left, right: c.right })
+                    : m.pbCheckOpen({ needs: c.missing.map((p) => factLabel(words, p)).join(", ") })}</span>
                 </span>
               </li>
             ))}
@@ -419,11 +431,11 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
                     aria-disabled={blocked || undefined} data-blocked={blocked || undefined} aria-describedby={blocked ? why : undefined}>
               {busy ? m.saving : m.confirmAll}
             </Button>
-            {blocked && <span id={why} className="ui-visually-hidden">{check.length === 1 ? m.pbConfirmBlockedOne(label(check[0])) : m.pbConfirmBlocked}</span>}
+            {blocked && <span id={why} className="ui-visually-hidden">{check.length === 1 ? m.pbConfirmBlockedOne({ label: label(check[0]) }) : m.pbConfirmBlocked}</span>}
           </>
         )}
         {/* ink, underlined: orange is the main action only (board P01) */}
-        <TextButton className="run-all-facts" onPress={() => onPanel({ kind: "list" })}>{m.pbAllFacts(total)}</TextButton>
+        <TextButton className="run-all-facts" onPress={() => onPanel({ kind: "list" })}>{m.pbAllFacts({ total })}</TextButton>
       </div>
     </div>
   );
@@ -460,7 +472,7 @@ function FactCard({ fact, label, group, canAnswer, active, onSave, onSource }: {
           <span className="fact-card-label">{label}</span>
           {editing ? (
             <div ref={field} title={m.pbFieldHint}>
-              <TextArea label={m.changeValue(label, fact.value || m.answerPlaceholder)} hideLabel value={draft} onChange={setDraft} onKeyDown={onKey}
+              <TextArea label={m.changeValue({ label, value: fact.value || m.answerPlaceholder })} hideLabel value={draft} onChange={setDraft} onKeyDown={onKey}
                         rows={1} className="playbook-fact-field" isReadOnly={saving} />
             </div>
           ) : fact.value ? <span className="fact-card-value">{fact.value}</span> : <em className="fact-unknown">{m.answerPlaceholder}</em>}
@@ -534,7 +546,7 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd, inline = f
       <div className="fact-card-head">
         <div className="fact-card-main">
           <span className="fact-card-label">{words.labels[list] ?? list}</span>
-          {!open && (count ? <span className="fact-card-value">{m.pbEntries(count)}</span> : <em className="fact-unknown">{m.pbNoEntries}</em>)}
+          {!open && (count ? <span className="fact-card-value">{m.pbEntries({ n: count })}</span> : <em className="fact-unknown">{m.pbNoEntries}</em>)}
         </div>
         {canAnswer && !open && <Button variant="secondary" size="small" onPress={() => setOpen(true)}>{m.pbAddEntry}</Button>}
       </div>
@@ -578,13 +590,13 @@ function SummaryTurn({ run, kase, words, nameOf, title }: { run: Run; kase: Case
   const word = async () => {
     const { intakeToWord, saveBlob } = await import("../lib/office");
     const blob = await intakeToWord({
-      title: `${title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion(run.playbook_version),
-      confirmedOn: m.confirmedBy(run.confirmed_by ? nameOf(run.confirmed_by) : "", new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })),
+      title: `${title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion({ v: run.playbook_version }),
+      confirmedOn: m.confirmedBy({ who: run.confirmed_by ? nameOf(run.confirmed_by) : "", day: new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" }) }),
       facts: shownFacts(run.facts).map((f) => ({ label: factLabel(words, f.id), value: f.confirmed ?? f.value,
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
       // sūveryn's mark (lib/marks.ts): uploaded again, this file asks before it becomes a source
-      mark: m.exportMark("playbook", kase.reference, new Date().toLocaleDateString(locale()), exportRef("P", run.id))
+      mark: m.exportMarkCase({ kind: "playbook", caseRef: kase.reference, date: new Date().toLocaleDateString(locale()), ref: exportRef("P", run.id) })
         + (mark() ? ` · ${m.strictlyConfidential}` : ""),
       watermark: mark(),  // a strictly confidential case (§11)
     });
@@ -666,7 +678,7 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
         }
         if (job.document_id && (job.status === "ready" || job.status === "needs_review")) done.push({ id: job.document_id, filename: job.filename });
       }
-      if (lost.length) setError(lost.map((f) => `${f}: ${failureText(m, LOST_TRACK)}`).join(" "));
+      if (lost.length) setError(lost.map((f) => m.labelValue({ label: f, value: failureText(m, LOST_TRACK) })).join(" "));
     } catch (e) { setError((e as Error).message); }
     setUploading([]);
     onDocumentsChanged();
@@ -696,17 +708,17 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
                      { id: "stop", label: m.stopRun, icon: <Square size={16} />, description: m.stopRunMenuHint }] as MenuEntry[] : [])];
   const chip = live && (
     canAnswer ? (
-      <ActionMenu className="chip-run" data-status={run.status} aria-label={run.status === "paused" ? m.pbChipPaused(title) : title}
+      <ActionMenu className="chip-run" data-status={run.status} aria-label={run.status === "paused" ? m.pbChipPaused({ title }) : title}
                   menuLabel={m.runMenu} placement="top start" entries={menu} isDisabled={busy}
                   onAction={(id) => { if (id === "cancel") setCancelling(true); else void act(id as "pause" | "resume" | "stop"); }}>
         {run.status === "paused" ? <Pause size={13} aria-hidden /> : <Route size={13} aria-hidden />}
-        {run.status === "paused" ? m.pbChipPaused(title) : title}
+        {run.status === "paused" ? m.pbChipPaused({ title }) : title}
         <ChevronDown size={13} aria-hidden />
       </ActionMenu>
     ) : (
       <span className="chip-run" data-status={run.status}>
         {run.status === "paused" ? <Pause size={13} aria-hidden /> : <Route size={13} aria-hidden />}
-        {run.status === "paused" ? m.pbChipPaused(title) : title}
+        {run.status === "paused" ? m.pbChipPaused({ title }) : title}
       </span>
     )
   );
@@ -725,17 +737,17 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
         <ul className="attachment-cards">
           {ready.map((d) => (
             <li key={d.id} className="chip-attachment"><FileText size={13} aria-hidden /> {d.filename}
-              <IconButton size="small" label={m.removeFile(d.filename)} onPress={() => setReady((r) => r.filter((x) => x.id !== d.id))}>
+              <IconButton size="small" label={m.removeFile({ file: d.filename })} onPress={() => setReady((r) => r.filter((x) => x.id !== d.id))}>
                 <X size={12} aria-hidden />
               </IconButton>
             </li>
           ))}
-          {uploading.map((n) => <li key={n} className="chip-attachment"><Paperclip size={13} aria-hidden /> {m.uploadingFile(n)}</li>)}
+          {uploading.map((n) => <li key={n} className="chip-attachment"><Paperclip size={13} aria-hidden /> {m.uploadingFile({ name: n })}</li>)}
         </ul>
       )}
       <div className="composer">
         <TextArea label={title} hideLabel value={text} onChange={setText} onKeyDown={onKey} isReadOnly={!waiting && !reading}
-                  placeholder={waiting ? m.runAnswerPlaceholder : reading ? m.runTypeAhead : run.status === "paused" ? m.runPausedPlaceholder(title) : ""} className="composer-field" />
+                  placeholder={waiting ? m.runAnswerPlaceholder : reading ? m.runTypeAhead : run.status === "paused" ? m.runPausedPlaceholder({ title }) : ""} className="composer-field" />
         <div className="composer-tools">
           {picker.input}
           <IconButton size="small" label={m.addDocuments} onPress={() => picker.open()} isDisabled={!waiting || busy || uploading.length > 0}>
@@ -749,7 +761,7 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
           </Button>
         </div>
       </div>
-      {held && <p className="composer-hint caption run-held" role="status"><span className="run-held-text">{held}</span> {m.runHeld(title)}</p>}
+      {held && <p className="composer-hint caption run-held" role="status"><span className="run-held-text">{held}</span> {m.runHeld({ title })}</p>}
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
       {/* A form whose main action is itself a cancel: the way out says "Keep the run"; the focus starts in
           the reason, where Enter makes a new line and doesn't submit. */}
@@ -780,7 +792,7 @@ export function RunPanel({ run, words, view, lists = run.playbook?.lists ?? {}, 
   const m = useT();
   const panel = useRef<HTMLElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const listTitle = m.pbListTitle(words.facts_title || m.factsPanel);
+  const listTitle = words.facts_title || m.pbListTitle;
   const [error, setError] = useState<string | null>(null);
   // Focus follows the view (VM regression e0f2e26, finding 4): the panel when it opens; back from a source, the row it came from.
   useEffect(() => {
@@ -835,8 +847,8 @@ export function RunPanel({ run, words, view, lists = run.playbook?.lists ?? {}, 
                   {c.status === "holds" ? <Check size={14} aria-hidden /> : <TriangleAlert size={14} aria-hidden />}
                   <span>
                     <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
-                    <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails(c.left, c.right)
-                      : m.pbCheckOpen(c.missing.map((x) => factLabel(words, x)).join(", "))}</span>
+                    <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails({ left: c.left, right: c.right })
+                      : m.pbCheckOpen({ needs: c.missing.map((x) => factLabel(words, x)).join(", ") })}</span>
                   </span>
                 </li>
               ))}
@@ -862,7 +874,7 @@ function FactRow({ fact, label, onSource }: { fact: RunFact; label: string; onSo
         {value ? <span className="fact-value">{value}</span> : <em className="fact-value fact-unknown">{m.answerPlaceholder}</em>}
         {confirmed && <Check size={14} className="fact-check" aria-label={m.factConfirmed} />}
       </div>
-      {fromChat && fact.at ? <span className="fact-note">{m.pbFromChat(time(fact.at))}</span>
+      {fromChat && fact.at ? <span className="fact-note">{m.pbFromChat({ time: time(fact.at) })}</span>
         : src ? <span className="fact-note"><SourceRef n={src.n} text={src.text} name={src.name} onPress={onSource} /></span> : null}
       {(fact.issues.length > 0 || fact.needs) && fact.source !== "person" && !confirmed && (
         <span className="fact-note fact-issue"><TriangleAlert size={12} aria-hidden /> {fact.needs ? checkReason(fact, m) : m.factCheckThis}</span>)}

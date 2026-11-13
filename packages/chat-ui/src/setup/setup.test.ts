@@ -13,15 +13,12 @@ const ok = { name: "Lotte Verbeke", email: "lotte@firm.example", password: "corr
 const keysOf = (v: unknown, path = ""): string[] =>
   v && typeof v === "object" && !Array.isArray(v)
     ? Object.entries(v).flatMap(([k, x]) => [`${path}.${k}`, ...keysOf(x, `${path}.${k}`)]) : [];
-/** Defaults that fit the setup's functions (counts, days, names). */
-const SAMPLES_FOR = (fns: string[]) => Object.fromEntries(fns.map((k) => [k, [[1, 6, "x"], [365, 2, "y"]]]));
 
 describe("the web setup's text", () => {
   it("has every string in every language, and keeps the copy rules (docs/translations.md)", () => {
-    const fns = Object.entries(en).filter(([, v]) => typeof v === "function").map(([k]) => k);
     for (const l of LANGS) {
       expect(keysOf(TEXT[l]).sort(), l).toEqual(keysOf(en).sort());
-      expect(copyProblems(l, strings(TEXT[l], SAMPLES_FOR(fns))), l).toEqual([]);
+      expect(copyProblems(l, strings(TEXT[l])), l).toEqual([]);
     }
   });
   it("keeps the tagline in English", () => {
@@ -42,7 +39,7 @@ describe("the administrator account", () => {
     expect(check({ email: "lotte@firm" })).toEqual({ email: en.errEmailInvalid });
   });
   it("needs at least 15 characters, counted as characters", () => {
-    expect(check({ password: "short one", confirm: "short one" }).password).toBe(en.errPasswordShort(15));
+    expect(check({ password: "short one", confirm: "short one" }).password).toBe(en.errPasswordShort({ min: 15 }));
     expect(check({ password: "ūūūūūūūaaaaaaaa", confirm: "ūūūūūūūaaaaaaaa" })).toEqual({});
   });
   it("refuses common and patterned passwords", () => {
@@ -58,7 +55,7 @@ describe("the administrator account", () => {
   });
   it("needs the confirmation to match, but only once the password itself is right", () => {
     expect(check({ confirm: "something else" })).toEqual({ confirm: en.errConfirm });
-    expect(check({ password: "short", confirm: "other" })).toEqual({ password: en.errPasswordShort(15) });
+    expect(check({ password: "short", confirm: "other" })).toEqual({ password: en.errPasswordShort({ min: 15 }) });
   });
 });
 

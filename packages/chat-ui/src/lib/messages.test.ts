@@ -31,8 +31,16 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
 
   it("gives an unplanned failure its reference", () => {
     const { en, nl } = TABLES_FOR_TESTS;
-    expect(messageText({ kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } }, nl)).toMatch(/referentie aan uw beheerder: 7F3K-92QD$/);
+    expect(messageText({ kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } }, nl)).toMatch(/referentie aan uw beheerder: 7F3K-92QD\.$/);
     expect(messageText({ kind: "internal", code: "system.internal" }, en)).not.toMatch(/reference/);
+  });
+
+  it("never shows a sentence with a gap: a code whose value wasn't given gets its words without it", () => {
+    const { en } = TABLES_FOR_TESTS;
+    expect(messageText({ kind: "refused", code: "upload.too_large", params: { max_mb: 100 } }, en)).toBe("The file is larger than 100 MB.");
+    expect(messageText({ kind: "refused", code: "upload.too_large" }, en)).toBe(en.messagesBare["upload.too_large"]);
+    expect(messageText({ kind: "refused", code: "upload.archive_too_many" }, en)).toBe(en.messageAreas.upload);  // no words without it: its area's
+    expect(messageText({ kind: "refused", code: "request.too_many", params: { seconds: 1 } }, en)).toBe("Too many requests. Try again in 1 second.");
   });
 
   it("words a code it doesn't know by its area, else by its kind, never from the server's English", () => {
@@ -40,7 +48,7 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
     expect(messageText({ kind: "refused", code: "run.something_new" }, nl)).toBe(nl.messageAreas.run);
     expect(messageText({ kind: "unavailable", code: "run.something_new" }, nl)).toBe(nl.messageKinds.unavailable);  // an area's words say a refusal
     expect(messageText({ kind: "refused", code: "tomorrow.something" }, fr)).toBe(fr.messageKinds.refused);
-    expect(messageText({ kind: "internal", code: "tomorrow.broke", params: { ref: "ABCD-2345" } }, fr)).toMatch(/ABCD-2345$/);
+    expect(messageText({ kind: "internal", code: "tomorrow.broke", params: { ref: "ABCD-2345" } }, fr)).toMatch(/ABCD-2345\.$/);
     expect(messageText({}, fr)).toBe(fr.messageKinds.refused);
   });
 

@@ -24,17 +24,16 @@ export function playbookTurnText(meta: TurnMeta, m: Messages, words: PlaybookWor
   const step = (id: string | undefined) => words.steps?.[id ?? ""] ?? id ?? "";
   switch (meta.kind) {
     case "request": return words.questions?.[meta.step ?? ""] ?? "";
-    case "ask": return m.runAskTurn(meta.found ?? 0, meta.total ?? 0, (meta.facts ?? []).map(label).join(", "));
+    case "ask": return m.runAskTurn({ found: meta.found ?? 0, total: meta.total ?? 0, list: (meta.facts ?? []).map(label).join(", ") });
     case "skipped_step": return meta.value
-      ? m.runStepNotNeeded(step(meta.step), label(meta.fact ?? ""), optionLabel(words, meta.fact ?? "", meta.value))
-      : m.runStepUnknown(step(meta.step), label(meta.fact ?? ""));
-    case "checkpoint": return m.pbReviewIntroNone(meta.found ?? 0, meta.total ?? 0);
-    case "changed": return m.runChanged(label(meta.fact ?? ""), optionLabel(words, meta.fact ?? "", meta.value ?? ""));
+      ? m.runStepNotNeeded({ step: step(meta.step), fact: label(meta.fact ?? ""), option: optionLabel(words, meta.fact ?? "", meta.value) })
+      : m.runStepUnknown({ step: step(meta.step), fact: label(meta.fact ?? "") });
+    case "checkpoint": return m.pbReviewIntroNone({ found: meta.found ?? 0, total: meta.total ?? 0 });
+    case "changed": return m.runChanged({ label: label(meta.fact ?? ""), value: optionLabel(words, meta.fact ?? "", meta.value ?? "") });
     case "unplaced": return meta.facts ? m.runUnplacedAsk : m.runUnplacedChange;
-    case "already_unknown": return m.runAlreadyUnknown((meta.facts ?? []).map(label).join(", "));
-    case "read_in_part": return m.runReadInPart((meta.documents ?? []).join(", "));
-    case "late_documents": return m.runLateDocuments((meta.documents ?? []).join(", "), step(meta.step), (meta.documents ?? []).length,
-      (meta.reads ?? []).length > 0);
+    case "already_unknown": return m.runAlreadyUnknown({ facts: (meta.facts ?? []).map(label).join(", ") });
+    case "read_in_part": return m.runReadInPart({ documents: (meta.documents ?? []).join(", ") });
+    case "late_documents": return m.runLateDocuments({ documents: (meta.documents ?? []).join(", "), step: step(meta.step), count: (meta.documents ?? []).length, again: (meta.reads ?? []).length > 0 });
     default: return "";
   }
 }
@@ -42,11 +41,11 @@ export function playbookTurnText(meta: TurnMeta, m: Messages, words: PlaybookWor
 /** An event's line: who paused, resumed, stopped, cancelled or confirmed the run, and when. */
 export function eventText(meta: TurnMeta, who: string, at: string, m: Messages): string {
   switch (meta.kind) {
-    case "confirmed": return m.runConfirmedLine(who, at);
-    case "paused": return m.runPausedLine(who, at);
-    case "resumed": return m.runResumedLine(who, at);
-    case "stopped": return m.runStoppedLine(who, at);
-    default: return m.runCancelledLine(who, at, meta.reason ?? "");
+    case "confirmed": return m.runConfirmedLine({ name: who, time: at });
+    case "paused": return m.runPausedLine({ name: who, time: at });
+    case "resumed": return m.runResumedLine({ name: who, time: at });
+    case "stopped": return m.runStoppedLine({ name: who, time: at });
+    default: return meta.reason ? m.runCancelledLineReason({ name: who, time: at, reason: meta.reason }) : m.runCancelledLine({ name: who, time: at });
   }
 }
 

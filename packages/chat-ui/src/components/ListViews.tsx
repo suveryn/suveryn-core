@@ -73,7 +73,7 @@ export function SearchView({ conversations, documents, cases, current, onOpenCon
             <Button variant="plain" className="item-open" onPress={() => onOpenDocument(d)}>
               <FileText size={16} aria-hidden />
               <span className="item-name">{d.filename}</span>
-              <span className="item-meta">{[d.case_id ? byId.get(d.case_id)?.reference : "", d.pages ? m.pages(d.pages) : formatName(d.filename)].filter(Boolean).join(" · ")}</span>
+              <span className="item-meta">{[d.case_id ? byId.get(d.case_id)?.reference : "", d.pages ? m.pages({ n: d.pages }) : formatName(d.filename)].filter(Boolean).join(" · ")}</span>
             </Button>
           </li>
         ))}

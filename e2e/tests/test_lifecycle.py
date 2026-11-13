@@ -100,7 +100,7 @@ def test_the_model_server_is_away_and_the_answer_says_so(page, deed, restored):
     page.get_by_role("textbox", name=re.compile("^Your question")).fill("Wat is de koopprijs?")
     if send.is_enabled():
         text = ask(page, "Wat is de koopprijs?", timeout=60_000)
-        assert re.search(r"The answer failed: the model can't be reached|isn't available right now", text), text[-400:]
+        assert re.search(r"The answer failed\. The model can't be reached|isn't available right now", text), text[-400:]
         assert "Traceback" not in text and "ConnectError" not in text
     else:
         expect(page.get_by_text("The model isn't available right now.")).to_be_visible()

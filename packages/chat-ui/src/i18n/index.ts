@@ -27,6 +27,12 @@ export function useT(): Messages {
   return TABLES[useLang()];
 }
 
+/** The locale of a language's table, for text written from a table that isn't the current language's. */
+export const localeOf = (table: object): string | undefined => {
+  const of = (Object.keys(TABLES) as Lang[]).find((l) => TABLES[l] === table);
+  return of && LOCALES[of];
+};
+
 export type { Messages };
 /** Every language's table (tests compare them). */
 export const TABLES_FOR_TESTS = TABLES;

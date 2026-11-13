@@ -33,11 +33,11 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
     : a.status === "noticed" ? <FileOutput size={14} aria-hidden /> : <FileText size={14} aria-hidden />;
   // While the server reads it: page by page during text recognition, then the layout, then storing.
   const r = a.status === "processing" ? a.reading : null;
-  const state = a.status === "uploading" ? m.cardUploading(Math.floor((a.progress ?? 0) * 100))
+  const state = a.status === "uploading" ? m.cardUploading({ pct: Math.floor((a.progress ?? 0) * 100) })
     : a.status === "queued" ? m.cardWaiting
     // the pages done, not the one being worked on (board G13); none done yet: no count
-    : r?.step === "ocr" && r.done !== null && r.total ? (r.done > 0 ? m.cardRecognising(Math.min(r.done, r.total), r.total) : m.cardRecognisingStart)
-    : r?.step === "layout" ? m.cardLayout(r.total) : r?.step === "store" ? m.cardStoring
+    : r?.step === "ocr" && r.done !== null && r.total ? (r.done > 0 ? m.cardRecognising({ done: Math.min(r.done, r.total), total: r.total }) : m.cardRecognisingStart)
+    : r?.step === "layout" ? (r.total ? m.cardLayoutPages({ n: r.total }) : m.cardLayout) : r?.step === "store" ? m.cardStoring
     : a.status === "processing" ? m.cardReading : null;
   const value = a.status === "uploading" && a.progress !== undefined ? a.progress * 100
     : r?.step === "ocr" && r.done !== null && r.total ? (r.done / r.total) * 100 : undefined;
@@ -48,7 +48,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         {icon}
         <span className="card-attachment-name" title={a.filename}>{a.filename}</span>
         <IconButton size="small" onPress={onRemove}
-                    label={busy ? m.cancelUpload(a.filename) : a.status === "failed" ? m.removeFile(a.filename) : m.removeFromQuestion(a.filename)}>
+                    label={busy ? m.cancelUpload({ file: a.filename }) : a.status === "failed" ? m.removeFile({ file: a.filename }) : m.removeFromQuestion({ file: a.filename })}>
           <X size={14} aria-hidden />
         </IconButton>
       </span>
@@ -59,12 +59,12 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         </>
       )}
       {a.status === "ready" && (
-        <span className="card-attachment-state" data-tone="ok"><Check size={14} aria-hidden />{[m.cardReady, a.pages ? m.pages(a.pages) : ""].filter(Boolean).join(" · ")}</span>
+        <span className="card-attachment-state" data-tone="ok"><Check size={14} aria-hidden />{[m.cardReady, a.pages ? m.pages({ n: a.pages }) : ""].filter(Boolean).join(" · ")}</span>
       )}
       {a.status === "needs_review" && (
         <span className="card-attachment-state" data-tone="warn" role="status" title={a.note ? undefined : reviewHint(a.reviewPages)}>
           <TriangleAlert size={14} aria-hidden />{a.note ?? (a.reviewPages?.length
-            ? (a.reviewKind && m.reviewWhy[a.reviewKind] ? m.cardCheckWhy(pageList(a.reviewPages), m.reviewWhy[a.reviewKind]) : m.cardCheck(pageList(a.reviewPages)))
+            ? m.cardCheckWhy({ pages: pageList(a.reviewPages), why: a.reviewKind ?? "" })
             : m.cardCheckNeeded)}
         </span>
       )}
@@ -74,7 +74,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
           <span className="card-attachment-actions">
             {onReplace && (
               <FileButton accept={ACCEPTED_FILES} onSelect={onReplace}>
-                <Button size="small" aria-label={m.chooseAnotherFile(a.filename)}>{m.anotherFile}</Button>
+                <Button size="small" aria-label={m.chooseAnotherFile({ file: a.filename })}>{m.anotherFile}</Button>
               </FileButton>
             )}
             {onDelete && <DeleteUploadLink filename={a.filename} inCase={inCase} onDelete={onDelete} />}
@@ -84,7 +84,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
       {a.status === "noticed" && a.noticed && <>
         {/* board G13: where it came from, and that it isn't a source; one button. The × only takes it out of the question
             (it never deletes, 9 November); deleting is the worded link, after a confirmation. */}
-        <span className="card-attachment-state" data-tone="warn" title={a.noticed.line}>{m.noticedTitle(a.noticed.kind)}{noticedFrom(a.noticed.line, m)}. {m.cardNoticedNotSource}</span>
+        <span className="card-attachment-state" data-tone="warn" title={a.noticed.line}>{m.noticedTitle({ kind: a.noticed.kind })}{noticedFrom(a.noticed.line, m)}. {m.cardNoticedNotSource}</span>
         {(onUseAsSource || onDelete) && (
           <span className="card-attachment-actions">
             {onUseAsSource && <Button size="small" onPress={onUseAsSource}>{m.useAsSource}</Button>}
@@ -103,7 +103,7 @@ function DeleteUploadLink({ filename, inCase, onDelete }: { filename: string; in
   const [deleting, setDeleting] = useState(false);
   return <>
     <TextButton link className="card-attachment-delete" onPress={() => setDeleting(true)}>{inCase ? m.deleteUploadFromCase : m.deleteUpload}</TextButton>
-    <Dialog isOpen={deleting} onClose={() => setDeleting(false)} kind="confirmation" risky title={m.deleteUploadTitle(filename)}
+    <Dialog isOpen={deleting} onClose={() => setDeleting(false)} kind="confirmation" risky title={m.deleteUploadTitle({ file: filename })}
             cancel={{ label: m.cancel }} primary={{ label: m.deleteUpload, onPress: () => { setDeleting(false); onDelete(); } }}>
       <p>{m.deleteUploadBody}</p>
     </Dialog>
@@ -127,18 +127,18 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
   if (a.status === "noticed" && a.noticed) {
     // Read and stored, but not a source until the person says so; never blocked (cases.md decision 7).
     return (
-      <span className="chip-attachment chip-noticed" role="group" aria-label={`${a.filename}: ${m.noticedTitle(a.noticed.kind)}`}>
+      <span className="chip-attachment chip-noticed" role="group" aria-label={`${a.filename}: ${m.noticedTitle({ kind: a.noticed.kind })}`}>
         <span className="chip-noticed-head">
           <TriangleAlert size={13} aria-hidden />
           <span className="chip-name">{a.filename}</span>
           {onRemove && (
-            <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile(a.filename)}>
+            <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile({ file: a.filename })}>
               <X size={12} aria-hidden />
             </Button>
           )}
         </span>
-        <span className="chip-noticed-title">{m.noticedTitle(a.noticed.kind)}</span>
-        <span className="chip-noticed-line" title={a.noticed.line}>{m.noticedFound(a.noticed.line)}</span>
+        <span className="chip-noticed-title">{m.noticedTitle({ kind: a.noticed.kind })}</span>
+        <span className="chip-noticed-line" title={a.noticed.line}>{m.noticedFound({ line: a.noticed.line })}</span>
         <span className="chip-noticed-hint">{m.noticedHint}</span>
         {(onUseAsSource || onDelete) && (
           <span className="chip-noticed-actions">
@@ -150,9 +150,9 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
     );
   }
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
-  const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages(pageList(a.reviewPages)) : STATUS_LABEL[a.status];
-  const title = a.status === "needs_review" ? `${a.filename}: ${reviewHint(a.reviewPages)}`
-    : a.status === "failed" ? `${a.filename}: ${failureText(m, a.errorCode, a.errorDetail, a.error)}` : a.filename;
+  const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages({ pages: pageList(a.reviewPages) }) : STATUS_LABEL[a.status];
+  const title = a.status === "needs_review" ? m.labelValue({ label: a.filename, value: reviewHint(a.reviewPages) })
+    : a.status === "failed" ? m.labelValue({ label: a.filename, value: failureText(m, a.errorCode, a.errorDetail, a.error) }) : a.filename;
   if (a.removed) {  // the document was deleted and its name taken out (suveryn-tracker#12)
     return <span className="chip-attachment chip-removed"><CircleX size={12} aria-hidden /><span className="chip-name">{m.documentRemoved}</span></span>;
   }
@@ -165,11 +165,11 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
       <span className="chip-name">{a.filename}</span>
       {label && (
         <span className="chip-status">
-          {a.status === "uploading" && a.progress !== undefined ? m.uploadingPercent(Math.floor(a.progress * 100)) : label}
+          {a.status === "uploading" && a.progress !== undefined ? m.uploadingPercent({ pct: Math.floor(a.progress * 100) }) : label}
         </span>
       )}
       {onRemove && (
-        <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile(a.filename)}>
+        <Button variant="plain" className="chip-remove" onPress={onRemove} aria-label={m.removeFile({ file: a.filename })}>
           <X size={12} aria-hidden />
         </Button>
       )}
@@ -184,5 +184,5 @@ function noticedFrom(line: string, m: ReturnType<typeof useT>): string {
   const o = markOrigin(line);
   if (!o) return "";
   const day = o.date ? o.date.toLocaleDateString(locale(), { day: "numeric", month: "short" }).replace(/\.$/, "") : "";
-  return ` (${day ? m.cardNoticedFrom(o.caseRef, day) : o.caseRef})`;
+  return ` (${day ? m.cardNoticedFrom({ caseRef: o.caseRef, day }) : o.caseRef})`;
 }

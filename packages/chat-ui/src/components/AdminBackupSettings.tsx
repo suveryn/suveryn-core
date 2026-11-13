@@ -33,8 +33,8 @@ export function nextRunText(nextUtc: string, m: ReturnType<typeof useT>, now = n
   const time = next.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
   const night = next.getHours() >= 18 || next.getHours() < 6;
   const sameDay = next.toDateString() === now.toDateString();
-  if (night && (sameDay || next.getHours() < 6)) return m.backupNextTonight(time);
-  return sameDay ? m.backupNextToday(time) : m.backupNextTomorrow(time);
+  if (night && (sameDay || next.getHours() < 6)) return m.backupNextTonight({ time });
+  return sameDay ? m.backupNextToday({ time }) : m.backupNextTomorrow({ time });
 }
 
 /** The recovery key's public half, shortened as on the key file's "# public key:" line, to compare. */
@@ -70,7 +70,7 @@ export function BackUpNow({ status, onStarted }: { status: BackupStatus; onStart
     <div className="backup-now">
       <Button variant="primary" onPress={start} isDisabled={busy || !!running}><HardDrive size={14} aria-hidden /> {m.backUpNow}</Button>
       <span className="caption" role="status">
-        {running ? m.backupRunning(new Date(running).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }))
+        {running ? m.backupRunning({ since: new Date(running).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) })
           : started ? m.backupStarted
           : status.settings?.next_run ? nextRunText(status.settings.next_run, m) : ""}
       </span>
@@ -234,7 +234,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         {errors.disk && <p className="ui-field-error">{errors.disk}</p>}
         <div className="backup-settings-row">
           <SelectField name="hour" label={m.everyDayAt} value={String(form.hour)} onChange={(v) => set("hour")(Number(v))}
-                       description={yourHour !== null ? m.backupHourYours(hourLabel(yourHour)) : undefined}
+                       description={yourHour !== null ? m.backupHourYours({ time: hourLabel(yourHour) }) : undefined}
                        options={HOURS.map((h) => ({ id: String(h), label: hourLabel(h) }))} />
         </div>
         {/* the keep period as segmented buttons (board B11) */}
@@ -242,7 +242,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
           <span className="ui-label" aria-hidden>{m.retention}</span>
           <Segmented label={m.retention} description={t.keepHint} value={String(form.retention)}
                      onChange={(v) => set("retention")(Number(v) as BackupRetention)}
-                     options={RETENTIONS.map((d) => ({ value: String(d), label: t.days(d) }))} />
+                     options={RETENTIONS.map((d) => ({ value: String(d), label: t.days({ n: d }) }))} />
         </div>
         {saved && (saved.target !== form.target || (saved.disk ?? "") !== form.disk || (saved.address ?? "") !== form.address.trim()) && (
           <p className="caption">{saved.target === "usb" ? m.olderStayUsb : m.olderStayShare}</p>
@@ -267,7 +267,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         {done && <span className="caption status-ok"><Check size={12} aria-hidden /> {m.backupSettingsSaved}</span>}
         {/* Errors show on saving, at their fields; this line says so beside the button, where the press was
             (round 2, finding 6: the share's "test first" sat far above, and Save seemed to do nothing). */}
-        {firstProblem && !busy && <span className="ui-field-error" role="alert"><CircleAlert size={14} aria-hidden /> {m.backupSettingsNotSaved(firstProblem)}</span>}
+        {firstProblem && !busy && <span className="ui-field-error" role="alert"><CircleAlert size={14} aria-hidden /> {m.backupSettingsNotSaved({ why: firstProblem })}</span>}
       </div>
     </section>
   );
@@ -331,7 +331,7 @@ export function RecoverySheet({ status, onSaved }: { status: BackupStatus; onSav
       if (a.ok) { setFresh(newKey.key); setNewKey(null); onSaved(); } else setProblem(t.errUnexpected);
     } catch (e) { setProblem((e as Error).message); } finally { setBusy(false); }
   };
-  const where = s.target === "usb" ? `${t.usbDisk}: ${s.disk ?? ""}` : `${t.networkShare}: ${s.address ?? ""}`;
+  const where = s.target === "usb" ? t.labelValue({ label: t.usbDisk, value: s.disk ?? "" }) : t.labelValue({ label: t.networkShare, value: s.address ?? "" });
   return (
     <section aria-labelledby="recovery-sheet">
       <h2 id="recovery-sheet" className="label">{m.recoverySheet}</h2>

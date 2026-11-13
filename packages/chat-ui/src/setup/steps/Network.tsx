@@ -34,7 +34,7 @@ export function Network({ state, onBack, onDone, headingId }: Props) {
           facts={[
             { icon: <Server size={18} />, label: t.name, value: state.name, detail: `${state.name}.local` },
             { icon: <NetworkIcon size={18} />, label: t.address, value: state.address,
-              detail: t.addressDetail(state.dhcp, state.gateway, state.dns) },
+              detail: t.addressDetail({ dhcp: state.dhcp, gateway: state.gateway, dns: state.dns }) },
           ]}
           footer={<><SquareTerminal size={16} aria-hidden /><span>{t.changeOnConsole}</span></>}
         />

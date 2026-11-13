@@ -24,8 +24,17 @@ const walkAria = (name) => {
 walkAria("react-aria-components");
 // The web setup's QR code (src/ui/QrCode.tsx) is drawn with qrcode-generator, which has no dependencies.
 // The charts' axis steps (src/ui/chartScale.ts) come from d3-array (ISC), which brings internmap (ISC).
+// The messages of the language files (src/i18n/message.ts, suveryn-tracker#147) are formatted by intl-messageformat
+// (BSD-3-Clause), which brings FormatJS's parser and memoiser (MIT), found the same way.
+const messageFormat = [];
+const walkFormat = (name) => {
+  if (messageFormat.includes(name) || name.startsWith("@types/")) return;
+  messageFormat.push(name);
+  Object.keys(JSON.parse(readFileSync(`node_modules/${name}/package.json`, "utf8")).dependencies ?? {}).forEach(walkFormat);
+};
+walkFormat("intl-messageformat");
 const bundled = ["react", "react-dom", "scheduler", "lucide-react", ...aria, "qrcode-generator", "d3-array", "internmap",
-                 ...office.filter((n) => !aria.includes(n))];
+                 ...messageFormat.filter((n) => !aria.includes(n)), ...office.filter((n) => !aria.includes(n) && !messageFormat.includes(n))];
 // qrcode-generator ships no licence file: its source header says "Copyright (c) 2009 Kazuhiko Arase,
 // licensed under the MIT license", so the MIT text with that notice is written here.
 const handWritten = {

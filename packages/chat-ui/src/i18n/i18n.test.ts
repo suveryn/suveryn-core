@@ -5,18 +5,7 @@ import { LANGS, pickLang, setLang, t, TABLES_FOR_TESTS as TABLES, type Lang } fr
 import { copyProblems, strings } from "./rules";
 import { signInLang } from "./languages";
 
-const ARRAYS: Record<string, unknown[]> = { pageList: [[1, 3]], reviewHint: [[1, 3]], calcMissing: [["1.000,00"]], unverified: [["1.000,00", "2,5"]] };
-/** Sample arguments for functions whose arguments the defaults don't fit: two or more each, covering their branches. */
-const SAMPLES: Record<string, unknown[][]> = {
-  ...Object.fromEntries(Object.entries(ARRAYS).map(([k, a]) => [k, [a, [[1]]]])),
-  citationIssue: [[2, "410.000", [3], null], [1, "Peters", [1], "Peeters"], [2, "12/03/2021", [], null], [2, "X", [1, 3], null]],
-  deleteDocumentDialogBody: [[1], [3]], deleteDocumentAndConversations: [[1], [3]],
-  instructionLike: [[[2]], [[1, 3]]],
-  exportMark: [["answer", "2026/0611", "19-10-2026", "A-3f9c2e1b"], ["playbook", null, "19-10-2026", "P-0a1b2c3d"]],
-  calcReadAs: [[["28.848", "48.197"], true], [["28,848"], false]],
-  originPlaybook: [["1.0"], [null]], originWasOutput: [["answer"], ["playbook"]], noticedTitle: [["answer"], ["playbook"]],
-};
-const texts = (l: Lang) => strings(TABLES[l], SAMPLES);
+const texts = (l: Lang) => strings(TABLES[l]);
 
 afterEach(() => setLang("en"));
 
@@ -27,10 +16,11 @@ describe("interface languages (suveryn-tracker#8)", () => {
     for (const l of LANGS) expect(copyProblems(l, texts(l)), l).toEqual([]);
   });
 
-  it("a reason shown inside answerFailed reads as one sentence (Pod check of dbe0431: \"opnieuw.. \")", () => {
+  it("a reason shown inside answerFailed is a sentence of its own, ended once (Pod check of dbe0431: \"opnieuw.. \")", () => {
     for (const l of LANGS) {
-      const whole = TABLES[l].answerFailed(TABLES[l].chosenDeletedMeanwhile);
-      expect(whole, l).not.toMatch(/\.\.|: [A-Z]/);
+      const whole = TABLES[l].answerFailed({ why: TABLES[l].chosenDeletedMeanwhile });
+      expect(whole, l).not.toMatch(/\.\.|: /);
+      expect(whole.split(/(?<=\.) /).length, l).toBeGreaterThanOrEqual(3);
     }
   });
 

@@ -13,11 +13,11 @@ export function statusText(status: StreamStatus | undefined): string | null {
     case "searching":
       return m.statusSearching;
     case "reading": {
-      const passages = m.passages(status.passages ?? 0);
-      return status.complete ? m.statusReadingAll(passages) : m.statusReadingBest(passages);
+      const passages = m.passages({ n: status.passages ?? 0 });
+      return status.complete ? m.statusReadingAll({ passages }) : m.statusReadingBest({ passages });
     }
     case "loading_model":
-      return m.statusLoading(modelName(status.model)?.full ?? null);
+      { const model = modelName(status.model)?.full; return model ? m.statusLoadingModel({ model }) : m.statusLoading; }
     case "writing":
       return m.statusWriting;
     case "thinking":

@@ -14,7 +14,7 @@ import { useText, type Text } from "../i18n";
 function items(p: ProgressState, state: SetupState, t: Text): StatusItem[] {
   return p.steps.map((s) => {
     let label = t.stepLabel[s.id];
-    let detail: string | undefined = s.id === "models" ? t.modelsOnDisk(state.models.length) : t.stepDetail[s.id as Exclude<StepId, "models">];
+    let detail: string | undefined = s.id === "models" ? t.modelsOnDisk({ n: state.models.length }) : t.stepDetail[s.id as Exclude<StepId, "models">];
     if (s.id === "models" && s.state === "done") detail = state.models.join(", ");
     if (s.id === "outgoing" && p.outgoing) [label, detail] = t.outgoingResult[p.outgoing];
     const failedCheck = s.id === "outgoing" && p.outgoing === "not_limited";
@@ -62,7 +62,7 @@ export function Provisioning({ state, onDone, headingId }: { state: SetupState; 
       <div className="setup-stack">
         <div className="setup-progress">
           <Progress value={steps.length ? (done / steps.length) * 100 : 0} label={t.provProgress}
-                    valueText={t.provDone(done, steps.length || 5)} />
+                    valueText={t.provDone({ done, total: steps.length || 5 })} />
           <p className="setup-detail-note" aria-live="polite">{running ? t.stepNow[running.id] : ""}</p>
         </div>
         {progress && <StatusList items={items(progress, state, t)} />}
@@ -102,7 +102,7 @@ export function Complete({ state, progress, headingId }: { state: SetupState; pr
         <div className="setup-signin">
           <p className="ui-eyebrow">{t.signInAt}</p>
           <p className="setup-signin-url">{url}</p>
-          <p className="setup-detail-note">{t.orAt(`https://${ip}`)}</p>
+          <p className="setup-detail-note">{t.orAt({ url: `https://${ip}` })}</p>
         </div>
         <Notice icon={<Lock size={16} />} title={t.closedTitle}>{t.closedText}</Notice>
         <LinkButton href={url} className="setup-wide">{t.openSuveryn}</LinkButton>

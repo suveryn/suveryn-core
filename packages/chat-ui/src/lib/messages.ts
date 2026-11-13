@@ -19,24 +19,43 @@ export type ChatArea = Exclude<MessageArea, "setup">;
 export type MessageKind = "refused" | "unavailable" | "internal" | "warning";
 /** A code's parameters: raw numbers and ids, formatted and named here. */
 export type Params = Record<string, string | number | null | undefined>;
-export type Wording = string | ((p: Params) => string);
+/** A code's words: a sentence, or a message that takes the code's parameters by name (i18n/message.ts). */
+export type Wording = string | WordingMessage;
+type WordingMessage = { (values: Record<string, string | number | boolean>): string; readonly params: readonly string[] };
 /** A message as it travels: in a Problem Details answer, inside an answer, or stored. */
 export type Message = { kind?: string; code?: string; params?: Params | null };
-/** A screen's words for codes: the three tables of its language file. */
-export type MessageWords = { messages: object; messageAreas: object; messageKinds: Record<MessageKind, Wording> };
+/** A screen's words for codes, from its language file: each code's own, a code's words when a value it needs
+ *  wasn't given, each area's, each kind's, and an unplanned failure's with its reference. All whole sentences. */
+export type MessageWords = {
+  messages: object; messagesBare: object; messageAreas: object;
+  messageKinds: Record<MessageKind, string>; messageInternalRef: WordingMessage;
+};
 
-const worded = (w: Wording, p: Params) => (typeof w === "function" ? w(p) : w);
+/** The wording with the parameters it asks for, or null when one of them wasn't given: a sentence never shows a gap. */
+function worded(w: Wording | undefined, p: Params): string | null {
+  if (!w) return null;
+  if (typeof w === "string") return w;
+  const values: Record<string, string | number> = {};
+  for (const name of w.params) {
+    const v = p[name];
+    if (v === null || v === undefined || v === "") return null;
+    values[name] = v;
+  }
+  return w(values);
+}
 
 /** The message in the reader's language: by its code, else its area, else its kind. */
 export function messageText(msg: Message, m: MessageWords): string {
   const params = msg.params ?? {};
-  const own = (m.messages as Record<string, Wording>)[msg.code ?? ""];
-  if (own) return worded(own, params);
+  const code = msg.code ?? "";
+  const own = worded((m.messages as Record<string, Wording>)[code], params) ?? (m.messagesBare as Record<string, string>)[code];
+  if (own) return own;
   const kind = (msg.kind ?? "refused") as MessageKind;
-  const area = (m.messageAreas as Record<string, string>)[(msg.code ?? "").split(".")[0]];
+  const area = (m.messageAreas as Record<string, string>)[code.split(".")[0]];
   // an area's words say a refusal; a part that is down, or something unplanned, is said by its kind
   if (area && kind === "refused") return area;
-  return worded(m.messageKinds[kind] ?? m.messageKinds.refused, params);
+  if (kind === "internal") return worded(m.messageInternalRef, params) ?? m.messageKinds.internal;
+  return m.messageKinds[kind] ?? m.messageKinds.refused;
 }
 
 /** The general code a status stands for, for an answer that isn't the gateway's own (a proxy's 502, a page of HTML). */

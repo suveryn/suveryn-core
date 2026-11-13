@@ -12,17 +12,20 @@ import setupEn from "../setup/i18n/en";
 import setupFr from "../setup/i18n/fr";
 import setupNl from "../setup/i18n/nl";
 import en from "./en";
+import { messagesIn, type Message } from "./message";
+import { samplesFor } from "./rules";
 import fr from "./fr";
 import nl from "./nl";
 
-const ARGS = ["X", "Y", "Z", 1, 2, 3];  // what a function is called with to see its words
 const ON_PURPOSE = new Set(["AI for work that can't leave the premises", "AI for work that can't leave the premises."]);
 
 /** Every text in a table, by its path (``.backupStep.copy``, ``.pages()``). */
 export function texts(value: unknown, path = "", out = new Map<string, string>()): Map<string, string> {
-  if (typeof value === "function") {
-    try { texts((value as (...a: unknown[]) => unknown)(...ARGS), `${path}()`, out); } catch { /* needs other arguments: skipped */ }
-  } else if (typeof value === "string") out.set(path, value);
+  if (typeof value === "function") {  // a message: its words, with sample values
+    const message = value as unknown as Message;
+    out.set(`${path}()`, message(samplesFor(message.text)[0] ?? {}));
+  }
+  else if (typeof value === "string") out.set(path, value);
   else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) texts(v, `${path}.${k}`, out);
   return out;
 }
@@ -42,9 +45,10 @@ describe("every sentence is translated", () => {
   }
 
   it("catches a sentence copied from English, inside a table or a function too, but not a shared word", () => {
-    const english = { a: "Status", b: "The document could not be read.", c: { d: (n: number) => `${n} pages were read in full.` } };
-    const copied = { a: "Status", b: "The document could not be read.", c: { d: (n: number) => `${n} pages were read in full.` } };
+    const { m } = messagesIn("en-GB");
+    const english = { a: "Status", b: "The document could not be read.", c: { d: m("{n} pages were read in full.", "n") } };
+    const copied = { a: "Status", b: "The document could not be read.", c: { d: m("{n} pages were read in full.") } };
     expect(untranslated(english, copied)).toEqual([".b: The document could not be read.", ".c.d(): X pages were read in full."]);
-    expect(untranslated(english, { ...copied, b: "Het document kon niet gelezen worden.", c: { d: () => "gelezen" } })).toEqual([]);
+    expect(untranslated(english, { ...copied, b: "Het document kon niet gelezen worden.", c: { d: m("{n} gelezen") } })).toEqual([]);
   });
 });

@@ -91,7 +91,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   const reason = disabledReason;
   const note = loadingNote(models, chosenModel);
   const canSend = !reason && !busy && text.trim().length > 0;
-  const attachLabel = caseReference ? m.attachToCase(caseReference) : m.attachDocument;
+  const attachLabel = caseReference ? m.attachToCase({ ref: caseReference }) : m.attachDocument;
 
   const send = () => {
     if (!canSend) return;
@@ -155,16 +155,16 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   // Ask about: beside the paperclip; on a narrow screen above the pill, full width, opening a sheet.
   const picker2 = askAbout && caseReference && (
     <DocumentPicker className="chip-about" narrow={compact} items={askAbout.items} selected={askAbout.selected}
-                    onChange={askAbout.onChange} label={m.askAboutTitle} triggerLabel={m.askAboutLabel(askAbout.selected.length)}
-                    allLabel={m.askAboutEverything} allMeta={m.askAboutEverythingHint} countLabel={m.askAboutPicked}
-                    chosenHeading={m.askAboutChosen} othersHeading={(q, n) => (q ? m.askAboutMatching(q, n) : null)}
+                    onChange={askAbout.onChange} label={m.askAboutTitle} triggerLabel={m.askAboutLabel({ n: askAbout.selected.length })}
+                    allLabel={m.askAboutEverything} allMeta={m.askAboutEverythingHint} countLabel={(n, total) => m.askAboutPicked({ n, total })}
+                    chosenHeading={(n) => m.askAboutChosen({ n })} othersHeading={(q, n) => (q ? m.askAboutMatching({ q, n }) : null)}
                     searchLabel={m.askAboutSearch} doneLabel={m.askAboutDone}
                     action={{ label: m.askAboutUpload, description: m.askAboutUploadHint, onPress: () => picker.open() }}
                     trigger={<>
                       <Files size={14} aria-hidden />
                       <span className="chip-about-dim">{m.askAbout}</span>
                       <span className="chip-about-value">{askAbout.names.length === 0 ? m.askAboutAll
-                        : askAbout.names.length === 1 ? askAbout.names[0] : m.askAboutCount(askAbout.names.length)}</span>
+                        : askAbout.names.length === 1 ? askAbout.names[0] : m.askAboutCount({ n: askAbout.names.length })}</span>
                       <ChevronDown size={12} aria-hidden />
                     </>} />
   );
@@ -186,9 +186,9 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
           narrow screen one pill: the question, "+" and send. */}
       <div className="composer" data-compact={compact || undefined}>
         {!compact && cards}
-        <TextArea label={caseReference ? m.questionInCase(caseReference) : m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
+        <TextArea label={caseReference ? m.questionInCase({ ref: caseReference }) : m.yourQuestion} hideLabel value={text} onChange={setText} onKeyDown={onKey}
                   isReadOnly={locked}
-                  placeholder={locked ? "" : busy ? m.keepTyping : placeholder ?? (caseReference ? m.askInCase(caseReference) : m.askPlaceholder)} className="composer-field" />
+                  placeholder={locked ? "" : busy ? m.keepTyping : placeholder ?? (caseReference ? m.askInCase({ ref: caseReference }) : m.askPlaceholder)} className="composer-field" />
         <div className="composer-tools">
           {compact ? <>
             {picker.input}
@@ -209,7 +209,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
           {playbooks.length > 0 && onPlaybook && (
             <ActionMenu className="chip-playbook" aria-label={m.playbookChip} menuLabel={m.playbookMenu} placement="top start"
                         popoverClassName="playbook-menu"
-                        header={<span className="ui-menu-eyebrow">{m.playbookMenuTitle(caseReference ?? "", caseType ?? "")}</span>}
+                        header={<span className="ui-menu-eyebrow">{(caseType ? m.playbookMenuTitleType({ reference: caseReference ?? "", type: caseType }) : m.playbookMenuTitle({ reference: caseReference ?? "" }))}</span>}
                         entries={playbookEntries}
                         onAction={onPlaybook}>
               <Route size={13} aria-hidden /> {m.playbook} <ChevronDown size={13} aria-hidden />
@@ -231,7 +231,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
       <p className="composer-hint caption" role="status">
         {/* Where answers come from (§5): only this case's documents, or a personal chat only you see. */}
         {reason ?? note ?? (waiting ? m.readingCountsLater : null) ?? (hint ? <><Lock size={12} aria-hidden /> {hint}</>
-          : caseReference ? caseNote ?? m.caseOnlyDocuments(caseReference) : <><Lock size={12} aria-hidden /> {m.personalHint}</>)}
+          : caseReference ? caseNote ?? m.caseOnlyDocuments({ ref: caseReference }) : <><Lock size={12} aria-hidden /> {m.personalHint}</>)}
       </p>
     </div>
   );

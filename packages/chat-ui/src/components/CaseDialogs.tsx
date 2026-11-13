@@ -73,9 +73,9 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
       if (e instanceof HttpError && e.status === 409) {
         const existing = cases.find((c) => c.reference === body.reference);
         setTaken(existing ? existing.id : null);
-        return { reference: existing ? m.caseExistsOr(body.reference) : m.caseExists(body.reference) };
+        return { reference: existing ? m.caseExistsOr({ ref: body.reference }) : m.caseExists({ ref: body.reference }) };
       }
-      setError(m.createCaseFailed((e as Error).message));
+      setError(m.createCaseFailed({ why: (e as Error).message }));
       return { _: "" };
     }
   };
@@ -88,7 +88,7 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
       <Form id="new-case" check={check} onValid={() => { if (created.current) onCreated(created.current); }} className="case-form">
         <TextField name="reference" label={m.caseReference} description={m.caseReferenceHint} value={reference}
                    onChange={(v) => { setReference(v); setTaken(null); }} autoFocus maxLength={100}
-                   errorAction={existing && <><TextButton link onPress={() => onOpenExisting(existing)}>{m.openCaseRef(existing.reference)}</TextButton>.</>} />
+                   errorAction={existing && <><TextButton link onPress={() => onOpenExisting(existing)}>{m.openCaseRef({ ref: existing.reference })}</TextButton>.</>} />
         <TextField name="name" label={m.caseName} description={m.caseNameHint} value={name} onChange={setName} maxLength={200} />
         <ComboBoxField name="type" label={m.caseType} description={m.caseTypeHint} value={type} onChange={setType}
                        options={CASE_TYPES.map((id) => ({ id, label: caseTypeLabel(id, m) }))} />
@@ -123,16 +123,16 @@ export function CloseCaseDialog({ open, kase, period, onCloseCase, onCancel }: {
     try {
       await onCloseCase();
     } catch (e) {
-      setError(m.closeCaseFailed((e as Error).message));
+      setError(m.closeCaseFailed({ why: (e as Error).message }));
       setBusy(false);
     }
   };
   const kept = keepPeriodLabel(period, m);
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="confirmation" title={m.closeCaseTitle(kase?.reference ?? "")} error={error}
+    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="confirmation" title={m.closeCaseTitle({ reference: kase?.reference ?? "" })} error={error}
             primary={{ label: m.closeCase, onPress: close, busyLabel: m.closing }} cancel={{ label: m.cancel }}>
       <p>{m.closeCaseBody}</p>
-      <p>{kept ? m.closeCaseKept(kept) : m.closeCaseKeptManual}</p>
+      <p>{kept ? m.closeCaseKept({ period: period === "6m" ? "six_months" : period === "1y" ? "one_year" : "five_years" }) : m.closeCaseKeptManual}</p>
     </Dialog>
   );
 }
@@ -150,12 +150,12 @@ export function DeleteCaseDialog({ open, kase, onDelete, onCancel }: {
     try {
       await onDelete();
     } catch (e) {
-      setError(m.deleteCaseFailed((e as Error).message));
+      setError(m.deleteCaseFailed({ why: (e as Error).message }));
       setBusy(false);
     }
   };
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="confirmation" risky title={m.deleteCaseTitle(kase?.reference ?? "")}
+    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="confirmation" risky title={m.deleteCaseTitle({ reference: kase?.reference ?? "" })}
             error={error} primary={{ label: m.deleteCase, onPress: remove, busyLabel: m.deleting }} cancel={{ label: m.cancel }}>
       <p>{m.deleteCaseBody}</p>
     </Dialog>

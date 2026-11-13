@@ -43,7 +43,7 @@ import { backupAttention, type BackupAttention } from "./lib/backups";
 import { afterCheck, archiveCards, attachmentFromJob, cardForStored, checkJobs, documentsChanged, readToChoose, removal, uploadsToCheck,
          usedAsSource } from "./lib/uploads";
 import { CaseState } from "./components/CaseState";
-import { factCounts, RunPanel, RunSourcePanel, runStatusWord, RunThread, runChipText, lastRunLine, useRun, waitsFor, type RunPanelView } from "./components/RunConversation";
+import { factsCountText, RunPanel, RunSourcePanel, runStatusWord, RunThread, runChipText, lastRunLine, useRun, waitsFor, type RunPanelView } from "./components/RunConversation";
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
@@ -157,7 +157,7 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
       {stuck && !ended && <InlineNotice icon={<CircleAlert size={14} />}>{m.signInIncomplete}</InlineNotice>}
       {unavailable
         ? <>
-            <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.signInUnavailable(unavailable)}</InlineNotice>
+            <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.signInUnavailable({ why: unavailable })}</InlineNotice>
             <p className="caption">{m.signInWhenDown}</p>
             <Button variant="primary" onPress={() => window.location.reload()}><RotateCw size={16} aria-hidden /> {m.signInTryAgain}</Button>
           </>
@@ -414,10 +414,10 @@ function Chat({ me }: { me: Me }) {
     const body = JSON.stringify(saved);
     if (body === lastSaved.current) return;
     lastSaved.current = body;
-    if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed(m.messages["conversation.too_long"])); return; }  // the server refuses it
+    if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed({ why: m.messages["conversation.too_long"] })); return; }  // the server refuses it
     saveConversation(conversationId, conversationTitle(turns), saved, caseId)
       .then(refreshConversations)
-      .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed(e.message)); });
+      .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed({ why: e.message })); });
   }, [turns, busy, historyReady, conversationId, caseId, readOnly, refreshConversations]);
 
   // Poll uploads that are still being read, in the composer and in the conversation.
@@ -451,7 +451,7 @@ function Chat({ me }: { me: Me }) {
     health === null ? m.serverUnreachable :
     health.backend.status === "loading" ? m.modelStarting :
     health.status !== "ok" ? m.modelUnavailable :
-    readOnly ? m.sharedReadOnly(names.get(current!.owner!) || current!.owner!) :
+    readOnly ? m.sharedReadOnly({ name: names.get(current!.owner!) || current!.owner! }) :
     closed ? m.caseIsClosed :
     currentCase && role === "reader" ? m.readerCantAsk : null;
 
@@ -529,7 +529,7 @@ function Chat({ me }: { me: Me }) {
       await confirmAsSource(a.documentId, caseId);
       setPending((p) => p.map((x) => (x.key === key ? usedAsSource(x) : x)));
       refreshDocuments();
-    } catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
+    } catch (e) { setProblem(m.useAsSourceFailed({ why: (e as Error).message })); }
   };
   const deleteNoticed = async (key: string) => {
     const a = pending.find((x) => x.key === key);
@@ -540,7 +540,7 @@ function Chat({ me }: { me: Me }) {
       await deleteDocument(a.documentId, "clean", caseId);
       setPending((p) => p.filter((x) => x.key !== key));
       refreshDocuments();
-    } catch (e) { setProblem(m.deleteDocumentFailed(a.filename, (e as Error).message)); }
+    } catch (e) { setProblem(m.deleteDocumentFailed({ file: a.filename, why: (e as Error).message })); }
   };
 
   // ``again``: Regenerate asks the last question once more, with the documents it had.
@@ -668,7 +668,7 @@ function Chat({ me }: { me: Me }) {
 
   // The open case's one menu: in its header, or in the top bar on a narrow screen.
   const caseMenu = currentCase && (
-            <ActionMenu className="case-menu" aria-label={m.caseMenu(currentCase!.reference)} menuLabel={m.caseMenu(currentCase!.reference)}
+            <ActionMenu className="case-menu" aria-label={m.caseMenu({ reference: currentCase!.reference })} menuLabel={m.caseMenu({ reference: currentCase!.reference })}
                         placement="bottom end"
                         header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase!.type, m)}
                           {role && ` · ${roleLabel(role, m)}`}</span>}
@@ -711,7 +711,7 @@ function Chat({ me }: { me: Me }) {
           setTurn(t.id, { saved: { documentId: r.id, filename: r.filename } });
           setSavedHere((s) => new Set(s).add(t.id));
           refreshDocuments();
-        } catch (e) { setProblem(m.saveToCaseFailed((e as Error).message)); }
+        } catch (e) { setProblem(m.saveToCaseFailed({ why: (e as Error).message })); }
       },
       onOpen: () => showOverview("documents", currentCase.id),
       onUndo: async () => {
@@ -721,7 +721,7 @@ function Chat({ me }: { me: Me }) {
           setTurn(t.id, { saved: undefined });
           setSavedHere((s) => { const n = new Set(s); n.delete(t.id); return n; });
           refreshDocuments();
-        } catch (e) { setProblem(m.undoSaveFailed((e as Error).message)); }
+        } catch (e) { setProblem(m.undoSaveFailed({ why: (e as Error).message })); }
       },
     };
   };
@@ -731,7 +731,7 @@ function Chat({ me }: { me: Me }) {
       const { content } = await documentContent(d.id, d.case_id);
       const { saveBlob } = await import("./lib/office");
       saveBlob(d.filename, await savedWord(content, m, lang(), watermark(caseById(d.case_id), me.name || me.username, m, locale())));
-    } catch (e) { setProblem(m.downloadFailedWhy((e as Error).message)); }
+    } catch (e) { setProblem(m.downloadFailedWhy({ why: (e as Error).message })); }
   };
 
   // Stop: the request is aborted, which closes the connection; the gateway then stops the model.
@@ -903,7 +903,7 @@ function Chat({ me }: { me: Me }) {
     return [[p.slug, lastRunLine(r, p, m, me.sub, starterName(r))]];
   }));
   const pin = async (c: Case, pinned: boolean) => {
-    try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed((e as Error).message)); }
+    try { await pinCase(c.id, pinned); refreshCases(); } catch (e) { setProblem(m.pinFailed({ why: (e as Error).message })); }
   };
   const caseAction = (c: Case, action: CaseAction) => {
     if (action === "open") openCase(c);
@@ -916,7 +916,7 @@ function Chat({ me }: { me: Me }) {
     }
   };
   const share = async (shared: boolean) => {
-    try { await shareConversation(conversationId, shared); refreshConversations(); } catch (e) { setProblem(m.shareFailed((e as Error).message)); }
+    try { await shareConversation(conversationId, shared); refreshConversations(); } catch (e) { setProblem(m.shareFailed({ why: (e as Error).message })); }
   };
   const removeCase = async () => {
     if (!currentCase) return;
@@ -954,7 +954,7 @@ function Chat({ me }: { me: Me }) {
       setPending([]);
       setProblem(null);
     } catch (e) {
-      setProblem(m.openFailed((e as Error).message));
+      setProblem(m.openFailed({ why: (e as Error).message }));
       refreshConversations();
     }
   };
@@ -970,7 +970,7 @@ function Chat({ me }: { me: Me }) {
       }
       refreshConversations();
     } catch (e) {
-      setProblem(m.pinConversationFailed((e as Error).message));
+      setProblem(m.pinConversationFailed({ why: (e as Error).message }));
     }
   };
   const conversationAction = (c: ConversationSummary, action: ConversationAction) => {
@@ -997,7 +997,7 @@ function Chat({ me }: { me: Me }) {
       if (id === conversationId) newChat();
       refreshConversations();
     } catch (e) {
-      setProblem(m.deleteConversationFailed((e as Error).message));
+      setProblem(m.deleteConversationFailed({ why: (e as Error).message }));
     }
   };
 
@@ -1016,7 +1016,7 @@ function Chat({ me }: { me: Me }) {
     // Whether the saved conversations that cite it can be asked about (lib/documentActions.ts).
     const check = citingCheck(historyReady, health?.history?.status);
     if (check === "refuse") {
-      setProblem(m.deleteDocumentFailed(d.filename, m.conversationsUnreachable));
+      setProblem(m.deleteDocumentFailed({ file: d.filename, why: m.conversationsUnreachable }));
       return;
     }
     if (check === "ask") {
@@ -1024,13 +1024,13 @@ function Chat({ me }: { me: Me }) {
       // whether they go too (Pod check of f0ff96c, the database stopped).
       try { using = (await documentConversations(d.id, where)).map((c) => c.id); } catch (e) {
         const { why, unreachable } = deleteRefusal(e, m);
-        setProblem(m.deleteDocumentFailed(d.filename, why));
+        setProblem(m.deleteDocumentFailed({ file: d.filename, why }));
         if (unreachable) checkNow();
         return;
       }
     }
     if (using.length > 0) setDeleting({ doc: d, conversations: using, where });
-    else await deleteNow(d, "clean", [], where).catch((e: Error) => setProblem(m.deleteDocumentFailed(d.filename, e.message)));
+    else await deleteNow(d, "clean", [], where).catch((e: Error) => setProblem(m.deleteDocumentFailed({ file: d.filename, why: e.message })));
   };
   // A document deleted from the list of everything (docs/design/chat-ui.md): asked in its own place.
   const removeListed = (d: AllDocument) => {
@@ -1096,7 +1096,7 @@ function Chat({ me }: { me: Me }) {
             </span>
             {/* on a phone too: the run's state above, and every fact a tap away (VM regression e0f2e26, finding 9) */}
             {view === "chat" && openRun && runLive && openRun.facts.length > 0 && (
-              <IconButton label={`${m.factsPanel} · ${m.factsCount(...factCounts({ ...openRun, playbook: runPlaybook }))}`} aria-pressed={runPanel?.kind === "list"}
+              <IconButton label={`${m.factsPanel} · ${factsCountText(m, { ...openRun, playbook: runPlaybook })}`} aria-pressed={runPanel?.kind === "list"}
                           onPress={() => showRunPanel(runPanel?.kind === "list" ? null : { kind: "list" })}>
                 <FileText size={18} aria-hidden />
               </IconButton>
@@ -1123,7 +1123,7 @@ function Chat({ me }: { me: Me }) {
                              onUpload={(files) => { setView("chat"); if (documentsReady) attachFiles(files); else setProblem(m.documentsCantBeAdded); }}
                              onUseAsSource={async (d) => {
                                try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(() => {}); refreshDocuments(); }
-                               catch (e) { setProblem(m.useAsSourceFailed((e as Error).message)); }
+                               catch (e) { setProblem(m.useAsSourceFailed({ why: (e as Error).message })); }
                              }} />
         </div>}
         {view === "cases" && <div className="conversation conversation-wide">
@@ -1141,7 +1141,7 @@ function Chat({ me }: { me: Me }) {
           // column (G05: pin, rename, move to a case, delete). A conversation in a case has the case header.
           <header className="case-head conversation-head">
             <span className="case-title" title={current.title ?? undefined}>{listedTitle(current)}</span>
-            <ActionMenu className="conversation-head-menu" aria-label={m.conversationMenu(listedTitle(current))} menuLabel={m.conversationMenu(listedTitle(current))}
+            <ActionMenu className="conversation-head-menu" aria-label={m.conversationMenu({ title: listedTitle(current) })} menuLabel={m.conversationMenu({ title: listedTitle(current) })}
                         entries={conversationMenu(current, me.sub, m)} placement="bottom start"
                         onAction={(a) => conversationAction(current, a as ConversationAction)}>
               <ChevronDown size={16} aria-hidden />
@@ -1169,7 +1169,7 @@ function Chat({ me }: { me: Me }) {
             <span className="case-space" />
             {caseMembers.length > 0 && (
               <Button variant="plain" className="case-members" onPress={() => setShowMembers(true)}
-                      aria-label={m.headMembers(caseMembers.map((x) => (x.role === "manager" ? m.asManager(x.name || x.username) : x.name || x.username)).join(", "))}>
+                      aria-label={m.headMembers({ names: caseMembers.map((x) => (x.role === "manager" ? m.asManager({ name: x.name || x.username }) : x.name || x.username)).join(", ") })}>
                 <CaseFaces members={caseMembers} />
               </Button>
             )}
@@ -1177,13 +1177,13 @@ function Chat({ me }: { me: Me }) {
               // every fact, beside the conversation (handover of 31 October 2026, 2.4); the count is here and nowhere else
               <Button variant="plain" className="case-documents case-facts" aria-pressed={runPanel?.kind === "list"} aria-controls="run-panel"
                       onPress={() => showRunPanel(runPanel?.kind === "list" ? null : { kind: "list" })}>
-                <FileText size={14} aria-hidden /> {m.factsPanel} · <span aria-live="polite">{m.factsCount(...factCounts({ ...openRun, playbook: runPlaybook }))}</span>
+                <FileText size={14} aria-hidden /> {m.factsPanel} · <span aria-live="polite">{factsCountText(m, { ...openRun, playbook: runPlaybook })}</span>
               </Button>
             )}
             {!administers && (
               <Button variant="plain" className="case-documents" onPress={() => showOverview("documents", currentCase.id)}
-                      aria-label={m.documentsOfCase(currentCase.reference, documents.length)}>
-                <FileText size={14} aria-hidden /> {m.documentCount(documents.length)}
+                      aria-label={m.documentsOfCase({ ref: currentCase.reference, n: documents.length })}>
+                <FileText size={14} aria-hidden /> {m.documentCount({ n: documents.length })}
               </Button>
             )}
             {caseMenu}
@@ -1214,7 +1214,7 @@ function Chat({ me }: { me: Me }) {
             // The start screen (§2, artboards 01 and 12): a welcome over the question box; on first use the
             // two ways in.
             <div className="start" data-first={firstUse || undefined}>
-              <div className="start-head"><img src={icon} width={36} height={36} alt="" /><h1>{m.welcome(firstName)}</h1></div>
+              <div className="start-head"><img src={icon} width={36} height={36} alt="" /><h1>{m.welcome({ name: firstName })}</h1></div>
               {firstUse && <>
                 <div className="start-cards">
                   <section className="start-card"><MessageSquare size={18} aria-hidden /><h2>{m.askCardTitle}</h2><p>{m.askCardText}</p></section>
@@ -1230,7 +1230,7 @@ function Chat({ me }: { me: Me }) {
               {!closed && <p>{currentCase ? m.caseEmptyIntro : m.emptyIntro}</p>}
               {/* §10, artboard 17: a case of several documents, nothing chosen yet */}
               {!locked && currentCase && about.length === 0 && choosable(documents).length > 1 && (
-                <p>{m.caseChooseHint(choosable(documents).length)}</p>
+                <p>{m.caseChooseHint({ n: choosable(documents).length })}</p>
               )}
             </div>
           ) : (
@@ -1260,7 +1260,7 @@ function Chat({ me }: { me: Me }) {
                       return { documentId: id, filename: d.filename };
                     })); },
                   } : null}
-                  caseNote={aboutGone ? m.chosenGone : about.length ? m.answersUseOnly(about.length, about[0].filename) : null}
+                  caseNote={aboutGone ? m.chosenGone : about.length ? m.answersUseOnly({ n: about.length, name: about[0].filename }) : null}
                   onAttach={(files) => (documentsReady ? attachFiles(files) :
                     setProblem(m.documentsCantBeAdded))}
                   onRemoveAttachment={removeAttachment}
@@ -1276,7 +1276,7 @@ function Chat({ me }: { me: Me }) {
       </main>
       </WatermarkContext.Provider>
       {sourcePanel && (narrow
-        ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source(source!.n)}>{sourcePanel}</Drawer>
+        ? <Drawer isOpen side="right" onClose={() => setSource(null)} label={m.source({ n: source!.n })}>{sourcePanel}</Drawer>
         : sourcePanel)}
       {factsPanel && (narrow
         ? <Drawer isOpen side="right" onClose={() => showRunPanel(null)} label={m.factsPanel}>{factsPanel}</Drawer>

@@ -34,7 +34,7 @@ export type SavedAnswer = {
 /** The texts the Word and Excel files use, in the interface's language. */
 export function officeText(m: Messages) {
   return {
-    answeredOn: m.answeredOn, checkHeading: m.toCheck, sourcesHeading: m.sources, sourceRemoved: m.sourceRemoved,
+    answeredOn: (date: string) => m.answeredOn({ date }), checkHeading: m.toCheck, sourcesHeading: m.sources, sourceRemoved: m.sourceRemoved,
     sourceColumn: m.sourceColumn, sheetTable: m.sheetTable, sheetSources: m.sources, sheetChecks: m.toCheck,
     columns: { n: m.columnNumber, document: m.columnDocument, where: m.columnWhere, passage: m.columnPassage },
     disclaimer: m.exportDisclaimer,
@@ -52,7 +52,8 @@ export function answerExport(turn: AssistantTurn, question: string, nameOf: (c: 
              ...[instructionLikeWarning(turn.instructionLikeSources, turn.text, available, m)].filter((w): w is string => !!w)],
     sources: citedNumbers(turn.text, available).map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
     // sūveryn's mark (lib/marks.ts): so that this file, uploaded again, is recognised and asks first.
-    mark: m.exportMark("answer", caseRef, answeredOn.toLocaleDateString(locale()), exportRef("A", turn.id))
+    mark: (caseRef ? m.exportMarkCase({ kind: "answer", caseRef, date: answeredOn.toLocaleDateString(locale()), ref: exportRef("A", turn.id) })
+           : m.exportMark({ kind: "answer", date: answeredOn.toLocaleDateString(locale()), ref: exportRef("A", turn.id) }))
       + (watermark ? ` · ${m.strictlyConfidential}` : ""),
     watermark,
   };

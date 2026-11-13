@@ -9,6 +9,7 @@
 import type { Watermark } from "./watermark";
 import type { Calculation, Citation, CitationIssue } from "../api";
 import type { Messages } from "../i18n";
+import { listAnd } from "./lists";
 import { messageText } from "./messages";
 import type { Block, Segment, Table } from "./answer";
 
@@ -79,16 +80,26 @@ export function tableRows(table: Table, sourceColumn: string): { header: string[
   };
 }
 
+/** Figures as a message takes them: the figures as text, and how many there are. */
+export const figuresOf = (figures: readonly string[], text: Messages) => ({ figures: listAnd(figures, text), count: figures.length });
+
+/** What a cited source doesn't say as the answer does: written differently there, found in other sources, or not there. */
+export function citationIssueText(i: CitationIssue, text: Messages): string {
+  if (i.written_as) return text.citationIssueWrittenAs({ n: i.n, item: i.item, writtenAs: i.written_as });
+  if (i.found_in?.length) return text.citationIssueElsewhere({ n: i.n, item: i.item, sources: listAnd(i.found_in, text), count: i.found_in.length });
+  return text.citationIssue({ n: i.n, item: i.item });
+}
+
 /** Everything an exported answer says besides its text: what to check, and how figures were made. */
 export function checkLines(calculations: Calculation[], unverified: string[], issues: CitationIssue[], text: Messages): string[] {
   const lines: string[] = [];
   for (const c of calculations) {
-    lines.push(c.result === null ? text.calcFailed(c.expression, messageText({ kind: "warning", code: c.code ?? "calc.syntax" }, text))
-      : `${text.calculatedBy} ${c.expression} = ${c.result}.${c.figures_not_in_sources.length ? text.calcMissing(c.figures_not_in_sources) : ""}`);
+    lines.push(c.result === null ? text.calcFailed({ expression: c.expression, why: messageText({ kind: "warning", code: c.code ?? "calc.syntax" }, text) })
+      : `${text.calculatedBy} ${c.expression} = ${c.result}.${c.figures_not_in_sources.length ? ` ${text.calcMissing(figuresOf(c.figures_not_in_sources, text))}` : ""}`);
   }
-  if (unverified.length) lines.push(text.unverified(unverified));
+  if (unverified.length) lines.push(text.unverified(figuresOf(unverified, text)));
   for (const i of issues) {
-    const line = text.citationIssue(i.n, i.item, i.found_in, i.written_as);
+    const line = citationIssueText(i, text);
     if (!lines.includes(line)) lines.push(line);
   }
   return lines;

@@ -28,10 +28,10 @@ describe("the cards of an upload (board G13)", () => {
                         noticed: { ref: "A-7c21e04d", kind: "answer", line: "Made by sūveryn: answer from case 124, 17/10/2026 · sūveryn-ref A-7c21e04d" } },
                       { onDelete: none, onUseAsSource: none });
     const esc = (t: string) => t.replace(/'/g, "&#x27;");
-    expect(html).toContain(esc(`${en.noticedTitle("answer")} (case 124, 17 Oct). ${en.cardNoticedNotSource}`));
+    expect(html).toContain(esc(`${en.noticedTitle({ kind: "answer" })} (case 124, 17 Oct). ${en.cardNoticedNotSource}`));
     expect(html.match(/<button/g)?.length).toBe(3);   // the ×, Use as a source anyway, and the link
     expect(html).toContain(`>${en.deleteUpload}</`);
-    expect(html).toContain(en.removeFromQuestion("Terms.docx"));  // the × takes it out of the question, never deletes
+    expect(html).toContain(en.removeFromQuestion({ file: "Terms.docx" }));  // the × takes it out of the question, never deletes
   });
   it("offers the same quiet delete link on a card that couldn't be read, saying the case in a case", () => {
     const html = renderToStaticMarkup(<AttachmentCard a={{ key: "k", filename: "scan.pdf", status: "failed" } as Attachment}

@@ -8,6 +8,7 @@
  */
 import { reviewPages, type Warning } from "../api";
 import type { Messages } from "../i18n";
+import { pagesOf as pagesValue } from "./lists";
 
 type ReadingNotes = { ai: boolean; aiPages: number[]; recovered: number[]; headers: number[] };
 
@@ -42,15 +43,15 @@ export const checkPages = (warnings: Warning[] | undefined) => {
 /** What the document's row says to a screen reader beside its name and status. */
 export function rowNotes(m: Messages, warnings: Warning[] | undefined): string[] {
   const n = readingNotes(warnings);
-  return [...(n.ai ? [m.noteAiRow(n.aiPages)] : []), ...(n.recovered.length ? [m.noteRecoveredRow(n.recovered)] : [])];
+  return [...(n.ai ? [n.aiPages.length ? m.noteAiRowPages(pagesValue(n.aiPages, m)) : m.noteAiRow] : []), ...(n.recovered.length ? [m.noteRecoveredRow(pagesValue(n.recovered, m))] : [])];
 }
 
 /** The reading notes in full, most serious first. */
 export function noteDetails(m: Messages, warnings: Warning[] | undefined): string[] {
   const n = readingNotes(warnings);
   const review = reviewPages(warnings);
-  return [...(n.ai ? [m.noteAi(n.aiPages)] : []), ...(review.length ? [m.reviewHint(review)] : []),
-          ...(n.recovered.length ? [m.noteRecovered(n.recovered)] : []), ...(n.headers.length ? [m.noteHeaders(n.headers)] : [])];
+  return [...(n.ai ? [n.aiPages.length ? m.noteAiPages(pagesValue(n.aiPages, m)) : m.noteAi] : []), ...(review.length ? [m.reviewHintPages(pagesValue(review, m))] : []),
+          ...(n.recovered.length ? [m.noteRecovered(pagesValue(n.recovered, m))] : []), ...(n.headers.length ? [m.noteHeaders(pagesValue(n.headers, m))] : [])];
 }
 
 /** The line on the upload card once it is read: the most serious note, or null. */

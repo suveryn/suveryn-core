@@ -154,7 +154,7 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
             <div className="setup-divider" />
             <SelectField name="retention" label={t.keepFor} description={t.keepHint} value={String(retention)}
                          onChange={(v) => setRetention(Number(v) as Retention)}
-                         options={RETENTIONS.map((d) => ({ id: String(d), label: t.days(d) }))} />
+                         options={RETENTIONS.map((d) => ({ id: String(d), label: t.days({ n: d }) }))} />
           </div>
 
           <h2 className="setup-subtitle setup-section">{t.recoveryHeading}</h2>

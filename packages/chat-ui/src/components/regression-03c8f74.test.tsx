@@ -45,14 +45,14 @@ describe("Check by meaning (decision 1)", () => {
     expect(reviewGroups(RUN).check.map((f) => f.id)).toEqual(["deadline"]);
     expect(thread).toContain(esc(en.pbNotADate));
     expect(thread).toContain(en.pbGroupCheck);
-    expect(thread).not.toContain(esc(en.pbNotInPassage("")));
+    expect(thread).not.toContain(esc(en.pbNotInPassage({ items: "" })));
   });
 });
 
 describe("not known yet in words at the checkpoint (finding 8)", () => {
   it("says the fact is already not known yet", () => {
-    expect(thread).toContain(en.runAlreadyUnknown("Soil certificate"));
-    expect(nl.runAlreadyUnknown("Bodemattest")).toBe("Bodemattest staat al als nog niet bekend.");
+    expect(thread).toContain(en.runAlreadyUnknown({ facts: "Soil certificate" }));
+    expect(nl.runAlreadyUnknown({ facts: "Bodemattest" })).toBe("Bodemattest staat al als nog niet bekend.");
   });
 });
 
@@ -60,7 +60,7 @@ describe("an answer's own notices", () => {
   const render = (t: Pick<AssistantTurn, "thinkingCut" | "narrowedTo">) => renderToStaticMarkup(<AnswerNotes turn={t} />);
 
   it("says when the question named one document and only that one was read (decision 2)", () => {
-    expect(render({ narrowedTo: "R2 (FR).pdf" })).toContain(en.narrowedTo("R2 (FR).pdf"));
+    expect(render({ narrowedTo: "R2 (FR).pdf" })).toContain(en.narrowedTo({ file: "R2 (FR).pdf" }));
     expect(render({})).toBe("");
   });
 

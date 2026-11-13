@@ -88,7 +88,7 @@ export function AdminSettings() {
       setSaved(true);
     } catch (e) {
       setConfirming(null);
-      setError(m.settingsFailed((e as Error).message));
+      setError(m.settingsFailed({ why: (e as Error).message }));
       // two-step is the office's whole sign-in: refused, the switch shows the setting as it stands (finding 13)
       if (settings) setTwoStep(settings.two_step);
     } finally { setBusy(false); }
@@ -103,13 +103,12 @@ export function AdminSettings() {
       else await write();
     } catch (e) {
       setBusy(false);
-      setError(m.settingsFailed((e as Error).message));
+      setError(m.settingsFailed({ why: (e as Error).message }));
     }
   };
 
   const periodLabel = (p: KeepPeriod) => {
-    const l = keepPeriodLabel(p, m);
-    return l ? l.charAt(0).toUpperCase() + l.slice(1) : m.keepUntilDeleted;
+    return keepPeriodLabel(p, m) ?? m.keepUntilDeleted;
   };
   const periods = PERIODS.map((p) => ({ id: p, label: periodLabel(p) }));
 
@@ -184,7 +183,7 @@ export function AdminSettings() {
         {changed && !busy && <Button variant="quiet" onPress={() => { take(settings, rates); setError(null); }}>{m.cancel}</Button>}
         <p className="caption">
           {saved ? <span className="status-ok"><Check size={12} aria-hidden /> {m.settingsSaved}</span>
-            : settings?.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}
+            : settings?.updated_at ? m.settingsChangedBy({ who: settings.updated_by, day: dayLabel(settings.updated_at) }) : m.settingsAsProvisioned}
         </p>
       </div>
       <Dialog isOpen={confirming !== null} onClose={() => setConfirming(null)} busy={busy} kind="confirmation" title={m.saveSettingsTitle}
@@ -201,9 +200,9 @@ export function AdminSettings() {
 export function SettingsConsequences({ preview }: { preview: SettingsPreview }) {
   const m = useT();
   return <>
-    {preview.cases_opened ? <p>{m.casesOpened(preview.cases_opened)}</p> : null}
-    {preview.cases_closed ? <p>{m.casesClosed(preview.cases_closed)}</p> : null}
-    {preview.conversations_deleted ? <p>{m.conversationsDeleted(preview.conversations_deleted)}</p> : null}
+    {preview.cases_opened ? <p>{m.casesOpened({ n: preview.cases_opened })}</p> : null}
+    {preview.cases_closed ? <p>{m.casesClosed({ n: preview.cases_closed })}</p> : null}
+    {preview.conversations_deleted ? <p>{m.conversationsDeleted({ n: preview.conversations_deleted })}</p> : null}
     {preview.cases_opened || preview.cases_closed ? <p className="caption">{m.strictlyStays}</p> : null}
   </>;
 }
@@ -211,7 +210,6 @@ export function SettingsConsequences({ preview }: { preview: SettingsPreview }) 
 /** The keep periods in their order, labelled as everywhere: "6 months", …, "Until deleted by hand". */
 export function keepPeriodOptions(m: ReturnType<typeof useT>) {
   return PERIODS.map((p) => {
-    const l = keepPeriodLabel(p, m);
-    return { id: p, label: l ? l.charAt(0).toUpperCase() + l.slice(1) : m.keepUntilDeleted };
+    return { id: p, label: keepPeriodLabel(p, m) ?? m.keepUntilDeleted };
   });
 }
