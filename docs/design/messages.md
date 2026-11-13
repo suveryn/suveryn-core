@@ -19,8 +19,8 @@ By what the person can do, not by how bad it is.
 
 [`packages/harness/src/suveryn_harness/messages.json`](../../packages/harness/src/suveryn_harness/messages.json) lists
 every code. It is the contract: the server may only use a listed code, the chat UI's build fails on a listed code
-without words in every language, the appliance's web setup may only say a code listed here (its tests check its
-list against this file), and a partner gets it with the API. A line:
+without words in every language, the appliance's web setup reads it from the core on the appliance and keeps no list
+of its own, and a partner gets it with the API. A line:
 
 ```json
 "upload.too_large": {"kind": "refused", "status": 413, "title": "The file is larger than `max_mb`.",
@@ -83,8 +83,10 @@ proxy's 502) gets its status's general code.
 The setup's API is not the gateway: it is a small service in suveryn-appliance (`setup/suveryn-setup`) that runs
 before there is a database or a sign-in. It says the same thing in the same shape (suveryn-tracker#141):
 
-- Its codes are the registry's `setup` area. A refusal is Problem Details with `type`, `status`, `kind`, `code` and
-  `params`; the English `title` stays here in the registry. An answer refused field by field is `request.invalid`
+- Its codes are the registry's `setup` area, said through this package's `messages.py`, which the service loads
+  from the pinned core at `/opt/suveryn/core` (the module uses the standard library only, and must stay so): one
+  list, and the same Problem Details as the gateway's. A new setup code is merged here first and reaches the
+  appliance when its pin moves. An answer refused field by field is `request.invalid`
   with `fields`: `{"password": {"kind": "refused", "code": "setup.password_short", "params": {"min": 15}}}`.
 - What is stored or travels inside an answer is a message, `{kind, code, params}`: a share's test, why a restore's
   check failed, the step where provisioning stopped (`setup.provisioning_failed`, its `step` an id the screen names).

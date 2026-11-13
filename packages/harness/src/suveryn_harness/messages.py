@@ -7,6 +7,9 @@ language. Four kinds, by what the person can do: ``refused`` (nothing was done: 
 something). This module is the one way to use a code on the server: ``message`` for one that travels inside an
 answer or is stored, ``Problem`` for one that takes the answer's place (answered as RFC 9457 Problem Details by the
 gateway). English here (``title``, ``detail``) is for developers and never shown to a person.
+
+Standard library only, and nothing imported from the rest of the package: the appliance's web setup loads this
+file by its path, before any of sūveryn's services exist (suveryn-tracker#141). A test keeps it so.
 """
 from __future__ import annotations
 

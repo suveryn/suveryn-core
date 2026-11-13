@@ -74,3 +74,19 @@ def test_the_server_uses_only_listed_codes():
                 used |= {a.value for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)
                          and messages.NAME.fullmatch(a.value) and a.value.split(".")[0] in AREAS}
     assert len(used) >= 25 and used <= set(CODES), used - set(CODES)
+
+
+def test_the_module_loads_by_its_path_alone_as_the_appliances_web_setup_loads_it():
+    """suveryn-tracker#141: one list. The setup service runs before sūveryn's services exist, with the system's
+    Python in isolated mode, and loads this file by its path: standard library only, nothing from the package."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    path = Path(messages.__file__)
+    code = ("import importlib.machinery, importlib.util, sys\n"
+            f"l = importlib.machinery.SourceFileLoader('m', {str(path)!r})\n"
+            "m = importlib.util.module_from_spec(importlib.util.spec_from_loader('m', l)); sys.modules['m'] = m; l.exec_module(m)\n"
+            "assert 'suveryn_harness' not in sys.modules\n"
+            "print(m.problem('setup.password_short', min=15)['status'], 'setup' in m.AREAS)\n")
+    r = subprocess.run([sys.executable, "-I", "-S", "-c", code], capture_output=True, text=True)
+    assert r.stdout.split() == ["422", "True"], r.stderr
