@@ -4,19 +4,47 @@
  * nothing empty, Dutch formal (u, uw), French formal (vous), "sūveryn" in lower case except where it
  * opens a sentence, no em dashes, and the fixed terms (docs/translations.md) where a test can see them.
  */
+import { IntlMessageFormat } from "intl-messageformat";
 import type { Lang } from "./languages";
+import type { Message } from "./message";
 
-/** Every string in a table, as [path, text]: functions are called with ``samples[key]`` (lists of
- *  argument lists) or two default argument lists, objects and arrays are walked. */
-export function strings(table: unknown, samples: Record<string, unknown[][]> = {}, path = ""): [string, string][] {
+/** Values that walk every branch of a message: each word a `select` chooses by (and one it doesn't know), one and
+ *  several for a plural (and none where it has `=0`), "X" or 3 for a plain value. At most 48 combinations. */
+export function samplesFor(text: string): Record<string, string | number>[] {
+  type Node = { type: number; value?: string; options?: Record<string, { value: Node[] }> };
+  const choices = new Map<string, Set<string | number>>();
+  const add = (name: string, ...values: (string | number)[]) => choices.set(name, new Set([...(choices.get(name) ?? []), ...values]));
+  const walk = (nodes: Node[]) => {
+    for (const node of nodes) {
+      if (!node.value || node.type === 0 || node.type === 7 || node.type === 8) continue;
+      const keys = Object.keys(node.options ?? {});
+      if (node.type === 5) add(node.value, ...keys.map((k) => (k === "other" ? "zz" : k)));
+      else if (node.type === 6) add(node.value, 1, 3, ...(keys.includes("=0") ? [0] : []));
+      else if (node.type === 2) add(node.value, 3);
+      else if (!choices.has(node.value)) add(node.value, "X");
+      for (const option of Object.values(node.options ?? {})) walk(option.value);
+    }
+  };
+  walk(new IntlMessageFormat(text, "en", undefined, { ignoreTag: true }).getAst() as unknown as Node[]);
+  let all: Record<string, string | number>[] = [{}];
+  for (const [name, values] of choices) {
+    // a value that is both a count and a plain value keeps its numbers
+    const list = [...values].some((v) => typeof v === "number") ? [...values].filter((v) => typeof v === "number") : [...values];
+    all = all.flatMap((sample) => list.map((v) => ({ ...sample, [name]: v }))).slice(0, 48);
+  }
+  return all;
+}
+
+/** Every string in a table, as [path, text]: a message is formatted once for each of its branches (``samplesFor``),
+ *  objects and arrays are walked. */
+export function strings(table: unknown, path = ""): [string, string][] {
   if (typeof table === "string") return [[path, table]];
   if (typeof table === "function") {
-    const key = path.split(".").pop() ?? "";
-    const calls = samples[key] ?? [["X", "Y", 3], ["Y", 2, null]];
-    return calls.map((args, i) => [`${path}(${i})`, String((table as (...a: unknown[]) => unknown)(...args))] as [string, string]);
+    const message = table as Message;
+    return samplesFor(message.text).map((values, i) => [`${path}(${i})`, message(values)] as [string, string]);
   }
-  if (Array.isArray(table)) return table.flatMap((x, i) => strings(x, samples, `${path}[${i}]`));
-  if (table && typeof table === "object") return Object.entries(table).flatMap(([k, x]) => strings(x, samples, path ? `${path}.${k}` : k));
+  if (Array.isArray(table)) return table.flatMap((x, i) => strings(x, `${path}[${i}]`));
+  if (table && typeof table === "object") return Object.entries(table).flatMap(([k, x]) => strings(x, path ? `${path}.${k}` : k));
   return [];
 }
 

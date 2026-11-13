@@ -13,7 +13,6 @@ import {
   type AdminCase, type CaseSettings, type KeepPeriod, type Person, type SettingsPreview,
 } from "../api";
 import { useT } from "../i18n";
-import { asSentence } from "../i18n/message";
 import { dayLabel } from "../lib/conversations";
 import { Button, ComboBoxField, Dialog, InlineNotice, SelectField, TextButton } from "../ui";
 import { keepPeriodOptions, SettingsConsequences } from "./AdminSettings";
@@ -25,7 +24,7 @@ export function AdminCases() {
   const [error, setError] = useState<string | null>(null);
   const [handing, setHanding] = useState<AdminCase | null>(null);
   const refresh = useCallback(async () => {
-    try { setCases(await listAdminCases()); setError(null); } catch (e) { setError(m.casesLoadFailed((e as Error).message)); }
+    try { setCases(await listAdminCases()); setError(null); } catch (e) { setError(m.casesLoadFailed({ why: (e as Error).message })); }
   }, [m]);
   useEffect(() => { refresh(); }, [refresh]);
   const due = (cases ?? []).filter((c) => isDue(c));
@@ -35,7 +34,7 @@ export function AdminCases() {
       <CaseSettingsEditor onSaved={refresh} />
       {due.length > 0 && (
         <InlineNotice icon={<CircleAlert size={14} />}>
-          {m.casesDue(due.length)}: {due.map((c) => c.reference).join(", ")}
+          {m.casesDue({ n: due.length })}: {due.map((c) => c.reference).join(", ")}
         </InlineNotice>
       )}
       <h2 className="label">{m.adminCases}</h2>
@@ -76,7 +75,7 @@ export function AdminCases() {
 function fateShort(c: AdminCase, m: ReturnType<typeof useT>): string {
   if (c.keep) return m.keptMarked;
   if (c.keep_until === null) return "";
-  return isDue(c) ? m.deletedOnShort(onDay(c.keep_until)) : m.keptUntilShort(onDay(c.keep_until));
+  return isDue(c) ? m.deletedOnShort({ day: onDay(c.keep_until) }) : m.keptUntilShort({ day: onDay(c.keep_until) });
 }
 
 /** The office's three settings for cases, changed here as on Administration › Settings (board B05: one setting
@@ -105,7 +104,7 @@ function CaseSettingsEditor({ onSaved }: { onSaved: () => void }) {
     setBusy(true);
     setError(null);
     try { take(await setCaseSettings(body)); setConfirming(null); setSaved(true); onSaved(); }
-    catch (e) { setConfirming(null); setError(m.settingsFailed(asSentence((e as Error).message))); }
+    catch (e) { setConfirming(null); setError(m.settingsFailed({ why: (e as Error).message })); }
     finally { setBusy(false); }
   };
   const save = async () => {
@@ -115,7 +114,7 @@ function CaseSettingsEditor({ onSaved }: { onSaved: () => void }) {
       setBusy(false);
       if (p.cases_opened || p.cases_closed || p.conversations_deleted) setConfirming(p);
       else await write();
-    } catch (e) { setBusy(false); setError(m.settingsFailed(asSentence((e as Error).message))); }
+    } catch (e) { setBusy(false); setError(m.settingsFailed({ why: (e as Error).message })); }
   };
   const periods = keepPeriodOptions(m);
   return (
@@ -137,7 +136,7 @@ function CaseSettingsEditor({ onSaved }: { onSaved: () => void }) {
         <Button variant="primary" size="small" onPress={() => void save()} isDisabled={busy || !changed}>{busy ? m.saving : m.save}</Button>
         <p className="caption">
           {saved ? <span className="status-ok"><Check size={12} aria-hidden /> {m.settingsSaved}</span>
-            : settings.updated_at ? m.settingsChangedBy(settings.updated_by, dayLabel(settings.updated_at)) : m.settingsAsProvisioned}
+            : settings.updated_at ? m.settingsChangedBy({ who: settings.updated_by, day: dayLabel(settings.updated_at) }) : m.settingsAsProvisioned}
         </p>
       </div>
       <Dialog isOpen={confirming !== null} onClose={() => setConfirming(null)} busy={busy} kind="confirmation" title={m.saveSettingsTitle}
@@ -174,10 +173,10 @@ function HandOverDialog({ kase, onClose, onDone }: { kase: AdminCase | null; onC
     if (!kase || !chosen) return;
     setBusy(true);
     setError(null);
-    try { await handOver(kase.id, chosen.sub); onDone(); } catch (e) { setError(m.handOverFailed((e as Error).message)); } finally { setBusy(false); }
+    try { await handOver(kase.id, chosen.sub); onDone(); } catch (e) { setError(m.handOverFailed({ why: (e as Error).message })); } finally { setBusy(false); }
   };
   return (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} kind="confirmation" title={m.handOverTo(kase?.reference ?? "")} error={error}
+    <Dialog isOpen={open} onClose={onClose} busy={busy} kind="confirmation" title={m.handOverTo({ reference: kase?.reference ?? "" })} error={error}
             cancel={{ label: m.cancel }} primary={{ label: m.handOver, onPress: () => void confirm(), disabled: !chosen, busyLabel: m.handingOver }}>
       <p>{m.handOverHint}</p>
       <ComboBoxField name="colleague" label={m.newManager} value={query} onChange={setQuery}

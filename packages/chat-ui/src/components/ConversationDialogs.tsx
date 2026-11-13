@@ -49,7 +49,7 @@ export function RenameConversationDialog({ conversation, onDone, onCancel }: {
     try {
       onDone(await renameConversation(conversation.id, title.trim()));
     } catch (e) {
-      setError(m.renameFailed((e as Error).message));
+      setError(m.renameFailed({ why: (e as Error).message }));
       setBusy(false);
     }
   };
@@ -82,13 +82,13 @@ export function MoveConversationDialog({ conversation, cases, onDone, onCancel }
     try {
       onDone(await moveConversation(conversation.id, chosen));
     } catch (e) {
-      setError(m.moveFailed((e as Error).message));
+      setError(m.moveFailed({ why: (e as Error).message }));
       setBusy(false);
     }
   };
   return (
     <Dialog isOpen={!!conversation} onClose={onCancel} busy={busy} kind="form" closeLabel={m.close} error={error}
-            title={conversation ? m.moveTitle(listedTitle(conversation)) : m.moveToCase} cancel={{ label: m.cancel }}
+            title={conversation ? m.moveTitle({ title: listedTitle(conversation) }) : m.moveToCase} cancel={{ label: m.cancel }}
             primary={targets.length > 0 ? { label: m.moveButton, onPress: move, busyLabel: m.moving } : undefined}>
       {targets.length > 0
         ? <SelectField name="case" label={m.moveLabel} value={chosen} onChange={setTarget}

@@ -69,7 +69,7 @@ export function Certificate({ state, onBack, onDone, headingId }: Props) {
                       file={key} onChange={setKey} chooseLabel={t.chooseFile} icon={<FileKey size={16} />} />
             <FilePick name="chain" title={t.chainFile} hint={t.chainFileHint} accept={[".pem", ".crt"]}
                       file={chain} onChange={setChain} chooseLabel={t.chooseFile} icon={<FileText size={16} />} />
-            <Note icon={<Info size={14} />}>{t.mustCover(state.name)}</Note>
+            <Note icon={<Info size={14} />}>{t.mustCover({ name: state.name })}</Note>
           </>
         )}
       </div>

@@ -26,7 +26,7 @@ describe("failures as codes (suveryn-tracker#127, #139)", () => {
 
   it("says why a calculation couldn't be done in every language, from its code", () => {
     for (const [lang, m] of Object.entries(TABLES_FOR_TESTS)) {
-      const said = CALC.map((code) => m.calcFailed("1 / 0", messageText({ kind: "warning", code }, m)));
+      const said = CALC.map((code) => m.calcFailed({ expression: "1 / 0", why: messageText({ kind: "warning", code }, m) }));
       expect(new Set(said).size, lang).toBe(CALC.length);  // a sentence of its own for each code
     }
   });

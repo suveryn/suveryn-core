@@ -22,10 +22,10 @@ export function originKind(d: Pick<StoredDocument, "origin" | "source" | "proven
 export function originText(d: Pick<StoredDocument, "origin" | "source" | "provenance">, m: Messages): { word: string; detail: string } {
   const kind = originKind(d);
   const p = d.provenance;
-  if (kind === "pending") return { word: m.originPending, detail: m.noticedTitle(p?.noticed?.kind ?? "answer") };
+  if (kind === "pending") return { word: m.originPending, detail: m.noticedTitle({ kind: p?.noticed?.kind ?? "answer" }) };
   if (kind === "made") {
-    return { word: m.originMade, detail: d.origin === "playbook" ? m.originPlaybook(p?.version ?? null)
+    return { word: m.originMade, detail: d.origin === "playbook" ? (p?.version ? m.originPlaybookVersion({ version: p.version }) : m.originPlaybook)
                                    : d.origin === "answer" ? m.originAnswerSaved : m.originExport };
   }
-  return { word: m.originSource, detail: p?.confirmed && p.noticed ? m.originWasOutput(p.noticed.kind) : m.originUploaded };
+  return { word: m.originSource, detail: p?.confirmed && p.noticed ? m.originWasOutput({ kind: p.noticed.kind }) : m.originUploaded };
 }

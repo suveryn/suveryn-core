@@ -64,10 +64,11 @@ describe("answer rendering", () => {
 
   it("warns about text aimed at an AI by the numbers this answer shows, never by one it doesn't cite", () => {
     // Pod round of aebf5bc, finding 3: "Source 13 contains text aimed at an AI" under an answer citing 2 and 6.
-    const m = { instructionLike: (s: number[]) => `sources ${s.join(",")}`, instructionLikeUncited: "a passage" };
-    expect(instructionLikeWarning([13], "Huur [2] en oppervlakte [6].", 13, m)).toBe("a passage");
-    expect(instructionLikeWarning([13, 2], "Huur [2] en oppervlakte [6].", 13, m)).toBe("sources 2");
-    expect(instructionLikeWarning([6, 2], "Huur [2] en oppervlakte [6].", 13, m)).toBe("sources 2,6");
+    const m = TABLES_FOR_TESTS.en;
+    expect(instructionLikeWarning([13], "Huur [2] en oppervlakte [6].", 13, m)).toBe(m.instructionLikeUncited);
+    expect(instructionLikeWarning([13, 2], "Huur [2] en oppervlakte [6].", 13, m)).toMatch(/^Source 2 contains/);
+    expect(instructionLikeWarning([6, 2], "Huur [2] en oppervlakte [6].", 13, m)).toMatch(/^Sources 2 and 6 contain/);
+    expect(instructionLikeWarning([6, 2], "Huur [2] en oppervlakte [6].", 13, TABLES_FOR_TESTS.nl)).toMatch(/^Bronnen 2 en 6 bevatten/);  // the table's language, not the screen's
     expect(instructionLikeWarning([], "Huur [2].", 13, m)).toBeNull();
     expect(instructionLikeWarning(undefined, "Huur [2].", 13, m)).toBeNull();
   });
@@ -129,9 +130,9 @@ describe("documents that need review", () => {
 
   it("says the document is usable and where to check", () => {
     expect(pageList([1])).toBe("p. 1");
-    expect(pageList([1, 3])).toBe("pp. 1, 3");
+    expect(pageList([1, 3])).toBe("pp. 1 and 3");
     expect(reviewHint([1])).toContain("Ready to use. Some text on page 1 may not");
-    expect(reviewHint([1, 3])).toContain("on pages 1, 3");
+    expect(reviewHint([1, 3])).toContain("on pages 1 and 3");
     expect(reviewHint([])).toContain("on some pages");
   });
 });
@@ -369,13 +370,14 @@ describe("tables in answers (Word and Excel)", () => {
     });
 
   it("lists what to check: calculations, figures and citations, each once", () => {
-    const m = { ...TABLES_FOR_TESTS.en, calcFailed: (e: string, why: string) => `fail ${e}: ${why}`, calculatedBy: "Calc:", calcMissing: (f: string[]) => ` missing ${f}`,
-                unverified: (f: string[]) => `check ${f}`, citationIssue: (n: number, item: string) => `source ${n} lacks ${item}` } as unknown as typeof TABLES_FOR_TESTS.en;
+    const m = TABLES_FOR_TESTS.en;
     expect(checkLines([{ expression: "1 / 0", result: null, figures_not_in_sources: [], error: "division by zero", code: "calc.division_by_zero" }], [], [], m))
-      .toEqual(["fail 1 / 0: it divides by zero"]);
+      .toEqual(["Couldn't calculate 1 / 0. It divides by zero."]);
     const issue = { marker: 0, n: 2, item: "X", found_in: [3], written_as: null };
     expect(checkLines([{ expression: "1 + 1", result: "2", figures_not_in_sources: [], error: null }], ["9"], [issue, { ...issue, marker: 4 }], m))
-      .toEqual(["Calc: 1 + 1 = 2.", "check 9", "source 2 lacks X"]);
+      .toEqual([`${m.calculatedBy} 1 + 1 = 2.`, m.unverified({ figures: "9", count: 1 }), 'Check source 2: "X" isn\'t in it, but is in source 3.']);
+    expect(checkLines([{ expression: "1 + 1", result: "2", figures_not_in_sources: ["7", "8"], error: null }], [], [], TABLES_FOR_TESTS.fr)[0])
+      .toMatch(/= 2\. Vérifiez 7 et 8 : ces montants/);  // a list in the language the lines are written in
   });
 });
 
@@ -383,15 +385,16 @@ describe("server errors and long conversations", () => {
   it("says what went wrong in the interface's language, not as HTTP codes", () => {
     setLang("nl", false);
     const problem = (code: string, params = {}) => ({ kind: "refused", code, params, detail: "English, for developers" });
-    expect(httpErrorText(429, problem("request.too_many", { seconds: 12 }))).toBe("te veel verzoeken; probeer het over 12 seconden opnieuw");
-    expect(httpErrorText(422, problem("request.invalid"))).toBe("de server kon dit verzoek niet aanvaarden");  // was "HTTP 422"
-    expect(httpErrorText(413, problem("conversation.too_long"))).toMatch(/^dit gesprek is te lang/);
-    expect(httpErrorText(413, problem("upload.too_large", { max_mb: 100 }))).toBe("het bestand is groter dan 100 MB");
-    expect(httpErrorText(418, { detail: "I'm a teapot" })).toBe("de server kon dit verzoek niet aanvaarden");  // never the server's English
+    expect(httpErrorText(429, problem("request.too_many", { seconds: 12 }))).toBe("Te veel verzoeken. Probeer het over 12 seconden opnieuw.");
+    expect(httpErrorText(429, "Too Many Requests")).toBe("Te veel verzoeken. Probeer het zo meteen opnieuw.");  // a proxy's own answer: no seconds to name
+    expect(httpErrorText(422, problem("request.invalid"))).toBe("De server kon dit verzoek niet aanvaarden.");  // was "HTTP 422"
+    expect(httpErrorText(413, problem("conversation.too_long"))).toMatch(/^Dit gesprek is te lang/);
+    expect(httpErrorText(413, problem("upload.too_large", { max_mb: 100 }))).toBe("Het bestand is groter dan 100 MB.");
+    expect(httpErrorText(418, { detail: "I'm a teapot" })).toBe("De server kon dit verzoek niet aanvaarden.");  // never the server's English
     // Which part is down, when the gateway says (Pod check of cbccd38)
-    expect(httpErrorText(503, { kind: "unavailable", code: "system.database_unavailable" })).toMatch(/^de database antwoordt niet/);
-    expect(httpErrorText(503, { kind: "unavailable", code: "auth.unavailable" })).toMatch(/^aanmelden werkt nu niet/);
-    expect(httpErrorText(503, "Bad Gateway")).toBe("dit deel van de server is nu niet beschikbaar; probeer het later opnieuw");  // a proxy's own answer
+    expect(httpErrorText(503, { kind: "unavailable", code: "system.database_unavailable" })).toMatch(/^De database antwoordt niet/);
+    expect(httpErrorText(503, { kind: "unavailable", code: "auth.unavailable" })).toMatch(/^Aanmelden werkt nu niet/);
+    expect(httpErrorText(503, "Bad Gateway")).toBe("Dit deel van de server is nu niet beschikbaar. Probeer het later opnieuw.");  // a proxy's own answer
     setLang("en", false);
   });
 
@@ -435,7 +438,7 @@ describe("sūveryn's own output (docs/design/chat-ui.md §6)", () => {
     // the same expression as suveryn_rag.marks.REF, after accents are removed
     const REF = /suveryn-ref[\s:]*([AP])-([0-9a-f]{8})\b/i;
     for (const m of Object.values(TABLES_FOR_TESTS)) {
-      const line = m.exportMark("answer", "2026/0611", "19-10-2026", "A-3f9c2e1b").normalize("NFKD").replace(/\p{M}/gu, "");
+      const line = m.exportMarkCase({ kind: "answer", caseRef: "2026/0611", date: "19-10-2026", ref: "A-3f9c2e1b" }).normalize("NFKD").replace(/\p{M}/gu, "");
       expect(line.match(REF)?.slice(1)).toEqual(["A", "3f9c2e1b"]);
     }
   });

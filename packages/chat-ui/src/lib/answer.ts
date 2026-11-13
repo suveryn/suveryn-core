@@ -7,6 +7,8 @@
 import enWords from "../../../harness/src/suveryn_harness/lang/en.json";
 import frWords from "../../../harness/src/suveryn_harness/lang/fr.json";
 import nlWords from "../../../harness/src/suveryn_harness/lang/nl.json";
+import type { Messages } from "../i18n";
+import { listAnd } from "./lists";
 
 export type Segment =
   | { kind: "text"; text: string }
@@ -48,10 +50,10 @@ export function citedNumbers(text: string, available: number): number[] {
  *  their numbers, or, when it cites none of them, the warning without a number (pod round of aebf5bc, finding 3:
  *  "Source 13 contains…" under an answer whose sources were 2 and 6). Null when nothing was flagged. */
 export function instructionLikeWarning(flagged: number[] | undefined, text: string, available: number,
-                                       m: { instructionLike: (s: number[]) => string; instructionLikeUncited: string }): string | null {
+                                       m: Pick<Messages, "instructionLike" | "instructionLikeUncited">): string | null {
   if (!flagged?.length) return null;
   const cited = citedNumbers(text, available).filter((n) => flagged.includes(n)).sort((a, b) => a - b);
-  return cited.length ? m.instructionLike(cited) : m.instructionLikeUncited;
+  return cited.length ? m.instructionLike({ sources: listAnd(cited, m), count: cited.length }) : m.instructionLikeUncited;
 }
 
 /**

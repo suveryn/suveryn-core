@@ -81,7 +81,7 @@ describe("the composer's cards (App.tsx, now lib/uploads.ts)", () => {
     const cards = archiveCards(en, { archive: "dossier.zip", jobs: [job("a", "queued"), job("b", "queued")],
                                      skipped: [{ name: "foto.heic", reason: "not a document sūveryn reads" }] }, () => `k${++n}`);
     expect(cards.map((c) => [c.key, c.filename, c.status])).toEqual([["k1", "a.pdf", "queued"], ["k2", "b.pdf", "queued"], ["k3", "foto.heic", "failed"]]);
-    expect(cards[2]).toMatchObject({ notAdded: true, error: en.archiveSkipped("dossier.zip", "not a document sūveryn reads") });
+    expect(cards[2]).toMatchObject({ notAdded: true, error: en.archiveSkipped({ archive: "dossier.zip", reason: "not a document sūveryn reads" }) });
   });
 
   it("attaches a stored document as read, on 'To check' when it needs review", () => {

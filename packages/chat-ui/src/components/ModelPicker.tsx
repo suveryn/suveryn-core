@@ -53,11 +53,11 @@ export function ModelPicker({ models, chosen, onChoose, thinking, onThinking, na
     </>
   );
   if (models.length < 2 && !thinks) {
-    return <span className="chip-model" title={m.modelTag(name.full)}>{label}</span>;
+    return <span className="chip-model" title={m.modelTag({ model: name.full })}>{label}</span>;
   }
   return (
     <span className="model-picker">
-      <ChipDialog className="chip-model chip-model-button" triggerLabel={m.modelChipLabel(name.full, thorough ? m.thorough : m.fast)}
+      <ChipDialog className="chip-model chip-model-button" triggerLabel={m.modelChipLabel({ model: name.full, mode: thorough ? m.thorough : m.fast })}
                   title={m.modelDialog} hideTitle narrow={narrow} doneLabel={m.askAboutDone}
                   trigger={<>{label}<ChevronDown size={12} aria-hidden className="model-chevron" /></>}>{/* the chevron: it opens a choice (board G01) */}
         {models.length > 1 && (
@@ -74,7 +74,7 @@ export function ModelPicker({ models, chosen, onChoose, thinking, onThinking, na
           <p className="label model-section-label">{m.thinkingLabel}</p>
           <Segmented label={m.thinkingLabel} value={thorough ? "thorough" : "fast"} onChange={(v) => onThinking(v === "thorough")}
                      options={[{ value: "fast", label: m.fast }, { value: "thorough", label: m.thorough, disabled: !thinks }]}
-                     description={!thinks ? m.thinkingUnavailable(name.full) : thorough ? m.thoroughHint : m.fastHint} />
+                     description={!thinks ? m.thinkingUnavailable({ model: name.full }) : thorough ? m.thoroughHint : m.fastHint} />
         </div>
       </ChipDialog>
     </span>
@@ -85,5 +85,5 @@ export function ModelPicker({ models, chosen, onChoose, thinking, onThinking, na
 export function loadingNote(models: ModelInfo[], chosen: string | null): string | null {
   const m = models.find((x) => x.id === chosen) ?? defaultModel(models);
   if (!m || m.loaded) return null;
-  return t().modelNotLoaded(modelName(m.id)?.full ?? m.id);
+  return t().modelNotLoaded({ model: modelName(m.id)?.full ?? m.id });
 }

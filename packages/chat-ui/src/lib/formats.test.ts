@@ -24,9 +24,9 @@ describe("the files sūveryn reads", () => {
 
   it("says which files can be added when one can't, in the interface's language", () => {
     setLang("en", false);
-    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported_type" })).toBe("this file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip");
+    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported_type" })).toBe("This file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip.");
     setLang("fr", false);
-    expect(httpErrorText(415, { kind: "refused", code: "upload.invalid" })).toMatch(/^le contenu de ce fichier ne correspond pas à son type/);
+    expect(httpErrorText(415, { kind: "refused", code: "upload.invalid" })).toMatch(/^Le contenu de ce fichier ne correspond pas à son type/);
     setLang("en", false);
   });
 
@@ -35,7 +35,7 @@ describe("the files sūveryn reads", () => {
     setLang("nl", false);
     // by the server's code, never by its English words (decision of 12 November 2026, Messages are codes)
     const refused = (code: string, params = {}) => ({ kind: "refused", code, params, detail: "English, for developers" });
-    expect(httpErrorText(413, refused("upload.too_large"))).toBe("het bestand is groter dan de server aanvaardt");
+    expect(httpErrorText(413, refused("upload.too_large"))).toBe("Het bestand is groter dan de server aanvaardt.");
     expect(httpErrorText(415, refused("upload.archive_empty"))).toBe(TEXT.nl.messages["upload.archive_empty"]);
     expect(httpErrorText(413, refused("upload.archive_too_big"))).toBe(TEXT.nl.messages["upload.archive_too_big"]);
     expect(httpErrorText(415, refused("upload.not_zip"))).toBe(TEXT.nl.messages["upload.not_zip"]);
@@ -46,8 +46,8 @@ describe("the files sūveryn reads", () => {
     setLang("en", false);
     for (const t of Object.values(TEXT)) {
       for (const reason of ["unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged"]) {
-        expect(t.archiveSkipped("Prospectus.zip", reason)).toContain("Prospectus.zip");
-        expect(t.archiveSkipped("a.zip", reason)).not.toBe(t.archiveSkipped("a.zip", "something else"));
+        expect(t.archiveSkipped({ archive: "Prospectus.zip", reason })).toContain("Prospectus.zip");
+        expect(t.archiveSkipped({ archive: "a.zip", reason })).not.toBe(t.archiveSkipped({ archive: "a.zip", reason: "something else" }));
       }
     }
   });

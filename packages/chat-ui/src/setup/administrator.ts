@@ -44,7 +44,7 @@ export function checkAdministrator(a: Administrator, applianceName: string, t: T
 
   const p = a.password;
   const lower = p.toLowerCase();
-  if ([...p].length < MIN_PASSWORD) errors.password = t.errPasswordShort(MIN_PASSWORD);
+  if ([...p].length < MIN_PASSWORD) errors.password = t.errPasswordShort({ min: MIN_PASSWORD });
   else if (isCommonPassword(p)) errors.password = t.errPasswordCommon;
   else if (personalWords(a.name, email.split("@")[0], applianceName).some((w) => lower.includes(w))) {
     errors.password = t.errPasswordPersonal;

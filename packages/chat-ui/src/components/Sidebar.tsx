@@ -94,7 +94,7 @@ export function Sidebar(p: Props) {
   // The order of §2 and artboard 04: usage, settings, language; the administrators' items under their
   // own label; sign out.
   const accountEntries: MenuEntry[] = [
-    { id: "usage", label: m.myUsage, icon: <ChartColumn size={16} />, meta: p.tokensToday === null ? undefined : m.tokensToday(compact(p.tokensToday)) },
+    { id: "usage", label: m.myUsage, icon: <ChartColumn size={16} />, meta: p.tokensToday === null ? undefined : m.tokensToday({ n: compact(p.tokensToday) }) },
     { id: "settings", label: m.settings, icon: <Settings size={16} />, meta: m.settingsMeta },
     { id: "language", label: m.language, icon: <Languages size={16} />, meta: LANGUAGE_NAMES[lang()], submenu: langEntries, selected: `lang:${lang()}` },
     ...(p.admin ? [{ heading: m.administratorsOnly, items: [
@@ -124,7 +124,7 @@ export function Sidebar(p: Props) {
     </>
   );
   const accountMenu = (trigger: ReactNode, className: string) => (
-    <ActionMenu className={className} aria-label={m.accountMenu(p.user.name)} menuLabel={m.accountMenu(p.user.name)}
+    <ActionMenu className={className} aria-label={m.accountMenu({ name: p.user.name })} menuLabel={m.accountMenu({ name: p.user.name })}
                 entries={accountEntries} onAction={onAccount} header={accountHeader}
                 placement={p.collapsed ? "right bottom" : "top start"}>
       {trigger}
@@ -138,10 +138,10 @@ export function Sidebar(p: Props) {
   const inCase = p.currentCase && p.currentCase.state !== "closed"
     && (p.currentCase.my_role === "contributor" || p.currentCase.my_role === "manager") ? p.currentCase : null;
   const newEntries: MenuEntry[] = [
-    ...(inCase ? [{ id: "in-case", label: m.newConversationInCase(inCase.reference), icon: <MessagesSquare size={16} />,
+    ...(inCase ? [{ id: "in-case", label: m.newConversationInCase({ ref: inCase.reference }), icon: <MessagesSquare size={16} />,
                     description: m.newConversationInCaseHint }] : []),
     { id: "conversation", label: m.newConversation, icon: <MessageSquare size={16} />,
-      description: p.currentCase ? m.newChatHintInCase(p.currentCase.reference) : m.newChatHint },
+      description: p.currentCase ? m.newChatHintInCase({ ref: p.currentCase.reference }) : m.newChatHint },
     ...(p.casesNote ? [] : [{ id: "case", label: m.newCase, icon: <FolderPlus size={16} />, description: m.newCaseHint }]),
   ];
   const onNew = (id: string) => {
@@ -178,7 +178,7 @@ export function Sidebar(p: Props) {
   const conversationRow = (c: ConversationSummary, underCase = false, pinnedRow = false) => {
     const r = ref(c.case_id);
     const shared = !!c.shared || (!!c.owner && c.owner !== p.user.sub);
-    const hint = r ? (shared ? m.inCaseShared(r) : m.inCaseOnlyYou(r)) : m.onlyYou;
+    const hint = r ? (shared ? m.inCaseShared({ reference: r }) : m.inCaseOnlyYou({ reference: r })) : m.onlyYou;
     const current = c.id === p.currentConversation;
     const row = (
       <Button key={c.id} variant="plain" className={underCase ? "side-sub" : "side-recent"} data-guide={underCase || undefined}
@@ -190,7 +190,7 @@ export function Sidebar(p: Props) {
           : shared ? <Users size={14} aria-hidden /> : <MessageSquare size={14} aria-hidden />}
         {/* §11: a strictly confidential case's conversation, without its title */}
         <span className="side-text" data-shielded={c.shielded || undefined}
-              aria-label={c.shielded && r ? m.shieldedIn(r) : undefined}>{listedTitle(c)}</span>
+              aria-label={c.shielded && r ? m.shieldedIn({ ref: r }) : undefined}>{listedTitle(c)}</span>
         {/* board G02: a colleague's shared conversation says whose it is, by first name */}
         {underCase ? (c.run_id ? (runStateOf(c.run_id)
                         ? <span className="side-meta side-run-state">{runStateOf(c.run_id)}</span>
@@ -207,7 +207,7 @@ export function Sidebar(p: Props) {
     return (
       <div key={c.id} className="side-item" data-pinned={pinnedRow || undefined}>
         {row}
-        <ActionMenu className="side-actions" aria-label={m.conversationMenu(title)} menuLabel={m.conversationMenu(title)}
+        <ActionMenu className="side-actions" aria-label={m.conversationMenu({ title })} menuLabel={m.conversationMenu({ title })}
                     entries={conversationMenu(c, p.user.sub, m)} onAction={(a) => p.onConversationAction(c, a as ConversationAction)}
                     placement="bottom end">
           <Ellipsis size={16} aria-hidden />
@@ -250,11 +250,11 @@ export function Sidebar(p: Props) {
     return (
       <Expander key={c.id} className="side-case" toggleFirst expanded={expanded} onToggle={(v) => toggle(c.id, v)}
                 onOpen={() => p.onOpenCase(c)} current={c.id === p.currentCase?.id}
-                toggleLabel={m.caseConversationsToggle(c.reference)} title={m.openCase(c.reference, c.name)}
+                toggleLabel={m.caseConversationsToggle({ ref: c.reference })} title={m.openCase({ reference: c.reference, name: c.name })}
                 icon={c.state === "closed" ? <Lock size={16} /> : c.confidential ? <FolderKey size={16} /> : expanded ? <FolderOpen size={16} /> : <Folder size={16} />}
                 label={<><b>{c.reference}</b> <span className="side-dim">{c.state === "closed" ? `${m.caseClosed} · ` : ""}{c.name}</span></>}
                 actions={
-                  <ActionMenu className="side-actions" aria-label={m.caseActions(c.reference)} menuLabel={m.caseActions(c.reference)}
+                  <ActionMenu className="side-actions" aria-label={m.caseActions({ reference: c.reference })} menuLabel={m.caseActions({ reference: c.reference })}
                               entries={caseActions(c)} onAction={(a) => p.onCaseAction(c, a as CaseAction)} placement="bottom end">
                     <Ellipsis size={16} aria-hidden />
                   </ActionMenu>

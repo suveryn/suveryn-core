@@ -5,7 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, CaseEvent, PlaybookInfo, Run } from "../api";
 import en from "../i18n/en";
-import { asSentence } from "../i18n/message";
 import nl from "../i18n/nl";
 import { eventLabel } from "./CaseMembers";
 import { failureWords } from "./Messages";
@@ -61,7 +60,7 @@ describe("words that follow the reader", () => {
   });
 
   it("end a refused setting with a full stop (finding 13)", () => {
-    expect(nl.settingsFailed(asSentence(nl.messages["user.rights_refused"]))).toMatch(/ondersteuning\.$/);
-    expect(en.settingsFailed(asSentence("done."))).toBe("The settings couldn't be saved: done.");
+    expect(nl.settingsFailed({ why: nl.messages["user.rights_refused"] })).toMatch(/ondersteuning\.$/);
+    expect(en.settingsFailed({ why: en.messages["request.forbidden"] })).toBe("The settings couldn't be saved. You don't have permission for this.");
   });
 });

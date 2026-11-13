@@ -32,7 +32,7 @@ describe("a playbook's turns, worded on the screen (suveryn-tracker#126)", () =>
   it("words a choice by its option and a step by its name, in the reader's language", () => {
     const { en, nl, fr } = TABLES_FOR_TESTS;
     expect(playbookTurnText({ kind: "request", step: "agreement" }, nl, WORDS)).toBe("Laad de verkoopovereenkomst op.");
-    expect(playbookTurnText({ kind: "changed", fact: "kind", value: "cash" }, en, WORDS)).toBe(en.runChanged("Inbreng", "In geld"));
+    expect(playbookTurnText({ kind: "changed", fact: "kind", value: "cash" }, en, WORDS)).toBe(en.runChanged({ label: "Inbreng", value: "In geld" }));
     expect(playbookTurnText({ kind: "late_documents", step: "agreement", documents: ["a.pdf"], reads: ["x"] }, nl, WORDS))
       .toBe("a.pdf: toegevoegd aan Verkoopovereenkomst. Sūveryn leest het opnieuw voor de gegevens die erin staan.");
     expect(playbookTurnText({ kind: "late_documents", step: "agreement", documents: ["a.pdf", "b.pdf"], reads: [] }, fr, WORDS))

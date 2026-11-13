@@ -356,7 +356,7 @@ export async function streamChat(
       const m = t();
       const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments,
                                                document: m.streamErrorDocument, server: m.streamErrorServer };
-      failure = known[payload.code as string] ?? payload.message ?? m.streamErrorServer;
+      failure = known[payload.code as string] ?? m.streamErrorServer;  // never the server's own English
       failureCode = payload.code in known ? payload.code : null;
     }
   });

@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, PlaybookInfo, Run, RunSummary } from "../api";
 import en from "../i18n/en";
+import nl from "../i18n/nl";
 import { RunPanel, RunSourcePanel, RunThread, computedHow, factCounts, reviewGroups, runChipText, runStatusWord, statusLabel, stepLabel, waitsFor, lastRunLine } from "./RunConversation";
 
 const PLAYBOOK: PlaybookInfo = {
@@ -62,8 +63,8 @@ describe("the thread", () => {
 
   it("starts with who started what, and words the playbook's lines from their kind", () => {
     expect(html).toContain("Ines Wouters started Deed intake 1.1");
-    expect(html).toContain(en.runAskTurn(1, 2, "EPC"));
-    expect(html).toContain(en.runChanged("Price", "EUR 415.000,00"));
+    expect(html).toContain(en.runAskTurn({ found: 1, total: 2, list: "EPC" }));
+    expect(html).toContain(en.runChanged({ label: "Price", value: "EUR 415.000,00" }));
     expect(html).toContain("Upload the agreement.");  // the request's turn has no text: the pack's question, in the reader's words
   });
 
@@ -75,21 +76,21 @@ describe("the thread", () => {
   });
 
   it("puts the review in the message: a card under Check and one under Missing, never a place word", () => {
-    expect(html).toContain(en.pbReviewIntro(2, 3, 2));
+    expect(html).toContain(en.pbReviewIntro({ found: 2, total: 3, n: 2 }));
     expect(html).toContain(en.pbGroupCheck);
     expect(html).toContain(en.pbGroupMissing);
     expect(html).toContain(en.pbAdjust);
     expect(html).toContain(en.pbFill);
-    expect(html).toContain(esc(en.pbNotInPassage("EUR 415.000,00")));
+    expect(html).toContain(esc(en.pbNotInPassage({ items: "EUR 415.000,00" })));
     expect(html).toContain("De prijs bedraagt EUR 412.500,00.");  // the passage, quoted
-    expect(html).toContain(en.pbAllFacts(3));
+    expect(html).toContain(en.pbAllFacts({ total: 3 }));
     expect(html).not.toMatch(/on the right/);
   });
 
   it("holds Confirm back while Check isn't empty, and says why", () => {
     expect(html).toContain(en.confirmAll);
     expect(html).toContain('aria-disabled="true"');
-    expect(html).toContain(en.pbConfirmBlockedOne("Price"));
+    expect(html).toContain(en.pbConfirmBlockedOne({ label: "Price" }));
     const checked = { ...RUN, facts: RUN.facts.map((f) => (f.id === "price" ? { ...f, source: "person" as const, by: "ines", was: f.value } : f)) };
     const ok = renderToStaticMarkup(
       <RunThread run={checked} kase={KASE} playbook={PLAYBOOK} words={words} me="u-ines" canAnswer nameOf={names} panel={null}
@@ -118,11 +119,10 @@ describe("the thread", () => {
 describe("the facts list", () => {
   it("lists every fact with its source or where it came from, and edits nothing", () => {
     const html = renderToStaticMarkup(<RunPanel run={RUN} words={words} view={{ kind: "list" }} onView={noop} onClose={noop} />);
-    expect(html).toContain(en.pbListTitle("facts for the deed"));
-    expect(html).toContain("All facts for the deed");
+    expect(html).toContain("Facts for the deed");  // the playbook's own title for its facts, as it wrote it
     expect(html).toContain("akte.pdf, p.2");                   // the SourceRef
-    expect(html).toContain(en.sourceLabel(1, "akte.pdf", 2));  // its name
-    expect(html).toContain(en.pbFromChat(""));                 // the buyer came from the conversation
+    expect(html).toContain(en.sourceLabelPage({ n: 1, file: "akte.pdf", page: 2 }));  // its name
+    expect(html).toContain(en.pbFromChat({ time: "" }));                 // the buyer came from the conversation
     expect(html).toContain(en.answerPlaceholder);              // a fact without a value
     expect(html).toContain(esc(en.factCheckThis));
     expect(html).not.toContain(en.confirmAll);
@@ -134,8 +134,8 @@ describe("the facts list", () => {
                                                       onView={noop} onClose={noop} />);
     expect(html).toContain("De prijs bedraagt");
     expect(html).toContain('<mark class="source-match">EUR</mark>');             // what the server marked, nothing read here
-    expect(html).toContain(en.sourceOf(1, 1));                                   // "1 of 1", with its arrows
-    expect(html).toContain(en.openAtPage(2));                                    // the document at its page
+    expect(html).toContain(en.sourceOf({ i: 1, total: 1 }));                                   // "1 of 1", with its arrows
+    expect(html).toContain(en.openAtPage({ page: 2 }));                                    // the document at its page
     expect(html).toContain(en.copyPassage);
     expect(html).toContain("EUR 415.000,00");                                    // what the check didn't find, as under an answer
     expect(html).not.toContain(en.verdictSource);
@@ -347,10 +347,12 @@ describe("the playbook menu's line about the last run (board P04, 9)", () => {
   const now = new Date("2026-11-06T16:00:00");
   it("says when it ran and how it ended, or who an open run waits for", () => {
     const done = { ...SUMMARY, status: "done" as const, finished_at: "2026-11-06T15:00:00" };
-    expect(lastRunLine(done, PLAYBOOK, en, "u-ines", null, now)).toBe("Last: today, done · starts a new conversation");
+    expect(lastRunLine(done, PLAYBOOK, en, "u-ines", null, now)).toBe("Last: Today · Done · starts a new conversation");
     expect(lastRunLine({ ...done, status: "cancelled", finished_at: "2026-11-05T15:00:00" }, PLAYBOOK, en, "u-ines", null, now))
-      .toBe(`Last: ${en.yesterday.toLowerCase()}, ${en.runCancelled.toLowerCase()} · starts a new conversation`);
+      .toBe(`Last: ${en.yesterday} · ${en.runCancelled} · starts a new conversation`);
     const asking = { ...SUMMARY, step: "missing", step_kind: "ask" as const };
     expect(lastRunLine(asking, PLAYBOOK, en, "u-bob", "Mieke Delarivière", now)).toBe("Running: waiting for Mieke · opens that conversation");
+    expect(lastRunLine(asking, PLAYBOOK, nl, "u-ines", null, now)).toBe("Loopt: wacht op u · opent dat gesprek");
+    expect(lastRunLine({ ...SUMMARY, status: "paused" as const }, PLAYBOOK, en, "u-ines", null, now)).toBe("Running: paused · opens that conversation");
   });
 });

@@ -42,7 +42,7 @@ export function AdminBackups() {
       setKeyProblem(e instanceof HttpError && e.status === 415 ? m.keyTestNotKey : (e as Error).message);
     }
   };
-  if (error) return <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.backupsUnreadable(error)}</InlineNotice>;
+  if (error) return <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.backupsUnreadable({ why: error })}</InlineNotice>;
   if (!status) return null;
   const state = backupState(status);
   const reason = (step: string) => m.backupStep[step as keyof typeof m.backupStep] ?? m.backupStep.other;
@@ -51,17 +51,17 @@ export function AdminBackups() {
       {state.kind === "unavailable" && <InlineNotice icon={<Info size={14} />}>{m.backupsUnavailable}</InlineNotice>}
       {state.kind === "not_set_up" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
       {state.kind === "never" && (state.failing
-        ? <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.backupFailed(when(state.failing.at), reason(state.failing.step))}</InlineNotice>
+        ? <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.backupFailed({ when: when(state.failing.at), why: reason(state.failing.step) })}</InlineNotice>
         : <InlineNotice icon={<Info size={14} />}>{m.backupsNever}</InlineNotice>)}
       {(state.kind === "ok" || state.kind === "stale" || state.kind === "failing") && (() => {
         const s = state.status, ok = s.last_success!;
         // short, as on board B11: the size and how many there are
-        const detail = [sizeLabel(ok.size, locale()), ok.on_target != null ? m.backupCount(ok.on_target, null) : null].filter(Boolean).join(" · ");
+        const detail = [sizeLabel(ok.size, locale()), ok.on_target != null ? m.backupCount({ n: ok.on_target }) : null].filter(Boolean).join(" · ");
         return (
           <>
             {state.kind !== "ok" && (
               <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>
-                {state.kind === "stale" ? m.backupStale(when(ok.at)) : m.backupFailed(when(s.last_error!.at), reason(s.last_error!.step))}
+                {state.kind === "stale" ? m.backupStale({ when: when(ok.at) }) : m.backupFailed({ when: when(s.last_error!.at), why: reason(s.last_error!.step) })}
               </InlineNotice>
             )}
             {/* two cards first: the last backup, and the recovery key (board B11) */}
@@ -93,9 +93,9 @@ function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: s
   const k = keyTestState(status);
   const day = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short" });
   // Board B11: the key's state in a few words, large, and "Nu testen" as a link under it.
-  const value = k.kind === "testing" ? m.keyTesting : k.kind === "never" ? m.keyCardNever : k.kind === "ok" ? m.keyCardOk(day(k.test.at))
-    : k.kind === "due" ? m.keyCardDue(day(k.test.at)) : k.kind === "failed" ? m.keyCardFailed
-    : k.kind === "wrong_file" && k.lastOk ? (k.due ? m.keyCardDue(day(k.lastOk)) : m.keyCardOk(day(k.lastOk))) : m.keyCardNever;
+  const value = k.kind === "testing" ? m.keyTesting : k.kind === "never" ? m.keyCardNever : k.kind === "ok" ? m.keyCardOk({ day: day(k.test.at) })
+    : k.kind === "due" ? m.keyCardDue({ day: day(k.test.at) }) : k.kind === "failed" ? m.keyCardFailed
+    : k.kind === "wrong_file" && k.lastOk ? (k.due ? m.keyCardDue({ day: day(k.lastOk) }) : m.keyCardOk({ day: day(k.lastOk) })) : m.keyCardNever;
   return (
     <>
       <p className="backup-card-value" role="status">{value}</p>

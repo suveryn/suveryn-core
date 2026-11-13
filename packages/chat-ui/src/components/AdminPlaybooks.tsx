@@ -22,7 +22,7 @@ export function AdminPlaybooks() {
   const flip = async (p: PlaybookInfo, active: boolean) => {
     setPlaybooks((ps) => ps && ps.map((x) => (x.id === p.id ? { ...x, active } : x)));
     try { const changed = await setPlaybookActive(p.slug, active); setPlaybooks((ps) => ps && ps.map((x) => (x.id === p.id ? changed : x))); setError(null); }
-    catch (e) { setError(m.playbookChangeFailed((e as Error).message)); refresh(); }
+    catch (e) { setError(m.playbookChangeFailed({ why: (e as Error).message })); refresh(); }
   };
   return (
     <>
@@ -35,7 +35,7 @@ export function AdminPlaybooks() {
             <li key={p.id} className="item item-static">
               <span className="item-open">
                 <span className="item-name">{playbookWords(p, lang()).title} <span className="item-dim">{p.version} · {p.pack}</span></span>
-                <span className="item-meta">{m.playbookFor((p.case_types ?? []).map((t) => caseTypeLabel(t, m)).join(", "))} · {p.covered
+                <span className="item-meta">{m.playbookFor({ types: (p.case_types ?? []).map((t) => caseTypeLabel(t, m)).join(", ") })} · {p.covered
                   ? <span className="status-ok"><Check size={13} aria-hidden /> {m.covered}</span>
                   : <span className="status-warn"><TriangleAlert size={13} aria-hidden /> {m.notCovered}</span>}</span>
               </span>

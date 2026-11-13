@@ -27,7 +27,7 @@ export const onDay = (iso: string): string =>
 export function fateLabel(c: Case, m: ReturnType<typeof useT>): string {
   if (c.keep) return m.keptMarked;
   if (c.keep_until === null) return m.keptUntilDeleted;
-  return isDue(c) ? m.deletedOnDue(onDay(c.keep_until)) : m.deletedOn(onDay(c.keep_until));
+  return isDue(c) ? m.deletedOnDue({ day: onDay(c.keep_until) }) : m.deletedOn({ day: onDay(c.keep_until) });
 }
 
 export function CaseState({ kase, canReopen, canKeep, onChanged }: {
@@ -39,14 +39,14 @@ export function CaseState({ kase, canReopen, canKeep, onChanged }: {
   const act = async (what: () => Promise<Case>) => {
     setBusy(true);
     setError(null);
-    try { onChanged(await what()); } catch (e) { setError(m.caseChangeFailed((e as Error).message)); } finally { setBusy(false); }
+    try { onChanged(await what()); } catch (e) { setError(m.caseChangeFailed({ why: (e as Error).message })); } finally { setBusy(false); }
   };
   const due = isDue(kase);
   return (
     <div className="case-state" data-due={due || undefined}>
       {due ? <TriangleAlert size={14} aria-hidden /> : null}
       <span className="case-state-text">
-        {kase.closed_at && m.closedOn(onDay(kase.closed_at))} · {fateLabel(kase, m)}
+        {kase.closed_at && m.closedOn({ day: onDay(kase.closed_at) })} · {fateLabel(kase, m)}
       </span>
       {canReopen && (
         <TextButton link className="case-action" onPress={() => act(() => reopenCase(kase.id))} isDisabled={busy}>

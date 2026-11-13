@@ -104,11 +104,11 @@ function ManifestRows({ manifest: m, t, locale, onReplace, error }: {
   return (
     <div className="setup-stack">
       <Rows rows={[
-        { label: t.agreement, value: m.edition, tone: "ok", detail: t.validFor(shortId) },
+        { label: t.agreement, value: m.edition, tone: "ok", detail: t.validFor({ id: shortId }) },
         { label: t.users, value: String(m.users), detail: t.usersDetail },
         { label: t.validUntil, value: date(m.valid_until), detail: t.remindedBefore },
         { label: t.nextCheckIn, value: date(m.next_check_in), detail: t.checkInDetail },
-        { label: t.certified, value: t.certifiedValue(m.connectors, m.playbooks), detail: t.certifiedDetail },
+        { label: t.certified, value: t.certifiedValue({ c: m.connectors, p: m.playbooks }), detail: t.certifiedDetail },
       ]} />
       <ReplaceButton label={t.replaceManifest} onFile={onReplace} />
       {error && <p className="ui-form-error" role="alert">{error}</p>}

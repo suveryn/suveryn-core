@@ -20,7 +20,7 @@ export function SignOutDialog({ open, onKeep, onDelete, onCancel }: Props) {
     try {
       await onDelete();
     } catch (e) {
-      setError(m.deleteHistoryFailed((e as Error).message));
+      setError(m.deleteHistoryFailed({ why: (e as Error).message }));
       setDeleting(false);
     }
   };

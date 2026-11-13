@@ -81,7 +81,7 @@ export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: strin
     ];
   };
   const rowMenu = (u: Account) => (
-    <ActionMenu aria-label={m.rowActions(u.name)} menuLabel={m.rowActions(u.name)} entries={menu(u)} placement="bottom end"
+    <ActionMenu aria-label={m.rowActions({ name: u.name })} menuLabel={m.rowActions({ name: u.name })} entries={menu(u)} placement="bottom end"
                 className="overview-row-menu" onAction={(id) => setConfirm({ kind: id as Confirm["kind"], user: u })}>
       <Ellipsis size={16} aria-hidden />
     </ActionMenu>
@@ -104,7 +104,7 @@ export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: strin
   if (failed && !list) {
     return (
       <>
-        <Notice icon={<CircleAlert size={16} />} title={m.usersUnavailable}>{sentence(failed)}</Notice>
+        <Notice icon={<CircleAlert size={16} />} title={m.usersUnavailable}>{failed}</Notice>
         <Button size="small" onPress={load}><RefreshCw size={14} aria-hidden /> {m.tryAgain}</Button>
       </>
     );
@@ -119,7 +119,7 @@ export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: strin
         )}
         {list && (
           <span className="users-count">
-            {over && <TriangleAlert size={14} aria-hidden />}{m.usersCount(counted, list.agreement_users)}
+            {over && <TriangleAlert size={14} aria-hidden />}{list.agreement_users ? m.usersCountOf({ n: counted, max: list.agreement_users }) : m.usersCount({ n: counted })}
           </span>
         )}
         <Button variant="secondary" onPress={() => setAdding(true)} aria-label={narrow ? m.addUser : undefined}>
@@ -134,7 +134,7 @@ export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: strin
       ) : users.length === 1 && !query ? (
         <div className="users-empty"><b>{m.onlyUser}</b></div>
       ) : shown.length === 0 && query ? (
-        <p className="caption">{m.noUserFound(q.trim())} <TextButton link onPress={() => setQ("")}>{m.clearSearch}</TextButton></p>
+        <p className="caption">{m.noUserFound({ q: q.trim() })} <TextButton link onPress={() => setQ("")}>{m.clearSearch}</TextButton></p>
       ) : shown.length === 0 ? (
         <p className="caption">{m.noAccountsInFilter[filter]}</p>
       ) : narrow ? (
@@ -204,7 +204,7 @@ function eventText(e: AccountEvent, m: ReturnType<typeof useT>) {
     return <span className="status-warn"><TriangleAlert size={13} aria-hidden /> {m.signInFailed[e.reason ?? "other"]}</span>;
   }
   const what = m.accountEvent[e.kind];
-  return e.by ? m.byWhom(what, e.by) : what;
+  return e.by ? m.byWhom({ what, who: e.by }) : what;
 }
 
 function AddUserDialog({ open, counted, max, onClose, onAdded }: {
@@ -236,7 +236,7 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
   };
   return (
     <Dialog isOpen={open} onClose={onClose} busy={busy} kind="form" title={m.addUser} closeLabel={m.close}
-            error={error && sentence(error)} primary={{ label: m.add, form: "add-user" }} cancel={{ label: m.cancel }}>
+            error={error} primary={{ label: m.add, form: "add-user" }} cancel={{ label: m.cancel }}>
       <Form id="add-user" check={check} onValid={add} className="case-form">
         <TextField name="name" label={m.userName} value={name} onChange={setName} autoFocus maxLength={120} />
         <TextField name="email" type="email" label={m.userEmail} value={email} onChange={setEmail} maxLength={254} />
@@ -244,7 +244,7 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
           {m.colAdministrator}<span className="ui-hint user-hint">{m.canOpenAdministration}</span>
         </Checkbox>
         {max !== null && counted + 1 > max
-          ? <Notice icon={<TriangleAlert size={16} />}>{m.overAgreement(counted + 1, max)}</Notice>
+          ? <Notice icon={<TriangleAlert size={16} />}>{m.overAgreement({ n: counted + 1, max })}</Notice>
           : <p className="caption">{m.temporaryPasswordNote}</p>}
       </Form>
     </Dialog>
@@ -254,11 +254,11 @@ function AddUserDialog({ open, counted, max, onClose, onAdded }: {
 function TemporaryDialog({ temporary, onClose }: { temporary: TemporaryPassword | null; onClose: () => void }) {
   const m = useT();
   const t = temporary;
-  const text = t ? [`${m.address}: ${t.address}`, `${m.signInWith}: ${t.user.username}`, `${m.temporaryPassword}: ${t.password}`].join("\n") : "";
+  const text = t ? [m.labelValue({ label: m.address, value: t.address }), m.labelValue({ label: m.signInWith, value: t.user.username }), m.labelValue({ label: m.temporaryPassword, value: t.password })].join("\n") : "";
   const [copied, setCopied] = useState(false);
   return (
     // Seen once: Done is the only way out (no ×); Escape still closes it.
-    <Dialog isOpen={t !== null} onClose={onClose} kind="information" title={t ? m.passThisOn(t.user.name) : ""}
+    <Dialog isOpen={t !== null} onClose={onClose} kind="information" title={t ? m.passThisOn({ name: t.user.name }) : ""}
             helpers={[
               { label: copied ? m.copied : m.copy, icon: <Copy size={16} aria-hidden />,
                 onPress: () => { navigator.clipboard.writeText(text).then(() => setCopied(true), () => { /* not allowed */ }); } },
@@ -332,26 +332,26 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
   // risky: the focus starts on Cancel (docs/design/chat-ui.md, "Dialogs").
   const text: Record<Confirm["kind"], { title: string; body?: string; action: string; busy: string; risky?: boolean }> = {
     admin_on: { title: m.makeAdministrator, body: m.canOpenAdministration, action: m.makeAdministrator, busy: m.saving },
-    admin_off: { title: self ? m.youNoLongerAdminTitle : m.noLongerAdminTitle(named),
-                 body: self ? m.administrationClosesForYou : m.noLongerOpensAdministration(named), action: m.removeRights, busy: m.saving },
-    password: { title: m.resetPasswordTitle(named), body: m.resetPasswordBody, action: m.reset, busy: m.resetting, risky: true },
-    two_step: { title: m.resetTwoStepTitle(named), body: m.resetTwoStepBody(named), action: m.reset, busy: m.resetting, risky: true },
-    sign_out: { title: m.signOutTitle(named), body: m.signOutBody(named), action: m.signOutEverywhere, busy: m.signingOut, risky: true },
-    off: { title: m.switchOffTitle(named), body: managed.length ? m.chooseTakeOver(managed.length) : m.conversationsStay,
+    admin_off: { title: self ? m.youNoLongerAdminTitle : m.noLongerAdminTitle({ name: named }),
+                 body: self ? m.administrationClosesForYou : m.noLongerOpensAdministration({ name: named }), action: m.removeRights, busy: m.saving },
+    password: { title: m.resetPasswordTitle({ name: named }), body: m.resetPasswordBody, action: m.reset, busy: m.resetting, risky: true },
+    two_step: { title: m.resetTwoStepTitle({ name: named }), body: m.resetTwoStepBody({ name: named }), action: m.reset, busy: m.resetting, risky: true },
+    sign_out: { title: m.signOutTitle({ name: named }), body: m.signOutBody({ name: named }), action: m.signOutEverywhere, busy: m.signingOut, risky: true },
+    off: { title: m.switchOffTitle({ name: named }), body: managed.length ? m.chooseTakeOver({ n: managed.length }) : m.conversationsStay,
            action: managed.length ? m.handOverAndSwitchOff : m.switchOff, busy: m.switching, risky: true },
-    on: { title: m.switchOnTitle(named), body: m.switchOnBody, action: m.switchAccountOn, busy: m.switching },
-    delete: { title: m.deleteAccountTitle(named), action: m.deleteAccountAction, busy: m.deleting, risky: true },
+    on: { title: m.switchOnTitle({ name: named }), body: m.switchOnBody, action: m.switchAccountOn, busy: m.switching },
+    delete: { title: m.deleteAccountTitle({ name: named }), action: m.deleteAccountAction, busy: m.deleting, risky: true },
   };
   const waiting = (c.kind === "off" && (cases === null || managed.some((k) => !heirs[k.id]))) || (c.kind === "delete" && goes === null);
   return (
     <Dialog isOpen onClose={onClose} busy={busy} kind="confirmation" risky={text[c.kind].risky} title={text[c.kind].title}
-            error={error && sentence(error)} cancel={{ label: m.cancel }}
+            error={error} cancel={{ label: m.cancel }}
             primary={{ label: text[c.kind].action, onPress: () => void run(), disabled: waiting, busyLabel: text[c.kind].busy }}>
       {text[c.kind].body && <p>{text[c.kind].body}</p>}
       {c.kind === "delete" && goes && (
         <>
-          <p>{m.deleteAccountGoes(goes.documents, goes.conversations)}</p>
-          <p>{m.deleteAccountStays(goes.shared_conversations)}</p>
+          <p>{m.deleteAccountGoes({ documents: goes.documents, conversations: goes.conversations })}</p>
+          <p>{m.deleteAccountStays({ shared: goes.shared_conversations })}</p>
         </>
       )}
       {c.kind === "off" && managed.length > 0 && (
@@ -376,4 +376,3 @@ function ConfirmDialog({ confirm, me, onClose, onDone, onTemporary }: {
 }
 
 /** An error's text as a sentence of its own: a capital first, a full stop last (VM check of 28 October, finding 11). */
-const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?…]$/.test(text) ? "" : ".");

@@ -30,18 +30,18 @@ export function DeleteDocumentDialog({ open, filename, conversations, onDelete, 
     try {
       await onDelete(what);
     } catch (e) {
-      setError(m.deleteDocumentFailed(filename, (e as Error).message));
+      setError(m.deleteDocumentFailed({ file: filename, why: (e as Error).message }));
       setBusy(false);
     }
   };
 
   return (
-    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="choice" risky title={m.deleteDocumentDialogTitle(filename)} error={error}
+    <Dialog isOpen={open} onClose={onCancel} busy={busy} kind="choice" risky title={m.deleteDocumentDialogTitle({ file: filename })} error={error}
             cancel={{ label: m.cancel }}
-            secondary={{ label: m.deleteDocumentAndConversations(conversations), onPress: () => void choose("delete"),
+            secondary={{ label: m.deleteDocumentAndConversations({ n: conversations }), onPress: () => void choose("delete"),
                          busyLabel: m.deleting, running: running === "delete" }}
             primary={{ label: m.deleteDocumentKeepConversations, onPress: () => void choose("clean"), busyLabel: m.deleting }}>
-      <p>{m.deleteDocumentDialogBody(conversations)}</p>
+      <p>{m.deleteDocumentDialogBody({ n: conversations })}</p>
     </Dialog>
   );
 }
