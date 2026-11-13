@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { TEXT as SETUP } from "../setup/i18n";
 import { TABLES_FOR_TESTS as CHAT } from "./index";
 import { LOCALES, type Lang } from "./languages";
-import { messagesIn, namesIn } from "./message";
+import { asSentence, lowerFirst, messagesIn, namesIn } from "./message";
 
 type Entry = { path: string; value: unknown };
 /** Every entry of a table, nested ones by their path. */
@@ -60,6 +60,18 @@ describe("a message with a value or a plural", () => {
     expect(fr.m("l''{what} <b>", "what")("eau")).toBe("l'eau <b>");
   });
 
+  it("says a list as the language says it in a sentence", () => {
+    const on = (l: string) => messagesIn(l).m("{pages_count, plural, one {page {pages_and}} other {pages {pages_and}}}", "pages");
+    expect([on("en-GB")([2]), on("en-GB")([2, 3]), on("en-GB")([2, 3, 5])]).toEqual(["page 2", "pages 2 and 3", "pages 2, 3 and 5"]);
+    expect(messagesIn("nl-BE").m("{pages_and}", "pages")([2, 3, 5])).toBe("2, 3 en 5");
+    expect(messagesIn("fr-BE").m("{pages_and}", "pages")([2, 3, 5])).toBe("2, 3 et 5");
+  });
+
+  it("ends a reason as a sentence once, and lowers a title's first letter", () => {
+    expect([asSentence("done"), asSentence("done."), asSentence("really?")]).toEqual(["done.", "done.", "really?"]);
+    expect(lowerFirst("Facts for the deed")).toBe("facts for the deed");
+  });
+
   it("refuses a message that doesn't parse when it is first used, never showing half of it", () => {
     expect(() => m("{n, plural, one {{n} pagina}", "n")(1)).toThrow();
   });
@@ -88,14 +100,15 @@ describe("the language files (suveryn-tracker#147)", () => {
     expect(messages).toBeGreaterThan(800);
   });
 
-  it("keep code out: an entry is text, and the few that are real logic are counted and may only go down", () => {
-    // What is left as a function, and why: a full stop added unless the reason ends a sentence (settingsFailed); a
-    // lookup whose key has a hyphen (kind); numbers in words (pbTerm); a title's first letter lowered (pbListTitle);
-    // "pages 2, 3 and 5" (the five note… entries); where a citation was found (citationIssue). A new entry is text.
-    const LOGIC = { chat: 10, setup: 0 };
+  it("keep code out: no entry is a function of its own, in any language", () => {
+    // Every entry is a sentence, a table of sentences, or a message. What needed logic is logic once, for every
+    // language: a reason ended as a sentence (asSentence), a title's first letter lowered (lowerFirst), a list as
+    // the language says it ({pages_and}), a word looked up in a table (kind).
     for (const [name, table] of Object.entries(TABLES)) {
-      const code = entries(table.en).filter((e) => typeof e.value === "function" && !isMessage(e.value)).map((e) => e.path);
-      expect(code.length, `${name}: ${code.join(", ")}`).toBe(LOGIC[name as keyof typeof LOGIC]);
+      for (const lang of Object.keys(table) as Lang[]) {
+        const code = entries(table[lang]).filter((e) => typeof e.value === "function" && !isMessage(e.value)).map((e) => e.path);
+        expect(code, `${name} ${lang}`).toEqual([]);
+      }
     }
   });
 });

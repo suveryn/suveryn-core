@@ -13,6 +13,7 @@ import {
   type AdminCase, type CaseSettings, type KeepPeriod, type Person, type SettingsPreview,
 } from "../api";
 import { useT } from "../i18n";
+import { asSentence } from "../i18n/message";
 import { dayLabel } from "../lib/conversations";
 import { Button, ComboBoxField, Dialog, InlineNotice, SelectField, TextButton } from "../ui";
 import { keepPeriodOptions, SettingsConsequences } from "./AdminSettings";
@@ -104,7 +105,7 @@ function CaseSettingsEditor({ onSaved }: { onSaved: () => void }) {
     setBusy(true);
     setError(null);
     try { take(await setCaseSettings(body)); setConfirming(null); setSaved(true); onSaved(); }
-    catch (e) { setConfirming(null); setError(m.settingsFailed((e as Error).message)); }
+    catch (e) { setConfirming(null); setError(m.settingsFailed(asSentence((e as Error).message))); }
     finally { setBusy(false); }
   };
   const save = async () => {
@@ -114,7 +115,7 @@ function CaseSettingsEditor({ onSaved }: { onSaved: () => void }) {
       setBusy(false);
       if (p.cases_opened || p.cases_closed || p.conversations_deleted) setConfirming(p);
       else await write();
-    } catch (e) { setBusy(false); setError(m.settingsFailed((e as Error).message)); }
+    } catch (e) { setBusy(false); setError(m.settingsFailed(asSentence((e as Error).message))); }
   };
   const periods = keepPeriodOptions(m);
   return (

@@ -118,7 +118,7 @@ describe("the thread", () => {
 describe("the facts list", () => {
   it("lists every fact with its source or where it came from, and edits nothing", () => {
     const html = renderToStaticMarkup(<RunPanel run={RUN} words={words} view={{ kind: "list" }} onView={noop} onClose={noop} />);
-    expect(html).toContain(en.pbListTitle("Facts for the deed"));
+    expect(html).toContain(en.pbListTitle("facts for the deed"));
     expect(html).toContain("All facts for the deed");
     expect(html).toContain("akte.pdf, p.2");                   // the SourceRef
     expect(html).toContain(en.sourceLabel(1, "akte.pdf", 2));  // its name

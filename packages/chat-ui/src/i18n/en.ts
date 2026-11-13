@@ -8,15 +8,11 @@
  */
 import type { ChatArea, ChatCode, MessageKind, Wording } from "../lib/messages";
 import { LOCALES } from "./languages";
-import { singularIn } from "./plural";
 import { messagesIn } from "./message";
 
-/** Whether a count takes the singular here (CLDR's rules for en; ./plural.ts). */
-const singular = singularIn(LOCALES.en);
 /** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
 const { m, mp } = messagesIn(LOCALES.en);
 /** "page 4", "pages 2 and 7", "pages 2, 5 and 7" */
-const enPages = (p: number[]) => (!singular(p.length) ? `pages ${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}` : `page ${p[0]}`);
 
 const en = {
   language: "Language",
@@ -268,7 +264,7 @@ const en = {
   settingsSaved: "Saved.",
   settingsAsProvisioned: "As set when the appliance was installed.",
   settingsChangedBy: m("Changed by {who}, {day}.", "who", "day"),
-  settingsFailed: (why: string) => `The settings couldn't be saved: ${why}${/[.!?]$/.test(why) ? "" : "."}`,
+  settingsFailed: m("The settings couldn''t be saved: {why}", "why"),  // why: a sentence (asSentence)
   saving: "Saving…",
   colReference: "Reference",
   colName: "Name",
@@ -413,7 +409,7 @@ const en = {
   inputTokens: "Input tokens",
   outputTokens: "Output tokens",
   totalTokens: "Total tokens",
-  kind: (kind: string) => ({ chat: "Chat", summary: "Summaries", "playbook-step": "Playbook steps" } as Record<string, string>)[kind] ?? kind,
+  kind: { chat: "Chat", summary: "Summaries", "playbook-step": "Playbook steps" } as Record<string, string>,
   kindsLabel: "Tokens per kind",
   chartLabel: m("Tokens over time, {total} in total, in steps of {step}", "total", "step"),
   stepName: m("{step}", "step"),
@@ -503,10 +499,7 @@ const en = {
   deleteDocumentKeepConversations: "Delete the document, keep the conversations",
   deleteDocumentAndConversations: m("{n, plural, other {Delete the document and {n} conversations} one {Delete the document and the conversation}}", "n"),
   // citations checked against their source (suveryn-tracker#11)
-  citationIssue: (n: number, item: string, foundIn: number[], writtenAs: string | null) =>
-    writtenAs ? `Check source ${n}: it writes "${writtenAs}", not "${item}".`
-    : foundIn.length ? `Check source ${n}: "${item}" isn't in it, but is in ${!singular(foundIn.length) ? "sources" : "source"} ${foundIn.join(", ")}.`
-    : `Check source ${n}: "${item}" isn't in it.`,
+  citationIssue: m("{has_writtenAs, select, yes {Check source {n}: it writes \"{writtenAs}\", not \"{item}\".} other {{has_foundIn, select, yes {Check source {n}: \"{item}\" isn''t in it, but is in {foundIn_count, plural, one {source} other {sources}} {foundIn}.} other {Check source {n}: \"{item}\" isn''t in it.}}}}", "n", "item", "foundIn", "writtenAs"),
   citationIssueTitle: "This source doesn't contain everything the sentence says. Check it.",
   // Text aimed at an AI among the passages the model was given but this answer doesn't cite (pod round of aebf5bc,
   // finding 3): no number, which would point at a source the answer doesn't list.
@@ -612,9 +605,7 @@ const en = {
   // a term worked out from the date it counts from (board P01): "Worked out: 12 October 2026 plus four months."
   pbComputedCheck: "Worked out. Check it.",
   pbComputedHow: m("{before, select, true {{has_calendar, select, yes {Worked out: {base} minus {term} ({calendar}).} other {Worked out: {base} minus {term}.}}} other {{has_calendar, select, yes {Worked out: {base} plus {term} ({calendar}).} other {Worked out: {base} plus {term}.}}}}", "base", "term", "before", "calendar"),
-  pbTerm: (n: number, unit: "day" | "week" | "month" | "year" | "workday") =>
-    `${["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] ?? n} ${
-      unit === "workday" ? (singular(n) ? "working day" : "working days") : `${unit}${singular(n) ? "" : "s"}`}`,
+  pbTerm: m("{unit, select, day {{n, plural, =1 {one day} =2 {two days} =3 {three days} =4 {four days} =5 {five days} =6 {six days} =7 {seven days} =8 {eight days} =9 {nine days} =10 {ten days} =11 {eleven days} =12 {twelve days} other {{n} days}}} week {{n, plural, =1 {one week} =2 {two weeks} =3 {three weeks} =4 {four weeks} =5 {five weeks} =6 {six weeks} =7 {seven weeks} =8 {eight weeks} =9 {nine weeks} =10 {ten weeks} =11 {eleven weeks} =12 {twelve weeks} other {{n} weeks}}} month {{n, plural, =1 {one month} =2 {two months} =3 {three months} =4 {four months} =5 {five months} =6 {six months} =7 {seven months} =8 {eight months} =9 {nine months} =10 {ten months} =11 {eleven months} =12 {twelve months} other {{n} months}}} year {{n, plural, =1 {one year} =2 {two years} =3 {three years} =4 {four years} =5 {five years} =6 {six years} =7 {seven years} =8 {eight years} =9 {nine years} =10 {ten years} =11 {eleven years} =12 {twelve years} other {{n} years}}} other {{n, plural, =1 {one working day} =2 {two working days} =3 {three working days} =4 {four working days} =5 {five working days} =6 {six working days} =7 {seven working days} =8 {eight working days} =9 {nine working days} =10 {ten working days} =11 {eleven working days} =12 {twelve working days} other {{n} working days}}}}", "n", "unit"),
   pbComputedShare: m("Worked out: {percent}% of {of}.", "percent", "of"),
   pbApproximate: "The document gives this amount as approximate: check what is meant.",
   pbAmountNotInPassage: "The amount itself isn't in the passage.",
@@ -632,7 +623,7 @@ const en = {
   pbConfirmBlockedOne: m("You can confirm once {label} is checked.", "label"),
   pbConfirmBlocked: "You can confirm once the facts under Check are checked.",
   pbAllFacts: m("See all {total} facts", "total"),
-  pbListTitle: (title: string) => `All ${title.charAt(0).toLowerCase()}${title.slice(1)}`,
+  pbListTitle: m("All {title}", "title"),  // title: its first letter lowered (lowerFirst)
   pbChipPaused: m("{title} · paused", "title"),
   pbStatusReview: "to check",
   pbStatusWaitsDocs: "waiting for documents",
@@ -726,11 +717,11 @@ const en = {
   statusReviewPages: m("To check · p. {pages}", "pages"),
   // reading notes (suveryn-tracker#26): what reading a document noticed, for everyone who can see it
   readingNotes: "Reading notes",
-  noteAiRow: (pages: number[]) => `Contains text addressed to an AI${pages.length ? `, on ${enPages(pages)}` : ""}.`,
-  noteRecoveredRow: (pages: number[]) => `Some text on ${enPages(pages)} was recovered without its layout.`,
-  noteAi: (pages: number[]) => `Text aimed at an AI${pages.length ? ` on ${enPages(pages)}` : ""}. Treated as content, never as an instruction.`,
-  noteRecovered: (pages: number[]) => `Text on ${enPages(pages)} recovered without layout; tables may run together. Check against the original.`,
-  noteHeaders: (pages: number[]) => `Headers and footers on ${enPages(pages)} recovered without layout.`,
+  noteAiRow: m("Contains text addressed to an AI{has_pages, select, yes {, on {pages_count, plural, one {page {pages_and}} other {pages {pages_and}}}} other {}}.", "pages"),
+  noteRecoveredRow: m("Some text on {pages_count, plural, one {page {pages_and}} other {pages {pages_and}}} was recovered without its layout.", "pages"),
+  noteAi: m("Text aimed at an AI{has_pages, select, yes { on {pages_count, plural, one {page {pages_and}} other {pages {pages_and}}}} other {}}. Treated as content, never as an instruction.", "pages"),
+  noteRecovered: m("Text on {pages_count, plural, one {page {pages_and}} other {pages {pages_and}}} recovered without layout; tables may run together. Check against the original.", "pages"),
+  noteHeaders: m("Headers and footers on {pages_count, plural, one {page {pages_and}} other {pages {pages_and}}} recovered without layout.", "pages"),
   cardNoteAi: "Read. Check this document: it contains text addressed to an AI.",
   cardNoteRecovered: "Read. Some text was recovered without its layout.",
   statusProcessing: "Being read",

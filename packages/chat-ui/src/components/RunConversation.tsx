@@ -27,6 +27,7 @@ import {
 } from "../api";
 import { useWatermark } from "../lib/watermark";
 import { lang, locale, useT } from "../i18n";
+import { lowerFirst } from "../i18n/message";
 import {
   entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, optionLabel, shownFacts, splitPath, type FactGroup, type PlaybookWords,
 } from "../lib/playbooks";
@@ -780,7 +781,7 @@ export function RunPanel({ run, words, view, lists = run.playbook?.lists ?? {}, 
   const m = useT();
   const panel = useRef<HTMLElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const listTitle = m.pbListTitle(words.facts_title || m.factsPanel);
+  const listTitle = m.pbListTitle(lowerFirst(words.facts_title || m.factsPanel));
   const [error, setError] = useState<string | null>(null);
   // Focus follows the view (VM regression e0f2e26, finding 4): the panel when it opens; back from a source, the row it came from.
   useEffect(() => {

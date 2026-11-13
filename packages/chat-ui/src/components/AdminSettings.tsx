@@ -15,6 +15,7 @@ import {
   type CaseSettings, type KeepPeriod, type Rates, type SettingsPreview,
 } from "../api";
 import { useT } from "../i18n";
+import { asSentence } from "../i18n/message";
 import { dayLabel } from "../lib/conversations";
 import { Button, Dialog, InlineNotice, NumberField, RadioList, Segmented, SelectField, Switch, TextField } from "../ui";
 import { keepPeriodLabel } from "./CaseDialogs";
@@ -88,7 +89,7 @@ export function AdminSettings() {
       setSaved(true);
     } catch (e) {
       setConfirming(null);
-      setError(m.settingsFailed((e as Error).message));
+      setError(m.settingsFailed(asSentence((e as Error).message)));
       // two-step is the office's whole sign-in: refused, the switch shows the setting as it stands (finding 13)
       if (settings) setTwoStep(settings.two_step);
     } finally { setBusy(false); }
@@ -103,7 +104,7 @@ export function AdminSettings() {
       else await write();
     } catch (e) {
       setBusy(false);
-      setError(m.settingsFailed((e as Error).message));
+      setError(m.settingsFailed(asSentence((e as Error).message)));
     }
   };
 

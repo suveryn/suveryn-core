@@ -73,19 +73,21 @@ language:
   group it ("1,234").
 - A value that may be missing is asked about with `has_<name>` (`yes` or `no`): missing means not given,
   empty, or 0.
-- A list is `{name}` too, its items separated by ", "; how many there are is `{name_count}`.
+- A list is `{name}` too, its items separated by ", "; how many there are is `{name_count}`, and
+  `{name_and}` is the list as the language says it in a sentence ("2, 3 and 5", "2, 3 en 5": CLDR's rules,
+  through the browser's `Intl.ListFormat`).
 - A choice between a few words, or a yes/no, is a `select`.
 - An apostrophe before `{` is doubled (`l''{name}`).
 - Every language gives a message the same values, in the same order, as English.
 
 `message.test.ts` fails on a message that doesn't parse in its language, on one whose values differ from
-English's, and on a value its text uses that nobody gives; a missing string still fails the build. Ten
-entries of the chat are real logic and stay functions (a full stop added unless the reason ends a
-sentence, numbers in words, "pages 2, 3 and 5", where a citation was found …): the same test counts
-them, and the count may only go down. A new entry is text.
+English's, and on a value its text uses that nobody gives; a missing string still fails the build. No
+entry is a function of its own: the same test fails on one. What needs logic is logic once, for every
+language, in `message.ts` (a reason ended as a sentence, `asSentence`; a title's first letter lowered,
+`lowerFirst`), and numbers in words are exact cases of a plural (`=2 {two days}`).
 
 When the entries were converted, each was run beside the function it replaced over a grid of values:
-819 entries, about 143,000 comparisons, the same output but for three deliberate changes (a model with
+829 entries, about 144,000 comparisons, the same output but for three deliberate changes (a model with
 an empty name reads "The model is loading…"; Dutch and French page lists get the space after the comma
 English already had).
 

@@ -1,16 +1,12 @@
 /** Dutch interface text: formal (u/uw), as everywhere in sūveryn. Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
 import { LOCALES } from "./languages";
-import { singularIn } from "./plural";
 import { messagesIn } from "./message";
 
-/** Whether a count takes the singular here (CLDR's rules for nl; ./plural.ts). */
-const singular = singularIn(LOCALES.nl);
 /** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
 const { m, mp } = messagesIn(LOCALES.nl);
 
 /** "op pagina 4", "op pagina's 2 en 7", "op pagina's 2, 5 en 7" */
-const nlPages = (p: number[]) => (!singular(p.length) ? `op pagina's ${p.slice(0, -1).join(", ")} en ${p[p.length - 1]}` : `op pagina ${p[0]}`);
 
 const nl: Messages = {
   language: "Taal",
@@ -252,7 +248,7 @@ const nl: Messages = {
   settingsSaved: "Opgeslagen.",
   settingsAsProvisioned: "Zoals ingesteld bij de installatie van de appliance.",
   settingsChangedBy: m("Gewijzigd door {who}, {day}.", "who", "day"),
-  settingsFailed: (why) => `De instellingen konden niet worden opgeslagen: ${why}${/[.!?]$/.test(why) ? "" : "."}`,
+  settingsFailed: m("De instellingen konden niet worden opgeslagen: {why}", "why"),  // why: a sentence (asSentence)
   saving: "Opslaan…",
   colReference: "Referentie",
   colName: "Naam",
@@ -387,7 +383,7 @@ const nl: Messages = {
   inputTokens: "Invoertokens",
   outputTokens: "Uitvoertokens",
   totalTokens: "Tokens in totaal",
-  kind: (kind) => ({ chat: "Chat", summary: "Samenvattingen", "playbook-step": "Playbookstappen" } as Record<string, string>)[kind] ?? kind,
+  kind: { chat: "Chat", summary: "Samenvattingen", "playbook-step": "Playbookstappen" } as Record<string, string>,
   kindsLabel: "Tokens per soort",
   chartLabel: m("Tokens in de tijd, {total} in totaal, per {step}", "total", "step"),
   stepName: m("{step}", "step"),
@@ -473,10 +469,7 @@ const nl: Messages = {
   deleteDocumentDialogBody: m("{n, plural, other {{n} gesprekken citeren dit document. De passages verdwijnen eruit.} one {Eén gesprek citeert dit document. De passages verdwijnen eruit.}}", "n"),
   deleteDocumentKeepConversations: "Document verwijderen, gesprekken behouden",
   deleteDocumentAndConversations: m("{n, plural, other {Document en {n} gesprekken verwijderen} one {Document en gesprek verwijderen}}", "n"),
-  citationIssue: (n, item, foundIn, writtenAs) =>
-    writtenAs ? `Controleer bron ${n}: daar staat „${writtenAs}”, niet „${item}”.`
-    : foundIn.length ? `Controleer bron ${n}: „${item}” staat er niet in, wel in ${!singular(foundIn.length) ? "bronnen" : "bron"} ${foundIn.join(", ")}.`
-    : `Controleer bron ${n}: „${item}” staat er niet in.`,
+  citationIssue: m("{has_writtenAs, select, yes {Controleer bron {n}: daar staat „{writtenAs}”, niet „{item}”.} other {{has_foundIn, select, yes {Controleer bron {n}: „{item}” staat er niet in, wel in {foundIn_count, plural, one {bron} other {bronnen}} {foundIn}.} other {Controleer bron {n}: „{item}” staat er niet in.}}}}", "n", "item", "foundIn", "writtenAs"),
   citationIssueTitle: "Deze bron bevat niet alles wat de zin zegt. Controleer ze.",
   instructionLikeUncited: "Een passage die het model kreeg, bevat tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.",
   instructionLike: m("{sources_count, plural, one {Bron {sources} bevat tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.} other {Bronnen {sources} bevatten tekst gericht aan een AI. Die is niet gevolgd; controleer dit antwoord extra.}}", "sources"),
@@ -577,9 +570,7 @@ const nl: Messages = {
   pbNotADate: "Geen datum zoals geschreven: reken ze uit en kijk na.",
   pbComputedCheck: "Berekend. Kijk na.",
   pbComputedHow: m("{before, select, true {{has_calendar, select, yes {Berekend: {base} min {term} ({calendar}).} other {Berekend: {base} min {term}.}}} other {{has_calendar, select, yes {Berekend: {base} plus {term} ({calendar}).} other {Berekend: {base} plus {term}.}}}}", "base", "term", "before", "calendar"),
-  pbTerm: (n, unit) => `${["", "één", "twee", "drie", "vier", "vijf", "zes", "zeven", "acht", "negen", "tien", "elf", "twaalf"][n] ?? n} ${
-    { day: singular(n) ? "dag" : "dagen", week: singular(n) ? "week" : "weken", month: singular(n) ? "maand" : "maanden", year: "jaar",
-      workday: singular(n) ? "werkdag" : "werkdagen" }[unit]}`,
+  pbTerm: m("{unit, select, day {{n, plural, =1 {één dag} =2 {twee dagen} =3 {drie dagen} =4 {vier dagen} =5 {vijf dagen} =6 {zes dagen} =7 {zeven dagen} =8 {acht dagen} =9 {negen dagen} =10 {tien dagen} =11 {elf dagen} =12 {twaalf dagen} other {{n} dagen}}} week {{n, plural, =1 {één week} =2 {twee weken} =3 {drie weken} =4 {vier weken} =5 {vijf weken} =6 {zes weken} =7 {zeven weken} =8 {acht weken} =9 {negen weken} =10 {tien weken} =11 {elf weken} =12 {twaalf weken} other {{n} weken}}} month {{n, plural, =1 {één maand} =2 {twee maanden} =3 {drie maanden} =4 {vier maanden} =5 {vijf maanden} =6 {zes maanden} =7 {zeven maanden} =8 {acht maanden} =9 {negen maanden} =10 {tien maanden} =11 {elf maanden} =12 {twaalf maanden} other {{n} maanden}}} year {{n, plural, =1 {één jaar} =2 {twee jaar} =3 {drie jaar} =4 {vier jaar} =5 {vijf jaar} =6 {zes jaar} =7 {zeven jaar} =8 {acht jaar} =9 {negen jaar} =10 {tien jaar} =11 {elf jaar} =12 {twaalf jaar} other {{n} jaar}}} other {{n, plural, =1 {één werkdag} =2 {twee werkdagen} =3 {drie werkdagen} =4 {vier werkdagen} =5 {vijf werkdagen} =6 {zes werkdagen} =7 {zeven werkdagen} =8 {acht werkdagen} =9 {negen werkdagen} =10 {tien werkdagen} =11 {elf werkdagen} =12 {twaalf werkdagen} other {{n} werkdagen}}}}", "n", "unit"),
   pbComputedShare: m("Berekend: {percent} % van {of}.", "percent", "of"),
   pbApproximate: "Het document geeft dit bedrag bij benadering: kijk na wat bedoeld is.",
   pbAmountNotInPassage: "Het bedrag zelf staat niet in de passage.",
@@ -597,7 +588,7 @@ const nl: Messages = {
   pbConfirmBlockedOne: m("Bevestigen kan zodra {label} nagekeken is.", "label"),
   pbConfirmBlocked: "Bevestigen kan zodra de gegevens onder Kijk na nagekeken zijn.",
   pbAllFacts: m("Alle {total} gegevens bekijken", "total"),
-  pbListTitle: (title) => `Alle ${title.charAt(0).toLowerCase()}${title.slice(1)}`,
+  pbListTitle: m("Alle {title}", "title"),  // title: its first letter lowered (lowerFirst)
   pbChipPaused: m("{title} · gepauzeerd", "title"),
   pbStatusReview: "na te kijken",
   pbStatusWaitsDocs: "wacht op documenten",
@@ -689,11 +680,11 @@ const nl: Messages = {
   statusReview: "Na te kijken",
   statusReviewPages: m("Na te kijken · p. {pages}", "pages"),
   readingNotes: "Opmerkingen bij het lezen",
-  noteAiRow: (pages) => `Bevat tekst die zich tot een AI richt${pages.length ? `, ${nlPages(pages)}` : ""}.`,
-  noteRecoveredRow: (pages) => `Sommige tekst ${nlPages(pages)} is zonder opmaak hersteld.`,
-  noteAi: (pages) => `Tekst gericht aan een AI${pages.length ? ` ${nlPages(pages)}` : ""}. Behandeld als inhoud, nooit als opdracht.`,
-  noteRecovered: (pages) => `Tekst ${nlPages(pages)} hersteld zonder opmaak; tabellen kunnen in elkaar overlopen. Controleer met het origineel.`,
-  noteHeaders: (pages) => `Kop- en voetteksten ${nlPages(pages)} hersteld zonder opmaak.`,
+  noteAiRow: m("Bevat tekst die zich tot een AI richt{has_pages, select, yes {, {pages_count, plural, one {op pagina {pages_and}} other {op pagina''s {pages_and}}}} other {}}.", "pages"),
+  noteRecoveredRow: m("Sommige tekst {pages_count, plural, one {op pagina {pages_and}} other {op pagina''s {pages_and}}} is zonder opmaak hersteld.", "pages"),
+  noteAi: m("Tekst gericht aan een AI{has_pages, select, yes { {pages_count, plural, one {op pagina {pages_and}} other {op pagina''s {pages_and}}}} other {}}. Behandeld als inhoud, nooit als opdracht.", "pages"),
+  noteRecovered: m("Tekst {pages_count, plural, one {op pagina {pages_and}} other {op pagina''s {pages_and}}} hersteld zonder opmaak; tabellen kunnen in elkaar overlopen. Controleer met het origineel.", "pages"),
+  noteHeaders: m("Kop- en voetteksten {pages_count, plural, one {op pagina {pages_and}} other {op pagina''s {pages_and}}} hersteld zonder opmaak.", "pages"),
   cardNoteAi: "Gelezen. Kijk dit document na: het bevat tekst die zich tot een AI richt.",
   cardNoteRecovered: "Gelezen. Sommige tekst is zonder opmaak hersteld.",
   statusProcessing: "Wordt gelezen",

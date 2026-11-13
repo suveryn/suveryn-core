@@ -127,7 +127,7 @@ function ByKind({ report }: { report: UsageReport }) {
       </div>
       <figcaption className="kind-bar-legend">
         {kinds.map(([k, v], i) => (
-          <span key={k}><span className="kind-bar-swatch" data-series={i % 4} aria-hidden />{m.kind(k)} <b>{pct(v.total_tokens)}</b></span>
+          <span key={k}><span className="kind-bar-swatch" data-series={i % 4} aria-hidden />{m.kind[k] ?? k} <b>{pct(v.total_tokens)}</b></span>
         ))}
       </figcaption>
     </figure>

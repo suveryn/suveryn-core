@@ -1,18 +1,12 @@
 /** French interface text: formal (vous). Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
 import { LOCALES } from "./languages";
-import { singularIn } from "./plural";
 import { messagesIn } from "./message";
 
-/** Whether a count takes the singular here (CLDR's rules for fr; ./plural.ts). */
-const singular = singularIn(LOCALES.fr);
 /** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
 const { m, mp } = messagesIn(LOCALES.fr);
 
 /** "à la page 4", "aux pages 2 et 7"; "de la page 4", "des pages 2 et 7" */
-const frList = (p: number[]) => `${p.slice(0, -1).join(", ")} et ${p[p.length - 1]}`;
-const frAt = (p: number[]) => (!singular(p.length) ? `aux pages ${frList(p)}` : `à la page ${p[0]}`);
-const frOf = (p: number[]) => (!singular(p.length) ? `des pages ${frList(p)}` : `de la page ${p[0]}`);
 
 const fr: Messages = {
   language: "Langue",
@@ -254,7 +248,7 @@ const fr: Messages = {
   settingsSaved: "Enregistré.",
   settingsAsProvisioned: "Tels que définis à l'installation de l'appareil.",
   settingsChangedBy: m("Modifiés par {who}, {day}.", "who", "day"),
-  settingsFailed: (why) => `Les réglages n'ont pas pu être enregistrés : ${why}${/[.!?]$/.test(why) ? "" : "."}`,
+  settingsFailed: m("Les réglages n''ont pas pu être enregistrés : {why}", "why"),  // why: a sentence (asSentence)
   saving: "Enregistrement…",
   colReference: "Référence",
   colName: "Nom",
@@ -389,7 +383,7 @@ const fr: Messages = {
   inputTokens: "Jetons d'entrée",
   outputTokens: "Jetons de sortie",
   totalTokens: "Jetons au total",
-  kind: (kind) => ({ chat: "Chat", summary: "Résumés", "playbook-step": "Étapes de playbook" } as Record<string, string>)[kind] ?? kind,
+  kind: { chat: "Chat", summary: "Résumés", "playbook-step": "Étapes de playbook" } as Record<string, string>,
   kindsLabel: "Tokens par type",
   chartLabel: m("Jetons dans le temps, {total} au total, par pas de {step}", "total", "step"),
   stepName: m("{step}", "step"),
@@ -475,10 +469,7 @@ const fr: Messages = {
   deleteDocumentDialogBody: m("{n, plural, one {Une conversation cite ce document. Les passages en sont retirés.} other {{n} conversations citent ce document. Les passages en sont retirés.}}", "n"),
   deleteDocumentKeepConversations: "Supprimer le document, garder les conversations",
   deleteDocumentAndConversations: m("{n, plural, one {Supprimer le document et la conversation} other {Supprimer le document et {n} conversations}}", "n"),
-  citationIssue: (n, item, foundIn, writtenAs) =>
-    writtenAs ? `Vérifiez la source ${n} : elle écrit « ${writtenAs} », pas « ${item} ».`
-    : foundIn.length ? `Vérifiez la source ${n} : « ${item} » n'y figure pas, mais bien dans ${!singular(foundIn.length) ? "les sources" : "la source"} ${foundIn.join(", ")}.`
-    : `Vérifiez la source ${n} : « ${item} » n'y figure pas.`,
+  citationIssue: m("{has_writtenAs, select, yes {Vérifiez la source {n} : elle écrit « {writtenAs} », pas « {item} ».} other {{has_foundIn, select, yes {Vérifiez la source {n} : « {item} » n''y figure pas, mais bien dans {foundIn_count, plural, one {la source} other {les sources}} {foundIn}.} other {Vérifiez la source {n} : « {item} » n''y figure pas.}}}}", "n", "item", "foundIn", "writtenAs"),
   citationIssueTitle: "Cette source ne contient pas tout ce que dit la phrase. Vérifiez-la.",
   instructionLikeUncited: "Un passage transmis au modèle contient un texte adressé à une IA. Il n'a pas été suivi ; vérifiez cette réponse avec soin.",
   instructionLike: m("{has_sources, select, yes {{sources_count, plural, one {La source {sources} contient un texte adressé à une IA. Il n''a pas été suivi ; vérifiez cette réponse avec soin.} other {Les sources {sources} contiennent un texte adressé à une IA. Il n''a pas été suivi ; vérifiez cette réponse avec soin.}}} other {La source undefined contient un texte adressé à une IA. Il n''a pas été suivi ; vérifiez cette réponse avec soin.}}", "sources"),
@@ -579,9 +570,7 @@ const fr: Messages = {
   pbNotADate: "Pas une date telle qu'écrite : calculez-la et vérifiez.",
   pbComputedCheck: "Calculé. À vérifier.",
   pbComputedHow: m("{before, select, true {{has_calendar, select, yes {Calculé : {base} moins {term} ({calendar}).} other {Calculé : {base} moins {term}.}}} other {{has_calendar, select, yes {Calculé : {base} plus {term} ({calendar}).} other {Calculé : {base} plus {term}.}}}}", "base", "term", "before", "calendar"),
-  pbTerm: (n, unit) => `${["", unit === "week" ? "une" : "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix", "onze", "douze"][n] ?? n} ${
-    { day: singular(n) ? "jour" : "jours", week: singular(n) ? "semaine" : "semaines", month: "mois", year: singular(n) ? "an" : "ans",
-      workday: singular(n) ? "jour ouvrable" : "jours ouvrables" }[unit]}`,
+  pbTerm: m("{unit, select, day {{n, plural, =1 {un jour} =2 {deux jours} =3 {trois jours} =4 {quatre jours} =5 {cinq jours} =6 {six jours} =7 {sept jours} =8 {huit jours} =9 {neuf jours} =10 {dix jours} =11 {onze jours} =12 {douze jours} other {{n} jours}}} week {{n, plural, =1 {une semaine} =2 {deux semaines} =3 {trois semaines} =4 {quatre semaines} =5 {cinq semaines} =6 {six semaines} =7 {sept semaines} =8 {huit semaines} =9 {neuf semaines} =10 {dix semaines} =11 {onze semaines} =12 {douze semaines} other {{n} semaines}}} month {{n, plural, =1 {un mois} =2 {deux mois} =3 {trois mois} =4 {quatre mois} =5 {cinq mois} =6 {six mois} =7 {sept mois} =8 {huit mois} =9 {neuf mois} =10 {dix mois} =11 {onze mois} =12 {douze mois} other {{n} mois}}} year {{n, plural, =1 {un an} =2 {deux ans} =3 {trois ans} =4 {quatre ans} =5 {cinq ans} =6 {six ans} =7 {sept ans} =8 {huit ans} =9 {neuf ans} =10 {dix ans} =11 {onze ans} =12 {douze ans} other {{n} ans}}} other {{n, plural, =1 {un jour ouvrable} =2 {deux jours ouvrables} =3 {trois jours ouvrables} =4 {quatre jours ouvrables} =5 {cinq jours ouvrables} =6 {six jours ouvrables} =7 {sept jours ouvrables} =8 {huit jours ouvrables} =9 {neuf jours ouvrables} =10 {dix jours ouvrables} =11 {onze jours ouvrables} =12 {douze jours ouvrables} other {{n} jours ouvrables}}}}", "n", "unit"),
   pbComputedShare: m("Calculé : {percent} % de {of}.", "percent", "of"),
   pbApproximate: "Le document donne ce montant de façon approximative : vérifiez ce qui est visé.",
   pbAmountNotInPassage: "Le montant lui-même ne figure pas dans le passage.",
@@ -599,7 +588,7 @@ const fr: Messages = {
   pbConfirmBlockedOne: m("Vous pourrez confirmer une fois {label} vérifié.", "label"),
   pbConfirmBlocked: "Vous pourrez confirmer une fois les données sous À vérifier vérifiées.",
   pbAllFacts: m("Voir les {total} données", "total"),
-  pbListTitle: (title) => `Toutes les ${title.charAt(0).toLowerCase()}${title.slice(1)}`,
+  pbListTitle: m("Toutes les {title}", "title"),  // title: its first letter lowered (lowerFirst)
   pbChipPaused: m("{title} · en pause", "title"),
   pbStatusReview: "à vérifier",
   pbStatusWaitsDocs: "attend les documents",
@@ -691,11 +680,11 @@ const fr: Messages = {
   statusReview: "À vérifier",
   statusReviewPages: m("À vérifier · p. {pages}", "pages"),
   readingNotes: "Remarques à la lecture",
-  noteAiRow: (pages) => `Contient un texte adressé à une IA${pages.length ? `, ${frAt(pages)}` : ""}.`,
-  noteRecoveredRow: (pages) => `Une partie du texte ${frOf(pages)} a été récupérée sans sa mise en page.`,
-  noteAi: (pages) => `Texte adressé à une IA${pages.length ? ` ${frAt(pages)}` : ""}. Traité comme du contenu, jamais comme une consigne.`,
-  noteRecovered: (pages) => `Texte ${frOf(pages)} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l'original.`,
-  noteHeaders: (pages) => `En-têtes et pieds de page ${frOf(pages)} récupérés sans mise en page.`,
+  noteAiRow: m("Contient un texte adressé à une IA{has_pages, select, yes {, {pages_count, plural, one {à la page {pages_and}} other {aux pages {pages_and}}}} other {}}.", "pages"),
+  noteRecoveredRow: m("Une partie du texte {pages_count, plural, one {de la page {pages_and}} other {des pages {pages_and}}} a été récupérée sans sa mise en page.", "pages"),
+  noteAi: m("Texte adressé à une IA{has_pages, select, yes { {pages_count, plural, one {à la page {pages_and}} other {aux pages {pages_and}}}} other {}}. Traité comme du contenu, jamais comme une consigne.", "pages"),
+  noteRecovered: m("Texte {pages_count, plural, one {de la page {pages_and}} other {des pages {pages_and}}} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.", "pages"),
+  noteHeaders: m("En-têtes et pieds de page {pages_count, plural, one {de la page {pages_and}} other {des pages {pages_and}}} récupérés sans mise en page.", "pages"),
   cardNoteAi: "Lu. Vérifiez ce document : il contient un texte adressé à une IA.",
   cardNoteRecovered: "Lu. Une partie du texte a été récupérée sans sa mise en page.",
   statusProcessing: "En cours de lecture",
