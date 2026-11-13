@@ -27,6 +27,9 @@ export type Value = string | number | boolean;
 /** A message: what a screen calls with its values by name, and its text and value names for tests and tools. */
 export interface Message<K extends string = string> {
   (values: Record<K, Value>): string;
+  /** The same sentence in pieces, for a value the screen draws itself (a name in bold): text, and that value where
+   *  the language puts it. The sentence stays whole for the translator; only its look is the screen's. */
+  parts<T extends object>(values: Record<K, Value | T>): (string | T)[];
   readonly text: string;
   readonly params: readonly string[];
 }
@@ -54,13 +57,13 @@ export function messagesIn(locale: string) {
     let made: IntlMessageFormat | undefined;
     let read: readonly string[] | undefined;  // read from the text when first needed: a table of messages costs nothing to load
     const params = () => (read ??= names.length ? names : namesIn(text));
-    const f = (values: Record<string, Value>) => {
-      // a value that isn't given shows as nothing rather than stopping the screen; the types and the tests catch it first.
-      // ignoreTag: "<" and ">" in a sentence are just characters
-      const all: Record<string, Value> = Object.fromEntries(params().map((name) => [name, values?.[name] ?? ""]));
-      return String((made ??= new IntlMessageFormat(text, locale, undefined, { ignoreTag: true })).format(all as Record<string, string | number>));
-    };
-    return Object.defineProperties(f, { text: { value: text }, params: { get: params } }) as unknown as Message<N[number]>;
+    // a value that isn't given shows as nothing rather than stopping the screen; the types and the tests catch it first
+    const all = (values: Record<string, unknown>) => Object.fromEntries(params().map((name) => [name, values?.[name] ?? ""])) as Record<string, string | number>;
+    // ignoreTag: "<" and ">" in a sentence are just characters
+    const format = () => (made ??= new IntlMessageFormat(text, locale, undefined, { ignoreTag: true }));
+    const f = (values: Record<string, Value>) => String(format().format(all(values)));
+    const parts = (values: Record<string, unknown>) => format().formatToParts(all(values)).map((part) => part.value);
+    return Object.defineProperties(f, { text: { value: text }, params: { get: params }, parts: { value: parts } }) as unknown as Message<N[number]>;
   }
   return { m };
 }

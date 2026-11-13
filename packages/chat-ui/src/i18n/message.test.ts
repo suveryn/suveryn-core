@@ -141,6 +141,21 @@ describe("whole sentences (suveryn-tracker#147)", () => {
     expect(reasons).toBeGreaterThan(300);
   });
 
+  it("a row of the access log is one sentence with the person in it, and the screen can draw that person itself", () => {
+    for (const lang of Object.keys(CHAT) as Lang[]) {
+      const rows = entries(CHAT[lang]).filter((e) => /^event[A-Z]/.test(e.path));
+      expect(rows.length).toBeGreaterThan(25);
+      for (const { path, value } of rows) {
+        expect(isMessage(value) && value.params.includes("who"), `${lang} ${path}: say who, inside the sentence`).toBe(true);
+        if (!isMessage(value)) continue;
+        for (const values of samplesFor(value.text)) expect(value(values), `${lang} ${path}`).toContain("X");
+      }
+    }
+    const who = { name: "Nora" };
+    expect(CHAT.en.eventClosed.parts({ who })).toEqual([who, " closed the case"]);
+    expect(CHAT.en.eventAsked.parts({ who, n: 2 })).toEqual([who, " asked a question about 2 documents"]);
+  });
+
   it("no entry is a piece to glue on: none starts or ends with a space, or ends on a colon and a value to follow", () => {
     for (const [name, table] of Object.entries(TABLES)) {
       for (const lang of Object.keys(table) as Lang[]) {

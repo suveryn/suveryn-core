@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { Case, CaseEvent, PlaybookInfo, Run } from "../api";
 import en from "../i18n/en";
 import nl from "../i18n/nl";
-import { eventLabel } from "./CaseMembers";
+import { eventParts } from "./CaseMembers";
 import { failureWords } from "./Messages";
 import { RunThread } from "./RunConversation";
 
@@ -54,9 +54,13 @@ describe("words that follow the reader", () => {
 
   it("name who received a case and which playbook started, in the access log (finding 12)", () => {
     const e = (action: string, detail: Record<string, string>) => ({ id: 1, action, detail, user: "u-alice", at } as unknown as CaseEvent);
-    expect(eventLabel(e("handed_over", { manager: "u-bob" }), nl, (u) => (u === "u-bob" ? "Test Bob" : ""))).toBe("droeg het dossier over aan Test Bob");
-    expect(eventLabel(e("playbook_started", { playbook: PLAYBOOK.id }), nl, () => "", () => "Akte-intake")).toBe("startte Akte-intake");
-    expect(eventLabel(e("handed_over", {}), nl)).toBe(nl.eventHandedOver);
+    const row = (...a: Parameters<typeof eventParts>) => eventParts(...a).join("");
+    expect(row(e("handed_over", { manager: "u-bob" }), nl, "Test Alice", (u) => (u === "u-bob" ? "Test Bob" : ""))).toBe("Test Alice droeg het dossier over aan Test Bob");
+    expect(row(e("playbook_started", { playbook: PLAYBOOK.id }), nl, "Test Alice", () => "", () => "Akte-intake")).toBe("Test Alice startte Akte-intake");
+    expect(row(e("handed_over", {}), nl, "Test Alice")).toBe(nl.eventHandedOver({ who: "Test Alice" }));
+    // one sentence, with the person as the screen draws them, where the language puts them
+    const who = { bold: "Test Alice" };
+    expect(eventParts(e("member_added", { role: "reader" }), en, who)).toEqual([who, " added a member as reader"]);
   });
 
   it("end a refused setting with a full stop (finding 13)", () => {

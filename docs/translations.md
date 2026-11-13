@@ -102,9 +102,12 @@ No sentence is glued from pieces, since the pieces don't fit together the same w
 - **A label and its value** ("deed.pdf: ready") go through `labelValue`, so the punctuation between
   them is the language's (French: "deed.pdf : prêt").
 
-What is left on purpose: the rows of a case's access log are verb phrases shown after the person's name
-in its own column ("opened the case"), labels joined by a middle dot are labels, not a sentence, and a
-calculation's line is a label followed by the calculation.
+- **A value the screen draws itself stays inside the sentence.** A row of a case's access log is one
+  sentence with the person in it ("{who} opened the case"); the screen shows the name in bold through
+  the message's `parts`, which gives the sentence in pieces with the name where the language puts it.
+
+What is left on purpose: labels joined by a middle dot are labels, not a sentence, and a calculation's
+line is a label followed by the calculation.
 
 ## Notes for the translator
 
