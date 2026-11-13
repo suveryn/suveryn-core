@@ -24,7 +24,7 @@ import os
 import uuid
 from collections import Counter
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
 from suveryn_harness.messages import Problem
@@ -98,10 +98,10 @@ def slots_of(app) -> RunSlots:
 def runs_or_503(request: Request) -> RunStore:
     db = request.app.state.runs
     if not db.configured:
-        raise HTTPException(503, "Playbooks are not available on this server.")
+        raise Problem("run.unavailable", "Playbooks are not available on this server.")
     store = db.get()
     if store is None:
-        raise HTTPException(503, f"Playbooks are not available right now: {db.error}.")
+        raise Problem("run.unavailable", f"Playbooks are not available right now: {db.error}.")
     return store
 
 
@@ -109,7 +109,7 @@ def _run_id(run_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(run_id)
     except ValueError:
-        raise HTTPException(422, f"Not a run id: {run_id!r}") from None
+        raise Problem("request.invalid", f"Not a run id: {run_id!r}") from None
 
 
 _out = playbook_out  # a playbook as the UI needs it (``suveryn_api_gateway.playbooks``)
@@ -177,7 +177,7 @@ async def set_playbook_active(playbook: str, body: ActiveIn, request: Request):
     admin_or_403(request)
     pb = by_slug(playbook)
     if pb is None:
-        raise HTTPException(404, "No such playbook.")
+        raise Problem("request.not_found", "No such playbook.")
     store = runs_or_503(request)
     await run_in_threadpool(store.set_active, pb.id, body.active, who(request)[0])
     return _out(pb, await _inactive(request))
@@ -208,7 +208,7 @@ async def get_run(case_id: str, run_id: str, request: Request):
     case = await case_for(request, case_id, "read")
     run = await run_in_threadpool(runs_or_503(request).get, _run_id(run_id), uuid.UUID(case.id))
     if run is None:
-        raise HTTPException(404, "Unknown run.")
+        raise Problem("request.not_found", "Unknown run.")
     return _named(run)
 
 
@@ -225,7 +225,7 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
     pb = by_slug(playbook)
     case = await case_for(request, case_id, "contribute")
     if pb is None or case.type not in pb.case_types or pb.id in await _inactive(request):
-        raise HTTPException(404, "No such playbook for this case.")
+        raise Problem("request.not_found", "No such playbook for this case.")
     # Not covered by the support agreement? It runs anyway: the licensing model warns, never blocks
     # (development context §8); the UI shows the warning from GET …/playbooks.
     store, cid = runs_or_503(request), uuid.UUID(case.id)
@@ -234,7 +234,7 @@ async def start_run(case_id: str, playbook: str, body: StartIn, request: Request
         raise Problem("run.already_going", "This playbook is already going in this case.", run=live.id)
     uploaded = await run_in_threadpool(_uploaded_in(request), cid)
     if any(d not in uploaded for d in body.document_ids):
-        raise HTTPException(404, "Unknown document.")
+        raise Problem("request.not_found", "Unknown document.")
     language = body.language or _accepted_language(request)
     run = await run_in_threadpool(store.create, cid, pb, body.document_ids, who(request)[0], None, language, owner_of(request))
     await log_access(request, cid, "playbook_started", {"playbook": pb.id, "version": pb.version, "run": run.id,
@@ -338,19 +338,30 @@ async def _live_run(request: Request, case_id: str, run_id: str, action: str) ->
     store = runs_or_503(request)
     run = await run_in_threadpool(store.get, _run_id(run_id), uuid.UUID(case.id))
     if run is None:
-        raise HTTPException(404, "Unknown run.")
+        raise Problem("request.not_found", "Unknown run.")
     pb = await run_in_threadpool(store.playbook_of, _run_id(run_id), uuid.UUID(case.id))
     if pb is None:
-        raise HTTPException(404, "Unknown run.")
+        raise Problem("request.not_found", "Unknown run.")
     return case, store, run, pb
+
+
+def _not_now(run: Run, detail: str, paused: bool = True) -> Problem:
+    """Why a run takes nothing of this kind now, as a person can act on it: it is paused (resume it), it has ended,
+    or it has moved on since the caller's screen was drawn (look again). ``paused=False`` where being paused isn't
+    the reason (resuming a run that isn't)."""
+    if run.status == "paused" and paused:
+        return Problem("run.paused", "The run is paused.")
+    if run.status in ("done", "stopped", "cancelled", "failed"):
+        return Problem("run.ended", "This run has already ended.")
+    return Problem("run.moved_on", detail)
 
 
 def _waiting_on(run: Run, pb: Playbook, step_id: str, kinds: tuple[str, ...]) -> Step:
     if run.status != "waiting" or run.step != step_id:
-        raise HTTPException(409, "The run isn't waiting on this step." if run.status != "paused" else "The run is paused.")
+        raise _not_now(run, "The run isn't waiting on this step.")
     step = pb.step(step_id)
     if step is None or step.kind not in kinds:
-        raise HTTPException(409, "This step doesn't take an answer.")
+        raise Problem("run.moved_on", "This step doesn't take an answer.")
     return step
 
 
@@ -369,13 +380,13 @@ async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request
         asked = set(await run_in_threadpool(runtime.unanswered, run, step))  # only what the playbook asked about
         given = {k: v for k, v in (body.facts or {}).items() if k in asked or (root(k) in asked and pb.leaf(k) is not None)}
         if (body.facts or {}).keys() - given.keys():
-            raise HTTPException(422, "A fact that isn't asked here.")
+            raise Problem("request.invalid", "A fact that isn't asked here.")
         # what the person wrote, or else only what they gave: the screen words the values in each reader's language
         await run_in_threadpool(store.say, run, "user", username, body.text.strip(), step.id, {"answers": given})
         run = await run_in_threadpool(runtime.answer_ask, run, pb, step, given, username)
     else:
         if body.none and not step.allow_none:
-            raise HTTPException(422, "This step needs the document.")
+            raise Problem("request.invalid", "This step needs the document.")
         await run_in_threadpool(store.say, run, "user", username, body.text.strip(), step.id,
                                 {"none": True} if body.none else {"case_documents": True})
         run = await run_in_threadpool(runtime.answer_request, run, step, username, body.none, body.documents)
@@ -402,16 +413,16 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
       version from this person; the playbook says what changed. Confirming stays a separate act."""
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if run.status != "waiting" or not run.step:
-        raise HTTPException(409, "The run isn't waiting." if run.status != "paused" else "The run is paused.")
+        raise _not_now(run, "The run isn't waiting.")
     step = pb.step(run.step)
     if step is None or step.kind not in ("request", "ask", "checkpoint"):
-        raise HTTPException(409, "This step doesn't take an answer.")
+        raise Problem("run.moved_on", "This step doesn't take an answer.")
     username, cid, runtime = who(request)[0], uuid.UUID(case.id), _runtime(request)
     meta: dict = {}
     if body.documents:
         uploaded = await run_in_threadpool(_uploaded_in(request), cid)
         if any(d not in uploaded for d in body.documents):
-            raise HTTPException(404, "Unknown document.")
+            raise Problem("request.not_found", "Unknown document.")
         meta["attachments"] = [{"documentId": d, "filename": uploaded[d]} for d in body.documents]
     if body.unknown:
         meta["unknown"] = True
@@ -419,7 +430,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
         meta["case_documents"] = True  # the quick reply "Use the documents in the case"
     text = body.text.strip()
     if not text and not meta:
-        raise HTTPException(422, "Nothing was said.")
+        raise Problem("request.invalid", "Nothing was said.")
     await run_in_threadpool(store.say, run, "user", username, text, step.id, meta)
     if step.kind == "request":
         if body.documents:  # the documents that came with the turn are what the read reads, with any named before
@@ -476,15 +487,15 @@ async def add_documents(case_id: str, run_id: str, body: LateIn, request: Reques
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = pb.step(body.step_id)
     if step is None or step.kind != "request" or not step.expects:
-        raise HTTPException(404, "No such request in this playbook.")
+        raise Problem("request.not_found", "No such request in this playbook.")
     if run.status not in ("waiting", "done"):
-        raise HTTPException(409, "The run is paused." if run.status == "paused" else "The run can't take a document now.")
+        raise _not_now(run, "The run can't take a document now.")
     state = run.steps.get(step.id)
     if run.status == "waiting" and run.step == step.id:
-        raise HTTPException(409, "The run is waiting on this request: answer it.")
+        raise Problem("run.moved_on", "The run is waiting on this request: answer it.")
     if state is None or state.status not in ("done", "skipped") or (state.status == "skipped" and state.because):
-        raise HTTPException(409, "This request doesn't apply to this run." if state is not None and state.because
-                            else "The run hasn't come to this request yet.")
+        raise (Problem("run.not_asked", "This request doesn't apply to this run.") if state is not None and state.because
+               else Problem("run.moved_on", "The run hasn't come to this request yet."))
     cid = uuid.UUID(case.id)
     if run.status == "done":
         live = await run_in_threadpool(store.active, cid, pb.id)
@@ -492,14 +503,14 @@ async def add_documents(case_id: str, run_id: str, body: LateIn, request: Reques
             raise Problem("run.already_going", "This playbook is already going in this case.", run=live.id)
     uploaded = await run_in_threadpool(_uploaded_in(request), cid)
     if any(d not in uploaded for d in body.documents):
-        raise HTTPException(404, "Unknown document.")
+        raise Problem("request.not_found", "Unknown document.")
     username, runtime = who(request)[0], _runtime(request)
     await run_in_threadpool(store.say, run, "user", username, body.text.strip(), step.id,
                             {"attachments": [{"documentId": d, "filename": uploaded[d]} for d in body.documents], "late": True})
     try:
         run = await run_in_threadpool(runtime.add_documents, run, pb, step, body.documents, username)
     except ValueError:
-        raise HTTPException(409, "The run can't take a document now.") from None
+        raise Problem("run.moved_on", "The run can't take a document now.") from None
     await log_access(request, cid, "playbook_answered", {"playbook": pb.id, "run": run.id, "step": step.id})
     await touch_case(request, Scope.case(cid))
     return await _walk(request, run, pb, case)
@@ -517,11 +528,11 @@ async def set_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, reques
     step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
     current = {f.id: f.value for f in run.facts}
     if fact_id not in current and not (pb.leaf(fact_id) is not None and fact_id != root(fact_id)):
-        raise HTTPException(404, "A fact that isn't in this run.")  # a path into a list is new ground: an entry a person adds
+        raise Problem("request.not_found", "A fact that isn't in this run.")  # a path into a list is new ground: an entry a person adds
     runtime = _runtime(request)
     value, username = runtime.normalise(pb, fact_id, body.value, run.language), who(request)[0]
-    if not value:
-        raise HTTPException(422, "Not one of the options.")  # a choice takes an option id or its words
+    if not value:  # a choice takes an option id or its words; nothing at all is no value
+        raise Problem("run.not_an_option", "Not one of the options.") if body.value.strip() else Problem("request.invalid", "No value.")
     run = await run_in_threadpool(runtime.correct, run, pb, step, {fact_id: value}, username)
     if value != current.get(fact_id, ""):
         await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "changed", "fact": fact_id, "value": value})
@@ -564,7 +575,7 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
         log.info("answer in words: %d line(s) from the model, %d of %d fact(s) placed", len(response.answer.strip().splitlines()),
                  len(mapped), len(labels))
     except BackendError:
-        raise HTTPException(503, "The model isn't available to read this answer; try again in a moment.") from None
+        raise Problem("run.model_unavailable", "The model isn't available to read this answer; try again in a moment.") from None
     return mapped
 
 
@@ -578,10 +589,10 @@ async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Reque
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
     if step.by == "manager" and owner_of(request) != case.manager:
-        raise HTTPException(403, "The case manager confirms this playbook's facts.")  # the case's roles, no other (decided 3 November 2026)
+        raise Problem("run.manager_confirms", "The case manager confirms this playbook's facts.")  # the case's roles, no other (decided 3 November 2026)
     known = {f.id for f in run.facts}
     if any(f.id not in known and not (pb.leaf(f.id) is not None and f.id != root(f.id)) for f in body.facts):
-        raise HTTPException(422, "A fact that isn't in this run.")
+        raise Problem("request.invalid", "A fact that isn't in this run.")
     username = who(request)[0]
     try:
         run = await run_in_threadpool(_runtime(request).confirm, run, pb, step, {f.id: f.confirmed for f in body.facts}, username,
@@ -602,7 +613,7 @@ def _may_end(request: Request, case: Case, run: Run) -> None:
     """Stopping and cancelling: the starter's (by id, never by the shown name), or the case manager's."""
     me = owner_of(request)
     if run.starter != me and case.manager != me:
-        raise HTTPException(403, "Only the person who started this run or the case manager can end it.")
+        raise Problem("run.not_yours_to_end", "Only the person who started this run or the case manager can end it.")
 
 
 @router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/pause", response_model=Run, responses={409: {"description": "Not waiting"}})
@@ -611,7 +622,7 @@ async def pause_run(case_id: str, run_id: str, request: Request):
     paused mid-call; pause it when it waits."""
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.pause, uuid.UUID(run.id), who(request)[0]):
-        raise HTTPException(409, "Only a run that is waiting can be paused.")
+        raise _not_now(run, "Only a run that is waiting can be paused.")
     await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None, {"kind": "paused"})
     await log_access(request, uuid.UUID(case.id), "playbook_paused", {"playbook": pb.id, "run": run.id})
     return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
@@ -621,7 +632,7 @@ async def pause_run(case_id: str, run_id: str, request: Request):
 async def resume_run(case_id: str, run_id: str, request: Request):
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.resume, uuid.UUID(run.id)):
-        raise HTTPException(409, "This run isn't paused.")
+        raise _not_now(run, "This run isn't paused.", paused=False)
     await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None, {"kind": "resumed"})
     await log_access(request, uuid.UUID(case.id), "playbook_resumed", {"playbook": pb.id, "run": run.id})
     fresh = await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
@@ -637,7 +648,7 @@ async def stop_run(case_id: str, run_id: str, request: Request):
     _may_end(request, case, run)
     rid = uuid.UUID(run.id)
     if not await run_in_threadpool(store.end, rid, "stopped", who(request)[0]):
-        raise HTTPException(409, "This run has already ended.")
+        raise Problem("run.ended", "This run has already ended.")
     await run_in_threadpool(store.discard_proposed, rid)
     await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None,
                             {"kind": "stopped"})
@@ -655,7 +666,7 @@ async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request
     _may_end(request, case, run)
     rid, username = uuid.UUID(run.id), who(request)[0]
     if not await run_in_threadpool(store.end, rid, "cancelled", username, body.reason):
-        raise HTTPException(409, "This run has already ended.")
+        raise Problem("run.ended", "This run has already ended.")
     await run_in_threadpool(store.discard_all, rid)
     await run_in_threadpool(store.say, run, "playbook", username, "", None,
                             {"kind": "cancelled", "reason": body.reason})

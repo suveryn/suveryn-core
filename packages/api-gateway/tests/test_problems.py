@@ -88,7 +88,7 @@ def test_documents_that_cant_be_reached_say_which_part_is_down():
 
 # The refusals still written as plain English sentences, each to become a code of the registry area by area. This
 # number may only go down: lower it in the PR that moves an area, and never raise it; new code raises a Problem.
-PLAIN_REFUSALS = 138
+PLAIN_REFUSALS = 105
 
 
 def test_the_plain_refusals_only_go_down():
