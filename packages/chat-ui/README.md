@@ -120,6 +120,7 @@ The appliance's first-boot setup in the browser (suveryn-tracker#37; design in s
 - Laid out like the Keycloak login: the lockup and tagline, a 560 px card, the language menu in the card's top-right corner, the same focus ring.
 - It asks the appliance `GET setup/v1/state` for what the console installer set (name, address, language), the appliance's ID and fingerprint, the installed models, the USB disks and the answers saved so far.
 - Its text is in [`src/setup/i18n/<lang>.ts`](src/setup/i18n/), in English, Dutch (formal) and French (vous); the language starts as the one chosen at installation.
+- What the appliance refuses or can't do arrives as a code of the registry's `setup` area and is worded from the same files (`messages`); a failure nobody planned for shows its reference, which the appliance's log has ([docs/design/messages.md](../../docs/design/messages.md)).
 
 The screens ([`src/setup/steps/`](src/setup/steps/)):
 

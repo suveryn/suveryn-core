@@ -11,7 +11,8 @@ import { Button, Checkbox, Form, Notice, PasswordField, RadioCards, SelectField,
 import { getState, saveBackups, testShare, type BackupsAnswer, type Retention, type SetupState, type UsbDisk } from "../api";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../recoveryKey";
 import { LOCALES, useLang, useText } from "../i18n";
-import { checkThenSave, StepFooter } from "./common";
+import { messageText } from "../../lib/messages";
+import { checkThenSave, errorsFrom, StepFooter } from "./common";
 import { sizeLabel } from "../../lib/backups";
 
 type Target = "usb" | "share" | "later";
@@ -62,9 +63,9 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
     setTest({ state: "testing" });
     try {
       const r = await testShare({ protocol, address: address.trim(), ...(protocol === "smb" ? { user, password } : {}) });
-      setTest(r.ok ? { state: "ok", for: shareKey } : { state: "failed", message: t.errors[r.error] ?? t.errUnexpected });
-    } catch {
-      setTest({ state: "failed", message: t.errUnexpected });
+      setTest(r.ok ? { state: "ok", for: shareKey } : { state: "failed", message: messageText(r.message, t) });
+    } catch (e) {
+      setTest({ state: "failed", message: errorsFrom(e, t)._ ?? t.errUnexpected });
     }
   };
 

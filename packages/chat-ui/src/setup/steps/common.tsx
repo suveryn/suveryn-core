@@ -4,13 +4,15 @@
  */
 import type { ReactNode } from "react";
 import { Button, FormError, useFormPending, type FieldErrors } from "../../ui";
+import { messageText } from "../../lib/messages";
 import { Refused } from "../api";
 import type { Text } from "../i18n";
 
-/** The appliance refused or failed: its codes as messages, by field; anything else as one message. */
+/** The appliance refused or failed: its codes worded, by field (an unplanned failure with its reference); an
+ *  appliance that didn't answer at all as one message. */
 export function errorsFrom(e: unknown, t: Text): FieldErrors {
   if (e instanceof Refused) {
-    return Object.fromEntries(Object.entries(e.codes).map(([field, code]) => [field, t.errors[code] ?? t.errUnexpected]));
+    return Object.fromEntries(Object.entries(e.fields).map(([field, message]) => [field, messageText(message, t)]));
   }
   return { _: t.errUnexpected };
 }

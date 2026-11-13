@@ -6,7 +6,7 @@
  * start of a sentence or as the company. The tagline stays in English in every language, as on
  * the website. Server messages (error details, calculation errors) arrive in English.
  */
-import type { MessageArea, MessageCode, MessageKind, Params, Wording } from "../lib/messages";
+import type { ChatArea, ChatCode, MessageKind, Params, Wording } from "../lib/messages";
 import { LOCALES } from "./languages";
 import { singularIn } from "./plural";
 
@@ -83,7 +83,7 @@ const en = {
     "calc.division_by_zero": "it divides by zero",
     "calc.no_figures": "it has no figures",
     "calc.syntax": "the calculation couldn't be read",
-  } satisfies Record<MessageCode, Wording>,
+  } satisfies Record<ChatCode, Wording>,
   messageAreas: {
     system: "the server couldn't do this",
     auth: "this couldn't be done with your sign-in; sign in again",
@@ -99,7 +99,7 @@ const en = {
     backup: "this couldn't be done with the backups right now",
     clock: "the clock couldn't be changed",
     settings: "these settings couldn't be saved",
-  } satisfies Record<MessageArea, string>,
+  } satisfies Record<ChatArea, string>,
   messageKinds: {
     refused: "this couldn't be done",
     unavailable: "a part of the server isn't available right now; try again later",

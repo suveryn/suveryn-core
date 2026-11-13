@@ -5,9 +5,13 @@
  */
 import { LOCALES } from "../../i18n/languages";
 import { singularIn } from "../../i18n/plural";
+import type { MessageCode, MessageKind, Params, SetupCode, Wording } from "../../lib/messages";
 
 /** Whether a count takes the singular here (CLDR's rules for en; i18n/plural.ts). */
 const singular = singularIn(LOCALES.en);
+/** What the screen says when the appliance gives no better reason. */
+const UNEXPECTED = "The appliance couldn't save this. Try again; if it keeps happening, restart the appliance from its console and reload this page.";
+
 const en = {
   language: "Language",
   tagline: "AI for work that can't leave the premises.",
@@ -68,7 +72,7 @@ const en = {
   edit: "Edit",
   editLabel: (what: string) => `Edit ${what}`,
   chooseFile: "Choose file",
-  errUnexpected: "The appliance couldn't save this. Try again; if it keeps happening, restart the appliance from its console and reload this page.",
+  errUnexpected: UNEXPECTED,
   stateText: { done: "done", running: "in progress", waiting: "waiting", failed: "failed" },
 
   welcomeTitle: "Set up your sūveryn appliance",
@@ -220,7 +224,6 @@ const en = {
   doNotTurnOff: "Do not turn off the appliance.",
   doNotTurnOffMore: "Stopping partway can leave services half configured.",
   provFailedTitle: "Provisioning stopped",
-  provFailedText: (step: string) => `It stopped at "${step}". Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page.`,
   tryAgain: "Try again",
 
   completeTitle: "Setup complete",
@@ -250,15 +253,6 @@ const en = {
   errKeyFileMissing: "Choose the recovery key file.",
   restoreFind: "Find the backup",
   restoreCheckFailed: "No backup could be restored",
-  restoreErrors: {
-    wrong_key: "The recovery key doesn't open this backup. Choose the key file of the appliance that made it.",
-    no_backup: "There is no sūveryn backup there. Check the disk or the share's address.",
-    unreachable: "The appliance couldn't reach the backups. Check the disk or the share's address, user name and password.",
-    damaged: "The newest backup there is damaged and can't be restored.",
-    newer: "The newest backup there was made by a newer version of sūveryn than this appliance has. Contact your partner to update this appliance first.",
-    invalid: "The answers were incomplete. Enter them again.",
-    restore: "The restore stopped partway. Enter the recovery key again and try again; if it stops again, contact your partner.",
-  } as Record<string, string>,
   restoreChecking: "Looking for the backup",
   restoreCheckingLead: "The appliance looks for the newest backup and checks it with the key. This can take a few minutes for a large backup.",
   restoreConfirmTitle: "Restore this backup?",
@@ -286,36 +280,59 @@ const en = {
   restoreSupportTitle: "Register this appliance with support",
   restoreSupportText: "This appliance has its own ID, so the support agreement of the old one doesn't apply to it yet. Register it from the admin dashboard; your partner moves the agreement over.",
 
-  errors: {
-    name_missing: "Enter your full name.",
-    email_invalid: "Enter an email address like name@example.com.",
-    password_short: "Use at least 15 characters.",
-    password_common: "This password is too common or has appeared in a data breach. Choose another one.",
-    password_personal: "Don't use your name, your email address or the appliance's name in the password.",
-    not_a_certificate: "This isn't a certificate in PEM format.",
-    not_a_key: "This isn't a private key in PEM format, or it is protected by a passphrase.",
-    key_mismatch: "This key doesn't belong to the certificate.",
-    name_not_covered: "The certificate doesn't cover the appliance's name.",
-    expired: "This certificate has expired.",
-    chain_invalid: "These certificates don't lead to the certificate.",
-    manifest_format: "This isn't a manifest file (.yaml).",
-    manifest_signature: "This manifest isn't signed by Sūveryn Labs, or it was changed after signing.",
-    manifest_other_appliance: "This manifest is for another appliance.",
-    manifest_expired: "This manifest has expired.",
+  // The backup service's own codes, worded for Administration › Backups, which shares this step's screen. They
+  // move to the registry's `backup` area with the rest of that service's messages (docs/design/messages.md).
+  backupErrors: {
     address: "Enter the address like \\\\server\\share (SMB) or server:/path (NFS).",
     unreachable: "The appliance can't reach this share. Check the address and that the share allows this appliance.",
-    denied: "The share refused the user name or password.",
-    not_writable: "The appliance can reach the share but can't write to it.",
-    not_local: "This address isn't on your own network.",
     login: "The share refused the user name or password.",
     write: "Signed in, but the appliance can't write there.",
     disk_gone: "This disk isn't plugged in any more. Look again.",
-    not_answered: "Some steps aren't answered yet. Go back and complete them.",
-    provisioning_started: "Provisioning has already started, so answers can't change now. Reload this page to follow it.",
-    key_invalid: "This isn't a recovery key file. Choose the .txt file made when backups were set up.",
-    restore_started: "A restore has already started, so answers can't change now. Reload this page to follow it.",
-    not_checked: "The backup hasn't been checked yet. Go back and find it again.",
   } as Record<string, string>,
+
+  // What the appliance says as a code (suveryn-core's registry, suveryn_harness/messages.json, area `setup`;
+  // docs/design/messages.md), worded for the setup's screens: a code's own words, else its kind's (messageKinds).
+  messages: {
+    "setup.name_missing": "Enter your full name.",
+    "setup.email_invalid": "Enter an email address like name@example.com.",
+    "setup.password_short": (p: Params) => `Use at least ${p.min ?? 15} characters.`,
+    "setup.password_common": "This password is too common or has appeared in a data breach. Choose another one.",
+    "setup.password_personal": "Don't use your name, your email address or the appliance's name in the password.",
+    "setup.not_a_certificate": "This isn't a certificate in PEM format.",
+    "setup.not_a_key": "This isn't a private key in PEM format, or it is protected by a passphrase.",
+    "setup.key_mismatch": "This key doesn't belong to the certificate.",
+    "setup.name_not_covered": "The certificate doesn't cover the appliance's name.",
+    "setup.certificate_expired": "This certificate has expired.",
+    "setup.chain_invalid": "These certificates don't lead to the certificate.",
+    "setup.manifest_format": "This isn't a manifest file (.yaml).",
+    "setup.manifest_signature": "This manifest isn't signed by Sūveryn Labs, or it was changed after signing.",
+    "setup.manifest_other_appliance": "This manifest is for another appliance.",
+    "setup.manifest_expired": "This manifest has expired.",
+    "setup.share_address": "Enter the address like \\\\server\\share (SMB) or server:/path (NFS).",
+    "setup.share_unreachable": "The appliance can't reach this share. Check the address and that the share allows this appliance.",
+    "setup.share_not_local": "This address isn't on your own network.",
+    "setup.disk_gone": "This disk isn't plugged in any more. Look again.",
+    "setup.not_answered": "Some steps aren't answered yet. Go back and complete them.",
+    "setup.provisioning_started": "Provisioning has already started, so answers can't change now. Reload this page to follow it.",
+    "setup.key_invalid": "This isn't a recovery key file. Choose the .txt file made when backups were set up.",
+    "setup.restore_started": "A restore has already started, so answers can't change now. Reload this page to follow it.",
+    "setup.not_checked": "The backup hasn't been checked yet. Go back and find it again.",
+    "setup.restore_wrong_key": "The recovery key doesn't open this backup. Choose the key file of the appliance that made it.",
+    "setup.restore_no_backup": "There is no sūveryn backup there. Check the disk or the share's address.",
+    "setup.restore_unreachable": "The appliance couldn't reach the backups. Check the disk or the share's address, user name and password.",
+    "setup.restore_damaged": "The newest backup there is damaged and can't be restored.",
+    "setup.restore_newer": "The newest backup there was made by a newer version of sūveryn than this appliance has. Contact your partner to update this appliance first.",
+    "setup.restore_failed": "The restore stopped partway. Enter the recovery key again and try again; if it stops again, contact your partner.",
+    "setup.provisioning_failed": (p: Params) => `It stopped${p.step ? ` at "${p.step}"` : ""}. Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page.`,
+    "request.invalid": "The answers were incomplete. Enter them again.",
+  } satisfies Record<SetupCode, Wording> & Partial<Record<MessageCode, Wording>>,
+  messageAreas: { setup: UNEXPECTED },
+  messageKinds: {
+    refused: UNEXPECTED,
+    unavailable: UNEXPECTED,
+    internal: (p: Params) => (p.ref ? `Something went wrong on the appliance. Try again; if it happens again, give your partner this reference: ${p.ref}` : UNEXPECTED),
+    warning: "Done, but something needs checking.",
+  } satisfies Record<MessageKind, Wording>,
 };
 
 export type Text = typeof en;

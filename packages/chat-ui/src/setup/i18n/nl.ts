@@ -9,6 +9,9 @@ import { singularIn } from "../../i18n/plural";
 /** Whether a count takes the singular here (CLDR's rules for nl; i18n/plural.ts). */
 const singular = singularIn(LOCALES.nl);
 
+/** What the screen says when the appliance gives no better reason. */
+const UNEXPECTED = "De appliance kon dit niet bewaren. Probeer het opnieuw; blijft het gebeuren, herstart de appliance dan via haar console en laad deze pagina opnieuw.";
+
 const nl: Text = {
   language: "Taal",
   tagline: "AI for work that can't leave the premises.",
@@ -68,7 +71,7 @@ const nl: Text = {
   edit: "Wijzigen",
   editLabel: (what) => `${what} wijzigen`,
   chooseFile: "Bestand kiezen",
-  errUnexpected: "De appliance kon dit niet bewaren. Probeer het opnieuw; blijft het gebeuren, herstart de appliance dan via haar console en laad deze pagina opnieuw.",
+  errUnexpected: UNEXPECTED,
   stateText: { done: "klaar", running: "bezig", waiting: "wacht", failed: "mislukt" },
 
   welcomeTitle: "Uw sūveryn-appliance instellen",
@@ -220,7 +223,6 @@ const nl: Text = {
   doNotTurnOff: "Schakel de appliance niet uit.",
   doNotTurnOffMore: "Halverwege stoppen kan diensten half ingesteld achterlaten.",
   provFailedTitle: "De inrichting is gestopt",
-  provFailedText: (step) => `Ze stopte bij "${step}". Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw.`,
   tryAgain: "Opnieuw proberen",
 
   completeTitle: "Installatie klaar",
@@ -250,15 +252,6 @@ const nl: Text = {
   errKeyFileMissing: "Kies het bestand met de herstelsleutel.",
   restoreFind: "Back-up zoeken",
   restoreCheckFailed: "Er kon geen back-up worden teruggezet",
-  restoreErrors: {
-    wrong_key: "De herstelsleutel opent deze back-up niet. Kies het sleutelbestand van de appliance die de back-up maakte.",
-    no_backup: "Daar staat geen sūveryn-back-up. Controleer de schijf of het adres van de gedeelde map.",
-    unreachable: "De appliance kon de back-ups niet bereiken. Controleer de schijf, of het adres, de gebruikersnaam en het wachtwoord van de gedeelde map.",
-    damaged: "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet.",
-    newer: "De nieuwste back-up daar is gemaakt door een nieuwere versie van sūveryn dan deze appliance heeft. Neem contact op met uw partner om deze appliance eerst bij te werken.",
-    invalid: "De antwoorden waren onvolledig. Vul ze opnieuw in.",
-    restore: "Het terugzetten stopte halverwege. Kies de herstelsleutel opnieuw en probeer het nog eens; stopt het weer, neem dan contact op met uw partner.",
-  } as Record<string, string>,
   restoreChecking: "De back-up wordt gezocht",
   restoreCheckingLead: "De appliance zoekt de nieuwste back-up en controleert die met de sleutel. Bij een grote back-up kan dit enkele minuten duren.",
   restoreConfirmTitle: "Deze back-up terugzetten?",
@@ -286,35 +279,58 @@ const nl: Text = {
   restoreSupportTitle: "Registreer deze appliance voor ondersteuning",
   restoreSupportText: "Deze appliance heeft een eigen ID, dus de ondersteuningsovereenkomst van de oude geldt nog niet voor haar. Registreer haar via het beheerdashboard; uw partner zet de overeenkomst over.",
 
-  errors: {
-    name_missing: "Vul uw volledige naam in.",
-    email_invalid: "Vul een e-mailadres in zoals naam@voorbeeld.be.",
-    password_short: "Gebruik minstens 15 tekens.",
-    password_common: "Dit wachtwoord komt te vaak voor of is uitgelekt bij een datalek. Kies een ander.",
-    password_personal: "Gebruik uw naam, uw e-mailadres of de naam van de appliance niet in het wachtwoord.",
-    not_a_certificate: "Dit is geen certificaat in PEM-formaat.",
-    not_a_key: "Dit is geen privésleutel in PEM-formaat, of ze is beveiligd met een wachtwoordzin.",
-    key_mismatch: "Deze sleutel hoort niet bij het certificaat.",
-    name_not_covered: "Het certificaat is niet geldig voor de naam van de appliance.",
-    expired: "Dit certificaat is verlopen.",
-    chain_invalid: "Deze certificaten leiden niet naar het certificaat.",
-    manifest_format: "Dit is geen manifestbestand (.yaml).",
-    manifest_signature: "Dit manifest is niet ondertekend door Sūveryn Labs, of het werd na de ondertekening gewijzigd.",
-    manifest_other_appliance: "Dit manifest is voor een andere appliance.",
-    manifest_expired: "Dit manifest is verlopen.",
+  // The backup service's own codes, worded for Administration › Backups, which shares this step's screen. They
+  // move to the registry's `backup` area with the rest of that service's messages (docs/design/messages.md).
+  backupErrors: {
     address: "Vul het adres in zoals \\\\server\\share (SMB) of server:/pad (NFS).",
     unreachable: "De appliance kan deze gedeelde map niet bereiken. Controleer het adres en of de gedeelde map deze appliance toelaat.",
-    denied: "De server van de gedeelde map weigerde de gebruikersnaam of het wachtwoord.",
-    not_writable: "De appliance kan de gedeelde map bereiken, maar er niet naar schrijven.",
-    not_local: "Dit adres ligt niet op uw eigen netwerk.",
     login: "De gedeelde map weigerde de gebruikersnaam of het wachtwoord.",
     write: "Aangemeld, maar de appliance kan er niet schrijven.",
     disk_gone: "Deze schijf is niet meer aangesloten. Kijk opnieuw.",
-    not_answered: "Nog niet alle stappen zijn ingevuld. Ga terug en vul ze aan.",
-    provisioning_started: "De inrichting is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om ze te volgen.",
-    key_invalid: "Dit is geen herstelsleutelbestand. Kies het .txt-bestand dat werd gemaakt toen de back-ups werden ingesteld.",
-    restore_started: "Het terugzetten is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om het te volgen.",
-    not_checked: "De back-up is nog niet gecontroleerd. Ga terug en zoek hem opnieuw.",
+  } as Record<string, string>,
+
+  // What the appliance says as a code (suveryn-core's registry, suveryn_harness/messages.json, area `setup`;
+  // docs/design/messages.md), worded for the setup's screens: a code's own words, else its kind's (messageKinds).
+  messages: {
+    "setup.name_missing": "Vul uw volledige naam in.",
+    "setup.email_invalid": "Vul een e-mailadres in zoals naam@voorbeeld.be.",
+    "setup.password_short": (p) => `Gebruik minstens ${p.min ?? 15} tekens.`,
+    "setup.password_common": "Dit wachtwoord komt te vaak voor of is uitgelekt bij een datalek. Kies een ander.",
+    "setup.password_personal": "Gebruik uw naam, uw e-mailadres of de naam van de appliance niet in het wachtwoord.",
+    "setup.not_a_certificate": "Dit is geen certificaat in PEM-formaat.",
+    "setup.not_a_key": "Dit is geen privésleutel in PEM-formaat, of ze is beveiligd met een wachtwoordzin.",
+    "setup.key_mismatch": "Deze sleutel hoort niet bij het certificaat.",
+    "setup.name_not_covered": "Het certificaat is niet geldig voor de naam van de appliance.",
+    "setup.certificate_expired": "Dit certificaat is verlopen.",
+    "setup.chain_invalid": "Deze certificaten leiden niet naar het certificaat.",
+    "setup.manifest_format": "Dit is geen manifestbestand (.yaml).",
+    "setup.manifest_signature": "Dit manifest is niet ondertekend door Sūveryn Labs, of het werd na de ondertekening gewijzigd.",
+    "setup.manifest_other_appliance": "Dit manifest is voor een andere appliance.",
+    "setup.manifest_expired": "Dit manifest is verlopen.",
+    "setup.share_address": "Vul het adres in zoals \\\\server\\share (SMB) of server:/pad (NFS).",
+    "setup.share_unreachable": "De appliance kan deze gedeelde map niet bereiken. Controleer het adres en of de gedeelde map deze appliance toelaat.",
+    "setup.share_not_local": "Dit adres ligt niet op uw eigen netwerk.",
+    "setup.disk_gone": "Deze schijf is niet meer aangesloten. Kijk opnieuw.",
+    "setup.not_answered": "Nog niet alle stappen zijn ingevuld. Ga terug en vul ze aan.",
+    "setup.provisioning_started": "De inrichting is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om ze te volgen.",
+    "setup.key_invalid": "Dit is geen herstelsleutelbestand. Kies het .txt-bestand dat werd gemaakt toen de back-ups werden ingesteld.",
+    "setup.restore_started": "Het terugzetten is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om het te volgen.",
+    "setup.not_checked": "De back-up is nog niet gecontroleerd. Ga terug en zoek hem opnieuw.",
+    "setup.restore_wrong_key": "De herstelsleutel opent deze back-up niet. Kies het sleutelbestand van de appliance die de back-up maakte.",
+    "setup.restore_no_backup": "Daar staat geen sūveryn-back-up. Controleer de schijf of het adres van de gedeelde map.",
+    "setup.restore_unreachable": "De appliance kon de back-ups niet bereiken. Controleer de schijf, of het adres, de gebruikersnaam en het wachtwoord van de gedeelde map.",
+    "setup.restore_damaged": "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet.",
+    "setup.restore_newer": "De nieuwste back-up daar is gemaakt door een nieuwere versie van sūveryn dan deze appliance heeft. Neem contact op met uw partner om deze appliance eerst bij te werken.",
+    "setup.restore_failed": "Het terugzetten stopte halverwege. Kies de herstelsleutel opnieuw en probeer het nog eens; stopt het weer, neem dan contact op met uw partner.",
+    "setup.provisioning_failed": (p) => `Ze stopte${p.step ? ` bij "${p.step}"` : ""}. Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw.`,
+    "request.invalid": "De antwoorden waren onvolledig. Vul ze opnieuw in.",
+  },
+  messageAreas: { setup: UNEXPECTED },
+  messageKinds: {
+    refused: UNEXPECTED,
+    unavailable: UNEXPECTED,
+    internal: (p) => (p.ref ? `Er ging iets mis op de appliance. Probeer het opnieuw; gebeurt het opnieuw, geef uw partner dan deze referentie: ${p.ref}` : UNEXPECTED),
+    warning: "Gelukt, maar er is iets na te kijken.",
   },
 };
 

@@ -6,7 +6,7 @@
  * Each step's answers are saved on the appliance when Continue is pressed, so a reload resumes where
  * it was and secrets (the administrator's password, the share's password, a private key) pass through
  * the page once and aren't kept in it. The appliance checks everything again; the codes it answers
- * with are shown in the interface's language (`errors` in i18n/<lang>.ts).
+ * with are shown in the interface's language (`messages` in i18n/<lang>.ts).
  *
  *   GET  setup/v1/state                    → SetupState
  *   PUT  setup/v1/answers/network          { mode, outgoing }
@@ -15,7 +15,7 @@
  *                                          → CertificateAnswer
  *   POST setup/v1/manifest                 the manifest file's bytes → Manifest (and saves it)
  *   PUT  setup/v1/answers/support          { skipped: true }
- *   POST setup/v1/backups/test             { protocol, address, user?, password? } → { ok: true } | { ok: false, error }
+ *   POST setup/v1/backups/test             { protocol, address, user?, password? } → { ok: true } | { ok: false, message }
  *   PUT  setup/v1/answers/backups          BackupsAnswer, plus password for a share
  *   POST setup/v1/provision                → Progress (starts it; again after a failure retries)
  *   GET  setup/v1/provision                → Progress
@@ -24,10 +24,17 @@
  *   POST setup/v1/restore/start            { file } → RestoreProgress (restores the chosen one of those)
  *   GET  setup/v1/restore                  → RestoreProgress | null
  *
- * Errors: 422 with { errors: { field: code } } or { error: code }. The appliance answers these with
- * suveryn-appliance's setup/suveryn-setup (#37 part 5); `npm run dev` and the preview build
- * (`--mode demo`) answer from demo.ts instead.
+ * What isn't the answer asked for is a code of the registry (suveryn_harness/messages.json, area `setup`;
+ * docs/design/messages.md), in the gateway's shape, Problem Details: { type, status, kind, code, params }. An
+ * answer refused by field adds { fields: { field: { kind, code, params } } }; a failure nobody planned for is
+ * `system.internal` with a reference (`params.ref`) the appliance's log has. A result that is stored or travels
+ * inside an answer (a share's test, a restore's or a step's failure) is a `message`: { kind, code, params }. The
+ * appliance answers with suveryn-appliance's setup/suveryn-setup (#37 part 5, #141); `npm run dev` and the
+ * preview build (`--mode demo`) answer from demo.ts instead.
  */
+import { problemOf, type Message } from "../lib/messages";
+
+export type { Message };
 
 export type NetworkMode = "connected" | "air-gapped";
 export type Outgoing = "approved" | "all";
@@ -70,7 +77,8 @@ export type RestoreProgress = {
   /** Where the restored appliance answers: it takes the old appliance's name. */
   address?: string;
   steps?: { id: RestoreStepId; state: "waiting" | "running" | "done" | "failed" }[];
-  error?: string;
+  /** Why it failed, as a code. */
+  message?: Message;
 };
 
 export type SavedAnswers = {
@@ -99,15 +107,18 @@ export type SetupState = {
 export type StepId = "database" | "signin" | "models" | "web" | "outgoing";
 export type Progress = {
   state: "running" | "done" | "failed";
-  steps: { id: StepId; state: "waiting" | "running" | "done" | "failed"; error?: string }[];
+  steps: { id: StepId; state: "waiting" | "running" | "done" | "failed"; message?: Message }[];
   /** The last check: what the appliance could reach. not_checked: "allow all outgoing traffic". */
   outgoing: "limited" | "blocked" | "not_limited" | "not_checked" | null;
 };
 
-/** An answer the appliance refused, by field (or `_` for the whole step), as codes. */
+/** What the appliance answered instead of what was asked: a message by field, or under `_` for the whole step. */
 export class Refused extends Error {
-  constructor(readonly codes: Record<string, string>) { super(Object.values(codes).join(", ")); }
+  constructor(readonly fields: Record<string, Message>) { super(Object.values(fields).map((m) => m.code).join(", ")); }
 }
+
+/** A code of the `setup` area as a message, for the demo and the tests. */
+export const refusal = (name: string, params: Message["params"] = {}): Message => ({ kind: "refused", code: `setup.${name}`, params });
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   // Development and the preview build only; a production build leaves demo.ts out entirely.
@@ -118,11 +129,11 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
       : body instanceof Blob ? { "Content-Type": "application/octet-stream" } : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body),
   });
-  if (r.status === 422) {
-    const e = await r.json().catch(() => ({}));
-    throw new Refused(e.errors ?? { _: e.error ?? "refused" });
+  if (!r.ok) {
+    const e = await r.json().catch(() => null);
+    const fields = e && typeof e === "object" ? (e as { fields?: Record<string, Message> }).fields : undefined;
+    throw new Refused(fields && typeof fields === "object" ? fields : { _: problemOf(r.status, e) });
   }
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return (r.status === 204 ? undefined : await r.json()) as T;
 }
 
@@ -134,7 +145,7 @@ export const saveCertificate = (a: { kind: "self-signed" } | { kind: "own"; cert
 export const checkManifest = (file: Blob) => call<Manifest>("POST", "manifest", file);
 export const skipManifest = () => call<void>("PUT", "answers/support", { skipped: true });
 export const testShare = (s: { protocol: "smb" | "nfs"; address: string; user?: string; password?: string }) =>
-  call<{ ok: true } | { ok: false; error: string }>("POST", "backups/test", s);
+  call<{ ok: true } | { ok: false; message: Message }>("POST", "backups/test", s);
 export const saveBackups = (a: BackupsAnswer & { password?: string }) => call<void>("PUT", "answers/backups", a);
 export const startProvisioning = () => call<Progress>("POST", "provision");
 export const getProgress = () => call<Progress>("GET", "provision");

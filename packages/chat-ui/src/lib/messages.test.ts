@@ -15,10 +15,11 @@ const sample = (code: string) => Object.fromEntries(Object.entries(REGISTRY.code
 describe("the server's codes, worded (suveryn-tracker#139)", () => {
   it("has words for every code, area and kind of the registry, in every language, and for no other", () => {
     for (const [lang, m] of Object.entries(TABLES_FOR_TESTS)) {
-      expect(Object.keys(m.messages).sort(), lang).toEqual(Object.keys(REGISTRY.codes).sort());
-      expect(Object.keys(m.messageAreas).sort(), lang).toEqual([...REGISTRY.areas].sort());
+      // every code but the web setup's, which its own screens word (src/setup/i18n; screens.test.ts)
+      expect(Object.keys(m.messages).sort(), lang).toEqual(Object.keys(REGISTRY.codes).filter((c) => !c.startsWith("setup.")).sort());
+      expect(Object.keys(m.messageAreas).sort(), lang).toEqual(REGISTRY.areas.filter((a) => a !== "setup").sort());
       expect(Object.keys(m.messageKinds).sort(), lang).toEqual(["internal", "refused", "unavailable", "warning"]);
-      for (const [code, c] of Object.entries(REGISTRY.codes)) {
+      for (const [code, c] of Object.entries(REGISTRY.codes).filter(([code]) => !code.startsWith("setup."))) {
         for (const params of [sample(code), {}]) {  // with its parameters, and when an older server sends none
           const text = messageText({ kind: c.kind, code, params }, m);
           expect(text, `${lang} ${code}`).toBeTruthy();

@@ -27,7 +27,7 @@ describe("restoring a backup from the web setup", () => {
   });
 
   it("says why the last check failed", () => {
-    const state = { ...(STATE as object), restore: { state: "failed", error: "wrong_key" } } as never;
+    const state = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "setup.restore_wrong_key", params: {} } } } as never;
     const html = renderToStaticMarkup(<RestoreSource state={state} onBack={() => {}} onChecking={() => {}} headingId="h" />);
     expect(html).toContain("No backup could be restored");
     expect(html).toContain("open this backup");
@@ -67,8 +67,11 @@ describe("restoring a backup from the web setup", () => {
 
   it("has every code the appliance answers a restore with, in every language", () => {
     for (const t of Object.values(TEXT)) {
-      for (const code of ["wrong_key", "no_backup", "unreachable", "damaged", "newer", "invalid", "restore"]) expect(t.restoreErrors[code]).toBeTruthy();
-      for (const code of ["key_invalid", "restore_started", "not_checked", "disk_gone", "address"]) expect(t.errors[code]).toBeTruthy();
+      for (const code of ["restore_wrong_key", "restore_no_backup", "restore_unreachable", "restore_damaged", "restore_newer", "restore_failed",
+        "key_invalid", "restore_started", "not_checked", "disk_gone", "share_address"]) {
+        expect((t.messages as Record<string, unknown>)[`setup.${code}`], code).toBeTruthy();
+      }
+      expect(t.messages["request.invalid"]).toBeTruthy();  // answers that were incomplete
     }
   });
 });

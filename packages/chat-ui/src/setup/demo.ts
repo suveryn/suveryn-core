@@ -9,8 +9,8 @@
  * #restore-wrong-key for a recovery key that doesn't open the backup, #no-backup for a target without one,
  * #answered for every step already answered as on the design's Review (the screen previews).
  */
-import type { BackupsAnswer, Manifest, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
-import { Refused } from "./api";
+import type { BackupsAnswer, Manifest, Message, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
+import { refusal, Refused } from "./api";
 
 const variant = (v: string) => typeof location !== "undefined" && location.hash.includes(v);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -42,8 +42,8 @@ function currentRestore(): RestoreProgress | null {
   const r = restore;
   if (!r) return null;
   if (r.state === "checking" && Date.now() - restoreAt > 2000) {
-    restore = variant("restore-wrong-key") ? { state: "failed", error: "wrong_key" }
-      : variant("no-backup") ? { state: "failed", error: "no_backup" } : { state: "checked", backup: BACKUP, choices: CHOICES };
+    restore = variant("restore-wrong-key") ? { state: "failed", message: refusal("restore_wrong_key") }
+      : variant("no-backup") ? { state: "failed", message: refusal("restore_no_backup") } : { state: "checked", backup: BACKUP, choices: CHOICES };
   } else if (r.state === "restoring") {
     const done = Math.floor((Date.now() - restoreAt) / 1500);
     r.steps = RESTORE_STEPS.map((id, i) => ({ id, state: i < done ? "done" : i === done ? "running" : "waiting" }));
@@ -74,7 +74,7 @@ function current(): Progress {
   const failAt = failOnce ? 1 : -1;
   p.steps = STEPS.map((id, i) => ({
     id, state: i === failAt && done >= i ? "failed" : i < done ? "done" : i === done ? "running" : "waiting",
-    ...(i === failAt && done >= i ? { error: "keycloak_unreachable" } : {}),
+    ...(i === failAt && done >= i ? { message: { kind: "unavailable", code: "setup.provisioning_failed", params: { step: id } } } : {}),
   }));
   if (failAt >= 0 && done >= failAt) { p.state = "failed"; failOnce = false; }
   else if (done >= STEPS.length) {
@@ -102,24 +102,24 @@ export async function answer(method: string, path: string, body?: unknown): Prom
     case "PUT answers/administrator": answers.administrator = { name: String(b.name), email: String(b.email) }; return;
     case "PUT answers/certificate": {
       if (b.kind === "self-signed") return (answers.certificate = { kind: "self-signed", names: ["notary-brussels-01.local", "192.168.1.50"] });
-      const errors: Record<string, string> = {};
-      if (!String(b.certificate).includes("BEGIN CERTIFICATE")) errors.certificate = "not_a_certificate";
-      if (!/BEGIN (RSA |EC )?PRIVATE KEY/.test(String(b.key))) errors.key = "not_a_key";
-      if (b.chain && !String(b.chain).includes("BEGIN CERTIFICATE")) errors.chain = "not_a_certificate";
+      const errors: Record<string, Message> = {};
+      if (!String(b.certificate).includes("BEGIN CERTIFICATE")) errors.certificate = refusal("not_a_certificate");
+      if (!/BEGIN (RSA |EC )?PRIVATE KEY/.test(String(b.key))) errors.key = refusal("not_a_key");
+      if (b.chain && !String(b.chain).includes("BEGIN CERTIFICATE")) errors.chain = refusal("not_a_certificate");
       if (Object.keys(errors).length) throw new Refused(errors);
       return (answers.certificate = { kind: "own", names: ["notary-brussels-01.local"], issuer: "Office CA", not_after: "2027-10-01" });
     }
     case "POST manifest": {
       const f = body as File;
-      if (!/\.ya?ml$/i.test(f.name ?? "")) throw new Refused({ _: "manifest_format" });
+      if (!/\.ya?ml$/i.test(f.name ?? "")) throw new Refused({ _: refusal("manifest_format") });
       return (answers.support = manifest());
     }
     case "PUT answers/support": answers.support = null; return;
     case "POST backups/test": {
       const address = String(b.address);
       const ok = b.protocol === "nfs" ? /^[\w.-]+:\/\S+$/.test(address) : /^(\\\\|\/\/)[\w.-]+[\\/]\S+$/.test(address);
-      if (!ok) return { ok: false, error: "address" };
-      if (/fail/i.test(address)) return { ok: false, error: "unreachable" };
+      if (!ok) return { ok: false, message: refusal("share_address") };
+      if (/fail/i.test(address)) return { ok: false, message: refusal("share_unreachable") };
       return { ok: true };
     }
     case "PUT answers/backups": { const { password: _p, ...rest } = b; void _p; answers.backups = rest as BackupsAnswer; return; }
@@ -128,17 +128,17 @@ export async function answer(method: string, path: string, body?: unknown): Prom
       progress = { state: "running", steps: [], outgoing: null };
       return structuredClone(current());
     case "PUT answers/restore": {
-      if (!/AGE-SECRET-KEY-1[0-9A-Z]{58}/.test(String(b.key))) throw new Refused({ key: "key_invalid" });
+      if (!/AGE-SECRET-KEY-1[0-9A-Z]{58}/.test(String(b.key))) throw new Refused({ key: refusal("key_invalid") });
       if (b.target === "share" && !/^(\\\\|\/\/)[\w.-]+[\\/]\S+$|^[\w.-]+:\/\S+$/.test(String(b.address))) {
-        throw new Refused({ address: "address" });
+        throw new Refused({ address: refusal("share_address") });
       }
       restoreAt = Date.now();
       restore = { state: "checking" };
       return currentRestore();
     }
     case "POST restore/start":
-      if (restore?.state !== "checked") throw new Refused({ _: "not_checked" });
-      if (b?.file !== undefined && !CHOICES.some((c) => c.file === b.file)) throw new Refused({ file: "invalid" });
+      if (restore?.state !== "checked") throw new Refused({ _: refusal("not_checked") });
+      if (b?.file !== undefined && !CHOICES.some((c) => c.file === b.file)) throw new Refused({ file: { kind: "refused", code: "request.invalid" } });
       restoreAt = Date.now();
       restore = { ...restore, backup: CHOICES.find((c) => c.file === b?.file) ?? BACKUP, state: "restoring",
                   address: `https://${BACKUP.appliance}.local`, steps: [] };
