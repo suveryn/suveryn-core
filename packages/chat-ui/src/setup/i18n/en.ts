@@ -4,19 +4,19 @@
  * (TypeScript checks it). Rules for every language: docs/translations.md. The tagline stays in English.
  */
 import { LOCALES } from "../../i18n/languages";
-import { singularIn } from "../../i18n/plural";
-import type { MessageCode, MessageKind, Params, SetupCode, Wording } from "../../lib/messages";
+import { messagesIn } from "../../i18n/message";
+import type { MessageCode, MessageKind, SetupCode, Wording } from "../../lib/messages";
 
-/** Whether a count takes the singular here (CLDR's rules for en; i18n/plural.ts). */
-const singular = singularIn(LOCALES.en);
+/** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
+const { m, mp } = messagesIn(LOCALES.en);
 /** What the screen says when the appliance gives no better reason. */
 const UNEXPECTED = "The appliance couldn't save this. Try again; if it keeps happening, restart the appliance from its console and reload this page.";
 
 const en = {
   language: "Language",
   tagline: "AI for work that can't leave the premises.",
-  pageTitle: (screen: string) => `Sūveryn setup · ${screen}`,
-  step: (n: number, total: number) => `Setup · Step ${n} of ${total}`,
+  pageTitle: m("Sūveryn setup · {screen}", "screen"),
+  step: m("Setup · Step {n} of {total}", "n", "total"),
   back: "Back",
   continue: "Continue",
   loading: "Loading…",
@@ -27,8 +27,7 @@ const en = {
   setDuringInstallation: "Set during installation",
   name: "Name",
   address: "Address",
-  addressDetail: (dhcp: boolean, gateway: string, dns: string) =>
-    `${dhcp ? "DHCP" : "Fixed"} · gateway ${gateway} · DNS ${dns}`,
+  addressDetail: m("{dhcp, select, true {DHCP · gateway {gateway} · DNS {dns}} other {Fixed · gateway {gateway} · DNS {dns}}}", "dhcp", "gateway", "dns"),
   changeOnConsole: "To change these, choose option 2 on the appliance console.",
   internetAccess: "Internet access",
   internetAccessLead: "How far this appliance may reach beyond your own network.",
@@ -64,13 +63,13 @@ const en = {
   errNameMissing: "Enter your full name.",
   errEmailMissing: "Enter an email address.",
   errEmailInvalid: "Enter an email address like name@example.com.",
-  errPasswordShort: (min: number) => `Use at least ${min} characters.`,
+  errPasswordShort: m("Use at least {min} characters.", "min"),
   errPasswordCommon: "This password is too common. Choose one that is harder to guess.",
   errPasswordPersonal: "Don't use your name, your email address or the appliance's name in the password.",
   errConfirm: "The passwords don't match.",
 
   edit: "Edit",
-  editLabel: (what: string) => `Edit ${what}`,
+  editLabel: m("Edit {what}", "what"),
   chooseFile: "Choose file",
   errUnexpected: UNEXPECTED,
   stateText: { done: "done", running: "in progress", waiting: "waiting", failed: "failed" },
@@ -101,13 +100,13 @@ const en = {
   keyFileHint: ".key",
   chainFile: "Certificate chain",
   chainFileHint: "Optional. Intermediate certificates, .pem",
-  mustCover: (name: string) => `It must cover ${name}.local, the name people will use.`,
+  mustCover: m("It must cover {name}.local, the name people will use.", "name"),
   errCertMissing: "Choose the certificate file.",
   errKeyMissing: "Choose the private key file.",
   errFileTooLarge: "This file is too large for a certificate or key.",
   selfSignedShort: "Self-signed",
   ownCertShort: "Your own certificate",
-  validUntilDate: (date: string) => `valid until ${date}`,
+  validUntilDate: m("valid until {date}", "date"),
 
   supportTitle: "Support agreement",
   supportLead: "Software assurance and support from Sūveryn Labs: updates, model bundles, certified connectors and help when you need it. You can also do this later.",
@@ -131,7 +130,7 @@ const en = {
   skipNote: "You can skip this and the appliance works normally. For 14 days only administrators see a reminder. After that, everyone who signs in sees a banner that this appliance runs without a support agreement: nothing is blocked.",
   identityMissing: "This appliance's ID isn't ready yet. Restart the appliance from its console, then reload this page.",
   agreement: "Agreement",
-  validFor: (id: string) => `Valid for this appliance: ${id}`,
+  validFor: m("Valid for this appliance: {id}", "id"),
   users: "Users",
   usersDetail: "Enabled named accounts. Disabled accounts don't count.",
   validUntil: "Valid until",
@@ -139,7 +138,7 @@ const en = {
   nextCheckIn: "Next check-in",
   checkInDetail: "Scan a QR code from the admin dashboard. Takes a minute.",
   certified: "Certified",
-  certifiedValue: (c: number, p: number) => `${c} ${singular(c) ? "connector" : "connectors"} · ${p} ${singular(p) ? "playbook" : "playbooks"}`,
+  certifiedValue: m("{c, plural, one {{p, plural, one {{c} connector · {p} playbook} other {{c} connector · {p} playbooks}}} other {{p, plural, one {{c} connectors · {p} playbook} other {{c} connectors · {p} playbooks}}}}", "c", "p"),
   certifiedDetail: "Your office's own playbooks never need certifying.",
   replaceManifest: "Replace the manifest",
   noManifest: "No valid manifest",
@@ -173,7 +172,7 @@ const en = {
   errShareUserMissing: "Enter the user name.",
   errTestFirst: "Test the connection before you continue.",
   keepFor: "Keep backups for",
-  days: (n: number) => (n === 365 ? "1 year" : `${n} days`),
+  days: m("{n, plural, =365 {1 year} other {{n} days} one {{n} days}}", "n"),
   keepHint: "This is also how long a deleted document can still sit in a backup.",
   recoveryHeading: "Backup recovery key",
   recoveryLead: "Backups are encrypted for a key only your office holds. The appliance keeps the public half, so it can write backups but never read them back.",
@@ -190,7 +189,7 @@ const en = {
   keyFileKeep: "Keep this file offline, away from the appliance. Without it, backups can't be restored.",
   laterTitle: "No backups until you set them up",
   laterText: "A failed disk or mainboard then loses every document, conversation and setting. The admin dashboard keeps reminding you.",
-  backupsKept: (n: number) => `kept ${n === 365 ? "1 year" : `${n} days`} · recovery key stored offline`,
+  backupsKept: m("{n, plural, =365 {kept 1 year · recovery key stored offline} other {kept {n} days · recovery key stored offline} one {kept {n} days · recovery key stored offline}}", "n"),
   laterShort: "Not set up",
   laterDetail: "Nothing is backed up until you set this up in the admin dashboard.",
 
@@ -216,10 +215,10 @@ const en = {
   provTitle: "Setting up the sūveryn appliance",
   provLead: "This takes a few minutes. Keep this page open.",
   provProgress: "Provisioning",
-  provDone: (done: number, total: number) => `${done} of ${total} done`,
+  provDone: m("{done} of {total} done", "done", "total"),
   stepLabel: { database: "Database", signin: "Sign-in and administrator", models: "Language models", web: "Certificate and web access", outgoing: "Outgoing traffic" },
   stepDetail: { database: "PostgreSQL, pgvector", signin: "Keycloak", web: "Reverse proxy", outgoing: "Checked last" },
-  modelsOnDisk: (n: number) => `${n} · already on disk`,
+  modelsOnDisk: m("{n} · already on disk", "n"),
   stepNow: { database: "Preparing the database", signin: "Creating the sign-in realm and your administrator account", models: "Getting the language models ready", web: "Setting up the certificate and web access", outgoing: "Checking what the appliance can reach" },
   doNotTurnOff: "Do not turn off the appliance.",
   doNotTurnOffMore: "Stopping partway can leave services half configured.",
@@ -238,7 +237,7 @@ const en = {
   leakTitleAirGapped: "This appliance can reach the internet",
   leakText: "It got out through your office network, for example via a proxy. Block it at your office firewall, then run the check again from the admin dashboard.",
   signInAt: "From now on, sign in at",
-  orAt: (url: string) => `or ${url}`,
+  orAt: m("or {url}", "url"),
   closedTitle: "Setup is now closed",
   closedText: "This page no longer accepts connections. Sign in with the administrator account you just created.",
   openSuveryn: "Open sūveryn",
@@ -262,7 +261,7 @@ const en = {
   restoreWhichHint: "The newest is checked now. An older one is checked as it is restored, before anything here is replaced.",
   restoreNewest: "newest",
   restoreFrom: "By the appliance",
-  restoreRenamed: (now: string, old: string) => `This appliance is now called ${now}; it takes the name ${old}.`,
+  restoreRenamed: m("This appliance is now called {now}; it takes the name {old}.", "now", "old"),
   restoreReplacesTitle: "This appliance becomes the old one",
   restoreReplacesText: "It takes the old appliance's name, accounts and settings, and setup closes. Turn the old appliance off for good before you continue, so two appliances don't answer to one name.",
   restoreStart: "Restore",
@@ -273,8 +272,8 @@ const en = {
   restoreFailedTitle: "The restore stopped",
   restoreFailedText: "Choose Try again and enter the recovery key once more: the appliance deleted it when the restore stopped. If it stops again, contact your partner.",
   restoreMovedTitle: "The appliance now uses its old name",
-  restoreMovedText: (url: string) => `This page may no longer answer at its address. Open ${url}: if it shows the sign-in page, the restore is done.`,
-  restoreOpen: (url: string) => `Open ${url}`,
+  restoreMovedText: m("This page may no longer answer at its address. Open {url}: if it shows the sign-in page, the restore is done.", "url"),
+  restoreOpen: m("Open {url}", "url"),
   restoreDoneTitle: "Backup restored",
   restoreDoneLead: "The appliance has taken over from the old one. Sign in with your usual account.",
   restoreSupportTitle: "Register this appliance with support",
@@ -295,7 +294,7 @@ const en = {
   messages: {
     "setup.name_missing": "Enter your full name.",
     "setup.email_invalid": "Enter an email address like name@example.com.",
-    "setup.password_short": (p: Params) => `Use at least ${p.min ?? 15} characters.`,
+    "setup.password_short": mp("{has_min, select, yes {Use at least {min} characters.} other {Use at least 15 characters.}}"),
     "setup.password_common": "This password is too common or has appeared in a data breach. Choose another one.",
     "setup.password_personal": "Don't use your name, your email address or the appliance's name in the password.",
     "setup.not_a_certificate": "This isn't a certificate in PEM format.",
@@ -323,14 +322,14 @@ const en = {
     "setup.restore_damaged": "The newest backup there is damaged and can't be restored.",
     "setup.restore_newer": "The newest backup there was made by a newer version of sūveryn than this appliance has. Contact your partner to update this appliance first.",
     "setup.restore_failed": "The restore stopped partway. Enter the recovery key again and try again; if it stops again, contact your partner.",
-    "setup.provisioning_failed": (p: Params) => `It stopped${p.step ? ` at "${p.step}"` : ""}. Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page.`,
+    "setup.provisioning_failed": mp("{has_step, select, yes {It stopped at \"{step}\". Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page.} other {It stopped. Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page.}}"),
     "request.invalid": "The answers were incomplete. Enter them again.",
   } satisfies Record<SetupCode, Wording> & Partial<Record<MessageCode, Wording>>,
   messageAreas: { setup: UNEXPECTED },
   messageKinds: {
     refused: UNEXPECTED,
     unavailable: UNEXPECTED,
-    internal: (p: Params) => (p.ref ? `Something went wrong on the appliance. Try again; if it happens again, give your partner this reference: ${p.ref}` : UNEXPECTED),
+    internal: mp("{has_ref, select, yes {Something went wrong on the appliance. Try again; if it happens again, give your partner this reference: {ref}} other {The appliance couldn''t save this. Try again; if it keeps happening, restart the appliance from its console and reload this page.}}"),
     warning: "Done, but something needs checking.",
   } satisfies Record<MessageKind, Wording>,
 };

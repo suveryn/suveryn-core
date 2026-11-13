@@ -4,10 +4,10 @@
  */
 import type { Text } from "./en";
 import { LOCALES } from "../../i18n/languages";
-import { singularIn } from "../../i18n/plural";
+import { messagesIn } from "../../i18n/message";
 
-/** Whether a count takes the singular here (CLDR's rules for fr; i18n/plural.ts). */
-const singular = singularIn(LOCALES.fr);
+/** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
+const { m, mp } = messagesIn(LOCALES.fr);
 
 /** What the screen says when the appliance gives no better reason. */
 const UNEXPECTED = "L'appliance n'a pas pu enregistrer ceci. Réessayez ; si cela se reproduit, redémarrez l'appliance depuis sa console et rechargez cette page.";
@@ -15,8 +15,8 @@ const UNEXPECTED = "L'appliance n'a pas pu enregistrer ceci. Réessayez ; si cel
 const fr: Text = {
   language: "Langue",
   tagline: "AI for work that can't leave the premises.",
-  pageTitle: (screen) => `Configuration de sūveryn · ${screen}`,
-  step: (n, total) => `Configuration · Étape ${n} sur ${total}`,
+  pageTitle: m("Configuration de sūveryn · {screen}", "screen"),
+  step: m("Configuration · Étape {n} sur {total}", "n", "total"),
   back: "Retour",
   continue: "Continuer",
   loading: "Chargement…",
@@ -27,7 +27,7 @@ const fr: Text = {
   setDuringInstallation: "Définis lors de l'installation",
   name: "Nom",
   address: "Adresse",
-  addressDetail: (dhcp, gateway, dns) => `${dhcp ? "DHCP" : "Fixe"} · passerelle ${gateway} · DNS ${dns}`,
+  addressDetail: m("{dhcp, select, true {DHCP · passerelle {gateway} · DNS {dns}} other {Fixe · passerelle {gateway} · DNS {dns}}}", "dhcp", "gateway", "dns"),
   changeOnConsole: "Pour les modifier, choisissez l'option 2 sur la console de l'appliance.",
   internetAccess: "Accès à Internet",
   internetAccessLead: "Jusqu'où cette appliance peut aller au-delà de votre propre réseau.",
@@ -63,13 +63,13 @@ const fr: Text = {
   errNameMissing: "Saisissez votre nom complet.",
   errEmailMissing: "Saisissez une adresse e-mail.",
   errEmailInvalid: "Saisissez une adresse e-mail comme nom@exemple.be.",
-  errPasswordShort: (min) => `Utilisez au moins ${min} caractères.`,
+  errPasswordShort: m("Utilisez au moins {min} caractères.", "min"),
   errPasswordCommon: "Ce mot de passe est trop courant. Choisissez-en un plus difficile à deviner.",
   errPasswordPersonal: "N'utilisez pas votre nom, votre adresse e-mail ni le nom de l'appliance dans le mot de passe.",
   errConfirm: "Les mots de passe ne correspondent pas.",
 
   edit: "Modifier",
-  editLabel: (what) => `Modifier : ${what}`,
+  editLabel: m("Modifier : {what}", "what"),
   chooseFile: "Choisir un fichier",
   errUnexpected: UNEXPECTED,
   stateText: { done: "terminé", running: "en cours", waiting: "en attente", failed: "échoué" },
@@ -100,13 +100,13 @@ const fr: Text = {
   keyFileHint: ".key",
   chainFile: "Chaîne de certificats",
   chainFileHint: "Facultatif. Certificats intermédiaires, .pem",
-  mustCover: (name) => `Il doit être valable pour ${name}.local, le nom que les utilisateurs emploieront.`,
+  mustCover: m("Il doit être valable pour {name}.local, le nom que les utilisateurs emploieront.", "name"),
   errCertMissing: "Choisissez le fichier du certificat.",
   errKeyMissing: "Choisissez le fichier de la clé privée.",
   errFileTooLarge: "Ce fichier est trop volumineux pour un certificat ou une clé.",
   selfSignedShort: "Auto-signé",
   ownCertShort: "Votre propre certificat",
-  validUntilDate: (date) => `valable jusqu'au ${date}`,
+  validUntilDate: m("valable jusqu''au {date}", "date"),
 
   supportTitle: "Contrat de support",
   supportLead: "Software assurance et support de Sūveryn Labs : mises à jour, bundles de modèles, connecteurs certifiés et aide quand vous en avez besoin. Vous pouvez aussi le faire plus tard.",
@@ -130,7 +130,7 @@ const fr: Text = {
   skipNote: "Vous pouvez passer cette étape et l'appliance fonctionne normalement. Pendant 14 jours, seuls les administrateurs voient un rappel. Ensuite, toute personne qui se connecte voit un bandeau indiquant que cette appliance fonctionne sans contrat de support ; rien n'est bloqué.",
   identityMissing: "L'identifiant de cette appliance n'est pas encore prêt. Redémarrez l'appliance depuis sa console, puis rechargez cette page.",
   agreement: "Contrat",
-  validFor: (id) => `Valable pour cette appliance\u00a0: ${id}`,
+  validFor: m("Valable pour cette appliance : {id}", "id"),
   users: "Utilisateurs",
   usersDetail: "Comptes nominatifs activés. Les comptes désactivés ne comptent pas.",
   validUntil: "Valable jusqu'au",
@@ -138,7 +138,7 @@ const fr: Text = {
   nextCheckIn: "Prochain check-in",
   checkInDetail: "Scannez un code QR depuis le tableau de bord d'administration. Cela prend une minute.",
   certified: "Certifiés",
-  certifiedValue: (c, p) => `${c} ${singular(c) ? "connecteur" : "connecteurs"} · ${p} ${singular(p) ? "playbook" : "playbooks"}`,
+  certifiedValue: m("{c, plural, one {{p, plural, one {{c} connecteur · {p} playbook} other {{c} connecteur · {p} playbooks}}} other {{p, plural, one {{c} connecteurs · {p} playbook} other {{c} connecteurs · {p} playbooks}}}}", "c", "p"),
   certifiedDetail: "Les playbooks propres à votre étude n'ont jamais besoin d'être certifiés.",
   replaceManifest: "Remplacer le manifeste",
   noManifest: "Aucun manifeste valable",
@@ -172,7 +172,7 @@ const fr: Text = {
   errShareUserMissing: "Saisissez le nom d'utilisateur.",
   errTestFirst: "Testez la connexion avant de continuer.",
   keepFor: "Conserver les sauvegardes pendant",
-  days: (n) => (n === 365 ? "1 an" : `${n} jours`),
+  days: m("{n, plural, =365 {1 an} one {{n} jours} other {{n} jours}}", "n"),
   keepHint: "C'est aussi la durée pendant laquelle un document supprimé peut encore figurer dans une sauvegarde.",
   recoveryHeading: "Clé de récupération des sauvegardes",
   recoveryLead: "Les sauvegardes sont chiffrées pour une clé que seul votre étude détient. L'appliance garde la moitié publique : elle peut écrire les sauvegardes, mais jamais les relire.",
@@ -189,7 +189,7 @@ const fr: Text = {
   keyFileKeep: "Conservez ce fichier hors ligne, loin de l'appliance. Sans lui, les sauvegardes ne peuvent pas être restaurées.",
   laterTitle: "Aucune sauvegarde tant que vous ne les configurez pas",
   laterText: "Une panne de disque ou de carte mère fait alors perdre tous les documents, conversations et paramètres. Le tableau de bord d'administration continue de vous le rappeler.",
-  backupsKept: (n) => `conservées ${n === 365 ? "1 an" : `${n} jours`} · clé de récupération conservée hors ligne`,
+  backupsKept: m("{n, plural, =365 {conservées 1 an · clé de récupération conservée hors ligne} one {conservées {n} jours · clé de récupération conservée hors ligne} other {conservées {n} jours · clé de récupération conservée hors ligne}}", "n"),
   laterShort: "Non configurées",
   laterDetail: "Rien n'est sauvegardé tant que vous ne les configurez pas dans le tableau de bord d'administration.",
 
@@ -215,10 +215,10 @@ const fr: Text = {
   provTitle: "Mise en service de l'appliance sūveryn",
   provLead: "Cela prend quelques minutes. Gardez cette page ouverte.",
   provProgress: "Mise en service",
-  provDone: (done, total) => `${done} sur ${total} terminées`,
+  provDone: m("{done} sur {total} terminées", "done", "total"),
   stepLabel: { database: "Base de données", signin: "Connexion et administrateur", models: "Modèles de langage", web: "Certificat et accès web", outgoing: "Trafic sortant" },
   stepDetail: { database: "PostgreSQL, pgvector", signin: "Keycloak", web: "Reverse proxy", outgoing: "Vérifié en dernier" },
-  modelsOnDisk: (n) => `${n} · déjà sur le disque`,
+  modelsOnDisk: m("{n} · déjà sur le disque", "n"),
   stepNow: { database: "Préparation de la base de données", signin: "Création du realm de connexion et de votre compte administrateur", models: "Préparation des modèles de langage", web: "Configuration du certificat et de l'accès web", outgoing: "Vérification de ce que l'appliance peut atteindre" },
   doNotTurnOff: "N'éteignez pas l'appliance.",
   doNotTurnOffMore: "Un arrêt en cours de route peut laisser des services à moitié configurés.",
@@ -237,7 +237,7 @@ const fr: Text = {
   leakTitleAirGapped: "Cette appliance peut atteindre Internet",
   leakText: "Elle est sortie par le réseau de votre étude, par exemple via un proxy. Bloquez-la sur le pare-feu de votre étude, puis relancez la vérification depuis le tableau de bord d'administration.",
   signInAt: "Désormais, connectez-vous sur",
-  orAt: (url) => `ou ${url}`,
+  orAt: m("ou {url}", "url"),
   closedTitle: "La configuration est maintenant fermée",
   closedText: "Cette page n'accepte plus de connexions. Connectez-vous avec le compte administrateur que vous venez de créer.",
   openSuveryn: "Ouvrir sūveryn",
@@ -261,7 +261,7 @@ const fr: Text = {
   restoreWhichHint: "La plus récente est vérifiée maintenant. Une plus ancienne est vérifiée pendant la restauration, avant que rien ne soit remplacé ici.",
   restoreNewest: "la plus récente",
   restoreFrom: "Par l'appliance",
-  restoreRenamed: (now: string, old: string) => `Cette appliance s'appelle maintenant ${now} ; elle prend le nom ${old}.`,
+  restoreRenamed: m("Cette appliance s''appelle maintenant {now} ; elle prend le nom {old}.", "now", "old"),
   restoreReplacesTitle: "Cette appliance devient l'ancienne",
   restoreReplacesText: "Elle reprend le nom, les comptes et les réglages de l'ancienne appliance, et la configuration se ferme. Éteignez définitivement l'ancienne appliance avant de continuer, pour que deux appliances ne répondent pas au même nom.",
   restoreStart: "Restaurer",
@@ -272,8 +272,8 @@ const fr: Text = {
   restoreFailedTitle: "La restauration s'est arrêtée",
   restoreFailedText: "Choisissez Réessayer et choisissez à nouveau la clé de récupération : l'appliance l'a effacée quand la restauration s'est arrêtée. Si elle s'arrête encore, contactez votre partenaire.",
   restoreMovedTitle: "L'appliance utilise maintenant son ancien nom",
-  restoreMovedText: (url: string) => `Cette page ne répond peut-être plus à son adresse. Ouvrez ${url} : si la page de connexion s'affiche, la restauration est terminée.`,
-  restoreOpen: (url: string) => `Ouvrir ${url}`,
+  restoreMovedText: m("Cette page ne répond peut-être plus à son adresse. Ouvrez {url} : si la page de connexion s''affiche, la restauration est terminée.", "url"),
+  restoreOpen: m("Ouvrir {url}", "url"),
   restoreDoneTitle: "Sauvegarde restaurée",
   restoreDoneLead: "L'appliance a pris le relais de l'ancienne. Connectez-vous avec votre compte habituel.",
   restoreSupportTitle: "Enregistrez cette appliance auprès du support",
@@ -294,7 +294,7 @@ const fr: Text = {
   messages: {
     "setup.name_missing": "Saisissez votre nom complet.",
     "setup.email_invalid": "Saisissez une adresse e-mail comme nom@exemple.be.",
-    "setup.password_short": (p) => `Utilisez au moins ${p.min ?? 15} caractères.`,
+    "setup.password_short": mp("{has_min, select, yes {Utilisez au moins {min} caractères.} other {Utilisez au moins 15 caractères.}}"),
     "setup.password_common": "Ce mot de passe est trop courant ou a fuité lors d'une violation de données. Choisissez-en un autre.",
     "setup.password_personal": "N'utilisez pas votre nom, votre adresse e-mail ni le nom de l'appliance dans le mot de passe.",
     "setup.not_a_certificate": "Ce n'est pas un certificat au format PEM.",
@@ -322,14 +322,14 @@ const fr: Text = {
     "setup.restore_damaged": "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée.",
     "setup.restore_newer": "La sauvegarde la plus récente à cet endroit a été faite par une version de sūveryn plus récente que celle de cette appliance. Contactez votre partenaire pour mettre d'abord cette appliance à jour.",
     "setup.restore_failed": "La restauration s'est arrêtée en cours de route. Choisissez à nouveau la clé de récupération et réessayez ; si elle s'arrête encore, contactez votre partenaire.",
-    "setup.provisioning_failed": (p) => `Elle s'est arrêtée${p.step ? ` à « ${p.step} »` : ""}. Rien de ce que vous avez saisi n'est perdu. Réessayez ; si elle s'arrête encore, redémarrez l'appliance depuis sa console et rechargez cette page.`,
+    "setup.provisioning_failed": mp("{has_step, select, yes {Elle s''est arrêtée à « {step} ». Rien de ce que vous avez saisi n''est perdu. Réessayez ; si elle s''arrête encore, redémarrez l''appliance depuis sa console et rechargez cette page.} other {Elle s''est arrêtée. Rien de ce que vous avez saisi n''est perdu. Réessayez ; si elle s''arrête encore, redémarrez l''appliance depuis sa console et rechargez cette page.}}"),
     "request.invalid": "Les réponses étaient incomplètes. Saisissez-les à nouveau.",
   },
   messageAreas: { setup: UNEXPECTED },
   messageKinds: {
     refused: UNEXPECTED,
     unavailable: UNEXPECTED,
-    internal: (p) => (p.ref ? `Une erreur s'est produite sur l'appliance. Réessayez ; si cela se reproduit, communiquez cette référence à votre partenaire : ${p.ref}` : UNEXPECTED),
+    internal: mp("{has_ref, select, yes {Une erreur s''est produite sur l''appliance. Réessayez ; si cela se reproduit, communiquez cette référence à votre partenaire : {ref}} other {L''appliance n''a pas pu enregistrer ceci. Réessayez ; si cela se reproduit, redémarrez l''appliance depuis sa console et rechargez cette page.}}"),
     warning: "C'est fait, mais un point est à vérifier.",
   },
 };

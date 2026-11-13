@@ -47,9 +47,47 @@ web setup by `packages/chat-ui/src/i18n/rules.ts` (`copyProblems`):
 - the tagline stays in English: "AI for work that can't leave the premises".
 
 Counts take the singular or the plural by the language's own rules (CLDR, through the browser's
-`Intl.PluralRules`), never by comparing with 1: each table asks `singular(n)` (`src/i18n/plural.ts`), so
-French writes "0 page" and English "0 pages". `plural.test.ts` fails on a table that compares a count
-with 1. Dates and numbers are formatted for `LOCALES` through `Intl` in the same way.
+`Intl.PluralRules`), never by comparing with 1, so French writes "0 page" and English "0 pages".
+`plural.test.ts` fails on a table that compares a count with 1. Dates and numbers are formatted for
+`LOCALES` through `Intl` in the same way.
+
+## Text, not code
+
+The chat's and the web setup's language files hold text, never program code (the handbook's
+[decision of 13 November 2026](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-13-text-not-code.md);
+suveryn-tracker#147): a translator, or the tool a translator uses, must be able to read every sentence.
+A plain sentence is a string. A sentence with a value or a plural is one message in **ICU
+MessageFormat**, formatted by `intl-messageformat` (pinned; it fetches nothing and runs under the
+appliance's Content-Security-Policy):
+
+```ts
+pages: m("{n, plural, one {{n} page} other {{n} pages}}", "n"),              // a screen calls t.pages(3)
+"upload.too_large": mp("{has_max_mb, select, yes {the file is larger than {max_mb} MB} other {…}}"),
+```
+
+`m` (`src/i18n/message.ts`) takes the text and the names of its values in the order the screens give
+them; `mp` is for a code's parameters, which arrive as one object. The conventions, the same in every
+language:
+
+- A value is `{name}`. A number shows as it is given; inside a plural write `{n}`, not `#`, which would
+  group it ("1,234").
+- A value that may be missing is asked about with `has_<name>` (`yes` or `no`): missing means not given,
+  empty, or 0.
+- A list is `{name}` too, its items separated by ", "; how many there are is `{name_count}`.
+- A choice between a few words, or a yes/no, is a `select`.
+- An apostrophe before `{` is doubled (`l''{name}`).
+- Every language gives a message the same values, in the same order, as English.
+
+`message.test.ts` fails on a message that doesn't parse in its language, on one whose values differ from
+English's, and on a value its text uses that nobody gives; a missing string still fails the build. Ten
+entries of the chat are real logic and stay functions (a full stop added unless the reason ends a
+sentence, numbers in words, "pages 2, 3 and 5", where a citation was found …): the same test counts
+them, and the count may only go down. A new entry is text.
+
+When the entries were converted, each was run beside the function it replaced over a grid of values:
+819 entries, about 143,000 comparisons, the same output but for three deliberate changes (a model with
+an empty name reads "The model is loading…"; Dutch and French page lists get the space after the comma
+English already had).
 
 A string that exists already is reused as it is; a new screen doesn't coin a second wording for the
 same thing. The fixed terms, in every place:
@@ -77,7 +115,7 @@ Say German (`de`). In this order:
 1. **The lists.** Add `"de"` to `LANGS`, `LANGUAGE_NAMES` (`"Deutsch"`) and `LOCALES` (`"de-BE"`) in
    `languages.ts`; to `LANGUAGES` in `suveryn_playbooks`; to `supportedLocales` in the realm file.
    From here the build and the tests say what is missing.
-2. **The chat.** Copy `i18n/en.ts` to `i18n/de.ts`, translate, add it to `TABLES` in `i18n/index.ts`.
+2. **The chat.** Copy `i18n/en.ts` to `i18n/de.ts`, translate (a message's text only: its values keep their English names), set its locale in `messagesIn(LOCALES.de)`, add it to `TABLES` in `i18n/index.ts`.
 3. **The web setup.** The same with `setup/i18n/de.ts` and `TEXT` in `setup/i18n/index.ts`.
 4. **The playbooks.** One `text/de.json` per pack.
    **What the harness reads.** Add the language to `LANGUAGES` in `packages/harness/tools/number_words.py` and run

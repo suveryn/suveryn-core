@@ -370,7 +370,7 @@ describe("tables in answers (Word and Excel)", () => {
 
   it("lists what to check: calculations, figures and citations, each once", () => {
     const m = { ...TABLES_FOR_TESTS.en, calcFailed: (e: string, why: string) => `fail ${e}: ${why}`, calculatedBy: "Calc:", calcMissing: (f: string[]) => ` missing ${f}`,
-                unverified: (f: string[]) => `check ${f}`, citationIssue: (n: number, item: string) => `source ${n} lacks ${item}` };
+                unverified: (f: string[]) => `check ${f}`, citationIssue: (n: number, item: string) => `source ${n} lacks ${item}` } as unknown as typeof TABLES_FOR_TESTS.en;
     expect(checkLines([{ expression: "1 / 0", result: null, figures_not_in_sources: [], error: "division by zero", code: "calc.division_by_zero" }], [], [], m))
       .toEqual(["fail 1 / 0: it divides by zero"]);
     const issue = { marker: 0, n: 2, item: "X", found_in: [3], written_as: null };

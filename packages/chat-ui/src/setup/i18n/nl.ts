@@ -4,10 +4,10 @@
  */
 import type { Text } from "./en";
 import { LOCALES } from "../../i18n/languages";
-import { singularIn } from "../../i18n/plural";
+import { messagesIn } from "../../i18n/message";
 
-/** Whether a count takes the singular here (CLDR's rules for nl; i18n/plural.ts). */
-const singular = singularIn(LOCALES.nl);
+/** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
+const { m, mp } = messagesIn(LOCALES.nl);
 
 /** What the screen says when the appliance gives no better reason. */
 const UNEXPECTED = "De appliance kon dit niet bewaren. Probeer het opnieuw; blijft het gebeuren, herstart de appliance dan via haar console en laad deze pagina opnieuw.";
@@ -15,8 +15,8 @@ const UNEXPECTED = "De appliance kon dit niet bewaren. Probeer het opnieuw; blij
 const nl: Text = {
   language: "Taal",
   tagline: "AI for work that can't leave the premises.",
-  pageTitle: (screen) => `Sūveryn-installatie · ${screen}`,
-  step: (n, total) => `Installatie · Stap ${n} van ${total}`,
+  pageTitle: m("Sūveryn-installatie · {screen}", "screen"),
+  step: m("Installatie · Stap {n} van {total}", "n", "total"),
   back: "Terug",
   continue: "Verder",
   loading: "Laden…",
@@ -27,7 +27,7 @@ const nl: Text = {
   setDuringInstallation: "Ingesteld tijdens de installatie",
   name: "Naam",
   address: "Adres",
-  addressDetail: (dhcp, gateway, dns) => `${dhcp ? "DHCP" : "Vast"} · gateway ${gateway} · DNS ${dns}`,
+  addressDetail: m("{dhcp, select, true {DHCP · gateway {gateway} · DNS {dns}} other {Vast · gateway {gateway} · DNS {dns}}}", "dhcp", "gateway", "dns"),
   changeOnConsole: "Om deze te wijzigen, kiest u optie 2 op de console van de appliance.",
   internetAccess: "Internettoegang",
   internetAccessLead: "Hoe ver deze appliance buiten uw eigen netwerk mag reiken.",
@@ -63,13 +63,13 @@ const nl: Text = {
   errNameMissing: "Vul uw volledige naam in.",
   errEmailMissing: "Vul een e-mailadres in.",
   errEmailInvalid: "Vul een e-mailadres in zoals naam@voorbeeld.be.",
-  errPasswordShort: (min) => `Gebruik minstens ${min} tekens.`,
+  errPasswordShort: m("Gebruik minstens {min} tekens.", "min"),
   errPasswordCommon: "Dit wachtwoord komt te vaak voor. Kies er een dat moeilijker te raden is.",
   errPasswordPersonal: "Gebruik uw naam, uw e-mailadres of de naam van de appliance niet in het wachtwoord.",
   errConfirm: "De wachtwoorden komen niet overeen.",
 
   edit: "Wijzigen",
-  editLabel: (what) => `${what} wijzigen`,
+  editLabel: m("{what} wijzigen", "what"),
   chooseFile: "Bestand kiezen",
   errUnexpected: UNEXPECTED,
   stateText: { done: "klaar", running: "bezig", waiting: "wacht", failed: "mislukt" },
@@ -100,13 +100,13 @@ const nl: Text = {
   keyFileHint: ".key",
   chainFile: "Certificaatketen",
   chainFileHint: "Optioneel. Tussenliggende certificaten, .pem",
-  mustCover: (name) => `Het moet geldig zijn voor ${name}.local, de naam die gebruikers zullen gebruiken.`,
+  mustCover: m("Het moet geldig zijn voor {name}.local, de naam die gebruikers zullen gebruiken.", "name"),
   errCertMissing: "Kies het certificaatbestand.",
   errKeyMissing: "Kies het bestand met de privésleutel.",
   errFileTooLarge: "Dit bestand is te groot voor een certificaat of sleutel.",
   selfSignedShort: "Zelfondertekend",
   ownCertShort: "Uw eigen certificaat",
-  validUntilDate: (date) => `geldig tot ${date}`,
+  validUntilDate: m("geldig tot {date}", "date"),
 
   supportTitle: "Ondersteuningsovereenkomst",
   supportLead: "Software assurance en ondersteuning van Sūveryn Labs: updates, modelbundels, gecertificeerde connectoren en hulp wanneer u die nodig hebt. U kunt dit ook later doen.",
@@ -130,7 +130,7 @@ const nl: Text = {
   skipNote: "U kunt dit overslaan en de appliance werkt gewoon. Gedurende 14 dagen zien alleen beheerders een herinnering. Daarna ziet iedereen die zich aanmeldt een melding dat deze appliance zonder ondersteuningsovereenkomst draait; er wordt niets geblokkeerd.",
   identityMissing: "De ID van deze appliance is nog niet klaar. Herstart de appliance via haar console en laad deze pagina daarna opnieuw.",
   agreement: "Overeenkomst",
-  validFor: (id) => `Geldig voor deze appliance: ${id}`,
+  validFor: m("Geldig voor deze appliance: {id}", "id"),
   users: "Gebruikers",
   usersDetail: "Ingeschakelde persoonlijke accounts. Uitgeschakelde accounts tellen niet mee.",
   validUntil: "Geldig tot",
@@ -138,7 +138,7 @@ const nl: Text = {
   nextCheckIn: "Volgende check-in",
   checkInDetail: "Scan een QR-code in het beheerdashboard. Duurt een minuut.",
   certified: "Gecertificeerd",
-  certifiedValue: (c, p) => `${c} ${singular(c) ? "connector" : "connectoren"} · ${p} ${singular(p) ? "playbook" : "playbooks"}`,
+  certifiedValue: m("{c, plural, one {{p, plural, one {{c} connector · {p} playbook} other {{c} connector · {p} playbooks}}} other {{p, plural, one {{c} connectoren · {p} playbook} other {{c} connectoren · {p} playbooks}}}}", "c", "p"),
   certifiedDetail: "De eigen playbooks van uw kantoor hoeven nooit gecertificeerd te worden.",
   replaceManifest: "Het manifest vervangen",
   noManifest: "Geen geldig manifest",
@@ -172,7 +172,7 @@ const nl: Text = {
   errShareUserMissing: "Vul de gebruikersnaam in.",
   errTestFirst: "Test de verbinding voor u verdergaat.",
   keepFor: "Back-ups bewaren gedurende",
-  days: (n) => (n === 365 ? "1 jaar" : `${n} dagen`),
+  days: m("{n, plural, =365 {1 jaar} other {{n} dagen} one {{n} dagen}}", "n"),
   keepHint: "Zo lang kan een verwijderd document ook nog in een back-up staan.",
   recoveryHeading: "Herstelsleutel voor back-ups",
   recoveryLead: "Back-ups worden versleuteld voor een sleutel die alleen uw kantoor heeft. De appliance bewaart de publieke helft, zodat ze back-ups kan schrijven maar nooit teruglezen.",
@@ -189,7 +189,7 @@ const nl: Text = {
   keyFileKeep: "Bewaar dit bestand offline, niet bij de appliance. Zonder dit bestand kunnen back-ups niet worden teruggezet.",
   laterTitle: "Geen back-ups tot u ze instelt",
   laterText: "Een defecte schijf of moederbord betekent dan het verlies van alle documenten, gesprekken en instellingen. Het beheerdashboard blijft u eraan herinneren.",
-  backupsKept: (n) => `${n === 365 ? "1 jaar" : `${n} dagen`} bewaard · herstelsleutel offline bewaard`,
+  backupsKept: m("{n, plural, =365 {1 jaar bewaard · herstelsleutel offline bewaard} other {{n} dagen bewaard · herstelsleutel offline bewaard} one {{n} dagen bewaard · herstelsleutel offline bewaard}}", "n"),
   laterShort: "Niet ingesteld",
   laterDetail: "Er wordt niets geback-upt tot u dit instelt in het beheerdashboard.",
 
@@ -215,10 +215,10 @@ const nl: Text = {
   provTitle: "De sūveryn-appliance wordt ingericht",
   provLead: "Dit duurt een paar minuten. Laat deze pagina open.",
   provProgress: "Inrichting",
-  provDone: (done, total) => `${done} van ${total} klaar`,
+  provDone: m("{done} van {total} klaar", "done", "total"),
   stepLabel: { database: "Database", signin: "Aanmelden en beheerder", models: "Taalmodellen", web: "Certificaat en webtoegang", outgoing: "Uitgaand verkeer" },
   stepDetail: { database: "PostgreSQL, pgvector", signin: "Keycloak", web: "Reverse proxy", outgoing: "Als laatste gecontroleerd" },
-  modelsOnDisk: (n) => `${n} · al op de schijf`,
+  modelsOnDisk: m("{n} · al op de schijf", "n"),
   stepNow: { database: "De database wordt voorbereid", signin: "Het aanmeldrealm en uw beheerdersaccount worden aangemaakt", models: "De taalmodellen worden klaargezet", web: "Het certificaat en de webtoegang worden ingesteld", outgoing: "Er wordt gecontroleerd wat de appliance kan bereiken" },
   doNotTurnOff: "Schakel de appliance niet uit.",
   doNotTurnOffMore: "Halverwege stoppen kan diensten half ingesteld achterlaten.",
@@ -237,7 +237,7 @@ const nl: Text = {
   leakTitleAirGapped: "Deze appliance kan het internet bereiken",
   leakText: "Ze raakte buiten via uw kantoornetwerk, bijvoorbeeld via een proxy. Blokkeer dit op de firewall van uw kantoor en voer de controle daarna opnieuw uit via het beheerdashboard.",
   signInAt: "Meld u voortaan aan op",
-  orAt: (url) => `of ${url}`,
+  orAt: m("of {url}", "url"),
   closedTitle: "De installatie is nu gesloten",
   closedText: "Deze pagina aanvaardt geen verbindingen meer. Meld u aan met het beheerdersaccount dat u net hebt aangemaakt.",
   openSuveryn: "Sūveryn openen",
@@ -261,7 +261,7 @@ const nl: Text = {
   restoreWhichHint: "De nieuwste is nu gecontroleerd. Een oudere wordt gecontroleerd tijdens het terugzetten, voordat er hier iets wordt vervangen.",
   restoreNewest: "nieuwste",
   restoreFrom: "Door de appliance",
-  restoreRenamed: (now: string, old: string) => `Deze appliance heet nu ${now}; ze neemt de naam ${old} over.`,
+  restoreRenamed: m("Deze appliance heet nu {now}; ze neemt de naam {old} over.", "now", "old"),
   restoreReplacesTitle: "Deze appliance wordt de oude",
   restoreReplacesText: "Ze neemt de naam, de accounts en de instellingen van de oude appliance over, en de installatie sluit. Schakel de oude appliance definitief uit voor u verdergaat, zodat er geen twee appliances op één naam antwoorden.",
   restoreStart: "Terugzetten",
@@ -272,8 +272,8 @@ const nl: Text = {
   restoreFailedTitle: "Het terugzetten is gestopt",
   restoreFailedText: "Kies Opnieuw proberen en kies de herstelsleutel nog eens: de appliance heeft hem gewist toen het terugzetten stopte. Stopt het weer, neem dan contact op met uw partner.",
   restoreMovedTitle: "De appliance gebruikt nu haar oude naam",
-  restoreMovedText: (url: string) => `Deze pagina antwoordt misschien niet meer op haar adres. Open ${url}: toont die de aanmeldpagina, dan is het terugzetten klaar.`,
-  restoreOpen: (url: string) => `${url} openen`,
+  restoreMovedText: m("Deze pagina antwoordt misschien niet meer op haar adres. Open {url}: toont die de aanmeldpagina, dan is het terugzetten klaar.", "url"),
+  restoreOpen: m("{url} openen", "url"),
   restoreDoneTitle: "Back-up teruggezet",
   restoreDoneLead: "De appliance heeft het overgenomen van de oude. Meld u aan met uw gewone account.",
   restoreSupportTitle: "Registreer deze appliance voor ondersteuning",
@@ -294,7 +294,7 @@ const nl: Text = {
   messages: {
     "setup.name_missing": "Vul uw volledige naam in.",
     "setup.email_invalid": "Vul een e-mailadres in zoals naam@voorbeeld.be.",
-    "setup.password_short": (p) => `Gebruik minstens ${p.min ?? 15} tekens.`,
+    "setup.password_short": mp("{has_min, select, yes {Gebruik minstens {min} tekens.} other {Gebruik minstens 15 tekens.}}"),
     "setup.password_common": "Dit wachtwoord komt te vaak voor of is uitgelekt bij een datalek. Kies een ander.",
     "setup.password_personal": "Gebruik uw naam, uw e-mailadres of de naam van de appliance niet in het wachtwoord.",
     "setup.not_a_certificate": "Dit is geen certificaat in PEM-formaat.",
@@ -322,14 +322,14 @@ const nl: Text = {
     "setup.restore_damaged": "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet.",
     "setup.restore_newer": "De nieuwste back-up daar is gemaakt door een nieuwere versie van sūveryn dan deze appliance heeft. Neem contact op met uw partner om deze appliance eerst bij te werken.",
     "setup.restore_failed": "Het terugzetten stopte halverwege. Kies de herstelsleutel opnieuw en probeer het nog eens; stopt het weer, neem dan contact op met uw partner.",
-    "setup.provisioning_failed": (p) => `Ze stopte${p.step ? ` bij "${p.step}"` : ""}. Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw.`,
+    "setup.provisioning_failed": mp("{has_step, select, yes {Ze stopte bij \"{step}\". Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw.} other {Ze stopte. Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw.}}"),
     "request.invalid": "De antwoorden waren onvolledig. Vul ze opnieuw in.",
   },
   messageAreas: { setup: UNEXPECTED },
   messageKinds: {
     refused: UNEXPECTED,
     unavailable: UNEXPECTED,
-    internal: (p) => (p.ref ? `Er ging iets mis op de appliance. Probeer het opnieuw; gebeurt het opnieuw, geef uw partner dan deze referentie: ${p.ref}` : UNEXPECTED),
+    internal: mp("{has_ref, select, yes {Er ging iets mis op de appliance. Probeer het opnieuw; gebeurt het opnieuw, geef uw partner dan deze referentie: {ref}} other {De appliance kon dit niet bewaren. Probeer het opnieuw; blijft het gebeuren, herstart de appliance dan via haar console en laad deze pagina opnieuw.}}"),
     warning: "Gelukt, maar er is iets na te kijken.",
   },
 };
