@@ -268,7 +268,7 @@ def test_bad_requests(setup):
 def test_without_a_database_history_is_unavailable():
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
     with TestClient(create_app(llm, load_documents=False, auth=Authenticator.disabled())) as c:
-        assert c.get("/v1/conversations").status_code == 503
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.get("/v1/conversations")) == (503, "conversation.unavailable")
         assert c.get("/health").json()["history"] == {"status": "unavailable", "detail": None}
 
 

@@ -5,7 +5,8 @@ import uuid
 from functools import partial
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 
 from ..cases import (
@@ -94,7 +95,7 @@ async def create_case(body: CaseIn, request: Request):
     try:
         return await run_in_threadpool(store.create, body, owner_of(request), *who(request))
     except DuplicateReference:
-        raise HTTPException(409, "A case with this reference already exists.") from None
+        raise Problem("case.reference_exists", "A case with this reference already exists.") from None
 
 
 @router.get("/v1/cases/{case_id}", response_model=Case, responses={404: {"description": "Unknown case"}})
@@ -115,9 +116,9 @@ async def update_case(case_id: str, body: CaseUpdate, request: Request):
     try:
         changed = await run_in_threadpool(cases_or_503(request).update, uuid.UUID(case.id), body)
     except DuplicateReference:
-        raise HTTPException(409, "A case with this reference already exists.") from None
+        raise Problem("case.reference_exists", "A case with this reference already exists.") from None
     except StrictlyConfidential:
-        raise HTTPException(409, "A strictly confidential case is for its members only.") from None
+        raise Problem("case.strictly_confidential", "A strictly confidential case is for its members only.") from None
     fields = body.model_dump(exclude_none=True)
     if "confidential" in fields and fields["confidential"] != case.confidential:
         # Turning it on unshares the case's shared conversations; their owners keep them (§11).
@@ -146,9 +147,9 @@ async def delete_case(case_id: str, request: Request):
     try:
         deleted = await delete_case_everywhere(request.app, uuid.UUID(case.id))
     except CleanupUnavailable as e:
-        raise HTTPException(503, f"The case can't be deleted now ({e}); nothing was deleted. Try again shortly.") from e
+        raise Problem("case.not_deleted", f"The case can't be deleted now ({e}); nothing was deleted. Try again shortly.") from e
     if not deleted:
-        raise HTTPException(404, "Unknown case.")
+        raise Problem("case.not_found", "Unknown case.")
     return Response(status_code=204)
 
 
@@ -172,7 +173,7 @@ async def close_case(case_id: str, request: Request):
     case = await case_for(request, case_id, "close")
     closed = await run_in_threadpool(cases_or_503(request).close_case, uuid.UUID(case.id), case_settings(request).keep_period)
     if closed is None:
-        raise HTTPException(409, "This case is already closed.")
+        raise Problem("request.conflict", "This case is already closed.")
     await log_access(request, uuid.UUID(case.id), "closed",
                      {"keep_until": closed.keep_until.isoformat() if closed.keep_until else None})
     return shielded(closed.model_copy(update={"my_role": case.my_role}))
@@ -185,7 +186,7 @@ async def reopen_case(case_id: str, request: Request):
     case = await case_for(request, case_id, "reopen")
     reopened = await run_in_threadpool(cases_or_503(request).reopen_case, uuid.UUID(case.id))
     if reopened is None:
-        raise HTTPException(409, "This case is not closed.")
+        raise Problem("request.conflict", "This case is not closed.")
     await log_access(request, uuid.UUID(case.id), "reopened")
     return shielded(reopened.model_copy(update={"my_role": case.my_role}))
 
@@ -199,13 +200,13 @@ async def keep_case(case_id: str, body: KeepIn, request: Request):
     deletion one period later. The manager's and the administrators' right (decision 11)."""
     store, cid, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, "set_keep", case_settings(request).office_wide):
-        raise HTTPException(403, "Only the case's manager or an administrator can change how long it is kept."
-                            if case.state == "closed" else "This case is open; close it first.")
+        raise (Problem("case.manager_only", "Only the case's manager or an administrator can change how long it is kept.")
+               if case.state == "closed" else Problem("request.forbidden", "This case is open; close it first."))
     if body.keep is None and not body.extend:
-        raise HTTPException(422, "Say what to change: keep, or extend.")
+        raise Problem("request.invalid", "Say what to change: keep, or extend.")
     changed = await run_in_threadpool(store.set_keep, cid, body.keep, body.extend, case_settings(request).keep_period)
     if changed is None:
-        raise HTTPException(409, "This case is not closed.")
+        raise Problem("request.conflict", "This case is not closed.")
     await log_access(request, cid, "keep_changed", {"keep": changed.keep,
                                                     "keep_until": changed.keep_until.isoformat() if changed.keep_until else None})
     return shielded(changed.model_copy(update={"my_role": case.my_role}))
@@ -219,7 +220,7 @@ async def list_users(request: Request, q: str = ""):
     try:
         people = await request.app.state.directory.search(q)
     except DirectoryUnavailable as e:
-        raise HTTPException(503, f"The office's directory is not available right now: {e}.") from e
+        raise Problem("auth.unavailable", f"The office's directory is not available right now: {e}.") from e
     return await with_faces(request, people)
 
 
@@ -249,7 +250,7 @@ async def set_member(case_id: str, user: str, body: MemberIn, request: Request):
     manager, hand the case over (``POST .../handover``)."""
     case = await case_for(request, case_id, "manage")
     if body.role == "manager":
-        raise HTTPException(422, "Hand the case over to make someone its manager.")
+        raise Problem("case.hand_over_first", "Hand the case over to make someone its manager.")
     person = await person_or_404(request, user)
     store, cid = cases_or_503(request), uuid.UUID(case.id)
     before = await run_in_threadpool(store.role_of, cid, user)
@@ -257,7 +258,7 @@ async def set_member(case_id: str, user: str, body: MemberIn, request: Request):
         member = await run_in_threadpool(store.set_member, cid, user, body.role, owner_of(request),
                                          person.username, person.name)
     except ValueError as e:
-        raise HTTPException(422, str(e)) from None
+        raise Problem("request.invalid", str(e)) from None
     await log_access(request, cid, "member_added" if before is None else "role_changed", {"user": user, "role": body.role})
     return member
 
@@ -270,10 +271,10 @@ async def remove_member(case_id: str, user: str, request: Request):
     the case over first."""
     case = await case_for(request, case_id, "manage")
     if user == case.manager:
-        raise HTTPException(422, "Hand the case over before removing its manager.")
+        raise Problem("case.hand_over_first", "Hand the case over before removing its manager.")
     store, cid = cases_or_503(request), uuid.UUID(case.id)
     if not await run_in_threadpool(store.remove_member, cid, user):
-        raise HTTPException(404, "Not a member of this case.")
+        raise Problem("request.not_found", "Not a member of this case.")
     await log_access(request, cid, "member_removed", {"user": user})
     return Response(status_code=204)
 
@@ -287,11 +288,11 @@ async def handover(case_id: str, body: HandoverIn, request: Request):
     store, cid, caller, case = await visible_case(request, case_id)
     office_wide = case_settings(request).office_wide
     if not (may(caller, case, case.my_role, "handover", office_wide) or may(caller, case, case.my_role, "manage", office_wide)):
-        raise HTTPException(403, "Only the case's manager or an administrator can hand a case over.")
+        raise Problem("case.manager_only", "Only the case's manager or an administrator can hand a case over.")
     person = await person_or_404(request, body.user)
     handed = await run_in_threadpool(store.set_manager, cid, body.user, caller.sub, person.username, person.name)
     if handed is None:
-        raise HTTPException(404, "Unknown case.")
+        raise Problem("case.not_found", "Unknown case.")
     await log_access(request, cid, "handed_over", {"manager": body.user})
     return shielded(handed, await run_in_threadpool(store.role_of, cid, caller.sub))
 
@@ -303,7 +304,7 @@ async def case_events(case_id: str, request: Request):
     and the administrators; kept 180 days, as the sign-in events."""
     store, cid, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, "read_log", case_settings(request).office_wide):
-        raise HTTPException(403, "Only the case's manager or an administrator can see its access log.")
+        raise Problem("case.manager_only", "Only the case's manager or an administrator can see its access log.")
     events = await run_in_threadpool(store.events, cid)
     # Someone who acted without being a member (an administrator handing a case over) has no name in the case:
     # it comes from the directory (VM regression of 29 October, finding 9). Never fatal: the id stays.
@@ -383,7 +384,7 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
     admin_or_403(request)
     changes = body.model_dump(exclude_none=True, exclude={"apply_to"})
     if not changes:
-        raise HTTPException(422, "Say what to change: default_access, keep, conversations_keep, two_step or office_name.")
+        raise Problem("request.invalid", "Say what to change: default_access, keep, conversations_keep, two_step or office_name.")
     if "office_name" in changes:
         changes["office_name"] = " ".join(changes["office_name"].split())  # one line, no stray spaces
     if "two_step" in changes:

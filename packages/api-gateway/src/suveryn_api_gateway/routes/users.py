@@ -16,7 +16,7 @@ A temporary password is in the answer once and nowhere else: not logged, not sto
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
@@ -62,7 +62,7 @@ async def as_admin(request: Request) -> tuple[Accounts, str]:
     admin_or_403(request)
     accounts: Accounts = request.app.state.accounts
     if not accounts.configured:
-        raise HTTPException(503, "Account management isn't configured on this server.")
+        raise Problem("auth.unavailable", "Account management isn't configured on this server.")
     header = request.headers.get("authorization", "")
     if header.lower().startswith("bearer "):
         return accounts, header[7:].strip()
@@ -70,9 +70,9 @@ async def as_admin(request: Request) -> tuple[Accounts, str]:
     try:
         return accounts, await auth.fresh_access_token(request.cookies.get(auth.settings.session_cookie))
     except AuthError as e:
-        raise HTTPException(401, "Sign in to continue.") from e
+        raise Problem("auth.signed_out", "Sign in to continue.") from e
     except AuthUnavailable as e:
-        raise HTTPException(503, "The sign-in service can't be reached.") from e
+        raise Problem("auth.unavailable", "The sign-in service can't be reached.") from e
 
 
 async def _do(call):
@@ -80,14 +80,14 @@ async def _do(call):
         return await call
     except AccountRefused as e:
         if e.code == "not_found":
-            raise HTTPException(404, "No such account.") from e
+            raise Problem("request.not_found", "No such account.") from e
         if e.code == "exists":
-            raise HTTPException(409, "An account with this e-mail address exists.") from e
-        raise HTTPException(409, e.code) from e
+            raise Problem("user.email_exists", "An account with this e-mail address exists.") from e
+        raise Problem("request.conflict", e.code) from e
     except RightsRefused:
         raise  # app.py: 503 with reason "rights", which the page says in its own sentence
     except AccountsUnavailable as e:
-        raise HTTPException(503, str(e)) from e
+        raise Problem("auth.unavailable", str(e)) from e
 
 
 def _temporary(request: Request, user: Account, password: str) -> Temporary:
@@ -135,7 +135,7 @@ async def set_admin(sub: str, body: AdminIn, request: Request):
     async with _admin_changes(request):
         user = await _do(accounts.get(token, sub))
         if not body.admin and user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
-            raise HTTPException(409, "There must always be one administrator.")
+            raise Problem("user.last_administrator", "There must always be one administrator.")
         if user.admin != body.admin:
             await _do(accounts.set_admin(token, sub, body.admin))
     return user.model_copy(update={"admin": body.admin})
@@ -177,13 +177,13 @@ async def set_enabled(sub: str, body: EnabledIn, request: Request):
         user = await _do(accounts.get(token, sub))
         if not body.enabled:
             if sub == owner_of(request):
-                raise HTTPException(409, "You can't switch your own account off.")
+                raise Problem("user.own_account", "You can't switch your own account off.")
             if user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
-                raise HTTPException(409, "There must always be one administrator.")
+                raise Problem("user.last_administrator", "There must always be one administrator.")
             cases = request.app.state.cases
             store = cases.get() if cases.configured else None
             if store is not None and (n := await run_in_threadpool(store.manages, sub)):
-                raise HTTPException(409, f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.")
+                raise Problem("user.manages_cases", f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.", n=n)
         if user.enabled != body.enabled:
             await _do(accounts.set_enabled(token, sub, body.enabled))
             if not body.enabled:
@@ -222,18 +222,18 @@ def _stores(request: Request):
     avatars_db = request.app.state.avatars
     avatars = avatars_db.get() if avatars_db.configured else None
     if avatars_db.configured and avatars is None:
-        raise HTTPException(503, "Pictures are not available right now.")
+        raise Problem("user.pictures_unavailable", "Pictures are not available right now.")
     return docs, history, avatars
 
 
 async def _deletable(request: Request, accounts: Accounts, token: str, sub: str) -> Account:
     user = await _do(accounts.get(token, sub))
     if sub == owner_of(request):
-        raise HTTPException(409, "You can't delete your own account.")
+        raise Problem("user.own_account", "You can't delete your own account.")
     if user.enabled:
-        raise HTTPException(409, "Switch the account off first.")  # Decision, 29 October: a deliberate second step
+        raise Problem("user.switch_off_first", "Switch the account off first.")  # Decision, 29 October: a deliberate second step
     if request.app.state.cases.configured and (n := await run_in_threadpool(cases_or_503(request).manages, sub)):
-        raise HTTPException(409, f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.")
+        raise Problem("user.manages_cases", f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.", n=n)
     return user
 
 

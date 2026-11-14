@@ -64,6 +64,12 @@
    "retry": true,
    "since": "0.2.0"
   },
+  "auth.sign_in_failed": {
+   "kind": "refused",
+   "title": "Sign-in was cancelled or failed on the way back from the sign-in service.",
+   "status": 400,
+   "since": "0.2.0"
+  },
   "request.invalid": {
    "kind": "refused",
    "title": "The request's body or parameters aren't valid.",
@@ -268,10 +274,79 @@
    "retry": true,
    "since": "0.2.0"
   },
+  "case.unavailable": {
+   "kind": "unavailable",
+   "title": "Cases can't be used: their store isn't set up or can't be reached.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "case.not_found": {
+   "kind": "refused",
+   "title": "No such case, or the caller may not see it (answered alike).",
+   "status": 404,
+   "since": "0.2.0"
+  },
+  "case.not_allowed": {
+   "kind": "refused",
+   "title": "The caller's role in this case doesn't allow this.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "case.closed": {
+   "kind": "refused",
+   "title": "The case is closed: nothing is added or changed in it until it is reopened.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "case.manager_only": {
+   "kind": "refused",
+   "title": "Only the case's manager or an administrator does this.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "case.reference_exists": {
+   "kind": "refused",
+   "title": "A case with this reference exists.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "case.strictly_confidential": {
+   "kind": "refused",
+   "title": "Not in a strictly confidential case: it is for its members only, and nothing in it is shared.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "case.hand_over_first": {
+   "kind": "refused",
+   "title": "A case has exactly one manager: hand the case over to change who that is.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "case.not_deleted": {
+   "kind": "unavailable",
+   "title": "The case couldn't be deleted now; nothing was deleted.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
   "conversation.too_long": {
    "kind": "refused",
    "title": "The conversation is too long to save.",
    "status": 413,
+   "since": "0.2.0"
+  },
+  "conversation.unavailable": {
+   "kind": "unavailable",
+   "title": "Saved conversations can't be used: their store isn't set up or can't be reached.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "conversation.in_case": {
+   "kind": "refused",
+   "title": "The conversation is in a case: it follows its case, and can't be pinned or moved by itself.",
+   "status": 409,
    "since": "0.2.0"
   },
   "user.picture_too_large": {
@@ -283,6 +358,54 @@
      "type": "number"
     }
    },
+   "since": "0.2.0"
+  },
+  "user.picture_unreadable": {
+   "kind": "refused",
+   "title": "Not a picture that can be read: PNG, JPEG or WebP.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "user.pictures_unavailable": {
+   "kind": "unavailable",
+   "title": "Pictures can't be used: their store isn't set up or can't be reached.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "user.email_exists": {
+   "kind": "refused",
+   "title": "An account with this e-mail address exists.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "user.last_administrator": {
+   "kind": "refused",
+   "title": "There must always be one administrator.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "user.own_account": {
+   "kind": "refused",
+   "title": "An administrator can't switch off or delete their own account.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "user.manages_cases": {
+   "kind": "refused",
+   "title": "The account still manages `n` cases: hand them over first.",
+   "status": 409,
+   "params": {
+    "n": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "user.switch_off_first": {
+   "kind": "refused",
+   "title": "An account is switched off before it is deleted.",
+   "status": 409,
    "since": "0.2.0"
   },
   "user.rights_removed": {
