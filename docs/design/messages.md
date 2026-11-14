@@ -105,6 +105,14 @@ calculation's reason. What remains is counted, and the count may only go down:
 
 - `api-gateway/tests/test_problems.py`, `PLAIN_REFUSALS`: the plain `HTTPException`s still in the gateway. A PR that
   moves an area lowers the number; a new refusal is a `Problem`.
+  Moved so far: playbook runs (suveryn-tracker#150), 138 down to 105. Still to move, each its own issue: cases,
+  conversations, users and the checks every route shares (#151), documents (#152), answers (#153), backups, the
+  clock, Status and usage (#154).
+- **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
+  is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_confirms`).
+  The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
+  a programming error or a deleted thing leads to takes the general code (`request.invalid`, `request.not_found`),
+  written as a `Problem` so its English detail is still there for a developer.
 - Still under their own names, each its own issue: an upload job's `error_code` and the warnings of ingestion, a
   run's stored `error`, the chat stream's `failure`, the answer's checks, backups and the clock. The backup service's
   codes (`login`, `write`, `unreachable` …) are worded for Administration › Backups from `backupErrors` in the setup's

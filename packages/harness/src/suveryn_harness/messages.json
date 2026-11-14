@@ -212,6 +212,62 @@
    "status": 409,
    "since": "0.2.0"
   },
+  "run.unavailable": {
+   "kind": "unavailable",
+   "title": "Playbooks can't be used: their store isn't set up or can't be reached.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "run.moved_on": {
+   "kind": "refused",
+   "title": "The run isn't where this request takes it to be (another step, reading, not paused): the caller's view is out of date.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "run.paused": {
+   "kind": "refused",
+   "title": "The run is paused; it takes nothing until it is resumed.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "run.ended": {
+   "kind": "refused",
+   "title": "The run has ended (done, stopped, cancelled or failed).",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "run.not_asked": {
+   "kind": "refused",
+   "title": "This run doesn't ask for that document: its request was skipped because of a fact.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "run.manager_confirms": {
+   "kind": "refused",
+   "title": "Only the case manager confirms this playbook's facts.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "run.not_yours_to_end": {
+   "kind": "refused",
+   "title": "Only the person who started the run, or the case manager, stops or cancels it.",
+   "status": 403,
+   "since": "0.2.0"
+  },
+  "run.not_an_option": {
+   "kind": "refused",
+   "title": "The value isn't one of the fact's options.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "run.model_unavailable": {
+   "kind": "unavailable",
+   "title": "The model can't be reached to read an answer given in words.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
   "conversation.too_long": {
    "kind": "refused",
    "title": "The conversation is too long to save.",

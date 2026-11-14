@@ -203,7 +203,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # answering is a contributor's; saying there is no agreement isn't allowed here; with the document in, the read starts
     assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=bob).status_code == 403
     assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement", "none": True}, headers=alice).status_code == 422
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "read"}, headers=alice).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "read"}, headers=alice)) == (409, "run.moved_on")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "waiting" and r.json()["step"] == "agreement"  # still no document
     docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
@@ -231,7 +231,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the three requests, each answered (the agreement first without its document), then the ask
     assert [t["role"] for t in run["turns"]] == ["playbook", "user", "user", "playbook", "user", "playbook", "user", "playbook"]
     # the answer: a proposed fact from a person; a fact not asked is refused
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"price": "1"}}, headers=alice).status_code == 422
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"price": "1"}}, headers=alice)) == (422, "request.invalid")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {"cadastral": "Gent 5e afd., sectie B, nr. 123"}}, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "waiting" and r.json()["step"] == "confirm"
     by = {f["id"]: f for f in r.json()["facts"]}
@@ -250,7 +250,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     # the checkpoint: a reader can't confirm; the contributor corrects the price and confirms the rest
     confirm = {"facts": [{"id": "price", "confirmed": "EUR 412.000,00"}]}
     assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
-    assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "x", "confirmed": ""}]}, headers=alice).status_code == 422
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts", json={"facts": [{"id": "x", "confirmed": ""}]}, headers=alice)) == (422, "request.invalid")
     r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "done" and r.json()["step"] is None and r.json()["confirmed_by"] == "notaris.test"
     by = {f["id"]: f for f in r.json()["facts"]}
@@ -269,7 +269,7 @@ def test_deed_intake_asks_reads_asks_waits_for_a_person_and_stores_the_summary(o
     assert "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte: klopt" in text
     assert docs.stored_provenance == {"playbook": "playbook/be-notary/deed-intake", "version": "1.7", "run": rid}
     assert docs.docs[r.json()["result_document_id"]] == (Scope.case(uuid.UUID(cid)), "playbook")
-    assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)) == (409, "run.ended")
     assert cid not in c.get("/v1/playbooks/runs/active", headers=alice).json()  # done: no chip
     # the facts' record: one row per version, the model's reading superseded by the person's, never rewritten
     store = c.app.state.runs.get()
@@ -297,8 +297,8 @@ def test_a_run_is_paused_and_resumed_by_anyone_who_contributes(office):
     rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).json()["id"]
     r = c.post(RUN.format(cid=cid, rid=rid) + "/pause", headers=bob)
     assert r.status_code == 200 and r.json()["status"] == "paused" and r.json()["paused_by"] == "bob.test" and r.json()["paused_at"]
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/pause", headers=bob).status_code == 409
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice).status_code == 409  # paused: nothing advances
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/pause", headers=bob)) == (409, "run.paused")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "agreement"}, headers=alice)) == (409, "run.paused")  # paused: nothing advances
     assert c.get("/v1/playbooks/runs/active", headers=alice).json()[cid]["status"] == "paused"  # still shown
     r = c.post(RUN.format(cid=cid, rid=rid) + "/resume", headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "waiting" and r.json()["step"] == "agreement" and r.json()["paused_by"] is None
@@ -347,14 +347,14 @@ def test_stop_keeps_confirmed_facts_and_drops_proposed_ones(office):
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
     assert run["step"] == "missing"
     # a contributor who didn't start it and doesn't manage the case can't end it; the starter can
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=bob).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=bob)) == (403, "run.not_yours_to_end")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "stopped" and r.json()["ended_by"] == "notaris.test"
     store = c.app.state.runs.get()
     statuses = {r_["status"] for r_ in store.fact_rows(uuid.UUID(rid)) if r_["source"]["kind"] == "document"}
     assert statuses == {"superseded"}  # proposed and gone; nothing was confirmed
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=alice).status_code == 409
-    assert c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {}}, headers=alice).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=alice)) == (409, "run.ended")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/answer", json={"step_id": "missing", "facts": {}}, headers=alice)) == (409, "run.ended")
     # terminal: a new run can start
     assert c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).status_code == 202
 
@@ -374,7 +374,7 @@ def test_cancel_reverts_confirmed_facts_and_withdraws_the_product(office):
     # done is terminal too: it can't be cancelled through the run... except by design it can, by the starter or the manager
     # (a result that should not have happened); alice manages the case
     r = c.post(RUN.format(cid=cid, rid=rid) + "/cancel", json={"reason": "wrong file"}, headers=alice)
-    assert r.status_code == 409  # a finished run is not cancelled: its facts are the case's now (stop/cancel act on live runs)
+    assert (r.status_code, r.json()["code"]) == (409, "run.ended")  # a finished run is not cancelled: its facts are the case's now (stop/cancel act on live runs)
     # a live run, then: start again, confirm nothing yet, cancel at the checkpoint after answering
     rid2 = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=bob).json()["id"]
     deliver(c, RUN.format(cid=cid, rid=rid2), bob)
@@ -691,11 +691,11 @@ def test_people_answer_and_correct_a_playbook_in_words(talking):
     run = c.put(url + "/facts/deposit", json={"value": "EUR 41.500,00"}, headers=bob).json()
     assert run["turns"][-1]["meta"] == {"kind": "changed", "fact": "deposit", "value": "EUR 41.500,00"}
     assert c.put(url + "/facts/nothing", json={"value": "1"}, headers=bob).status_code == 404
-    assert c.put(url + "/facts/price", json={"value": ""}, headers=bob).status_code == 422
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(url + "/facts/price", json={"value": ""}, headers=bob)) == (422, "request.invalid")
     # pausing is a line in the thread; a paused run takes nothing said
     run = c.post(url + "/pause", headers=bob).json()
     assert run["turns"][-1]["meta"] == {"kind": "paused"} and run["turns"][-1]["by"] == "bob.test"
-    assert c.post(url + "/say", json={"text": "x"}, headers=alice).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(url + "/say", json={"text": "x"}, headers=alice)) == (409, "run.paused")
 
 
 @needs_db
@@ -831,7 +831,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.json()["checks"]["contributions_add_up"]["status"] == "fails" and r.json()["checks"]["contributions_add_up"]["left"] == "422500"
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
-        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice).status_code == 422  # not an option
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice)) == (422, "run.not_an_option")  # not an option
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "Cash and in kind"}, headers=alice)
         assert r.status_code == 200 and {f["id"]: f for f in r.json()["facts"]}["contribution_kind"]["value"] == "mixed"
         assert len(r.json()["checks"]) == 4  # mixed: there is money too, so the bank's check and the contributions' stay on
@@ -846,7 +846,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         bob = as_bob(kc)
         c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/seat", json={"value": "Sint-Jansvest 18, Gent"}, headers=bob).status_code == 200
-        assert c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob).status_code == 403
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob)) == (403, "run.manager_confirms")
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
         assert r.status_code == 200 and r.json()["status"] == "done"
         by = {f["id"]: f for f in r.json()["facts"]}
