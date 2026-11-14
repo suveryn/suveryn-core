@@ -8,7 +8,8 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
@@ -137,7 +138,7 @@ def who(request: Request) -> tuple[str, str]:
 
 def admin_or_403(request: Request) -> None:
     if not is_admin(request, request.app.state.auth):
-        raise HTTPException(403, "Only administrators can see this.")
+        raise Problem("request.forbidden", "Only administrators can see this.")
 
 
 async def remember_user(request: Request) -> None:
@@ -159,19 +160,19 @@ async def remember_user(request: Request) -> None:
 def docs_or_503(request: Request):
     docs = request.app.state.documents
     if docs is None:
-        raise HTTPException(503, "Document handling is not available on this server.")
+        raise Problem("system.documents_unavailable", "Document handling is not available on this server.")
     if docs.state != "ready":
-        raise HTTPException(503, f"Document handling is {docs.state}." + (f" {docs.error}" if docs.error else ""))
+        raise Problem("system.documents_unavailable", f"Document handling is {docs.state}." + (f" {docs.error}" if docs.error else ""))
     return docs
 
 
 def cases_or_503(request: Request) -> CaseStore:
     db: Database = request.app.state.cases
     if not db.configured:
-        raise HTTPException(503, "Cases are not available on this server.")
+        raise Problem("case.unavailable", "Cases are not available on this server.")
     store = db.get()
     if store is None:
-        raise HTTPException(503, f"Cases are not available right now: {db.error}.")
+        raise Problem("case.unavailable", f"Cases are not available right now: {db.error}.")
     return store
 
 
@@ -183,10 +184,10 @@ def history_or_none(request: Request) -> ConversationStore | None:
 def history_or_503(request: Request) -> ConversationStore:
     history: Database = request.app.state.history
     if not history.configured:
-        raise HTTPException(503, "Saved conversations are not available on this server.")
+        raise Problem("conversation.unavailable", "Saved conversations are not available on this server.")
     store = history.get()
     if store is None:
-        raise HTTPException(503, f"Saved conversations are not available right now: {history.error}.")
+        raise Problem("conversation.unavailable", f"Saved conversations are not available right now: {history.error}.")
     return with_keep(store, request)
 
 
@@ -201,10 +202,10 @@ def with_keep(store: ConversationStore | None, request: Request) -> Conversation
 def usage_or_503(request: Request) -> UsageStore:
     db: Database = request.app.state.usage
     if not db.configured:
-        raise HTTPException(503, "Token usage is not available on this server.")
+        raise Problem("system.unavailable", "Token usage is not available on this server.")
     store = db.get()
     if store is None:
-        raise HTTPException(503, f"Token usage is not available right now: {db.error}.")
+        raise Problem("system.unavailable", f"Token usage is not available right now: {db.error}.")
     return store
 
 
@@ -224,7 +225,7 @@ def case_id_or_422(case_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(case_id)
     except ValueError:
-        raise HTTPException(422, "Not a case id.") from None
+        raise Problem("request.invalid", "Not a case id.") from None
 
 
 async def visible_case(request: Request, case_id: str) -> tuple[CaseStore, uuid.UUID, Principal, Case]:
@@ -235,7 +236,7 @@ async def visible_case(request: Request, case_id: str) -> tuple[CaseStore, uuid.
     office_wide = case_settings(request).office_wide
     if case is None or not (may(caller, case, case.my_role, "read", office_wide)
                             or may(caller, case, case.my_role, "list", office_wide)):
-        raise HTTPException(404, "Unknown case.")
+        raise Problem("case.not_found", "Unknown case.")
     if case.my_role is None and office_wide and case.access == "default":
         case = case.model_copy(update={"my_role": "reader"})  # rule 3, as the list reports it
     return store, cid, caller, case
@@ -246,7 +247,7 @@ async def case_for(request: Request, case_id: str, action: str) -> Case:
     answered like a missing one) or 403 (they may see it, not do this)."""
     _, _, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, action, case_settings(request).office_wide):
-        raise HTTPException(403, "You may not do this in this case." if case.state == "open" else "This case is closed.")
+        raise Problem("case.not_allowed", "You may not do this in this case.") if case.state == "open" else Problem("case.closed", "This case is closed.")
     return case
 
 
@@ -283,9 +284,9 @@ async def person_or_404(request: Request, sub: str) -> Person:
     try:
         found = await request.app.state.directory.get(sub)
     except DirectoryUnavailable as e:
-        raise HTTPException(503, f"The office's directory is not available right now: {e}.") from e
+        raise Problem("auth.unavailable", f"The office's directory is not available right now: {e}.") from e
     if found is None:
-        raise HTTPException(404, "Unknown user.")
+        raise Problem("request.not_found", "Unknown user.")
     return found
 
 

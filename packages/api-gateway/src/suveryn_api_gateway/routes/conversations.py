@@ -3,7 +3,8 @@ space or in a case. Without a database: 503, and the UI keeps the conversation i
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 
 from ..conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
@@ -26,7 +27,7 @@ def _conversation_id(conversation_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(conversation_id)
     except ValueError:
-        raise HTTPException(422, "Not a conversation id.") from None
+        raise Problem("request.invalid", "Not a conversation id.") from None
 
 
 @router.get("/v1/conversations", response_model=list[ConversationSummary])
@@ -54,11 +55,11 @@ async def get_conversation(conversation_id: str, request: Request):
     if found is None:
         shared = await run_in_threadpool(store.get_shared, cid)
         if shared is None:
-            raise HTTPException(404, "Unknown conversation.")
+            raise Problem("request.not_found", "Unknown conversation.")
         try:
             await case_for(request, shared.case_id or "", "read")
-        except HTTPException:
-            raise HTTPException(404, "Unknown conversation.") from None  # a case they may not see: like a missing one
+        except Problem:
+            raise Problem("request.not_found", "Unknown conversation.") from None  # a case they may not see: like a missing one
         found = shared
     return found
 
@@ -74,13 +75,13 @@ async def share_conversation(conversation_id: str, body: ShareIn, request: Reque
     store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
     own = await run_in_threadpool(store.get, cid, owner)
     if own is None or own.case_id is None:
-        raise HTTPException(404, "Unknown conversation, or not in a case.")
+        raise Problem("request.not_found", "Unknown conversation, or not in a case.")
     case = await case_for(request, own.case_id, "contribute")  # sharing is a change in the case: not in a closed one
     if body.shared and case.confidential:
-        raise HTTPException(409, "Conversations aren't shared in a strictly confidential case.")
+        raise Problem("case.strictly_confidential", "Conversations aren't shared in a strictly confidential case.")
     changed = await run_in_threadpool(store.set_shared, cid, owner, body.shared)
     if changed is None:
-        raise HTTPException(404, "Unknown conversation.")
+        raise Problem("request.not_found", "Unknown conversation.")
     await log_access(request, uuid.UUID(own.case_id), "conversation_shared" if body.shared else "conversation_unshared",
                      {"conversation": str(cid)})
     return changed
@@ -94,7 +95,7 @@ async def rename_conversation(conversation_id: str, body: RenameIn, request: Req
     store = history_or_503(request)
     changed = await run_in_threadpool(store.rename, _conversation_id(conversation_id), owner_of(request), body.title)
     if changed is None:
-        raise HTTPException(404, "Unknown conversation.")
+        raise Problem("request.not_found", "Unknown conversation.")
     return changed
 
 
@@ -106,9 +107,9 @@ async def pin_conversation(conversation_id: str, body: PinIn, request: Request):
     store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
     own = await run_in_threadpool(store.get, cid, owner)
     if own is None:
-        raise HTTPException(404, "Unknown conversation.")
+        raise Problem("request.not_found", "Unknown conversation.")
     if own.case_id is not None:
-        raise HTTPException(409, "A conversation in a case follows its case: pin the case instead.")
+        raise Problem("conversation.in_case", "A conversation in a case follows its case: pin the case instead.")
     return await run_in_threadpool(store.set_pinned, cid, owner, body.pinned)
 
 
@@ -124,13 +125,13 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
     store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
     own = await run_in_threadpool(store.get, cid, owner)
     if own is None:
-        raise HTTPException(404, "Unknown conversation.")
+        raise Problem("request.not_found", "Unknown conversation.")
     if own.case_id is not None:
-        raise HTTPException(409, "This conversation is already in a case.")
+        raise Problem("conversation.in_case", "This conversation is already in a case.")
     case = await case_for(request, body.case_id, "contribute")
     moved = await run_in_threadpool(store.move, cid, owner, uuid.UUID(case.id))
     if moved is None:
-        raise HTTPException(409, "This conversation is already in a case.")
+        raise Problem("conversation.in_case", "This conversation is already in a case.")
     await log_access(request, uuid.UUID(case.id), "conversation_moved_in", {"conversation": str(cid)})
     return moved
 
@@ -147,7 +148,7 @@ async def save_conversation(conversation_id: str, body: ConversationIn, request:
     scope = await scope_of(request, body.case_id, "read")
     gone = await run_in_threadpool(_deleted_documents, request, body, scope)
     if not await run_in_threadpool(store.save, cid, owner, body, gone, who(request)[0]):
-        raise HTTPException(404, "Unknown conversation.")
+        raise Problem("request.not_found", "Unknown conversation.")
     # A document deleted while this save was on its way (after the check above, before its cleaning
     # could see this save) is taken out now: its passages never stay (audit of 21 October 2026, finding 3).
     if (later := await run_in_threadpool(_deleted_documents, request, body, scope)) is not None:
@@ -184,7 +185,7 @@ async def delete_conversation(conversation_id: str, request: Request):
     """Delete one of the caller's conversations. A playbook run's goes with its case: stop or cancel the run."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
     if not await run_in_threadpool(store.delete, cid, owner_of(request)):
-        raise HTTPException(404, "Unknown conversation.")
+        raise Problem("request.not_found", "Unknown conversation.")
     flush_soon(request.app)
     return Response(status_code=204)
 

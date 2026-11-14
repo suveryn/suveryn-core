@@ -9,6 +9,7 @@ from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -134,11 +135,11 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     docs, did, owner = docs_or_503(request), _document_id(document_id), owner_of(request)
     try:
         scope = await scope_of(request, case, "manage")
-    except HTTPException as e:
+    except Problem as e:
         # A contributor may delete what they put there themselves, in two cases (docs/design/chat-ui.md):
         # their upload that carries sūveryn's export mark and that nobody confirmed yet (the card's
         # delete action, §6), and an answer they saved to the case (*Undo*, §5).
-        if e.status_code != 403 or not case:
+        if e.status != 403 or not case:
             raise
         scope = await scope_of(request, case, "contribute")
         mine = [d for d in await run_in_threadpool(docs.documents, scope) if str(d["id"]) == document_id]

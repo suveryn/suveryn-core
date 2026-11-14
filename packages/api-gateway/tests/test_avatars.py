@@ -137,8 +137,8 @@ def test_a_person_sets_sees_and_removes_their_picture_and_colleagues_see_it(offi
     members = {m["user"]: m for m in c.get(f"/v1/cases/{cid}/members", headers=bob).json()}
     assert members[ALICE]["avatar"] == etag and members[BOB]["avatar"] is None and members[ALICE]["admin"] is False
     # not a picture, too large
-    assert c.put("/v1/me/avatar", content=b"%PDF-1.7", headers={**alice, "Content-Type": "application/pdf"}).status_code == 415
-    assert c.put("/v1/me/avatar", content=b"x", headers={**alice, "Content-Length": str(3 * 1024 * 1024)}).status_code == 413
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put("/v1/me/avatar", content=b"%PDF-1.7", headers={**alice, "Content-Type": "application/pdf"})) == (415, "user.picture_unreadable")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put("/v1/me/avatar", content=b"x", headers={**alice, "Content-Length": str(3 * 1024 * 1024)})) == (413, "user.picture_too_large")
     # removal: the person's own, and an administrator's of anyone's; a colleague can't remove someone else's
     assert c.delete(f"/v1/users/{ALICE}/avatar", headers=bob).status_code == 403
     assert c.delete("/v1/me/avatar", headers=alice).status_code == 204

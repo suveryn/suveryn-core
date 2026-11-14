@@ -4,7 +4,8 @@ Public (no session needed): these are how one gets a session. The middleware tha
 is in ``app.py``.
 """
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
+from suveryn_harness.messages import Problem
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from suveryn_playbooks import LANGUAGES
@@ -57,11 +58,11 @@ async def login(request: Request, return_to: str = "/", lang: str | None = None)
 async def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
     """Keycloak sends the browser back here with a code; exchange it and start a session."""
     if error or not code or not state:
-        raise HTTPException(400, "Sign-in was cancelled or failed. Close this page and sign in again.")
+        raise Problem("auth.sign_in_failed", "Sign-in was cancelled or failed. Close this page and sign in again.")
     try:
         session, return_to = await _auth(request).finish_login(code, state, request.cookies.get(LOGIN_COOKIE))
     except AuthError as e:
-        raise HTTPException(400, f"Sign-in failed: {e}.") from e
+        raise Problem("auth.sign_in_failed", f"Sign-in failed: {e}.") from e
     response = RedirectResponse(return_to, status_code=303)
     response.delete_cookie(LOGIN_COOKIE, path="/")
     if session.sign_in_locale in UI_LANGUAGES:
@@ -83,7 +84,7 @@ async def me(request: Request):
                   cases_keep=cases.keep, avatar=await _avatar_etag(request, LOCAL_OWNER), office_name=cases.office_name or None)
     user = await authenticator.session_user(request.cookies.get(authenticator.settings.session_cookie))
     if user is None:
-        raise HTTPException(401, "Sign in to continue.")
+        raise Problem("auth.signed_out", "Sign in to continue.")
     issuer = authenticator.settings.issuer
     admin = ADMIN_ROLE in user.roles
     return Me(username=user.username, name=user.name, sub=user.sub, admin=admin, office_wide=cases.office_wide,
@@ -114,7 +115,7 @@ async def logout(request: Request):
     authenticator = _auth(request)
     origin = request.headers.get("origin")
     if authenticator.enabled and origin is not None and origin != authenticator.settings.public_origin:
-        raise HTTPException(403, "Request from another site refused.")
+        raise Problem("request.forbidden", "Request from another site refused.")
     url = await authenticator.logout(request.cookies.get(authenticator.settings.session_cookie))
     response = JSONResponse({"logout_url": url})
     response.delete_cookie(authenticator.settings.session_cookie, path="/")

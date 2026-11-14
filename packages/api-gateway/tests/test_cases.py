@@ -367,11 +367,11 @@ def test_create_list_and_open_a_case(office):
     assert "subject" not in c.get(f"/v1/cases/{made['id']}", headers=alice).json()
     # members only: Bob doesn't see it, and it is "unknown" to him, not "forbidden"
     assert c.get("/v1/cases", headers=bob).json() == []
-    assert c.get(f"/v1/cases/{made['id']}", headers=bob).status_code == 404
-    assert c.get(f"/v1/cases/{uuid.uuid4()}", headers=alice).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{made['id']}", headers=bob)) == (404, "case.not_found")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{uuid.uuid4()}", headers=alice)) == (404, "case.not_found")
     assert c.get("/v1/cases/not-an-id", headers=alice).status_code == 422
     # the office's file numbers are unique: the same reference again is refused, whoever asks
-    assert c.post("/v1/cases", json={**NEW, "reference": "2026/0417"}, headers=bob).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/cases", json={**NEW, "reference": "2026/0417"}, headers=bob)) == (409, "case.reference_exists")
 
 
 def test_only_the_manager_changes_or_deletes_a_case(office):
@@ -380,10 +380,10 @@ def test_only_the_manager_changes_or_deletes_a_case(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     r = c.patch(f"/v1/cases/{cid}", json={"name": "Verkoop Kerkstraat 12 (deel 2)", "access": "restricted"}, headers=alice)
     assert r.status_code == 200 and r.json()["access"] == "restricted" and r.json()["reference"] == "2026/0417"
-    assert c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=bob).status_code == 404
-    assert c.delete(f"/v1/cases/{cid}", headers=bob).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=bob)) == (404, "case.not_found")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}", headers=bob)) == (404, "case.not_found")
     assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 204
-    assert c.get(f"/v1/cases/{cid}", headers=alice).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=alice)) == (404, "case.not_found")
 
 
 def test_an_administrator_sees_the_case_exists_but_not_what_is_in_it(office):
@@ -392,9 +392,9 @@ def test_an_administrator_sees_the_case_exists_but_not_what_is_in_it(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     listed = c.get("/v1/cases", headers=admin).json()
     assert [x["id"] for x in listed] == [cid] and listed[0]["my_role"] is None and listed[0]["manager"] == ALICE
-    assert c.get(f"/v1/cases/{cid}", headers=admin).status_code == 403
-    assert c.get(f"/v1/documents?case={cid}", headers=admin).status_code == 403
-    assert c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=admin).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=admin)) == (403, "case.not_allowed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/documents?case={cid}", headers=admin)) == (403, "case.not_allowed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=admin)) == (403, "case.not_allowed")
 
 
 def test_documents_in_a_case_are_separate_from_the_personal_space(office):
@@ -406,7 +406,7 @@ def test_documents_in_a_case_are_separate_from_the_personal_space(office):
     assert [d["id"] for d in c.get("/v1/documents", headers=alice).json()["documents"]] == [DOC]
     listed = c.get(f"/v1/documents?case={cid}", headers=alice).json()["documents"]
     assert [d["id"] for d in listed] == [in_case] and listed[0]["origin"] == "uploaded"
-    assert c.get(f"/v1/documents?case={uuid.uuid4()}", headers=alice).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/documents?case={uuid.uuid4()}", headers=alice)) == (404, "case.not_found")
     # the sidebar's "Documents": everything Alice may see, each with where it is (chat-ui.md)
     everything = {d["id"]: d["case_id"] for d in c.get("/v1/documents/all", headers=alice).json()["documents"]}
     assert everything == {DOC: None, in_case: cid}
@@ -431,7 +431,7 @@ def test_suveryns_own_output_coming_back_is_no_source_until_a_contributor_says_s
     assert listed[back]["source"] is False and listed[back]["provenance"]["noticed"]["ref"] == "A-3f9c2e1b"
     ask = {"messages": [{"role": "user", "content": "What is the price?"}], "document_ids": [back], "case_id": cid}
     assert c.post("/v1/chat", json=ask, headers=alice).status_code == 404  # not a source yet
-    assert c.post(f"/v1/documents/{back}/source?case={cid}", headers=bob).status_code == 403  # a reader can't decide
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents/{back}/source?case={cid}", headers=bob)) == (403, "case.not_allowed")  # a reader can't decide
     assert c.post(f"/v1/documents/{DOC}/source", headers=alice).status_code == 404  # nothing was noticed
     r = c.post(f"/v1/documents/{back}/source?case={cid}", headers=alice)
     assert r.status_code == 200 and r.json() == {"id": back, "source": True}
@@ -455,10 +455,10 @@ def test_the_uploader_may_delete_their_own_noticed_upload_while_nobody_has_confi
         return did
     bobs, alices, plain = upload_by(BOB), upload_by(ALICE), str(uuid.uuid4())
     docs.docs[plain], docs.uploaders[plain] = (Scope.case(uuid.UUID(cid)), "uploaded"), BOB
-    assert c.delete(f"/v1/documents/{alices}?case={cid}", headers=bob).status_code == 403  # not his upload
-    assert c.delete(f"/v1/documents/{plain}?case={cid}", headers=bob).status_code == 403   # nothing noticed: the manager's
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/{alices}?case={cid}", headers=bob)) == (403, "case.not_allowed")  # not his upload
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/{plain}?case={cid}", headers=bob)) == (403, "case.not_allowed")   # nothing noticed: the manager's
     c.post(f"/v1/documents/{bobs}/source?case={cid}", headers=bob)
-    assert c.delete(f"/v1/documents/{bobs}?case={cid}", headers=bob).status_code == 403    # confirmed: the manager's
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/{bobs}?case={cid}", headers=bob)) == (403, "case.not_allowed")    # confirmed: the manager's
     again = upload_by(BOB)
     assert c.delete(f"/v1/documents/{again}?case={cid}", headers=bob).status_code == 204
 
@@ -481,7 +481,7 @@ def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
     c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
-    assert c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=carla).status_code == 403  # a reader
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=carla)) == (403, "case.not_allowed")  # a reader
     r = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=bob)
     assert r.status_code == 201 and r.json()["created"] is True and r.json()["filename"] == "What is the price.docx"
     did = r.json()["id"]
@@ -505,7 +505,7 @@ def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
     assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "document_opened"
     assert c.get(f"/v1/documents/{did}/original", headers=carla).status_code == 404  # not in her personal space
     other = c.post(f"/v1/cases/{cid}/documents", json=saved(message="m-2"), headers=alice).json()["id"]
-    assert c.delete(f"/v1/documents/{other}?case={cid}", headers=bob).status_code == 403  # Alice's
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/{other}?case={cid}", headers=bob)) == (403, "case.not_allowed")  # Alice's
     assert c.delete(f"/v1/documents/{did}?case={cid}", headers=bob).status_code == 204    # his own: Undo
 
 
@@ -527,7 +527,7 @@ def test_a_closed_case_takes_no_saved_answer(office):
     cases.close_case(uuid.UUID(cid))
     r = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=alice)
     assert r.status_code == 403 and "closed" in r.json()["detail"]
-    assert c.post(f"/v1/cases/{uuid.uuid4()}/documents", json=saved(), headers=alice).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{uuid.uuid4()}/documents", json=saved(), headers=alice)) == (404, "case.not_found")
 
 
 def test_a_reader_pins_a_case_in_their_own_sidebar(office):
@@ -541,7 +541,7 @@ def test_a_reader_pins_a_case_in_their_own_sidebar(office):
     assert [x["pinned"] for x in c.get("/v1/cases", headers=bob).json()] == [True]
     assert [x["pinned"] for x in c.get("/v1/cases", headers=alice).json()] == [False]  # someone else's pin
     assert c.put(f"/v1/cases/{cid}/pin", json={"pinned": False}, headers=bob).json()["pinned"] is False
-    assert c.put(f"/v1/cases/{cid}/pin", json={"pinned": True}, headers=as_user(kc, CARLA)).status_code == 404  # not hers to see
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/pin", json={"pinned": True}, headers=as_user(kc, CARLA))) == (404, "case.not_found")  # not hers to see
     assert "pinned" not in [e["action"] for e in c.get(f"/v1/cases/{cid}/events", headers=alice).json()]
 
 
@@ -552,7 +552,7 @@ def test_an_upload_goes_into_the_case_and_its_job_is_listed_there(office):
     pdf = {"file": ("akte.pdf", b"%PDF-1.7 x", "application/pdf")}
     r = c.post(f"/v1/documents?case={cid}", files=pdf, headers=alice)
     assert r.status_code == 202 and docs.uploads == [("akte.pdf", ALICE, uuid.UUID(cid))]
-    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 404  # not Bob's case
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob)) == (404, "case.not_found")  # not Bob's case
     assert [j["id"] for j in c.get(f"/v1/documents?case={cid}", headers=alice).json()["jobs"]] == [r.json()["id"]]
     assert c.get("/v1/documents", headers=alice).json()["jobs"] == []
     assert c.get(f"/v1/documents/jobs/{r.json()['id']}", headers=bob).status_code == 404
@@ -574,7 +574,7 @@ def test_ask_about_this_case_only_reads_the_cases_uploaded_documents(office):
     # sūveryn's own output is never a source (decision 7)
     assert c.post("/v1/chat", json={**ask, "document_ids": [in_case, generated]}, headers=alice).status_code == 404
     # and Bob can't ask in Alice's case at all
-    assert c.post("/v1/chat", json=ask, headers=bob).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/chat", json=ask, headers=bob)) == (404, "case.not_found")
     assert c.post("/v1/chat", json={**ask, "case_id": "nope"}, headers=alice).status_code == 422
 
 
@@ -663,7 +663,7 @@ def test_a_personal_conversation_is_pinned_and_one_in_a_case_follows_its_case(of
     r = c.put(f"/v1/conversations/{personal}/pin", json={"pinned": True}, headers=alice)
     assert r.status_code == 200 and r.json()["pinned"]
     assert c.get("/v1/conversations", headers=alice).json()[0]["pinned"]
-    assert c.put(f"/v1/conversations/{in_case}/pin", json={"pinned": True}, headers=alice).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/conversations/{in_case}/pin", json={"pinned": True}, headers=alice)) == (409, "conversation.in_case")
     assert c.put(f"/v1/conversations/{personal}/pin", json={"pinned": True}, headers=bob).status_code == 404
     assert not c.put(f"/v1/conversations/{personal}/pin", json={"pinned": False}, headers=alice).json()["pinned"]
 
@@ -689,17 +689,17 @@ def test_a_personal_conversation_moves_into_a_case_the_owner_contributes_to(offi
     assert c.get(f"/v1/conversations/{conv}", headers=bob).json()["turns"] == turns  # its questions came along
     events = c.get(f"/v1/cases/{cid}/events", headers=alice).json()
     assert (events[0]["user"], events[0]["action"], events[0]["detail"]) == (BOB, "conversation_moved_in", {"conversation": conv})
-    assert c.post(f"/v1/conversations/{conv}/move", json={"case_id": cid}, headers=bob).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{conv}/move", json={"case_id": cid}, headers=bob)) == (409, "conversation.in_case")
     # a reader can't move one in
     c.put(f"/v1/conversations/{carlas}", json={"title": "Carla's", "turns": turns}, headers=carla)
-    assert c.post(f"/v1/conversations/{carlas}/move", json={"case_id": cid}, headers=carla).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{carlas}/move", json={"case_id": cid}, headers=carla)) == (403, "case.not_allowed")
     # nor anyone into a closed case, or into a case they can't see, or someone else's conversation
     other = str(uuid.uuid4())
     c.put(f"/v1/conversations/{other}", json={"title": "Alice's", "turns": turns}, headers=alice)
     assert c.post(f"/v1/conversations/{other}/move", json={"case_id": cid}, headers=bob).status_code == 404
-    assert c.post(f"/v1/conversations/{other}/move", json={"case_id": str(uuid.uuid4())}, headers=alice).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{other}/move", json={"case_id": str(uuid.uuid4())}, headers=alice)) == (404, "case.not_found")
     cases.close_case(uuid.UUID(cid))
-    assert c.post(f"/v1/conversations/{other}/move", json={"case_id": cid}, headers=alice).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{other}/move", json={"case_id": cid}, headers=alice)) == (403, "case.closed")
     assert c.get("/v1/conversations", headers=alice).json()[0]["case_id"] is None
 
 
@@ -734,7 +734,7 @@ def test_a_case_isnt_deleted_while_a_store_it_is_in_cant_be_reached(office):
         raise OSError("no database")
 
     c.app.state.history = Database("conversations", connect=unreachable)
-    assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 503
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}", headers=alice)) == (503, "case.not_deleted")
     assert in_case in docs.docs and uuid.UUID(cid) in cases.cases  # nothing deleted
     c.app.state.history = Database("conversations", store=history)
     assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 204
@@ -764,8 +764,8 @@ def test_a_closed_case_refuses_uploads_and_questions(office):
     assert c.get("/v1/cases", headers=alice).json() == [] and len(c.get("/v1/cases?closed=true", headers=alice).json()) == 1
     r = c.post(f"/v1/documents?case={cid}", files={"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}, headers=alice)
     assert r.status_code == 403 and "closed" in r.json()["detail"]
-    assert c.delete(f"/v1/documents/{in_case}?case={cid}", headers=alice).status_code == 403
-    assert c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=alice).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/{in_case}?case={cid}", headers=alice)) == (403, "case.closed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=alice)) == (403, "case.closed")
 
 
 # ------------------------------------------------------------------ stage 3: closing and the keep period
@@ -774,26 +774,26 @@ def test_the_manager_closes_a_case_and_it_is_kept_for_the_offices_period(office)
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
-    assert c.post(f"/v1/cases/{cid}/close", headers=bob).status_code == 403  # a contributor can't
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/close", headers=bob)) == (403, "case.not_allowed")  # a contributor can't
     r = c.post(f"/v1/cases/{cid}/close", headers=alice)
     assert r.status_code == 200 and r.json()["state"] == "closed" and r.json()["my_role"] == "manager"
     until = datetime.fromisoformat(r.json()["keep_until"])
     assert timedelta(days=182) < until - datetime.now(UTC) < timedelta(days=184)  # 6 months, the office's period
-    assert c.post(f"/v1/cases/{cid}/close", headers=alice).status_code == 403  # closed: read-only, also for closing
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/close", headers=alice)) == (403, "case.closed")  # closed: read-only, also for closing
     # read-only for everyone: no uploads, questions or changes; reading and the list (behind the filter) stay
     pdf = {"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}
-    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=alice).status_code == 403
-    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 403
-    assert c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=alice).status_code == 403
-    assert c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents?case={cid}", files=pdf, headers=alice)) == (403, "case.closed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob)) == (403, "case.closed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"name": "x"}, headers=alice)) == (403, "case.closed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)) == (403, "case.closed")
     assert c.get(f"/v1/documents?case={cid}", headers=bob).status_code == 200
     assert c.get("/v1/cases", headers=alice).json() == []
     assert [x["state"] for x in c.get("/v1/cases?closed=true", headers=alice).json()] == ["closed"]
     # the manager reopens it: open again, nothing planned
-    assert c.post(f"/v1/cases/{cid}/reopen", headers=bob).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/reopen", headers=bob)) == (403, "case.closed")
     r = c.post(f"/v1/cases/{cid}/reopen", headers=alice)
     assert r.status_code == 200 and r.json()["state"] == "open" and r.json()["keep_until"] is None
-    assert c.post(f"/v1/cases/{cid}/reopen", headers=alice).status_code == 403  # not closed: reopen isn't a right
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/reopen", headers=alice)) == (403, "case.not_allowed")  # not closed: reopen isn't a right
     assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 202
     events = [e["action"] for e in c.get(f"/v1/cases/{cid}/events", headers=alice).json()]
     assert events[:3] == ["uploaded", "reopened", "closed"]
@@ -804,7 +804,7 @@ def test_a_closed_case_due_for_deletion_can_be_extended_kept_or_reopened(office)
     alice, bob, admin = as_user(kc, ALICE), as_user(kc, BOB), admin_headers(kc)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.post(f"/v1/cases/{cid}/close", headers=alice)
-    assert c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=bob).status_code == 404  # not visible to Bob
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/keep", json={"keep": True}, headers=bob)) == (404, "case.not_found")  # not visible to Bob
     # a case whose deletion is three weeks away
     cases.cases[uuid.UUID(cid)] = cases.cases[uuid.UUID(cid)].model_copy(update={"keep_until": datetime.now(UTC) + timedelta(days=21)})
     # extend: one period later; keep: never deleted; keep false: one period from now
@@ -837,7 +837,7 @@ def test_the_sweep_deletes_a_case_whose_period_has_passed_with_everything_in_it(
     assert cases.due_for_deletion() == [uuid.UUID(cid)]  # the kept one isn't
     import asyncio
     assert asyncio.run(_delete_case_everywhere(c.app, uuid.UUID(cid)))
-    assert c.get(f"/v1/cases/{cid}", headers=alice).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=alice)) == (404, "case.not_found")
     assert in_case not in docs.docs and DOC in docs.docs
     assert not any(r["case_id"] == uuid.UUID(cid) for r in history.rows.values())
     assert c.get(f"/v1/cases/{kept}", headers=alice).status_code == 200
@@ -860,7 +860,7 @@ def test_office_wide_appliance_lets_colleagues_read_but_not_contribute():
         assert r.status_code == 403
         c.patch(f"/v1/cases/{cid}", json={"access": "restricted"}, headers=alice)  # the manager restricts it
         assert c.get("/v1/cases", headers=bob).json() == []
-        assert c.get(f"/v1/documents?case={cid}", headers=bob).status_code == 404
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/documents?case={cid}", headers=bob)) == (404, "case.not_found")
 
 
 # ------------------------------------------------------------------ stage 2: members, roles, the log
@@ -873,32 +873,32 @@ def test_the_manager_adds_colleagues_from_the_directory_with_a_role(office):
     assert c.get(f"/v1/cases/{cid}/members", headers=alice).json()[0] == {
         "user": ALICE, "username": "notaris.test", "name": "Test Notaris", "role": "manager", "added_by": ALICE,
         "added_at": c.get(f"/v1/cases/{cid}/members", headers=alice).json()[0]["added_at"], "admin": False, "avatar": None}
-    assert c.get(f"/v1/cases/{cid}/members", headers=bob).status_code == 404  # not yet a member: unknown case
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}/members", headers=bob)) == (404, "case.not_found")  # not yet a member: unknown case
     r = c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
     assert r.status_code == 200 and r.json()["name"] == "Bob Janssens" and r.json()["role"] == "reader"
     assert c.put(f"/v1/cases/{cid}/members/nobody-sub", json={"role": "reader"}, headers=alice).status_code == 404
-    assert c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "manager"}, headers=alice).status_code == 422
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "manager"}, headers=alice)) == (422, "case.hand_over_first")
     # Bob reads, doesn't contribute; a role change makes him a contributor
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
     assert c.get(f"/v1/cases/{cid}", headers=bob).json()["my_role"] == "reader"
     assert c.get(f"/v1/documents?case={cid}", headers=bob).status_code == 200
     pdf = {"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}
-    assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob)) == (403, "case.not_allowed")
     ask = {"messages": [{"role": "user", "content": "Vraag?"}], "document_ids": [in_case], "case_id": cid}
-    assert c.post("/v1/chat", json=ask, headers=bob).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/chat", json=ask, headers=bob)) == (403, "case.not_allowed")
     assert c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice).json()["role"] == "contributor"
     assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 202
     assert c.post("/v1/chat", json=ask, headers=bob).status_code == 200
     # a contributor can't change members, and a reader can't see the log
-    assert c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=bob).status_code == 403
-    assert c.get(f"/v1/cases/{cid}/events", headers=bob).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=bob)) == (403, "case.not_allowed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}/events", headers=bob)) == (403, "case.manager_only")
     # members see the list; removal; the manager can't be removed
     assert [m["user"] for m in c.get(f"/v1/cases/{cid}/members", headers=bob).json()] == [ALICE, BOB]
-    assert c.delete(f"/v1/cases/{cid}/members/{ALICE}", headers=alice).status_code == 422
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}/members/{ALICE}", headers=alice)) == (422, "case.hand_over_first")
     assert c.delete(f"/v1/cases/{cid}/members/{BOB}", headers=alice).status_code == 204
     assert c.delete(f"/v1/cases/{cid}/members/{BOB}", headers=alice).status_code == 404
-    assert c.get(f"/v1/cases/{cid}", headers=bob).status_code == 404
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=bob)) == (404, "case.not_found")
     assert c.get("/v1/cases", headers=carla).json() == []
 
 
@@ -906,12 +906,12 @@ def test_handover_by_the_manager_or_an_administrator_keeps_one_manager(office):
     c, kc, cases, _, _ = office
     alice, bob, admin = as_user(kc, ALICE), as_user(kc, BOB), admin_headers(kc)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
-    assert c.post(f"/v1/cases/{cid}/handover", json={"user": BOB}, headers=bob).status_code == 404  # not even visible
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/handover", json={"user": BOB}, headers=bob)) == (404, "case.not_found")  # not even visible
     r = c.post(f"/v1/cases/{cid}/handover", json={"user": BOB}, headers=alice)
     assert r.status_code == 200 and r.json()["manager"] == BOB and r.json()["my_role"] == "contributor"
     roles = {m["user"]: m["role"] for m in c.get(f"/v1/cases/{cid}/members", headers=alice).json()}
     assert roles == {BOB: "manager", ALICE: "contributor"}
-    assert c.post(f"/v1/cases/{cid}/handover", json={"user": ALICE}, headers=alice).status_code == 403  # no longer manages
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/handover", json={"user": ALICE}, headers=alice)) == (403, "case.manager_only")  # no longer manages
     # an administrator hands it over without being a member (decision 6), to someone in the directory
     assert c.post(f"/v1/cases/{cid}/handover", json={"user": "nobody-sub"}, headers=admin).status_code == 404
     r = c.post(f"/v1/cases/{cid}/handover", json={"user": CARLA}, headers=admin)
@@ -1016,8 +1016,8 @@ def test_with_sign_in_off_the_directory_holds_the_local_user():
 def test_without_a_database_cases_are_unavailable():
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
     with TestClient(create_app(llm, load_documents=False, auth=Authenticator.disabled())) as c:
-        assert c.get("/v1/cases").status_code == 503
-        assert c.post("/v1/cases", json=NEW).status_code == 503
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.get("/v1/cases")) == (503, "case.unavailable")
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/cases", json=NEW)) == (503, "case.unavailable")
         assert c.get("/health").json()["cases"]["status"] == "unavailable"
         assert c.get("/v1/documents?case=" + str(uuid.uuid4())).status_code == 503
 
@@ -1250,7 +1250,7 @@ def test_a_conversation_shared_with_the_case_is_read_only_for_the_other_members(
     c.put(f"/v1/conversations/{personal}", json={**body, "case_id": None}, headers=alice)
     assert c.post(f"/v1/conversations/{personal}/share", json={"shared": True}, headers=alice).status_code == 404
     c.post(f"/v1/cases/{cid}/close", headers=alice)
-    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=alice).status_code == 403
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=alice)) == (403, "case.closed")
     assert c.get(f"/v1/conversations/{conv}", headers=alice).status_code == 200  # reading stays
 
 
@@ -1267,7 +1267,7 @@ def test_deleting_a_cases_document_cleans_every_members_conversations(office):
     c.put(f"/v1/conversations/{bobs}", json={"title": "Bob's", "case_id": cid, "turns": turns}, headers=bob)
     # the manager is asked which conversations cite it: bob's too, since it is the case's document
     assert [x["owner"] for x in c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=alice).json()] == [BOB]
-    assert c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=bob).status_code == 403  # a contributor can't delete
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=bob)) == (403, "case.not_allowed")  # a contributor can't delete
     assert c.delete(f"/v1/documents/{doc}?case={cid}", headers=alice).status_code == 204
     cleaned = c.get(f"/v1/conversations/{bobs}", headers=bob).json()["turns"][1]["citations"][0]
     assert cleaned["text"] == "" and cleaned["removed"] is True
@@ -1415,15 +1415,15 @@ def test_a_strictly_confidential_case_is_for_its_members_with_no_sharing_and_shi
     c.put(f"/v1/conversations/{conv}", json={"title": "Bob's question", "turns": turns, "case_id": cid}, headers=bob)
     c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)
 
-    assert c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=bob).status_code == 403  # the manager only
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=bob)) == (403, "case.not_allowed")  # the manager only
     c.put(f"/v1/cases/{cid}/pin", json={"pinned": True}, headers=alice)
     r = c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
     assert r.status_code == 200 and r.json()["confidential"] is True and r.json()["access"] == "restricted"
     assert r.json()["pinned"] is True  # the answer keeps the caller's pin: the sidebar doesn't drop the case
-    assert c.patch(f"/v1/cases/{cid}", json={"access": "default"}, headers=alice).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"access": "default"}, headers=alice)) == (409, "case.strictly_confidential")
     # unshared, still Bob's; and he can't share it again
     assert c.get(f"/v1/conversations?case={cid}", headers=alice).json() == []
-    assert c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob).status_code == 409
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)) == (409, "case.strictly_confidential")
     # the lists that span cases: no title; the case's own list keeps it
     [listed] = [x for x in c.get("/v1/conversations?all=true", headers=bob).json() if x["id"] == conv]
     assert listed["title"] is None and listed["shielded"] is True and listed["case_id"] == cid
