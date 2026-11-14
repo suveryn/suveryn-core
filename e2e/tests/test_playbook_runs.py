@@ -115,7 +115,7 @@ def upload(api: Api, case_id: str, path: Path) -> str:
         j = api("GET", f"/v1/documents/jobs/{job['id']}").json()
         if j["status"] in ("ready", "needs_review"):
             return j["document_id"]
-        assert j["status"] not in ("failed", "cancelled"), f"{path.name}: {j['status']} {j.get('error_code')}"
+        assert j["status"] not in ("failed", "cancelled"), f"{path.name}: {j['status']} {(j.get('failure') or {}).get('code')}"
         time.sleep(2)
     raise AssertionError(f"{path.name}: not read in {READ_TIMEOUT_S} s")
 

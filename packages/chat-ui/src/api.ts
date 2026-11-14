@@ -6,7 +6,7 @@ import { clearDraft } from "./lib/draft";
 import { createSSEParser } from "./lib/sse";
 import { RateLimited } from "./lib/turns";
 import { lang, t } from "./i18n";
-import { messageText, problemOf } from "./lib/messages";
+import { messageText, problemOf, type Message } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
 
@@ -61,8 +61,7 @@ export type Job = {
   id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
   pages?: number | null;
   progress?: JobProgress | null;
-  error_code?: string | null;              // why it failed (suveryn_rag.reading.CODES), for the interface to say
-  error_detail?: Record<string, number>;   // the numbers that needs: pages, max, minutes
+  failure?: Message | null;  // why it failed: a code of the registry's document area with its numbers, worded here
   noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
 };
 const ANSWER_TOKENS = 3000;

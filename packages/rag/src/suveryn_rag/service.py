@@ -60,7 +60,7 @@ from typing import BinaryIO
 from zlib import error as zlib_error
 
 from suveryn_harness import Citation
-from suveryn_harness.messages import Problem
+from suveryn_harness.messages import Problem, message
 
 from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like
@@ -272,7 +272,7 @@ class Job:
     db_retries: int = 0     # how often the database was unreachable while reading it
     noticed: dict | None = None  # the file carries sūveryn's export mark (marks.py): not a source until confirmed
     progress: Progress | None = None  # how far reading has got (reading.Progress), while processing
-    error_code: str | None = None     # why it failed, for the interface to say in its language (reading.CODES)
+    error_code: str | None = None     # why it failed, one of reading.CODES: the API says it as ``failure`` (public)
     error_detail: dict = field(default_factory=dict)  # the numbers that message needs (pages, max, minutes)
     cancel_requested: bool = False    # the person cancelled it while it was read; the worker stops it
     already_present: bool = False     # the same file was stored in this scope before: the stored copy, not read again
@@ -289,6 +289,9 @@ class Job:
         out.pop("cancel_requested")
         out.pop("upload")
         out["case_id"] = str(self.case_id) if self.case_id else None
+        # why it failed, as a code of the registry with its numbers: the interface words it (docs/design/messages.md)
+        code, detail = out.pop("error_code"), out.pop("error_detail")
+        out["failure"] = message(f"document.{code}", **detail) if code else None
         return out
 
 

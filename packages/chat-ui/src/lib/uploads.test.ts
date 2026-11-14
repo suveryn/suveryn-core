@@ -40,7 +40,7 @@ describe("an upload the server no longer knows (audit of 4 November 2026, findin
     expect(checked.has("flaky")).toBe(false);
 
     const lost = afterCheck(en, card("lost"), checked);
-    expect(lost).toMatchObject({ status: "failed", errorCode: LOST_TRACK });
+    expect(lost).toMatchObject({ status: "failed", failure: LOST_TRACK });
     expect(stillReading(lost)).toBe(false); // so the chat stops asking, and a question no longer waits for it
     expect(afterCheck(en, card("read"), checked)).toMatchObject({ status: "ready", documentId: "doc-read" });
     expect(stillReading(afterCheck(en, card("waiting"), checked))).toBe(true);
@@ -51,7 +51,7 @@ describe("an upload the server no longer knows (audit of 4 November 2026, findin
   it("the card says the page lost track of it and to add it again if it isn't there, in every language", () => {
     for (const m of [en, nl, fr]) {
       const text = failureText(m, LOST_TRACK);
-      expect(text).toBe(m.failLostTrack);
+      expect(text).toBe(m.messages["document.lost"]);
       expect(text.length).toBeGreaterThan(20);
     }
     expect(failureText(en, LOST_TRACK)).toMatch(/lost track.*add it again/);

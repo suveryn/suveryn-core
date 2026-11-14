@@ -238,11 +238,12 @@ def test_a_failure_carries_its_code_for_the_interface(tmp_path):
     job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
     assert wait(lambda: job.status == "failed")
     out = job.public()
-    assert (out["error_code"], out["error_detail"]) == ("too_many_pages", {"pages": 900, "max": 500})
+    assert out["failure"] == {"kind": "warning", "code": "document.too_many_pages", "params": {"pages": 900, "max": 500}}
+    assert "error_code" not in out and "error_detail" not in out  # one way to say it: the registry's code
     assert out["error"] == "the document has 900 pages; at most 500 can be read"  # the English sentence stays for the API
     docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("boom")))
     other = docs2.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
-    assert wait(lambda: other.status == "failed") and other.error_code == "unreadable"
+    assert wait(lambda: other.status == "failed") and other.public()["failure"]["code"] == "document.unreadable"
 
 
 def test_a_document_read_again_after_a_lost_connection_is_staged_again(tmp_path, monkeypatch):
@@ -547,3 +548,13 @@ def test_marking_by_meaning_is_on_and_zero_turns_it_off(monkeypatch):
     assert RagSettings.from_env().mark_by_meaning == 0.0
     monkeypatch.setenv("SUVERYN_MARK_BY_MEANING", "0.7")
     assert RagSettings.from_env().mark_by_meaning == 0.7
+
+
+def test_every_reason_the_reader_knows_is_a_code_of_the_registry():
+    # A failed job says why as ``failure``, a code of the registry's document area that the interface words
+    # (docs/design/messages.md): a reason the reader has and the registry lacks would stop the job's answer.
+    from suveryn_harness.messages import CODES as REGISTRY, message
+    from suveryn_rag.reading import CODES
+    assert {f"document.{code}" for code in CODES} <= set(REGISTRY)
+    assert message("document.too_many_pages", pages=900, max=500)["params"] == {"pages": 900, "max": 500}
+    assert message("document.timeout", minutes=30)["params"] == {"minutes": 30}
