@@ -194,6 +194,76 @@
    "status": 503,
    "since": "0.2.0"
   },
+  "upload.disk_full": {
+   "kind": "unavailable",
+   "title": "The appliance's disk is nearly full: nothing is added until there is room.",
+   "status": 507,
+   "since": "0.2.0"
+  },
+  "upload.already_read": {
+   "kind": "refused",
+   "title": "The upload has been read and is a document now: it can't be cancelled, the document can be deleted.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "document.password": {
+   "kind": "warning",
+   "title": "A reading failed: the file is protected with a password.",
+   "since": "0.2.0"
+  },
+  "document.damaged": {
+   "kind": "warning",
+   "title": "A reading failed: the file is damaged, or isn't what its extension says.",
+   "since": "0.2.0"
+  },
+  "document.too_many_pages": {
+   "kind": "warning",
+   "title": "A reading failed: the document has `pages` pages, and at most `max` are read.",
+   "params": {
+    "pages": {
+     "type": "number"
+    },
+    "max": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.too_large": {
+   "kind": "warning",
+   "title": "A reading failed: the document is too large to be read.",
+   "since": "0.2.0"
+  },
+  "document.no_text": {
+   "kind": "warning",
+   "title": "A reading failed: the file has no text.",
+   "since": "0.2.0"
+  },
+  "document.unsupported": {
+   "kind": "warning",
+   "title": "A reading failed: no reader for this kind of file.",
+   "since": "0.2.0"
+  },
+  "document.timeout": {
+   "kind": "warning",
+   "title": "A reading failed: it took longer than `minutes` minutes.",
+   "params": {
+    "minutes": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.unreadable": {
+   "kind": "warning",
+   "title": "A reading failed for a reason the reader has no code for; the job's `error` names it for developers.",
+   "since": "0.2.0"
+  },
+  "document.lost": {
+   "kind": "warning",
+   "title": "Said by the page, not the server: an upload's job is gone (the server restarted while it waited), so the page can't say what became of it.",
+   "since": "0.2.0"
+  },
   "run.busy": {
    "kind": "refused",
    "title": "Too many playbook runs are reading; start this one when one has finished.",

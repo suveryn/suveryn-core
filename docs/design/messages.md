@@ -105,9 +105,9 @@ calculation's reason. What remains is counted, and the count may only go down:
 
 - `api-gateway/tests/test_problems.py`, `PLAIN_REFUSALS`: the plain `HTTPException`s still in the gateway. A PR that
   moves an area lowers the number; a new refusal is a `Problem`.
-  Moved so far: playbook runs (suveryn-tracker#150) and cases, conversations, users and the checks every route
-  shares (#151): 138 down to 32. Still to move, each its own issue: documents (#152), answers (#153), backups, the
-  clock, Status and usage (#154).
+  Moved so far: playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares
+  (#151), documents (#152): 138 down to 21. Still to move, each its own issue: answers (#153), backups, the clock,
+  Status and usage (#154).
 - **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
   is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_confirms`).
   The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
@@ -116,10 +116,18 @@ calculation's reason. What remains is counted, and the count may only go down:
 - **What catches a refusal catches a `Problem`.** Two places act on a refusal from a shared check instead of passing
   it on (a conversation in a case the caller may not see reads as missing; a contributor may delete their own
   noticed upload). They catch `Problem` and read its `status`.
-- Still under their own names, each its own issue: an upload job's `error_code` and the warnings of ingestion, a
-  run's stored `error`, the chat stream's `failure`, the answer's checks, backups and the clock. The backup service's
-  codes (`login`, `write`, `unreachable` …) are worded for Administration › Backups from `backupErrors` in the setup's
-  tables until then.
+- **A failed reading says why as a code** (#152). A job that failed carries `failure`: `{kind, code, params}` with
+  a code of the `document` area (`document.password`, `document.too_many_pages` with `pages` and `max` …), made at
+  the API's edge from the reader's own reason (`suveryn_rag.reading.CODES`; a test holds the two together). The
+  English `error` stays beside it for developers. `document.lost` is said by the page itself, when an upload's job
+  is gone.
+- **Not moved, on purpose: the warnings of ingestion.** A document's warnings are kinds with pages
+  (`page_coverage_low`, `instruction_like_text` …), stored with the document. They are meaning already, never a
+  sentence, and the page words each in several shapes (a row, a card, the full note, with pages or without), which
+  one wording per code can't hold. They stay kinds, worded in `lib/readingNotes.ts`.
+- Still under their own names, each its own issue: a run's stored `error`, the chat stream's `failure`, the answer's
+  checks (#153), backups and the clock (#154). The backup service's codes (`login`, `write`, `unreachable` …) are
+  worded for Administration › Backups from `backupErrors` in the setup's tables until then.
 - The console installer is not a server and keeps its own text file (`installer-text.json`, its keys are its codes);
   its engine gives the screens a code, not an English sentence to recognise (suveryn-appliance, #141).
 - Status shows recent references to the administrator, with the support request: with the appliance's part.

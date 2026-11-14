@@ -11,11 +11,12 @@
  */
 import { getJob, HttpError, type ArchiveUpload, type Job, type StoredDocument } from "../api";
 import type { Messages } from "../i18n";
+import type { Message } from "./messages";
 import { isReady, type Attachment, type Chosen, type Turn } from "../types";
 import { cardNote, checkPages, readingNotes, reviewKind, toCheck } from "./readingNotes";
 
-/** The reader's code for an upload the server no longer knows (``failureText``). */
-export const LOST_TRACK = "lost";
+/** What the page says of an upload the server no longer knows: a code of the registry, as a failed reading has. */
+export const LOST_TRACK: Message = { kind: "warning", code: "document.lost" };
 
 /** The server's answer for a job: the job, or ``lost`` when it no longer knows it (404). */
 export type Checked = Job | "lost";
@@ -51,15 +52,14 @@ export function attachmentFromJob(m: Messages, a: Attachment, j: Job): Attachmen
   return { ...a, status: noticed ? "noticed" : status, noticed, documentId: j.document_id ?? undefined,
            error: j.error ?? undefined, reviewPages: checkPages(j.warnings), reviewKind: reviewKind(j.warnings), pages: j.pages ?? undefined,
            note: cardNote(m, j.warnings) ?? undefined,
-           reading: j.status === "processing" ? j.progress ?? null : null, errorCode: j.error_code ?? undefined,
-           errorDetail: j.error_detail ?? undefined };
+           reading: j.status === "processing" ? j.progress ?? null : null, failure: j.failure ?? undefined };
 }
 
 /** The card after a round of checks: unchanged if its job wasn't checked, failed and interrupted if lost. */
 export function afterCheck(m: Messages, a: Attachment, checked: Map<string, Checked>): Attachment {
   const c = a.jobId ? checked.get(a.jobId) : undefined;
   if (c === undefined) return a;
-  if (c === "lost") return { ...a, status: "failed", errorCode: LOST_TRACK, reading: null };
+  if (c === "lost") return { ...a, status: "failed", failure: LOST_TRACK, reading: null };
   return attachmentFromJob(m, a, c);
 }
 

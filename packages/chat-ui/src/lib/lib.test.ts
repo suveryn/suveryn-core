@@ -475,11 +475,12 @@ describe("why an upload couldn't be read, in the interface's language (suveryn_r
     const { failureText } = await import("./review");
     const { setLang, t } = await import("../i18n");
     setLang("nl", false);
-    expect(failureText(t(), "password")).toBe("Het is beveiligd met een wachtwoord.");
-    expect(failureText(t(), "too_many_pages", { pages: 900, max: 500 })).toBe("Het heeft 900 pagina's; er kunnen er hoogstens 500 gelezen worden.");
-    expect(failureText(t(), "timeout", { minutes: 30 })).toBe("Lezen duurde langer dan 30 minuten.");
+    expect(failureText(t(), { code: "document.password" })).toBe("Het is beveiligd met een wachtwoord.");
+    expect(failureText(t(), { code: "document.too_many_pages", params: { pages: 900, max: 500 } })).toBe("Het heeft 900 pagina's; er kunnen er hoogstens 500 gelezen worden.");
+    expect(failureText(t(), { code: "document.timeout", params: { minutes: 30 } })).toBe("Lezen duurde langer dan 30 minuten.");
     setLang("en", false);
-    expect(failureText(t(), undefined, {}, "ValueError: the file is not a valid Word file")).toBe("The file is not a valid Word file.");  // no code: the server's words
-    expect(failureText(t(), "something-new", {}, "boom")).toBe("Boom.");
+    expect(failureText(t(), undefined, "ValueError: the file is not a valid Word file")).toBe("The file is not a valid Word file.");  // no code: the server's words
+    expect(failureText(t(), { code: "document.something_new" }, "boom")).toBe(t().messageAreas.document);  // a newer code: the area's words, never the server's English
+    expect(failureText(t(), { code: "document.too_many_pages" })).toBe(t().messages["document.too_large"]);  // no numbers sent: said without them
   });
 });
