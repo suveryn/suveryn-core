@@ -33,6 +33,7 @@ import {
 import { ACCEPTED_FILES } from "../lib/formats";
 import { dayLabel } from "../lib/conversations";
 import { checkJob } from "../lib/uploads";
+import { messageText, type Message } from "../lib/messages";
 import { exportRef } from "../lib/marks";
 import { EVENTS, eventText, personTurnText, playbookTurnText, type TurnMeta } from "../lib/runTurns";
 import {
@@ -103,13 +104,8 @@ export function runChipText(run: RunSummary, playbook: Pick<PlaybookInfo, "steps
   return what ? `${name} · ${what}` : name;
 }
 
-function errorLabel(error: string | null, m: Words): string {
-  const known: Record<string, string> = {
-    unreadable_answer: m.runErrorUnreadable, model_unavailable: m.runErrorModel, documents_unavailable: m.runErrorDocuments,
-    interrupted: m.runErrorInterrupted, busy: m.runErrorBusy, document_missing: m.runErrorDocuments, server_error: m.runErrorServer,
-  };
-  return known[error ?? ""] ?? m.runErrorServer;
-}
+/** Why a run failed, in the reader's language: the message it stored (a code of the registry with its kind). */
+const failureLabel = (failure: Message | null, m: Words): string => (failure ? messageText(failure, m) : m.messageKinds.internal);
 
 const time = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : "";
@@ -276,7 +272,7 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
         {run.status === "failed" && (
           <div className="turn-assistant">
             <Speaking />
-            <p className="answer-failed"><CircleX size={14} aria-hidden /><span>{errorLabel(run.error, m)}</span>
+            <p className="answer-failed"><CircleX size={14} aria-hidden /><span>{failureLabel(run.failure, m)}</span>
               {onRestart && canAnswer && <TextButton link onPress={onRestart}>{m.retryRun}</TextButton>}</p>
           </div>
         )}

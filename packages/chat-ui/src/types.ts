@@ -48,10 +48,10 @@ export type AssistantTurn = {
   step?: StreamStatus;      // while streaming: the server's latest pipeline step
   grounded: boolean; // the request included documents
   error?: string;
-  /** Why it failed, as a code the page words in the reader's language when it is shown (VM regression e0f2e26,
-   *  finding 10: a French failure reopened in Dutch read half French): model, documents, document, server,
-   *  chosenDeleted. ``error`` stays for a reason with no code (the server's own words). */
-  failure?: string;
+  /** Why it failed, as the message the server sent (a code of the registry with its kind and values), which the
+   *  page words in the reader's language when it is shown (VM regression e0f2e26, finding 10: a French failure
+   *  reopened in Dutch read half French). ``error`` stays for a reason that came without one. */
+  failure?: Message;
   /** The connection dropped mid-answer: the text so far stays, unchecked, with *Regenerate* (§5). */
   cutOff?: boolean;
   model?: string;

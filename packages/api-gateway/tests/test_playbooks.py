@@ -472,7 +472,7 @@ def test_a_run_fails_by_kind_when_the_answer_isnt_the_table(runs):
         rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"document_ids": [DOC]}, headers=alice).json()["id"]
         deliver(c, RUN.format(cid=cid, rid=rid), alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "failed")
-        assert run["error"] == "unreadable_answer" and run["facts"] == [] and run["step"] == "agreement_read"
+        assert run["failure"] == {"kind": "refused", "code": "run.unreadable_answer", "params": {}} and "error" not in run and run["facts"] == [] and run["step"] == "agreement_read"
 
 
 @needs_db
@@ -508,7 +508,7 @@ def test_a_run_reading_when_the_gateway_stopped_is_failed_at_the_next_start(runs
     assert runs.interrupt(30 * 60) == 0  # the sweep: not stale yet
     assert runs.interrupt(0) == 1        # start-up: every reading run is dead
     got = runs.get(uuid.UUID(run.id), cid)
-    assert got.status == "failed" and got.error == "interrupted" and got.finished_at is not None
+    assert got.status == "failed" and got.failure == {"kind": "unavailable", "code": "run.interrupted", "params": {}} and got.finished_at is not None
     assert runs.interrupt(0) == 0
     runs.delete_case(cid)
 
@@ -603,7 +603,7 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
             r, busy_cid = start(bob)
             assert r.status_code == 429 and r.json()["code"] == "run.busy"  # the appliance's three
             busy = c.get(RUNS.format(cid=busy_cid), headers=alice).json()[0]
-            assert busy["status"] == "failed" and busy["error"] == "busy"  # the refused run is a record too; start it again later
+            assert busy["status"] == "failed" and busy["failure"]["code"] == "run.busy"  # the refused run is a record too; start it again later
             release.set()
             wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
             for _ in range(50):  # every place given back once the readings end
@@ -1120,3 +1120,15 @@ def test_every_kind_of_playbook_turn_the_server_writes_is_listed_for_the_screen(
                         if isinstance(k, ast.Constant) and k.value == "kind" and isinstance(v, ast.Constant):
                             written.add(v.value)
     assert written == set(TURN_KINDS)
+
+
+def test_a_run_says_why_it_failed_as_a_code_of_the_registry_with_its_kind():
+    # stored as code and parameters (the decision of 12 November, rule 6), sent as {kind, code, params}
+    from suveryn_api_gateway.playbooks import _failure
+    from suveryn_harness.messages import message
+    assert _failure(json.dumps(message("system.model_unavailable"))) == {"kind": "unavailable", "code": "system.model_unavailable", "params": {}}
+    assert _failure(json.dumps(message("system.internal", ref="7F3K-92QD")))["params"] == {"ref": "7F3K-92QD"}
+    assert _failure(json.dumps(message("run.document_missing")))["kind"] == "refused"
+    assert _failure(None) is None
+    # a run that failed before failures were codes stored a bare word: it failed, and the page says so by its kind
+    assert _failure("model_unavailable") == {"kind": "internal", "code": "system.internal", "params": {}}

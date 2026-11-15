@@ -18,7 +18,7 @@ describe("interface languages (suveryn-tracker#8)", () => {
 
   it("a reason shown inside answerFailed is a sentence of its own, ended once (Pod check of dbe0431: \"opnieuw.. \")", () => {
     for (const l of LANGS) {
-      const whole = TABLES[l].answerFailed({ why: TABLES[l].chosenDeletedMeanwhile });
+      const whole = TABLES[l].answerFailed({ why: TABLES[l].messages["answer.document_gone"] });
       expect(whole, l).not.toMatch(/\.\.|: /);
       expect(whole.split(/(?<=\.) /).length, l).toBeGreaterThanOrEqual(3);
     }

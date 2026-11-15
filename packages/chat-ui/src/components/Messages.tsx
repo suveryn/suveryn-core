@@ -33,9 +33,8 @@ import { AttachmentChip } from "./Chips";
 
 /** Why an answer failed, in the reader's language now: from its code when it has one, else the words kept. */
 export function failureWords(turn: Pick<AssistantTurn, "failure" | "error">, m: ReturnType<typeof useT>): string {
-  const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments, document: m.streamErrorDocument,
-                                          server: m.streamErrorServer, chosenDeleted: m.chosenDeletedMeanwhile };
-  return (turn.failure && known[turn.failure]) || turn.error || "";
+  // a turn saved before failures were messages kept a bare word: it has the words of the day it failed
+  return turn.failure && typeof turn.failure === "object" ? messageText(turn.failure, m) : turn.error || "";
 }
 
 /** The user's turn: attachment chips above a bubble (the only bubble in the conversation). */

@@ -2,6 +2,7 @@
 registry's rules, the server can only use a listed code with its own parameters, and client data stays out of logs."""
 import ast
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -109,3 +110,14 @@ def test_the_kind_says_what_the_person_can_do_and_the_status_only_how_it_travels
     for code in CODES.values():
         if code.kind == "warning":
             assert code.status is None, code.name
+
+
+def test_an_unplanned_failure_gets_a_reference_and_its_place_never_its_message():
+    def read():
+        raise RuntimeError("Peeters, Echtscheiding.pdf")  # a message may name a file or quote a document
+    try:
+        read()
+    except RuntimeError as e:
+        ref, where = messages.unplanned(e)
+    assert re.fullmatch(r"[2-9A-Z]{4}-[2-9A-Z]{4}", ref)
+    assert where.startswith("test_messages.py:") and " read" in where and "Peeters" not in where

@@ -11,7 +11,8 @@ import uuid
 from contextlib import aclosing
 
 import anyio
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from suveryn_harness.messages import Problem, message, unplanned
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -68,14 +69,14 @@ async def chat(req: ChatRequest, request: Request):
         try:
             uuid.UUID(d)
         except ValueError:
-            raise HTTPException(422, f"Not a document id: {d!r}") from None
+            raise Problem("request.invalid", f"Not a document id: {d!r}") from None
     if req.model is not None:
         try:
             installed = {m.id for m in await request.app.state.llm.list_models()}
         except BackendError as e:
-            raise HTTPException(502, str(e)) from e
+            raise Problem("system.model_unavailable", str(e)) from e
         if req.model not in installed:
-            raise HTTPException(422, f"No such model on this appliance: {req.model!r}")
+            raise Problem("answer.model_unknown", f"No such model on this appliance: {req.model!r}")
     owner = owner_of(request)
     await remember_user(request)
     # The case the question is about, if any: asking is a contributor's right (a reader may only
@@ -87,7 +88,7 @@ async def chat(req: ChatRequest, request: Request):
         # retriever checks again when it reads the passages.
         docs = docs_or_503(request)
         if not await run_in_threadpool(docs.in_scope, req.document_ids, scope, True):
-            raise HTTPException(404, "Unknown document.")
+            raise Problem("answer.document_gone", "Unknown document.")
         await touch_case(request, scope)
     await log_access(request, scope.case_id, "asked", {"documents": req.document_ids})
     chat_service: ChatService = request.app.state.chat
@@ -95,11 +96,11 @@ async def chat(req: ChatRequest, request: Request):
         try:
             return await chat_service.answer(req, owner)
         except DocumentNotFound as e:
-            raise HTTPException(404, "Unknown document.") from e
+            raise Problem("answer.document_gone", "Unknown document.") from e
         except DocumentsUnavailable as e:
-            raise HTTPException(503, str(e)) from e
+            raise Problem("system.documents_unavailable", str(e)) from e
         except BackendError as e:
-            raise HTTPException(status_code=502, detail=str(e)) from e
+            raise Problem("system.model_unavailable", str(e)) from e
     return StopOnDisconnect(_stream(chat_service, req, owner), media_type="text/event-stream",
                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -162,12 +163,15 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
         what = str(e).split(":", 1)[0] if isinstance(e, BackendError) else "an unreadable answer"
         cause = f" ({type(e.__cause__).__name__})" if e.__cause__ else ""
         log.warning("chat stream failed: %s%s, model %s", what, cause, req.model or "default")
-        yield _sse("error", StreamError(message=str(e), code="model"))
+        yield _sse("error", StreamError(**message("system.model_unavailable"), detail=what))
     except DocumentsUnavailable as e:
         log.warning("chat stream failed: the documents aren't available (%s)", type(e).__name__)
-        yield _sse("error", StreamError(message=str(e), code="documents"))
+        yield _sse("error", StreamError(**message("system.documents_unavailable"), detail=str(e)))
     except DocumentNotFound:
-        yield _sse("error", StreamError(message="unknown document", code="document"))
+        yield _sse("error", StreamError(**message("answer.document_gone"), detail="unknown document"))
     except Exception as e:  # noqa: BLE001 - the stream must end with an event; the client discards the partial answer
-        log.error("chat stream failed: %s", type(e).__name__)  # the message may contain document text
-        yield _sse("error", StreamError(message="the answer couldn't be completed because of a server error", code="server"))
+        # Nobody planned for it: a reference for the person, and the log line under it. The exception's type and where
+        # it was raised, never its message, which may hold document text (the decision of 12 November, rule 5).
+        ref, where = unplanned(e)
+        log.error("chat stream failed: internal %s: %s at %s", ref, type(e).__name__, where)
+        yield _sse("error", StreamError(**message("system.internal", ref=ref), detail="the answer couldn't be completed because of a server error"))

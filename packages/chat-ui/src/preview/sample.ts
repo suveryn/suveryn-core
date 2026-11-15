@@ -252,7 +252,7 @@ const fact = (id: string, value: string, citations: RunFact["citations"], extra:
 const RUN_START = ago(70 * MIN);
 const RUN_SUMMARY: RunSummary = {
   id: "run-124", case_id: "c124", playbook_id: DEED_INTAKE.id, playbook_version: "1.4", status: "waiting", step_kind: "checkpoint", documents: ["d-compromis-124", "d-titel-124", "d-bodem-124"],
-  started_by: "mieke@kantoor.be", started_at: RUN_START, finished_at: null, confirmed_by: null, confirmed_at: null, model: "Qwen3.8-27B", error: null,
+  started_by: "mieke@kantoor.be", started_at: RUN_START, finished_at: null, confirmed_by: null, confirmed_at: null, model: "Qwen3.8-27B", failure: null,
   result_document_id: null, out_of_date: false, step: "confirm", language: "nl", paused_by: null, paused_at: null, ended_by: null, ended_reason: null,
   starter: "u-mieke", conversation_id: "conv-run", title: { nl: "Akte-intake", en: "Deed intake", fr: "Intake de l'acte" },
 };
@@ -308,7 +308,7 @@ export const UPLOADS: Record<string, Job> = {
   "Eigendomstitel_1998.pdf": job("job-2", "Eigendomstitel_1998.pdf", { document_id: "d-up-titel", pages: 9 }),
   "Bodemattest_scan.pdf": job("job-3", "Bodemattest_scan.pdf", { status: "needs_review", document_id: "d-up-bodem", pages: 3,
     warnings: [{ kind: "warning", code: "document.page_coverage_low", params: { page: 2 } }] }),
-  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", failure: { kind: "warning", code: "document.password" } }),
+  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", failure: { kind: "refused", code: "document.password" } }),
   "Termijnen_aangepast.docx": job("job-5", "Termijnen_aangepast.docx", { document_id: "d-up-termijnen", pages: 2,
     noticed: { ref: "A-7c21e04d", kind: "answer", line: "Gemaakt door sūveryn: antwoord uit dossier 124, 17-10-2026" } }),
 };
@@ -391,7 +391,7 @@ export const RUN_STOPPED = runIn({ status: "stopped", ended_by: "filip@kantoor.b
                                     turns: [...RUN.turns, event(6, "stopped", "filip@kantoor.be", 20)] });
 export const RUN_CANCELLED = runIn({ status: "cancelled", ended_by: "filip@kantoor.be", finished_at: later(20), ended_reason: "verkeerde compromis",
                                       turns: [...RUN.turns, event(6, "cancelled", "filip@kantoor.be", 20, { reason: "verkeerde compromis" })] });
-export const RUN_FAILED = runIn({ status: "failed", step: "read", error: "model_unavailable", turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
+export const RUN_FAILED = runIn({ status: "failed", step: "read", failure: { kind: "unavailable", code: "system.model_unavailable" }, turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
 /** No run in the case yet: starting one (board P04, 1). */
 export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}], ["GET", /^\/v1\/cases\/c124\/playbooks\/runs$/, []],
                                 ["GET", /^\/v1\/conversations\?case=c124/, CASE_CONVERSATIONS.filter((c) => c.case_id === "c124" && !c.run_id)]];

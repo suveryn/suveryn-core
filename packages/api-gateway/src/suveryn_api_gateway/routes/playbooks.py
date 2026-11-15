@@ -27,7 +27,7 @@ from collections import Counter
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
-from suveryn_harness.messages import Problem
+from suveryn_harness.messages import Problem, message, unplanned
 from suveryn_harness.facts import Unreadable, map_answer, read_playbook, said_unknown
 from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, find, for_case_type, root
 
@@ -268,12 +268,12 @@ async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: 
     rid, owner = uuid.UUID(run.id), owner_of(request)
     filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
     if not filenames:
-        await run_in_threadpool(store.fail, rid, "document_missing")
+        await run_in_threadpool(store.fail, rid, message("run.document_missing"))
         return
     await run_in_threadpool(store.set_documents, rid, list(filenames))
     slots = slots_of(request.app)
     if not slots.take(owner):
-        await run_in_threadpool(store.fail, rid, "busy")
+        await run_in_threadpool(store.fail, rid, message("run.busy"))
         raise Problem("run.busy", "too many playbook runs are reading; start this one when one has finished")
     task = asyncio.create_task(_read(request.app, runtime, store, run, pb, step, filenames, owner, case.reference))
     request.app.state.running.add(task)
@@ -298,7 +298,7 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
             return
         filenames = await run_in_threadpool(runtime.documents_to_read, fresh, step)
         if not filenames:
-            await run_in_threadpool(store.fail, run_id, "document_missing")
+            await run_in_threadpool(store.fail, run_id, message("run.document_missing"))
             return
         await run_in_threadpool(store.set_documents, run_id, list(filenames))
         run = fresh
@@ -315,12 +315,15 @@ async def _read_one(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbo
                                                                                  run.id, n, " ".join(f"{k}={v}" for k, v in shape.items())),
                                               fact_ids=set(step.facts))
     except (BackendError, DocumentsUnavailable, DocumentNotFound, Unreadable) as e:
-        await run_in_threadpool(store.fail, run_id, {BackendError: "model_unavailable", DocumentsUnavailable: "documents_unavailable",
-                                                     DocumentNotFound: "document_missing", Unreadable: "unreadable_answer"}[type(e)])
+        # by what the person can do: a part is down (wait, try again), or nothing could be read (another model, the document)
+        await run_in_threadpool(store.fail, run_id, message({BackendError: "system.model_unavailable", DocumentsUnavailable: "system.documents_unavailable",
+                                                             DocumentNotFound: "run.document_missing", Unreadable: "run.unreadable_answer"}[type(e)]))
         return None
     except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
-        log.error("playbook run failed: %s", type(e).__name__)
-        await run_in_threadpool(store.fail, run_id, "server_error")
+        # nobody planned for it: a reference for the person, and the log line under it (type and place, never the message)
+        ref, where = unplanned(e)
+        log.error("playbook run failed: internal %s: %s at %s", ref, type(e).__name__, where)
+        await run_in_threadpool(store.fail, run_id, message("system.internal", ref=ref))
         return None
     fresh = await run_in_threadpool(runtime.finish_read, run, pb, step, facts, response.model, response.instruction_like_sources,
                                     response.complete, list(filenames.values()))
@@ -575,7 +578,7 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
         log.info("answer in words: %d line(s) from the model, %d of %d fact(s) placed", len(response.answer.strip().splitlines()),
                  len(mapped), len(labels))
     except BackendError:
-        raise Problem("run.model_unavailable", "The model isn't available to read this answer; try again in a moment.") from None
+        raise Problem("system.model_unavailable", "The model isn't available to read this answer; try again in a moment.") from None
     return mapped
 
 

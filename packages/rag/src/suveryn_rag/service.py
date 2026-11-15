@@ -60,7 +60,7 @@ from typing import BinaryIO
 from zlib import error as zlib_error
 
 from suveryn_harness import Citation
-from suveryn_harness.messages import Problem, message, reference
+from suveryn_harness.messages import Problem, message, unplanned
 
 from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like
@@ -298,13 +298,10 @@ class Job:
         return out
 
 
-def _unplanned(e: Exception) -> str:
+def _crashed(e: Exception) -> str:
     """A reference for a reading that failed in a way nobody planned for, logged with the exception's type and where
     it was raised, never its message, which may name the file or quote it (the decision of 12 November, rule 5)."""
-    ref, tb = reference(), e.__traceback__
-    while tb is not None and tb.tb_next is not None:
-        tb = tb.tb_next
-    where = f"{Path(tb.tb_frame.f_code.co_filename).name}:{tb.tb_lineno} {tb.tb_frame.f_code.co_name}" if tb else "?"
+    ref, where = unplanned(e)
     log.error("document failed: internal %s: %s at %s", ref, type(e).__name__, where)
     return ref
 
@@ -380,7 +377,7 @@ class DocumentService:
                 self._process(job, source)
             except Exception as e:  # noqa: BLE001 - last resort: the worker must outlive any one document
                 job.status, job.error, job.finished_at = "failed", type(e).__name__, time.time()
-                job.error_ref = _unplanned(e)
+                job.error_ref = _crashed(e)
                 self._discard(self._path_for(job, source), source)
 
     def _path_for(self, job: Job, source: Source) -> Path:
@@ -425,7 +422,7 @@ class DocumentService:
             if isinstance(e, Unreadable):
                 job.error_code, job.error_detail = e.code, e.detail
             else:  # nobody planned for it: a reference for the person, and the log line under it
-                job.error_ref = _unplanned(e)
+                job.error_ref = _crashed(e)
         job.progress = None
         job.finished_at = time.time()
         self._discard(path, source)

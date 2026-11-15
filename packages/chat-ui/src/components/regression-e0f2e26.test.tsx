@@ -48,7 +48,10 @@ describe("the run's quick replies", () => {
 
 describe("words that follow the reader", () => {
   it("word a failed answer from its code in the language of the moment (finding 10)", () => {
-    expect(failureWords({ failure: "model", error: "le modèle est injoignable pour le moment" }, nl)).toBe(nl.streamErrorModel);
+    const down = { kind: "unavailable", code: "system.model_unavailable" };
+    expect(failureWords({ failure: down, error: "Le modèle est injoignable pour le moment." }, nl)).toBe(nl.messages["system.model_unavailable"]);
+    expect(failureWords({ failure: { kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } } }, nl)).toMatch(/7F3K-92QD\.$/);
+    expect(failureWords({ failure: "model" as never, error: "the words of that day" }, nl)).toBe("the words of that day");  // saved before failures were messages
     expect(failureWords({ error: "the server's own words" }, nl)).toBe("the server's own words");
   });
 

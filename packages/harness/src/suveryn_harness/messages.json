@@ -51,6 +51,13 @@
    "retry": true,
    "since": "0.2.0"
   },
+  "system.model_unavailable": {
+   "kind": "unavailable",
+   "title": "The model can't be reached, or what it sent back couldn't be read: no answer, and no reading of an answer given in words.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
   "auth.signed_out": {
    "kind": "refused",
    "title": "No session, or it has ended.",
@@ -392,10 +399,20 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "run.model_unavailable": {
+  "run.document_missing": {
+   "kind": "refused",
+   "title": "A run failed: a document it was to read is no longer in the case, or there is none to read.",
+   "since": "0.2.0"
+  },
+  "run.unreadable_answer": {
+   "kind": "refused",
+   "title": "A run failed: what the model wrote couldn't be read as the playbook's facts, twice.",
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "run.interrupted": {
    "kind": "unavailable",
-   "title": "The model can't be reached to read an answer given in words.",
-   "status": 503,
+   "title": "A run failed: the server restarted while the model was reading.",
    "retry": true,
    "since": "0.2.0"
   },
@@ -575,6 +592,18 @@
   "calc.syntax": {
    "kind": "warning",
    "title": "A calculation couldn't be read.",
+   "since": "0.2.0"
+  },
+  "answer.document_gone": {
+   "kind": "refused",
+   "title": "A document the question was put to is no longer there (deleted since the page read the list), or isn't the caller's.",
+   "status": 404,
+   "since": "0.2.0"
+  },
+  "answer.model_unknown": {
+   "kind": "refused",
+   "title": "The model asked for isn't installed on this appliance.",
+   "status": 422,
    "since": "0.2.0"
   },
   "setup.name_missing": {

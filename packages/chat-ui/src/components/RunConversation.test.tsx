@@ -21,7 +21,7 @@ const PLAYBOOK: PlaybookInfo = {
 };
 const SUMMARY: RunSummary = {
   id: "r1", case_id: "c1", playbook_id: PLAYBOOK.id, playbook_version: "1.1", status: "waiting", documents: ["d1"], started_by: "ines",
-  started_at: "2026-10-30T09:58:00Z", finished_at: null, confirmed_by: null, confirmed_at: null, model: null, error: null,
+  started_at: "2026-10-30T09:58:00Z", finished_at: null, confirmed_by: null, confirmed_at: null, model: null, failure: null,
   result_document_id: null, out_of_date: false, step: "confirm", language: "en", paused_by: null, paused_at: null, ended_by: null,
   ended_reason: null, starter: "u-ines", conversation_id: "conv-1",
 };

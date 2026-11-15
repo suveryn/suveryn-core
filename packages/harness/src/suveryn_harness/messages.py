@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,6 +93,15 @@ def reference() -> str:
     alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"  # no 0/O, 1/I: it is read aloud to support
     raw = "".join(secrets.choice(alphabet) for _ in range(8))
     return f"{raw[:4]}-{raw[4:]}"
+
+
+def unplanned(exc: BaseException) -> tuple[str, str]:
+    """For a failure nobody planned for: a new reference, and where it was raised, for the log line that carries the
+    reference ("documents.py:137 delete_document < routing.py:360 run"). The exception's type is the caller's to
+    add; never its message, which may quote a document or name a file. The one place this is worked out: an HTTP
+    answer, a stream, a playbook run and a reading all log an unplanned failure alike."""
+    frames = traceback.extract_tb(exc.__traceback__)[-6:]
+    return reference(), " < ".join(f"{f.filename.rsplit('/', 1)[-1]}:{f.lineno} {f.name}" for f in reversed(frames)) or "?"
 
 
 class Problem(Exception):
