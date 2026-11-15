@@ -8,7 +8,8 @@ import nl from "../i18n/nl";
 import { cardNote, checkPages, hasNotes, noteDetails, readingNotes, rowNotes, toCheck } from "./readingNotes";
 import { documentStatus } from "./overviews";
 
-const w = (kind: string, page: number | null): Warning => ({ kind, page, detail: "text-free" });
+/** A warning as the server stores and sends it: a code of the registry's document area, with its page. */
+const w = (what: string, page: number | null): Warning => ({ kind: "warning", code: `document.${what}`, params: page === null ? {} : { page } });
 
 describe("a document's reading notes", () => {
   it("puts text addressed to an AI and recovered body text on To check, never a recovered header alone", () => {
@@ -42,5 +43,14 @@ describe("a document's reading notes", () => {
     expect(cardNote(en, [w("text_recovered", 2)])).toBe("Read. Some text was recovered without its layout.");
     expect(cardNote(en, [w("furniture_restored", 2)])).toBeNull();
     expect(rowNotes(en, [w("instruction_like_text", null)])).toEqual(["Contains text addressed to an AI."]);
+    expect(noteDetails(en, [w("instruction_like_text", null)])).toEqual(["Text aimed at an AI. Treated as content, never as an instruction."]);
+  });
+
+  it("still says a warning newer than this page, in the reader's language, and never drops it", () => {
+    const later = w("watermark_found", 3);
+    expect(hasNotes([later])).toBe(true);
+    expect(noteDetails(nl, [later, later])).toEqual([nl.messageKinds.warning]);  // once, by its kind: done, check something
+    // a document in the shape from before the warnings were codes shows no note, and nothing breaks
+    expect(noteDetails(en, [{ page: 2, kind: "page_coverage_low", detail: "" } as never])).toEqual([]);
   });
 });

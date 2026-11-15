@@ -8,7 +8,7 @@ import uuid
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, File, Request, Response, UploadFile
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -35,7 +35,7 @@ def _document_id(document_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(422, "Not a document id.") from None
+        raise Problem("request.invalid", "Not a document id.") from None
 
 
 @router.post("/v1/documents", status_code=202, responses={
@@ -56,7 +56,7 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
     docs = docs_or_503(request)
     scope = await scope_of(request, case, "contribute")
     if await run_in_threadpool(disk_low):
-        raise HTTPException(507, "The appliance's disk is nearly full: no documents can be added until there is room.")
+        raise Problem("upload.disk_full", "The appliance's disk is nearly full: no documents can be added until there is room.")
     filename = file.filename or "document.pdf"
     archive = filename.lower().endswith(".zip")
     # an upload refused (UploadRejected) is a Problem with its own code, upload.*: answered as it is (problems.py)
@@ -74,10 +74,11 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
 async def document_job(job_id: str, request: Request):
     """State of one of the caller's uploads: queued, processing, ready, needs_review, failed or cancelled;
     while processing, how far reading has got (``progress``: step, pages done, pages); when failed, why
-    (``error``, in English, and ``error_code`` with ``error_detail`` for the interface to say in its language)."""
+    (``error``, in English, for developers, and ``failure``: a code of the registry's ``document`` area with its numbers,
+    which the interface words in its language)."""
     job = docs_or_503(request).job(job_id, owner_of(request))
     if job is None:
-        raise HTTPException(404, "Unknown job.")
+        raise Problem("request.not_found", "Unknown job.")
     return job.public()
 
 
@@ -90,12 +91,12 @@ async def cancel_job(job_id: str, request: Request):
     docs, owner = docs_or_503(request), owner_of(request)
     job = docs.job(job_id, owner)
     if job is None:
-        raise HTTPException(404, "Unknown job.")
+        raise Problem("request.not_found", "Unknown job.")
     done = await run_in_threadpool(docs.cancel, job_id, owner)
     if done is None:
-        raise HTTPException(404, "Unknown job.")
+        raise Problem("request.not_found", "Unknown job.")
     if done is False:
-        raise HTTPException(409, "This upload has been read: it is a document now.")
+        raise Problem("upload.already_read", "This upload has been read: it is a document now.")
     await log_access(request, job.case_id, "upload_cancelled", {"job": job_id})
     return Response(status_code=204)
 
@@ -153,15 +154,15 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     # passages stayed in them); the cleaning is noted first, so the sweep finishes one that fails.
     store = history_or_none(request)
     if request.app.state.history.configured and store is None:
-        raise HTTPException(503, "Saved conversations can't be reached, so the document was not deleted: "
-                                 "its passages would stay in them. Try again shortly.")
+        raise Problem("conversation.unavailable", "Saved conversations can't be reached, so the document was not deleted: "
+                      "its passages would stay in them. Try again shortly.")
     delete = conversations == "delete"
     if store is not None:
         await run_in_threadpool(store.note_cleanup, owner, did, delete, scope.case_id)
     if not await run_in_threadpool(docs.delete, document_id, scope):
         if store is not None:
             await run_in_threadpool(store.cleanup_done, owner, did)
-        raise HTTPException(404, "Unknown document.")
+        raise Problem("request.not_found", "Unknown document.")
     await log_access(request, scope.case_id, "document_deleted", {"document": document_id})
     flush_soon(request.app)  # once the conversations are cleaned too: a deletion close by shares the flush
     if scope.case_id is not None and (runs := request.app.state.runs.get()) is not None:
@@ -188,7 +189,7 @@ async def use_as_source(document_id: str, request: Request, case: str | None = N
     scope = await scope_of(request, case, "contribute")
     noticed = await run_in_threadpool(docs.confirm_source, document_id, scope, who(request)[0])
     if noticed is None:
-        raise HTTPException(404, "Unknown document, or nothing to confirm.")
+        raise Problem("request.not_found", "Unknown document, or nothing to confirm.")
     await log_access(request, scope.case_id, "source_confirmed", {"document": document_id, "ref": noticed.get("ref")})
     return {"id": document_id, "source": True}
 
@@ -280,7 +281,7 @@ async def document_original(document_id: str, request: Request, case: str | None
     scope = await scope_of(request, case, "read")
     found = await run_in_threadpool(docs.original, document_id, scope)
     if found is None:
-        raise HTTPException(404, "This document has no uploaded file.")
+        raise Problem("request.not_found", "This document has no uploaded file.")
     filename, original = found
     await log_access(request, scope.case_id, "document_opened", {"document": document_id})
     shown = original.content_type == "application/pdf" or original.content_type.startswith("text/plain")
@@ -306,6 +307,6 @@ async def document_content(document_id: str, request: Request, case: str | None 
     scope = await scope_of(request, case, "read")
     found = await run_in_threadpool(docs.content, document_id, scope)
     if found is None:
-        raise HTTPException(404, "Unknown document.")
+        raise Problem("request.not_found", "Unknown document.")
     filename, origin, content = found
     return {"id": document_id, "filename": filename, "origin": origin, "content": content}

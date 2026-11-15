@@ -29,7 +29,11 @@ of its own, and a partner gets it with the API. A line:
 
 - **Name:** `area.condition`, lower case, two levels. The areas are a short fixed list at the top of the file. The
   kind is not in the name.
-- **`kind`** fixes the status range: `refused` 4xx, `unavailable` 5xx, `internal` 500, `warning` none.
+- **`kind`** is chosen by what the person can do, never by how the message travels: `refused` (nothing was done),
+  `unavailable` (a known part is down), `internal` (nobody planned for it), `warning` (done, check something).
+  It fixes the status range when the code takes an answer's place: `refused` 4xx, `unavailable` 5xx, `internal`
+  500. A refusal or a part that is down can also be an upload's or a run's stored error: such a code has no status
+  and keeps its kind (`document.password` is refused). A warning never has a status.
 - **`title`:** English, for a developer reading the registry or an answer. Never shown to a person.
 - **`params`:** each with a type (`number`, `string`, `id`). Raw values only: the reader's locale formats a number or
   a date, and an id becomes a label on the screen. `"private": true` marks client data (a file name, a case
@@ -105,9 +109,9 @@ calculation's reason. What remains is counted, and the count may only go down:
 
 - `api-gateway/tests/test_problems.py`, `PLAIN_REFUSALS`: the plain `HTTPException`s still in the gateway. A PR that
   moves an area lowers the number; a new refusal is a `Problem`.
-  Moved so far: playbook runs (suveryn-tracker#150) and cases, conversations, users and the checks every route
-  shares (#151): 138 down to 32. Still to move, each its own issue: documents (#152), answers (#153), backups, the
-  clock, Status and usage (#154).
+  Moved so far: playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares
+  (#151), documents (#152): 138 down to 21. Still to move, each its own issue: answers (#153), backups, the clock,
+  Status and usage (#154).
 - **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
   is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_confirms`).
   The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
@@ -116,10 +120,24 @@ calculation's reason. What remains is counted, and the count may only go down:
 - **What catches a refusal catches a `Problem`.** Two places act on a refusal from a shared check instead of passing
   it on (a conversation in a case the caller may not see reads as missing; a contributor may delete their own
   noticed upload). They catch `Problem` and read its `status`.
-- Still under their own names, each its own issue: an upload job's `error_code` and the warnings of ingestion, a
-  run's stored `error`, the chat stream's `failure`, the answer's checks, backups and the clock. The backup service's
-  codes (`login`, `write`, `unreachable` …) are worded for Administration › Backups from `backupErrors` in the setup's
-  tables until then.
+- **A failed reading says why as a code** (#152). A job that failed carries `failure`, `{kind, code, params}`,
+  made at the API's edge from the reader's own reason (`suveryn_rag.reading.CODES`; a test holds the two together):
+  a reason the reader knows is **refused** (`document.password`, `document.too_many_pages` with `pages` and `max`
+  …: nothing was read, the person gives another file), and a crash nobody planned for is **internal**:
+  `system.internal` with a reference, logged with the exception's type and where it was raised, never its message.
+  The English `error` stays beside it for developers.
+- **What a reading noticed is a warning of the registry** (#152). The document was read and something should be
+  checked: `document.page_coverage_low`, `document.layout_failed`, `document.instruction_like_text`,
+  `document.text_recovered`, `document.text_layer_recovered`, `document.furniture_restored`, each with its `page`.
+  They are stored with the document and sent as `{kind, code, params}` (and `detail`, English, for developers),
+  as every message is. The page says each code once for all its pages, in the code's own sentence; the card and
+  the overview have shorter forms of their own, and a warning newer than the page is still said, by its kind's
+  words. A document stored before this keeps its status and shows no notes until it is read again.
+- **What only the page says isn't in the registry.** "This page lost track of the upload" is the page's own
+  sentence (`uploadLost`), said when an upload's job is gone; the server never sends it.
+- Still under their own names, each its own issue: a run's stored `error`, the chat stream's `failure`, the answer's
+  checks (#153), backups and the clock (#154). The backup service's codes (`login`, `write`, `unreachable` …) are
+  worded for Administration › Backups from `backupErrors` in the setup's tables until then.
 - The console installer is not a server and keeps its own text file (`installer-text.json`, its keys are its codes);
   its engine gives the screens a code, not an English sentence to recognise (suveryn-appliance, #141).
 - Status shows recent references to the administrator, with the support request: with the appliance's part.

@@ -22,6 +22,8 @@ def test_every_code_keeps_the_rules():
     {"kind": "error"},                                   # not one of the four kinds
     {"kind": "refused", "status": 503},                  # a refusal is a 4xx
     {"kind": "warning", "status": 409},                  # a warning travels inside an answer
+    {"kind": "unavailable", "status": 409},              # a part that is down is a 5xx
+    {"kind": "internal", "status": None},                # something unplanned always takes the answer's place
     {"params": {"n": {"type": "text"}}},                 # not a parameter type
     {"title": ""},
 ])
@@ -90,3 +92,20 @@ def test_the_module_loads_by_its_path_alone_as_the_appliances_web_setup_loads_it
             "print(m.problem('setup.password_short', min=15)['status'], 'setup' in m.AREAS)\n")
     r = subprocess.run([sys.executable, "-I", "-S", "-c", code], capture_output=True, text=True)
     assert r.stdout.split() == ["422", "True"], r.stderr
+
+
+def test_the_kind_says_what_the_person_can_do_and_the_status_only_how_it_travels():
+    # The decision of 12 November: refused and unavailable also travel as an upload's or a run's stored error. Such
+    # a code has no status and keeps its kind: a document that can't be read is refused (nothing was done), never
+    # a warning (done, check something) because it happens to travel inside a job.
+    stored = CODES["document.password"]
+    assert (stored.kind, stored.status) == ("refused", None)
+    assert message("document.too_many_pages", pages=900, max=500) == {
+        "kind": "refused", "code": "document.too_many_pages", "params": {"pages": 900, "max": 500}}
+    with pytest.raises(ValueError, match="never instead of an answer"):
+        Problem("document.password")
+    # what was done and needs checking is a warning, with the page it is about
+    assert message("document.page_coverage_low", page=4) == {"kind": "warning", "code": "document.page_coverage_low", "params": {"page": 4}}
+    for code in CODES.values():
+        if code.kind == "warning":
+            assert code.status is None, code.name

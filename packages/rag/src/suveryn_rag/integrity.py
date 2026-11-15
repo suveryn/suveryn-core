@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from suveryn_harness.language import any_of, load
+from suveryn_harness.messages import message
 
 # The words of each language are in lang/<lang>.json (docs/translations.md), read together.
 WORDS = load(Path(__file__).parent / "lang")
@@ -43,6 +44,10 @@ COVERAGE_THRESHOLD = 0.95  # share of a page's words that must be found in store
 MIN_MISSING_WORDS = 3      # ignore tiny shortfalls (hyphenation, stray OCR marks)
 
 
+# The notes a reading can leave: each is ``document.<kind>``, a warning of the registry (a test holds them together).
+KINDS = ("text_recovered", "furniture_restored", "text_layer_recovered", "page_coverage_low", "instruction_like_text", "layout_failed")
+
+
 @dataclass(frozen=True)
 class IntegrityWarning:
     """Something a reviewer of the document should know: where, what kind, and a text-free detail."""
@@ -52,6 +57,11 @@ class IntegrityWarning:
                   # | "instruction_like_text" (text addressed to an AI; pipeline.py, suveryn-tracker#21)
                   # | "layout_failed" (Docling couldn't read the page; pipeline.py)
     detail: str
+
+    def message(self) -> dict:
+        """The warning as it is stored and sent: a code of the registry's document area with its page, ``{kind, code,
+        params}`` like every message (docs/design/messages.md), and the detail, in English, for developers."""
+        return {**message(f"document.{self.kind}", **({} if self.page is None else {"page": self.page})), "detail": self.detail}
 
     @property
     def needs_review(self) -> bool:

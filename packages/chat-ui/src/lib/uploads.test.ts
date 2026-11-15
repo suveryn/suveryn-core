@@ -5,7 +5,7 @@ import fr from "../i18n/fr";
 import nl from "../i18n/nl";
 import type { Attachment, Turn } from "../types";
 import { failureText } from "./review";
-import { afterCheck, archiveCards, cardForStored, checkJob, checkJobs, documentsChanged, LOST_TRACK, readToChoose, removal, stillReading,
+import { afterCheck, archiveCards, cardForStored, checkJob, checkJobs, documentsChanged, readToChoose, removal, stillReading,
          uploadsToCheck, usedAsSource } from "./uploads";
 
 const job = (id: string, status: Job["status"], extra: Partial<Job> = {}): Job =>
@@ -40,7 +40,8 @@ describe("an upload the server no longer knows (audit of 4 November 2026, findin
     expect(checked.has("flaky")).toBe(false);
 
     const lost = afterCheck(en, card("lost"), checked);
-    expect(lost).toMatchObject({ status: "failed", errorCode: LOST_TRACK });
+    expect(lost).toMatchObject({ status: "failed", lost: true });
+    expect(lost.failure).toBeUndefined();  // the server said nothing: these are the page's own words
     expect(stillReading(lost)).toBe(false); // so the chat stops asking, and a question no longer waits for it
     expect(afterCheck(en, card("read"), checked)).toMatchObject({ status: "ready", documentId: "doc-read" });
     expect(stillReading(afterCheck(en, card("waiting"), checked))).toBe(true);
@@ -50,11 +51,13 @@ describe("an upload the server no longer knows (audit of 4 November 2026, findin
 
   it("the card says the page lost track of it and to add it again if it isn't there, in every language", () => {
     for (const m of [en, nl, fr]) {
-      const text = failureText(m, LOST_TRACK);
-      expect(text).toBe(m.failLostTrack);
-      expect(text.length).toBeGreaterThan(20);
+      expect(m.uploadLost.length).toBeGreaterThan(20);
+      expect("document.lost" in m.messages).toBe(false);  // not in the server's list: the server never says it
     }
-    expect(failureText(en, LOST_TRACK)).toMatch(/lost track.*add it again/);
+    expect(en.uploadLost).toMatch(/lost track.*add it again/);
+    // a reading that crashed says so with its reference, as any unplanned failure does
+    expect(failureText(en, { kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } })).toMatch(/reference: 7F3K-92QD\.$/);
+    expect(failureText(en, { kind: "refused", code: "document.password" })).toBe(en.messages["document.password"]);
   });
 });
 

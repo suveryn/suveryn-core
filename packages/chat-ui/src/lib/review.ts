@@ -1,11 +1,14 @@
 /** Wording for documents in needs_review: usable, but text on some pages may be missing. */
 import { t, type Messages } from "../i18n";
 import { pagesOf } from "./lists";
+import { messageText, type Message } from "./messages";
 
 /** "p. 1" or "pp. 1 and 3" (in the current language) */
 export const pageList = (pages: number[]) => t().pageList(pagesOf(pages));
 
-export const reviewHint = (pages: number[] | undefined): string => (pages?.length ? t().reviewHintPages(pagesOf(pages)) : t().reviewHint);
+/** What "check these pages" means, in full: the words of the warning that put them there. */
+export const reviewHint = (pages: number[] | undefined): string =>
+  (pages?.length ? t().messages["document.page_coverage_low"](pagesOf(pages)) : t().messagesBare["document.page_coverage_low"]);
 
 /** Why an upload failed, as the server says it ("ValueError: the file is not a valid Word file"): the
  *  reason as a sentence, without the exception's name. Only when there is no code (``failureText``). */
@@ -14,20 +17,10 @@ export function failureReason(error: string | undefined): string {
   return reason && reason[0].toUpperCase() + reason.slice(1) + (/[.!?]$/.test(reason) ? "" : ".");
 }
 
-/** Why an upload couldn't be read, in the interface's language: from the reader's code
- *  (suveryn_rag.reading.CODES) and its numbers; without a code (the upload itself was refused, already
- *  said in words by api.ts), the server's own reason (``failureReason``). */
-export function failureText(m: Messages, code: string | undefined, detail: Record<string, number> = {}, error?: string): string {
-  switch (code) {
-    case "password": return m.failPassword;
-    case "damaged": return m.failDamaged;
-    case "too_many_pages": return detail.pages && detail.max ? m.failTooManyPages({ pages: detail.pages, max: detail.max }) : m.failTooLarge;
-    case "too_large": return m.failTooLarge;
-    case "no_text": return m.failNoText;
-    case "unsupported": return m.failUnsupported;
-    case "timeout": return m.failTimeout({ minutes: detail.minutes || 30 });
-    case "unreadable": return m.failUnreadable;
-    case "lost": return m.failLostTrack;  // the server no longer knows the upload (lib/uploads.ts)
-    default: return failureReason(error);
-  }
+/** Why an upload couldn't be read, in the interface's language: the reader's reason, a code of the registry's
+ *  document area with its numbers (docs/design/messages.md); a code newer than this page gets the area's words.
+ *  Without a code (the upload itself was refused, already said in words by api.ts), the reason as it came. */
+export function failureText(m: Messages, failure: Message | undefined, error?: string): string {
+  if (!failure?.code) return failureReason(error);
+  return failure.code in m.messages ? messageText(failure, m) : m.messageAreas.document;
 }

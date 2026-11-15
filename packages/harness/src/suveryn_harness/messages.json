@@ -194,6 +194,131 @@
    "status": 503,
    "since": "0.2.0"
   },
+  "upload.disk_full": {
+   "kind": "unavailable",
+   "title": "The appliance's disk is nearly full: nothing is added until there is room.",
+   "status": 507,
+   "since": "0.2.0"
+  },
+  "upload.already_read": {
+   "kind": "refused",
+   "title": "The upload has been read and is a document now: it can't be cancelled, the document can be deleted.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "document.password": {
+   "kind": "refused",
+   "title": "Not read: the file is protected with a password.",
+   "since": "0.2.0"
+  },
+  "document.damaged": {
+   "kind": "refused",
+   "title": "Not read: the file is damaged, or isn't what its extension says.",
+   "since": "0.2.0"
+  },
+  "document.too_many_pages": {
+   "kind": "refused",
+   "title": "Not read: the document has `pages` pages, and at most `max` are read.",
+   "params": {
+    "pages": {
+     "type": "number"
+    },
+    "max": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.too_large": {
+   "kind": "refused",
+   "title": "Not read: the document is too large to be read.",
+   "since": "0.2.0"
+  },
+  "document.no_text": {
+   "kind": "refused",
+   "title": "Not read: the file has no text.",
+   "since": "0.2.0"
+  },
+  "document.unsupported": {
+   "kind": "refused",
+   "title": "Not read: no reader for this kind of file.",
+   "since": "0.2.0"
+  },
+  "document.timeout": {
+   "kind": "refused",
+   "title": "Not read: it took longer than `minutes` minutes.",
+   "params": {
+    "minutes": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.unreadable": {
+   "kind": "refused",
+   "title": "Not read, for a reason the reader knows and has no code of its own for; the job's `error` names it for developers. A crash is system.internal with a reference.",
+   "since": "0.2.0"
+  },
+  "document.page_coverage_low": {
+   "kind": "warning",
+   "title": "Read, with a note: little of page `page` could be read, so text may be missing there. Puts the document on needs_review.",
+   "params": {
+    "page": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.layout_failed": {
+   "kind": "warning",
+   "title": "Read, with a note: the layout of page `page` couldn't be read, so text may be missing there. Puts the document on needs_review.",
+   "params": {
+    "page": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.instruction_like_text": {
+   "kind": "warning",
+   "title": "Read, with a note: page `page` (or the document, without a page) holds text addressed to an AI. It is content, never an instruction.",
+   "params": {
+    "page": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.text_recovered": {
+   "kind": "warning",
+   "title": "Read, with a note: text on page `page` that the layout reading missed was kept without its layout.",
+   "params": {
+    "page": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.text_layer_recovered": {
+   "kind": "warning",
+   "title": "Read, with a note: text on page `page` was taken from the PDF's text layer, without its layout.",
+   "params": {
+    "page": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "document.furniture_restored": {
+   "kind": "warning",
+   "title": "Read, with a note: a header or footer on page `page` was kept without its layout.",
+   "params": {
+    "page": {
+     "type": "number"
+    }
+   },
+   "since": "0.2.0"
+  },
   "run.busy": {
    "kind": "refused",
    "title": "Too many playbook runs are reading; start this one when one has finished.",

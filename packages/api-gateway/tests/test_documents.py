@@ -394,7 +394,7 @@ def test_an_upload_can_be_cancelled_until_it_is_read():
     svc.state = "ready"
     with client(svc) as c:
         job = c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7 a"), "application/pdf")}).json()
-        assert job["progress"] is None and job["error_code"] is None and "cancel_requested" not in job
+        assert job["progress"] is None and job["failure"] is None and "cancel_requested" not in job
         assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 204
         assert c.get(f"/v1/documents/jobs/{job['id']}").json()["status"] == "cancelled"
         assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 204  # again: still cancelled
@@ -407,7 +407,7 @@ def test_a_read_upload_or_someone_elses_cant_be_cancelled():
     with client(docs) as c:
         job = c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7"), "application/pdf")}).json()
         docs.jobs[job["id"]].status = "ready"
-        assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 409
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/jobs/{job['id']}")) == (409, "upload.already_read")
         docs.jobs[job["id"]].status, docs.jobs[job["id"]].owner = "queued", "someone-else"
         assert c.delete(f"/v1/documents/jobs/{job['id']}").status_code == 404
 
