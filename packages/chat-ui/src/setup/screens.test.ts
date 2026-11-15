@@ -99,12 +99,13 @@ describe("the rest", () => {
       expect(errorsFrom(new Refused({ _: problemOf(502, "<html>Bad Gateway</html>") }), t)._).toBe(t.errUnexpected);
     }
   });
-  it("has words in every language for every code of the registry's setup area, and for no code the registry doesn't list", () => {
-    const setup = Object.keys(REGISTRY.codes).filter((c) => c.startsWith("setup."));
-    expect(setup.length).toBeGreaterThan(20);
+  it("has words in every language for every code of the registry's setup and backup areas, and for no code the registry doesn't list", () => {
+    // its own area, and the backup service's: a restore meets those (suveryn-tracker#154)
+    const setup = Object.keys(REGISTRY.codes).filter((c) => c.startsWith("setup.") || c.startsWith("backup."));
+    expect(setup.length).toBeGreaterThan(30);
     for (const [lang, t] of Object.entries(TEXT)) {
       const worded = Object.keys(t.messages);
-      expect(worded.filter((c) => c.startsWith("setup.")).sort(), lang).toEqual([...setup].sort());
+      expect(worded.filter((c) => c.startsWith("setup.") || c.startsWith("backup.")).sort(), lang).toEqual([...setup].sort());
       for (const code of worded) {
         expect(REGISTRY.codes[code], `${lang} ${code}`).toBeTruthy();
         for (const params of [{ min: 15, step: "Database" }, {}]) {

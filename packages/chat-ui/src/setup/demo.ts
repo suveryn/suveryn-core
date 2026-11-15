@@ -12,6 +12,9 @@
 import type { BackupsAnswer, Manifest, Message, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
 import { refusal, Refused } from "./api";
 
+/** What the backup service refuses, by its own codes (`backup.wrong_key`). */
+const backupRefusal = (name: string): Message => ({ kind: "refused", code: `backup.${name}`, params: {} });
+
 const variant = (v: string) => typeof location !== "undefined" && location.hash.includes(v);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -42,8 +45,8 @@ function currentRestore(): RestoreProgress | null {
   const r = restore;
   if (!r) return null;
   if (r.state === "checking" && Date.now() - restoreAt > 2000) {
-    restore = variant("restore-wrong-key") ? { state: "failed", message: refusal("restore_wrong_key") }
-      : variant("no-backup") ? { state: "failed", message: refusal("restore_no_backup") } : { state: "checked", backup: BACKUP, choices: CHOICES };
+    restore = variant("restore-wrong-key") ? { state: "failed", message: backupRefusal("wrong_key") }
+      : variant("no-backup") ? { state: "failed", message: backupRefusal("none_found") } : { state: "checked", backup: BACKUP, choices: CHOICES };
   } else if (r.state === "restoring") {
     const done = Math.floor((Date.now() - restoreAt) / 1500);
     r.steps = RESTORE_STEPS.map((id, i) => ({ id, state: i < done ? "done" : i === done ? "running" : "waiting" }));
@@ -118,8 +121,8 @@ export async function answer(method: string, path: string, body?: unknown): Prom
     case "POST backups/test": {
       const address = String(b.address);
       const ok = b.protocol === "nfs" ? /^[\w.-]+:\/\S+$/.test(address) : /^(\\\\|\/\/)[\w.-]+[\\/]\S+$/.test(address);
-      if (!ok) return { ok: false, message: refusal("share_address") };
-      if (/fail/i.test(address)) return { ok: false, message: refusal("share_unreachable") };
+      if (!ok) return { ok: false, message: backupRefusal("share_address") };
+      if (/fail/i.test(address)) return { ok: false, message: backupRefusal("share_unreachable") };
       return { ok: true };
     }
     case "PUT answers/backups": { const { password: _p, ...rest } = b; void _p; answers.backups = rest as BackupsAnswer; return; }
@@ -128,9 +131,9 @@ export async function answer(method: string, path: string, body?: unknown): Prom
       progress = { state: "running", steps: [], outgoing: null };
       return structuredClone(current());
     case "PUT answers/restore": {
-      if (!/AGE-SECRET-KEY-1[0-9A-Z]{58}/.test(String(b.key))) throw new Refused({ key: refusal("key_invalid") });
+      if (!/AGE-SECRET-KEY-1[0-9A-Z]{58}/.test(String(b.key))) throw new Refused({ key: backupRefusal("not_a_key") });
       if (b.target === "share" && !/^(\\\\|\/\/)[\w.-]+[\\/]\S+$|^[\w.-]+:\/\S+$/.test(String(b.address))) {
-        throw new Refused({ address: refusal("share_address") });
+        throw new Refused({ address: backupRefusal("share_address") });
       }
       restoreAt = Date.now();
       restore = { state: "checking" };

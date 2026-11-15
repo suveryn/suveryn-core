@@ -3,6 +3,7 @@
  * wording; rules: docs/translations.md.
  */
 import type { Text } from "./en";
+import { backupMessages } from "../../i18n/backups/nl";
 import { LOCALES } from "../../i18n/languages";
 import { messagesIn } from "../../i18n/message";
 
@@ -282,13 +283,6 @@ const nl: Text = {
 
   // The backup service's own codes, worded for Administration › Backups, which shares this step's screen. They
   // move to the registry's `backup` area with the rest of that service's messages (docs/design/messages.md).
-  backupErrors: {
-    address: "Vul het adres in zoals \\\\server\\share (SMB) of server:/pad (NFS).",
-    unreachable: "De appliance kan deze gedeelde map niet bereiken. Controleer het adres en of de gedeelde map deze appliance toelaat.",
-    login: "De gedeelde map weigerde de gebruikersnaam of het wachtwoord.",
-    write: "Aangemeld, maar de appliance kan er niet schrijven.",
-    disk_gone: "Deze schijf is niet meer aangesloten. Kijk opnieuw.",
-  } as Record<string, string>,
 
   // What the appliance says as a code (suveryn-core's registry, suveryn_harness/messages.json, area `setup`;
   // docs/design/messages.md), worded for the setup's screens: a code's own words, else its kind's (messageKinds).
@@ -308,22 +302,16 @@ const nl: Text = {
     "setup.manifest_signature": "Dit manifest is niet ondertekend door Sūveryn Labs, of het werd na de ondertekening gewijzigd.",
     "setup.manifest_other_appliance": "Dit manifest is voor een andere appliance.",
     "setup.manifest_expired": "Dit manifest is verlopen.",
-    "setup.share_address": "Vul het adres in zoals \\\\server\\share (SMB) of server:/pad (NFS).",
-    "setup.share_unreachable": "De appliance kan deze gedeelde map niet bereiken. Controleer het adres en of de gedeelde map deze appliance toelaat.",
-    "setup.share_not_local": "Dit adres ligt niet op uw eigen netwerk.",
-    "setup.disk_gone": "Deze schijf is niet meer aangesloten. Kijk opnieuw.",
     "setup.not_answered": "Nog niet alle stappen zijn ingevuld. Ga terug en vul ze aan.",
     "setup.provisioning_started": "De inrichting is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om ze te volgen.",
-    "setup.key_invalid": "Dit is geen herstelsleutelbestand. Kies het .txt-bestand dat werd gemaakt toen de back-ups werden ingesteld.",
     "setup.restore_started": "Het terugzetten is al gestart, dus de antwoorden kunnen nu niet meer wijzigen. Laad deze pagina opnieuw om het te volgen.",
     "setup.not_checked": "De back-up is nog niet gecontroleerd. Ga terug en zoek hem opnieuw.",
-    "setup.restore_wrong_key": "De herstelsleutel opent deze back-up niet. Kies het sleutelbestand van de appliance die de back-up maakte.",
-    "setup.restore_no_backup": "Daar staat geen sūveryn-back-up. Controleer de schijf of het adres van de gedeelde map.",
-    "setup.restore_unreachable": "De appliance kon de back-ups niet bereiken. Controleer de schijf, of het adres, de gebruikersnaam en het wachtwoord van de gedeelde map.",
-    "setup.restore_damaged": "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet.",
-    "setup.restore_newer": "De nieuwste back-up daar is gemaakt door een nieuwere versie van sūveryn dan deze appliance heeft. Neem contact op met uw partner om deze appliance eerst bij te werken.",
-    "setup.restore_failed": "Het terugzetten stopte halverwege. Kies de herstelsleutel opnieuw en probeer het nog eens; stopt het weer, neem dan contact op met uw partner.",
     "setup.provisioning_failed": m("Ze stopte bij \"{step}\". Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw."),
+    // backups: the backup service's codes, worded as Administration words them (i18n/backups/), but for these, which a restore says its own way
+    ...backupMessages,
+    "backup.not_a_key": "Dit is geen herstelsleutelbestand. Kies het .txt-bestand dat werd gemaakt toen de back-ups werden ingesteld.",
+    "backup.wrong_key": "De herstelsleutel opent deze back-up niet. Kies het sleutelbestand van de appliance die de back-up maakte.",
+    "backup.target_unreachable": "De appliance kon de back-ups niet bereiken. Controleer de schijf, of het adres, de gebruikersnaam en het wachtwoord van de gedeelde map.",
     "request.invalid": "De antwoorden waren onvolledig. Vul ze opnieuw in.",
   },
   messagesBare: { "setup.provisioning_failed": "Ze stopte. Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw." },

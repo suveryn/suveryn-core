@@ -7,6 +7,7 @@
  * the website. What the server says arrives as a code and is worded here (messages), never in its English.
  */
 import type { ChatArea, ChatCode, MessageKind, Wording } from "../lib/messages";
+import { backupMessages } from "./backups/en";
 import { LOCALES } from "./languages";
 import { messagesIn } from "./message";
 
@@ -132,6 +133,12 @@ const en = {
     "calc.syntax": "The calculation couldn't be read.",
     "answer.document_gone": "A chosen document was deleted from the case in the meantime. Check the choice under Ask about.",
     "answer.model_unknown": "This model isn't on this appliance any more. Choose another one.",
+    ...backupMessages,
+    "clock.unavailable": "This system may not set its clock.",
+    "clock.synced": "A time server keeps the appliance's clock.",
+    "clock.busy": "The appliance is still busy with the last change to its clock. Try again in a moment.",
+    "clock.measurement_slow": "Measuring took too long to say how far off the clock is. Try again.",
+    "clock.out_of_range": "The difference is more than a year.",
   } satisfies Record<ChatCode, Wording>,
   messagesBare: {
     "document.page_coverage_low": "Ready to use. Some text on some pages may not have been read correctly, so check answers that rely on it against the original.",
@@ -926,7 +933,6 @@ const en = {
   backupsNever: "No backup has been made yet. The first one is made tonight.",
   backupStale: m("No backup for more than two days. The last one was made {when}.", "when"),
   backupFailed: m("The last backup failed ({when}). {why}", "when", "why"),
-  backupStep: { target: "The backup disk or share couldn't be reached.", database: "The database couldn't be read.", write: "The backup couldn't be written.", encrypt: "The backup couldn't be encrypted.", settings: "The backup settings aren't valid.", space: "The backup disk is full.", verify: "The backup disk didn't give back what was written (it may be failing).", link: "A link in the settings folder that a restore would refuse. Ask support.", other: "An unexpected error." },
   backupCount: m("{n, plural, one {# backup} other {# backups}}", "n"),
   backupCountOldest: m("{n, plural, one {# backup, the oldest from {oldest}} other {# backups, the oldest from {oldest}}}", "n", "oldest"),
   backupDisk: "Backup disk",
@@ -934,9 +940,6 @@ const en = {
   backupLastHeading: "Last backup",
   keyTestButton: "Test with the recovery key",
   keyTesting: "Testing; this can take a few minutes.",
-  keyTestFailed: "This key doesn't open the backup. Try another file.",
-  keyTestBroken: "The test didn't succeed: the newest backup couldn't be checked. Try again, or ask support.",
-  keyTestNotKey: "That isn't a sūveryn recovery key file.",
   backupAttention: { not_set_up: "Backups aren't set up.", stale: "There has been no backup for more than two days.", failing: "Last night's backup failed.", key_failed: "The last test of the recovery key failed.", key_due: "Test the recovery key: the appliance can't check it by itself." },
   backupAttentionOpen: "Open Backups",
   // Status, Needs attention (board B01): when the recovery key last opened a backup
@@ -1036,9 +1039,6 @@ const en = {
   clockSetting: "Setting…",
   clockSetDone: "Clock set.",
   clockSetFailed: m("Not set. {why}", "why"),
-  clockErrors: { synced: "A time server keeps it.", out_of_range: "The difference is more than a year.",
-                 not_allowed: "This system may not set its clock.",
-                 other: "Try again in a minute." } as Record<string, string>,
   notWorkingSince: m("Not working since {time}", "time"),
   nInProgress: m("{n, number} in progress", "n"),
   nWaiting: m("{n, number} waiting", "n"),

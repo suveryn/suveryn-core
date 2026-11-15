@@ -81,7 +81,7 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
     if (!keyFile) errors.key = t.errKeyFileMissing;
     if (Object.keys(errors).length) return errors;
     const key = await readText(keyFile!);
-    if (key === null) return { key: t.messages["setup.key_invalid"] };
+    if (key === null) return { key: t.messages["backup.not_a_key"] };
     return checkThenSave({}, async () => {
       result.current = (await saveRestore(target === "usb" ? { target, disk, key }
         : { target, protocol, address: address.trim(), ...(protocol === "smb" ? { user: user.trim(), password } : {}), key }));

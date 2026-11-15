@@ -715,9 +715,10 @@ export interface BackupStatus {
   retention_days?: number | null;
   last_attempt?: string | null;
   last_success: { at: string; size: number; on_target?: number | null; oldest?: string | null; disk?: string | null } | null;
-  last_error: { at: string; step: string; message: string } | null;
+  /** The last backup that failed: when, and why as a message of the registry (`backup.disk_full`), worded on the page. */
+  last_error: { at: string; failure: Message } | null;
   /** The administrator's last test of the recovery key: it opened the newest backup, every part there. */
-  key_test?: { at: string; ok: boolean; created?: string | null; step?: string | null; last_ok?: string | null } | null;
+  key_test?: { at: string; ok: boolean; created?: string | null; failure?: Message | null; last_ok?: string | null } | null;
   key_testing?: boolean;
   /** A backup is being made, since then. */
   running_since?: string | null;
@@ -738,7 +739,9 @@ type BackupRequest =
       password?: string | null; keep_password?: boolean; retention_days: BackupRetention; hour: number; recipient?: string };
 export type BackupDisk = { id: string; name: string; size_bytes: number };
 type BackupAnswer = {
-  id: string; pending: boolean; ok: boolean | null; error: string | null; errors: Record<string, string> | null;
+  id: string; pending: boolean; ok: boolean | null;
+  /** Why not, as messages of the registry: one for the request, or one per field of the form. */
+  failure: Message | null; fields: Record<string, Message> | null;
   disks: BackupDisk[] | null; key_changed: boolean | null;
 };
 
@@ -756,7 +759,7 @@ export async function askBackupService(body: BackupRequest, seconds = 60): Promi
     const answer = (await a.json()) as BackupAnswer;
     if (!answer.pending) return answer;
   }
-  throw new Error(t().backupServiceSilent);
+  throw new Error(messageText({ kind: "unavailable", code: "backup.unavailable" }, t()));
 }
 
 /** Administration › Status (docs/design/admin.md): the five checks, counts only. ``since``: when it was first seen
@@ -776,7 +779,7 @@ export async function getAdminStatus(): Promise<AdminStatus> {
 }
 
 /** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
-type ClockAnswer = { id: string; pending: boolean; ok: boolean | null; error: string | null; moved_ms: number | null };
+type ClockAnswer = { id: string; pending: boolean; ok: boolean | null; failure: Message | null; moved_ms: number | null };
 
 export async function setApplianceClock(measured: { offset_ms: number; rtt_ms: number }): Promise<ClockAnswer> {
   const r = await fetch("/v1/admin/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(measured) });

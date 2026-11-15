@@ -606,6 +606,145 @@
    "status": 422,
    "since": "0.2.0"
   },
+  "backup.unavailable": {
+   "kind": "unavailable",
+   "title": "The appliance's backup service can't be reached.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "backup.busy": {
+   "kind": "refused",
+   "title": "The backup service is still busy with the last request, or a key test is running.",
+   "status": 409,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "backup.share_address": {
+   "kind": "refused",
+   "title": "The share's address isn't `\\\\server\\share` (SMB) or `server:/path` (NFS).",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.share_not_local": {
+   "kind": "refused",
+   "title": "The share's server isn't on the office's own network.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.share_unreachable": {
+   "kind": "refused",
+   "title": "The appliance can't reach the share's server.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.share_login": {
+   "kind": "refused",
+   "title": "The share refused the user name or the password.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.share_write": {
+   "kind": "refused",
+   "title": "Signed in to the share, and the appliance can't write there.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.disk_gone": {
+   "kind": "refused",
+   "title": "The USB disk chosen isn't plugged in any more.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.not_a_key": {
+   "kind": "refused",
+   "title": "The file holds no recovery key.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "backup.wrong_key": {
+   "kind": "refused",
+   "title": "The recovery key doesn't open the backup.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.none_found": {
+   "kind": "refused",
+   "title": "There is no backup where the office said.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.damaged": {
+   "kind": "refused",
+   "title": "The backup is damaged, or isn't what was written.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.newer_version": {
+   "kind": "refused",
+   "title": "The backup was made by a newer version than this appliance has.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "backup.settings_invalid": {
+   "kind": "refused",
+   "title": "A backup couldn't start: its settings aren't valid (no target, no recovery key, a period or an hour that isn't one).",
+   "since": "0.2.0"
+  },
+  "backup.target_unreachable": {
+   "kind": "unavailable",
+   "title": "The disk or share with the backups can't be reached, or can't be written to.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "backup.disk_full": {
+   "kind": "unavailable",
+   "title": "The backup disk is full.",
+   "since": "0.2.0"
+  },
+  "backup.verify_failed": {
+   "kind": "unavailable",
+   "title": "The backup disk didn't give back what was written: it may be failing.",
+   "since": "0.2.0"
+  },
+  "backup.restore_failed": {
+   "kind": "unavailable",
+   "title": "The restore stopped partway; the restore log has the detail.",
+   "status": 503,
+   "since": "0.2.0"
+  },
+  "clock.unavailable": {
+   "kind": "unavailable",
+   "title": "The appliance's clock can't be set from here: its helper isn't there, or the system may not set its clock.",
+   "status": 503,
+   "since": "0.2.0"
+  },
+  "clock.synced": {
+   "kind": "refused",
+   "title": "A time server keeps the appliance's clock: it isn't set by hand.",
+   "status": 409,
+   "since": "0.2.0"
+  },
+  "clock.busy": {
+   "kind": "refused",
+   "title": "The appliance is still busy with the last change to its clock, or it was changed a moment ago.",
+   "status": 409,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "clock.measurement_slow": {
+   "kind": "refused",
+   "title": "The measurement took too long to say how far off the clock is.",
+   "status": 422,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "clock.out_of_range": {
+   "kind": "refused",
+   "title": "The difference is larger than the clock is set by here (more than a year).",
+   "since": "0.2.0"
+  },
   "setup.name_missing": {
    "kind": "refused",
    "title": "The administrator has no name.",
@@ -701,36 +840,6 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "setup.share_address": {
-   "kind": "refused",
-   "title": "The share's address isn't `\\\\server\\share` (SMB) or `server:/path` (NFS).",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.share_not_local": {
-   "kind": "refused",
-   "title": "The share's server isn't on the office's own network.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.share_unreachable": {
-   "kind": "refused",
-   "title": "The appliance can't reach the share's server.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.disk_gone": {
-   "kind": "refused",
-   "title": "The USB disk chosen isn't plugged in any more.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.key_invalid": {
-   "kind": "refused",
-   "title": "The file holds no recovery key.",
-   "status": 422,
-   "since": "0.2.0"
-  },
   "setup.not_answered": {
    "kind": "refused",
    "title": "Provisioning was asked for before every step was answered.",
@@ -753,44 +862,6 @@
    "kind": "refused",
    "title": "A restore was asked for before the backup was found and checked.",
    "status": 409,
-   "since": "0.2.0"
-  },
-  "setup.restore_wrong_key": {
-   "kind": "refused",
-   "title": "The recovery key doesn't open the backup.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.restore_no_backup": {
-   "kind": "refused",
-   "title": "There is no backup where the office said.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.restore_damaged": {
-   "kind": "refused",
-   "title": "The newest backup is damaged.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.restore_newer": {
-   "kind": "refused",
-   "title": "The newest backup was made by a newer version than this appliance has.",
-   "status": 422,
-   "since": "0.2.0"
-  },
-  "setup.restore_unreachable": {
-   "kind": "unavailable",
-   "title": "The appliance couldn't reach the disk or share with the backups.",
-   "status": 503,
-   "retry": true,
-   "since": "0.2.0"
-  },
-  "setup.restore_failed": {
-   "kind": "unavailable",
-   "title": "The restore stopped partway; the restore log has the detail.",
-   "status": 503,
-   "retry": true,
    "since": "0.2.0"
   },
   "setup.provisioning_failed": {

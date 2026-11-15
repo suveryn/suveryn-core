@@ -1,5 +1,6 @@
 /** French interface text: formal (vous). Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
+import { backupMessages } from "./backups/fr";
 import { LOCALES } from "./languages";
 import { messagesIn } from "./message";
 
@@ -121,6 +122,12 @@ const fr: Messages = {
     "calc.syntax": "Le calcul n'a pas pu être lu.",
     "answer.document_gone": "Un document choisi a entre-temps été supprimé du dossier. Vérifiez le choix sous Question sur.",
     "answer.model_unknown": "Ce modèle n'est plus sur cette appliance. Choisissez-en un autre.",
+    ...backupMessages,
+    "clock.unavailable": "Ce système n'a pas le droit de régler son horloge.",
+    "clock.synced": "Un serveur de temps maintient l'horloge de l'appliance à l'heure.",
+    "clock.busy": "L'appliance est encore occupée par le dernier changement de son horloge. Réessayez dans un instant.",
+    "clock.measurement_slow": "La mesure a pris trop de temps pour dire de combien l'horloge s'écarte. Réessayez.",
+    "clock.out_of_range": "L'écart dépasse un an.",
   },
   messagesBare: {
     "document.page_coverage_low": "Prêt à l'emploi. Une partie du texte sur certaines pages n'a peut-être pas été lue correctement ; vérifiez donc les réponses qui s'y appuient avec l'original.",
@@ -885,7 +892,6 @@ const fr: Messages = {
   backupsNever: "Aucune sauvegarde n'a encore été faite. La première est faite cette nuit.",
   backupStale: m("Aucune sauvegarde depuis plus de deux jours. La dernière date du {when}."),
   backupFailed: m("La dernière sauvegarde a échoué ({when}). {why}"),
-  backupStep: { target: "Le disque ou le partage de sauvegarde était inaccessible.", database: "La base de données n'a pas pu être lue.", write: "La sauvegarde n'a pas pu être écrite.", encrypt: "La sauvegarde n'a pas pu être chiffrée.", settings: "Les réglages de sauvegarde ne sont pas valides.", space: "Le disque de sauvegarde est plein.", verify: "Le disque de sauvegarde n'a pas rendu ce qui y a été écrit (il est peut-être défaillant).", link: "Un lien dans le dossier des réglages qu'une restauration refuserait. Contactez le support.", other: "Une erreur inattendue." },
   backupCount: m("{n, plural, one {# sauvegarde} other {# sauvegardes}}"),
   backupCountOldest: m("{n, plural, one {# sauvegarde, la plus ancienne du {oldest}} other {# sauvegardes, la plus ancienne du {oldest}}}"),
   backupDisk: "Disque de sauvegarde",
@@ -893,9 +899,6 @@ const fr: Messages = {
   backupLastHeading: "Dernière sauvegarde",
   keyTestButton: "Tester avec la clé de récupération",
   keyTesting: "Test en cours ; cela peut prendre quelques minutes.",
-  keyTestFailed: "Cette clé n'ouvre pas la sauvegarde. Essayez un autre fichier.",
-  keyTestBroken: "Le test n'a pas abouti : la sauvegarde la plus récente n'a pas pu être vérifiée. Réessayez ou contactez le support.",
-  keyTestNotKey: "Ce n'est pas un fichier de clé de récupération sūveryn.",
   backupAttention: { not_set_up: "Aucune sauvegarde n'est configurée.", stale: "Aucune sauvegarde depuis plus de deux jours.", failing: "La sauvegarde de cette nuit a échoué.", key_failed: "Le dernier test de la clé de récupération a échoué.", key_due: "Testez la clé de récupération : l'appliance ne peut pas le faire elle-même." },
   backupAttentionOpen: "Ouvrir les sauvegardes",
   keyNotTestedSince: m("Clé de récupération non testée depuis le {day}. Testez-la tous les trois mois."),
@@ -993,9 +996,6 @@ const fr: Messages = {
   clockSetting: "Réglage…",
   clockSetDone: "Horloge réglée.",
   clockSetFailed: m("Non réglée. {why}"),
-  clockErrors: { synced: "Un serveur de temps la maintient à l'heure.", out_of_range: "L'écart dépasse un an.",
-                 not_allowed: "Ce système n'a pas le droit de régler son horloge.",
-                 other: "Réessayez dans une minute." } as Record<string, string>,
   notWorkingSince: m("En panne depuis {time}"),
   nInProgress: m("{n, number} en cours"),
   nWaiting: m("{n, number} en attente"),

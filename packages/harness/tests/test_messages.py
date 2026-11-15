@@ -121,3 +121,15 @@ def test_an_unplanned_failure_gets_a_reference_and_its_place_never_its_message()
         ref, where = messages.unplanned(e)
     assert re.fullmatch(r"[2-9A-Z]{4}-[2-9A-Z]{4}", ref)
     assert where.startswith("test_messages.py:") and " read" in where and "Peeters" not in where
+
+
+def test_a_message_read_back_is_what_the_registry_has_today_and_nothing_else():
+    # from a store, or from one of the appliance's helpers, which read the same registry: nothing is translated
+    assert messages.stored({"code": "backup.wrong_key"}) == {"kind": "refused", "code": "backup.wrong_key", "params": {}}
+    assert messages.stored('{"kind": "warning", "code": "clock.synced", "params": {"x": 1}}') == {"kind": "refused", "code": "clock.synced", "params": {}}
+    assert messages.stored({"code": "system.internal", "params": {"ref": "7F3K-92QD", "more": "x"}})["params"] == {"ref": "7F3K-92QD"}
+    assert messages.stored(None) is None and messages.stored("") is None
+    # what isn't a message of the registry says that it failed and no more
+    internal = {"kind": "internal", "code": "system.internal", "params": {}}
+    assert messages.stored("interrupted") == internal and messages.stored({"code": "backup.made_up"}) == internal
+    assert messages.why(None) == internal and messages.why({"code": "backup.disk_full"})["kind"] == "unavailable"

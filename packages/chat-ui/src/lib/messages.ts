@@ -6,7 +6,8 @@
  * gets a sentence in the reader's language, and the server's English `title` and `detail` are never shown.
  *
  * Two screens word codes, each for its own reader: the chat (`src/i18n/<lang>.ts`: every code but the web setup's)
- * and the appliance's web setup (`src/setup/i18n/<lang>.ts`: the `setup` area, suveryn-tracker#141).
+ * and the appliance's web setup (`src/setup/i18n/<lang>.ts`: the `setup` area, suveryn-tracker#141). Both meet the
+ * backup service's codes; those are worded once, in `src/i18n/backups/<lang>.ts` (#154).
  */
 import registry from "../../../harness/src/suveryn_harness/messages.json";
 
@@ -14,6 +15,8 @@ export type MessageCode = keyof typeof registry.codes;
 export type MessageArea = (typeof registry.areas)[number];
 /** The codes only the appliance's web setup says, and the ones the chat can meet: every other. */
 export type SetupCode = Extract<MessageCode, `setup.${string}`>;
+/** The backup service's codes: Administration › Backups and the web setup (a restore) both meet them. */
+export type BackupCode = Extract<MessageCode, `backup.${string}`>;
 export type ChatCode = Exclude<MessageCode, SetupCode>;
 export type ChatArea = Exclude<MessageArea, "setup">;
 export type MessageKind = "refused" | "unavailable" | "internal" | "warning";

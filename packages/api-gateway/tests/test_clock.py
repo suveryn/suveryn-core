@@ -97,7 +97,7 @@ def test_an_administrator_sets_the_clock_to_their_pcs_time(setup, appliance, mon
     assert c.post("/v1/admin/clock", json=body, headers=admin).status_code == 409  # the last one is still there
     assert c.get(f"/v1/admin/clock/{rid}", headers=admin).json()["pending"]
     clock.RESULT.write_text(json.dumps({"id": rid, "kind": "set", "ok": True, "moved_ms": 95_000}))
-    assert c.get(f"/v1/admin/clock/{rid}", headers=admin).json() == {"id": rid, "pending": False, "ok": True, "error": None,
+    assert c.get(f"/v1/admin/clock/{rid}", headers=admin).json() == {"id": rid, "pending": False, "ok": True, "failure": None,
                                                                      "moved_ms": 95_000}
     c.get(f"/v1/admin/clock/{rid}", headers=admin)
     # VM regression 9c97d76, finding 5: "asked" at the request, and the appliance's answer once, not "set" before it acted

@@ -16,6 +16,7 @@ import {
 } from "../api";
 import { locale, useT } from "../i18n";
 import { sizeLabel } from "../lib/backups";
+import { messageText } from "../lib/messages";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../setup/recoveryKey";
 import { useText } from "../setup/i18n";
 import {
@@ -130,7 +131,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
     try {
       const a = await askBackupService({ kind: "test-share", protocol: form.protocol, address: form.address.trim(),
         ...(form.protocol === "smb" ? { user: form.user.trim() || null, password: form.password || null, keep_password: keepPassword } : {}) }, 60);
-      setTest(a.ok ? { state: "ok", for: shareKey } : { state: "failed", message: t.backupErrors[a.error ?? ""] ?? t.errUnexpected });
+      setTest(a.ok ? { state: "ok", for: shareKey } : { state: "failed", message: messageText(a.failure ?? { kind: "internal" }, m) });
     } catch (e) { setTest({ state: "failed", message: (e as Error).message }); }  // the test's own reason, not saving's
   };
 
@@ -176,8 +177,8 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
         ...(!saved && key ? { recipient: key.recipient } : {}),
       });
       if (a.ok) { setDone(true); setForm((f) => ({ ...f, password: "" })); onSaved(); }
-      else setErrors(Object.fromEntries(Object.entries(a.errors ?? { _: a.error ?? "" }).map(([field, code]) =>
-        [field, t.backupErrors[code] ?? t.errUnexpected])));
+      else setErrors(Object.fromEntries(Object.entries(a.fields ?? { _: a.failure ?? { kind: "internal" } }).map(([field, failure]) =>
+        [field, messageText(failure, m)])));
     } catch (e) { setErrors({ _: (e as Error).message }); } finally { setBusy(false); }
   };
 

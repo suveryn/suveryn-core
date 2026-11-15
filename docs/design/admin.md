@@ -28,7 +28,7 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 - *Needs attention*, only when something does, each with the button that fixes it. A key test with a file
   that isn't this appliance's recovery key says so on *Backups* only ("This key doesn't open the backup. Try
   another file."), with when the right key last passed; the key's state stays that last passing test, so one
-  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.step: key`, `last_ok`). A test that fails on the backup itself still does.
+  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.failure` is `backup.wrong_key`; `last_ok`). A test that fails on the backup itself still does.
 - *Is everything working?*: answering questions (the model), reading documents, signing in
   (Keycloak), keeping your data (the database), disk space. A teal check with "Working", or an ink cross
   with "Not working since 09:12" and what still works (39). Signing in asks Keycloak each time, not a copy read at

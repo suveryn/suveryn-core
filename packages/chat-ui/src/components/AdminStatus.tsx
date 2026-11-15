@@ -15,6 +15,7 @@ import { locale, useT } from "../i18n";
 import { dayLabel } from "../lib/conversations";
 import { whole } from "../lib/usage";
 import { backupAttentions, lastKeyTestOk, sizeLabel } from "../lib/backups";
+import { messageText, type Message } from "../lib/messages";
 import { measureClock, sendClock, type Measured } from "../lib/clock";
 import { Button, Dialog, InlineNotice, Notice } from "../ui";
 import type { AdminPage } from "./Admin";
@@ -189,20 +190,21 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
   const [busy, setBusy] = useState(false);
   const hms = (ms: number) => new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const now = Date.now();
-  const failed = (code: string | null) => ({ ok: false, text: m.clockSetFailed({ why: m.clockErrors[code ?? "other"] ?? m.clockErrors.other }) });
+  const failed = (why: string) => ({ ok: false, text: m.clockSetFailed({ why }) });
+  const said = (failure: Message) => failed(messageText(failure, m));
   const set = async () => {
     setBusy(true);
     try {
       const measured = await measureClock(); // again: the difference as it is now, not when the page opened
-      if (!measured) throw new Error("not measured");
+      if (!measured) { onOutcome(said({ kind: "refused", code: "clock.measurement_slow" })); return; }
       let answer = await setApplianceClock(measured);
       for (let i = 0; answer.pending && i < 30; i++) {
         await new Promise((r) => setTimeout(r, 1000));
         answer = await applianceClockAnswer(answer.id);
       }
-      onOutcome(answer.ok ? { ok: true, text: m.clockSetDone } : failed(answer.pending ? "other" : answer.error));
-    } catch {
-      onOutcome(failed("other"));
+      onOutcome(answer.ok ? { ok: true, text: m.clockSetDone } : said(answer.pending ? { kind: "refused", code: "clock.busy" } : answer.failure ?? { kind: "internal" }));
+    } catch (e) {
+      onOutcome(failed((e as Error).message));  // the server's code, worded (clock.synced, clock.unavailable)
     }
     setBusy(false);
     setOpen(false);
