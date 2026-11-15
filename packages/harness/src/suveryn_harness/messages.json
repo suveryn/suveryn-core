@@ -883,6 +883,11 @@
    },
    "since": "0.2.0"
   },
+  "network.name_invalid": {
+   "kind": "refused",
+   "title": "The appliance's name isn't one a network can use: letters, digits and hyphens, at most 63, not starting or ending with a hyphen.",
+   "since": "0.2.0"
+  },
   "network.port_missing": {
    "kind": "refused",
    "title": "The appliance has no Ethernet port to set up, or not the one named.",

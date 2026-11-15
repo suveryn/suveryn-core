@@ -177,7 +177,7 @@ calculation's reason. The gateway's 138 plain refusals moved area by area, and n
   itself (#158).
 - The appliance's console (its installer, and its screen after installation) says the registry's codes too
   (suveryn-tracker#160; the founder's decision of 15 November 2026): the areas `network` (a network setting it
-  refuses) and `bundle` (a bundle on the stick it can't trust), named for what they are about, since the installer
+  refuses, the appliance's name among them) and `bundle` (a bundle on the stick it can't trust), named for what they are about, since the installer
   and the installed appliance meet the same situations. An installation that stops on something nobody planned for
   is `system.internal` with a reference the installer's log has. Its words stay in suveryn-appliance's
   `installer-text.json`, the console's language file: the chat and the web setup don't word these two areas.
