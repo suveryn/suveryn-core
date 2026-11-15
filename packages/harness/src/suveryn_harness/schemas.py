@@ -271,7 +271,10 @@ class StreamError(BaseModel):
     """Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,
     document search is unavailable, or an unexpected server error occurred (reported generically)."""
 
-    message: str
-    # What failed, for the page to say in its own language (VM regression of 29 October, finding 14: the
-    # message is English and technical): "model", "documents", "document" or "server".
-    code: str | None = None
+    # What failed, as every message is said (docs/design/messages.md): a code of the registry with its kind and
+    # parameters, which the page words in the reader's language. An unplanned failure is ``system.internal`` with a
+    # reference. ``detail`` is English, for developers.
+    kind: str
+    code: str
+    params: dict = {}
+    detail: str = ""

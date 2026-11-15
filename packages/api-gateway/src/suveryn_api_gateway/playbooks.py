@@ -51,6 +51,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
 from suveryn_harness.language import load
+from suveryn_harness.messages import CODES, message
 from suveryn_playbooks import LANGUAGES, Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
@@ -157,7 +158,7 @@ class RunSummary(BaseModel):
     confirmed_by: str | None = None
     confirmed_at: datetime | None = None
     model: str | None = None
-    error: str | None = None
+    failure: dict | None = None  # why it failed: {kind, code, params}, a code of the registry (docs/design/messages.md)
     result_document_id: str | None = None
     out_of_date: bool = False
     step: str | None = None              # the step the run is on (None: not started, or ended)
@@ -375,6 +376,20 @@ WORDS = load(Path(__file__).parent / "lang")
 
 # ------------------------------------------------------------------------- the store
 
+def _failure(stored: str | None) -> dict | None:
+    """A run's stored failure as it is sent: ``{kind, code, params}``. A run that failed before failures were codes
+    (a bare word in the column) says it failed and no more: the page words that by its kind."""
+    if not stored:
+        return None
+    try:
+        failure = json.loads(stored)
+    except ValueError:
+        failure = None
+    if isinstance(failure, dict) and failure.get("code") in CODES:
+        return {"kind": CODES[failure["code"]].kind, "code": failure["code"], "params": failure.get("params") or {}}
+    return {"kind": "internal", "code": "system.internal", "params": {}}
+
+
 class RunStore(TurnStore):
     """Playbook runs, their facts and their thread in PostgreSQL; creates its tables on connect. The
     store decides nothing about rights: the gateway checks ``cases.may`` before anything is read or
@@ -466,7 +481,7 @@ class RunStore(TurnStore):
     def _summary(r) -> RunSummary:
         return RunSummary(id=str(r[0]), case_id=str(r[1]), playbook_id=r[2], playbook_version=r[3], status=r[4],
                           documents=[str(d) for d in r[5]], started_by=r[6], started_at=r[7], finished_at=r[8],
-                          confirmed_by=r[9], confirmed_at=r[10], model=r[11], error=r[12],
+                          confirmed_by=r[9], confirmed_at=r[10], model=r[11], failure=_failure(r[12]),
                           result_document_id=str(r[13]) if r[13] else None, out_of_date=r[14],
                           step=r[15], language=r[16], paused_by=r[17], paused_at=r[18], ended_by=r[19], ended_reason=r[20], starter=r[21],
                           conversation_id=str(r[22]))
@@ -496,19 +511,20 @@ class RunStore(TurnStore):
                       "(SELECT to_jsonb(array_agg(DISTINCT d)) FROM jsonb_array_elements_text(COALESCE(requested -> %s, '[]'::jsonb) || %s::jsonb) AS d))"
                       " WHERE id = %s", (step_id, step_id, json.dumps(documents), run_id))
 
-    def fail(self, run_id: uuid.UUID, error: str) -> None:
-        """The run couldn't go on; ``error`` is a kind, never text."""
+    def fail(self, run_id: uuid.UUID, failure: dict) -> None:
+        """The run couldn't go on. ``failure`` is a message of the registry (``suveryn_harness.messages.message``):
+        stored as its code and parameters, never as text, and worded by whoever reads it, in their language."""
         self._execute("UPDATE playbook_runs SET status = 'failed', error = %s, finished_at = now() WHERE id = %s AND status = 'reading'",
-                      (error, run_id))
+                      (json.dumps(failure), run_id))
 
     def interrupt(self, older_than_s: int = 0) -> int:
         """Runs still ``reading`` whose model call can no longer be running: ``failed``, error
-        ``interrupted``; how many. The call lives in the gateway's process (one per appliance), so at
+        ``run.interrupted``; how many. The call lives in the gateway's process (one per appliance), so at
         start-up every reading run is dead (``older_than_s`` 0), and the hourly sweep gives up on one
         that has been reading for longer than any model call takes."""
-        return self._execute("UPDATE playbook_runs SET status = 'failed', error = 'interrupted', finished_at = now()"
+        return self._execute("UPDATE playbook_runs SET status = 'failed', error = %s, finished_at = now()"
                              " WHERE status = 'reading' AND coalesce((steps -> step ->> 'at')::timestamptz, started_at)"
-                             " <= now() - make_interval(secs => %s)", (older_than_s,)).rowcount
+                             " <= now() - make_interval(secs => %s)", (json.dumps(message("run.interrupted")), older_than_s)).rowcount
 
     def pause(self, run_id: uuid.UUID, by: str) -> bool:
         return self._execute("UPDATE playbook_runs SET status = 'paused', paused_by = %s, paused_at = now()"

@@ -15,13 +15,12 @@ The page words the code in its reader's language and never shows ``title`` or ``
 from __future__ import annotations
 
 import logging
-import traceback
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from suveryn_harness.messages import Problem, loggable, message, problem, reference
+from suveryn_harness.messages import Problem, loggable, message, problem, unplanned
 
 log = logging.getLogger("suveryn.gateway")
 
@@ -70,12 +69,11 @@ def catch_all(app: FastAPI) -> None:
     middleware and nothing passes it."""
 
     @app.middleware("http")
-    async def unplanned(request: Request, call_next):
+    async def nobody_planned(request: Request, call_next):
         try:
             return await call_next(request)
         except Exception as exc:  # noqa: BLE001 - this is the one place everything unplanned ends
-            ref = reference()
-            where = " < ".join(f"{f.filename.rsplit('/', 1)[-1]}:{f.lineno} {f.name}" for f in reversed(traceback.extract_tb(exc.__traceback__)[-6:]))
+            ref, where = unplanned(exc)
             log.error("internal %s: %s %s: %s at %s", ref, request.method, request.url.path, type(exc).__name__, where)
             return answer("system.internal", ref=ref)
 

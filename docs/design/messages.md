@@ -110,8 +110,8 @@ calculation's reason. What remains is counted, and the count may only go down:
 - `api-gateway/tests/test_problems.py`, `PLAIN_REFUSALS`: the plain `HTTPException`s still in the gateway. A PR that
   moves an area lowers the number; a new refusal is a `Problem`.
   Moved so far: playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares
-  (#151), documents (#152): 138 down to 21. Still to move, each its own issue: answers (#153), backups, the clock,
-  Status and usage (#154).
+  (#151), documents (#152), answers (#153): 138 down to 14. Still to move: backups, the clock, Status and usage
+  (#154).
 - **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
   is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_confirms`).
   The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
@@ -135,9 +135,23 @@ calculation's reason. What remains is counted, and the count may only go down:
   words. A document stored before this keeps its status and shows no notes until it is read again.
 - **What only the page says isn't in the registry.** "This page lost track of the upload" is the page's own
   sentence (`uploadLost`), said when an upload's job is gone; the server never sends it.
-- Still under their own names, each its own issue: a run's stored `error`, the chat stream's `failure`, the answer's
-  checks (#153), backups and the clock (#154). The backup service's codes (`login`, `write`, `unreachable` …) are
-  worded for Administration › Backups from `backupErrors` in the setup's tables until then.
+- **An answer that fails says why as a message** (#153). The stream's `error` event is `{kind, code, params}`
+  (and `detail`, English): `system.model_unavailable`, `system.documents_unavailable`, `answer.document_gone`, or
+  `system.internal` with a reference. The page keeps the message with the turn, so a saved failure is worded again
+  in the reader's language of the day it is shown. "The connection closed before the answer was complete" is the
+  page's own sentence: the server never says it.
+- **A run that failed stores why as a message** (#153): `failure`, `{kind, code, params}`, kept as its code and
+  parameters (rule 6). By what the person can do: `system.model_unavailable`, `system.documents_unavailable` and
+  `run.interrupted` (a part was down: try again), `run.document_missing`, `run.unreadable_answer` and `run.busy`
+  (nothing could be read), `system.internal` with a reference (nobody planned for it).
+- **One code for one situation.** The model that can't be reached is `system.model_unavailable` wherever it is met:
+  asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere (asking answered 502).
+- **An unplanned failure is logged alike everywhere**: `suveryn_harness.messages.unplanned` gives the reference and
+  where the exception was raised, for an HTTP answer, a stream, a run and a reading. The log line has the
+  exception's type, never its message.
+- Still under their own names: the answer's checks, which are warnings (#157); backups and the clock (#154). The
+  backup service's codes (`login`, `write`, `unreachable` …) are worded for Administration › Backups from
+  `backupErrors` in the setup's tables until then.
 - The console installer is not a server and keeps its own text file (`installer-text.json`, its keys are its codes);
   its engine gives the screens a code, not an English sentence to recognise (suveryn-appliance, #141).
 - Status shows recent references to the administrator, with the support request: with the appliance's part.

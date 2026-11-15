@@ -79,15 +79,22 @@ def test_chat_stream_events(make_client):
     assert done["usage"]["completion_tokens"] == 3
 
 
-def test_chat_backend_error_is_502(make_client):
+def test_a_model_that_cant_be_reached_is_a_part_that_is_down(make_client):
+    # one code wherever the model fails (asking, a stream, a playbook's reading), and so one status: 503, as the
+    # decision of 12 November says of a part that is down (it was 502 here and 503 in a playbook)
     with make_client(fake_backend(chat_status=500)) as c:
-        assert c.post("/v1/chat", json=REQ).status_code == 502
+        r = c.post("/v1/chat", json=REQ)
+        assert (r.status_code, r.json()["kind"], r.json()["code"]) == (503, "unavailable", "system.model_unavailable")
 
 
 def test_stream_backend_error_event(make_client, caplog):
     with make_client(unreachable_backend()) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
         body = r.read().decode()
-    assert body.startswith("event: status") and body.rstrip().split("\n\n")[-1].startswith("event: error")
+    last = body.rstrip().split("\n\n")[-1]
+    assert body.startswith("event: status") and last.startswith("event: error")
+    # the event says it as every message is said: a code with its kind, for the page to word
+    said = json.loads(last.split("data: ", 1)[1])
+    assert (said["kind"], said["code"], said["params"]) == ("unavailable", "system.model_unavailable", {})
     # the log says what failed (round 4, finding 3), never what the model server said back
     assert any(r.getMessage().startswith("chat stream failed: model backend unreachable (") for r in caplog.records)
 

@@ -141,9 +141,10 @@ let signedOutHandler: () => void = () => {};
 export function onSignedOut(handler: () => void): void { signedOutHandler = handler; }
 
 /** A refused request: its sentence for the person, and the status, for a page that acts on it. */
-/** A streamed answer that failed: the words as of now, and the code, so a saved turn is worded again when shown. */
+/** A streamed answer that failed: the words as of now, and the message itself (its code, kind and values), so a
+ *  saved turn is worded again, in the reader's language of that day, when it is shown. */
 export class StreamFailure extends Error {
-  constructor(message: string, readonly code: string | null) { super(message); }
+  constructor(message: string, readonly failure: Message) { super(message); }
 }
 
 export class HttpError extends Error {
@@ -342,8 +343,7 @@ export async function streamChat(
   });
   if (!r.ok || !r.body) throw await responseError(r);
   let done: ChatResponse | null = null;
-  let failure: string | null = null;
-  let failureCode: string | null = null;
+  let failure: Message | null = null;
   const parser = createSSEParser(({ event, data }) => {
     const payload = JSON.parse(data);
     if (event === "status") onStatus?.(payload as StreamStatus);
@@ -352,12 +352,9 @@ export async function streamChat(
     else if (event === "delta") onDelta(payload.text);
     else if (event === "done") done = payload as ChatResponse;
     else if (event === "error") {
-      // The page's own words for what failed; the server's English detail only for a code it doesn't know.
-      const m = t();
-      const known: Record<string, string> = { model: m.streamErrorModel, documents: m.streamErrorDocuments,
-                                               document: m.streamErrorDocument, server: m.streamErrorServer };
-      failure = known[payload.code as string] ?? m.streamErrorServer;  // never the server's own English
-      failureCode = payload.code in known ? payload.code : null;
+      // What failed, as every message is said: a code with its kind and values (docs/design/messages.md), worded
+      // here; a code this page doesn't know gets its area's or its kind's words, never the server's English.
+      failure = { kind: payload.kind, code: payload.code, params: payload.params ?? {} };
     }
   });
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -366,7 +363,7 @@ export async function streamChat(
     if (finished) break;
     parser.feed(value);
   }
-  if (failure) throw new StreamFailure(failure, failureCode);
+  if (failure) throw new StreamFailure(messageText(failure, t()), failure);
   if (!done) throw new Error(t().streamCutOff);
   return done;
 }
@@ -925,7 +922,7 @@ export type RunTurn = { seq: number; role: "user" | "assistant" | "playbook"; st
 export type RunSummary = {
   id: string; case_id: string; playbook_id: string; playbook_version: string; status: RunStatus; documents: string[];
   started_by: string; started_at: string; finished_at: string | null; confirmed_by: string | null; confirmed_at: string | null;
-  model: string | null; error: string | null; result_document_id: string | null; out_of_date: boolean;
+  model: string | null; failure: Message | null; result_document_id: string | null; out_of_date: boolean;  // failure: why it failed, a code of the registry
   step: string | null;          // the step the run is on (null: not started, or ended)
   language: string;             // the thread's language
   paused_by: string | null; paused_at: string | null; ended_by: string | null; ended_reason: string | null;

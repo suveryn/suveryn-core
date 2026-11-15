@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import uuid
 from datetime import UTC
 
@@ -366,7 +367,11 @@ def test_unexpected_stream_error_is_generic_and_does_not_echo_content():
     with client(BrokenDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
         body = r.read().decode()
     assert body.startswith("event: status") and "412.500" not in body
-    assert body.rstrip().split("\n\n")[-1].startswith("event: error")
+    last = body.rstrip().split("\n\n")[-1]
+    assert last.startswith("event: error")
+    # nobody planned for it: internal, with a reference the log line has (and nothing of the exception's message)
+    said = json.loads(last.split("data: ", 1)[1])
+    assert (said["kind"], said["code"]) == ("internal", "system.internal") and re.fullmatch(r"[2-9A-Z]{4}-[2-9A-Z]{4}", said["params"]["ref"])
 
 
 class UnreachableDatabase(FakeDocuments):

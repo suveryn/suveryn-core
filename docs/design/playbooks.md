@@ -251,7 +251,7 @@ llama-server holds the model to it by grammar, so the answer has every fact as a
 construction; a fact is never taken by position. The harness reads the object, keeps the citations
 per value and runs the check. An answer that still isn't the object (a server without grammar
 support, a model that ignored it) is asked for once more with a stricter reminder; then the run
-fails with `error: unreadable_answer` and can be started again. Starting a run, or answering the request
+fails with `run.unreadable_answer` (its `failure`, a message of the registry) and can be started again. Starting a run, or answering the request
 its read waits on, counts against the caller's chat rate limit (it is a model call). A run still
 `reading` when the gateway stops is failed as `interrupted` at the next start, and the hourly
 sweep fails one that has been reading for over thirty minutes, so nobody waits on a spinner for a
