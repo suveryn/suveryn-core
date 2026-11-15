@@ -57,7 +57,7 @@ describe("an upload the server no longer knows (audit of 4 November 2026, findin
     expect(en.uploadLost).toMatch(/lost track.*add it again/);
     // a reading that crashed says so with its reference, as any unplanned failure does
     expect(failureText(en, { kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } })).toMatch(/reference: 7F3K-92QD\.$/);
-    expect(failureText(en, { kind: "refused", code: "document.password" })).toBe(en.messages["document.password"]);
+    expect(failureText(en, { kind: "refused", code: "document.password_protected" })).toBe(en.messages["document.password_protected"]);
   });
 });
 

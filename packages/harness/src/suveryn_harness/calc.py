@@ -43,7 +43,7 @@ class CalcError(ValueError):
     the registry of messages (``messages.json``, ``calc.*``), which the screen words in its reader's language; the
     message is English, for developers."""
 
-    def __init__(self, message: str, code: str = "calc.syntax"):
+    def __init__(self, message: str, code: str = "calc.unreadable"):
         super().__init__(message)
         self.code = msg(code)["code"]  # a listed code, or a programming error
 
@@ -60,7 +60,7 @@ def _decimal_separator(figures: list[str]) -> str | None:
         if any(re.search(rf"\{sep}\d{{1,2}}$", f) or f.count(other) > 1 for f in figures):
             return sep
     if any(re.search(r"[.,]\d{3}$", f) or re.search(r"[.,]\d{4,}$", f) for f in figures):
-        raise AmbiguousSeparator("the figures don't show which separator is the decimal one", "calc.decimal_separator")
+        raise AmbiguousSeparator("the figures don't show which separator is the decimal one", "calc.decimal_separator_unclear")
     return None
 
 
@@ -83,7 +83,7 @@ def _check_style(figure: str, sep: str | None) -> None:
     group = re.escape(("." if sep == "," else ",") if sep else "") + GROUPING_SPACES
     decimals = rf"(?:{re.escape(sep)}\d+)?" if sep else ""
     if not re.fullmatch(rf"\d+{decimals}|\d{{1,3}}(?:[{group}]\d{{3}})+{decimals}", figure):
-        raise CalcError(f"{figure} doesn't match the number style of the other figures", "calc.number_style")
+        raise CalcError(f"{figure} doesn't match the number style of the other figures", "calc.number_styles_mixed")
 
 
 def _to_decimal(figure: str, sep: str | None) -> Decimal:
@@ -233,7 +233,7 @@ def _as_the_documents_write(expression: str, default_sep: str | None,
                             written: list[tuple[str, str | None]]) -> tuple[str, list[str], list[str]]:
     """A figure that reads either way, read in the style of the documents that write it: every such figure must be
     in a passage and the documents writing them must agree on one style. Raises when that doesn't settle it."""
-    unsettled = AmbiguousSeparator("the figures don't show which separator is the decimal one", "calc.decimal_separator")
+    unsettled = AmbiguousSeparator("the figures don't show which separator is the decimal one", "calc.decimal_separator_unclear")
     ambiguous = [f for f in re.findall(NUMBER.pattern, expression) if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d{4,}", f)]
     styles: set[str] = set()
     for f in ambiguous:

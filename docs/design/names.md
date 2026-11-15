@@ -6,13 +6,14 @@ wrong or needs checking; [messages.md](messages.md)). A code's name is permanent
 isn't yet (*Released*, below). The founder's decision of 15 November 2026, after independent reviews
 (suveryn-tracker#159, #161, #162).
 
-**Where it stands.** The operations follow this convention since #161. The codes are renamed to it in #162: until
-that is merged, the registry still has names from before it.
+**Where it stands.** The operations follow this convention since #161, the codes since #162 (53 of the 138 were
+renamed, and the areas `model` and `account` added).
 
 **Released.** A code is released when it is in a core that an appliance leaving Sūveryn Labs pins, a pilot
 included. A released code is never renamed and never removed: codes are stored (a document that couldn't be read,
-a run that failed), so an old case and a restored older backup must still be read. The list of released codes and
-its test come with #162.
+a run that failed), so an old case and a restored older backup must still be read. `packages/harness/src/suveryn_harness/messages-released.json` lists the released codes, and a test fails when
+one of them is no longer in the registry. It is added to in the change in core that an appliance leaving Sūveryn
+Labs is to pin: `uv run python -m suveryn_harness.released`. Nothing is released yet.
 
 An operation's name is not frozen. It is stored nowhere, and the chat UI is built from the same commit as the
 gateway, so a rename reaches both at once (the founder's decision of 15 November 2026). That changes the day
@@ -25,7 +26,7 @@ appliance is pinned to one core commit and calls the gateway by address (its web
 doesn't reach it at once, and for the streaming rules it wouldn't even fail: it would silently stop streaming. An
 address changes in both repositories together.
 
-**What a test can't check.** For operations, tests stop a verb that doesn't fit what the request does (a read named as a change, a delete not named as one), and an old word (`avatar`, `job`) (`tests/test_description.py`); for codes, the test that stops a banned ending comes with #162. Whether
+**What a test can't check.** For operations, tests stop a verb that doesn't fit what the request does (a read named as a change, a delete not named as one), and an old word (`avatar`, `job`) (`tests/test_description.py`); for codes, a test stops a banned word and an ending that isn't on the list. Whether
 a name is true, says what it is about, and is in the right area or group is read from the code that says it, by
 whoever reviews the change.
 
@@ -74,7 +75,7 @@ whoever reviews the change.
 
 - **Eleven codes state a fact in words of their own**: `case.single_manager`, `case.strictly_confidential`, `conversation.in_case`, `account.last_administrator`, `account.own_account`, `account.manages_cases`, `calc.division_by_zero`, `document.instruction_like_text`, `setup.password_common`, `setup.password_personal`, `setup.manifest_other_appliance`.
 - **The seven general codes** of the `request` area keep the names of the web's own statuses.
-- **What will enforce it (with #162).** A test: a code ends in a listed ending or is one of the eleven; a new ending is added on purpose in the same change; banned words fail (`too_big`, `none_found`, anything ending in `_first`); a released code that disappears or changes fails. The test stops banned words and lost codes. Whether a name is **true**, says **what**, and is in the **right area** is checked by the reviewer, who reads the code that says it: no test can.
+- **What enforces it.** A test (`packages/harness/tests/test_messages.py`, which holds the list of endings): a code ends in a listed ending or is one of the eleven; a new ending is added on purpose in the same change; banned words fail (`too_big`, `none_found`, anything ending in `_first`); a released code that is no longer in the registry fails. The test stops banned words and lost codes. Whether a name is **true**, says **what**, and is in the **right area** is checked by the reviewer, who reads the code that says it: no test can.
 
 ## The convention for operations
 

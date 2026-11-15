@@ -734,7 +734,7 @@ def test_a_case_isnt_deleted_while_a_store_it_is_in_cant_be_reached(office):
         raise OSError("no database")
 
     c.app.state.history = Database("conversations", connect=unreachable)
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}", headers=alice)) == (503, "case.not_deleted")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}", headers=alice)) == (503, "case.deletion_failed")
     assert in_case in docs.docs and uuid.UUID(cid) in cases.cases  # nothing deleted
     c.app.state.history = Database("conversations", store=history)
     assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 204
@@ -877,7 +877,7 @@ def test_the_manager_adds_colleagues_from_the_directory_with_a_role(office):
     r = c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
     assert r.status_code == 200 and r.json()["name"] == "Bob Janssens" and r.json()["role"] == "reader"
     assert c.put(f"/v1/cases/{cid}/members/nobody-sub", json={"role": "reader"}, headers=alice).status_code == 404
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "manager"}, headers=alice)) == (422, "case.hand_over_first")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "manager"}, headers=alice)) == (422, "case.single_manager")
     # Bob reads, doesn't contribute; a role change makes him a contributor
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
@@ -892,10 +892,10 @@ def test_the_manager_adds_colleagues_from_the_directory_with_a_role(office):
     assert c.post("/v1/chat", json=ask, headers=bob).status_code == 200
     # a contributor can't change members, and a reader can't see the log
     assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=bob)) == (403, "case.not_allowed")
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}/events", headers=bob)) == (403, "case.manager_only")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}/events", headers=bob)) == (403, "case.manager_or_administrator_only")
     # members see the list; removal; the manager can't be removed
     assert [m["user"] for m in c.get(f"/v1/cases/{cid}/members", headers=bob).json()] == [ALICE, BOB]
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}/members/{ALICE}", headers=alice)) == (422, "case.hand_over_first")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/cases/{cid}/members/{ALICE}", headers=alice)) == (422, "case.single_manager")
     assert c.delete(f"/v1/cases/{cid}/members/{BOB}", headers=alice).status_code == 204
     assert c.delete(f"/v1/cases/{cid}/members/{BOB}", headers=alice).status_code == 404
     assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=bob)) == (404, "case.not_found")
@@ -911,7 +911,7 @@ def test_handover_by_the_manager_or_an_administrator_keeps_one_manager(office):
     assert r.status_code == 200 and r.json()["manager"] == BOB and r.json()["my_role"] == "contributor"
     roles = {m["user"]: m["role"] for m in c.get(f"/v1/cases/{cid}/members", headers=alice).json()}
     assert roles == {BOB: "manager", ALICE: "contributor"}
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/handover", json={"user": ALICE}, headers=alice)) == (403, "case.manager_only")  # no longer manages
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/handover", json={"user": ALICE}, headers=alice)) == (403, "case.manager_or_administrator_only")  # no longer manages
     # an administrator hands it over without being a member (decision 6), to someone in the directory
     assert c.post(f"/v1/cases/{cid}/handover", json={"user": "nobody-sub"}, headers=admin).status_code == 404
     r = c.post(f"/v1/cases/{cid}/handover", json={"user": CARLA}, headers=admin)

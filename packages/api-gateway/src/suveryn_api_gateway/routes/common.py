@@ -160,9 +160,9 @@ async def remember_user(request: Request) -> None:
 def docs_or_503(request: Request):
     docs = request.app.state.documents
     if docs is None:
-        raise Problem("system.documents_unavailable", "Document handling is not available on this server.")
+        raise Problem("document.unavailable", "Document handling is not available on this server.")
     if docs.state != "ready":
-        raise Problem("system.documents_unavailable", f"Document handling is {docs.state}." + (f" {docs.error}" if docs.error else ""))
+        raise Problem("document.unavailable", f"Document handling is {docs.state}." + (f" {docs.error}" if docs.error else ""))
     return docs
 
 

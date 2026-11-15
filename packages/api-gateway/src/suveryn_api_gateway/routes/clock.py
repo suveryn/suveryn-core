@@ -59,7 +59,7 @@ async def create_clock_request(body: Measured, request: Request):
     confirmation that shows both times). The answer comes at ``GET /v1/admin/clock/{id}``."""
     admin_or_403(request)
     if body.rtt_ms > clock_module.MAX_RTT_MS:
-        raise Problem("clock.measurement_slow", "The measurement took too long to say how far off the clock is; try again.")
+        raise Problem("clock.measurement_too_slow", "The measurement took too long to say how far off the clock is; try again.")
     if request.app.state.clock.synced():
         raise Problem("clock.synced", "A time server keeps the appliance's clock.")
     if not clock_module.REQUESTS.is_dir():

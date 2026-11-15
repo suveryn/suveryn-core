@@ -45,7 +45,7 @@ MIN_MISSING_WORDS = 3      # ignore tiny shortfalls (hyphenation, stray OCR mark
 
 
 # The notes a reading can leave: each is ``document.<kind>``, a warning of the registry (a test holds them together).
-KINDS = ("text_recovered", "furniture_restored", "text_layer_recovered", "page_coverage_low", "instruction_like_text", "layout_failed")
+KINDS = ("text_recovered", "header_footer_recovered", "text_layer_recovered", "page_coverage_low", "instruction_like_text", "layout_failed")
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ class IntegrityWarning:
     """Something a reviewer of the document should know: where, what kind, and a text-free detail."""
 
     page: int | None
-    kind: str     # "text_recovered" | "furniture_restored" | "text_layer_recovered" | "page_coverage_low"
+    kind: str     # "text_recovered" | "header_footer_recovered" | "text_layer_recovered" | "page_coverage_low"
                   # | "instruction_like_text" (text addressed to an AI; pipeline.py, suveryn-tracker#21)
                   # | "layout_failed" (Docling couldn't read the page; pipeline.py)
     detail: str

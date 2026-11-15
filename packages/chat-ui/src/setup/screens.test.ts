@@ -88,7 +88,7 @@ describe("the rest", () => {
     const t = TEXT.nl;
     expect(errorsFrom(new Refused({ key: refusal("key_mismatch"), _: refusal("something_new") }), t))
       .toEqual({ key: t.messages["setup.key_mismatch"], _: t.errUnexpected });
-    expect(errorsFrom(new Refused({ password: refusal("password_short", { min: 15 }) }), t).password).toContain("15");
+    expect(errorsFrom(new Refused({ password: refusal("password_too_short", { min: 15 }) }), t).password).toContain("15");
     expect(errorsFrom(new TypeError("Failed to fetch"), t)).toEqual({ _: t.errUnexpected });
   });
   it("gives a failure nobody planned for its reference, never a status number (suveryn-tracker#141)", () => {

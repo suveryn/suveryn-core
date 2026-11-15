@@ -196,7 +196,7 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
     setBusy(true);
     try {
       const measured = await measureClock(); // again: the difference as it is now, not when the page opened
-      if (!measured) { onOutcome(said({ kind: "refused", code: "clock.measurement_slow" })); return; }
+      if (!measured) { onOutcome(said({ kind: "refused", code: "clock.measurement_too_slow" })); return; }
       let answer = await setApplianceClock(measured);
       for (let i = 0; answer.pending && i < 30; i++) {
         await new Promise((r) => setTimeout(r, 1000));

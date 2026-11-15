@@ -387,7 +387,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     @app.exception_handler(SearchUnavailable)
     async def search_unavailable(request: Request, exc: SearchUnavailable):
         # which part is down: the database, or document handling itself (the exception's own code)
-        return problems.answer(getattr(exc, "code", "system.documents_unavailable"), str(exc))
+        return problems.answer(getattr(exc, "code", "document.unavailable"), str(exc))
 
     @app.exception_handler(psycopg.OperationalError)
     async def database_unavailable(request: Request, exc: psycopg.OperationalError):
@@ -408,9 +408,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         holds = await directory.holds_admin(owner_of(request)) if directory is not None and hasattr(directory, "holds_admin") else None
         if holds is False:
             log.info("accounts: an administrator's rights were removed meanwhile")
-            return problems.answer("user.rights_removed", "Your administrator rights were removed meanwhile.")
+            return problems.answer("account.rights_removed", "Your administrator rights were removed meanwhile.")
         log.warning("accounts: %s", exc)
-        return problems.answer("user.rights_refused", str(exc))
+        return problems.answer("account.administrator_rights_refused", str(exc))
 
     @app.exception_handler(AuthUnavailable)
     async def auth_unavailable(request: Request, exc: AuthUnavailable):

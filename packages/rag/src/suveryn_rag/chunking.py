@@ -26,7 +26,7 @@ class Chunk:
     page_start: int | None
     page_end: int | None
     headings: list[str]
-    origin: str = "chunker"  # "chunker", or "text_recovered" / "furniture_restored" / "text_layer_recovered" (see integrity)
+    origin: str = "chunker"  # "chunker", or "text_recovered" / "header_footer_recovered" / "text_layer_recovered" (see integrity)
     place: str | None = None  # a spreadsheet passage's cells, e.g. "Prices!A2:D31" (formats)
 
 
@@ -117,7 +117,7 @@ class Chunker:
         furniture = [(_page(it), it.text) for it, _ in document.iterate_items(included_content_layers={ContentLayer.FURNITURE})
                      if getattr(it, "text", None) and _page(it) is not None]
         dropped, restored = split_furniture(furniture, max(len(page_texts), 1))
-        leftovers += [(p, t, "furniture_restored") for p, t in restored]
+        leftovers += [(p, t, "header_footer_recovered") for p, t in restored]
 
         warnings: list[IntegrityWarning] = []
         for page, text, kind in leftovers:

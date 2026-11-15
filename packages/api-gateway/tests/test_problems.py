@@ -83,7 +83,7 @@ def test_documents_that_cant_be_reached_say_which_part_is_down():
     with TestClient(an_app()) as c:
         assert c.get("/v1/test/documents/database").json()["code"] == "system.database_unavailable"
         r = c.get("/v1/test/documents/embedder")
-        assert (r.status_code, r.json()["code"], r.json()["kind"]) == (503, "system.documents_unavailable", "unavailable")
+        assert (r.status_code, r.json()["code"], r.json()["kind"]) == (503, "document.unavailable", "unavailable")
 
 
 def test_no_refusal_is_a_plain_sentence():

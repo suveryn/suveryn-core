@@ -12,7 +12,7 @@
 import type { BackupsAnswer, Manifest, Message, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
 import { refusal, Refused } from "./api";
 
-/** What the backup service refuses, by its own codes (`backup.wrong_key`). */
+/** What the backup service refuses, by its own codes (`backup.key_mismatch`). */
 const backupRefusal = (name: string): Message => ({ kind: "refused", code: `backup.${name}`, params: {} });
 
 const variant = (v: string) => typeof location !== "undefined" && location.hash.includes(v);
@@ -45,8 +45,8 @@ function currentRestore(): RestoreProgress | null {
   const r = restore;
   if (!r) return null;
   if (r.state === "checking" && Date.now() - restoreAt > 2000) {
-    restore = variant("restore-wrong-key") ? { state: "failed", message: backupRefusal("wrong_key") }
-      : variant("no-backup") ? { state: "failed", message: backupRefusal("none_found") } : { state: "checked", backup: BACKUP, choices: CHOICES };
+    restore = variant("restore-wrong-key") ? { state: "failed", message: backupRefusal("key_mismatch") }
+      : variant("no-backup") ? { state: "failed", message: backupRefusal("not_found") } : { state: "checked", backup: BACKUP, choices: CHOICES };
   } else if (r.state === "restoring") {
     const done = Math.floor((Date.now() - restoreAt) / 1500);
     r.steps = RESTORE_STEPS.map((id, i) => ({ id, state: i < done ? "done" : i === done ? "running" : "waiting" }));
@@ -114,14 +114,14 @@ export async function answer(method: string, path: string, body?: unknown): Prom
     }
     case "POST manifest": {
       const f = body as File;
-      if (!/\.ya?ml$/i.test(f.name ?? "")) throw new Refused({ _: refusal("manifest_format") });
+      if (!/\.ya?ml$/i.test(f.name ?? "")) throw new Refused({ _: refusal("not_a_manifest") });
       return (answers.support = manifest());
     }
     case "PUT answers/support": answers.support = null; return;
     case "POST backups/test": {
       const address = String(b.address);
       const ok = b.protocol === "nfs" ? /^[\w.-]+:\/\S+$/.test(address) : /^(\\\\|\/\/)[\w.-]+[\\/]\S+$/.test(address);
-      if (!ok) return { ok: false, message: backupRefusal("share_address") };
+      if (!ok) return { ok: false, message: backupRefusal("share_address_invalid") };
       if (/fail/i.test(address)) return { ok: false, message: backupRefusal("share_unreachable") };
       return { ok: true };
     }
@@ -133,14 +133,14 @@ export async function answer(method: string, path: string, body?: unknown): Prom
     case "PUT answers/restore": {
       if (!/AGE-SECRET-KEY-1[0-9A-Z]{58}/.test(String(b.key))) throw new Refused({ key: backupRefusal("not_a_key") });
       if (b.target === "share" && !/^(\\\\|\/\/)[\w.-]+[\\/]\S+$|^[\w.-]+:\/\S+$/.test(String(b.address))) {
-        throw new Refused({ address: backupRefusal("share_address") });
+        throw new Refused({ address: backupRefusal("share_address_invalid") });
       }
       restoreAt = Date.now();
       restore = { state: "checking" };
       return currentRestore();
     }
     case "POST restore/start":
-      if (restore?.state !== "checked") throw new Refused({ _: refusal("not_checked") });
+      if (restore?.state !== "checked") throw new Refused({ _: refusal("backup_not_checked") });
       if (b?.file !== undefined && !CHOICES.some((c) => c.file === b.file)) throw new Refused({ file: { kind: "refused", code: "request.invalid" } });
       restoreAt = Date.now();
       restore = { ...restore, backup: CHOICES.find((c) => c.file === b?.file) ?? BACKUP, state: "restoring",

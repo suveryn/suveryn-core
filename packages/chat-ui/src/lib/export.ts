@@ -94,7 +94,7 @@ export function citationIssueText(i: CitationIssue, text: Messages): string {
 export function checkLines(calculations: Calculation[], unverified: string[], issues: CitationIssue[], text: Messages): string[] {
   const lines: string[] = [];
   for (const c of calculations) {
-    lines.push(c.result === null ? text.calcFailed({ expression: c.expression, why: messageText({ kind: "warning", code: c.code ?? "calc.syntax" }, text) })
+    lines.push(c.result === null ? text.calcFailed({ expression: c.expression, why: messageText({ kind: "warning", code: c.code ?? "calc.unreadable" }, text) })
       : `${text.calculatedBy} ${c.expression} = ${c.result}.${c.figures_not_in_sources.length ? ` ${text.calcMissing(figuresOf(c.figures_not_in_sources, text))}` : ""}`);
   }
   if (unverified.length) lines.push(text.unverified(figuresOf(unverified, text)));

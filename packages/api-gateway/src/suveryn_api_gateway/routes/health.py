@@ -90,4 +90,4 @@ async def list_models(request: Request):
     try:
         return await llm.list_models()
     except BackendError as e:
-        raise Problem("system.model_unavailable", str(e)) from e
+        raise Problem("model.unavailable", str(e)) from e

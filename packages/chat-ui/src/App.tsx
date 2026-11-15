@@ -610,7 +610,7 @@ function Chat({ me }: { me: Me }) {
       } else if (kind === "maybeDeleted" && (now = await documentsNow()) && (next = afterDeletion(docIds, chosen.size, now))) {
         // A colleague deleted one of the case's documents since this page read the list (lib/questionDocuments.ts).
         if (next === "retry") retryWith = now;
-        else update({ text: "", status: "error", error: m.messages["answer.document_gone"], failure: { kind: "refused", code: "answer.document_gone" } });
+        else update({ text: "", status: "error", error: m.messages["answer.document_not_found"], failure: { kind: "refused", code: "answer.document_not_found" } });
       } else {
         // Gateway contract: after an error, discard any partial answer.
         update({ text: "", status: "error", error: (e as Error).message,

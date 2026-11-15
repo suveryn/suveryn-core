@@ -24,9 +24,9 @@ describe("the files sūveryn reads", () => {
 
   it("says which files can be added when one can't, in the interface's language", () => {
     setLang("en", false);
-    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported_type" })).toBe("This file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip.");
+    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported" })).toBe("This file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip.");
     setLang("fr", false);
-    expect(httpErrorText(415, { kind: "refused", code: "upload.invalid" })).toMatch(/^Le contenu de ce fichier ne correspond pas à son type/);
+    expect(httpErrorText(415, { kind: "refused", code: "upload.content_mismatch" })).toMatch(/^Le contenu de ce fichier ne correspond pas à son type/);
     setLang("en", false);
   });
 
@@ -37,11 +37,11 @@ describe("the files sūveryn reads", () => {
     const refused = (code: string, params = {}) => ({ kind: "refused", code, params, detail: "English, for developers" });
     expect(httpErrorText(413, refused("upload.too_large"))).toBe("Het bestand is groter dan de server aanvaardt.");
     expect(httpErrorText(415, refused("upload.archive_empty"))).toBe(TEXT.nl.messages["upload.archive_empty"]);
-    expect(httpErrorText(413, refused("upload.archive_too_big"))).toBe(TEXT.nl.messages["upload.archive_too_big"]);
-    expect(httpErrorText(415, refused("upload.not_zip"))).toBe(TEXT.nl.messages["upload.not_zip"]);
-    expect(httpErrorText(429, refused("upload.queue_full"))).toBe(TEXT.nl.messages["upload.queue_full"]);
+    expect(httpErrorText(413, refused("upload.archive_too_large"))).toBe(TEXT.nl.messages["upload.archive_too_large"]);
+    expect(httpErrorText(415, refused("upload.not_a_zip"))).toBe(TEXT.nl.messages["upload.not_a_zip"]);
+    expect(httpErrorText(429, refused("upload.too_many"))).toBe(TEXT.nl.messages["upload.too_many"]);
     expect(httpErrorText(429, refused("request.too_many", { seconds: 30 }))).toMatch(/30 seconden/);
-    expect(httpErrorText(429, refused("run.busy"))).toBe(TEXT.nl.messages["run.busy"]);
+    expect(httpErrorText(429, refused("run.too_many"))).toBe(TEXT.nl.messages["run.too_many"]);
     expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.messages["request.unsupported"]);  // the words alone mean nothing here
     setLang("en", false);
     for (const t of Object.values(TEXT)) {

@@ -260,10 +260,10 @@ def test_a_cancelled_document_stops_the_reader_at_once_and_the_next_one_is_read(
 def test_a_reason_comes_with_its_code_and_numbers(reader, tmp_path):
     with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("locked.pdf"))
-    assert e.value.code == "password" and "password" in str(e.value)
+    assert e.value.code == "password_protected" and "password" in str(e.value)
     with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("big.pdf"))
-    assert e.value.code == "too_many_pages" and e.value.detail == {"pages": 900, "max": 500}
+    assert e.value.code == "pages_too_many" and e.value.detail == {"pages": 900, "max": 500}
     with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("fails.pdf"))
     assert e.value.code == "unreadable"  # no code from the reader: the generic one

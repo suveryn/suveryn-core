@@ -336,7 +336,7 @@ def test_upload_rejects_other_file_types():
         assert not uploads.exists() or not any(uploads.iterdir())  # the rejected upload is not left behind
         r = c.post("/v1/documents", files={"file": ("renamed.docx", io.BytesIO(b"%PDF-1.7"), "application/pdf")})
         assert r.status_code == 415 and "not a valid Word file" in r.json()["detail"]  # the content must fit
-        assert r.json()["code"] == "upload.invalid"  # the code the page words (failures are codes, 12 November 2026)
+        assert r.json()["code"] == "upload.content_mismatch"  # the code the page words (failures are codes, 12 November 2026)
         assert not any(uploads.iterdir())
     assert not uploads.exists()  # and the upload folder is removed on shutdown
 

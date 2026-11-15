@@ -27,13 +27,14 @@ of its own, and a partner gets it with the API. A line:
                      "params": {"max_mb": {"type": "number"}}, "since": "0.2.0"}
 ```
 
-- **Name:** `area.condition`, lower case, two levels. The areas are a short fixed list at the top of the file. The
-  kind is not in the name.
+- **Name:** `area.condition`, lower case, two levels, named by the convention in [names.md](names.md): the
+  condition states a fact about what is wrong, the thing first, and ends in one of a list of endings that each have
+  one meaning. The areas are a short fixed list at the top of the file. The kind is not in the name.
 - **`kind`** is chosen by what the person can do, never by how the message travels: `refused` (nothing was done),
   `unavailable` (a known part is down), `internal` (nobody planned for it), `warning` (done, check something).
   It fixes the status range when the code takes an answer's place: `refused` 4xx, `unavailable` 5xx, `internal`
   500. A refusal or a part that is down can also be an upload's or a run's stored error: such a code has no status
-  and keeps its kind (`document.password` is refused). A warning never has a status.
+  and keeps its kind (`document.password_protected` is refused). A warning never has a status.
 - **`title`:** English, for a developer reading the registry or an answer. Never shown to a person.
 - **`params`:** each with a type (`number`, `string`, `id`). Raw values only: the reader's locale formats a number or
   a date, and an id becomes a label on the screen. `"private": true` marks client data (a file name, a case
@@ -41,7 +42,9 @@ of its own, and a partner gets it with the API. A line:
 - **`retry`:** trying again can help.
 - **`since`:** the gateway version the code arrived in.
 
-**A code, once released, is never renamed or reused.** A wrong name is retired and a new code added. Many refusals
+**A code, once released, is never renamed, removed or reused** ([names.md](names.md), *Released*, says what released
+means; `messages-released.json` lists the released codes and a test fails when one is gone). A wrong name is
+retired and a new code added. Many refusals
 are one situation seen from a screen that is out of date ("the run isn't waiting", "this step takes no answer"):
 those share one code. A code is added for what a person can meet and act on, not for every sentence.
 
@@ -91,7 +94,7 @@ before there is a database or a sign-in. It says the same thing in the same shap
   from the pinned core at `/opt/suveryn/core` (the module uses the standard library only, and must stay so): one
   list, and the same Problem Details as the gateway's. A new setup code is merged here first and reaches the
   appliance when its pin moves. An answer refused field by field is `request.invalid`
-  with `fields`: `{"password": {"kind": "refused", "code": "setup.password_short", "params": {"min": 15}}}`.
+  with `fields`: `{"password": {"kind": "refused", "code": "setup.password_too_short", "params": {"min": 15}}}`.
 - What is stored or travels inside an answer is a message, `{kind, code, params}`: a share's test, why a restore's
   check failed, the step where provisioning stopped (`setup.provisioning_failed`, its `step` an id the screen names).
 - Anything unplanned is `system.internal` with a reference, logged by the service with the request, the exception's
@@ -115,16 +118,16 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
 - The gateway passes it on and decides nothing: `messages.stored` reads it against the registry as it is today (its
   kind comes from the registry, not from the file), and a code the registry doesn't know becomes `system.internal`.
   A playbook run's stored failure is read back by the same function.
-- One code for one situation, whoever meets it: `backup.wrong_key` is the key test's answer in Administration and
+- One code for one situation, whoever meets it: `backup.key_mismatch` is the key test's answer in Administration and
   the restore's in the web setup. The codes the setup used to say for these (`setup.share_…`, `setup.restore_…`,
-  `setup.key_invalid`, `setup.disk_gone`) were renamed before any release; from the first release a code is never
-  renamed.
+  `setup.key_invalid`, `setup.disk_gone`) were renamed before any release, as 53 codes were to the naming
+  convention (suveryn-tracker#162).
 - A backup that fails on something nobody planned for (the database can't be dumped, encryption fails) is
   `system.internal` with a reference the backup's own log has.
   A failure the administrator can be told about has a code of its own: a link in a settings folder that a restore
-  would refuse is `backup.unsafe_link` (a VM regression found the page saying "an unexpected error" for it).
+  would refuse is `backup.link_unsafe` (a VM regression found the page saying "an unexpected error" for it).
 - The gateway's own refusals for these pages are codes too: `backup.unavailable`, `backup.busy`, `clock.synced`,
-  `clock.busy`, `clock.measurement_slow`, `clock.unavailable`.
+  `clock.busy`, `clock.measurement_too_slow`, `clock.unavailable`.
 
 ## Moving the rest over
 
@@ -136,7 +139,7 @@ calculation's reason. The gateway's 138 plain refusals moved area by area, and n
   Playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares (#151),
   documents (#152), answers (#153), backups, the clock, Status and usage (#154).
 - **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
-  is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_confirms`).
+  is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_only`).
   The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
   a programming error or a deleted thing leads to takes the general code (`request.invalid`, `request.not_found`),
   written as a `Problem` so its English detail is still there for a developer.
@@ -145,13 +148,13 @@ calculation's reason. The gateway's 138 plain refusals moved area by area, and n
   noticed upload). They catch `Problem` and read its `status`.
 - **A failed reading says why as a code** (#152). A job that failed carries `failure`, `{kind, code, params}`,
   made at the API's edge from the reader's own reason (`suveryn_rag.reading.CODES`; a test holds the two together):
-  a reason the reader knows is **refused** (`document.password`, `document.too_many_pages` with `pages` and `max`
+  a reason the reader knows is **refused** (`document.password_protected`, `document.pages_too_many` with `pages` and `max`
   …: nothing was read, the person gives another file), and a crash nobody planned for is **internal**:
   `system.internal` with a reference, logged with the exception's type and where it was raised, never its message.
   The English `error` stays beside it for developers.
 - **What a reading noticed is a warning of the registry** (#152). The document was read and something should be
   checked: `document.page_coverage_low`, `document.layout_failed`, `document.instruction_like_text`,
-  `document.text_recovered`, `document.text_layer_recovered`, `document.furniture_restored`, each with its `page`.
+  `document.text_recovered`, `document.text_layer_recovered`, `document.header_footer_recovered`, each with its `page`.
   They are stored with the document and sent as `{kind, code, params}` (and `detail`, English, for developers),
   as every message is. The page says each code once for all its pages, in the code's own sentence; the card and
   the overview have shorter forms of their own, and a warning newer than the page is still said, by its kind's
@@ -159,15 +162,15 @@ calculation's reason. The gateway's 138 plain refusals moved area by area, and n
 - **What only the page says isn't in the registry.** "This page lost track of the upload" is the page's own
   sentence (`uploadLost`), said when an upload's job is gone; the server never sends it.
 - **An answer that fails says why as a message** (#153). The stream's `error` event is `{kind, code, params}`
-  (and `detail`, English): `system.model_unavailable`, `system.documents_unavailable`, `answer.document_gone`, or
+  (and `detail`, English): `model.unavailable`, `document.unavailable`, `answer.document_not_found`, or
   `system.internal` with a reference. The page keeps the message with the turn, so a saved failure is worded again
   in the reader's language of the day it is shown. "The connection closed before the answer was complete" is the
   page's own sentence: the server never says it.
 - **A run that failed stores why as a message** (#153): `failure`, `{kind, code, params}`, kept as its code and
-  parameters (rule 6). By what the person can do: `system.model_unavailable`, `system.documents_unavailable` and
-  `run.interrupted` (a part was down: try again), `run.document_missing`, `run.unreadable_answer` and `run.busy`
+  parameters (rule 6). By what the person can do: `model.unavailable`, `document.unavailable` and
+  `run.interrupted` (a part was down: try again), `run.no_document`, `run.answer_unreadable` and `run.too_many`
   (nothing could be read), `system.internal` with a reference (nobody planned for it).
-- **One code for one situation.** The model that can't be reached is `system.model_unavailable` wherever it is met:
+- **One code for one situation.** The model that can't be reached is `model.unavailable` wherever it is met:
   asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere (asking answered 502).
   Its sentence is the one the playbook's board shows (P04) and the banner uses: "The model isn't available right now."
 - **An unplanned failure is logged alike everywhere**: `suveryn_harness.messages.unplanned` gives the reference and

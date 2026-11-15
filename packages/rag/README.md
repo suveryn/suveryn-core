@@ -44,7 +44,7 @@ Real deeds showed that text can disappear between the PDF and the stored chunks.
 | Safeguard | What it catches | Result |
 |---|---|---|
 | Completeness | Body text the chunker left out, e.g. a closing heading with nothing after it ("Voor eensluidend afschrift") | Kept as a separate chunk (`origin = text_recovered`) |
-| Footer rule | Content the layout model labelled as header/footer | Only page numbers and text that repeats on at least half the pages are dropped; the rest is kept (`origin = furniture_restored`) |
+| Footer rule | Content the layout model labelled as header/footer | Only page numbers and text that repeats on at least half the pages are dropped; the rest is kept (`origin = header_footer_recovered`) |
 | Text-layer recovery | Text the layout or table model dropped, e.g. table cells it couldn't place (seen on a real bank statement) | The page's text-layer lines holding 3+ missing words are kept as a chunk (`origin = text_layer_recovered`); taken verbatim from the PDF, nothing reworded. Lines that look like OCR noise (an upside-down figure read as letters: odd words, mostly unknown to the rest of the document, `ocr_noise`) are not text that went missing and are left out |
 | Layout failure | Pages Docling's layout model couldn't read, e.g. out of GPU memory | Read again on the CPU; pages still unread get a `layout_failed` warning, and status `needs_review` |
 | Page coverage | Any loss that remains after recovery: each page's PDF text layer is compared with the stored text for that page | Below 95% of the page's words: a `page_coverage_low` warning, and status `needs_review` |

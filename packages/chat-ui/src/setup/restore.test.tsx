@@ -27,7 +27,7 @@ describe("restoring a backup from the web setup", () => {
   });
 
   it("says why the last check failed", () => {
-    const state = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "backup.wrong_key", params: {} } } } as never;
+    const state = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "backup.key_mismatch", params: {} } } } as never;
     const html = renderToStaticMarkup(<RestoreSource state={state} onBack={() => {}} onChecking={() => {}} headingId="h" />);
     expect(html).toContain("No backup could be restored");
     expect(html).toContain("open this backup");
@@ -67,8 +67,8 @@ describe("restoring a backup from the web setup", () => {
 
   it("has every code the appliance answers a restore with, in every language", () => {
     for (const t of Object.values(TEXT)) {
-      for (const code of ["backup.wrong_key", "backup.none_found", "backup.target_unreachable", "backup.damaged", "backup.newer_version",
-        "backup.restore_failed", "backup.not_a_key", "setup.restore_started", "setup.not_checked", "backup.disk_gone", "backup.share_address"]) {
+      for (const code of ["backup.key_mismatch", "backup.not_found", "backup.target_unreachable", "backup.damaged", "backup.version_too_new",
+        "backup.restore_failed", "backup.not_a_key", "setup.restore_started", "setup.backup_not_checked", "backup.disk_gone", "backup.share_address_invalid"]) {
         expect((t.messages as Record<string, unknown>)[code], code).toBeTruthy();
       }
       expect(t.messages["request.invalid"]).toBeTruthy();  // answers that were incomplete
@@ -82,7 +82,7 @@ describe("the stand-in appliance's restore", () => {
     const { answer } = await import("./demo");
     const key = `# Sūveryn backup recovery key\nAGE-SECRET-KEY-1${"Q".repeat(58)}\n`;
     await expect(answer("PUT", "answers/restore", { target: "usb", disk: "x", key: "not a key" })).rejects.toThrow("backup.not_a_key");
-    await expect(answer("POST", "restore/start")).rejects.toThrow("not_checked");
+    await expect(answer("POST", "restore/start")).rejects.toThrow("setup.backup_not_checked");
     expect(await answer("PUT", "answers/restore", { target: "usb", disk: "x", key })).toEqual({ state: "checking" });
     vi.setSystemTime(Date.now() + 2500);
     expect(await answer("GET", "restore")).toMatchObject({ state: "checked", backup: { appliance: "notary-brussels-01" } });
