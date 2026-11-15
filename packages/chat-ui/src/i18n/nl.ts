@@ -39,7 +39,7 @@ const nl: Messages = {
     "system.unavailable": "Dit deel van de server is nu niet beschikbaar. Probeer het later opnieuw.",
     "system.database_unavailable": "De database antwoordt niet. Probeer het over een minuut opnieuw.",
     "system.documents_unavailable": "Documenten kunnen nu niet worden gelezen of doorzocht. Probeer het over een minuut opnieuw.",
-    "system.model_unavailable": "Het model is nu niet bereikbaar. Probeer het zo meteen opnieuw.",
+    "system.model_unavailable": "Het model is nu niet beschikbaar. Probeer het zo meteen opnieuw.",
     "auth.signed_out": "Uw sessie is afgelopen. Log opnieuw in.",
     "auth.unavailable": "Aanmelden werkt nu niet. Probeer het over een minuut opnieuw.",
     "auth.sign_in_failed": "Het aanmelden werd afgebroken of lukte niet. Sluit deze pagina en meld u opnieuw aan.",

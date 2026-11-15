@@ -146,6 +146,7 @@ calculation's reason. What remains is counted, and the count may only go down:
   (nothing could be read), `system.internal` with a reference (nobody planned for it).
 - **One code for one situation.** The model that can't be reached is `system.model_unavailable` wherever it is met:
   asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere (asking answered 502).
+  Its sentence is the one the playbook's board shows (P04) and the banner uses: "The model isn't available right now."
 - **An unplanned failure is logged alike everywhere**: `suveryn_harness.messages.unplanned` gives the reference and
   where the exception was raised, for an HTTP answer, a stream, a run and a reading. The log line has the
   exception's type, never its message.

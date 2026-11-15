@@ -39,7 +39,7 @@ const fr: Messages = {
     "system.unavailable": "Cette partie du serveur n'est pas disponible pour le moment. Réessayez plus tard.",
     "system.database_unavailable": "La base de données ne répond pas. Réessayez dans une minute.",
     "system.documents_unavailable": "Les documents ne peuvent pas être lus ni recherchés pour le moment. Réessayez dans une minute.",
-    "system.model_unavailable": "Le modèle est injoignable pour le moment. Réessayez dans un instant.",
+    "system.model_unavailable": "Le modèle n'est pas disponible pour le moment. Réessayez dans un instant.",
     "auth.signed_out": "Votre session a expiré. Reconnectez-vous.",
     "auth.unavailable": "La connexion ne fonctionne pas. Réessayez dans une minute.",
     "auth.sign_in_failed": "La connexion a été annulée ou a échoué. Fermez cette page et reconnectez-vous.",

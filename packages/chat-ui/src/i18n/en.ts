@@ -50,7 +50,7 @@ const en = {
     "system.unavailable": "This part of the server isn't available right now. Try again later.",
     "system.database_unavailable": "The database isn't answering. Try again in a minute.",
     "system.documents_unavailable": "Documents can't be read or searched right now. Try again in a minute.",
-    "system.model_unavailable": "The model can't be reached right now. Try again in a moment.",
+    "system.model_unavailable": "The model isn't available right now. Try again in a moment.",
     "auth.signed_out": "Your session has ended. Sign in again.",
     "auth.unavailable": "Sign-in isn't working. Try again in a minute.",
     "auth.sign_in_failed": "Signing in was cancelled or didn't work. Close this page and sign in again.",
