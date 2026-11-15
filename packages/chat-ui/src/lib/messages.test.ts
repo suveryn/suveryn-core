@@ -12,14 +12,18 @@ const REGISTRY: { areas: string[]; codes: Record<string, { kind: string; params?
 const sample = (code: string) => Object.fromEntries(Object.entries(REGISTRY.codes[code].params ?? {})
   .map(([name, p]) => [name, p.type === "number" ? 7 : "7F3K-92QD"]));
 
+// the areas other screens word: the web setup's (src/setup/i18n; screens.test.ts) and the appliance's console's
+// (suveryn-appliance's installer-text.json; suveryn-tracker#160)
+const ELSEWHERE = ["setup", "network", "bundle"];
+const here = (code: string) => !ELSEWHERE.includes(code.split(".")[0]);
+
 describe("the server's codes, worded (suveryn-tracker#139)", () => {
   it("has words for every code, area and kind of the registry, in every language, and for no other", () => {
     for (const [lang, m] of Object.entries(TABLES_FOR_TESTS)) {
-      // every code but the web setup's, which its own screens word (src/setup/i18n; screens.test.ts)
-      expect(Object.keys(m.messages).sort(), lang).toEqual(Object.keys(REGISTRY.codes).filter((c) => !c.startsWith("setup.")).sort());
-      expect(Object.keys(m.messageAreas).sort(), lang).toEqual(REGISTRY.areas.filter((a) => a !== "setup").sort());
+      expect(Object.keys(m.messages).sort(), lang).toEqual(Object.keys(REGISTRY.codes).filter(here).sort());
+      expect(Object.keys(m.messageAreas).sort(), lang).toEqual(REGISTRY.areas.filter((a) => !ELSEWHERE.includes(a)).sort());
       expect(Object.keys(m.messageKinds).sort(), lang).toEqual(["internal", "refused", "unavailable", "warning"]);
-      for (const [code, c] of Object.entries(REGISTRY.codes).filter(([code]) => !code.startsWith("setup."))) {
+      for (const [code, c] of Object.entries(REGISTRY.codes).filter(([code]) => here(code))) {
         for (const params of [sample(code), {}]) {  // with its parameters, and when an older server sends none
           const text = messageText({ kind: c.kind, code, params }, m);
           expect(text, `${lang} ${code}`).toBeTruthy();

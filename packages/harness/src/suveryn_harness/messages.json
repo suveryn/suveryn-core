@@ -15,7 +15,9 @@
   "backup",
   "clock",
   "settings",
-  "setup"
+  "setup",
+  "network",
+  "bundle"
  ],
  "codes": {
   "system.internal": {
@@ -879,6 +881,59 @@
      "type": "id"
     }
    },
+   "since": "0.2.0"
+  },
+  "network.port_missing": {
+   "kind": "refused",
+   "title": "The appliance has no Ethernet port to set up, or not the one named.",
+   "since": "0.2.0"
+  },
+  "network.address_invalid": {
+   "kind": "refused",
+   "title": "The address given isn't an IP address; `value` is what was typed.",
+   "params": {
+    "value": {
+     "type": "string"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "network.prefix_missing": {
+   "kind": "refused",
+   "title": "A fixed address was given without its network prefix (`192.168.1.50/24`).",
+   "since": "0.2.0"
+  },
+  "network.gateway_outside": {
+   "kind": "refused",
+   "title": "The gateway `gateway` isn't in the address's network `network`.",
+   "params": {
+    "gateway": {
+     "type": "string"
+    },
+    "network": {
+     "type": "string"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "network.dns_missing": {
+   "kind": "refused",
+   "title": "A fixed address was given without a DNS server.",
+   "since": "0.2.0"
+  },
+  "bundle.changed": {
+   "kind": "refused",
+   "title": "A file of the bundle isn't what its signed manifest says: changed or damaged since it was signed.",
+   "since": "0.2.0"
+  },
+  "bundle.signature": {
+   "kind": "refused",
+   "title": "The bundle isn't signed by a key this system trusts.",
+   "since": "0.2.0"
+  },
+  "bundle.invalid": {
+   "kind": "refused",
+   "title": "The folder isn't a bundle this system can use: its manifest is missing, damaged or of another kind.",
    "since": "0.2.0"
   }
  }
