@@ -7,7 +7,8 @@
  *
  * Two screens word codes, each for its own reader: the chat (`src/i18n/<lang>.ts`: every code but the web setup's)
  * and the appliance's web setup (`src/setup/i18n/<lang>.ts`: the `setup` area, suveryn-tracker#141). Both meet the
- * backup service's codes; those are worded once, in `src/i18n/backups/<lang>.ts` (#154).
+ * backup service's codes; those are worded once, in `src/i18n/backups/<lang>.ts` (#154). The appliance's console
+ * words its own (the `network` and `bundle` areas, #160), in suveryn-appliance.
  */
 import registry from "../../../harness/src/suveryn_harness/messages.json";
 
@@ -17,8 +18,12 @@ export type MessageArea = (typeof registry.areas)[number];
 export type SetupCode = Extract<MessageCode, `setup.${string}`>;
 /** The backup service's codes: Administration › Backups and the web setup (a restore) both meet them. */
 export type BackupCode = Extract<MessageCode, `backup.${string}`>;
-export type ChatCode = Exclude<MessageCode, SetupCode>;
-export type ChatArea = Exclude<MessageArea, "setup">;
+/** The codes only the appliance's console says (its installer, and its screen after installation): a network
+ *  setting it refuses, a bundle on the stick it can't trust. Worded in suveryn-appliance's `installer-text.json`. */
+export type ConsoleArea = "network" | "bundle";
+export type ConsoleCode = Extract<MessageCode, `${ConsoleArea}.${string}`>;
+export type ChatCode = Exclude<MessageCode, SetupCode | ConsoleCode>;
+export type ChatArea = Exclude<MessageArea, "setup" | ConsoleArea>;
 export type MessageKind = "refused" | "unavailable" | "internal" | "warning";
 /** A code's parameters: raw numbers and ids, formatted and named here. */
 export type Params = Record<string, string | number | null | undefined>;
