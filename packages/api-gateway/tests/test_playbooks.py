@@ -347,7 +347,7 @@ def test_stop_keeps_confirmed_facts_and_drops_proposed_ones(office):
     run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
     assert run["step"] == "missing"
     # a contributor who didn't start it and doesn't manage the case can't end it; the starter can
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=bob)) == (403, "run.not_yours_to_end")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=bob)) == (403, "run.starter_or_manager_only")
     r = c.post(RUN.format(cid=cid, rid=rid) + "/stop", headers=alice)
     assert r.status_code == 200 and r.json()["status"] == "stopped" and r.json()["ended_by"] == "notaris.test"
     store = c.app.state.runs.get()
@@ -472,7 +472,7 @@ def test_a_run_fails_by_kind_when_the_answer_isnt_the_table(runs):
         rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"document_ids": [DOC]}, headers=alice).json()["id"]
         deliver(c, RUN.format(cid=cid, rid=rid), alice)
         run = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "failed")
-        assert run["failure"] == {"kind": "refused", "code": "run.unreadable_answer", "params": {}} and "error" not in run and run["facts"] == [] and run["step"] == "agreement_read"
+        assert run["failure"] == {"kind": "refused", "code": "run.answer_unreadable", "params": {}} and "error" not in run and run["facts"] == [] and run["step"] == "agreement_read"
 
 
 @needs_db
@@ -601,9 +601,9 @@ def test_only_so_many_runs_read_at_once(runs, monkeypatch):
             assert r.status_code == 200  # someone else's first: three in all
             rid = r.json()["id"]
             r, busy_cid = start(bob)
-            assert r.status_code == 429 and r.json()["code"] == "run.busy"  # the appliance's three
+            assert r.status_code == 429 and r.json()["code"] == "run.too_many"  # the appliance's three
             busy = c.get(RUNS.format(cid=busy_cid), headers=alice).json()[0]
-            assert busy["status"] == "failed" and busy["failure"]["code"] == "run.busy"  # the refused run is a record too; start it again later
+            assert busy["status"] == "failed" and busy["failure"]["code"] == "run.too_many"  # the refused run is a record too; start it again later
             release.set()
             wait_for(c, RUN.format(cid=cid, rid=rid), alice, "waiting")
             for _ in range(50):  # every place given back once the readings end
@@ -831,7 +831,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         assert r.json()["checks"]["contributions_add_up"]["status"] == "fails" and r.json()["checks"]["contributions_add_up"]["left"] == "422500"
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders[2].age", json={"value": "x"}, headers=alice).status_code == 404
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/founders", json={"value": "x"}, headers=alice).status_code == 404
-        assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice)) == (422, "run.not_an_option")  # not an option
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "gold"}, headers=alice)) == (422, "run.value_invalid")  # not an option
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts/contribution_kind", json={"value": "Cash and in kind"}, headers=alice)
         assert r.status_code == 200 and {f["id"]: f for f in r.json()["facts"]}["contribution_kind"]["value"] == "mixed"
         assert len(r.json()["checks"]) == 4  # mixed: there is money too, so the bank's check and the contributions' stay on
@@ -846,7 +846,7 @@ def test_company_formation_reads_a_list_of_founders_and_a_person_adds_one(runs):
         bob = as_bob(kc)
         c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
         assert c.put(RUN.format(cid=cid, rid=rid) + "/facts/seat", json={"value": "Sint-Jansvest 18, Gent"}, headers=bob).status_code == 200
-        assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob)) == (403, "run.manager_confirms")
+        assert (lambda r: (r.status_code, r.json()["code"]))(c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=bob)) == (403, "run.manager_only")
         r = c.put(RUN.format(cid=cid, rid=rid) + "/facts", json=confirm, headers=alice)
         assert r.status_code == 200 and r.json()["status"] == "done"
         by = {f["id"]: f for f in r.json()["facts"]}
@@ -1126,9 +1126,9 @@ def test_a_run_says_why_it_failed_as_a_code_of_the_registry_with_its_kind():
     # stored as code and parameters (the decision of 12 November, rule 6), sent as {kind, code, params}
     from suveryn_harness.messages import message
     from suveryn_harness.messages import stored as _failure
-    assert _failure(json.dumps(message("system.model_unavailable"))) == {"kind": "unavailable", "code": "system.model_unavailable", "params": {}}
+    assert _failure(json.dumps(message("model.unavailable"))) == {"kind": "unavailable", "code": "model.unavailable", "params": {}}
     assert _failure(json.dumps(message("system.internal", ref="7F3K-92QD")))["params"] == {"ref": "7F3K-92QD"}
-    assert _failure(json.dumps(message("run.document_missing")))["kind"] == "refused"
+    assert _failure(json.dumps(message("run.no_document")))["kind"] == "refused"
     assert _failure(None) is None
     # a run that failed before failures were codes stored a bare word: it failed, and the page says so by its kind
     assert _failure("model_unavailable") == {"kind": "internal", "code": "system.internal", "params": {}}

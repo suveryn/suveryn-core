@@ -74,9 +74,9 @@ async def ask_question(req: ChatRequest, request: Request):
         try:
             installed = {m.id for m in await request.app.state.llm.list_models()}
         except BackendError as e:
-            raise Problem("system.model_unavailable", str(e)) from e
+            raise Problem("model.unavailable", str(e)) from e
         if req.model not in installed:
-            raise Problem("answer.model_unknown", f"No such model on this appliance: {req.model!r}")
+            raise Problem("model.not_found", f"No such model on this appliance: {req.model!r}")
     owner = owner_of(request)
     await remember_user(request)
     # The case the question is about, if any: asking is a contributor's right (a reader may only
@@ -88,7 +88,7 @@ async def ask_question(req: ChatRequest, request: Request):
         # retriever checks again when it reads the passages.
         docs = docs_or_503(request)
         if not await run_in_threadpool(docs.in_scope, req.document_ids, scope, True):
-            raise Problem("answer.document_gone", "Unknown document.")
+            raise Problem("answer.document_not_found", "Unknown document.")
         await touch_case(request, scope)
     await log_access(request, scope.case_id, "asked", {"documents": req.document_ids})
     chat_service: ChatService = request.app.state.chat
@@ -96,11 +96,11 @@ async def ask_question(req: ChatRequest, request: Request):
         try:
             return await chat_service.answer(req, owner)
         except DocumentNotFound as e:
-            raise Problem("answer.document_gone", "Unknown document.") from e
+            raise Problem("answer.document_not_found", "Unknown document.") from e
         except DocumentsUnavailable as e:
-            raise Problem("system.documents_unavailable", str(e)) from e
+            raise Problem("document.unavailable", str(e)) from e
         except BackendError as e:
-            raise Problem("system.model_unavailable", str(e)) from e
+            raise Problem("model.unavailable", str(e)) from e
     return StopOnDisconnect(_stream(chat_service, req, owner), media_type="text/event-stream",
                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -163,12 +163,12 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
         what = str(e).split(":", 1)[0] if isinstance(e, BackendError) else "an unreadable answer"
         cause = f" ({type(e.__cause__).__name__})" if e.__cause__ else ""
         log.warning("chat stream failed: %s%s, model %s", what, cause, req.model or "default")
-        yield _sse("error", StreamError(**message("system.model_unavailable"), detail=what))
+        yield _sse("error", StreamError(**message("model.unavailable"), detail=what))
     except DocumentsUnavailable as e:
         log.warning("chat stream failed: the documents aren't available (%s)", type(e).__name__)
-        yield _sse("error", StreamError(**message("system.documents_unavailable"), detail=str(e)))
+        yield _sse("error", StreamError(**message("document.unavailable"), detail=str(e)))
     except DocumentNotFound:
-        yield _sse("error", StreamError(**message("answer.document_gone"), detail="unknown document"))
+        yield _sse("error", StreamError(**message("answer.document_not_found"), detail="unknown document"))
     except Exception as e:  # noqa: BLE001 - the stream must end with an event; the client discards the partial answer
         # Nobody planned for it: a reference for the person, and the log line under it. The exception's type and where
         # it was raised, never its message, which may hold document text (the decision of 12 November, rule 5).

@@ -124,7 +124,7 @@ describe("Markdown downloads", () => {
 describe("documents that need review", () => {
   it("lists the pages where text may be missing, once each and in order", () => {
     const w = (page: number | null, what = "page_coverage_low") => ({ kind: "warning", code: `document.${what}`, params: page === null ? {} : { page } });
-    expect(reviewPages([w(3), w(1), w(3), w(2, "furniture_restored"), w(null)])).toEqual([1, 3]);
+    expect(reviewPages([w(3), w(1), w(3), w(2, "header_footer_recovered"), w(null)])).toEqual([1, 3]);
     expect(reviewPages(undefined)).toEqual([]);
   });
 
@@ -475,12 +475,12 @@ describe("why an upload couldn't be read, in the interface's language (suveryn_r
     const { failureText } = await import("./review");
     const { setLang, t } = await import("../i18n");
     setLang("nl", false);
-    expect(failureText(t(), { code: "document.password" })).toBe("Het is beveiligd met een wachtwoord.");
-    expect(failureText(t(), { code: "document.too_many_pages", params: { pages: 900, max: 500 } })).toBe("Het heeft 900 pagina's; er kunnen er hoogstens 500 gelezen worden.");
-    expect(failureText(t(), { code: "document.timeout", params: { minutes: 30 } })).toBe("Lezen duurde langer dan 30 minuten.");
+    expect(failureText(t(), { code: "document.password_protected" })).toBe("Het is beveiligd met een wachtwoord.");
+    expect(failureText(t(), { code: "document.pages_too_many", params: { pages: 900, max: 500 } })).toBe("Het heeft 900 pagina's; er kunnen er hoogstens 500 gelezen worden.");
+    expect(failureText(t(), { code: "document.reading_too_slow", params: { minutes: 30 } })).toBe("Lezen duurde langer dan 30 minuten.");
     setLang("en", false);
     expect(failureText(t(), undefined, "ValueError: the file is not a valid Word file")).toBe("The file is not a valid Word file.");  // no code: the server's words
     expect(failureText(t(), { code: "document.something_new" }, "boom")).toBe(t().messageAreas.document);  // a newer code: the area's words, never the server's English
-    expect(failureText(t(), { code: "document.too_many_pages" })).toBe(t().messages["document.too_large"]);  // no numbers sent: said without them
+    expect(failureText(t(), { code: "document.pages_too_many" })).toBe(t().messages["document.too_large"]);  // no numbers sent: said without them
   });
 });

@@ -277,8 +277,8 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
         const text = httpErrorText(xhr.status, xhr.response);
         // The per-person rate limit, or a full reading queue: the chat waits its turn (lib/turns.ts). The queue
         // names no time; it empties as documents are read, so the chat looks again every 10 seconds.
-        const queueFull = xhr.response?.code === "upload.queue_full";
-        const rateLimited = xhr.status === 429 && xhr.response?.code !== "run.busy";
+        const queueFull = xhr.response?.code === "upload.too_many";
+        const rateLimited = xhr.status === 429 && xhr.response?.code !== "run.too_many";
         reject(rateLimited ? new RateLimited(text, after && /^\d+$/.test(after) ? Number(after) : queueFull ? 10 : 30) : new Error(text));
       }
     };

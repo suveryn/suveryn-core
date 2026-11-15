@@ -152,7 +152,7 @@ async def delete_case(case_id: str, request: Request):
     try:
         deleted = await delete_case_everywhere(request.app, uuid.UUID(case.id))
     except CleanupUnavailable as e:
-        raise Problem("case.not_deleted", f"The case can't be deleted now ({e}); nothing was deleted. Try again shortly.") from e
+        raise Problem("case.deletion_failed", f"The case can't be deleted now ({e}); nothing was deleted. Try again shortly.") from e
     if not deleted:
         raise Problem("case.not_found", "Unknown case.")
     return Response(status_code=204)
@@ -205,7 +205,7 @@ async def set_case_keep(case_id: str, body: KeepIn, request: Request):
     deletion one period later. The manager's and the administrators' right (decision 11)."""
     store, cid, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, "set_keep", case_settings(request).office_wide):
-        raise (Problem("case.manager_only", "Only the case's manager or an administrator can change how long it is kept.")
+        raise (Problem("case.manager_or_administrator_only", "Only the case's manager or an administrator can change how long it is kept.")
                if case.state == "closed" else Problem("request.forbidden", "This case is open; close it first."))
     if body.keep is None and not body.extend:
         raise Problem("request.invalid", "Say what to change: keep, or extend.")
@@ -255,7 +255,7 @@ async def set_case_member(case_id: str, user: str, body: MemberIn, request: Requ
     manager, hand the case over (``POST .../handover``)."""
     case = await case_for(request, case_id, "manage")
     if body.role == "manager":
-        raise Problem("case.hand_over_first", "Hand the case over to make someone its manager.")
+        raise Problem("case.single_manager", "Hand the case over to make someone its manager.")
     person = await person_or_404(request, user)
     store, cid = cases_or_503(request), uuid.UUID(case.id)
     before = await run_in_threadpool(store.role_of, cid, user)
@@ -276,7 +276,7 @@ async def remove_case_member(case_id: str, user: str, request: Request):
     the case over first."""
     case = await case_for(request, case_id, "manage")
     if user == case.manager:
-        raise Problem("case.hand_over_first", "Hand the case over before removing its manager.")
+        raise Problem("case.single_manager", "Hand the case over before removing its manager.")
     store, cid = cases_or_503(request), uuid.UUID(case.id)
     if not await run_in_threadpool(store.remove_member, cid, user):
         raise Problem("request.not_found", "Not a member of this case.")
@@ -293,7 +293,7 @@ async def hand_over_case(case_id: str, body: HandoverIn, request: Request):
     store, cid, caller, case = await visible_case(request, case_id)
     office_wide = case_settings(request).office_wide
     if not (may(caller, case, case.my_role, "handover", office_wide) or may(caller, case, case.my_role, "manage", office_wide)):
-        raise Problem("case.manager_only", "Only the case's manager or an administrator can hand a case over.")
+        raise Problem("case.manager_or_administrator_only", "Only the case's manager or an administrator can hand a case over.")
     person = await person_or_404(request, body.user)
     handed = await run_in_threadpool(store.set_manager, cid, body.user, caller.sub, person.username, person.name)
     if handed is None:
@@ -309,7 +309,7 @@ async def list_case_events(case_id: str, request: Request):
     and the administrators; kept 180 days, as the sign-in events."""
     store, cid, caller, case = await visible_case(request, case_id)
     if not may(caller, case, case.my_role, "read_log", case_settings(request).office_wide):
-        raise Problem("case.manager_only", "Only the case's manager or an administrator can see its access log.")
+        raise Problem("case.manager_or_administrator_only", "Only the case's manager or an administrator can see its access log.")
     events = await run_in_threadpool(store.events, cid)
     # Someone who acted without being a member (an administrator handing a case over) has no name in the case:
     # it comes from the directory (VM regression of 29 October, finding 9). Never fatal: the id stays.

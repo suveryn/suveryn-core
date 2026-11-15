@@ -18,7 +18,7 @@ from typing import Literal
 Step = Literal["read", "ocr", "layout", "store"]
 
 # What the interface says for each code (chat-ui i18n, ``failure*``). Keep the two in step.
-CODES = ("password", "damaged", "too_many_pages", "too_large", "no_text", "unsupported", "timeout", "unreadable")
+CODES = ("password_protected", "damaged", "pages_too_many", "too_large", "no_text", "unsupported", "reading_too_slow", "unreadable")
 
 
 @dataclass(frozen=True)

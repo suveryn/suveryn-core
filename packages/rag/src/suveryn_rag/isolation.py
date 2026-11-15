@@ -185,7 +185,7 @@ class IsolatedExtractor:
                 left = deadline - time.monotonic()
                 if left <= 0:
                     self._stop()
-                    raise ExtractionFailed(too_slow, "timeout", minutes=max(1, round(self.timeout_s / 60)))
+                    raise ExtractionFailed(too_slow, "reading_too_slow", minutes=max(1, round(self.timeout_s / 60)))
                 if not sel.select(min(left, CANCEL_CHECK_S)):
                     continue
                 block = os.read(self._proc.stdout.fileno(), 1 << 20)

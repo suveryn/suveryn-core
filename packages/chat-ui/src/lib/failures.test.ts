@@ -14,7 +14,7 @@ const sources = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
   const path = join(dir, name);
   return statSync(path).isDirectory() ? sources(path) : /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
 });
-const CALC = ["calc.number_style", "calc.decimal_separator", "calc.division_by_zero", "calc.no_figures", "calc.syntax"];
+const CALC = ["calc.number_styles_mixed", "calc.decimal_separator_unclear", "calc.division_by_zero", "calc.no_figures", "calc.unreadable"];
 
 describe("failures as codes (suveryn-tracker#127, #139)", () => {
   it("never tells a failure by the server's English words", () => {

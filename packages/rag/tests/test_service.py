@@ -235,11 +235,11 @@ def test_a_waiting_upload_cancelled_is_never_read_and_a_finished_one_cant_be(tmp
 
 def test_a_failure_carries_its_code_for_the_interface(tmp_path):
     docs = running(tmp_path, WatchedIngest(fails=Unreadable("the document has 900 pages; at most 500 can be read",
-                                                            "too_many_pages", pages=900, max=500)))
+                                                            "pages_too_many", pages=900, max=500)))
     job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
     assert wait(lambda: job.status == "failed")
     out = job.public()
-    assert out["failure"] == {"kind": "refused", "code": "document.too_many_pages", "params": {"pages": 900, "max": 500}}  # nothing was read
+    assert out["failure"] == {"kind": "refused", "code": "document.pages_too_many", "params": {"pages": 900, "max": 500}}  # nothing was read
     assert "error_code" not in out and "error_detail" not in out  # one way to say it: the registry's code
     assert out["error"] == "the document has 900 pages; at most 500 can be read"  # the English sentence stays for the API
     docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("boom")))
@@ -567,5 +567,5 @@ def test_every_reason_the_reader_knows_is_a_code_of_the_registry():
     assert IntegrityWarning(4, "page_coverage_low", "12% read").message() == {
         "kind": "warning", "code": "document.page_coverage_low", "params": {"page": 4}, "detail": "12% read"}
     assert IntegrityWarning(None, "instruction_like_text", "x").message()["params"] == {}
-    assert message("document.too_many_pages", pages=900, max=500)["params"] == {"pages": 900, "max": 500}
-    assert message("document.timeout", minutes=30)["params"] == {"minutes": 30}
+    assert message("document.pages_too_many", pages=900, max=500)["params"] == {"pages": 900, "max": 500}
+    assert message("document.reading_too_slow", minutes=30)["params"] == {"minutes": 30}

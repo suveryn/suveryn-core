@@ -49,7 +49,7 @@ def test_short_fragments_are_not_vector_hits_and_whole_documents_read_in_order()
     code = "1ec0f1aa36eb3d4509c9df83c285c219ffd6e77a"
     chunks = [Chunk(0, "second page text here", "", 2, 2, []),
               Chunk(1, "first page text here", "", 1, 1, []),
-              Chunk(2, code, code, 1, 1, [], origin="furniture_restored")]
+              Chunk(2, code, code, 1, 1, [], origin="header_footer_recovered")]
     doc = store.add_document("short.pdf", f"sha-{os.getpid()}-{np.random.randint(1 << 30)}", 2, 0,
                              chunks, np.stack([unit(5), unit(6), unit(7)]))
     try:

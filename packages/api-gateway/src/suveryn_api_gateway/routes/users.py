@@ -82,7 +82,7 @@ async def _do(call):
         if e.code == "not_found":
             raise Problem("request.not_found", "No such account.") from e
         if e.code == "exists":
-            raise Problem("user.email_exists", "An account with this e-mail address exists.") from e
+            raise Problem("account.email_exists", "An account with this e-mail address exists.") from e
         raise Problem("request.conflict", e.code) from e
     except RightsRefused:
         raise  # app.py: 503 with reason "rights", which the page says in its own sentence
@@ -135,7 +135,7 @@ async def set_account_admin(sub: str, body: AdminIn, request: Request):
     async with _admin_changes(request):
         user = await _do(accounts.get(token, sub))
         if not body.admin and user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
-            raise Problem("user.last_administrator", "There must always be one administrator.")
+            raise Problem("account.last_administrator", "There must always be one administrator.")
         if user.admin != body.admin:
             await _do(accounts.set_admin(token, sub, body.admin))
     return user.model_copy(update={"admin": body.admin})
@@ -177,13 +177,13 @@ async def set_account_enabled(sub: str, body: EnabledIn, request: Request):
         user = await _do(accounts.get(token, sub))
         if not body.enabled:
             if sub == owner_of(request):
-                raise Problem("user.own_account", "You can't switch your own account off.")
+                raise Problem("account.own_account", "You can't switch your own account off.")
             if user.admin and [a.sub for a in await _admins(accounts, token)] == [sub]:
-                raise Problem("user.last_administrator", "There must always be one administrator.")
+                raise Problem("account.last_administrator", "There must always be one administrator.")
             cases = request.app.state.cases
             store = cases.get() if cases.configured else None
             if store is not None and (n := await run_in_threadpool(store.manages, sub)):
-                raise Problem("user.manages_cases", f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.", n=n)
+                raise Problem("account.manages_cases", f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.", n=n)
         if user.enabled != body.enabled:
             await _do(accounts.set_enabled(token, sub, body.enabled))
             if not body.enabled:
@@ -229,11 +229,11 @@ def _stores(request: Request):
 async def _deletable(request: Request, accounts: Accounts, token: str, sub: str) -> Account:
     user = await _do(accounts.get(token, sub))
     if sub == owner_of(request):
-        raise Problem("user.own_account", "You can't delete your own account.")
+        raise Problem("account.own_account", "You can't delete your own account.")
     if user.enabled:
-        raise Problem("user.switch_off_first", "Switch the account off first.")  # Decision, 29 October: a deliberate second step
+        raise Problem("account.not_switched_off", "Switch the account off first.")  # Decision, 29 October: a deliberate second step
     if request.app.state.cases.configured and (n := await run_in_threadpool(cases_or_503(request).manages, sub)):
-        raise Problem("user.manages_cases", f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.", n=n)
+        raise Problem("account.manages_cases", f"This account still manages {n} case{'s' if n != 1 else ''}: hand them over first.", n=n)
     return user
 
 
@@ -286,7 +286,7 @@ async def delete_account(sub: str, request: Request):
         raise  # its own sentence (app.py); deleting again once the rights are back finishes it
     except Exception as e:  # noqa: BLE001 - whichever step failed, the answer is the same
         log.warning("account %s: deletion stopped partway (%s); deleting again finishes it", sub, type(e).__name__)
-        raise Problem("user.deletion_unfinished", "The deletion stopped partway: the account is still there, switched off, "
+        raise Problem("account.deletion_unfinished", "The deletion stopped partway: the account is still there, switched off, "
                       "and part of its own space may be gone. Delete it again to finish.") from None
     request.app.state.auth.drop_user(sub)
     flush_soon(request.app)

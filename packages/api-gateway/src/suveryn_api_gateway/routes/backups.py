@@ -71,7 +71,7 @@ class KeyTest(BaseModel):
     at: str
     ok: bool
     created: str | None = None   # when the backup it opened was made
-    failure: dict | None = None  # why it failed: {kind, code, params}; ``backup.wrong_key``: the file isn't this appliance's key
+    failure: dict | None = None  # why it failed: {kind, code, params}; ``backup.key_mismatch``: the file isn't this appliance's key
     last_ok: str | None = None   # after a failed test: when the key last passed (VM regression 03c8f74, finding 4)
 
 

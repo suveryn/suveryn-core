@@ -1,0 +1,4 @@
+{
+ "_about": "The codes that are released: in a core that an appliance leaving Sūveryn Labs pins, a pilot included (docs/design/names.md, Released). A code on this list is never renamed and never removed from messages.json. Added to with `uv run python -m suveryn_harness.released`, in the change in core that is to be pinned.",
+ "codes": []
+}

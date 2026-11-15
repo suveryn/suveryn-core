@@ -258,27 +258,27 @@ def test_adding_someone_gives_a_temporary_password_once_and_keeps_it_nowhere(set
         ("made_admin", "Jonas Claes", "Alice Admin"), ("added", "Jonas Claes", "Alice Admin")]
     assert body["password"] not in json.dumps(events + api.admin_events)  # never written down
     # the same e-mail address again
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/admin/users", json={"name": "J", "email": "jonas.c@office.test"}, headers=admin)) == (409, "user.email_exists")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/admin/users", json={"name": "J", "email": "jonas.c@office.test"}, headers=admin)) == (409, "account.email_exists")
 
 
 def test_there_is_always_one_administrator(setup):
     c, kc, api, _ = setup
     admin = as_user(kc, ALICE, admin=True)
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/admin/users/{ALICE}/admin", json={"admin": False}, headers=admin)) == (409, "user.last_administrator")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/admin/users/{ALICE}/admin", json={"admin": False}, headers=admin)) == (409, "account.last_administrator")
     assert c.put(f"/v1/admin/users/{BOB}/admin", json={"admin": True}, headers=admin).json()["admin"] is True
     assert c.put(f"/v1/admin/users/{ALICE}/admin", json={"admin": False}, headers=admin).status_code == 200  # Bob is one now
     assert api.admins == {BOB}
     r = c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
-    assert r.status_code == 403 and r.json()["code"] == "user.rights_removed"  # Alice isn't one any more
+    assert r.status_code == 403 and r.json()["code"] == "account.rights_removed"  # Alice isn't one any more
     bob = as_user(kc, BOB, admin=True)
     assert c.put(f"/v1/admin/users/{ALICE}/enabled", json={"enabled": False}, headers=bob).status_code == 200
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=bob)) == (409, "user.own_account")  # the last one
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=bob)) == (409, "account.own_account")  # the last one
 
 
 def test_switching_off_not_your_own_and_only_with_cases_handed_over(setup):
     c, kc, api, cases = setup
     admin = as_user(kc, ALICE, admin=True)
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/admin/users/{ALICE}/enabled", json={"enabled": False}, headers=admin)) == (409, "user.own_account")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/admin/users/{ALICE}/enabled", json={"enabled": False}, headers=admin)) == (409, "account.own_account")
     cases.managed[BOB] = 2
     r = c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
     assert r.status_code == 409 and "2 cases" in r.json()["detail"]
@@ -375,7 +375,7 @@ def test_a_role_without_its_composites_says_the_rights_were_refused(setup):
     c, kc, api, _ = setup
     api.no_composites = True
     r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
-    assert r.status_code == 503 and r.json()["code"] == "user.rights_refused"
+    assert r.status_code == 503 and r.json()["code"] == "account.administrator_rights_refused"
 
 
 def test_an_account_is_deleted_only_once_it_is_off_and_its_name_stays(setup):
@@ -385,8 +385,8 @@ def test_an_account_is_deleted_only_once_it_is_off_and_its_name_stays(setup):
     assert c.delete(f"/v1/admin/users/{BOB}", headers=as_user(kc, CAROL)).status_code == 403
     r = c.delete(f"/v1/admin/users/{BOB}", headers=admin)
     assert r.status_code == 409 and "off first" in r.json()["detail"]
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/admin/users/{BOB}/deletion", headers=admin)) == (409, "user.switch_off_first")
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/admin/users/{ALICE}", headers=admin)) == (409, "user.own_account")  # not your own
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/admin/users/{BOB}/deletion", headers=admin)) == (409, "account.not_switched_off")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/admin/users/{ALICE}", headers=admin)) == (409, "account.own_account")  # not your own
     c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
     assert c.get(f"/v1/admin/users/{BOB}/deletion", headers=admin).json() == {
         "documents": 0, "conversations": 0, "shared_conversations": 0}  # no stores on this test gateway
@@ -444,7 +444,7 @@ def test_two_administrators_removing_each_other_at_once_leave_one(setup):
         assert len(api.admins) == 1
         assert answers[0].status_code == 200 and answers[1].status_code in (403, 409)
         if answers[1].status_code == 403:
-            assert answers[1].json()["code"] == "user.rights_removed"
+            assert answers[1].json()["code"] == "account.rights_removed"
 
 
 def test_rights_removed_meanwhile_are_told_apart_from_a_role_without_its_rights(setup):
@@ -456,10 +456,10 @@ def test_rights_removed_meanwhile_are_told_apart_from_a_role_without_its_rights(
     dirk = as_user(kc, "user-d", admin=True)  # issued while he was one
     api.admins.discard("user-d")
     r = c.get("/v1/admin/users", headers=dirk)
-    assert r.status_code == 403 and r.json()["code"] == "user.rights_removed"
+    assert r.status_code == 403 and r.json()["code"] == "account.rights_removed"
     api.no_composites = True
     r = c.get("/v1/admin/users", headers=as_user(kc, ALICE, admin=True))
-    assert r.status_code == 503 and r.json()["code"] == "user.rights_refused"
+    assert r.status_code == 503 and r.json()["code"] == "account.administrator_rights_refused"
 
 
 class FakeDocuments:
@@ -566,7 +566,7 @@ def test_a_deletion_stopped_partway_says_so_and_finishes_when_done_again(stores,
         api._answer = lambda path, method, body: (httpx.Response(500) if method == "DELETE" and getattr(api, "down_on_delete", False)
                                                   else original(path, method, body))
     r = c.delete(f"/v1/admin/users/{BOB}", headers=admin)
-    assert r.status_code == 503 and r.json()["code"] == "user.deletion_unfinished"
+    assert r.status_code == 503 and r.json()["code"] == "account.deletion_unfinished"
     assert BOB in api.users and api.users[BOB]["enabled"] is False  # still there, still off
     docs.fail = history.fail = api.down_on_delete = False
     assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 204

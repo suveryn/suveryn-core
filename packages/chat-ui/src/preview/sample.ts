@@ -308,7 +308,7 @@ export const UPLOADS: Record<string, Job> = {
   "Eigendomstitel_1998.pdf": job("job-2", "Eigendomstitel_1998.pdf", { document_id: "d-up-titel", pages: 9 }),
   "Bodemattest_scan.pdf": job("job-3", "Bodemattest_scan.pdf", { status: "needs_review", document_id: "d-up-bodem", pages: 3,
     warnings: [{ kind: "warning", code: "document.page_coverage_low", params: { page: 2 } }] }),
-  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", failure: { kind: "refused", code: "document.password" } }),
+  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", failure: { kind: "refused", code: "document.password_protected" } }),
   "Termijnen_aangepast.docx": job("job-5", "Termijnen_aangepast.docx", { document_id: "d-up-termijnen", pages: 2,
     noticed: { ref: "A-7c21e04d", kind: "answer", line: "Gemaakt door sūveryn: antwoord uit dossier 124, 17-10-2026" } }),
 };
@@ -391,7 +391,7 @@ export const RUN_STOPPED = runIn({ status: "stopped", ended_by: "filip@kantoor.b
                                     turns: [...RUN.turns, event(6, "stopped", "filip@kantoor.be", 20)] });
 export const RUN_CANCELLED = runIn({ status: "cancelled", ended_by: "filip@kantoor.be", finished_at: later(20), ended_reason: "verkeerde compromis",
                                       turns: [...RUN.turns, event(6, "cancelled", "filip@kantoor.be", 20, { reason: "verkeerde compromis" })] });
-export const RUN_FAILED = runIn({ status: "failed", step: "read", failure: { kind: "unavailable", code: "system.model_unavailable" }, turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
+export const RUN_FAILED = runIn({ status: "failed", step: "read", failure: { kind: "unavailable", code: "model.unavailable" }, turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
 /** No run in the case yet: starting one (board P04, 1). */
 export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}], ["GET", /^\/v1\/cases\/c124\/playbooks\/runs$/, []],
                                 ["GET", /^\/v1\/conversations\?case=c124/, CASE_CONVERSATIONS.filter((c) => c.case_id === "c124" && !c.run_id)]];

@@ -48,8 +48,8 @@ describe("the run's quick replies", () => {
 
 describe("words that follow the reader", () => {
   it("word a failed answer from its code in the language of the moment (finding 10)", () => {
-    const down = { kind: "unavailable", code: "system.model_unavailable" };
-    expect(failureWords({ failure: down, error: "Le modèle est injoignable pour le moment." }, nl)).toBe(nl.messages["system.model_unavailable"]);
+    const down = { kind: "unavailable", code: "model.unavailable" };
+    expect(failureWords({ failure: down, error: "Le modèle est injoignable pour le moment." }, nl)).toBe(nl.messages["model.unavailable"]);
     expect(failureWords({ failure: { kind: "internal", code: "system.internal", params: { ref: "7F3K-92QD" } } }, nl)).toMatch(/7F3K-92QD\.$/);
     expect(failureWords({ failure: "model" as never, error: "the words of that day" }, nl)).toBe("the words of that day");  // saved before failures were messages
     expect(failureWords({ error: "the server's own words" }, nl)).toBe("the server's own words");
@@ -67,7 +67,7 @@ describe("words that follow the reader", () => {
   });
 
   it("end a refused setting with a full stop (finding 13)", () => {
-    expect(nl.settingsFailed({ why: nl.messages["user.rights_refused"] })).toMatch(/ondersteuning\.$/);
+    expect(nl.settingsFailed({ why: nl.messages["account.administrator_rights_refused"] })).toMatch(/ondersteuning\.$/);
     expect(en.settingsFailed({ why: en.messages["request.forbidden"] })).toBe("The settings couldn't be saved. You don't have permission for this.");
   });
 });

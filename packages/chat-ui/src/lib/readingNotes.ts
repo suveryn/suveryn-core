@@ -3,7 +3,7 @@
  * document. Two kinds put it on "To check": text addressed to an AI (``instruction_like_text``, "ignore
  * the instructions": possibly put there to steer an AI) and body text the layout reading missed, taken
  * from the PDF without its layout (``text_layer_recovered``, ``text_recovered``: the garbled sources
- * reported earlier). A recovered header or footer (``furniture_restored``) is common and harmless: only
+ * reported earlier). A recovered header or footer (``header_footer_recovered``) is common and harmless: only
  * a note, never "To check". The server's own review warnings (``reviewPages``) are unchanged.
  */
 import { pagesWith, reviewPages, type Warning } from "../api";
@@ -14,7 +14,7 @@ import { messageText } from "./messages";
 type ReadingNotes = { ai: boolean; aiPages: number[]; recovered: number[]; headers: number[] };
 
 const AI = "document.instruction_like_text", RECOVERED = ["document.text_layer_recovered", "document.text_recovered"];
-const HEADERS = "document.furniture_restored", REVIEW = ["document.page_coverage_low", "document.layout_failed"];
+const HEADERS = "document.header_footer_recovered", REVIEW = ["document.page_coverage_low", "document.layout_failed"];
 
 export function readingNotes(warnings: Warning[] | undefined): ReadingNotes {
   const ws = warnings ?? [];

@@ -268,13 +268,13 @@ async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: 
     rid, owner = uuid.UUID(run.id), owner_of(request)
     filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
     if not filenames:
-        await run_in_threadpool(store.fail, rid, message("run.document_missing"))
+        await run_in_threadpool(store.fail, rid, message("run.no_document"))
         return
     await run_in_threadpool(store.set_documents, rid, list(filenames))
     slots = slots_of(request.app)
     if not slots.take(owner):
-        await run_in_threadpool(store.fail, rid, message("run.busy"))
-        raise Problem("run.busy", "too many playbook runs are reading; start this one when one has finished")
+        await run_in_threadpool(store.fail, rid, message("run.too_many"))
+        raise Problem("run.too_many", "too many playbook runs are reading; start this one when one has finished")
     task = asyncio.create_task(_read(request.app, runtime, store, run, pb, step, filenames, owner, case.reference))
     request.app.state.running.add(task)
     task.add_done_callback(request.app.state.running.discard)
@@ -298,7 +298,7 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
             return
         filenames = await run_in_threadpool(runtime.documents_to_read, fresh, step)
         if not filenames:
-            await run_in_threadpool(store.fail, run_id, message("run.document_missing"))
+            await run_in_threadpool(store.fail, run_id, message("run.no_document"))
             return
         await run_in_threadpool(store.set_documents, run_id, list(filenames))
         run = fresh
@@ -316,8 +316,8 @@ async def _read_one(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbo
                                               fact_ids=set(step.facts))
     except (BackendError, DocumentsUnavailable, DocumentNotFound, Unreadable) as e:
         # by what the person can do: a part is down (wait, try again), or nothing could be read (another model, the document)
-        await run_in_threadpool(store.fail, run_id, message({BackendError: "system.model_unavailable", DocumentsUnavailable: "system.documents_unavailable",
-                                                             DocumentNotFound: "run.document_missing", Unreadable: "run.unreadable_answer"}[type(e)]))
+        await run_in_threadpool(store.fail, run_id, message({BackendError: "model.unavailable", DocumentsUnavailable: "document.unavailable",
+                                                             DocumentNotFound: "run.no_document", Unreadable: "run.answer_unreadable"}[type(e)]))
         return None
     except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
         # nobody planned for it: a reference for the person, and the log line under it (type and place, never the message)
@@ -497,7 +497,7 @@ async def add_run_documents(case_id: str, run_id: str, body: LateIn, request: Re
     if run.status == "waiting" and run.step == step.id:
         raise Problem("run.moved_on", "The run is waiting on this request: answer it.")
     if state is None or state.status not in ("done", "skipped") or (state.status == "skipped" and state.because):
-        raise (Problem("run.not_asked", "This request doesn't apply to this run.") if state is not None and state.because
+        raise (Problem("run.document_not_asked", "This request doesn't apply to this run.") if state is not None and state.because
                else Problem("run.moved_on", "The run hasn't come to this request yet."))
     cid = uuid.UUID(case.id)
     if run.status == "done":
@@ -535,7 +535,7 @@ async def set_run_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, re
     runtime = _runtime(request)
     value, username = runtime.normalise(pb, fact_id, body.value, run.language), who(request)[0]
     if not value:  # a choice takes an option id or its words; nothing at all is no value
-        raise Problem("run.not_an_option", "Not one of the options.") if body.value.strip() else Problem("request.invalid", "No value.")
+        raise Problem("run.value_invalid", "Not one of the options.") if body.value.strip() else Problem("request.invalid", "No value.")
     run = await run_in_threadpool(runtime.correct, run, pb, step, {fact_id: value}, username)
     if value != current.get(fact_id, ""):
         await run_in_threadpool(store.say, run, "playbook", pb.id, "", step.id, {"kind": "changed", "fact": fact_id, "value": value})
@@ -578,7 +578,7 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
         log.info("answer in words: %d line(s) from the model, %d of %d fact(s) placed", len(response.answer.strip().splitlines()),
                  len(mapped), len(labels))
     except BackendError:
-        raise Problem("system.model_unavailable", "The model isn't available to read this answer; try again in a moment.") from None
+        raise Problem("model.unavailable", "The model isn't available to read this answer; try again in a moment.") from None
     return mapped
 
 
@@ -592,7 +592,7 @@ async def confirm_run_facts(case_id: str, run_id: str, body: ConfirmIn, request:
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     step = _waiting_on(run, pb, run.step or "", ("checkpoint",))
     if step.by == "manager" and owner_of(request) != case.manager:
-        raise Problem("run.manager_confirms", "The case manager confirms this playbook's facts.")  # the case's roles, no other (decided 3 November 2026)
+        raise Problem("run.manager_only", "The case manager confirms this playbook's facts.")  # the case's roles, no other (decided 3 November 2026)
     known = {f.id for f in run.facts}
     if any(f.id not in known and not (pb.leaf(f.id) is not None and f.id != root(f.id)) for f in body.facts):
         raise Problem("request.invalid", "A fact that isn't in this run.")
@@ -616,7 +616,7 @@ def _may_end(request: Request, case: Case, run: Run) -> None:
     """Stopping and cancelling: the starter's (by id, never by the shown name), or the case manager's."""
     me = owner_of(request)
     if run.starter != me and case.manager != me:
-        raise Problem("run.not_yours_to_end", "Only the person who started this run or the case manager can end it.")
+        raise Problem("run.starter_or_manager_only", "Only the person who started this run or the case manager can end it.")
 
 
 @router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/pause", response_model=Run, responses={409: {"description": "Not waiting"}})

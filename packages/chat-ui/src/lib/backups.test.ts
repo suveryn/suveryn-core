@@ -42,7 +42,7 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
   });
 
   it("doesn't mark the key failing for one wrong file: the last test that passed stands (VM regression 03c8f74, finding 4)", () => {
-    const wrong = { at: "2026-10-22T10:00:00Z", ok: false, failure: { kind: "refused", code: "backup.wrong_key", params: {} }, last_ok: "2026-10-22T09:50:00Z" };
+    const wrong = { at: "2026-10-22T10:00:00Z", ok: false, failure: { kind: "refused", code: "backup.key_mismatch", params: {} }, last_ok: "2026-10-22T09:50:00Z" };
     const k = keyTestState({ ...base, key_test: wrong }, now);
     expect(k).toMatchObject({ kind: "wrong_file", lastOk: "2026-10-22T09:50:00Z", due: false });
     expect(backupAttention({ ...base, key_test: wrong }, now)).toBeNull();  // nothing on Status

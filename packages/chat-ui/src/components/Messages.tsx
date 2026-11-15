@@ -572,7 +572,7 @@ function CalculationNote({ calc }: { calc: Calculation }) {
   const m = useT();
   if (calc.result === null) {
     return (
-      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed({ expression: calc.expression, why: messageText({ kind: "warning", code: calc.code ?? "calc.syntax" }, m) })}</InlineNotice>
+      <InlineNotice icon={<CircleAlert size={14} />} tone="error">{m.calcFailed({ expression: calc.expression, why: messageText({ kind: "warning", code: calc.code ?? "calc.unreadable" }, m) })}</InlineNotice>
     );
   }
   const missing = calc.figures_not_in_sources;

@@ -1,20 +1,21 @@
 {
- "_about": "Every message sūveryn's server, and the appliance's web setup, sends or stores about what went wrong or what to check: a code with parameters, never a sentence (the handbook's decision of 12 November 2026, Messages are codes; docs/design/messages.md). A screen words each code in its reader's language; `title` is English, for developers, never shown to a person. A code, once released, is never renamed or reused. kind: refused | unavailable | internal | warning. A parameter's type: number | string | id; `private` marks client data, which is never logged.",
+ "_about": "Every message sūveryn's server, and the appliance's web setup, sends or stores about what went wrong or what to check: a code with parameters, never a sentence (the handbook's decision of 12 November 2026, Messages are codes; docs/design/messages.md). A screen words each code in its reader's language; `title` is English, for developers, never shown to a person. A code, once released, is never renamed, removed or reused. kind: refused | unavailable | internal | warning. A parameter's type: number | string | id; `private` marks client data, which is never logged.",
  "areas": [
   "system",
   "auth",
   "request",
   "upload",
   "document",
+  "model",
   "run",
   "case",
   "conversation",
   "user",
+  "account",
   "calc",
   "answer",
   "backup",
   "clock",
-  "settings",
   "setup",
   "network",
   "bundle"
@@ -42,20 +43,6 @@
   "system.database_unavailable": {
    "kind": "unavailable",
    "title": "The database can't be reached.",
-   "status": 503,
-   "retry": true,
-   "since": "0.2.0"
-  },
-  "system.documents_unavailable": {
-   "kind": "unavailable",
-   "title": "Document handling (search, the reader) isn't available.",
-   "status": 503,
-   "retry": true,
-   "since": "0.2.0"
-  },
-  "system.model_unavailable": {
-   "kind": "unavailable",
-   "title": "The model can't be reached, or what it sent back couldn't be read: no answer, and no reading of an answer given in words.",
    "status": 503,
    "retry": true,
    "since": "0.2.0"
@@ -127,7 +114,7 @@
    },
    "since": "0.2.0"
   },
-  "upload.unsupported_type": {
+  "upload.unsupported": {
    "kind": "refused",
    "title": "Not a file type sūveryn reads.",
    "status": 415,
@@ -139,7 +126,7 @@
    "status": 415,
    "since": "0.2.0"
   },
-  "upload.invalid": {
+  "upload.content_mismatch": {
    "kind": "refused",
    "title": "The file's content doesn't fit its extension.",
    "status": 415,
@@ -156,20 +143,20 @@
    },
    "since": "0.2.0"
   },
-  "upload.queue_full": {
+  "upload.too_many": {
    "kind": "refused",
-   "title": "Too many documents are waiting to be read.",
+   "title": "Too many documents are waiting to be read: the queue is full, or this person has as many waiting as one person may.",
    "status": 429,
    "retry": true,
    "since": "0.2.0"
   },
-  "upload.not_zip": {
+  "upload.not_a_zip": {
    "kind": "refused",
    "title": "Not a ZIP archive that can be opened.",
    "status": 415,
    "since": "0.2.0"
   },
-  "upload.archive_too_many": {
+  "upload.archive_files_too_many": {
    "kind": "refused",
    "title": "The archive holds more than `max` files.",
    "status": 415,
@@ -180,7 +167,7 @@
    },
    "since": "0.2.0"
   },
-  "upload.archive_too_big": {
+  "upload.archive_too_large": {
    "kind": "refused",
    "title": "The archive unpacks to more than `max_mb`.",
    "status": 413,
@@ -215,7 +202,14 @@
    "status": 409,
    "since": "0.2.0"
   },
-  "document.password": {
+  "document.unavailable": {
+   "kind": "unavailable",
+   "title": "Document handling (search, the reader) isn't available.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "document.password_protected": {
    "kind": "refused",
    "title": "Not read: the file is protected with a password.",
    "since": "0.2.0"
@@ -225,7 +219,7 @@
    "title": "Not read: the file is damaged, or isn't what its extension says.",
    "since": "0.2.0"
   },
-  "document.too_many_pages": {
+  "document.pages_too_many": {
    "kind": "refused",
    "title": "Not read: the document has `pages` pages, and at most `max` are read.",
    "params": {
@@ -253,9 +247,9 @@
    "title": "Not read: no reader for this kind of file.",
    "since": "0.2.0"
   },
-  "document.timeout": {
+  "document.reading_too_slow": {
    "kind": "refused",
-   "title": "Not read: it took longer than `minutes` minutes.",
+   "title": "Not read: reading it took longer than `minutes` minutes.",
    "params": {
     "minutes": {
      "type": "number"
@@ -318,7 +312,7 @@
    },
    "since": "0.2.0"
   },
-  "document.furniture_restored": {
+  "document.header_footer_recovered": {
    "kind": "warning",
    "title": "Read, with a note: a header or footer on page `page` was kept without its layout.",
    "params": {
@@ -328,9 +322,22 @@
    },
    "since": "0.2.0"
   },
-  "run.busy": {
+  "model.unavailable": {
+   "kind": "unavailable",
+   "title": "The model can't be reached, or what it sent back couldn't be read: no answer, and no reading of an answer given in words.",
+   "status": 503,
+   "retry": true,
+   "since": "0.2.0"
+  },
+  "model.not_found": {
    "kind": "refused",
-   "title": "Too many playbook runs are reading; start this one when one has finished.",
+   "title": "The model asked for isn't installed on this appliance.",
+   "status": 422,
+   "since": "0.2.0"
+  },
+  "run.too_many": {
+   "kind": "refused",
+   "title": "Too many playbook runs are reading at once: this run failed, and can be started again when one has finished.",
    "status": 429,
    "retry": true,
    "since": "0.2.0"
@@ -377,36 +384,36 @@
    "status": 409,
    "since": "0.2.0"
   },
-  "run.not_asked": {
+  "run.document_not_asked": {
    "kind": "refused",
    "title": "This run doesn't ask for that document: its request was skipped because of a fact.",
    "status": 409,
    "since": "0.2.0"
   },
-  "run.manager_confirms": {
+  "run.manager_only": {
    "kind": "refused",
    "title": "Only the case manager confirms this playbook's facts.",
    "status": 403,
    "since": "0.2.0"
   },
-  "run.not_yours_to_end": {
+  "run.starter_or_manager_only": {
    "kind": "refused",
    "title": "Only the person who started the run, or the case manager, stops or cancels it.",
    "status": 403,
    "since": "0.2.0"
   },
-  "run.not_an_option": {
+  "run.value_invalid": {
    "kind": "refused",
    "title": "The value isn't one of the fact's options.",
    "status": 422,
    "since": "0.2.0"
   },
-  "run.document_missing": {
+  "run.no_document": {
    "kind": "refused",
-   "title": "A run failed: a document it was to read is no longer in the case, or there is none to read.",
+   "title": "A run failed: there is no document for it to read (none was given, or the one it was to read is no longer in the case).",
    "since": "0.2.0"
   },
-  "run.unreadable_answer": {
+  "run.answer_unreadable": {
    "kind": "refused",
    "title": "A run failed: what the model wrote couldn't be read as the playbook's facts, twice.",
    "retry": true,
@@ -443,7 +450,7 @@
    "status": 403,
    "since": "0.2.0"
   },
-  "case.manager_only": {
+  "case.manager_or_administrator_only": {
    "kind": "refused",
    "title": "Only the case's manager or an administrator does this.",
    "status": 403,
@@ -461,13 +468,13 @@
    "status": 409,
    "since": "0.2.0"
   },
-  "case.hand_over_first": {
+  "case.single_manager": {
    "kind": "refused",
-   "title": "A case has exactly one manager: hand the case over to change who that is.",
+   "title": "A case has exactly one manager: who that is changes by handing the case over, not by a member's role.",
    "status": 422,
    "since": "0.2.0"
   },
-  "case.not_deleted": {
+  "case.deletion_failed": {
    "kind": "unavailable",
    "title": "The case couldn't be deleted now; nothing was deleted.",
    "status": 503,
@@ -517,25 +524,25 @@
    "retry": true,
    "since": "0.2.0"
   },
-  "user.email_exists": {
+  "account.email_exists": {
    "kind": "refused",
    "title": "An account with this e-mail address exists.",
    "status": 409,
    "since": "0.2.0"
   },
-  "user.last_administrator": {
+  "account.last_administrator": {
    "kind": "refused",
    "title": "There must always be one administrator.",
    "status": 409,
    "since": "0.2.0"
   },
-  "user.own_account": {
+  "account.own_account": {
    "kind": "refused",
    "title": "An administrator can't switch off or delete their own account.",
    "status": 409,
    "since": "0.2.0"
   },
-  "user.manages_cases": {
+  "account.manages_cases": {
    "kind": "refused",
    "title": "The account still manages `n` cases: hand them over first.",
    "status": 409,
@@ -546,37 +553,37 @@
    },
    "since": "0.2.0"
   },
-  "user.switch_off_first": {
+  "account.not_switched_off": {
    "kind": "refused",
    "title": "An account is switched off before it is deleted.",
    "status": 409,
    "since": "0.2.0"
   },
-  "user.rights_removed": {
+  "account.rights_removed": {
    "kind": "refused",
    "title": "The caller's administrator rights were removed meanwhile.",
    "status": 403,
    "since": "0.2.0"
   },
-  "user.rights_refused": {
+  "account.administrator_rights_refused": {
    "kind": "unavailable",
-   "title": "The sign-in service refused the gateway's administrator rights.",
+   "title": "The sign-in service refused the administrator's rights: the administrator role lacks a permission.",
    "status": 503,
    "since": "0.2.0"
   },
-  "user.deletion_unfinished": {
+  "account.deletion_unfinished": {
    "kind": "unavailable",
    "title": "An account's deletion stopped partway; deleting again finishes it.",
    "status": 503,
    "retry": true,
    "since": "0.2.0"
   },
-  "calc.number_style": {
+  "calc.number_styles_mixed": {
    "kind": "warning",
    "title": "A calculation's figures are written in different number styles.",
    "since": "0.2.0"
   },
-  "calc.decimal_separator": {
+  "calc.decimal_separator_unclear": {
    "kind": "warning",
    "title": "A calculation's figures don't show which separator is the decimal one.",
    "since": "0.2.0"
@@ -591,21 +598,15 @@
    "title": "A calculation has no figures.",
    "since": "0.2.0"
   },
-  "calc.syntax": {
+  "calc.unreadable": {
    "kind": "warning",
    "title": "A calculation couldn't be read.",
    "since": "0.2.0"
   },
-  "answer.document_gone": {
+  "answer.document_not_found": {
    "kind": "refused",
-   "title": "A document the question was put to is no longer there (deleted since the page read the list), or isn't the caller's.",
+   "title": "A document the question was put to isn't there for the caller: deleted since the page read the list, never there, or not the caller's.",
    "status": 404,
-   "since": "0.2.0"
-  },
-  "answer.model_unknown": {
-   "kind": "refused",
-   "title": "The model asked for isn't installed on this appliance.",
-   "status": 422,
    "since": "0.2.0"
   },
   "backup.unavailable": {
@@ -622,7 +623,7 @@
    "retry": true,
    "since": "0.2.0"
   },
-  "backup.share_address": {
+  "backup.share_address_invalid": {
    "kind": "refused",
    "title": "The share's address isn't `\\\\server\\share` (SMB) or `server:/path` (NFS).",
    "status": 422,
@@ -640,13 +641,13 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "backup.share_login": {
+  "backup.share_login_refused": {
    "kind": "refused",
    "title": "The share refused the user name or the password.",
    "status": 422,
    "since": "0.2.0"
   },
-  "backup.share_write": {
+  "backup.share_not_writable": {
    "kind": "refused",
    "title": "Signed in to the share, and the appliance can't write there.",
    "status": 422,
@@ -664,13 +665,13 @@
    "status": 415,
    "since": "0.2.0"
   },
-  "backup.wrong_key": {
+  "backup.key_mismatch": {
    "kind": "refused",
    "title": "The recovery key doesn't open the backup.",
    "status": 422,
    "since": "0.2.0"
   },
-  "backup.none_found": {
+  "backup.not_found": {
    "kind": "refused",
    "title": "There is no backup where the office said.",
    "status": 422,
@@ -682,7 +683,7 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "backup.newer_version": {
+  "backup.version_too_new": {
    "kind": "refused",
    "title": "The backup was made by a newer version than this appliance has.",
    "status": 422,
@@ -705,12 +706,12 @@
    "title": "The backup disk is full.",
    "since": "0.2.0"
   },
-  "backup.unsafe_link": {
+  "backup.link_unsafe": {
    "kind": "refused",
    "title": "A backup couldn't start: a folder of the office's settings holds a link that a restore would refuse.",
    "since": "0.2.0"
   },
-  "backup.verify_failed": {
+  "backup.verification_failed": {
    "kind": "unavailable",
    "title": "The backup disk didn't give back what was written: it may be failing.",
    "since": "0.2.0"
@@ -740,16 +741,16 @@
    "retry": true,
    "since": "0.2.0"
   },
-  "clock.measurement_slow": {
+  "clock.measurement_too_slow": {
    "kind": "refused",
    "title": "The measurement took too long to say how far off the clock is.",
    "status": 422,
    "retry": true,
    "since": "0.2.0"
   },
-  "clock.out_of_range": {
+  "clock.difference_out_of_range": {
    "kind": "refused",
-   "title": "The difference is larger than the clock is set by here (more than a year).",
+   "title": "The difference is outside what the clock is moved by: a nudge takes half a second to a minute, a set by hand at most a year.",
    "since": "0.2.0"
   },
   "setup.name_missing": {
@@ -764,7 +765,7 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "setup.password_short": {
+  "setup.password_too_short": {
    "kind": "refused",
    "title": "The administrator's password is shorter than `min` characters.",
    "status": 422,
@@ -805,7 +806,7 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "setup.name_not_covered": {
+  "setup.certificate_name_mismatch": {
    "kind": "refused",
    "title": "The certificate doesn't cover the appliance's name.",
    "status": 422,
@@ -823,13 +824,13 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "setup.manifest_format": {
+  "setup.not_a_manifest": {
    "kind": "refused",
    "title": "The file isn't a support manifest.",
    "status": 422,
    "since": "0.2.0"
   },
-  "setup.manifest_signature": {
+  "setup.manifest_signature_invalid": {
    "kind": "refused",
    "title": "The support manifest isn't signed by a trusted key, or was changed after signing.",
    "status": 422,
@@ -847,7 +848,7 @@
    "status": 422,
    "since": "0.2.0"
   },
-  "setup.not_answered": {
+  "setup.answers_missing": {
    "kind": "refused",
    "title": "Provisioning was asked for before every step was answered.",
    "status": 409,
@@ -865,7 +866,7 @@
    "status": 409,
    "since": "0.2.0"
   },
-  "setup.not_checked": {
+  "setup.backup_not_checked": {
    "kind": "refused",
    "title": "A restore was asked for before the backup was found and checked.",
    "status": 409,
@@ -888,7 +889,7 @@
    "title": "The appliance's name isn't one a network can use: letters, digits and hyphens, at most 63, not starting or ending with a hyphen.",
    "since": "0.2.0"
   },
-  "network.port_missing": {
+  "network.port_not_found": {
    "kind": "refused",
    "title": "The appliance has no Ethernet port to set up, or not the one named.",
    "since": "0.2.0"
@@ -931,7 +932,7 @@
    "title": "A file of the bundle isn't what its signed manifest says: changed or damaged since it was signed.",
    "since": "0.2.0"
   },
-  "bundle.signature": {
+  "bundle.signature_invalid": {
    "kind": "refused",
    "title": "The bundle isn't signed by a key this system trusts.",
    "since": "0.2.0"

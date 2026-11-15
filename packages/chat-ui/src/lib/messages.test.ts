@@ -43,7 +43,7 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
     const { en } = TABLES_FOR_TESTS;
     expect(messageText({ kind: "refused", code: "upload.too_large", params: { max_mb: 100 } }, en)).toBe("The file is larger than 100 MB.");
     expect(messageText({ kind: "refused", code: "upload.too_large" }, en)).toBe(en.messagesBare["upload.too_large"]);
-    expect(messageText({ kind: "refused", code: "upload.archive_too_many" }, en)).toBe(en.messageAreas.upload);  // no words without it: its area's
+    expect(messageText({ kind: "refused", code: "upload.archive_files_too_many" }, en)).toBe(en.messageAreas.upload);  // no words without it: its area's
     expect(messageText({ kind: "refused", code: "request.too_many", params: { seconds: 1 } }, en)).toBe("Too many requests. Try again in 1 second.");
   });
 
