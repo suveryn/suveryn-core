@@ -68,8 +68,14 @@ const fr: Messages = {
     "document.no_text": "Il ne contient aucun texte à lire.",
     "document.unsupported": "Ce type de fichier ne peut pas être lu.",
     "document.timeout": m("{minutes, plural, one {La lecture a pris plus de # minute.} other {La lecture a pris plus de # minutes.}}"),
-    "document.lost": "Cette page a perdu la trace du téléversement. S'il n'est pas dans les documents, ajoutez-le à nouveau.",
     "document.unreadable": "Réessayez, ou choisissez un autre fichier.",
+    // what a reading noticed (kind warning): one sentence for all the pages of a kind, as the reading notes show it
+    "document.page_coverage_low": m("{count, plural, one {Prêt à l''emploi. Une partie du texte sur la page {pages} n''a peut-être pas été lue correctement ; vérifiez donc les réponses qui s''y appuient avec l''original.} other {Prêt à l''emploi. Une partie du texte sur les pages {pages} n''a peut-être pas été lue correctement ; vérifiez donc les réponses qui s''y appuient avec l''original.}}"),
+    "document.layout_failed": m("{count, plural, one {Prêt à l''emploi. Une partie du texte sur la page {pages} n''a peut-être pas été lue correctement ; vérifiez donc les réponses qui s''y appuient avec l''original.} other {Prêt à l''emploi. Une partie du texte sur les pages {pages} n''a peut-être pas été lue correctement ; vérifiez donc les réponses qui s''y appuient avec l''original.}}"),
+    "document.instruction_like_text": m("{count, plural, one {Texte adressé à une IA à la page {pages}. Traité comme du contenu, jamais comme une consigne.} other {Texte adressé à une IA aux pages {pages}. Traité comme du contenu, jamais comme une consigne.}}"),
+    "document.text_recovered": m("{count, plural, one {Texte de la page {pages} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.} other {Texte des pages {pages} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.}}"),
+    "document.text_layer_recovered": m("{count, plural, one {Texte de la page {pages} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.} other {Texte des pages {pages} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.}}"),
+    "document.furniture_restored": m("{count, plural, one {En-têtes et pieds de page de la page {pages} récupérés sans mise en page.} other {En-têtes et pieds de page des pages {pages} récupérés sans mise en page.}}"),
     "run.busy": "Trop de playbooks sont en cours. Lancez celui-ci dès que l'un d'eux est terminé.",
     "run.already_going": "Ce playbook est déjà en cours dans ce dossier.",
     "run.facts_changed": "Un collègue a modifié un fait entre-temps. Les faits sont de nouveau affichés : vérifiez-les, puis confirmez.",
@@ -112,6 +118,9 @@ const fr: Messages = {
     "calc.syntax": "Le calcul n'a pas pu être lu.",
   },
   messagesBare: {
+    "document.page_coverage_low": "Prêt à l'emploi. Une partie du texte sur certaines pages n'a peut-être pas été lue correctement ; vérifiez donc les réponses qui s'y appuient avec l'original.",
+    "document.layout_failed": "Prêt à l'emploi. Une partie du texte sur certaines pages n'a peut-être pas été lue correctement ; vérifiez donc les réponses qui s'y appuient avec l'original.",
+    "document.instruction_like_text": "Texte adressé à une IA. Traité comme du contenu, jamais comme une consigne.",
     "document.too_many_pages": "Il est trop volumineux pour être lu.",
     "document.timeout": "La lecture a pris trop de temps.",
     "upload.too_large": "Le fichier dépasse la taille acceptée par le serveur.",
@@ -142,6 +151,7 @@ const fr: Messages = {
     warning: "Fait, mais un point est à vérifier.",
   },
   uploadInterrupted: "L'envoi a été interrompu.",
+  uploadLost: "Cette page a perdu la trace du téléversement. S'il n'est pas dans les documents, ajoutez-le à nouveau.",
   streamCutOff: "La connexion a été coupée avant que la réponse soit complète.",
   archiveSkipped: m("{reason, select, unsupported {Depuis {archive} : sūveryn ne lit pas ce type de fichier.} archive {Depuis {archive} : une archive dans l''archive n''est pas ouverte ; ajoutez-la séparément.} encrypted {Depuis {archive} : il est protégé par un mot de passe.} too_large {Depuis {archive} : il dépasse la taille acceptée par le serveur.} empty {Depuis {archive} : il est vide.} invalid {Depuis {archive} : son contenu ne correspond pas à son extension.} damaged {Depuis {archive} : il est endommagé dans l''archive.} other {Depuis {archive} : il ne peut pas être lu.}}"),
 
@@ -354,8 +364,6 @@ const fr: Messages = {
   pageShort: m("p.{page}"),
 
   pageList: m("{count, plural, other {p. {pages}}}"),
-  reviewHint: "Prêt à l'emploi. Une partie du texte sur certaines pages n'a peut-être pas été lue correctement ; vérifiez donc les réponses qui s'y appuient avec l'original.",
-  reviewHintPages: m("{count, plural, one {Prêt à l''emploi. Une partie du texte sur la page {pages} n''a peut-être pas été lue correctement ; vérifiez donc les réponses qui s''y appuient avec l''original.} other {Prêt à l''emploi. Une partie du texte sur les pages {pages} n''a peut-être pas été lue correctement ; vérifiez donc les réponses qui s''y appuient avec l''original.}}"),
 
   sending: "Envoi de votre question…",
   statusSearching: "Recherche dans vos documents…",
@@ -737,10 +745,6 @@ const fr: Messages = {
   noteAiRow: "Contient un texte adressé à une IA.",
   noteAiRowPages: m("{count, plural, one {Contient un texte adressé à une IA, à la page {pages}.} other {Contient un texte adressé à une IA, aux pages {pages}.}}"),
   noteRecoveredRow: m("{count, plural, one {Une partie du texte de la page {pages} a été récupérée sans sa mise en page.} other {Une partie du texte des pages {pages} a été récupérée sans sa mise en page.}}"),
-  noteAi: "Texte adressé à une IA. Traité comme du contenu, jamais comme une consigne.",
-  noteAiPages: m("{count, plural, one {Texte adressé à une IA à la page {pages}. Traité comme du contenu, jamais comme une consigne.} other {Texte adressé à une IA aux pages {pages}. Traité comme du contenu, jamais comme une consigne.}}"),
-  noteRecovered: m("{count, plural, one {Texte de la page {pages} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.} other {Texte des pages {pages} récupéré sans mise en page ; les tableaux peuvent se mélanger. Vérifiez avec l''original.}}"),
-  noteHeaders: m("{count, plural, one {En-têtes et pieds de page de la page {pages} récupérés sans mise en page.} other {En-têtes et pieds de page des pages {pages} récupérés sans mise en page.}}"),
   cardNoteAi: "Lu. Vérifiez ce document : il contient un texte adressé à une IA.",
   cardNoteRecovered: "Lu. Une partie du texte a été récupérée sans sa mise en page.",
   statusProcessing: "En cours de lecture",

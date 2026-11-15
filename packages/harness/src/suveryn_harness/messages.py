@@ -32,7 +32,7 @@ class Code:
     name: str
     kind: str
     title: str                     # English, for developers
-    status: int | None = None      # the HTTP status when it takes the answer's place
+    status: int | None = None      # the HTTP status when it takes the answer's place; none for one that never does
     retry: bool = False            # whether trying again can help
     params: dict[str, dict] = field(default_factory=dict)  # name -> {"type", "private"?}
     since: str = ""
@@ -52,9 +52,12 @@ def load(path: Path = Path(__file__).parent / "messages.json") -> tuple[tuple[st
                     params=e.get("params", {}), since=e.get("since", ""))
         ok = (NAME.fullmatch(name) and code.area in areas and code.kind in KINDS and code.title and code.since
               and all(p.get("type") in PARAM_TYPES for p in code.params.values())
-              # a kind fixes the status range: refused 4xx, unavailable and internal 5xx, a warning travels in an answer
-              and {"refused": code.status is not None and 400 <= code.status < 500,
-                   "unavailable": code.status is not None and 500 <= code.status < 600,
+              # A kind fixes the status range: refused 4xx, unavailable 5xx, internal 500. A refusal or a part that
+              # is down can also be an upload's or a run's stored error, never an HTTP answer: then it has no status,
+              # as a warning never has (it travels inside an answer). The kind says what the person can do, the
+              # status only how it travels.
+              and {"refused": code.status is None or 400 <= code.status < 500,
+                   "unavailable": code.status is None or 500 <= code.status < 600,
                    "internal": code.status == 500, "warning": code.status is None}[code.kind])
         if not ok:
             raise ValueError(f"messages.json: {name!r} breaks the registry's rules")
@@ -98,7 +101,7 @@ class Problem(Exception):
     def __init__(self, code: str, detail: str = "", headers: dict[str, str] | None = None, **params):
         self.message = message(code, **params)
         if CODES[code].status is None:
-            raise ValueError(f"{code} is a {CODES[code].kind}: it travels inside an answer, not instead of one")
+            raise ValueError(f"{code} has no status: it travels inside an answer or is stored, never instead of an answer")
         super().__init__(detail or CODES[code].title)
         self.code, self.kind, self.params = code, CODES[code].kind, params
         self.status, self.detail, self.headers = CODES[code].status, detail or CODES[code].title, headers

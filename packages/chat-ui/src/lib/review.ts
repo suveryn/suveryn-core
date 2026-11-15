@@ -6,7 +6,9 @@ import { messageText, type Message } from "./messages";
 /** "p. 1" or "pp. 1 and 3" (in the current language) */
 export const pageList = (pages: number[]) => t().pageList(pagesOf(pages));
 
-export const reviewHint = (pages: number[] | undefined): string => (pages?.length ? t().reviewHintPages(pagesOf(pages)) : t().reviewHint);
+/** What "check these pages" means, in full: the words of the warning that put them there. */
+export const reviewHint = (pages: number[] | undefined): string =>
+  (pages?.length ? t().messages["document.page_coverage_low"](pagesOf(pages)) : t().messagesBare["document.page_coverage_low"]);
 
 /** Why an upload failed, as the server says it ("ValueError: the file is not a valid Word file"): the
  *  reason as a sentence, without the exception's name. Only when there is no code (``failureText``). */

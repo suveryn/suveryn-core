@@ -60,7 +60,7 @@ from typing import BinaryIO
 from zlib import error as zlib_error
 
 from suveryn_harness import Citation
-from suveryn_harness.messages import Problem, message
+from suveryn_harness.messages import Problem, message, reference
 
 from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like
@@ -274,6 +274,7 @@ class Job:
     progress: Progress | None = None  # how far reading has got (reading.Progress), while processing
     error_code: str | None = None     # why it failed, one of reading.CODES: the API says it as ``failure`` (public)
     error_detail: dict = field(default_factory=dict)  # the numbers that message needs (pages, max, minutes)
+    error_ref: str | None = None      # it failed in a way nobody planned for: the reference its log line has
     cancel_requested: bool = False    # the person cancelled it while it was read; the worker stops it
     already_present: bool = False     # the same file was stored in this scope before: the stored copy, not read again
     archive: str | None = None        # the .zip it came from, by name, for the interface
@@ -290,9 +291,22 @@ class Job:
         out.pop("upload")
         out["case_id"] = str(self.case_id) if self.case_id else None
         # why it failed, as a code of the registry with its numbers: the interface words it (docs/design/messages.md)
-        code, detail = out.pop("error_code"), out.pop("error_detail")
-        out["failure"] = message(f"document.{code}", **detail) if code else None
+        # A reason the reader knows is refused (nothing was read: another file, or try again); a crash is internal,
+        # with the reference the log has, as any unplanned failure is.
+        code, detail, ref = out.pop("error_code"), out.pop("error_detail"), out.pop("error_ref")
+        out["failure"] = message("system.internal", ref=ref) if ref else message(f"document.{code}", **detail) if code else None
         return out
+
+
+def _unplanned(e: Exception) -> str:
+    """A reference for a reading that failed in a way nobody planned for, logged with the exception's type and where
+    it was raised, never its message, which may name the file or quote it (the decision of 12 November, rule 5)."""
+    ref, tb = reference(), e.__traceback__
+    while tb is not None and tb.tb_next is not None:
+        tb = tb.tb_next
+    where = f"{Path(tb.tb_frame.f_code.co_filename).name}:{tb.tb_lineno} {tb.tb_frame.f_code.co_name}" if tb else "?"
+    log.error("document failed: internal %s: %s at %s", ref, type(e).__name__, where)
+    return ref
 
 
 def job_status(document_status: str) -> str:
@@ -365,8 +379,8 @@ class DocumentService:
             try:
                 self._process(job, source)
             except Exception as e:  # noqa: BLE001 - last resort: the worker must outlive any one document
-                log.error("document worker: unexpected %s", type(e).__name__)
                 job.status, job.error, job.finished_at = "failed", type(e).__name__, time.time()
+                job.error_ref = _unplanned(e)
                 self._discard(self._path_for(job, source), source)
 
     def _path_for(self, job: Job, source: Source) -> Path:
@@ -407,11 +421,11 @@ class DocumentService:
                 self._queue.put((job, path), first=True)  # unpacked now: read from the file
                 return
             # A reason sūveryn knows is its own sentence; anything else names the exception (for the log).
-            if not isinstance(e, Unreadable):  # the type only: the message may name the file
-                log.warning("document failed: %s", type(e).__name__)
             job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else f"{type(e).__name__}: {str(e)[:200]}"
-            job.error_code = e.code if isinstance(e, Unreadable) else "unreadable"
-            job.error_detail = e.detail if isinstance(e, Unreadable) else {}
+            if isinstance(e, Unreadable):
+                job.error_code, job.error_detail = e.code, e.detail
+            else:  # nobody planned for it: a reference for the person, and the log line under it
+                job.error_ref = _unplanned(e)
         job.progress = None
         job.finished_at = time.time()
         self._discard(path, source)

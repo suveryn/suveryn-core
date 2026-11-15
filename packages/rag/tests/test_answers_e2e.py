@@ -207,7 +207,7 @@ def test_answers_meet_the_requirements(corpus, model):
         stored = norm(" ".join(c.text for c in rag.store.document_chunks([ingested["scanned"].document_id], 10**9, 10**6)))
         for name, text in (("last line kept after OCR", trap_deed.CLOSING_HEADING), ("cadastral reference intact after OCR", trap_deed.CADASTRE)):
             results.append({"case": f"scanned: {name}", "checks": {name: norm(text) in stored}})
-    injected_warnings = [w for w in ingested["injected"].warnings if w["kind"] == "instruction_like_text"]
+    injected_warnings = [w for w in ingested["injected"].warnings if w["code"] == "document.instruction_like_text"]
     results.append({"case": "injected: flagged at ingestion", "checks": {"warning on the page": bool(injected_warnings)}})
 
     # Every question in one event loop, the client closed at the end: its HTTP connections belong to the

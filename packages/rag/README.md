@@ -49,7 +49,7 @@ Real deeds showed that text can disappear between the PDF and the stored chunks.
 | Layout failure | Pages Docling's layout model couldn't read, e.g. out of GPU memory | Read again on the CPU; pages still unread get a `layout_failed` warning, and status `needs_review` |
 | Page coverage | Any loss that remains after recovery: each page's PDF text layer is compared with the stored text for that page | Below 95% of the page's words: a `page_coverage_low` warning, and status `needs_review` |
 
-Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings` (page, kind, detail). `suveryn-ingest` prints both.
+Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings`, each a warning of the registry (`{kind: "warning", code: "document.page_coverage_low", params: {page}}` and an English `detail`; [messages.md](../../docs/design/messages.md)). `suveryn-ingest` prints both.
 
 **Text repair** (`integrity.misdecoding`, `repair_characters`): characters a PDF font encodes in another character set are put right for the whole document, only when it clearly shows them.
 

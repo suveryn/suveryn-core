@@ -79,8 +79,14 @@ const en = {
     "document.no_text": "It has no text to read.",
     "document.unsupported": "This kind of file can't be read.",
     "document.timeout": m("{minutes, plural, other {Reading took longer than # minutes.} one {Reading took longer than # minute.}}", "minutes"),
-    "document.lost": "This page lost track of the upload. If it isn't in the documents, add it again.",
     "document.unreadable": "Try again, or another file.",
+    // what a reading noticed (kind warning): one sentence for all the pages of a kind, as the reading notes show it
+    "document.page_coverage_low": m("{count, plural, one {Ready to use. Some text on page {pages} may not have been read correctly, so check answers that rely on it against the original.} other {Ready to use. Some text on pages {pages} may not have been read correctly, so check answers that rely on it against the original.}}", "pages", "count"),
+    "document.layout_failed": m("{count, plural, one {Ready to use. Some text on page {pages} may not have been read correctly, so check answers that rely on it against the original.} other {Ready to use. Some text on pages {pages} may not have been read correctly, so check answers that rely on it against the original.}}", "pages", "count"),
+    "document.instruction_like_text": m("{count, plural, one {Text aimed at an AI on page {pages}. Treated as content, never as an instruction.} other {Text aimed at an AI on pages {pages}. Treated as content, never as an instruction.}}", "pages", "count"),
+    "document.text_recovered": m("{count, plural, one {Text on page {pages} recovered without layout; tables may run together. Check against the original.} other {Text on pages {pages} recovered without layout; tables may run together. Check against the original.}}", "pages", "count"),
+    "document.text_layer_recovered": m("{count, plural, one {Text on page {pages} recovered without layout; tables may run together. Check against the original.} other {Text on pages {pages} recovered without layout; tables may run together. Check against the original.}}", "pages", "count"),
+    "document.furniture_restored": m("{count, plural, one {Headers and footers on page {pages} recovered without layout.} other {Headers and footers on pages {pages} recovered without layout.}}", "pages", "count"),
     "run.busy": "Too many playbooks are reading right now. Start this one when one has finished.",
     "run.already_going": "This playbook is already going in this case.",
     "run.facts_changed": "A colleague changed a fact in the meantime. The facts are shown again: check them, then confirm.",
@@ -123,6 +129,9 @@ const en = {
     "calc.syntax": "The calculation couldn't be read.",
   } satisfies Record<ChatCode, Wording>,
   messagesBare: {
+    "document.page_coverage_low": "Ready to use. Some text on some pages may not have been read correctly, so check answers that rely on it against the original.",
+    "document.layout_failed": "Ready to use. Some text on some pages may not have been read correctly, so check answers that rely on it against the original.",
+    "document.instruction_like_text": "Text aimed at an AI. Treated as content, never as an instruction.",
     "document.too_many_pages": "It is too large to be read.",
     "document.timeout": "Reading took too long.",
     "upload.too_large": "The file is larger than the server accepts.",
@@ -153,6 +162,7 @@ const en = {
     warning: "Done, but something needs checking.",
   } satisfies Record<MessageKind, string>,
   uploadInterrupted: "The upload was interrupted.",
+  uploadLost: "This page lost track of the upload. If it isn't in the documents, add it again.",
   streamCutOff: "The connection closed before the answer was complete.",
   // Server errors, by HTTP status (the server's own text is English).
   archiveSkipped: m("{reason, select, unsupported {From {archive}: sūveryn doesn''t read this kind of file.} archive {From {archive}: an archive inside the archive isn''t opened; add it on its own.} encrypted {From {archive}: it is protected by a password.} too_large {From {archive}: it is larger than the server accepts.} empty {From {archive}: it is empty.} invalid {From {archive}: its content doesn''t match its extension.} damaged {From {archive}: it is damaged in the archive.} other {From {archive}: it can''t be read.}}", "archive", "reason"),
@@ -375,8 +385,6 @@ const en = {
 
   // pages to check (documents in needs_review)
   pageList: m("{count, plural, one {p. {pages}} other {pp. {pages}}}", "pages", "count"),
-  reviewHint: "Ready to use. Some text on some pages may not have been read correctly, so check answers that rely on it against the original.",
-  reviewHintPages: m("{count, plural, one {Ready to use. Some text on page {pages} may not have been read correctly, so check answers that rely on it against the original.} other {Ready to use. Some text on pages {pages} may not have been read correctly, so check answers that rely on it against the original.}}", "pages", "count"),
 
   // waiting status (suveryn-tracker#6)
   sending: "Sending your question…",
@@ -774,10 +782,6 @@ const en = {
   noteAiRow: "Contains text addressed to an AI.",
   noteAiRowPages: m("{count, plural, one {Contains text addressed to an AI, on page {pages}.} other {Contains text addressed to an AI, on pages {pages}.}}", "pages", "count"),
   noteRecoveredRow: m("{count, plural, one {Some text on page {pages} was recovered without its layout.} other {Some text on pages {pages} was recovered without its layout.}}", "pages", "count"),
-  noteAi: "Text aimed at an AI. Treated as content, never as an instruction.",
-  noteAiPages: m("{count, plural, one {Text aimed at an AI on page {pages}. Treated as content, never as an instruction.} other {Text aimed at an AI on pages {pages}. Treated as content, never as an instruction.}}", "pages", "count"),
-  noteRecovered: m("{count, plural, one {Text on page {pages} recovered without layout; tables may run together. Check against the original.} other {Text on pages {pages} recovered without layout; tables may run together. Check against the original.}}", "pages", "count"),
-  noteHeaders: m("{count, plural, one {Headers and footers on page {pages} recovered without layout.} other {Headers and footers on pages {pages} recovered without layout.}}", "pages", "count"),
   cardNoteAi: "Read. Check this document: it contains text addressed to an AI.",
   cardNoteRecovered: "Read. Some text was recovered without its layout.",
   statusProcessing: "Being read",

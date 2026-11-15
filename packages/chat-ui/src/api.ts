@@ -56,7 +56,8 @@ export type WireMessage = { role: "user" | "assistant" | "system"; content: stri
 export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "failed" | "cancelled";
 /** How far reading has got (suveryn_rag.reading.Progress): text recognition page by page, the layout, storing. */
 export type JobProgress = { step: "read" | "ocr" | "layout" | "store"; done: number | null; total: number | null };
-export type Warning = { page: number | null; kind: string; detail: string };
+/** What a reading noticed: a warning of the registry's document area with its page (`params.page`; none for a file without pages). */
+export type Warning = Message;
 export type Job = {
   id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
   pages?: number | null;
@@ -372,7 +373,12 @@ export async function streamChat(
 
 /** Pages where text may be missing (the warnings that put a document in needs_review). */
 export function reviewPages(warnings: Warning[] | undefined): number[] {
-  const pages = (warnings ?? []).filter((w) => (w.kind === "page_coverage_low" || w.kind === "layout_failed") && w.page !== null).map((w) => w.page!);
+  return pagesWith(warnings, ["document.page_coverage_low", "document.layout_failed"]);
+}
+
+/** The pages the warnings of these codes are about, each once, in order. */
+export function pagesWith(warnings: Warning[] | undefined, codes: string[]): number[] {
+  const pages = (warnings ?? []).filter((w) => codes.includes(w.code ?? "")).map((w) => w.params?.page).filter((p): p is number => typeof p === "number");
   return [...new Set(pages)].sort((a, b) => a - b);
 }
 

@@ -223,7 +223,7 @@ class Store:
             self._conn.execute(
                 "UPDATE documents SET filename = %s, pages = %s, ocr_pages = %s, status = %s, warnings = %s WHERE id = %s",
                 (filename, pages, ocr_pages, status,
-                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), document_id))
+                 json.dumps([w.message() for w in warnings]), document_id))
             self._insert_chunks(document_id, chunks, embeddings)
             if original is not None:
                 self._keep_original(document_id, original)
@@ -249,7 +249,7 @@ class Store:
                 "INSERT INTO documents (filename, sha256, pages, ocr_pages, status, warnings, owner, case_id, origin,"
                 " provenance, content) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (filename, sha256, pages, ocr_pages, status,
-                 json.dumps([{"page": w.page, "kind": w.kind, "detail": w.detail} for w in warnings]), owner, case_id,
+                 json.dumps([w.message() for w in warnings]), owner, case_id,
                  origin, json.dumps(provenance) if provenance else None,
                  json.dumps(content) if content is not None else None)).fetchone()[0]
             self._insert_chunks(doc_id, chunks, embeddings)
