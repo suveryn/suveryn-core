@@ -8,9 +8,10 @@
  */
 import { Check, CircleAlert, FileKey, Info, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { getBackups, HttpError, testRecoveryKey, type BackupStatus } from "../api";
+import { getBackups, testRecoveryKey, type BackupStatus } from "../api";
 import { locale, useT } from "../i18n";
 import { backupState, keyTestState, sizeLabel } from "../lib/backups";
+import { messageText, type Message } from "../lib/messages";
 import { FileButton, InlineNotice, readText, TextButton } from "../ui";
 import { backupWhen } from "./AdminStatus";
 import { BackUpNow, BackupSettingsForm, RecoverySheet } from "./AdminBackupSettings";
@@ -34,24 +35,24 @@ export function AdminBackups() {
   const test = async (files: File[]) => {
     setKeyProblem(null);
     const key = files[0] ? await readText(files[0], 4096) : null;
-    if (key === null) { setKeyProblem(m.keyTestNotKey); return; }
+    if (key === null) { setKeyProblem(messageText({ kind: "refused", code: "backup.not_a_key" }, m)); return; }
     try {
       await testRecoveryKey(key);
       setStatus((s) => (s ? { ...s, key_testing: true } : s));
     } catch (e) {
-      setKeyProblem(e instanceof HttpError && e.status === 415 ? m.keyTestNotKey : (e as Error).message);
+      setKeyProblem((e as Error).message);  // the server's code, worded (backup.not_a_key, backup.busy)
     }
   };
   if (error) return <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{m.backupsUnreadable({ why: error })}</InlineNotice>;
   if (!status) return null;
   const state = backupState(status);
-  const reason = (step: string) => m.backupStep[step as keyof typeof m.backupStep] ?? m.backupStep.other;
+  const reason = (failure: Message) => messageText(failure, m);
   return (
     <>
       {state.kind === "unavailable" && <InlineNotice icon={<Info size={14} />}>{m.backupsUnavailable}</InlineNotice>}
       {state.kind === "not_set_up" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error">{m.backupsNotSetUp}</InlineNotice>}
       {state.kind === "never" && (state.failing
-        ? <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.backupFailed({ when: when(state.failing.at), why: reason(state.failing.step) })}</InlineNotice>
+        ? <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.backupFailed({ when: when(state.failing.at), why: reason(state.failing.failure) })}</InlineNotice>
         : <InlineNotice icon={<Info size={14} />}>{m.backupsNever}</InlineNotice>)}
       {(state.kind === "ok" || state.kind === "stale" || state.kind === "failing") && (() => {
         const s = state.status, ok = s.last_success!;
@@ -61,7 +62,7 @@ export function AdminBackups() {
           <>
             {state.kind !== "ok" && (
               <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>
-                {state.kind === "stale" ? m.backupStale({ when: when(ok.at) }) : m.backupFailed({ when: when(s.last_error!.at), why: reason(s.last_error!.step) })}
+                {state.kind === "stale" ? m.backupStale({ when: when(ok.at) }) : m.backupFailed({ when: when(s.last_error!.at), why: reason(s.last_error!.failure) })}
               </InlineNotice>
             )}
             {/* two cards first: the last backup, and the recovery key (board B11) */}
@@ -99,8 +100,8 @@ function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: s
   return (
     <>
       <p className="backup-card-value" role="status">{value}</p>
-      {k.kind === "wrong_file" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestFailed}</InlineNotice>}
-      {k.kind === "failed" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{m.keyTestBroken}</InlineNotice>}
+      {k.kind === "wrong_file" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{messageText(k.test.failure ?? {}, m)}</InlineNotice>}
+      {k.kind === "failed" && <InlineNotice icon={<TriangleAlert size={14} />} tone="error" alert>{messageText(k.test.failure ?? { kind: "internal" }, m)}</InlineNotice>}
       {problem && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{problem}</InlineNotice>}
       {k.kind !== "testing" && (
         <FileButton accept={[".txt", ".key"]} onSelect={onTest}>

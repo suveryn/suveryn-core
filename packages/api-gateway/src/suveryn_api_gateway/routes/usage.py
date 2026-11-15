@@ -3,7 +3,8 @@ notional cloud cost and set the rates. Informational: nothing is ever limited be
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 
 from ..usage import AdminUsageReport, Rates, UsageReport, parse_range
@@ -16,7 +17,7 @@ def _range(start: datetime | None, end: datetime | None) -> tuple[datetime, date
     try:
         return parse_range(start, end)
     except ValueError as e:
-        raise HTTPException(422, str(e)) from None
+        raise Problem("request.invalid", str(e)) from None
 
 
 @router.get("/v1/usage", response_model=UsageReport)

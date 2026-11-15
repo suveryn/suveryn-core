@@ -1,5 +1,6 @@
 /** Dutch interface text: formal (u/uw), as everywhere in sūveryn. Keys and arguments as in en.ts. */
 import type { Messages } from "./en";
+import { backupMessages } from "./backups/nl";
 import { LOCALES } from "./languages";
 import { messagesIn } from "./message";
 
@@ -121,6 +122,12 @@ const nl: Messages = {
     "calc.syntax": "De berekening kon niet worden gelezen.",
     "answer.document_gone": "Een gekozen document werd intussen uit het dossier verwijderd. Kijk de keuze bij Vraag over na.",
     "answer.model_unknown": "Dit model staat niet meer op deze appliance. Kies een ander.",
+    ...backupMessages,
+    "clock.unavailable": "Dit systeem mag zijn klok niet zetten.",
+    "clock.synced": "Een tijdserver houdt de klok van de appliance bij.",
+    "clock.busy": "De appliance is nog bezig met de vorige wijziging van haar klok. Probeer het zo meteen opnieuw.",
+    "clock.measurement_slow": "Het meten duurde te lang om te zeggen hoeveel de klok afwijkt. Probeer het opnieuw.",
+    "clock.out_of_range": "Het verschil is meer dan een jaar.",
   },
   messagesBare: {
     "document.page_coverage_low": "Klaar voor gebruik. Sommige tekst op sommige pagina's is mogelijk niet goed gelezen; controleer antwoorden die daarop steunen dus met het origineel.",
@@ -885,7 +892,6 @@ const nl: Messages = {
   backupsNever: "Er is nog geen back-up gemaakt. De eerste wordt vannacht gemaakt.",
   backupStale: m("Al meer dan twee dagen geen back-up. De laatste werd gemaakt op {when}."),
   backupFailed: m("De laatste back-up is mislukt ({when}). {why}"),
-  backupStep: { target: "De back-upschijf of gedeelde map was niet bereikbaar.", database: "De database kon niet worden gelezen.", write: "De back-up kon niet worden geschreven.", encrypt: "De back-up kon niet worden versleuteld.", settings: "De back-upinstellingen zijn niet geldig.", space: "De back-upschijf is vol.", verify: "De back-upschijf gaf niet terug wat erop werd geschreven (ze is mogelijk defect).", link: "Een koppeling in de instellingenmap die een herstel zou weigeren. Vraag ondersteuning.", other: "Een onverwachte fout." },
   backupCount: m("{n, plural, one {# back-up} other {# back-ups}}"),
   backupCountOldest: m("{n, plural, one {# back-up, de oudste van {oldest}} other {# back-ups, de oudste van {oldest}}}"),
   backupDisk: "Back-upschijf",
@@ -893,9 +899,6 @@ const nl: Messages = {
   backupLastHeading: "Laatste back-up",
   keyTestButton: "Testen met de herstelsleutel",
   keyTesting: "Bezig met testen; dit kan enkele minuten duren.",
-  keyTestFailed: "Deze sleutel opent de back-up niet. Probeer een ander bestand.",
-  keyTestBroken: "De test is niet gelukt: de nieuwste back-up kon niet worden nagekeken. Probeer opnieuw of vraag ondersteuning.",
-  keyTestNotKey: "Dat is geen herstelsleutelbestand van sūveryn.",
   backupAttention: { not_set_up: "Er zijn geen back-ups ingesteld.", stale: "Al meer dan twee dagen geen back-up.", failing: "De back-up van vannacht is mislukt.", key_failed: "De laatste test van de herstelsleutel is mislukt.", key_due: "Test de herstelsleutel: de appliance kan dat niet zelf." },
   backupAttentionOpen: "Back-ups openen",
   keyNotTestedSince: m("Herstelsleutel niet getest sinds {day}. Test elke drie maanden."),
@@ -993,9 +996,6 @@ const nl: Messages = {
   clockSetting: "Bezig…",
   clockSetDone: "Klok gelijkgezet.",
   clockSetFailed: m("Niet gelijkgezet. {why}"),
-  clockErrors: { synced: "Een tijdserver houdt ze bij.", out_of_range: "Het verschil is meer dan een jaar.",
-                 not_allowed: "Dit systeem mag zijn klok niet zetten.",
-                 other: "Probeer het over een minuut opnieuw." } as Record<string, string>,
   notWorkingSince: m("Werkt niet sinds {time}"),
   nInProgress: m("{n, number} bezig"),
   nWaiting: m("{n, number} in de wachtrij"),

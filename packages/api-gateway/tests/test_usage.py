@@ -271,12 +271,15 @@ def test_the_backups_status_is_for_administrators_and_read_as_written(setup, tmp
         "configured": True, "target": "usb", "retention_days": 30, "last_attempt": "2026-10-23T02:41:07Z",
         "last_success": {"at": "2026-10-22T02:39:00Z", "file": "suveryn-backup_x_20261022T023900Z.tar.zst.age",
                          "size": 123456, "on_target": 12, "oldest": "2026-09-23T02:31:00Z", "seconds": 40},
-        "last_error": {"at": "2026-10-23T02:41:07Z", "step": "target", "message": "the backup disk isn't connected"}}))
+        "last_error": {"at": "2026-10-23T02:41:07Z", "failure": {"code": "backup.target_unreachable"},
+                       "message": "the backup disk isn't connected"}}))
     body = c.get("/v1/admin/backups", headers=admin).json()
     assert body["available"] and body["configured"] and body["target"] == "usb" and body["retention_days"] == 30
     assert body["last_success"] == {"at": "2026-10-22T02:39:00Z", "size": 123456, "on_target": 12, "oldest": "2026-09-23T02:31:00Z",
                                     "disk": None}
-    assert body["last_error"]["step"] == "target" and "file" not in body["last_success"]
+    # why, as the backup service wrote it: a code of the registry, read back with its kind; never its English sentence
+    assert body["last_error"] == {"at": "2026-10-23T02:41:07Z", "failure": {"kind": "unavailable", "code": "backup.target_unreachable", "params": {}}}
+    assert "file" not in body["last_success"]
     (tmp_path / "status.json").write_text("not json")
     assert c.get("/v1/admin/backups", headers=admin).json() == {**dict.fromkeys(body, None), "available": False, "configured": False,
                                                                "key_testing": False}
@@ -311,11 +314,12 @@ def test_the_recovery_key_is_passed_to_the_backup_service_for_a_test_and_its_res
     (tmp_path / "status.json").write_text(json.dumps({"configured": True}))
     assert c.get("/v1/admin/backups", headers=admin).json()["key_testing"] is True
     (drop / "request").unlink()
-    (tmp_path / "key-test.json").write_text(json.dumps({"at": "2026-10-26T10:00:00Z", "ok": False, "step": "key",
+    (tmp_path / "key-test.json").write_text(json.dumps({"at": "2026-10-26T10:00:00Z", "ok": False, "failure": {"code": "backup.wrong_key"},
                                                         "message": "this isn't this appliance's recovery key",
                                                         "last_ok": {"at": "2026-10-26T09:50:00Z", "created": "2026-10-26T03:00:00Z"}}))
     body = c.get("/v1/admin/backups", headers=admin).json()
-    assert body["key_testing"] is False and body["key_test"] == {"at": "2026-10-26T10:00:00Z", "ok": False, "created": None, "step": "key",
+    assert body["key_testing"] is False and body["key_test"] == {"at": "2026-10-26T10:00:00Z", "ok": False, "created": None,
+                                                                     "failure": {"kind": "refused", "code": "backup.wrong_key", "params": {}},
                                                                  "last_ok": "2026-10-26T09:50:00Z"}  # the right key passed before
     assert key not in json.dumps(body)
 
@@ -362,9 +366,10 @@ def test_the_backup_settings_are_shown_and_changed_through_the_backup_service(se
     assert c.get(f"/v1/admin/backups/requests/{rid}", headers=admin).json()["pending"] is True
     left.unlink()  # the backup service took it, and answered
     (tmp_path / "request-result.json").write_text(json.dumps({"id": rid, "kind": "settings", "ok": False,
-                                                              "errors": {"address": "address"}}))
+                                                              "fields": {"address": {"code": "backup.share_address"}}}))
     answer = c.get(f"/v1/admin/backups/requests/{rid}", headers=admin).json()
-    assert answer["ok"] is False and answer["errors"] == {"address": "address"} and answer["pending"] is False
+    assert answer["ok"] is False and answer["pending"] is False and answer["failure"] is None
+    assert answer["fields"] == {"address": {"kind": "refused", "code": "backup.share_address", "params": {}}}
     assert ask({**settings, "hour": 24}).status_code == 422 and ask({**settings, "retention_days": 7}).status_code == 422
     assert ask({"kind": "settings", "target": "usb"}).status_code == 422  # no retention or hour
     rid = ask({"kind": "disks", "password": "never-passed-on"}).json()["id"]

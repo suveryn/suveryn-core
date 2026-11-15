@@ -1124,8 +1124,8 @@ def test_every_kind_of_playbook_turn_the_server_writes_is_listed_for_the_screen(
 
 def test_a_run_says_why_it_failed_as_a_code_of_the_registry_with_its_kind():
     # stored as code and parameters (the decision of 12 November, rule 6), sent as {kind, code, params}
-    from suveryn_api_gateway.playbooks import _failure
     from suveryn_harness.messages import message
+    from suveryn_harness.messages import stored as _failure
     assert _failure(json.dumps(message("system.model_unavailable"))) == {"kind": "unavailable", "code": "system.model_unavailable", "params": {}}
     assert _failure(json.dumps(message("system.internal", ref="7F3K-92QD")))["params"] == {"ref": "7F3K-92QD"}
     assert _failure(json.dumps(message("run.document_missing")))["kind"] == "refused"

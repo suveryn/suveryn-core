@@ -121,7 +121,7 @@ describe("the language files (suveryn-tracker#147)", () => {
 
 describe("whole sentences (suveryn-tracker#147)", () => {
   /** The tables whose entries are reasons: what went wrong, said on its own or after the sentence saying what failed. */
-  const REASONS = /^(messages|messagesBare|messageAreas|messageKinds|backupStep|clockErrors)\/|^(messageInternalRef|conversationsUnreachable|uploadInterrupted|streamCutOff|streamError\w+|chosenDeletedMeanwhile)$/;
+  const REASONS = /^(messages|messagesBare|messageAreas|messageKinds)\/|^(messageInternalRef|conversationsUnreachable|uploadInterrupted|streamCutOff|streamError\w+|chosenDeletedMeanwhile)$/;
 
   it("a reason is a sentence of its own: a capital, a full stop, in every language", () => {
     let reasons = 0;

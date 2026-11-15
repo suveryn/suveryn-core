@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
+from suveryn_harness.messages import Problem, why
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -58,9 +59,10 @@ class BackupSuccess(BaseModel):
 
 
 class BackupFailure(BaseModel):
+    """Why the last backup failed: a message of the registry, as the backup service wrote it (docs/design/messages.md)."""
+
     at: str
-    step: str
-    message: str
+    failure: dict  # {kind, code, params}
 
 
 class KeyTest(BaseModel):
@@ -69,7 +71,7 @@ class KeyTest(BaseModel):
     at: str
     ok: bool
     created: str | None = None   # when the backup it opened was made
-    step: str | None = None      # where it failed; ``key``: the file isn't this appliance's recovery key
+    failure: dict | None = None  # why it failed: {kind, code, params}; ``backup.wrong_key``: the file isn't this appliance's key
     last_ok: str | None = None   # after a failed test: when the key last passed (VM regression 03c8f74, finding 4)
 
 
@@ -160,7 +162,9 @@ def read_status(path: Path | None = None) -> BackupStatus:
     success = BackupSuccess(at=ok["at"], size=int(ok.get("size", 0)), on_target=ok.get("on_target"), oldest=when(ok.get("oldest")),
                             disk=disk if isinstance(disk, str) and DISK.fullmatch(disk) else None) \
         if isinstance(ok, dict) and when(ok.get("at")) else None
-    failure = BackupFailure(at=err["at"], step=str(err.get("step", ""))[:40], message=str(err.get("message", ""))[:300]) \
+    # the service says why in the registry's codes, which it reads from the core on the appliance: nothing is
+    # translated here, only read back (a code the registry lacks says that it failed and no more)
+    failure = BackupFailure(at=err["at"], failure=why(err.get("failure"))) \
         if isinstance(err, dict) and when(err.get("at")) else None
     return BackupStatus(available=True, configured=bool(raw.get("configured")),
                         target=raw.get("target") if raw.get("target") in ("usb", "share") else None,
@@ -179,7 +183,7 @@ def read_key_test(when) -> KeyTest | None:
         return None
     passed = raw.get("last_ok") if not raw["ok"] and isinstance(raw.get("last_ok"), dict) else {}
     return KeyTest(at=raw["at"], ok=raw["ok"], created=when(raw.get("created")),
-                   step=str(raw["step"])[:40] if raw.get("step") and not raw["ok"] else None, last_ok=when(passed.get("at")))
+                   failure=None if raw["ok"] else why(raw.get("failure")), last_ok=when(passed.get("at")))
 
 
 @router.get("/v1/admin/backups", response_model=BackupStatus, responses={403: {"description": "Not an administrator"}})
@@ -193,9 +197,9 @@ def leave_key(key: bytes) -> None:
     """The key, then the request, into the backup service's folder: the request last, so the test starts
     only with the whole key there. 0600, the gateway's own; the backup service (root) deletes both."""
     if not KEY_TEST_DROP.is_dir():
-        raise HTTPException(503, "The appliance's backup service can't be reached for a key test.")
+        raise Problem("backup.unavailable", "The appliance's backup service can't be reached for a key test.")
     if (KEY_TEST_DROP / "request").exists():
-        raise HTTPException(409, "A key test is already running.")
+        raise Problem("backup.busy", "A key test is already running.")
     for name, data in (("key", key), ("request", b"asked by an administrator\n")):
         fd = os.open(KEY_TEST_DROP / name, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, "wb") as f:
@@ -214,7 +218,7 @@ async def key_test(request: Request):
     lines = body[:MAX_KEY_FILE + 1].decode("utf-8", errors="replace").splitlines()
     keys = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
     if len(body) > MAX_KEY_FILE or len(keys) != 1 or not AGE_IDENTITY.fullmatch(keys[0]):
-        raise HTTPException(415, "That isn't a sūveryn recovery key file.")
+        raise Problem("backup.not_a_key", "That isn't a sūveryn recovery key file.")
     await run_in_threadpool(leave_key, (keys[0] + "\n").encode())
     return Response(status_code=202)
 
@@ -239,14 +243,14 @@ class BackupRequest(BaseModel):
 
 
 class RequestAnswer(BaseModel):
-    """The backup service's answer: ``ok``; ``errors`` per field and ``error`` as the web setup's codes; the
-    USB disks; whether the recovery key changed. ``pending`` until the service has answered."""
+    """The backup service's answer: ``ok``; when it isn't, why, as messages of the registry (``failure`` for the whole
+    request, ``fields`` per field); the USB disks; whether the recovery key changed. ``pending`` until it has answered."""
 
     id: str
     pending: bool = False
     ok: bool | None = None
-    error: str | None = None
-    errors: dict[str, str] | None = None
+    failure: dict | None = None
+    fields: dict[str, dict] | None = None
     disks: list[dict] | None = None
     key_changed: bool | None = None
 
@@ -255,10 +259,10 @@ def leave_request(body: dict) -> str:
     """request.json into the backup service's folder, whole (written beside it, then renamed): one at a time.
     0600, the gateway's own; the service (root) deletes it before anything else."""
     if not REQUESTS.is_dir():
-        raise HTTPException(503, "The appliance's backup service can't be reached.")
+        raise Problem("backup.unavailable", "The appliance's backup service can't be reached.")
     final = REQUESTS / "request.json"
     if final.exists():
-        raise HTTPException(409, "The backup service is still busy with the last request.")
+        raise Problem("backup.busy", "The backup service is still busy with the last request.")
     rid = secrets.token_hex(8)
     tmp = REQUESTS / f".request-{rid}.tmp"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -278,7 +282,7 @@ async def backup_request(body: BackupRequest, request: Request):
     and never comes back."""
     admin_or_403(request)
     if body.kind == "settings" and (body.target is None or body.retention_days is None or body.hour is None):
-        raise HTTPException(422, "Settings need a target, a retention period and an hour.")
+        raise Problem("request.invalid", "Settings need a target, a retention period and an hour.")
     payload = body.model_dump(exclude_none=True)
     if body.kind != "test-share" and body.kind != "settings":
         payload = {"kind": body.kind}
@@ -290,17 +294,17 @@ async def backup_request_answer(rid: str, request: Request):
     """The backup service's answer to a request, or ``pending`` while it is acting on it."""
     admin_or_403(request)
     if not re.fullmatch(r"[0-9a-f]{16}", rid):
-        raise HTTPException(404, "No such request.")
+        raise Problem("request.not_found", "No such request.")
     try:
         raw = json.loads(await run_in_threadpool(REQUEST_RESULT.read_text))
     except (OSError, ValueError):
         raw = None
     if not isinstance(raw, dict) or raw.get("id") != rid:
         return RequestAnswer(id=rid, pending=True)
-    errors = raw.get("errors") if isinstance(raw.get("errors"), dict) else None
+    fields = {str(k)[:40]: why(v) for k, v in raw["fields"].items()} if isinstance(raw.get("fields"), dict) else None
     disks = [{"id": d["id"], "name": str(d.get("name", ""))[:120], "size_bytes": int(d.get("size_bytes") or 0)}
              for d in raw.get("disks") or [] if isinstance(d, dict) and isinstance(d.get("id"), str) and DISK.fullmatch(d["id"])] \
         if isinstance(raw.get("disks"), list) else None
-    return RequestAnswer(id=rid, ok=bool(raw.get("ok")), error=str(raw["error"])[:40] if raw.get("error") else None,
-                         errors={str(k)[:40]: str(v)[:40] for k, v in errors.items()} if errors else None,
+    ok = bool(raw.get("ok"))
+    return RequestAnswer(id=rid, ok=ok, failure=None if ok or fields else why(raw.get("failure")), fields=fields or None,
                          disks=disks, key_changed=raw.get("key_changed") if isinstance(raw.get("key_changed"), bool) else None)

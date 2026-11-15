@@ -99,19 +99,40 @@ before there is a database or a sign-in. It says the same thing in the same shap
 
 Two screens word codes, each for its own reader. The chat's tables (`src/i18n/<lang>.ts`) word every code but the
 `setup` area; the setup's tables (`src/setup/i18n/<lang>.ts`) word that area in full sentences that speak of the
-appliance and the partner, and its own `messageKinds` say anything else. `setup/screens.test.ts` fails on a `setup`
-code without words in a language, and on words for a code the registry doesn't list.
+appliance and the partner, and its own `messageKinds` say anything else. Both meet the backup service's codes
+(Administration › Backups; a restore in the setup): those are worded once, in `src/i18n/backups/<lang>.ts`, which
+both tables take, and the setup says three its own way. `setup/screens.test.ts` fails on a `setup` or `backup` code
+without words in a language, and on words for a code the registry doesn't list.
+
+## The appliance's helpers: backups and the clock
+
+The backup service and the clock helper are small programs in suveryn-appliance that run as root and answer through
+files the gateway reads (suveryn-tracker#154). They keep no list of their own: they say codes of the registry's
+`backup` and `clock` areas, loaded from the pinned core as the web setup does, and write them as they are.
+
+- A helper writes a message where it wrote a word: `failure`, `{code, params}`, in a backup's status
+  (`last_error`), a key test's result, an answer to a request; `fields`, a message per field, for a form it refuses.
+- The gateway passes it on and decides nothing: `messages.stored` reads it against the registry as it is today (its
+  kind comes from the registry, not from the file), and a code the registry doesn't know becomes `system.internal`.
+  A playbook run's stored failure is read back by the same function.
+- One code for one situation, whoever meets it: `backup.wrong_key` is the key test's answer in Administration and
+  the restore's in the web setup. The codes the setup used to say for these (`setup.share_…`, `setup.restore_…`,
+  `setup.key_invalid`, `setup.disk_gone`) were renamed before any release; from the first release a code is never
+  renamed.
+- A backup that fails on something nobody planned for (the database can't be dumped, encryption fails) is
+  `system.internal` with a reference the backup's own log has.
+- The gateway's own refusals for these pages are codes too: `backup.unavailable`, `backup.busy`, `clock.synced`,
+  `clock.busy`, `clock.measurement_slow`, `clock.unavailable`.
 
 ## Moving the rest over
 
 The foundation moved what already had a code: uploads, the busy and too-large refusals, the parts that are down, a
-calculation's reason. What remains is counted, and the count may only go down:
+calculation's reason. The gateway's 138 plain refusals moved area by area, and none is left:
 
-- `api-gateway/tests/test_problems.py`, `PLAIN_REFUSALS`: the plain `HTTPException`s still in the gateway. A PR that
-  moves an area lowers the number; a new refusal is a `Problem`.
-  Moved so far: playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares
-  (#151), documents (#152), answers (#153): 138 down to 14. Still to move: backups, the clock, Status and usage
-  (#154).
+- `api-gateway/tests/test_problems.py` fails on a plain `HTTPException` anywhere in the gateway: a refusal is a
+  `Problem`.
+  Playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares (#151),
+  documents (#152), answers (#153), backups, the clock, Status and usage (#154).
 - **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
   is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_confirms`).
   The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
@@ -150,9 +171,8 @@ calculation's reason. What remains is counted, and the count may only go down:
 - **An unplanned failure is logged alike everywhere**: `suveryn_harness.messages.unplanned` gives the reference and
   where the exception was raised, for an HTTP answer, a stream, a run and a reading. The log line has the
   exception's type, never its message.
-- Still under their own names: the answer's checks, which are warnings (#157); backups and the clock (#154). The
-  backup service's codes (`login`, `write`, `unreachable` …) are worded for Administration › Backups from
-  `backupErrors` in the setup's tables until then.
+- Still under their own names: the answer's checks, which are warnings (#157), and a few lists a part keeps for
+  itself (#158).
 - The console installer is not a server and keeps its own text file (`installer-text.json`, its keys are its codes);
   its engine gives the screens a code, not an English sentence to recognise (suveryn-appliance, #141).
 - Status shows recent references to the administrator, with the support request: with the appliance's part.

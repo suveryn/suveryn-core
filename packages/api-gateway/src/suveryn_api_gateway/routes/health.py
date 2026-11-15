@@ -1,6 +1,7 @@
 """``GET /health`` (public: states only, never addresses or error texts) and ``GET /v1/models``."""
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -87,4 +88,4 @@ async def models(request: Request):
     try:
         return await llm.list_models()
     except BackendError as e:
-        raise HTTPException(502, str(e)) from e
+        raise Problem("system.model_unavailable", str(e)) from e

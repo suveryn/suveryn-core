@@ -51,7 +51,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
 from suveryn_harness.language import load
-from suveryn_harness.messages import CODES, message
+from suveryn_harness.messages import message, stored
 from suveryn_playbooks import LANGUAGES, Playbook, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
@@ -376,20 +376,6 @@ WORDS = load(Path(__file__).parent / "lang")
 
 # ------------------------------------------------------------------------- the store
 
-def _failure(stored: str | None) -> dict | None:
-    """A run's stored failure as it is sent: ``{kind, code, params}``. A run that failed before failures were codes
-    (a bare word in the column) says it failed and no more: the page words that by its kind."""
-    if not stored:
-        return None
-    try:
-        failure = json.loads(stored)
-    except ValueError:
-        failure = None
-    if isinstance(failure, dict) and failure.get("code") in CODES:
-        return {"kind": CODES[failure["code"]].kind, "code": failure["code"], "params": failure.get("params") or {}}
-    return {"kind": "internal", "code": "system.internal", "params": {}}
-
-
 class RunStore(TurnStore):
     """Playbook runs, their facts and their thread in PostgreSQL; creates its tables on connect. The
     store decides nothing about rights: the gateway checks ``cases.may`` before anything is read or
@@ -481,7 +467,7 @@ class RunStore(TurnStore):
     def _summary(r) -> RunSummary:
         return RunSummary(id=str(r[0]), case_id=str(r[1]), playbook_id=r[2], playbook_version=r[3], status=r[4],
                           documents=[str(d) for d in r[5]], started_by=r[6], started_at=r[7], finished_at=r[8],
-                          confirmed_by=r[9], confirmed_at=r[10], model=r[11], failure=_failure(r[12]),
+                          confirmed_by=r[9], confirmed_at=r[10], model=r[11], failure=stored(r[12]),
                           result_document_id=str(r[13]) if r[13] else None, out_of_date=r[14],
                           step=r[15], language=r[16], paused_by=r[17], paused_at=r[18], ended_by=r[19], ended_reason=r[20], starter=r[21],
                           conversation_id=str(r[22]))

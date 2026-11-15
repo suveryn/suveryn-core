@@ -27,7 +27,7 @@ describe("restoring a backup from the web setup", () => {
   });
 
   it("says why the last check failed", () => {
-    const state = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "setup.restore_wrong_key", params: {} } } } as never;
+    const state = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "backup.wrong_key", params: {} } } } as never;
     const html = renderToStaticMarkup(<RestoreSource state={state} onBack={() => {}} onChecking={() => {}} headingId="h" />);
     expect(html).toContain("No backup could be restored");
     expect(html).toContain("open this backup");
@@ -67,9 +67,9 @@ describe("restoring a backup from the web setup", () => {
 
   it("has every code the appliance answers a restore with, in every language", () => {
     for (const t of Object.values(TEXT)) {
-      for (const code of ["restore_wrong_key", "restore_no_backup", "restore_unreachable", "restore_damaged", "restore_newer", "restore_failed",
-        "key_invalid", "restore_started", "not_checked", "disk_gone", "share_address"]) {
-        expect((t.messages as Record<string, unknown>)[`setup.${code}`], code).toBeTruthy();
+      for (const code of ["backup.wrong_key", "backup.none_found", "backup.target_unreachable", "backup.damaged", "backup.newer_version",
+        "backup.restore_failed", "backup.not_a_key", "setup.restore_started", "setup.not_checked", "backup.disk_gone", "backup.share_address"]) {
+        expect((t.messages as Record<string, unknown>)[code], code).toBeTruthy();
       }
       expect(t.messages["request.invalid"]).toBeTruthy();  // answers that were incomplete
     }
@@ -81,7 +81,7 @@ describe("the stand-in appliance's restore", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const { answer } = await import("./demo");
     const key = `# Sūveryn backup recovery key\nAGE-SECRET-KEY-1${"Q".repeat(58)}\n`;
-    await expect(answer("PUT", "answers/restore", { target: "usb", disk: "x", key: "not a key" })).rejects.toThrow("key_invalid");
+    await expect(answer("PUT", "answers/restore", { target: "usb", disk: "x", key: "not a key" })).rejects.toThrow("backup.not_a_key");
     await expect(answer("POST", "restore/start")).rejects.toThrow("not_checked");
     expect(await answer("PUT", "answers/restore", { target: "usb", disk: "x", key })).toEqual({ state: "checking" });
     vi.setSystemTime(Date.now() + 2500);

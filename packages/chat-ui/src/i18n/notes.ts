@@ -52,7 +52,5 @@ export const notes: Notes<typeof en> = {
   originWasOutput: "In the Documents overview, under Origin. {kind} is what the uploaded file once was: answer or playbook (a playbook's result).",
   noticedTitle: "The title of the question shown when an uploaded file looks like sūveryn's own output. {kind} is answer or playbook.",
   pageList: "Page numbers in a tight place. {pages} is the numbers, {count} how many there are (\"p. 4\", \"pp. 2 and 7\").",
-  backupStep: "Why a backup failed, by the step it failed at. Whole sentences, shown after \"The last backup failed (when).\"",
-  clockErrors: "Why the appliance's clock couldn't be set. Whole sentences, shown after \"Not set.\"",
   signInFailed: "A row of an account's sign-in log: why a sign-in failed.",
 };

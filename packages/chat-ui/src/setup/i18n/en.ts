@@ -3,9 +3,10 @@
  * docs/design/first-boot-setup). This table defines every string; nl.ts and fr.ts must have the same
  * (TypeScript checks it). Rules for every language: docs/translations.md. The tagline stays in English.
  */
+import { backupMessages } from "../../i18n/backups/en";
 import { LOCALES } from "../../i18n/languages";
 import { messagesIn } from "../../i18n/message";
-import type { MessageCode, MessageKind, SetupCode, Wording } from "../../lib/messages";
+import type { BackupCode, MessageCode, MessageKind, SetupCode, Wording } from "../../lib/messages";
 
 /** Messages with a value or a plural: text in ICU MessageFormat (i18n/message.ts), never code. */
 const { m } = messagesIn(LOCALES.en);
@@ -282,13 +283,6 @@ const en = {
 
   // The backup service's own codes, worded for Administration › Backups, which shares this step's screen. They
   // move to the registry's `backup` area with the rest of that service's messages (docs/design/messages.md).
-  backupErrors: {
-    address: "Enter the address like \\\\server\\share (SMB) or server:/path (NFS).",
-    unreachable: "The appliance can't reach this share. Check the address and that the share allows this appliance.",
-    login: "The share refused the user name or password.",
-    write: "Signed in, but the appliance can't write there.",
-    disk_gone: "This disk isn't plugged in any more. Look again.",
-  } as Record<string, string>,
 
   // What the appliance says as a code (suveryn-core's registry, suveryn_harness/messages.json, area `setup`;
   // docs/design/messages.md), worded for the setup's screens: a code's own words, else its kind's (messageKinds).
@@ -308,24 +302,18 @@ const en = {
     "setup.manifest_signature": "This manifest isn't signed by Sūveryn Labs, or it was changed after signing.",
     "setup.manifest_other_appliance": "This manifest is for another appliance.",
     "setup.manifest_expired": "This manifest has expired.",
-    "setup.share_address": "Enter the address like \\\\server\\share (SMB) or server:/path (NFS).",
-    "setup.share_unreachable": "The appliance can't reach this share. Check the address and that the share allows this appliance.",
-    "setup.share_not_local": "This address isn't on your own network.",
-    "setup.disk_gone": "This disk isn't plugged in any more. Look again.",
     "setup.not_answered": "Some steps aren't answered yet. Go back and complete them.",
     "setup.provisioning_started": "Provisioning has already started, so answers can't change now. Reload this page to follow it.",
-    "setup.key_invalid": "This isn't a recovery key file. Choose the .txt file made when backups were set up.",
     "setup.restore_started": "A restore has already started, so answers can't change now. Reload this page to follow it.",
     "setup.not_checked": "The backup hasn't been checked yet. Go back and find it again.",
-    "setup.restore_wrong_key": "The recovery key doesn't open this backup. Choose the key file of the appliance that made it.",
-    "setup.restore_no_backup": "There is no sūveryn backup there. Check the disk or the share's address.",
-    "setup.restore_unreachable": "The appliance couldn't reach the backups. Check the disk or the share's address, user name and password.",
-    "setup.restore_damaged": "The newest backup there is damaged and can't be restored.",
-    "setup.restore_newer": "The newest backup there was made by a newer version of sūveryn than this appliance has. Contact your partner to update this appliance first.",
-    "setup.restore_failed": "The restore stopped partway. Enter the recovery key again and try again; if it stops again, contact your partner.",
     "setup.provisioning_failed": m("It stopped at \"{step}\". Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page.", "step"),
+    // backups: the backup service's codes, worded as Administration words them (i18n/backups/), but for these, which a restore says its own way
+    ...backupMessages,
+    "backup.not_a_key": "This isn't a recovery key file. Choose the .txt file made when backups were set up.",
+    "backup.wrong_key": "The recovery key doesn't open this backup. Choose the key file of the appliance that made it.",
+    "backup.target_unreachable": "The appliance couldn't reach the backups. Check the disk or the share's address, user name and password.",
     "request.invalid": "The answers were incomplete. Enter them again.",
-  } satisfies Record<SetupCode, Wording> & Partial<Record<MessageCode, Wording>>,
+  } satisfies Record<SetupCode | BackupCode, Wording> & Partial<Record<MessageCode, Wording>>,
   messagesBare: { "setup.provisioning_failed": "It stopped. Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page." } satisfies Partial<Record<MessageCode, string>>,
   messageInternalRef: m("Something went wrong on the appliance. Try again; if it happens again, give your partner this reference: {ref}.", "ref"),
   messageAreas: { setup: UNEXPECTED },

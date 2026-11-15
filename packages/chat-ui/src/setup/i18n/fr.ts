@@ -3,6 +3,7 @@
  * wording; rules: docs/translations.md.
  */
 import type { Text } from "./en";
+import { backupMessages } from "../../i18n/backups/fr";
 import { LOCALES } from "../../i18n/languages";
 import { messagesIn } from "../../i18n/message";
 
@@ -282,13 +283,6 @@ const fr: Text = {
 
   // The backup service's own codes, worded for Administration › Backups, which shares this step's screen. They
   // move to the registry's `backup` area with the rest of that service's messages (docs/design/messages.md).
-  backupErrors: {
-    address: "Saisissez l'adresse comme \\\\serveur\\partage (SMB) ou serveur:/chemin (NFS).",
-    unreachable: "L'appliance ne peut pas atteindre ce partage. Vérifiez l'adresse et que le partage autorise cette appliance.",
-    login: "Le partage a refusé le nom d'utilisateur ou le mot de passe.",
-    write: "Connexion réussie, mais l'appliance ne peut pas y écrire.",
-    disk_gone: "Ce disque n'est plus branché. Cherchez à nouveau.",
-  } as Record<string, string>,
 
   // What the appliance says as a code (suveryn-core's registry, suveryn_harness/messages.json, area `setup`;
   // docs/design/messages.md), worded for the setup's screens: a code's own words, else its kind's (messageKinds).
@@ -308,22 +302,16 @@ const fr: Text = {
     "setup.manifest_signature": "Ce manifeste n'est pas signé par Sūveryn Labs, ou il a été modifié après la signature.",
     "setup.manifest_other_appliance": "Ce manifeste est destiné à une autre appliance.",
     "setup.manifest_expired": "Ce manifeste a expiré.",
-    "setup.share_address": "Saisissez l'adresse comme \\\\serveur\\partage (SMB) ou serveur:/chemin (NFS).",
-    "setup.share_unreachable": "L'appliance ne peut pas atteindre ce partage. Vérifiez l'adresse et que le partage autorise cette appliance.",
-    "setup.share_not_local": "Cette adresse n'est pas sur votre propre réseau.",
-    "setup.disk_gone": "Ce disque n'est plus branché. Cherchez à nouveau.",
     "setup.not_answered": "Certaines étapes ne sont pas encore complétées. Revenez en arrière pour les compléter.",
     "setup.provisioning_started": "La mise en service a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
-    "setup.key_invalid": "Ce n'est pas un fichier de clé de récupération. Choisissez le fichier .txt créé lors de la configuration des sauvegardes.",
     "setup.restore_started": "Une restauration a déjà commencé : les réponses ne peuvent plus changer. Rechargez cette page pour la suivre.",
     "setup.not_checked": "La sauvegarde n'a pas encore été vérifiée. Revenez en arrière et cherchez-la à nouveau.",
-    "setup.restore_wrong_key": "La clé de récupération n'ouvre pas cette sauvegarde. Choisissez le fichier de clé de l'appliance qui l'a faite.",
-    "setup.restore_no_backup": "Il n'y a pas de sauvegarde sūveryn à cet endroit. Vérifiez le disque ou l'adresse du partage.",
-    "setup.restore_unreachable": "L'appliance n'a pas pu atteindre les sauvegardes. Vérifiez le disque, ou l'adresse, le nom d'utilisateur et le mot de passe du partage.",
-    "setup.restore_damaged": "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée.",
-    "setup.restore_newer": "La sauvegarde la plus récente à cet endroit a été faite par une version de sūveryn plus récente que celle de cette appliance. Contactez votre partenaire pour mettre d'abord cette appliance à jour.",
-    "setup.restore_failed": "La restauration s'est arrêtée en cours de route. Choisissez à nouveau la clé de récupération et réessayez ; si elle s'arrête encore, contactez votre partenaire.",
     "setup.provisioning_failed": m("Elle s''est arrêtée à « {step} ». Rien de ce que vous avez saisi n''est perdu. Réessayez ; si elle s''arrête encore, redémarrez l''appliance depuis sa console et rechargez cette page."),
+    // backups: the backup service's codes, worded as Administration words them (i18n/backups/), but for these, which a restore says its own way
+    ...backupMessages,
+    "backup.not_a_key": "Ce n'est pas un fichier de clé de récupération. Choisissez le fichier .txt créé lors de la configuration des sauvegardes.",
+    "backup.wrong_key": "La clé de récupération n'ouvre pas cette sauvegarde. Choisissez le fichier de clé de l'appliance qui l'a faite.",
+    "backup.target_unreachable": "L'appliance n'a pas pu atteindre les sauvegardes. Vérifiez le disque, ou l'adresse, le nom d'utilisateur et le mot de passe du partage.",
     "request.invalid": "Les réponses étaient incomplètes. Saisissez-les à nouveau.",
   },
   messagesBare: { "setup.provisioning_failed": "Elle s'est arrêtée. Rien de ce que vous avez saisi n'est perdu. Réessayez ; si elle s'arrête encore, redémarrez l'appliance depuis sa console et rechargez cette page." },

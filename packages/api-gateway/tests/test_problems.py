@@ -86,15 +86,9 @@ def test_documents_that_cant_be_reached_say_which_part_is_down():
         assert (r.status_code, r.json()["code"], r.json()["kind"]) == (503, "system.documents_unavailable", "unavailable")
 
 
-# The refusals still written as plain English sentences, each to become a code of the registry area by area. This
-# number may only go down: lower it in the PR that moves an area, and never raise it; new code raises a Problem.
-PLAIN_REFUSALS = 14
-
-
-def test_the_plain_refusals_only_go_down():
-    count = sum(len(re.findall(r"\bHTTPException\(", p.read_text(encoding="utf-8"))) for p in SRC.rglob("*.py") if p.name != "problems.py")
-    assert count == PLAIN_REFUSALS, (
-        f"{count} plain refusals, the test says {PLAIN_REFUSALS}: a new refusal is a Problem with a code of messages.json; "
-        "when an area moved to codes, lower PLAIN_REFUSALS to the new count")
+def test_no_refusal_is_a_plain_sentence():
+    # 138 once, moved to codes area by area (suveryn-tracker#150 to #154)
+    plain = [p.name for p in SRC.rglob("*.py") if p.name != "problems.py" and re.search(r"\bHTTPException\(", p.read_text(encoding="utf-8"))]
+    assert not plain, f"a plain refusal in {plain}: a refusal is a Problem with a code of messages.json"
     # and none written by hand as a JSON answer
     assert not [p.name for p in SRC.rglob("*.py") if re.search(r'JSONResponse\(\{"detail"', p.read_text(encoding="utf-8"))]

@@ -39,7 +39,7 @@ export function keyTestState(s: BackupStatus, now: Date = new Date()): KeyTestSt
   const t = s.key_test;
   if (!t) return { kind: "never" };
   const old = (at: string) => now.getTime() - Date.parse(at) > KEY_TEST_DAYS * DAY;
-  if (!t.ok && t.step === "key") {
+  if (!t.ok && t.failure?.code === "backup.wrong_key") {
     const lastOk = t.last_ok ?? null;
     return { kind: "wrong_file", test: t, lastOk, due: lastOk !== null && old(lastOk) };
   }

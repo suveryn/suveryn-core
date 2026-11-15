@@ -82,6 +82,32 @@ def message(code: str, **params) -> dict:
     return {"kind": known.kind, "code": code, "params": params}
 
 
+def stored(raw) -> dict | None:
+    """A message read back from where it was kept, or from the answer of one of the appliance's helpers (the backup
+    service, the clock): ``{kind, code, params}`` as the registry has it today, the kind from the registry and only
+    the parameters the code has. None where there is none. What isn't a message of the registry (a row from before
+    failures were codes, a helper's answer that went wrong) says that it failed and no more: ``system.internal``
+    without a reference, which a screen words by its kind. The one place this is decided."""
+    if raw in (None, "", {}):
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raw = None
+    known = CODES.get(raw.get("code")) if isinstance(raw, dict) and isinstance(raw.get("code"), str) else None
+    if known is None:
+        return {"kind": "internal", "code": "system.internal", "params": {}}
+    given = raw.get("params") if isinstance(raw.get("params"), dict) else {}
+    params = {k: v for k, v in given.items() if k in known.params and not isinstance(v, bool) and isinstance(v, PARAM_TYPES[known.params[k]["type"]])}
+    return {"kind": known.kind, "code": known.name, "params": params}
+
+
+def why(raw) -> dict:
+    """Why something failed, read back (``stored``): its message, or, when none was kept, that it failed."""
+    return stored(raw) or {"kind": "internal", "code": "system.internal", "params": {}}
+
+
 def loggable(msg: dict) -> dict:
     """A message for the log: without the parameters that are client data (a file name, a case reference)."""
     spec = CODES[msg["code"]].params

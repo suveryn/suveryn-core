@@ -3,7 +3,8 @@
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
+from suveryn_harness.messages import Problem, why
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -30,7 +31,7 @@ class SetAnswer(BaseModel):
     id: str
     pending: bool = False
     ok: bool | None = None
-    error: str | None = None  # synced, out_of_range, invalid
+    failure: dict | None = None  # why it wasn't set: {kind, code, params}, as the clock's helper wrote it
     moved_ms: int | None = None
 
 
@@ -58,14 +59,14 @@ async def set_clock(body: Measured, request: Request):
     confirmation that shows both times). The answer comes at ``GET /v1/admin/clock/{id}``."""
     admin_or_403(request)
     if body.rtt_ms > clock_module.MAX_RTT_MS:
-        raise HTTPException(422, "The measurement took too long to say how far off the clock is; try again.")
+        raise Problem("clock.measurement_slow", "The measurement took too long to say how far off the clock is; try again.")
     if request.app.state.clock.synced():
-        raise HTTPException(409, "A time server keeps the appliance's clock.")
+        raise Problem("clock.synced", "A time server keeps the appliance's clock.")
     if not clock_module.REQUESTS.is_dir():
-        raise HTTPException(503, "The appliance's clock can't be set from here.")
+        raise Problem("clock.unavailable", "The appliance's clock can't be set from here.")
     rid = await run_in_threadpool(clock_module.leave_request, {"kind": "set", "offset_ms": body.offset_ms})
     if rid is None:
-        raise HTTPException(409, "The appliance is still busy with the last change to its clock.")
+        raise Problem("clock.busy", "The appliance is still busy with the last change to its clock.")
     request.app.state.clock.reports.clear()  # what was measured before no longer holds
     # asked, not done: the helper may refuse (a time server took over meanwhile); its answer is logged when it comes
     # (VM regression 9c97d76, finding 5: the journal said the clock was set when it never moved)
@@ -78,7 +79,7 @@ async def set_clock_answer(rid: str, request: Request):
     """The appliance's answer to setting its clock, or ``pending`` while it acts on it."""
     admin_or_403(request)
     if not re.fullmatch(r"[0-9a-f]{16}", rid):
-        raise HTTPException(404, "No such request.")
+        raise Problem("request.not_found", "No such request.")
     raw = await run_in_threadpool(clock_module.result_of, rid)
     if raw is None:
         return SetAnswer(id=rid, pending=True)
@@ -90,6 +91,7 @@ async def set_clock_answer(rid: str, request: Request):
             clock_module.log.warning("clock: the appliance's clock was set (moved by %+.1f s)",
                                      (moved if type(moved) is int else 0) / 1000)
         else:
-            clock_module.log.warning("clock: the appliance did not set its clock (%s)", str(raw.get("error") or "no reason")[:40])
-    return SetAnswer(id=rid, ok=bool(raw.get("ok")), error=str(raw["error"])[:40] if raw.get("error") else None,
+            clock_module.log.warning("clock: the appliance did not set its clock (%s)", why(raw.get("failure"))["code"])
+    ok = bool(raw.get("ok"))
+    return SetAnswer(id=rid, ok=ok, failure=None if ok else why(raw.get("failure")),
                      moved_ms=moved if type(moved) is int else None)
