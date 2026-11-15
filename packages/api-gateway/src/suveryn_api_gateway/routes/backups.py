@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 
 from .common import admin_or_403
 
-router = APIRouter()
+router = APIRouter(tags=["backups"])  # the group its operations are in, in the description (description.py)
 
 STATUS = Path(os.environ.get("SUVERYN_BACKUP_STATUS", "/var/lib/suveryn/backup/status.json"))
 KEY_TEST_RESULT = Path(os.environ.get("SUVERYN_BACKUP_KEY_TEST_RESULT", "/var/lib/suveryn/backup/key-test.json"))
@@ -187,7 +187,7 @@ def read_key_test(when) -> KeyTest | None:
 
 
 @router.get("/v1/admin/backups", response_model=BackupStatus, responses={403: {"description": "Not an administrator"}})
-async def backups(request: Request):
+async def get_backup_status(request: Request):
     """The last backup and the last failure, as the appliance's backup service recorded them."""
     admin_or_403(request)
     return await run_in_threadpool(read_status)
@@ -209,7 +209,7 @@ def leave_key(key: bytes) -> None:
 @router.post("/v1/admin/backups/key-test", status_code=202,
              responses={403: {"description": "Not an administrator"}, 409: {"description": "A test is already running"},
                         415: {"description": "Not a recovery key file"}, 503: {"description": "Not an appliance"}})
-async def key_test(request: Request):
+async def test_recovery_key(request: Request):
     """Test the recovery key: the request body is the key file as the web setup downloaded it. The backup
     service checks that it opens the newest backup and that every part is there, restores nothing and
     deletes the key; GET /v1/admin/backups then shows the result (``key_test``)."""
@@ -275,7 +275,7 @@ def leave_request(body: dict) -> str:
 @router.post("/v1/admin/backups/requests", response_model=RequestAnswer, status_code=202, responses={
     403: {"description": "Not an administrator"}, 409: {"description": "The last request is still being handled"},
     503: {"description": "Not an appliance"}})
-async def backup_request(body: BackupRequest, request: Request):
+async def create_backup_request(body: BackupRequest, request: Request):
     """Ask the backup service: ``run`` (back up now), ``disks`` (the USB disks connected now), ``test-share``
     (sign in to the share and write a test file) or ``settings`` (save the target, retention, hour and a new
     recovery key). The answer comes at ``GET /v1/admin/backups/requests/{id}``. The password is never logged
@@ -290,7 +290,7 @@ async def backup_request(body: BackupRequest, request: Request):
 
 
 @router.get("/v1/admin/backups/requests/{rid}", response_model=RequestAnswer, responses={403: {"description": "Not an administrator"}})
-async def backup_request_answer(rid: str, request: Request):
+async def get_backup_request(rid: str, request: Request):
     """The backup service's answer to a request, or ``pending`` while it is acting on it."""
     admin_or_403(request)
     if not re.fullmatch(r"[0-9a-f]{16}", rid):

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from .. import clock as clock_module
 from .common import admin_or_403, principal
 
-router = APIRouter()
+router = APIRouter(tags=["clock"])  # the group its operations are in, in the description (description.py)
 
 YEAR_MS = 366 * 24 * 3600 * 1000
 
@@ -36,14 +36,14 @@ class SetAnswer(BaseModel):
 
 
 @router.get("/v1/clock", response_model=Now)
-async def clock_now(response: Response):
+async def get_clock(response: Response):
     """The appliance's clock, for a signed-in browser to measure the difference with its own."""
     response.headers["Cache-Control"] = "no-store"
     return Now(now_ms=time.time_ns() // 1_000_000)
 
 
 @router.post("/v1/clock", status_code=204)
-async def clock_measured(body: Measured, request: Request):
+async def report_clock_measurement(body: Measured, request: Request):
     """A signed-in browser's measurement. The newest per account counts for a day; when they agree the
     appliance is asked to nudge its clock (``clock.Clock.report``)."""
     caller = principal(request)
@@ -54,7 +54,7 @@ async def clock_measured(body: Measured, request: Request):
 @router.post("/v1/admin/clock", response_model=SetAnswer, status_code=202, responses={
     403: {"description": "Not an administrator"}, 409: {"description": "A time server keeps the clock, or the last request is busy"},
     503: {"description": "Not an appliance"}})
-async def set_clock(body: Measured, request: Request):
+async def create_clock_request(body: Measured, request: Request):
     """Administrators: set the appliance's clock to this PC's time, by the difference just measured (Status, after a
     confirmation that shows both times). The answer comes at ``GET /v1/admin/clock/{id}``."""
     admin_or_403(request)
@@ -75,7 +75,7 @@ async def set_clock(body: Measured, request: Request):
 
 
 @router.get("/v1/admin/clock/{rid}", response_model=SetAnswer, responses={403: {"description": "Not an administrator"}})
-async def set_clock_answer(rid: str, request: Request):
+async def get_clock_request(rid: str, request: Request):
     """The appliance's answer to setting its clock, or ``pending`` while it acts on it."""
     admin_or_403(request)
     if not re.fullmatch(r"[0-9a-f]{16}", rid):

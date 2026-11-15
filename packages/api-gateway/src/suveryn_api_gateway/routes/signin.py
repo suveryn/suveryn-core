@@ -16,7 +16,7 @@ from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
 SIGN_IN_LANG_COOKIE = "suveryn_sign_in_lang"  # the language chosen on the sign-in page, for the page to take once
 UI_LANGUAGES = set(LANGUAGES)  # the interface languages (docs/translations.md), passed on to Keycloak's login page
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])  # the group its operations are in, in the description (description.py)
 
 
 class Me(BaseModel):
@@ -76,7 +76,7 @@ async def callback(request: Request, code: str | None = None, state: str | None 
 
 
 @router.get("/auth/me", response_model=Me, responses={401: {"description": "Not signed in"}})
-async def me(request: Request):
+async def get_me(request: Request):
     """The signed-in user (username and display name), or 401."""
     authenticator, cases = _auth(request), case_settings(request)
     if not authenticator.enabled:
@@ -110,7 +110,7 @@ async def _avatar_etag(request: Request, sub: str) -> str | None:
 
 
 @router.post("/auth/logout")
-async def logout(request: Request):
+async def sign_out(request: Request):
     """End the session; ``logout_url`` ends the Keycloak session too (the UI navigates there)."""
     authenticator = _auth(request)
     origin = request.headers.get("origin")

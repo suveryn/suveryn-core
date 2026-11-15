@@ -10,7 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from ..usage import AdminUsageReport, Rates, UsageReport, parse_range
 from .common import admin_or_403, owner_of, usage_or_503, who
 
-router = APIRouter()
+router = APIRouter(tags=["usage"])  # the group its operations are in, in the description (description.py)
 
 
 def _range(start: datetime | None, end: datetime | None) -> tuple[datetime, datetime]:
@@ -21,7 +21,7 @@ def _range(start: datetime | None, end: datetime | None) -> tuple[datetime, date
 
 
 @router.get("/v1/usage", response_model=UsageReport)
-async def my_usage(request: Request, start: datetime | None = None, end: datetime | None = None):
+async def get_my_usage(request: Request, start: datetime | None = None, end: datetime | None = None):
     """The caller's own token usage between ``start`` and ``end`` (ISO 8601 with a time zone;
     default: the last 24 hours): totals, a series of buckets in local time, per kind. Never a colleague's."""
     store, (a, b) = usage_or_503(request), _range(start, end)
@@ -29,7 +29,7 @@ async def my_usage(request: Request, start: datetime | None = None, end: datetim
 
 
 @router.get("/v1/admin/usage", response_model=AdminUsageReport, responses={403: {"description": "Not an administrator"}})
-async def office_usage(request: Request, start: datetime | None = None, end: datetime | None = None):
+async def get_office_usage(request: Request, start: datetime | None = None, end: datetime | None = None):
     """Administrators: the office's token usage, per user and in total, with a notional cloud cost."""
     admin_or_403(request)
     store, (a, b) = usage_or_503(request), _range(start, end)
@@ -37,7 +37,7 @@ async def office_usage(request: Request, start: datetime | None = None, end: dat
 
 
 @router.get("/v1/admin/usage/rates", response_model=Rates, responses={403: {"description": "Not an administrator"}})
-async def usage_rates(request: Request):
+async def get_usage_rates(request: Request):
     """Administrators: the rates the notional cost uses, per million input and output tokens."""
     admin_or_403(request)
     return await run_in_threadpool(usage_or_503(request).rates)
