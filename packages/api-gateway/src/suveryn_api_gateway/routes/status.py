@@ -27,7 +27,7 @@ from ..clock import WARN_MS
 from .common import admin_or_403, signin_status
 
 log = logging.getLogger("suveryn.gateway")
-router = APIRouter()
+router = APIRouter(tags=["status"])  # the group its operations are in, in the description (description.py)
 
 INTERVAL_S = 60
 OS_RELEASE = Path(os.environ.get("SUVERYN_OS_RELEASE", "/usr/lib/os-release"))
@@ -155,7 +155,7 @@ class StatusMonitor:
 
 
 @router.get("/v1/admin/status", response_model=AdminStatus, responses={403: {"description": "Not an administrator"}})
-async def admin_status(request: Request):
+async def get_appliance_status(request: Request):
     """Is everything working? The six checks, the latest at most a quarter of a minute old."""
     admin_or_403(request)
     monitor: StatusMonitor = request.app.state.status

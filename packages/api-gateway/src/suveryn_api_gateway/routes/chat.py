@@ -45,7 +45,7 @@ from .common import (
 )
 
 log = logging.getLogger("suveryn.gateway")
-router = APIRouter()
+router = APIRouter(tags=["answers"])  # the group its operations are in, in the description (description.py)
 
 
 @router.post("/v1/chat", response_model=ChatResponse, responses={
@@ -59,7 +59,7 @@ router = APIRouter()
     502: {"description": "Model backend unreachable or returned an error"},
     503: {"description": "Grounded answer requested but document search is unavailable"},
 })
-async def chat(req: ChatRequest, request: Request):
+async def ask_question(req: ChatRequest, request: Request):
     """Answer a conversation. With ``document_ids``, ground the answer in those documents.
 
     Grounded answers cite passages as [n], where [n] is ``citations[n-1]``. Without

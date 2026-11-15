@@ -9,7 +9,9 @@ from suveryn_harness import BackendError, LlamaServerClient, ModelInfo
 
 from .common import StoreStatus, signin_status
 
-router = APIRouter()
+router = APIRouter(tags=["status"])  # the group its operations are in, in the description (description.py)
+models_routes = APIRouter(tags=["models"])  # the installed models: a group of their own (Administration's Updates and models joins it)
+routers = (router, models_routes)
 
 
 class BackendStatus(BaseModel):
@@ -51,7 +53,7 @@ class HealthResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse,
             responses={503: {"model": HealthResponse, "description": "Model backend not ready"}})
-async def health(request: Request):
+async def get_health(request: Request):
     """Report whether the model server is ready (and which model it serves) and whether documents work.
 
     200 when the model server is ready; 503 while it loads, fails or can't be reached. The
@@ -76,8 +78,8 @@ async def health(request: Request):
     return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
 
-@router.get("/v1/models", response_model=list[ModelInfo], responses={502: {"description": "Model backend unreachable"}})
-async def models(request: Request):
+@models_routes.get("/v1/models", response_model=list[ModelInfo], responses={502: {"description": "Model backend unreachable"}})
+async def list_models(request: Request):
     """The models installed on this appliance, which one is the default, and which is loaded now.
 
     Choosing a model that isn't loaded makes the next answer wait while it loads (seconds when

@@ -28,7 +28,7 @@ from .common import (
 )
 
 log = logging.getLogger("suveryn.gateway")
-router = APIRouter()
+router = APIRouter(tags=["documents"])  # the group its operations are in, in the description (description.py)
 
 
 def _document_id(document_id: str) -> uuid.UUID:
@@ -42,7 +42,7 @@ def _document_id(document_id: str) -> uuid.UUID:
     411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
     415: {"description": "Not a PDF, Word, Excel, Markdown, CSV or ZIP file"}, 503: {"description": "Unavailable"},
     507: {"description": "The disk is nearly full"}})
-async def upload_document(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
+async def create_upload(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
     """Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
     Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
     Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is ``ready`` (or
@@ -71,7 +71,7 @@ async def upload_document(request: Request, file: UploadFile = File(...), case: 
 
 
 @router.get("/v1/documents/jobs/{job_id}")
-async def document_job(job_id: str, request: Request):
+async def get_upload(job_id: str, request: Request):
     """State of one of the caller's uploads: queued, processing, ready, needs_review, failed or cancelled;
     while processing, how far reading has got (``progress``: step, pages done, pages); when failed, why
     (``error``, in English, for developers, and ``failure``: a code of the registry's ``document`` area with its numbers,
@@ -84,7 +84,7 @@ async def document_job(job_id: str, request: Request):
 
 @router.delete("/v1/documents/jobs/{job_id}", status_code=204, responses={
     404: {"description": "Unknown job"}, 409: {"description": "Already read: it is a document, delete that instead"}})
-async def cancel_job(job_id: str, request: Request):
+async def cancel_upload(job_id: str, request: Request):
     """Cancel one of the caller's uploads (docs/design/chat-ui.md §5, the attachment card's ×): one still
     waiting is never read; one being read is stopped, its reader with it, before it is stored. One
     already being stored finishes. Noted in the case's access log."""
@@ -179,7 +179,7 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
 
 
 @router.post("/v1/documents/{document_id}/source", responses={404: {"description": "Not here, or nothing was noticed"}})
-async def use_as_source(document_id: str, request: Request, case: str | None = None):
+async def use_document_as_source(document_id: str, request: Request, case: str | None = None):
     """Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md
     §6): the person decides, the system only said what it
     noticed. The uploader's right in their personal space, a contributor's in a case (as uploading);
@@ -195,7 +195,7 @@ async def use_as_source(document_id: str, request: Request, case: str | None = N
 
 
 @router.get("/v1/documents/{document_id}/conversations", response_model=list[ConversationSummary])
-async def document_conversations(document_id: str, request: Request, case: str | None = None):
+async def list_document_conversations(document_id: str, request: Request, case: str | None = None):
     """The saved conversations that cite or attach this document (asked before deleting it): the
     caller's own, or in the case ``case`` (its manager, who may delete there) everyone's."""
     did = _document_id(document_id)
@@ -249,7 +249,7 @@ class SaveAnswerIn(BaseModel):
 @router.post("/v1/cases/{case_id}/documents", status_code=201, responses={
     200: {"description": "This answer was saved before: that document"},
     403: {"description": "Not a contributor, or the case is closed"}, 404: {"description": "No such case here"}})
-async def save_answer(case_id: str, body: SaveAnswerIn, request: Request, response: Response):
+async def save_answer_as_document(case_id: str, body: SaveAnswerIn, request: Request, response: Response):
     """Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a
     contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
     deleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).
@@ -271,7 +271,7 @@ async def save_answer(case_id: str, body: SaveAnswerIn, request: Request, respon
 
 @router.get("/v1/documents/{document_id}/original", response_class=Response,
             responses={200: {"content": {"application/pdf": {}}}, 404: {"description": "Not here, or not an upload"}})
-async def document_original(document_id: str, request: Request, case: str | None = None):
+async def get_document_original(document_id: str, request: Request, case: str | None = None):
     """The file a document was read from, as uploaded (board G11, "Open document at p. 3"): for whoever may read
     its passages, and noted in the case's access log. A PDF opens in the browser (the page follows as
     ``#page=3``), Markdown and CSV show as plain text, Word and Excel are downloaded. Text sūveryn stored
@@ -299,7 +299,7 @@ def disposition(kind: str, filename: str) -> str:
 
 
 @router.get("/v1/documents/{document_id}/content", responses={404: {"description": "Not here, or nothing to rebuild"}})
-async def document_content(document_id: str, request: Request, case: str | None = None):
+async def get_document_content(document_id: str, request: Request, case: str | None = None):
     """What rebuilds a document sūveryn made (a saved answer's Word file, built in the browser): for
     whoever may read it."""
     docs = docs_or_503(request)

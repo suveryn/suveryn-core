@@ -65,7 +65,7 @@ from suveryn_harness import (
     UsageRecord,
 )
 
-from . import problems, routes
+from . import description, problems, routes
 from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
 from .avatars import MAX_UPLOAD_BYTES as AVATAR_MAX_BYTES
 from .avatars import AvatarStore
@@ -321,8 +321,11 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     # air-gapped installs and contacts third parties. Off unless explicitly enabled for development.
     # The OpenAPI schema itself (/openapi.json) is served locally and stays available.
     show_docs = os.environ.get("SUVERYN_API_DOCS") == "1"
+    # An operation's id in the description is its function's name (description.py): the chat UI's generated code
+    # is named after it.
     app = FastAPI(title="Sūveryn API", version="0.2.0", lifespan=lifespan,
-                  docs_url="/docs" if show_docs else None, redoc_url=None)
+                  docs_url="/docs" if show_docs else None, redoc_url=None,
+                  generate_unique_id_function=description.operation_id)
     problems.install(app)  # every refusal and failure in the one shape (Problem Details with a code)
 
     # What the routes read (routes/common.py): set before the app starts, unchanged after.
@@ -435,7 +438,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
                    routes.conversations, routes.usage, routes.backups, routes.status, routes.users, routes.clock):
-        app.include_router(module.router)
+        for router in getattr(module, "routers", (module.router,)):  # a module with operations of several groups has a router for each
+            app.include_router(router)
     problems.catch_all(app)  # last, so outermost: anything nobody planned for gets a reference
     return app
 

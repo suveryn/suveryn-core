@@ -51,7 +51,12 @@ from .common import (
     with_faces,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["cases"])  # the group its operations are in, in the description (description.py)
+# Two other groups have operations here, each on a router of its own that carries the group: the office's people
+# (cases are shared with them) and the office's settings (they set a new case's defaults).
+users_routes = APIRouter(tags=["users"])
+settings_routes = APIRouter(tags=["settings"])
+routers = (router, users_routes, settings_routes)
 
 
 @router.get("/v1/cases", response_model=list[Case])
@@ -64,7 +69,7 @@ async def list_cases(request: Request, closed: bool = False):
 
 
 @router.get("/v1/cases/overview", response_model=list[CaseOverview])
-async def cases_overview(request: Request):
+async def list_case_overviews(request: Request):
     """Every case the caller may see, open and closed, as the Cases overview shows them
     (docs/design/chat-ui.md §4): each with its members (the manager first, with their pictures'
     ETags) and its last activity, who and when. An administrator who isn't a member sees no members."""
@@ -154,7 +159,7 @@ async def delete_case(case_id: str, request: Request):
 
 
 @router.put("/v1/cases/{case_id}/pin", response_model=Case, responses={404: {"description": "Unknown case"}})
-async def pin_case(case_id: str, body: PinIn, request: Request):
+async def set_case_pinned(case_id: str, body: PinIn, request: Request):
     """Pin or unpin the case in the caller's own sidebar (docs/design/chat-ui.md): anyone who may
     read it; per user, never shared, not in the access log."""
     case = await case_for(request, case_id, "read")
@@ -194,7 +199,7 @@ async def reopen_case(case_id: str, request: Request):
 @router.post("/v1/cases/{case_id}/keep", response_model=Case, responses={
     403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case"},
     409: {"description": "Not closed"}})
-async def keep_case(case_id: str, body: KeepIn, request: Request):
+async def set_case_keep(case_id: str, body: KeepIn, request: Request):
     """On a closed case: ``{"keep": true}`` marks it kept (never deleted by the period), ``{"keep":
     false}`` plans its deletion one period from now again, ``{"extend": true}`` moves its
     deletion one period later. The manager's and the administrators' right (decision 11)."""
@@ -213,9 +218,9 @@ async def keep_case(case_id: str, body: KeepIn, request: Request):
 
 
 # ------------------------------------------------------------------ members and the office's directory (stage 2)
-@router.get("/v1/users", response_model=list[Person], responses={503: {"description": "The directory is not available"}})
+@users_routes.get("/v1/users", response_model=list[Person], responses={503: {"description": "The directory is not available"}})
 async def list_users(request: Request, q: str = ""):
-    """The office's accounts (id, username, name) whose username, name or email contains ``q``,
+    """The office's people (id, username, name) whose username, name or email contains ``q``,
     to add a colleague to a case. From Keycloak, through the ``suveryn-directory`` client."""
     try:
         people = await request.app.state.directory.search(q)
@@ -224,8 +229,8 @@ async def list_users(request: Request, q: str = ""):
     return await with_faces(request, people)
 
 
-@router.get("/v1/users/departed", response_model=dict[str, str])
-async def departed_users(request: Request):
+@users_routes.get("/v1/users/departed", response_model=dict[str, str])
+async def list_departed_users(request: Request):
     """The names of accounts an administrator deleted, by id: what they did in the cases keeps their name
     (who added a document, whose shared conversation). Names only."""
     db = request.app.state.cases
@@ -234,7 +239,7 @@ async def departed_users(request: Request):
 
 
 @router.get("/v1/cases/{case_id}/members", response_model=list[Member], responses={404: {"description": "Unknown case"}})
-async def list_members(case_id: str, request: Request):
+async def list_case_members(case_id: str, request: Request):
     """The case's members and their roles, the manager first (anyone who may read the case)."""
     case = await case_for(request, case_id, "read")
     members = await run_in_threadpool(cases_or_503(request).members, uuid.UUID(case.id))
@@ -244,7 +249,7 @@ async def list_members(case_id: str, request: Request):
 @router.put("/v1/cases/{case_id}/members/{user}", response_model=Member, responses={
     403: {"description": "Not the case's manager, or the case is closed"},
     404: {"description": "Unknown case or user"}, 422: {"description": "The manager's role is changed by handing over"}})
-async def set_member(case_id: str, user: str, body: MemberIn, request: Request):
+async def set_case_member(case_id: str, user: str, body: MemberIn, request: Request):
     """Add a colleague to the case as a reader or contributor, or change a member's role (the
     manager's right). The colleague must be one of the office's accounts. To make someone the
     manager, hand the case over (``POST .../handover``)."""
@@ -266,7 +271,7 @@ async def set_member(case_id: str, user: str, body: MemberIn, request: Request):
 @router.delete("/v1/cases/{case_id}/members/{user}", status_code=204, responses={
     403: {"description": "Not the case's manager, or the case is closed"},
     404: {"description": "Unknown case or not a member"}, 422: {"description": "The manager can't be removed"}})
-async def remove_member(case_id: str, user: str, request: Request):
+async def remove_case_member(case_id: str, user: str, request: Request):
     """Take a member out of the case (the manager's right). The manager can't be removed: hand
     the case over first."""
     case = await case_for(request, case_id, "manage")
@@ -281,7 +286,7 @@ async def remove_member(case_id: str, user: str, request: Request):
 
 @router.post("/v1/cases/{case_id}/handover", response_model=Case, responses={
     403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case or user"}})
-async def handover(case_id: str, body: HandoverIn, request: Request):
+async def hand_over_case(case_id: str, body: HandoverIn, request: Request):
     """Make another colleague the case's manager: the current manager may, and an administrator
     (decision 6: an account can't go while it manages a case). The previous manager stays on as
     a contributor."""
@@ -299,7 +304,7 @@ async def handover(case_id: str, body: HandoverIn, request: Request):
 
 @router.get("/v1/cases/{case_id}/events", response_model=list[CaseEvent], responses={
     403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case"}})
-async def case_events(case_id: str, request: Request):
+async def list_case_events(case_id: str, request: Request):
     """The case's access log, newest first: who did what, when (decision 15). For its manager
     and the administrators; kept 180 days, as the sign-in events."""
     store, cid, caller, case = await visible_case(request, case_id)
@@ -323,7 +328,7 @@ async def case_events(case_id: str, request: Request):
 
 # ------------------------------------------------------------------ the administrator's pages (stage 4)
 @router.get("/v1/admin/cases", response_model=list[AdminCase], responses={403: {"description": "Not an administrator"}})
-async def admin_cases(request: Request):
+async def list_office_cases(request: Request):
     """Administrators: every case on the appliance, open ones first, with who manages it and how
     many members it has; nothing from inside a case. For handing cases over before an account
     goes (decision 6), and for seeing what is closed and due."""
@@ -331,8 +336,8 @@ async def admin_cases(request: Request):
     return await run_in_threadpool(cases_or_503(request).list_all, owner_of(request))
 
 
-@router.get("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
-async def admin_case_settings(request: Request):
+@settings_routes.get("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
+async def get_office_settings(request: Request):
     """Administrators: the office's settings as they apply now: the default access of a new case,
     how long closed cases are kept, and how long saved conversations are kept (the data lifecycle,
     suveryn-tracker#31). As provisioned, until changed here."""
@@ -345,9 +350,9 @@ async def admin_case_settings(request: Request):
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
-@router.get("/v1/admin/cases/settings/preview", response_model=SettingsPreview,
+@settings_routes.get("/v1/admin/cases/settings/preview", response_model=SettingsPreview,
             responses={403: {"description": "Not an administrator"}})
-async def preview_case_settings(request: Request, default_access: Literal["office", "members"] | None = None,
+async def preview_office_settings(request: Request, default_access: Literal["office", "members"] | None = None,
                                 apply_to: Literal["new", "all"] = "new",
                                 conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None):
     """Administrators: what saving these settings would do now, for the confirmation in Settings: how many
@@ -369,8 +374,8 @@ async def preview_case_settings(request: Request, default_access: Literal["offic
     return out
 
 
-@router.put("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
-async def set_admin_case_settings(body: SettingsIn, request: Request):
+@settings_routes.put("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
+async def update_office_settings(body: SettingsIn, request: Request):
     """Administrators: change the default access (``office`` or ``members``), the keep period of
     closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).
     Takes effect at once for new cases and for cases closed from now on; a case already closed keeps
@@ -404,4 +409,4 @@ async def set_admin_case_settings(body: SettingsIn, request: Request):
         # At once, not at the next hourly sweep: the confirmation said they are deleted, and until then they would go
         # into the night's backup (VM check of 28 October, finding 4). history_or_none told it the new period.
         await run_in_threadpool(history.purge)
-    return await admin_case_settings(request)
+    return await get_office_settings(request)

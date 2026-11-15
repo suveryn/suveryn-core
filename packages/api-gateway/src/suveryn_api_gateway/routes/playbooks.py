@@ -63,7 +63,7 @@ from .common import (
 )
 
 log = logging.getLogger("suveryn.gateway")
-router = APIRouter()
+router = APIRouter(tags=["playbooks"])  # the group its operations are in, in the description (description.py)
 
 # Runs reading at once: per person, and in all (llama-server answers four requests side by side).
 MAX_RUNS_PER_USER = int(os.environ.get("SUVERYN_PLAYBOOK_RUNS_PER_USER", "2"))
@@ -153,7 +153,7 @@ def _named(run):
 # ------------------------------------------------------------------------------ which playbooks
 
 @router.get("/v1/cases/{case_id}/playbooks", response_model=list[PlaybookOut])
-async def case_playbooks(case_id: str, request: Request):
+async def list_case_playbooks(case_id: str, request: Request):
     """The playbooks that fit this case's type and are switched on, each with whether it is covered
     by the appliance's support agreement (``covered`` false: it runs, with a warning; never a block)."""
     case = await case_for(request, case_id, "read")
@@ -162,7 +162,7 @@ async def case_playbooks(case_id: str, request: Request):
 
 
 @router.get("/v1/admin/playbooks", response_model=list[PlaybookOut])
-async def admin_playbooks(request: Request):
+async def list_office_playbooks(request: Request):
     """Every installed playbook with its case types and whether it is switched on (an administrator's
     list; docs/design/admin.md)."""
     admin_or_403(request)
@@ -186,7 +186,7 @@ async def set_playbook_active(playbook: str, body: ActiveIn, request: Request):
 # ------------------------------------------------------------------------------ runs
 
 @router.get("/v1/playbooks/runs/active", response_model=dict[str, RunSummary])
-async def active_runs(request: Request):
+async def list_all_active_runs(request: Request):
     """The live run per case the caller may read, keyed by case id: the chip on the case lists."""
     case_ids = await readable_case_ids(request)
     if not case_ids:
@@ -196,7 +196,7 @@ async def active_runs(request: Request):
 
 
 @router.get("/v1/cases/{case_id}/playbooks/runs", response_model=list[RunSummary])
-async def list_runs(case_id: str, request: Request):
+async def list_case_runs(case_id: str, request: Request):
     """The case's runs, newest first (a reader's right)."""
     case = await case_for(request, case_id, "read")
     return [_named(r) for r in await run_in_threadpool(runs_or_503(request).list, uuid.UUID(case.id))]
@@ -481,7 +481,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     404: {"description": "Unknown document, or no such request in this playbook"},
     409: {"description": "The run can't take a document now, or the request doesn't apply"},
 })
-async def add_documents(case_id: str, run_id: str, body: LateIn, request: Request):
+async def add_run_documents(case_id: str, run_id: str, body: LateIn, request: Request):
     """Documents that came after their request was answered: the bank certificate a week after the plan (decision of
     10 November 2026). They are recorded as that request's, the reads aimed at it are read again, and the checkpoint
     follows again; a confirmed run is reopened, its summary out of date until confirmed again. A reading that differs
@@ -522,7 +522,7 @@ async def add_documents(case_id: str, run_id: str, body: LateIn, request: Reques
 @router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts/{fact_id}", response_model=Run, responses={
     409: {"description": "The run isn't waiting at its checkpoint"},
 })
-async def set_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, request: Request):
+async def set_run_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, request: Request):
     """A value from a playbook's card at the checkpoint (handover of 31 October 2026): *Adjust* or *Fill
     in*. A new version from this person, as a correction in words is; changed, the playbook says so in
     the thread. The same value as before says the person checked it: a version from them, no turn. The
@@ -585,7 +585,7 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
 @router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts", response_model=Run, responses={
     409: {"description": "The run isn't waiting at its checkpoint, or its facts changed since ``seen``"},
 })
-async def confirm_run(case_id: str, run_id: str, body: ConfirmIn, request: Request):
+async def confirm_run_facts(case_id: str, run_id: str, body: ConfirmIn, request: Request):
     """The checkpoint (a contributor's right; the case manager's when the step says ``by: manager``): every
     fact's confirmed value, a correction or empty, and entries added to a list. The run then walks on: the
     summary is stored in the case as a document with origin ``playbook``."""

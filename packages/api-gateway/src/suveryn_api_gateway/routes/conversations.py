@@ -20,7 +20,7 @@ from ..conversations import (
 )
 from .common import Scope, case_for, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
-router = APIRouter()
+router = APIRouter(tags=["conversations"])  # the group its operations are in, in the description (description.py)
 
 
 def _conversation_id(conversation_id: str) -> uuid.UUID:
@@ -68,7 +68,7 @@ async def get_conversation(conversation_id: str, request: Request):
     403: {"description": "The case is closed, or the caller may not contribute to it"},
     404: {"description": "Not the caller's conversation, or not in a case"},
     409: {"description": "The case is strictly confidential"}})
-async def share_conversation(conversation_id: str, body: ShareIn, request: Request):
+async def set_conversation_shared(conversation_id: str, body: ShareIn, request: Request):
     """Share one of the caller's conversations with its case (decision 12), or stop sharing it.
     Its owner only; a shared conversation is read-only for the case's other members. Noted in the
     case's access log. A conversation in the personal space can't be shared."""
@@ -89,7 +89,7 @@ async def share_conversation(conversation_id: str, body: ShareIn, request: Reque
 
 @router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses={
     404: {"description": "Not the caller's conversation"}})
-async def rename_conversation(conversation_id: str, body: RenameIn, request: Request):
+async def update_conversation(conversation_id: str, body: RenameIn, request: Request):
     """Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
     later saves, which otherwise name a conversation after its first question."""
     store = history_or_503(request)
@@ -101,7 +101,7 @@ async def rename_conversation(conversation_id: str, body: RenameIn, request: Req
 
 @router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses={
     404: {"description": "Not the caller's conversation"}, 409: {"description": "In a case: the case is pinned instead"}})
-async def pin_conversation(conversation_id: str, body: PinIn, request: Request):
+async def set_conversation_pinned(conversation_id: str, body: PinIn, request: Request):
     """Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
     pin of its own: it follows its case. Personal, so not in any access log."""
     store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
@@ -191,7 +191,7 @@ async def delete_conversation(conversation_id: str, request: Request):
 
 
 @router.delete("/v1/conversations")
-async def delete_all_conversations(request: Request):
+async def delete_my_conversations(request: Request):
     """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
     store = history_or_503(request)
     deleted = await run_in_threadpool(store.delete_all, owner_of(request))
