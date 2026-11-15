@@ -14,6 +14,7 @@ export type Attachment = {
   pages?: number;    // once read: its pages (none for Word, Markdown and CSV)
   reading?: JobProgress | null;  // while the server reads it: how far it has got
   failure?: Message;             // failed: why, as a code of the registry (lib/review.ts failureText)
+  lost?: boolean;                // failed because the server no longer knows the upload: the page's own words (uploadLost)
   reviewPages?: number[]; // with status needs_review: pages to check (text may be missing, or the reading noticed something)
   reviewKind?: string;    // why those pages: the warning's kind (page_coverage_low, layout_failed), for the card's words (board G13)
   note?: string;          // once read: what the reading noticed, in a sentence (suveryn-tracker#26)

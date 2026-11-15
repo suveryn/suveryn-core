@@ -123,7 +123,7 @@ describe("Markdown downloads", () => {
 
 describe("documents that need review", () => {
   it("lists the pages where text may be missing, once each and in order", () => {
-    const w = (page: number | null, kind = "page_coverage_low") => ({ page, kind, detail: "" });
+    const w = (page: number | null, what = "page_coverage_low") => ({ kind: "warning", code: `document.${what}`, params: page === null ? {} : { page } });
     expect(reviewPages([w(3), w(1), w(3), w(2, "furniture_restored"), w(null)])).toEqual([1, 3]);
     expect(reviewPages(undefined)).toEqual([]);
   });

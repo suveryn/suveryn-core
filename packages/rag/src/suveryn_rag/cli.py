@@ -24,7 +24,7 @@ def ingest_main() -> None:
             r = rag.ingest(p, owner=a.owner)
             print(json.dumps({"document_id": str(r.document_id), "filename": r.filename, "pages": r.pages,
                               "ocr_pages": r.ocr_pages, "mixed_pages": r.mixed_pages, "chunks": r.chunks, "already_present": r.already_present,
-                              "status": r.status, "warnings": [{k: w[k] for k in ("page", "kind", "detail")} for w in r.warnings],
+                              "status": r.status, "warnings": [{"code": w["code"], "page": w["params"].get("page"), "detail": w.get("detail", "")} for w in r.warnings],
                               "timings_s": {k: round(v, 2) for k, v in r.timings.items()}}, ensure_ascii=False))
     finally:
         rag.close()

@@ -29,7 +29,11 @@ of its own, and a partner gets it with the API. A line:
 
 - **Name:** `area.condition`, lower case, two levels. The areas are a short fixed list at the top of the file. The
   kind is not in the name.
-- **`kind`** fixes the status range: `refused` 4xx, `unavailable` 5xx, `internal` 500, `warning` none.
+- **`kind`** is chosen by what the person can do, never by how the message travels: `refused` (nothing was done),
+  `unavailable` (a known part is down), `internal` (nobody planned for it), `warning` (done, check something).
+  It fixes the status range when the code takes an answer's place: `refused` 4xx, `unavailable` 5xx, `internal`
+  500. A refusal or a part that is down can also be an upload's or a run's stored error: such a code has no status
+  and keeps its kind (`document.password` is refused). A warning never has a status.
 - **`title`:** English, for a developer reading the registry or an answer. Never shown to a person.
 - **`params`:** each with a type (`number`, `string`, `id`). Raw values only: the reader's locale formats a number or
   a date, and an id becomes a label on the screen. `"private": true` marks client data (a file name, a case
@@ -116,15 +120,21 @@ calculation's reason. What remains is counted, and the count may only go down:
 - **What catches a refusal catches a `Problem`.** Two places act on a refusal from a shared check instead of passing
   it on (a conversation in a case the caller may not see reads as missing; a contributor may delete their own
   noticed upload). They catch `Problem` and read its `status`.
-- **A failed reading says why as a code** (#152). A job that failed carries `failure`: `{kind, code, params}` with
-  a code of the `document` area (`document.password`, `document.too_many_pages` with `pages` and `max` …), made at
-  the API's edge from the reader's own reason (`suveryn_rag.reading.CODES`; a test holds the two together). The
-  English `error` stays beside it for developers. `document.lost` is said by the page itself, when an upload's job
-  is gone.
-- **Not moved, on purpose: the warnings of ingestion.** A document's warnings are kinds with pages
-  (`page_coverage_low`, `instruction_like_text` …), stored with the document. They are meaning already, never a
-  sentence, and the page words each in several shapes (a row, a card, the full note, with pages or without), which
-  one wording per code can't hold. They stay kinds, worded in `lib/readingNotes.ts`.
+- **A failed reading says why as a code** (#152). A job that failed carries `failure`, `{kind, code, params}`,
+  made at the API's edge from the reader's own reason (`suveryn_rag.reading.CODES`; a test holds the two together):
+  a reason the reader knows is **refused** (`document.password`, `document.too_many_pages` with `pages` and `max`
+  …: nothing was read, the person gives another file), and a crash nobody planned for is **internal**:
+  `system.internal` with a reference, logged with the exception's type and where it was raised, never its message.
+  The English `error` stays beside it for developers.
+- **What a reading noticed is a warning of the registry** (#152). The document was read and something should be
+  checked: `document.page_coverage_low`, `document.layout_failed`, `document.instruction_like_text`,
+  `document.text_recovered`, `document.text_layer_recovered`, `document.furniture_restored`, each with its `page`.
+  They are stored with the document and sent as `{kind, code, params}` (and `detail`, English, for developers),
+  as every message is. The page says each code once for all its pages, in the code's own sentence; the card and
+  the overview have shorter forms of their own, and a warning newer than the page is still said, by its kind's
+  words. A document stored before this keeps its status and shows no notes until it is read again.
+- **What only the page says isn't in the registry.** "This page lost track of the upload" is the page's own
+  sentence (`uploadLost`), said when an upload's job is gone; the server never sends it.
 - Still under their own names, each its own issue: a run's stored `error`, the chat stream's `failure`, the answer's
   checks (#153), backups and the clock (#154). The backup service's codes (`login`, `write`, `unreachable` …) are
   worded for Administration › Backups from `backupErrors` in the setup's tables until then.

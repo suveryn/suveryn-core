@@ -250,7 +250,7 @@ def test_word_and_spreadsheet_passages_are_stored_with_their_place(tmp_path):
     try:
         assert (r.pages, r.chunks, r.status) == (0, 2, "ok")
         assert r.noticed and r.noticed["ref"] == "A-0123abcd"  # in a footer: not a source until confirmed
-        assert [w["kind"] for w in r.warnings] == ["instruction_like_text"]
+        assert [(w["kind"], w["code"]) for w in r.warnings] == [("warning", "document.instruction_like_text")]
         whole = rag.store.document_chunks([r.document_id], max_chars=10_000, max_chunks=99)
         assert [_hit(c).citation.source.location for c in whole] == ["Prices!A1:B2", "Article 2 › Price"]
         assert [_hit(c).citation.source.page for c in whole] == [None, None]

@@ -11,12 +11,9 @@
  */
 import { getJob, HttpError, type ArchiveUpload, type Job, type StoredDocument } from "../api";
 import type { Messages } from "../i18n";
-import type { Message } from "./messages";
 import { isReady, type Attachment, type Chosen, type Turn } from "../types";
 import { cardNote, checkPages, readingNotes, reviewKind, toCheck } from "./readingNotes";
 
-/** What the page says of an upload the server no longer knows: a code of the registry, as a failed reading has. */
-export const LOST_TRACK: Message = { kind: "warning", code: "document.lost" };
 
 /** The server's answer for a job: the job, or ``lost`` when it no longer knows it (404). */
 export type Checked = Job | "lost";
@@ -59,7 +56,7 @@ export function attachmentFromJob(m: Messages, a: Attachment, j: Job): Attachmen
 export function afterCheck(m: Messages, a: Attachment, checked: Map<string, Checked>): Attachment {
   const c = a.jobId ? checked.get(a.jobId) : undefined;
   if (c === undefined) return a;
-  if (c === "lost") return { ...a, status: "failed", failure: LOST_TRACK, reading: null };
+  if (c === "lost") return { ...a, status: "failed", lost: true, failure: undefined, reading: null };
   return attachmentFromJob(m, a, c);
 }
 

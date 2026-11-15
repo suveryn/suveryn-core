@@ -44,7 +44,7 @@ export const notes: Notes<typeof en> = {
   pbComputedHow: "How a date was worked out. {before} is true when the term is counted back from the base date. {base} is a date, {term} a term from 'pbTerm' (\"ten days\").",
   pbComputedHowCalendar: "As 'pbComputedHow', with the calendar the days were counted on in brackets (\"Monday to Friday, Belgian public holidays\").",
   pbTerm: "A term inside 'pbComputedHow'. {unit} is day, week, month or year, and anything else a working day; one to twelve are written as words, as deeds do, higher counts as figures.",
-  cardCheckWhy: "On a document's card, after reading. {why} is the reader's code for why pages need checking: page_coverage_low (little of the page could be read), layout_failed (the layout wasn't read). {pages} is \"p. 4\" or \"pp. 2 and 7\" from 'pageList'.",
+  cardCheckWhy: "On a document's card, after reading. {why} is why pages need checking, the word after \"document.\" in the warning's code: page_coverage_low (little of the page could be read), layout_failed (the layout wasn't read). {pages} is \"p. 4\" or \"pp. 2 and 7\" from 'pageList'.",
   pbRunningNow: "Under a playbook in the playbook menu, when it is running in this case. {state} says what it is doing: you (waiting for the reader), name (waiting for {name}, a first name), member (waiting for any member of the case), reading (reading the documents), anything else: paused.",
   pbLastRun: "Under a playbook in the playbook menu, when it has run before. {when} is a day (\"Today\"), {state} how it ended, from 'runDone', 'runStopped', 'runCancelled' or 'runFailed'.",
   exportMark: "The line sūveryn writes into a file it makes. {kind} is answer or playbook. Keep \"sūveryn-ref {ref}\" exactly as it is: the server finds its own files by it.",

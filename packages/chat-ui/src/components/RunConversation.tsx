@@ -31,9 +31,8 @@ import {
   entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, optionLabel, shownFacts, splitPath, type FactGroup, type PlaybookWords,
 } from "../lib/playbooks";
 import { ACCEPTED_FILES } from "../lib/formats";
-import { failureText } from "../lib/review";
 import { dayLabel } from "../lib/conversations";
-import { checkJob, LOST_TRACK } from "../lib/uploads";
+import { checkJob } from "../lib/uploads";
 import { exportRef } from "../lib/marks";
 import { EVENTS, eventText, personTurnText, playbookTurnText, type TurnMeta } from "../lib/runTurns";
 import {
@@ -678,7 +677,7 @@ function RunComposer({ run, kase, title, me, canAnswer, onChanged, onDocumentsCh
         }
         if (job.document_id && (job.status === "ready" || job.status === "needs_review")) done.push({ id: job.document_id, filename: job.filename });
       }
-      if (lost.length) setError(lost.map((f) => m.labelValue({ label: f, value: failureText(m, LOST_TRACK) })).join(" "));
+      if (lost.length) setError(lost.map((f) => m.labelValue({ label: f, value: m.uploadLost })).join(" "));
     } catch (e) { setError((e as Error).message); }
     setUploading([]);
     onDocumentsChanged();

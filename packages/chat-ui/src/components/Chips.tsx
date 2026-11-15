@@ -41,7 +41,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
     : a.status === "processing" ? m.cardReading : null;
   const value = a.status === "uploading" && a.progress !== undefined ? a.progress * 100
     : r?.step === "ocr" && r.done !== null && r.total ? (r.done / r.total) * 100 : undefined;
-  const why = failureText(m, a.failure, a.error);
+  const why = a.lost ? m.uploadLost : failureText(m, a.failure, a.error);
   return (
     <li className="card-attachment" data-state={a.status} aria-busy={busy || undefined}>
       <span className="card-attachment-top">
@@ -152,7 +152,7 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
   const busy = a.status === "uploading" || a.status === "queued" || a.status === "processing";
   const label = a.status === "needs_review" && a.reviewPages?.length ? m.readyCheckPages({ pages: pageList(a.reviewPages) }) : STATUS_LABEL[a.status];
   const title = a.status === "needs_review" ? m.labelValue({ label: a.filename, value: reviewHint(a.reviewPages) })
-    : a.status === "failed" ? m.labelValue({ label: a.filename, value: failureText(m, a.failure, a.error) }) : a.filename;
+    : a.status === "failed" ? m.labelValue({ label: a.filename, value: a.lost ? m.uploadLost : failureText(m, a.failure, a.error) }) : a.filename;
   if (a.removed) {  // the document was deleted and its name taken out (suveryn-tracker#12)
     return <span className="chip-attachment chip-removed"><CircleX size={12} aria-hidden /><span className="chip-name">{m.documentRemoved}</span></span>;
   }
