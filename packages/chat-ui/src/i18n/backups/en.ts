@@ -22,6 +22,7 @@ export const backupMessages = {
   "backup.settings_invalid": "The backup settings aren't valid.",
   "backup.target_unreachable": "The backup disk or share couldn't be reached.",
   "backup.disk_full": "The backup disk is full.",
+  "backup.unsafe_link": "A link in the settings folder that a restore would refuse. Ask support.",
   "backup.verify_failed": "The backup disk didn't give back what was written (it may be failing).",
   "backup.restore_failed": "The restore stopped partway. Enter the recovery key again and try again; if it stops again, contact your partner.",
 } satisfies Record<BackupCode, string>;

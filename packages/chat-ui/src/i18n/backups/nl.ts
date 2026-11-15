@@ -18,6 +18,7 @@ export const backupMessages: BackupMessages = {
   "backup.settings_invalid": "De back-upinstellingen zijn niet geldig.",
   "backup.target_unreachable": "De back-upschijf of gedeelde map was niet bereikbaar.",
   "backup.disk_full": "De back-upschijf is vol.",
+  "backup.unsafe_link": "Een koppeling in de instellingenmap die een herstel zou weigeren. Vraag ondersteuning.",
   "backup.verify_failed": "De back-upschijf gaf niet terug wat erop werd geschreven (ze is mogelijk defect).",
   "backup.restore_failed": "Het terugzetten stopte halverwege. Kies de herstelsleutel opnieuw en probeer het nog eens; stopt het weer, neem dan contact op met uw partner.",
 };

@@ -703,6 +703,11 @@
    "title": "The backup disk is full.",
    "since": "0.2.0"
   },
+  "backup.unsafe_link": {
+   "kind": "refused",
+   "title": "A backup couldn't start: a folder of the office's settings holds a link that a restore would refuse.",
+   "since": "0.2.0"
+  },
   "backup.verify_failed": {
    "kind": "unavailable",
    "title": "The backup disk didn't give back what was written: it may be failing.",
