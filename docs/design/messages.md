@@ -121,6 +121,8 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   renamed.
 - A backup that fails on something nobody planned for (the database can't be dumped, encryption fails) is
   `system.internal` with a reference the backup's own log has.
+  A failure the administrator can be told about has a code of its own: a link in a settings folder that a restore
+  would refuse is `backup.unsafe_link` (a VM regression found the page saying "an unexpected error" for it).
 - The gateway's own refusals for these pages are codes too: `backup.unavailable`, `backup.busy`, `clock.synced`,
   `clock.busy`, `clock.measurement_slow`, `clock.unavailable`.
 

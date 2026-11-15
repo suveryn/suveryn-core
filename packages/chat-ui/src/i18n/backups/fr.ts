@@ -18,6 +18,7 @@ export const backupMessages: BackupMessages = {
   "backup.settings_invalid": "Les réglages de sauvegarde ne sont pas valides.",
   "backup.target_unreachable": "Le disque ou le partage de sauvegarde était inaccessible.",
   "backup.disk_full": "Le disque de sauvegarde est plein.",
+  "backup.unsafe_link": "Un lien dans le dossier des réglages qu'une restauration refuserait. Contactez le support.",
   "backup.verify_failed": "Le disque de sauvegarde n'a pas rendu ce qui y a été écrit (il est peut-être défaillant).",
   "backup.restore_failed": "La restauration s'est arrêtée en cours de route. Choisissez à nouveau la clé de récupération et réessayez ; si elle s'arrête encore, contactez votre partenaire.",
 };
