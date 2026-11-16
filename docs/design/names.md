@@ -9,11 +9,12 @@ isn't yet (*Released*, below). The founder's decision of 15 November 2026, after
 **Where it stands.** The operations follow this convention since #161, the codes since #162 (53 of the 138 were
 renamed, and the areas `model` and `account` added).
 
-**Released.** A code is released when it is in a core that an appliance leaving Sūveryn Labs pins, a pilot
-included. A released code is never renamed and never removed: codes are stored (a document that couldn't be read,
+**Released.** A code is released when it is on the list of released codes (`messages-released.json`). A released code is never
+renamed, removed or reused: codes are stored (a document that couldn't be read,
 a run that failed), so an old case and a restored older backup must still be read. `packages/harness/src/suveryn_harness/messages-released.json` lists the released codes, and a test fails when
 one of them is no longer in the registry. It is added to in the change in core that an appliance leaving Sūveryn
-Labs is to pin: `uv run python -m suveryn_harness.released`. Nothing is released yet.
+Labs, a pilot included, is to pin: `uv run python -m suveryn_harness.released`. Nothing is released yet. The
+founder's decision behind this is the handbook's [*names and the pin*](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-15-names-and-the-pin.md).
 
 An operation's name is not frozen. It is stored nowhere, and the chat UI is built from the same commit as the
 gateway, so a rename reaches both at once (the founder's decision of 15 November 2026). That changes the day

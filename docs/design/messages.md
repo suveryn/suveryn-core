@@ -92,8 +92,8 @@ before there is a database or a sign-in. It says the same thing in the same shap
 
 - Its codes are the registry's `setup` area, said through this package's `messages.py`, which the service loads
   from the pinned core at `/opt/suveryn/core` (the module uses the standard library only, and must stay so): one
-  list, and the same Problem Details as the gateway's. A new setup code is merged here first and reaches the
-  appliance when its pin moves. An answer refused field by field is `request.invalid`
+  list, and the same Problem Details as the gateway's. A setup code is added, renamed or removed here first, and the
+  change reaches the appliance when its pin moves, in the same PR as the appliance's service that says it. An answer refused field by field is `request.invalid`
   with `fields`: `{"password": {"kind": "refused", "code": "setup.password_too_short", "params": {"min": 15}}}`.
 - What is stored or travels inside an answer is a message, `{kind, code, params}`: a share's test, why a restore's
   check failed, the step where provisioning stopped (`setup.provisioning_failed`, its `step` an id the screen names).

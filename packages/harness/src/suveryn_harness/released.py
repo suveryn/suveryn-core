@@ -1,12 +1,12 @@
-"""The released codes: never renamed, never removed (docs/design/names.md, *Released*).
+"""The released codes: never renamed, removed or reused (docs/design/names.md, *Released*).
 
 A code is stored: with a document that couldn't be read, with a run that failed. An old case, and an older backup
-that is restored, must still be read by a newer sūveryn, so a code that has left Sūveryn Labs stays in the
-registry under its name for good. ``messages-released.json`` lists those codes, and a test fails when one of them
+that is restored, must still be read by a newer sūveryn, so a released code stays in the registry under its name
+for good. A code is released when it is on ``messages-released.json``, and a test fails when one of them
 is no longer in the registry (``tests/test_messages.py``).
 
-A core is released when an appliance that leaves Sūveryn Labs pins it, a pilot included. In the change in core that
-is to be pinned:
+The list is added to in the change in core that an appliance leaving Sūveryn
+Labs, a pilot included, is to pin:
 
     uv run python -m suveryn_harness.released     # adds every code of the registry to the list
 

@@ -1,6 +1,6 @@
 # End to end: the stack in a browser
 
-What a VM regression round did by hand, run by a machine on every pull request (`.github/workflows/e2e.yml`): the gateway, the chat UI, Keycloak and PostgreSQL started together as the appliance wires them, a **stand-in model server** in place of llama-server, and Playwright driving Chromium through the scenarios a person walked through. The unit tests cover each package; this covers what happens between them, and what happens when a service goes away and comes back. Why it exists, and what it was built to catch, is in the handbook (`testing/regression-gap-analysis.md`).
+What a VM regression round walks through by hand, run by a machine on every pull request (`.github/workflows/e2e.yml`): the gateway, the chat UI, Keycloak and PostgreSQL started together as the appliance wires them, a **stand-in model server** in place of llama-server, and Playwright driving Chromium through the scenarios a person walked through. The unit tests cover each package; this covers what happens between them, and what happens when a service goes away and comes back. Why it exists, and what it was built to catch, is in the handbook (`testing/regression-gap-analysis.md`).
 
 | File | What |
 |---|---|
@@ -55,4 +55,4 @@ of this up on a GPU machine.
 
 ## What it doesn't cover
 
-The image, the installer, the encrypted disk, the TPM, a reboot, a restore onto a fresh machine: those are suveryn-appliance's `run-vm-tests`. A real model on real documents: `packages/rag/tests/test_answers_e2e.py` on the GPU machine, by hand, before a model or prompt change (the reader's own test runs here, in the reader job). Copy and design: a person, once per release.
+The image, the installer, the encrypted disk, the TPM, a reboot, a restore onto a fresh machine: those are suveryn-appliance's `run-vm-tests`. A real model on real documents: `packages/rag/tests/test_answers_e2e.py` on the GPU machine, by hand, before a model or prompt change (the reader's own test runs here, in the reader job). Copy and design: a person, in the VM regression round on every pin.
