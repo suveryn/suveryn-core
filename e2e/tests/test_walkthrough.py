@@ -149,9 +149,11 @@ def test_administration_pages_open_and_status_is_sound(page):
     for section in ("Users", "Cases", "Playbooks", "Usage", "Settings", "Status", "Backups"):
         administration(page, section)
     administration(page, "Status")
+    # each check's row by its name, whatever follows it: while a document is still being read, the row has
+    # "Reading documents" and "1 in progress" in one element (suveryn-tracker#168)
+    checks = page.get_by_role("region", name="Is everything working?").get_by_role("listitem")
     for check in ("Answering questions", "Reading documents", "Signing in", "Keeping your data"):
-        expect(page.get_by_text(check, exact=True)).to_be_visible()
-    assert page.locator("main").inner_text().count("Working") >= 4
+        expect(checks.filter(has_text=check)).to_contain_text("Working")
     expect(page.get_by_text("e2e", exact=True)).to_be_visible()  # SUVERYN_VERSION, in the overview
     administration(page, "Playbooks")
     expect(page.get_by_text(re.compile(r"Deed intake \d+\.\d+")).first).to_be_visible()  # the version shipped, whichever it is
