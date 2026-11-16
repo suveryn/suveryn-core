@@ -77,7 +77,7 @@ These apply to every screen below.
 - **Copy** follows the brand voice (suveryn-brand, "Tone of voice", "Wording and spelling") and
   reuses the strings already in `i18n/*.ts` as they are.
   - Copy is sober and exact. It says what happens, with no "we", no exclamation marks and no hype:
-    "Retrying in 8 seconds.", not "We're trying to reconnect".
+    "Trying again in 10 seconds.", not "We're trying to reconnect".
   - **Short.** One sentence where one will do, and often none. Say the outcome, not the mechanism.
     Don't repeat what the title or the button already says. A hint only when the field isn't clear
     on its own. Explain a consequence only when it is irreversible or surprising. Dialog bodies are
@@ -261,7 +261,7 @@ A person shows one badge at a time: the one that matters where the avatar appear
 - The overview is unfiltered when opened from the column, and filtered on a case when reached from
   a count or from the case itself.
 - A colleague's conversation appears only when it is shared with the case.
-- Row menu: *Pin*, *Rename*, *Move to a case*, *Delete*.
+- Row menu: *Open*, *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*.
 
 **Documents**:
 
@@ -286,8 +286,8 @@ A legend under the table explains *Source* and *Made*.
 
 - One table for the three overviews (`ui/table.tsx`, React Aria's `Table`): arrow keys move between rows and cells, Enter opens the row, a cell's own buttons are reached with the arrow keys. 25 rows per page, not virtualised (nothing to gain at that size). The sort is one `Select` per page. The overviews read their lists again whenever one is opened.
 - A case's counts are what the person may see, and each opens that overview filtered on the case. An administrator who isn't a member sees that a case exists, not its members. The *From* column shows a colleague's own initials when the member list doesn't name them, never the viewer's.
-- Status of a case: *Open*; *Open · n documents to check*; closed with its deletion date, or *kept until deleted*. Status of a document: the case's closure first, then *Not a source* for sūveryn's own output (*Confirmed* for a confirmed playbook result), then *To check* with the pages, or *Ready*.
-- Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Documents: *Use in this conversation*, *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice), *Delete*, which follows the server's rule (`lib/overviews.ts`). Conversations: *Open*, *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*; for one in a case *Pin* is disabled with "Pin the case instead" and *Move* is disabled; for a colleague's shared one everything is. Row actions are always shown on a touch screen (`hover: none`).
+- Status of a case: *Open*; *Open · n documents to check*; closed with its deletion date, or *kept until deleted*. Status of a document: the case's closure first, then *Not a source* for sūveryn's own output (*Confirmed* for a confirmed playbook result), then *To check* with the pages, or *Ready*. A file still being read is *Being read*; one that couldn't be read, *Failed*.
+- Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Documents: *Use in this conversation*, *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice), *Delete*, which follows the server's rule (`lib/overviews.ts`). Conversations: *Open*, *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*; for one in a case *Pin* is disabled with "Pin the case instead" and *Move* is disabled; for a colleague's shared one everything but *Open* is. Row actions are always shown on a touch screen (`hover: none`).
 - Long columns are truncated at 200 px with the full text as a tooltip, so the row menu stays visible at 1440 px; on a phone the table scrolls inside its box.
 - Expired conversations are left out of every list at once and deleted by the hourly sweep, not on each request.
 
@@ -295,7 +295,7 @@ A legend under the table explains *Source* and *Made*.
 
 **Personal or in a case.**
 
-A personal conversation has a white pane, a title line and no header. "Personal chat · only you can
+A personal conversation has a white pane and a title bar: its title and its menu. "Personal chat · only you can
 see this" sits under the composer.
 
 A conversation in a case has:
@@ -316,7 +316,7 @@ A conversation in a case has:
 The playbook chip opens a menu of the playbooks that fit the case type
 (`GET /v1/cases/{id}/playbooks`). Each item shows the name, one line, the version, and its coverage
 from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blocking). Choosing one starts
-it as a new conversation in the case (board 53): a playbook is a conversation, listed with the route
+it as a new conversation in the case (board 53), or opens the conversation of a run of it still open: a playbook is a conversation, listed with the route
 icon in the column, in *Recent* and in the Conversations overview, opened in the conversation's place
 with the facts in a panel beside it ([playbooks.md](playbooks.md), "The chat UI"; boards 52 to 54).
 While it is live, its composer carries the run's chip instead: teal "Deed intake 1.1 · running" (a
@@ -375,7 +375,7 @@ Clicking a citation opens a 440 px panel on the right; Esc closes it. The panel 
 - the check's verdict, in words;
 - *Open document at p. 3* and *Copy passage*.
 
-**Attachments** (artboard 13) are cards above the input, one shape for every state, with × at the
+**Attachments** (artboard 13) are cards inside the question box (above it on a narrow screen), one shape for every state, with × at the
 top right to remove:
 
 | State | Card |
@@ -393,7 +393,7 @@ is ready.
 **Server unreachable** (artboard 09):
 
 - A bar at the top: `surface-alt`, ink, a `wifi-off` icon. It says "Can't reach the sūveryn server.",
-  that nothing is lost, "Retrying in 8 seconds.", and offers *Try now*.
+  that nothing is lost, "Trying again in 10 seconds.", and offers *Try now*.
 - An answer that was cut off says so under its last word, with *Regenerate*.
 - The composer keeps the typed text. Send is disabled (grey, not orange), with the reason beside it.
 
@@ -406,14 +406,14 @@ is ready.
 - The × on a card only takes the file out of the question; it never deletes (decision of 9 November 2026, board G13). Deleting is a quiet worded link under the card's button ("Uit dossier verwijderen" in a case), with a confirmation, on the card sūveryn noticed as its own answer and on the card that couldn't be read (look review of 9 November). A card that needs checking says why ("check p. 2 (hard to read)"), and a noticed answer names the case and the day it came from.
 - A failed card says the reason from the job's `failure`, a code of the registry's `document` area (`document.password_protected`, `document.damaged`, `document.pages_too_many`, `document.too_large`, `document.no_text`, `document.unsupported`, `document.reading_too_slow`, `document.unreadable`; [messages.md](messages.md)), in the interface's language (`failureText`); the English sentence stays for the API and the log. *Another file* replaces the card.
 - The source panel replaces a card under the answer. It is not modal; the focus moves into it when a citation opens it and back when it closes; Esc closes it from inside it. Below 768 px it is a modal drawer from the right. *Open document at p. 3* opens the file as uploaded in a new tab, a PDF at the cited page (`#page=3`); a Word or Markdown file has no page, so it reads *Open document*. It sits next to *Copy passage* and replaces the passage's download (board G11, 6 November 2026). A playbook fact's passage whose document was deleted since offers the passage's download instead.
-- The verdict in words: for a marker, whether its sentence's names, dates and figures are in the passage; for a source chip, whether everything the answer takes from that source is; "not checked" for a stopped answer. The active marker and source chip are filled teal with ink text (the chip's former wash failed contrast on `case-surface`, 4.39:1).
+- The verdict in words: for a marker, whether its sentence's names, dates and figures are in the passage; for an item of the sources line, whether everything the answer takes from that source is; "not checked" for a stopped answer. The active marker is filled teal with ink text, in the text and in the sources line.
 - Above every sourced answer a quiet line names the documents it rests on ("Based on akte-verkoop.pdf"): it is the one cue that shows an answer mixing documents.
 - **A personal conversation has a title bar** (G03): its title and a chevron that opens the same menu as its row in the column (G05). A conversation in a case keeps the case header.
 - **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`, `withoutDocument`).
 
 ### As built: stopping, failing and asking again
 
-- A stopped answer keeps what was written, with "Stopped. This answer is incomplete, and its figures and sources were not checked." Its markers still open their passages, because a grounded answer's passages are sent before its first word (SSE `sources`). Checks run only on a finished answer, and Word export is offered for finished answers only. A stopped answer is saved, but not sent to the model as history.
+- A stopped answer keeps what was written, with "Stopped. Incomplete and not checked." Its markers still open their passages, because a grounded answer's passages are sent before its first word (SSE `sources`). Checks run only on a finished answer, and Word export is offered for finished answers only. A stopped answer is saved, but not sent to the model as history.
 - Stopping stops the model: the gateway watches the connection from the start and closes its own to llama-server when it closes. Tokens used until then are still recorded. Esc stops wherever the focus is, except in an open menu or dialog, which it closes first; the focus then goes to the question box.
 - A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, under "Answer interrupted: the connection dropped." Any other failure shows nothing of the attempt. Both offer *Regenerate* on the last answer: the same question, with the same documents, in its place.
 - An answer that stops at its length limit says so; a cut-off answer says it is incomplete. The server logs such a stop by counts only.
@@ -432,7 +432,7 @@ is ready.
 - `ChatRequest.thinking`: for a model that can think (`ModelInfo.thinks`, by family), the request sends llama-server `chat_template_kwargs: {"enable_thinking": …}`, and *Thorough* gets 4,096 tokens on top of the answer's own. The reasoning comes back apart from the answer (`reasoning_content`) or between `<think>` tags, taken out even when split over chunks. The stream sends a `thinking` status, `thinking` events, then the answer; `done` carries `reasoning` and `thought_seconds`. The reasoning is never in the answer, its checks, *Copy* or the downloads, and never goes back to the model.
 - When the thinking runs past its 4,096 tokens without an answer, or the answer comes back empty because the thinking used the budget, the question is asked again without thinking, and the answer says "Thorough thought for too long without an answer, so this one was written without thinking. Ask more narrowly to have it thought through." (`done.thinking_cut`). The whole answer at once (`POST /v1/chat` without streaming) does the same, and gives `thought_seconds` as the thinking's share of the call.
 - The model chip opens one dialog (`ChipDialog`): the models when there are several, and *Fast* / *Thorough* (`Segmented`). With a model that can't think, *Thorough* is disabled with the reason. On a narrow screen the "+" menu has a *Thinking* submenu.
-- The choice belongs to the conversation: each answer records it, and a reopened conversation goes on with it. A new conversation starts with the default under *Settings*, kept in this browser. "Thought for 14 s" opens the reasoning, with "How the model got to its answer. This isn't checked: the answer and its sources are."
+- The choice belongs to the conversation: each answer records it, and a reopened conversation goes on with it. A new conversation starts with the default under *Settings*, kept in this browser. "Thought for 14 s" opens the reasoning, with "How the model reasoned. Not checked; the answer is."
 
 ### As built: a playbook in the conversation
 
@@ -471,15 +471,15 @@ source per row; amounts become numbers, and anything ambiguous stays text.
   built on the same `AnswerExport` and `tableRows`; the default in `lib/downloadFormat.ts`; the
   kit's `SplitButton`.
 
-**Save to case** stores the Word file as a case document with origin `answer`, next to `upload` and
-`playbook`.
+**Save to case** stores the answer as a case document with origin `answer`, beside `uploaded`,
+`generated` and `playbook`: what builds the Word file, not the file.
 
 - Afterwards the toolbar reads "✓ Saved to case 123 as *title*.docx", with *Open* (Documents,
   filtered on the case) and *Undo*.
 - *Undo* deletes the document, and is offered until the person leaves the conversation.
-- It needs `POST /v1/cases/{id}/documents` to accept a generated file with `origin: "answer"` and
-  the conversation and message ids, so the document can lead back to the answer.
-- The file is built in the browser, as today.
+- `POST /v1/cases/{id}/documents` takes the answer's text and content with the conversation and
+  message ids, so the document leads back to the answer.
+- The file is built in the browser on download.
 - Personal conversations have no *Save to case*; download stays.
 
 **Source or Made.** Every document shows where it comes from, as an icon and a word, both ink
@@ -519,7 +519,7 @@ can't be closed completely, but the common case is caught (built in phase a):
 - "Source" is decided in one place, `suveryn_rag.store.SOURCE`: uploaded, and not a noticed upload nobody confirmed. Retrieval, the chat's document check and playbook runs all use it.
 - The mark is a visible line rather than document properties or a hash, because it survives conversion to PDF (tested with a Word export saved as PDF, in `packages/rag/tests/fixtures`).
 - Uploads can be PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV (`suveryn_rag.formats`). The others are read directly from the file, in the same sandboxed reader, with no OCR or layout model. Older .doc and .xls, macro-enabled and password-protected files are refused with the list of what can be added.
-- Where a passage comes from: in Word and Markdown, its section ("Article 2 › Price"); in Excel and CSV, its cells in Excel's notation ("Prices!A2:D31"), the same in every language. Word and Markdown have no pages, so the citation chip shows the file name and the source card the section. Lists show "Word", "Excel", "Markdown" or "CSV" where a PDF shows its pages.
+- Where a passage comes from: in Word and Markdown, its section ("Article 2 › Price"); in Excel and CSV, its cells in Excel's notation ("Prices!A2:D31"), the same in every language. Word and Markdown have no pages, so the sources line shows the file name; *Copy passage* and the downloads give the section. Lists show "Word", "Excel", "Markdown" or "CSV" where a PDF shows its pages.
 - Excel values are read as last calculated, never as formulas; each sheet's first row is repeated at the top of its passages, so the model sees what the columns are; hidden sheets are read. Word headers and footers and Markdown comments are not passages, but are checked for the export mark. CSV carries no mark.
 
 ### As built: saving answers
@@ -672,7 +672,7 @@ under professional secrecy, so the ordinary level has no label.
   - Word: a diagonal "STRICTLY CONFIDENTIAL" (in the interface language) on every page, a
     header with the case, the person's name and the time (whoever leaks it is named on it), and
     the existing export mark with "Strictly confidential" added.
-  - Excel: the same in the header and footer of every sheet.
+  - Excel: the same line first and last on every sheet.
   - Markdown and CSV: a first line.
   - *Copy* can't carry a watermark and stays as it is.
 - In *Recent*, in search results and in the Conversations overview, its conversations appear
@@ -724,7 +724,7 @@ with two uses reads as deliberate.
 
 **Data**: `cases.confidential` (boolean), set with `PATCH /v1/cases/{id}` by the manager, logged as
 `confidential_on` / `confidential_off`. The gateway enforces members only and no sharing; the export
-code adds the watermark; the conversation lists return `title: null` and `shielded: true` for these
+code adds the watermark; the lists across cases (`GET /v1/conversations?all=true`) return `title: null` and `shielded: true` for these
 conversations, and the client shows the placeholder.
 
 ### As built: strictly confidential
