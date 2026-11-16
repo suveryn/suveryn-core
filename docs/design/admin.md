@@ -112,8 +112,8 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 **Settings** (35): what the office decides, in one place. Who sees a case, how long closed
 cases and conversations are kept, whether two-step sign-in is required for everyone (off by default:
 Decision, 29 October 2026; on asks everyone for a code at every sign-in, and whoever has no authenticator app
-sets one up first; the confirmation says so), and the rates for the indicative cost. *Cases* and *Usage* then
-only show these, with "Change in Settings". *Save* is active after a change, and a shorter keep
+sets one up first; the confirmation says so), and the rates for the indicative cost. *Cases* changes the
+three case settings in place too, and *Usage* shows the rates, with "Change in Settings". *Save* is active after a change, and a shorter keep
 period asks for confirmation with the number of cases or conversations that will go.
 
 - *Who sees a case* applies to new cases or, by choice, to all cases. *All cases* asks for
@@ -220,6 +220,8 @@ The strings are in `packages/chat-ui/src/i18n/` (`en.ts`, `nl.ts`, `fr.ts`), the
   the appliance has one (its release and the core commit, or `SUVERYN_VERSION`; decision, 29 October), and the
   last backup. Users against the agreement and support join
   with *Licence*. A full disk says "Almost full" (a string the table didn't have).
+- **Status, Needs attention** (B01): one row per item, the backups' own state ("View") and the recovery key ("Test now"), also both at once. The overview's tiles: version, last backup ("Last night 02:14 · On the USB disk"), users ("12 of 15"). The update row, the support tile and the Updates, Network and Licence pages come with their features.
+- **The recovery key in Status** (B01): "Herstelsleutel niet getest sinds 21 juli. Test elke drie maanden.", the date of the last test that opened a backup; "nog nooit getest" when none did.
 - *Users*, as the administrator who is signed in (decision, 28 October: no extra client; the gateway's
   README). Built as drawn, with these
   differences: the temporary password has no expiry (decision, 28 October: Keycloak is the password
@@ -231,12 +233,13 @@ The strings are in `packages/chat-ui/src/i18n/` (`en.ts`, `nl.ts`, `fr.ts`), the
   "ze", "il" or "elle" (drawn for one example person) use the name or "de" instead, since an account
   has no known gender; the "Advanced: open Keycloak" link isn't built, as nobody should need it.
 - *Settings*: who sees a case, the two keep periods and the indicative cost's rates, one *Save* for all;
-  *Cases* and *Usage* only show them, with "Change in Settings". Differences: "New cases" keeps the
+  *Usage* only shows the rates, with "Change in Settings". Differences: "New cases" keeps the
   existing cases with their members by restricting those that followed the default (the case model has no
   other way to hold "as it was"); "All cases" also opens cases a manager restricted, as drawn, with a line
   in each access log; closing to the members needs no choice (it applies to every case that follows the
   default) but is confirmed with its count too; a shorter period for closed cases deletes nothing at once
   (it applies to cases closed from then on, cases.md), so only conversations are counted.
+- **Administration › Cases** (B05) changes the office's three case settings in place, the same settings as Settings with the same confirmation (`SettingsConsequences`) when a change touches existing cases or conversations.
 
 - *Backups*, editable: *Back up now* with when the next one runs, where (the USB disk, or a share whose
   *Test connection* now signs in and writes a test file: the setup's only saw whether the server answered),
