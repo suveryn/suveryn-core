@@ -42,10 +42,8 @@ of its own, and a partner gets it with the API. A line:
 - **`retry`:** trying again can help.
 - **`since`:** the gateway version the code arrived in.
 
-**A code, once released, is never renamed, removed or reused** ([names.md](names.md), *Released*, says what released
-means; `messages-released.json` lists the released codes and a test fails when one is gone). A wrong name is
-retired and a new code added. Many refusals
-are one situation seen from a screen that is out of date ("the run isn't waiting", "this step takes no answer"):
+**A released code stays as it is** ([names.md](names.md), *Released*): a wrong name is retired and a new code
+added. Many refusals are one situation seen from a screen that is out of date ("the run isn't waiting", "this step takes no answer"):
 those share one code. A code is added for what a person can meet and act on, not for every sentence.
 
 ## On the server
@@ -68,7 +66,7 @@ The gateway (`problems.py`) answers every refusal and failure as Problem Details
 `type` is a URN, a name and not an address: an appliance is offline. Three ways lead to this one shape:
 
 1. A `Problem`: its own code.
-2. A plain `HTTPException`, from code not yet moved to the registry: the general code of its status
+2. A plain `HTTPException`, which only the framework raises (an unknown address): the general code of its status
    (`request.conflict`, `request.not_found` …), its English detail kept for developers. The page shows the general
    code's words, never the detail.
 3. Anything unplanned: `system.internal` with a reference such as `7F3K-92QD` in `params.ref`. The log line has the
@@ -120,9 +118,7 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   kind comes from the registry, not from the file), and a code the registry doesn't know becomes `system.internal`.
   A playbook run's stored failure is read back by the same function.
 - One code for one situation, whoever meets it: `backup.key_mismatch` is the key test's answer in Administration and
-  the restore's in the web setup. The codes the setup used to say for these (`setup.share_…`, `setup.restore_…`,
-  `setup.key_invalid`, `setup.disk_gone`) were renamed before any release, as 53 codes were to the naming
-  convention (suveryn-tracker#162).
+  the restore's in the web setup.
 - A backup that fails on something nobody planned for (the database can't be dumped, encryption fails) is
   `system.internal` with a reference the backup's own log has.
   A failure the administrator can be told about has a code of its own: a link in a settings folder that a restore
@@ -130,16 +126,11 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
 - The gateway's own refusals for these pages are codes too: `backup.unavailable`, `backup.busy`, `clock.synced`,
   `clock.busy`, `clock.measurement_too_slow`, `clock.unavailable`.
 
-## Moving the rest over
+## Which code a refusal gets
 
-The foundation moved what already had a code: uploads, the busy and too-large refusals, the parts that are down, a
-calculation's reason. The gateway's 138 plain refusals moved area by area, and none is left:
-
-- `api-gateway/tests/test_problems.py` fails on a plain `HTTPException` anywhere in the gateway: a refusal is a
-  `Problem`.
-  Playbook runs (suveryn-tracker#150), cases, conversations, users and the checks every route shares (#151),
-  documents (#152), answers (#153), backups, the clock, Status and usage (#154).
-- **How an area moves, as playbook runs did.** A refusal a person can meet and act on gets a code of its own (a run
+- Every refusal in the gateway is a `Problem`: `api-gateway/tests/test_problems.py` fails on a plain
+  `HTTPException` anywhere in it.
+- **By what the person can do.** A refusal a person can meet and act on gets a code of its own (a run
   is paused: `run.paused`; it has ended: `run.ended`; only the case manager confirms: `run.manager_only`).
   The many refusals that are one situation, a screen that is behind the run, share one (`run.moved_on`). What only
   a programming error or a deleted thing leads to takes the general code (`request.invalid`, `request.not_found`),
@@ -172,7 +163,7 @@ calculation's reason. The gateway's 138 plain refusals moved area by area, and n
   `run.interrupted` (a part was down: try again), `run.no_document`, `run.answer_unreadable` and `run.too_many`
   (nothing could be read), `system.internal` with a reference (nobody planned for it).
 - **One code for one situation.** The model that can't be reached is `model.unavailable` wherever it is met:
-  asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere (asking answered 502).
+  asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere.
   Its sentence is the one the playbook's board shows (P04) and the banner uses: "The model isn't available right now."
 - **An unplanned failure is logged alike everywhere**: `suveryn_harness.messages.unplanned` gives the reference and
   where the exception was raised, for an HTTP answer, a stream, a run and a reading. The log line has the

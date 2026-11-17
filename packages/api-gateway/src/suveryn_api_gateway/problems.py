@@ -5,8 +5,8 @@ decision of 12 November 2026, *Messages are codes*; docs/design/messages.md).
 Three ways an answer becomes a problem, and one shape for all:
 
 - a ``Problem`` raised anywhere (the one way new code refuses): its own code and parameters;
-- a plain ``HTTPException`` (code not yet moved to the registry; ``tests/test_problems.py`` counts them, and the count
-  may only go down): the general code for its status (``GENERAL``), its English detail kept for developers;
+- a plain ``HTTPException``, which only the framework raises (an unknown address; ``tests/test_problems.py`` fails on
+  one anywhere in the gateway): the general code for its status (``GENERAL``), its English detail kept for developers;
 - anything nobody planned for: ``system.internal`` with a reference. The log has the reference, the exception's
   type and where it was raised, never its message, which may quote a document.
 

@@ -37,8 +37,7 @@ answer with [n] markers, its passages, and what the reader should check
 Every amount, number and date the checks, the marking and a playbook's facts and checks look at is read by one
 reader, [`values.py`](../packages/harness/src/suveryn_harness/values.py) (decision of 10 November 2026): "1,2
 miljoen", "zesentwintigduizend achthonderd euro", "2021-03-12", "le douze mai deux mille quatorze" mean one
-thing everywhere, so the citation check and the marking can't disagree about the same text (they read 16 of 31
-common forms differently before). [`tests/reading_cases.json`](../packages/harness/tests/reading_cases.json)
+thing everywhere, so the citation check and the marking can't disagree about the same text. [`tests/reading_cases.json`](../packages/harness/tests/reading_cases.json)
 says what each form means. A figure with three digits after a lone separator ("412,500", "1.250") reads
 either way: the document's way of writing decimals decides, and a document that doesn't say reads it as
 thousands. The modules import one way only (`tests/test_layers.py`): `values` uses nothing of the harness;
@@ -75,8 +74,7 @@ are generated from the standard spelling rules ([`tools/number_words.py`](../pac
 num2words, Unicode CLDR, pinned) into one file per language, `suveryn_harness/lang/<lang>.numbers.json`, loaded by
 `language.py`: every number under a thousand as written, the scale words, the months. The reader puts the entries
 together (thousands, millions, a year written in hundreds). It is held to 2 490 numbers as the standard spells them
-(`tests/spelled_numbers.json`); read back that way, the tables typed by hand had read French "cent
-quatre-vingt-trois" as 2 083. The languages are read together, because one file mixes them; a word that means two
+(`tests/spelled_numbers.json`). The languages are read together, because one file mixes them; a word that means two
 different numbers in two languages stops the load. What no standard holds is in one short file per language written by hand, `lang/<lang>.json`: lists of
 words and phrases a translator can read (the joining words, abbreviations, units, the words for "about" and "not
 found", what reads as a number but isn't one, the words of text that addresses an AI), never patterns; the code
@@ -147,8 +145,11 @@ The answer is checked by rules, not by a second model, so the checks are predict
 tested:
 
 - **Calculations** ([`calc.py`](../packages/harness/src/suveryn_harness/calc.py)). The model never
-  calculates. Each `[[calc: …]]` is computed exactly by the server and replaced by
-  `figures = result` as the answer streams; one that can't be done by `figures = ?`, no words, and its
+  calculates. Each `[[calc: …]]` is computed exactly by the server (`Decimal` and a small parser, never
+  `eval`: `+ - * /`, brackets, signs) and replaced by `figures = result` as the answer streams (a marker split across
+  chunks is held back until it is complete). A sum keeps the decimals of its most precise figure, a product its
+  exact decimals (up to 6), and a division, and anything after one, is rounded half up to at least 2; a share as
+  a percentage is written `a / (a + b) * 100`, and its `100` isn't checked as a figure. One that can't be done is replaced by `figures = ?`, no words, and its
   `Calculation.code` (a code of the registry of messages, [design/messages.md](design/messages.md):
   `calc.number_styles_mixed`, `calc.decimal_separator_unclear`, `calc.division_by_zero`, `calc.no_figures`,
   `calc.unreadable`) for the note under the answer to say why in its reader's language (failures are
@@ -161,10 +162,14 @@ tested:
   how such figures were read (`Calculation.read_as`). Decision of 10 November 2026. Where no document
   settles it, the calculation is still made when both readings give the same result: a part of a whole
   (`250.000 / 750.000 * 100`) is the same percentage either way (suveryn-tracker#112). A sum or a product
-  differs by the reading and is still refused.
+  differs by the reading and is still refused. Each figure is checked, as a whole number, against the passages
+  the answer cites; one they don't hold is looked up in the other passages given, and the server adds markers for
+  the fewest passages that hold it (`… = 12.924,53 [3]`; a streamed answer gets them with `done`).
 - **Figures in no passage** (`unverified_figures` in `support.py`). A figure in the answer that is in none of the
   passages, is no calculation's result and wasn't in the question is listed; the interface
-  underlines it. The model worked it out or made it up, which it must never do, so the answer is
+  underlines it. Values are compared (`410.000` is `410.000,00`). A figure with a separator or a scale word, of five
+  digits or more, written in words from a thousand, or with a measure (below) is checked; plain numbers up to four
+  digits (plot 1, page 57, 2026), counts of things and dates are not. The model worked it out or made it up, which it must never do, so the answer is
   asked for once more, told which figures and that a calculation is written `[[calc: …]]`; the
   second answer is kept when it has none, else the first, with the warning (`asked_again`). A
   streamed answer shows *writing* again, and the final answer replaces the streamed text. A

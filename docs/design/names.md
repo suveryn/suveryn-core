@@ -6,9 +6,6 @@ wrong or needs checking; [messages.md](messages.md)). A code's name is permanent
 isn't yet (*Released*, below). The founder's decision of 15 November 2026, after independent reviews
 (suveryn-tracker#159, #161, #162).
 
-**Where it stands.** The operations follow this convention since #161, the codes since #162 (53 of the 138 were
-renamed, and the areas `model` and `account` added).
-
 **Released.** A code is released when it is on the list of released codes (`messages-released.json`). A released code is never
 renamed, removed or reused: codes are stored (a document that couldn't be read,
 a run that failed), so an old case and a restored older backup must still be read. `packages/harness/src/suveryn_harness/messages-released.json` lists the released codes, and a test fails when

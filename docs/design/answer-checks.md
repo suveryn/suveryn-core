@@ -30,13 +30,9 @@ names and units against its own passage, calculations done by the server, passag
 model call, say what they found, and can have an answer asked again once. They read every amount, number and date
 through one reader (`values.py`), so two checks can't disagree about the same text.
 
-What rules can't see is measured, not guessed. On the planted-error benchmark they catch every changed amount, date,
-percentage, misspelled name and wrong source, and flag no correct answer of 45. They catch none of a "not" taken
-out or put in, of the other party named, or of ten wrong answers written by hand that no figure shows ("at the
-latest" told as "at the earliest", informing told as obtaining).
-
-Two rules for a "not" and for the other party were built on 10 November and taken out again: they caught 7 of 12
-and 12 of 20, and needed word lists per language in the code.
+What rules can't see is measured, not guessed: the planted-error benchmark's results are in
+[harness.md](../harness.md). The rules also miss a "not" put in, and all ten wrong answers written by hand that no
+figure shows ("at the latest" told as "at the earliest", informing told as obtaining).
 
 ## 2. The languages the checks read
 
@@ -46,8 +42,8 @@ language per place, a test that fails when one is missing, and no word of a lang
 
 - **Generated words** (`lang/<lang>.numbers.json`). Number words and month names come from the standard spelling
   rules (num2words, Unicode CLDR), written by a developer's tool with pinned libraries. The appliance needs neither.
-  Typed by hand, they had read French "cent quatre-vingt-trois" as 2 083; 2 490 numbers spelled by the standard are
-  now a test.
+  2 490 numbers spelled by the standard are a test (typed by hand, the tables had read French "cent quatre-vingt-trois"
+  as 2 083).
 - **Words by hand** (`lang/<lang>.json`). What no standard holds, as lists a translator can read, never patterns.
 - **Test cases** about a language are data beside the tests, never in the code.
 - **All languages are read together**, because one file mixes them: a Dutch deed with a French annex, an English
@@ -95,12 +91,13 @@ both models sūveryn ships. If the founder then decides for it, what must hold i
 rediscovered: it goes through the harness like every model call (client, usage, audit: kinds and counts, never
 text); passage text is made inert as in the grounded prompt; it runs after the answer is shown, at low priority,
 so it never slows an answer; when it can't run the answer says so; its place on the screen has a board first. Marking
-by meaning is not part of that decision: it marks a sentence for the reader and checks nothing, and it is on since
-12 November 2026 (suveryn-tracker#123).
+by meaning is not part of that decision: it marks a sentence for the reader and checks nothing, and it is on
+(suveryn-tracker#123).
 
 ## What was rejected
 
-- **Rules for meaning.** Word lists per language for "not" and for each party: 7 of 12, and every language again.
+- **Rules for meaning.** Word lists per language for "not" and for each party: 7 of 12 and 12 of 20, and every language
+  again.
 - **The model for everything.** A second per sentence, no reason shown, and a check that can be exact should be.
 - **Open-source libraries as the reader.** Measured before the one reader was written: far below it on our cases.
   They are the source of the word lists only.

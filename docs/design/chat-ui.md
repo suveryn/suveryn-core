@@ -796,4 +796,4 @@ The interface's strings are in `packages/chat-ui/src/i18n/` (`en.ts`, `nl.ts`, `
 - **A dark-theme check of artboard 02**: `case-surface` has a dark value, but no dark screen has
   been drawn.
 - **The reading budget** (section 10): measure on a GPU machine before raising the whole-document budget.
-- *Administration*: see [admin.md](admin.md), *Open*.
+- *Administration*: the pages not built yet (*Licence*, *Network*, *Updates and models*), in admin.md.

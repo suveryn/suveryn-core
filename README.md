@@ -2,9 +2,10 @@
 
 Website: [suveryn.com](https://www.suveryn.com)
 
-Engine, chat, RAG, MCP host, API gateway, plus bundled official connectors
-and playbooks, and the [models manifest](models/manifest.json) (metadata only; weights are never
-committed here).
+Engine, chat, RAG, API gateway and the official playbooks, and the [models manifest](models/manifest.json)
+(metadata only; weights are never committed here).
+
+**Start here:** the handbook's [*Start here*](https://github.com/suveryn/suveryn-handbook/blob/main/context/development-context.md#start-here) (private), then [CLAUDE.md](CLAUDE.md), [docs/architecture.md](docs/architecture.md) and the design notes in [docs/design/](docs/README.md).
 
 Stack: Python 3.12, FastAPI, managed as a [uv](https://docs.astral.sh/uv/) workspace; React and TypeScript for the chat UI. Models are served by [llama.cpp](https://github.com/ggml-org/llama.cpp) (`llama-server`).
 
@@ -13,8 +14,6 @@ Related repositories: [suveryn-docs](https://github.com/suveryn/suveryn-docs) (i
 > Read [The Sūveryn Manifesto](https://github.com/suveryn/suveryn-docs/blob/main/MANIFESTO.md) to understand why this project exists.
 
 ## Packages
-
-For reviewers: [docs/architecture.md](docs/architecture.md) describes the data flow, where confidential data lives, the invariants the code must keep, design decisions with their evidence, known limitations and a review checklist.
 
 | Package | Status |
 |---|---|
@@ -45,11 +44,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
    It listens on `http://127.0.0.1:8000`. Settings come from environment variables: `SUVERYN_LLM_BASE_URL` (default `http://127.0.0.1:8080`), `SUVERYN_HOST`, `SUVERYN_PORT`, `SUVERYN_LLM_TIMEOUT_S`.
 
    The interactive API pages (`/docs`, `/redoc`) are off by default, because FastAPI loads them from public CDNs, which doesn't work air-gapped and contacts third parties. Set `SUVERYN_API_DOCS=1` to turn on `/docs` on a connected development machine. The schema at `/openapi.json` is always available and is served locally.
-4. Run the tests (no GPU needed; they use a fake backend):
-   ```bash
-   uv run pytest
-   ```
-   The whole stack in a browser, with a stand-in model server, is [`e2e/`](e2e/README.md); CI runs it on every pull request.
+4. Run the tests as [CLAUDE.md](CLAUDE.md#verify), *Verify*, says; no GPU is needed. The whole stack in a browser, with a stand-in model server, is [`e2e/`](e2e/README.md); CI runs it on every pull request.
 5. For sign-in, run a development Keycloak as described in [packages/api-gateway/keycloak](packages/api-gateway/keycloak/README.md), or set `SUVERYN_AUTH=off` to work without it on your own machine.
 6. Run the chat UI (see [packages/chat-ui](packages/chat-ui/README.md)):
    ```bash
@@ -78,11 +73,11 @@ Without streaming it returns:
 {"id": "...", "model": "Qwen3.8-27B-UD-Q4_K_M.gguf", "answer": "... [1] ...", "citations": [{"text": "...", "source": {"document_id": "...", "page": 3, "location": "p. 3 · Artikel 2"}}], "calculations": [], "finish_reason": "stop", "usage": {"prompt_tokens": 48, "completion_tokens": 62}}
 ```
 
-With `"stream": true` it returns Server-Sent Events: first one or more `status` events naming what the server is doing (`searching`, `loading_model`, `reading`, `writing`), then `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event (`{"message": "...", "code": "model" | "documents" | "document" | "server"}`; the page says the `code` in its own language, the English `message` is a detail).
+With `"stream": true` it returns Server-Sent Events: first one or more `status` events naming what the server is doing (`searching`, `loading_model`, `reading`, `writing`), then `delta` events (`{"text": "..."}`) as the answer is generated, then one `done` event with the same object as above, or an `error` event: a message of the registry, `{kind, code, params}` and an English `detail` ([docs/design/messages.md](docs/design/messages.md)).
 
 **Citations.** With `document_ids`, `citations` holds the passages the model was given, in order, and the marker `[n]` in `answer` refers to `citations[n-1]`; clients show only the cited ones. Without `document_ids`, `citations` is `[]`: the answer is unsourced and must be shown as unverified. A citation with `source: null` is unsourced too.
 
-**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). `unverified_figures` lists figures in the answer text that are in no passage and no calculation's result; clients must flag them. See [packages/harness](packages/harness/README.md#calculations).
+**Calculations.** Totals and other arithmetic in a grounded answer are computed by the server, not the model; `calculations` lists each one (`expression`, `result`, `figures_not_in_sources`, `error`). `unverified_figures` lists figures in the answer text that are in no passage and no calculation's result; clients must flag them. See [docs/harness.md](docs/harness.md#4-the-checks).
 
 Documents: `POST /v1/documents` (multipart PDF upload, returns a job; 429 when too many of the caller's documents are waiting), `GET /v1/documents/jobs/{id}`, `GET /v1/documents`, `GET /v1/documents/{id}/conversations`, `DELETE /v1/documents/{id}?conversations=clean|delete`. Saved conversations: `GET`/`DELETE /v1/conversations`, `GET`/`PUT`/`PATCH`/`DELETE /v1/conversations/{id}` (`PATCH` renames), `PUT /v1/conversations/{id}/pin`, `POST /v1/conversations/{id}/move` (into a case) and `POST /v1/conversations/{id}/share` (with its case). See [packages/api-gateway](packages/api-gateway/README.md).
 

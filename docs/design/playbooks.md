@@ -2,7 +2,7 @@
 
 A design note, October 2026, for the first playbook. The platform note ([platform.md](platform.md))
 first decided on three hand-built notary playbooks before any runtime; on 30 October the product
-definition changed (the project's orchestration note): a playbook is a conversation with a routine,
+definition changed (the brief of 30 October: the playbook holds the chair in its case, and the model reads and never decides what comes next): a playbook is a conversation with a routine,
 written as a manifest, and the manifest and the runtime came first, proven on deed intake. This
 note says what deed intake is, what it leaves behind in the case, how the routine, the facts'
 record and the thread work ("The routine"), and the few things that were settled early because
@@ -73,14 +73,14 @@ given file; that is a liability question before it is a commercial one, and it c
 after the fact.
 
 **Coverage, never a block.** One function, `covered(playbook_id)`, says whether a playbook is
-certified and listed in the appliance's manifest (the licensing model, development context §8,
+certified and listed in the appliance's manifest (the licensing model, development context §7,
 suveryn-tracker#35). The API reports it (`covered` on `GET …/playbooks`) and the UI shows a warning
 when it is false; the run starts regardless, because the licensing model warns and never blocks: a
 notary's work never stops because of an invoice. Today it always answers yes. It is the single
 place the licence check lands, so activation never has to be threaded through the code afterwards.
 No manifest, catalogue or pack format is built now: those are extracted from the three playbooks,
 as the platform note says. (An earlier draft of this note and of the commercial model said an
-uncovered playbook doesn't start; §8 is the decision, and this note follows it.)
+uncovered playbook doesn't start; §7 is the decision, and this note follows it.)
 
 **The case is the container.** As cases.md decided (decision 9), the playbook's state lives in its
 **run**, keyed by `case_id`; the case itself stays open or closed. A closed case can't start a run
@@ -132,7 +132,7 @@ be too much for too little.
 
 ## The routine (30 October 2026)
 
-A playbook is a **conversation with a routine** (the project's orchestration note). When it is
+A playbook is a **conversation with a routine**. When it is
 active in a case it holds the chair: it asks for documents, reads them, asks about what it couldn't
 find, waits for a person at the checkpoint, writes the summary. Everyone who contributes to the
 case takes part through that routine, and it ends in a product. The model is asked only inside a
@@ -481,8 +481,7 @@ what it means for the deed.
 
 One request for "what the founders sent" and one read over everything is an intake; a routine a
 clerk recognises asks for the bank certificate, reads it, asks for the financial plan, reads that.
-Item 3 of the foundation brief, still format 3 (two optional keys; a file without them reads as
-before):
+Still format 3 (two optional keys; a file without them reads as before):
 
 - A `request` may say what it asks for: `expects: bank_certificate`, a name unique among the
   routine's requests. When a person answers it, the run records which documents answered: those that
@@ -500,7 +499,7 @@ before):
 
 Company formation 1.1 is the first routine written this way: identity documents, then the financial
 plan, then the bank certificate (`allow_none`, for a contribution in kind), each with its read. Until
-`when` exists (item 5), the ask step still asks for the bank certificate's facts after a person said
+`when` exists (*Choices*, below), the ask step still asks for the bank certificate's facts after a person said
 there is none; that is the next version's job. The founders now carry their identity (register
 number, date and place of birth, address), read and kept like any fact, decided 3 November; the data
 lifecycle page says so.
@@ -508,8 +507,8 @@ lifecycle page says so.
 ### Checks (3 November 2026)
 
 What a notary adds up by hand: the founders' shares against the shares issued, their contributions
-against the contribution in money, the bank's certificate against that amount. Item 4 of the
-foundation brief, on the typed values format 3 laid down.
+against the contribution in money, the bank's certificate against that amount, on the typed values
+format 3 laid down.
 
 - A `check` step states one `rule`, a comparison a notary can read: `sum(founders.shares) == shares`,
   `certified_amount == contribution`, `count(founders) >= 1`, `plan_date <= deed_date`,
@@ -537,8 +536,7 @@ foundation brief, on the typed values format 3 laid down.
 
 ### Choices, and steps that turn on them (3 November 2026)
 
-Cash or in kind decides which documents are asked for, which reads run and which checks apply. Item 5
-of the foundation brief.
+Cash or in kind decides which documents are asked for, which reads run and which checks apply.
 
 - A `choice` fact has `options` (two to twelve ids: `cash`, `in_kind`, `mixed`), each with its words in
   the pack's labels (`contribution_kind.cash`). The model reads it when the documents say it, held to
@@ -606,5 +604,5 @@ official ones until the licence manifest exists.
 - Products marked out of date when a fact they were made from changes after confirmation.
 - The Word document from the office's own template (#22): the summary is sūveryn's own layout now. How it could work, in stages, is proposed in [templates.md](templates.md) (4 November 2026, open until the first notary conversation).
 - Named subject fields on the case type (#29): the intake's facts are the first candidates.
-- Facts validated by form (national register numbers, cadastral patterns): an entities table, later.
+- Facts validated by form beyond check digits (a cadastral pattern): an entities table, later.
 - A second model pass that judges meaning: the rule-based check is what a chat answer gets today.

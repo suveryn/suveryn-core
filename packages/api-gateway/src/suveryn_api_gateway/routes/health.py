@@ -78,7 +78,7 @@ async def get_health(request: Request):
     return JSONResponse(body.model_dump(), status_code=200 if h.status == "ok" else 503)
 
 
-@models_routes.get("/v1/models", response_model=list[ModelInfo], responses={502: {"description": "Model backend unreachable"}})
+@models_routes.get("/v1/models", response_model=list[ModelInfo], responses={503: {"description": "Model backend unreachable"}})
 async def list_models(request: Request):
     """The models installed on this appliance, which one is the default, and which is loaded now.
 
