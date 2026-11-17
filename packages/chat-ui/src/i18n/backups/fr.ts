@@ -1,5 +1,9 @@
 /** What the backup service says, in French (formal: vous); the same codes as en.ts. */
 import type { BackupMessages } from "./en";
+import { LOCALES } from "../languages";
+import { messagesIn } from "../message";
+
+const { m } = messagesIn(LOCALES.fr);
 
 export const backupMessages: BackupMessages = {
   "backup.unavailable": "Le service de sauvegarde de l'appliance n'a pas répondu. Réessayez dans une minute.",
@@ -14,6 +18,7 @@ export const backupMessages: BackupMessages = {
   "backup.key_mismatch": "Cette clé n'ouvre pas la sauvegarde. Essayez un autre fichier.",
   "backup.not_found": "Il n'y a pas de sauvegarde sūveryn à cet endroit. Vérifiez le disque ou l'adresse du partage.",
   "backup.damaged": "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée.",
+  "backup.newest_damaged": m("La sauvegarde la plus récente à cet endroit, faite le {newest}, est endommagée. La plus récente qui est intacte, faite le {whole}, est affichée à la place."),
   "backup.version_too_new": "La sauvegarde la plus récente à cet endroit a été faite par une version de sūveryn plus récente que celle de cette appliance. Contactez votre partenaire pour mettre d'abord cette appliance à jour.",
   "backup.settings_invalid": "Les réglages de sauvegarde ne sont pas valides.",
   "backup.target_unreachable": "Le disque ou le partage de sauvegarde était inaccessible.",

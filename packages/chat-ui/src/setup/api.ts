@@ -79,6 +79,9 @@ export type RestoreProgress = {
   steps?: { id: RestoreStepId; state: "waiting" | "running" | "done" | "failed" }[];
   /** Why it failed, as a code. */
   message?: Message;
+  /** When the newest backup the key opens is damaged and an older whole one was checked instead:
+   *  `backup.newest_damaged`, with the newest's time (suveryn-tracker#166). */
+  warning?: Message;
 };
 
 export type SavedAnswers = {

@@ -1,5 +1,9 @@
 /** What the backup service says, in Dutch (formal: u and uw); the same codes as en.ts. */
 import type { BackupMessages } from "./en";
+import { LOCALES } from "../languages";
+import { messagesIn } from "../message";
+
+const { m } = messagesIn(LOCALES.nl);
 
 export const backupMessages: BackupMessages = {
   "backup.unavailable": "De back-updienst van de appliance antwoordde niet. Probeer het over een minuut opnieuw.",
@@ -14,6 +18,7 @@ export const backupMessages: BackupMessages = {
   "backup.key_mismatch": "Deze sleutel opent de back-up niet. Probeer een ander bestand.",
   "backup.not_found": "Daar staat geen sūveryn-back-up. Controleer de schijf of het adres van de gedeelde map.",
   "backup.damaged": "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet.",
+  "backup.newest_damaged": m("De nieuwste back-up daar, gemaakt op {newest}, is beschadigd. De nieuwste onbeschadigde back-up, gemaakt op {whole}, wordt in de plaats getoond."),
   "backup.version_too_new": "De nieuwste back-up daar is gemaakt door een nieuwere versie van sūveryn dan deze appliance heeft. Neem contact op met uw partner om deze appliance eerst bij te werken.",
   "backup.settings_invalid": "De back-upinstellingen zijn niet geldig.",
   "backup.target_unreachable": "De back-upschijf of gedeelde map was niet bereikbaar.",

@@ -7,6 +7,7 @@
  * Variants for trying things: add #check-fails to the address for a failed outgoing-traffic check,
  * #provisioning-fails for provisioning that stops at the sign-in step, #no-disk for no USB disk,
  * #restore-wrong-key for a recovery key that doesn't open the backup, #no-backup for a target without one,
+ * #restore-newest-damaged for a newest backup that is damaged, an older whole one offered instead,
  * #answered for every step already answered as on the design's Review (the screen previews).
  */
 import type { BackupsAnswer, Manifest, Message, Progress, RestoreProgress, RestoreStepId, SavedAnswers, SetupState, StepId } from "./api";
@@ -46,7 +47,10 @@ function currentRestore(): RestoreProgress | null {
   if (!r) return null;
   if (r.state === "checking" && Date.now() - restoreAt > 2000) {
     restore = variant("restore-wrong-key") ? { state: "failed", message: backupRefusal("key_mismatch") }
-      : variant("no-backup") ? { state: "failed", message: backupRefusal("not_found") } : { state: "checked", backup: BACKUP, choices: CHOICES };
+      : variant("no-backup") ? { state: "failed", message: backupRefusal("not_found") }
+      : variant("restore-newest-damaged") ? { state: "checked", backup: { ...BACKUP, file: CHOICES[1].file, created: CHOICES[1].created },
+          choices: CHOICES.slice(1), warning: { kind: "warning", code: "backup.newest_damaged", params: { newest: CHOICES[0].created, whole: CHOICES[1].created } } }
+      : { state: "checked", backup: BACKUP, choices: CHOICES };
   } else if (r.state === "restoring") {
     const done = Math.floor((Date.now() - restoreAt) / 1500);
     r.steps = RESTORE_STEPS.map((id, i) => ({ id, state: i < done ? "done" : i === done ? "running" : "waiting" }));
