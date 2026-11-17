@@ -48,8 +48,8 @@ company formation, estate, gift, marriage contract, care mandate (4 November 202
 data, not code: a short list per appliance, with sūveryn's own per sector.
 
 What a case is about in its type's terms (a property for a sale, an application number for a patent)
-is not stored on the case yet. A free-form `subject` was removed on 10 November 2026: no screen set
-it after board G14, and an open field invites a client's name on the label. When named fields per
+is not stored on the case yet. There is no free-form `subject`: an open field invites a client's name on
+the label. When named fields per
 type are decided (#29), they come as typed fields, likely shown from the case's confirmed facts.
 
 ## The data model
@@ -101,28 +101,17 @@ A personal document has no `case_id` and only its owner sees it: fail closed.
 - **Administration**: *Cases* lists every case with its manager, the cases due for deletion and
   handover; *Settings* holds the default access and the keep periods.
 
-## Sequencing
+## As built
 
-1. **Cases with a single member.** The entity, the data model, personal space, the migration of
-   today's documents, "ask about this case", and the authorisation function with its tests. Enough
-   for the playbook runner (#28) to build on a `case_id`.
-2. **Members and roles**, the office-wide default, restriction, the access log.
-3. **Closing, keep period and deletion**, with #31.
-4. **Shared conversations** and the admin dashboard's case pages.
-
-Out of scope here: several people in one live conversation (a separate concept, as #10 says);
-syncing cases with the practice software (a connector, later).
-
-## Built
-
-- **Stage 1** (core PR #43): the case, the personal space, "ask about this case", `may`.
-- **Stage 2** (core PR #44, appliance #35): members and roles, the office's directory, handover, the access log, `SUVERYN_CASES_DEFAULT_ACCESS`.
-- **Stage 3**: closing, the keep period and deletion. `POST /v1/cases/{id}/close`, `/reopen` and `/keep`; the office's period is `SUVERYN_CASES_KEEP` (`6m`, `1y`, `5y`, `manual`), from the appliance's `--cases-keep` or `CASES_KEEP`, default `manual` since nothing is chosen for the office. Closing sets `keep_until` one period ahead; from 30 days before, the chat UI warns its manager and the administrators on the case and in Administration › Cases (from the case's `keep_until`), who can extend it by one period, reopen it, or mark it *keep*; an hourly sweep in the gateway deletes what is due, the way deleting a case does (a case left because a store wasn't reachable yet, as during a restart, is looked at again within two minutes). Decided while building: `set_keep` (extend, keep) is a right on a *closed* case, for its manager and the administrators; the office's period itself is the appliance setting (changed in Administration › Settings since stage 4). The confirmation and the warning are worded in the three languages in the chat UI (`closeCase*`, `deletedOn*` in `i18n/`); what deletion guarantees on the appliance is #31's.
-- **Stage 4**: shared conversations and the administrator's case pages. `POST /v1/conversations/{id}/share` (its owner, in an open case) makes a conversation readable for everyone who may read the case, read-only for them; the list in a case shows one's own and the shared ones (`owner`, `shared`), and the access log notes shares. Deleting a case's document now cleans every member's conversations, not only the deleter's. The administrator's pages: `GET /v1/admin/cases` (every case with its manager and member count, nothing from inside), hand over from there, and `GET`/`PUT /v1/admin/cases/settings` for the default access and the keep period, stored in `case_settings` on top of what the appliance was provisioned with (`SUVERYN_CASES_DEFAULT_ACCESS`, `SUVERYN_CASES_KEEP` stay the initial values). Decided while building: a shared conversation can't be continued by others (decision 12 says read-only; several people in one live conversation stays out of scope); sharing needs the contributor's right and an open case; a changed keep period applies to cases closed from then on (a closed case keeps its date). The web setup asks none of this (it throws as few hurdles as possible: the appliance is provisioned with the fail-safe defaults, members only and kept until deleted by hand), and Administration › Settings is where the office sets them. The same page carries the third office setting, how long saved conversations are kept (`conversations_keep`, `SUVERYN_CONVERSATIONS_KEEP` as provisioned; the data lifecycle, suveryn-tracker#31), with the same periods. **Administration › Settings** (admin.md, 28 October): opening the default access to the office applies to new cases or, by choice, to all cases. "New cases" restricts the existing cases that followed the default, so they stay with their members (a manager can open one); "All cases" opens every case, those a manager restricted too, with a line in each access log. Closing it to the members applies to every case that follows the default. Strictly confidential cases never change. The page counts first (`/v1/admin/cases/settings/preview`) and asks for confirmation with the number.
+All of the above is built. The API, closing and the keep period, sharing and the administrator's pages are in
+[packages/api-gateway](../../packages/api-gateway/README.md); Administration › Cases and › Settings in
+[admin.md](admin.md). A case the hourly sweep couldn't delete because a store wasn't reachable yet (as during a
+restart) is looked at again within two minutes. The closing confirmation and the deletion warning are worded in the
+chat UI (`closeCase*`, `deletedOn*` in `i18n/`).
 
 ## Open
 
 - Which named fields each notarial type defines, and whether they come from the case's confirmed facts (with the playbooks, #29).
 - Whether a reader may start a playbook run (proposed: no).
-- The wording of the closing confirmation and the deletion warning, in three languages: a first version is in the chat UI (stage 3); to be read by a notary.
-- Syncing cases with the practice software (a connector, later), and several people in one live conversation (a separate concept): both out of scope, as above.
+- The wording of the closing confirmation and the deletion warning, in three languages: a first version is in the chat UI; to be read by a notary.
+- Syncing cases with the practice software (a connector, later), and several people in one live conversation (a separate concept): both out of scope.

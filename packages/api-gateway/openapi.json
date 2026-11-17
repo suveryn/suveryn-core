@@ -7933,7 +7933,7 @@
        },
        "text/event-stream": {}
       },
-      "description": "With stream=true: SSE events `status` ({step, ...}), for a grounded answer `sources` ({citations}), with `thinking` true and a model that can think `thinking` ({text}, its reasoning), `delta` ({text}), then `done` (a full ChatResponse) or `error` ({message}). Closing the connection stops the answer: the model stops writing."
+      "description": "With stream=true: SSE events `status` ({step, ...}), for a grounded answer `sources` ({citations}), with `thinking` true and a model that can think `thinking` ({text}, its reasoning), `delta` ({text}), then `done` (a full ChatResponse) or `error` ({kind, code, params}, a code of the registry, and an English detail). Closing the connection stops the answer: the model stops writing."
      },
      "404": {
       "description": "A document id doesn't exist or belongs to another user"
@@ -7941,11 +7941,8 @@
      "422": {
       "description": "Invalid request, e.g. a malformed document id"
      },
-     "502": {
-      "description": "Model backend unreachable or returned an error"
-     },
      "503": {
-      "description": "Grounded answer requested but document search is unavailable"
+      "description": "Model backend unreachable or returned an error, or grounded answer requested but document search is unavailable"
      }
     },
     "summary": "Ask Question",
@@ -9052,7 +9049,7 @@
       },
       "description": "Successful Response"
      },
-     "502": {
+     "503": {
       "description": "Model backend unreachable"
      }
     },
