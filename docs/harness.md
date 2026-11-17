@@ -86,6 +86,12 @@ zesentwintig, op tweeëntwintig oktober", "L'an deux mille vingt-six, le vingt-d
 Adding a language: [translations.md](translations.md). The libraries are a developer's
 tools, not the appliance's.
 
+**Compared with standard recognisers** (suveryn-tracker#170): on the 89 cases, Microsoft Recognizers-Text 1.8.13
+(.NET) reads 71, dateparser 11 of the 23 date cases, text2num 22 of the 25 numbers in words. Recognizers-Text, the
+closest, misses a deed's own date and reads a date in words and articles ("een woning") wrongly, so the reader
+stays; the cases were written with it, so this is no general ranking
+([the report](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-11-reader-vs-recognisers.md)).
+
 The pipeline itself is `ChatService` in [`service.py`](../packages/harness/src/suveryn_harness/service.py).
 
 ## 1. Passages
