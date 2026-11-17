@@ -148,12 +148,15 @@ export class StreamFailure extends Error {
 }
 
 export class HttpError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  /** `problem`: the gateway's code and its values (Problem Details), or the status's general code for an answer
+   *  that isn't the gateway's own; for a screen that acts on them. */
+  constructor(message: string, readonly status: number, readonly problem?: Message) { super(message); }
 }
 
 async function responseError(r: Response): Promise<Error> {
   if (r.status === 401) { signedOutHandler(); return new SignedOut(); }
-  return new HttpError(await errorText(r), r.status);
+  const body = await errorBody(r);
+  return new HttpError(httpErrorText(r.status, body), r.status, problemOf(r.status, body));
 }
 
 /** The signed-in user, or null if signed out. Throws if sign-in itself is unavailable. */
@@ -191,10 +194,13 @@ export function httpErrorText(status: number, body: unknown = null): string {
   return messageText(problemOf(status, body), t());
 }
 
+/** An error answer's body: the gateway's Problem Details, or null when it isn't JSON (a proxy's page). */
+async function errorBody(r: Response): Promise<unknown> {
+  try { return await r.json(); } catch { return null; }
+}
+
 async function errorText(r: Response): Promise<string> {
-  let body: unknown = null;
-  try { body = await r.json(); } catch { /* no JSON body */ }
-  return httpErrorText(r.status, body);
+  return httpErrorText(r.status, await errorBody(r));
 }
 
 export async function getHealth(): Promise<Health | null> {

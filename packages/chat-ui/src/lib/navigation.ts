@@ -3,10 +3,11 @@
  * they can be tested (audit of 4 November 2026, App.tsx in slices; lib/ask.ts, lib/documentActions.ts and the
  * composer's cards in lib/uploads.ts came first). What stays in App.tsx is the state these decisions set.
  */
-import type { ConversationSummary, Member, PlaybookInfo, Run, RunSummary } from "../api";
+import type { ConversationSummary, Member, PlaybookInfo, Run } from "../api";
 import type { CaseAction } from "../components/Sidebar";
 import type { Turn } from "../types";
 import { restoreAbout } from "./askAbout";
+import type { Message } from "./messages";
 import { fromSaved, toSaved } from "./conversations";
 import { PIN_HINT_AFTER, pinnedConversations } from "./conversationActions";
 import { restoreThinking } from "./thinking";
@@ -35,10 +36,13 @@ export function memberName(members: Pick<Member, "username" | "name">[], usernam
   return members.find((p) => p.username === username)?.name || username;
 }
 
-/** Starting a playbook was refused because one runs already in the case (409): that run, to open instead.
- *  One live run per playbook per case (handover of 30 October 2026, board 53). */
-export function liveRunInstead(status: number | undefined, active: Record<string, RunSummary> | null, caseId: string): RunSummary | null {
-  return status === 409 ? active?.[caseId] ?? null : null;
+/** Starting a playbook was refused because a run of that playbook is live in the case: the run the gateway names
+ *  (`run.already_going`, its value `run`), to open instead. One live run per playbook per case (handover of 30
+ *  October 2026, board 53). Never a run guessed from the case's live runs, which may be another playbook's
+ *  (suveryn-tracker#181). */
+export function liveRunInstead(problem: Pick<Message, "code" | "params"> | undefined): string | null {
+  const run = problem?.code === "run.already_going" ? problem.params?.run : undefined;
+  return typeof run === "string" && run ? run : null;
 }
 
 /** Pinning one more personal conversation past PIN_HINT_AFTER says once that a case keeps them together (§3). */

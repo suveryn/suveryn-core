@@ -31,6 +31,7 @@ import {
   type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, caseRuns, listAdminPlaybooks, getBackups,
+  HttpError,
 } from "./api";
 import { Lockup } from "./components/Brand";
 import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
@@ -868,9 +869,8 @@ function Chat({ me }: { me: Me }) {
       setOpenRun(run);
       refreshConversations();
     } catch (e) {
-      const status = (e as { status?: number }).status;
-      const live = liveRunInstead(status, status === 409 ? await activeRuns_().catch(() => null) : null, currentCase.id);
-      if (live) openPlaybookRun(live.id); else setProblem((e as Error).message);
+      const live = e instanceof HttpError ? liveRunInstead(e.problem) : null;
+      if (live) openPlaybookRun(live); else setProblem((e as Error).message);
     }
   };
   // A document from the list of everything: go to its place, with the document ready to ask about.
