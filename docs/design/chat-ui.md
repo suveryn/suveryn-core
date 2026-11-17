@@ -188,10 +188,9 @@ A person shows one badge at a time: the one that matters where the avatar appear
 
 ### As built: the column
 
-- The navigation rows open their overview. *Recent* shows the eight newest conversations. *New chat* is always personal; in an open case the *New* menu offers *New conversation in case 123* to its contributors.
+- *Recent* shows the eight newest conversations.
 - Start screen: "Welcome, *first name*" over the question box; *Work in a case* lists the open cases the person is a member of, and *New case*. First use (no conversations, no cases): the two cards and a lock and "Personal conversation".
-- Narrow screens: the drawer is a modal (focus inside, Escape or the scrim closes it, the focus returns to the menu button) and closes once something is chosen. The composer's "+" holds the document, the case's playbooks and the model.
-- The collapsed rail has no separate expand button: the mark expands it (with a title). A pinned case's chevron turns in 150 ms.
+- Narrow screens: the drawer is a modal (focus inside, Escape or the scrim closes it, the focus returns to the menu button) and closes once something is chosen.
 - **Full-width pages fold the column** (G06 to G08, the B boards): Conversations, Cases, Documents and Administration show the column as the rail. It comes from the view, not from the person's choice (`suveryn.sidebar` keeps what they set); opening the column there opens it on that page only. The drawer on a narrow screen is unchanged.
 - **The open conversation's case unfolds in the column** (G02): under Pinned when it is pinned, at the top of Recent when it isn't, with its conversations under it (the open one in bold with the dot, a colleague's shared one with their first name); they aren't repeated under Recent. Its menu offers Pin when it isn't pinned.
 
@@ -213,12 +212,8 @@ A person shows one badge at a time: the one that matters where the avatar appear
   - Not pinned: an outline pin at low contrast. It comes up on row hover and keyboard focus, and is
     always shown at `text-dim` on touch.
   - `aria-pressed`, with the labels "Pin …" / "Unpin …". No colour.
-- **Five conversations is a hint, not a limit.** Pinning a sixth works, and shows once, under the
-  list: "Five pinned. A case keeps them together."
-
-### As built: pins
-
-- Pinned personal conversations come after the pinned cases and are left out of *Recent*. The five-pinned hint shows once in this browser when a pin takes the count past five; the pin still works.
+- **Five conversations is a hint, not a limit.** Pinning a sixth works, and shows once in this
+  browser, under the list: "Five pinned. A case keeps them together."
 
 ## 4. Overview pages (artboards 06 to 08)
 
@@ -241,9 +236,9 @@ A person shows one badge at a time: the one that matters where the avatar appear
 | Pin | The pin toggle (section 3) |
 | Reference and name | A link that opens the case |
 | Type | |
-| Status | Open; open with a warning; closed, with its deletion date or retention |
+| Status | *As built*, below |
 | Members | Stacked avatars, the manager with the folder badge. "Members only" appears only when access is restricted and there is more than one member |
-| Counts | Documents and conversations. Each count opens that overview filtered on the case |
+| Counts | Documents and conversations |
 | Last activity | With who |
 
 **Conversations**:
@@ -270,7 +265,7 @@ A person shows one badge at a time: the one that matters where the avatar appear
 | Name | |
 | Case | Truncated at 200 px, the full name in a tooltip, so the row actions stay visible at 1440 px |
 | Origin | Section 6 |
-| Status | Ready; needs review (with the pages); processing; failed; case closed (with its deletion date); "Not a source" for a saved answer |
+| Status | *As built*, below |
 | Pages | |
 | Added | Date and who |
 
@@ -284,11 +279,11 @@ A legend under the table explains *Source* and *Made*.
 
 ### As built: the overviews
 
-- One table for the three overviews (`ui/table.tsx`, React Aria's `Table`): arrow keys move between rows and cells, Enter opens the row, a cell's own buttons are reached with the arrow keys. 25 rows per page, not virtualised (nothing to gain at that size). The sort is one `Select` per page. The overviews read their lists again whenever one is opened.
-- A case's counts are what the person may see, and each opens that overview filtered on the case. An administrator who isn't a member sees that a case exists, not its members. The *From* column shows a colleague's own initials when the member list doesn't name them, never the viewer's.
+- One table for the three overviews: arrow keys move between rows and cells, Enter opens the row, a cell's own buttons are reached with the arrow keys. The sort is one `Select` per page. The overviews read their lists again whenever one is opened.
+- A case's counts are what the person may see. An administrator who isn't a member sees that a case exists, not its members. The *From* column shows a colleague's own initials when the member list doesn't name them, never the viewer's.
 - Status of a case: *Open*; *Open · n documents to check*; closed with its deletion date, or *kept until deleted*. Status of a document: the case's closure first, then *Not a source* for sūveryn's own output (*Confirmed* for a confirmed playbook result), then *To check* with the pages, or *Ready*. A file still being read is *Being read*; one that couldn't be read, *Failed*.
-- Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Documents: *Use in this conversation*, *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice), *Delete*, which follows the server's rule (`lib/overviews.ts`). Conversations: *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*; for one in a case *Pin* is disabled with "Pin the case instead" and *Move* is disabled; for a colleague's shared one, all are disabled. Row actions are always shown on a touch screen (`hover: none`).
-- Long columns are truncated at 200 px with the full text as a tooltip, so the row menu stays visible at 1440 px; on a phone the table scrolls inside its box.
+- Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Documents: *Use in this conversation*, *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice), *Delete*, which follows the server's rule (`lib/overviews.ts`). Conversations (row menu above): for one in a case *Pin* (section 3) and *Move* are disabled; for a colleague's shared one, all are. Row actions are always shown on a touch screen (`hover: none`).
+- Also cut at 200 px, with the full text as a tooltip: the Cases' *Last activity* and the Documents' *Added*; the Conversations' *Case* is cut without one. On a phone the table scrolls inside its box.
 - Expired conversations are left out of every list at once and deleted by the hourly sweep, not on each request.
 
 ## 5. The conversation pane
