@@ -1,5 +1,5 @@
 {
-  "description": "Models validated for suveryn-core: where to get them, the exact file and the publisher's revision that holds it (a publisher's `main` moves: downloads use the revision), and their licence. Metadata only; weights are never committed. The LLM files are served by llama-server (installed by https://github.com/suveryn/suveryn-appliance); the other models are loaded by packages/rag from the local Hugging Face cache (HF_HOME), filled once with `uv run suveryn-fetch-models`. Revisions and checksums are those used in the October 2026 benchmark and development environment (https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md).",
+  "description": "Models validated for suveryn-core: where to get them, the exact file and the publisher's revision that holds it (a publisher's `main` moves: downloads use the revision), and their licence. Metadata only; weights are never committed. The LLM files are served by llama-server (installed by https://github.com/suveryn/suveryn-appliance); the other models are loaded by packages/rag from the local Hugging Face cache (HF_HOME), filled once with `uv run suveryn-fetch-models`. Revisions and checksums are those used in the October 2026 benchmark and development environment (https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md); Mistral's file and cache are those chosen on 17 November 2026 to fit a 24 GB card (suveryn-tracker#133).",
   "models": [
     {
       "id": "qwen3.8-27b",
@@ -19,13 +19,13 @@
       "role": "llm",
       "default": false,
       "source": "https://huggingface.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
-      "file": "Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf",
+      "file": "Mistral-Small-3.2-24B-Instruct-2506-IQ4_XS.gguf",
       "revision": "b750ec2299225e492f1bd27cab88a0a595fa848f",
-      "sha256": "a3cc56310807ed0d145eaf9f018ccda9ae7ad8edb41ec870aa2454b0d4700b3c",
-      "size_bytes": 14333922848,
+      "sha256": "d138036a144c55a39275429fb7a37c204fa2291814972768a400d810d6c4c5aa",
+      "size_bytes": 12779900448,
       "base_model": "https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506",
       "license": "Apache-2.0",
-      "llama_server_args": "-ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 4 -kvu -c 65536 -cram 32768"
+      "llama_server_args": "-ngl 99 -fa on -ctk q4_0 -ctv q4_0 -np 4 -kvu -c 65536 -cram 32768"
     },
     {
       "id": "bge-m3",

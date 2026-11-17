@@ -27,7 +27,7 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 ## Run locally
 
-1. Start llama-server on the GPU machine in **router mode**, so people can choose the model per conversation. [models/llama-server-presets.example.ini](models/llama-server-presets.example.ini) holds the configuration validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md) for Qwen3.8-27B (the default) and Mistral Small 3.2 24B; adjust the model paths. The model files are listed, with their sources and checksums, in [models/manifest.json](models/manifest.json).
+1. Start llama-server on the GPU machine in **router mode**, so people can choose the model per conversation. [models/llama-server-presets.example.ini](models/llama-server-presets.example.ini) holds the configuration validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md) for Qwen3.8-27B (the default) and Mistral Small 3.2 24B, with Mistral's smaller file and 4-bit cache from the [round of 17 November](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-11-real-documents.md); adjust the model paths. The model files are listed, with their sources and checksums, in [models/manifest.json](models/manifest.json).
    ```bash
    llama-server --models-preset models/llama-server-presets.example.ini --models-max 1 --host 127.0.0.1 --port 8080
    ```
