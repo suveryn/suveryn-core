@@ -679,8 +679,29 @@
   },
   "backup.damaged": {
    "kind": "refused",
-   "title": "The backup is damaged, or isn't what was written.",
+   "title": "The backup is damaged, or isn't what was written; when a restore tried several, those made from `oldest` to `newest`.",
    "status": 422,
+   "params": {
+    "newest": {
+     "type": "string"
+    },
+    "oldest": {
+     "type": "string"
+    }
+   },
+   "since": "0.2.0"
+  },
+  "backup.newest_damaged": {
+   "kind": "warning",
+   "title": "The newest backup on the target, made at `newest`, is damaged; the newest whole one, made at `whole`, is offered instead.",
+   "params": {
+    "newest": {
+     "type": "string"
+    },
+    "whole": {
+     "type": "string"
+    }
+   },
    "since": "0.2.0"
   },
   "backup.version_too_new": {

@@ -53,6 +53,31 @@ describe("restoring a backup from the web setup", () => {
     expect(one).not.toContain("Backup to restore");  // nothing to choose
   });
 
+  it("says when the newest backup is damaged and the newest whole one is shown instead (suveryn-tracker#166)", () => {
+    const older = { ...BACKUP, file: BACKUP.file.replace("20261023", "20261016"), created: "2026-10-16T02:30:00Z" };
+    const oldest = { ...BACKUP, file: BACKUP.file.replace("20261023", "20261009"), created: "2026-10-09T02:30:00Z", size: 1 };
+    const warning = { kind: "warning", code: "backup.newest_damaged", params: { newest: "2026-10-23T02:30:00Z", whole: "2026-10-16T02:30:00Z" } };
+    const html = renderToStaticMarkup(<RestoreConfirm state={STATE} initial={{ state: "checked", backup: older, choices: [{ ...older, size: 1 }, oldest], warning }}
+                                                      onBack={() => {}} onStart={() => {}} headingId="h" />);
+    expect(html).toContain("The newest backup there, made on 23 October 2026");
+    expect(html).toContain("is damaged. The newest whole backup, made on 16 October 2026");
+    expect(html).toContain("(newest whole)");  // the backup offered, in the picker
+    const plain = renderToStaticMarkup(<RestoreConfirm state={STATE} initial={{ state: "checked", backup: BACKUP }}
+                                                       onBack={() => {}} onStart={() => {}} headingId="h" />);
+    expect(plain).not.toContain("is damaged");
+  });
+
+  it("says from when to when the backups a restore tried are damaged, and a plain sentence without the dates", () => {
+    const dated = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "backup.damaged",
+      params: { newest: "2026-10-23T02:30:00Z", oldest: "2026-10-20T02:30:00Z" } } } } as never;
+    const html = renderToStaticMarkup(<RestoreSource state={dated} onBack={() => {}} onChecking={() => {}} headingId="h" />);
+    expect(html).toContain("made from 20 October 2026");
+    expect(html).toContain("to 23 October 2026");
+    const plain = { ...(STATE as object), restore: { state: "failed", message: { kind: "refused", code: "backup.damaged", params: {} } } } as never;
+    expect(renderToStaticMarkup(<RestoreSource state={plain} onBack={() => {}} onChecking={() => {}} headingId="h" />))
+      .toContain("The newest backup there is damaged");
+  });
+
   it("ends at the old appliance's address", () => {
     const html = renderToStaticMarkup(<RestoreDone restore={{ state: "done", backup: BACKUP, address: "https://notary-brussels-01.local",
                                                               steps: [] }} headingId="h" />);

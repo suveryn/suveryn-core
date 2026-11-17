@@ -6,6 +6,7 @@
  *  - Confirm: the appliance finds the backups there that the key opens (its appliance's: each has its own
  *    key, so another appliance's are never offered) and checks the newest; the screen shows when it was
  *    made and by which appliance, lets the office choose an older one, and asks before anything is replaced.
+ *    When the newest is damaged, the appliance checks older ones and the screen says so (suveryn-tracker#166).
  *  - Progress: the restore's steps, polled every second.
  *  - Done: where the restored appliance answers. It takes the old appliance's name, and its own
  *    accounts and settings: setup is closed and nobody signs in with anything made here.
@@ -19,7 +20,7 @@ import { Button, Facts, FilePick, Form, InlineNotice, LinkButton, Notice, Passwo
          StatusList, TextField, type FieldErrors, type StatusItem } from "../../ui";
 import { getRestore, getState, saveRestore, startRestore, type RestoreProgress, type SetupState, type UsbDisk } from "../api";
 import { LOCALES, useLang, useText, type Text } from "../i18n";
-import { messageText } from "../../lib/messages";
+import { messageText, type Message } from "../../lib/messages";
 import { checkThenSave, StepFooter } from "./common";
 import { diskSize } from "./Backups";
 
@@ -27,6 +28,13 @@ import { diskSize } from "./Backups";
 export function madeAt(iso: string, locale: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(locale, { dateStyle: "long", timeStyle: "short" });
+}
+
+/** A message whose parameters are backups' times (`newest`, `oldest`, `whole`), with those times in the interface's language. */
+export function withTimes(msg: Message, locale: string): Message {
+  const params = { ...msg.params };
+  for (const name of ["newest", "oldest", "whole"]) if (typeof params[name] === "string") params[name] = madeAt(params[name] as string, locale);
+  return { ...msg, params };
 }
 
 /** Polls the restore every second while `active` says so; a failed request is asked again. */
@@ -95,7 +103,7 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
       {failed && (
         <div className="setup-block-tight" role="alert">
           <Notice icon={<TriangleAlert size={16} />} tone="warning" title={t.restoreCheckFailed}>
-            {messageText(failed, t)}
+            {messageText(withTimes(failed, locale), t)}
           </Notice>
         </div>
       )}
@@ -181,14 +189,22 @@ export function RestoreConfirm({ state, initial, onBack, onStart, headingId }: C
     );
   }
   const b = chosen ?? restore.backup;
+  const warning = restore.warning;
   return (
     <div>
       <h1 id={headingId} className="setup-title">{t.restoreConfirmTitle}</h1>
       <p className="setup-lead">{t.restoreConfirmLead}</p>
+      {warning && (
+        <div className="setup-section">
+          <Notice icon={<TriangleAlert size={16} />} tone="warning">
+            {messageText(withTimes(warning, locale), t)}
+          </Notice>
+        </div>
+      )}
       {choices.length > 1 && (
         <div className="setup-section">
           <SelectField name="backup" label={t.restoreWhich} description={t.restoreWhichHint} value={b.file} onChange={setFile}
-                       options={choices.map((c) => ({ id: c.file, label: `${madeAt(c.created, locale)}${c.file === restore.backup!.file ? ` (${t.restoreNewest})` : ""}` }))} />
+                       options={choices.map((c) => ({ id: c.file, label: `${madeAt(c.created, locale)}${c.file === restore.backup!.file ? ` (${warning ? t.restoreNewestWhole : t.restoreNewest})` : ""}` }))} />
         </div>
       )}
       <Facts facts={[
