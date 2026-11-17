@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ConversationSummary, PlaybookInfo, Run, RunSummary } from "../api";
+import type { ConversationSummary, PlaybookInfo, Run } from "../api";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
 import { PIN_HINT_AFTER } from "./conversationActions";
 import { asksBeforeSignOut, inAnotherPlace, liveRunInstead, memberName, needsCaseOpen, pinHintDue, reopened, runIsLive,
@@ -35,12 +35,12 @@ describe("playbook runs", () => {
     expect(runIsLive(null)).toBe(false);
   });
 
-  it("a second start in a case (409) opens the live run instead; other refusals don't", () => {
-    const live = { id: "r1" } as RunSummary;
-    expect(liveRunInstead(409, { "case-1": live }, "case-1")).toBe(live);
-    expect(liveRunInstead(409, { "case-2": live }, "case-1")).toBeNull();   // live elsewhere only
-    expect(liveRunInstead(409, null, "case-1")).toBeNull();                 // the live runs couldn't be read
-    expect(liveRunInstead(403, { "case-1": live }, "case-1")).toBeNull();
+  it("a second start of a playbook opens the run the gateway names, never another playbook's (suveryn-tracker#181)", () => {
+    expect(liveRunInstead({ code: "run.already_going", params: { run: "r-intake" } })).toBe("r-intake");
+    expect(liveRunInstead({ code: "request.conflict", params: {} })).toBeNull();          // another 409
+    expect(liveRunInstead({ code: "request.forbidden", params: { run: "r-x" } })).toBeNull();
+    expect(liveRunInstead({ code: "run.already_going", params: {} })).toBeNull();          // no run named
+    expect(liveRunInstead(undefined)).toBeNull();                                          // no Problem Details at all
   });
 
   it("name people as the case knows them, or by username", () => {
