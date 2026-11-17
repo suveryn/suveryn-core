@@ -292,8 +292,8 @@ review, 17 October 2026).
 ## The chat UI
 
 A playbook is a conversation (handovers of 30 and 31 October 2026; the canvas "Sūveryn · gesprek en
-playbook, één taal"; `components/RunConversation.tsx`). The composer's *Playbook* menu starts a run,
-always as a new conversation in the case, listed under the case, in *Recent* and in the Conversations
+playbook, één taal"; `components/RunConversation.tsx`). The composer's *Playbook* menu starts a run
+as a new conversation in the case, or opens the conversation of its run still open, listed under the case, in *Recent* and in the Conversations
 overview with the route icon; earlier runs are earlier conversations. The playbook speaks as sūveryn:
 the brand mark with the route badge (teal: the system speaking) and its title as speaker above each
 series of its turns. Its messages are short and name the problem, never a place on the screen. A quick

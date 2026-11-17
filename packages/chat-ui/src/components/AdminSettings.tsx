@@ -1,7 +1,7 @@
 /**
  * Administration › Settings (docs/design/admin.md, artboard 35): what the office decides, in one place. Who
  * sees a case, how long closed cases and conversations are kept, and the rates of the indicative cost. *Cases*
- * and *Usage* only show these now, with "Change in Settings".
+ * changes the case settings in place too; *Usage* shows the rates, with "Change in Settings".
  *
  * *Save* is active after a change. Before it saves, the gateway counts what the change would do
  * (``GET /v1/admin/cases/settings/preview``); when cases change who sees them, or saved conversations would go,

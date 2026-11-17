@@ -1,8 +1,8 @@
 /**
  * Cases, stage 4 (suveryn-tracker#10): the administrator's case pages.
  *
- * The office's settings for cases (who sees a case, how long closed cases and conversations are kept), shown
- * here and changed in Settings (docs/design/admin.md); every case on the appliance with who
+ * The office's settings for cases (who sees a case, how long closed cases and conversations are kept), changed
+ * here as in Settings (docs/design/admin.md); every case on the appliance with who
  * manages it, so a case can be handed over before an account goes (decision 6); and what is due
  * for deletion. Nothing from inside a case: an administrator who isn't a member reads no documents.
  */

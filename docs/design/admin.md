@@ -218,7 +218,7 @@ The strings are in `packages/chat-ui/src/i18n/` (`en.ts`, `nl.ts`, `fr.ts`), the
   their pages are built. *Status* reads `GET /v1/admin/status` (the
   gateway checks every minute, so "since" is when a failure began); the overview shows the version when
   the appliance has one (its release and the core commit, or `SUVERYN_VERSION`; decision, 29 October), and the
-  last backup. Users against the agreement and support join
+  last backup. The support tile joins
   with *Licence*. A full disk says "Almost full" (a string the table didn't have).
 - **Status, Needs attention** (B01): one row per item, the backups' own state ("View") and the recovery key ("Test now"), also both at once. The overview's tiles: version, last backup ("Last night 02:14 · On the USB disk"), users ("12 of 15"). The update row, the support tile and the Updates, Network and Licence pages come with their features.
 - **The recovery key in Status** (B01): "Herstelsleutel niet getest sinds 21 juli. Test elke drie maanden.", the date of the last test that opened a backup; "nog nooit getest" when none did.
