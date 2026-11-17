@@ -13,7 +13,7 @@ renamed, and the areas `model` and `account` added).
 renamed, removed or reused: codes are stored (a document that couldn't be read,
 a run that failed), so an old case and a restored older backup must still be read. `packages/harness/src/suveryn_harness/messages-released.json` lists the released codes, and a test fails when
 one of them is no longer in the registry. It is added to in the change in core that an appliance leaving Sūveryn
-Labs, a pilot included, is to pin: `uv run python -m suveryn_harness.released`. For the version that goes to the pilot, that is just before its last regression round. Nothing is released yet. The
+Labs, a pilot included, is to pin: `uv run python -m suveryn_harness.released`. For the version that goes to the pilot, that is just before its last regression round. A code that round finds to rename may come off the list again, as long as nothing has left Sūveryn Labs: by hand, in the fix, whose PR says so; the new name goes on the list before the next round. Nothing checks this but care. Nothing is released yet. The
 founder's decision behind this is the handbook's [*names and the pin*](https://github.com/suveryn/suveryn-handbook/blob/main/decisions/2026-11-15-names-and-the-pin.md).
 
 An operation's name is not frozen. It is stored nowhere, and the chat UI is built from the same commit as the
