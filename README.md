@@ -27,11 +27,12 @@ For reviewers: [docs/architecture.md](docs/architecture.md) describes the data f
 
 ## Run locally
 
-1. Start llama-server on the GPU machine in **router mode**, so people can choose the model per conversation. [models/llama-server-presets.example.ini](models/llama-server-presets.example.ini) holds the configuration validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md) for Qwen3.8-27B (the default) and Mistral Small 3.2 24B, with Mistral's smaller file and 4-bit cache from the [round of 17 November](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-11-real-documents.md); adjust the model paths. The model files are listed, with their sources and checksums, in [models/manifest.json](models/manifest.json).
+1. Start llama-server on the GPU machine in **router mode**, so people can choose the model per conversation. Its presets are written from [models/manifest.json](models/manifest.json), which lists the model files with their sources, checksums and llama-server's options for each: Qwen3.8-27B (the default) and Mistral Small 3.2 24B, as validated in the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md), with Mistral's smaller file and 4-bit cache from the [round of 17 November](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-11-real-documents.md):
    ```bash
-   llama-server --models-preset models/llama-server-presets.example.ini --models-max 1 --host 127.0.0.1 --port 8080
+   python3 models/scripts/presets.py --models-dir /path/to/models > /path/to/presets.ini
+   llama-server --models-preset /path/to/presets.ini --models-max 1 --host 127.0.0.1 --port 8080
    ```
-   `--models-max 1`: a 24 GB card holds one of these models at a time. A single-model llama-server (`llama-server -m <file> …`) still works; the chat then shows just that model.
+   `--models-max 1`: a 24 GB card holds one of these models at a time. The presets are named by the models' ids, which the chat shows; the gateway's default model (`SUVERYN_LLM_DEFAULT_MODEL`) must be one of them. A single-model llama-server (`llama-server -m <file> …`) still works; the chat then shows just that model.
 2. If llama-server runs on a remote GPU box, forward its port to your machine:
    ```bash
    ssh -N -L 8080:127.0.0.1:8080 root@<gpu-host> -p <ssh-port>
