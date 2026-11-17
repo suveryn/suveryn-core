@@ -67,7 +67,8 @@ The gateway (`problems.py`) answers every refusal and failure as Problem Details
 
 1. A `Problem`: its own code.
 2. A plain `HTTPException`, which only the framework raises (an unknown address): the general code of its status
-   (`request.conflict`, `request.not_found` …), its English detail kept for developers. The page shows the general
+   (`request.conflict`, `request.not_found` …; the registry's `general`, which the chat UI reads too), its English
+   detail kept for developers. The page shows the general
    code's words, never the detail.
 3. Anything unplanned: `system.internal` with a reference such as `7F3K-92QD` in `params.ref`. The log line has the
    reference, the request, the exception's type and where it was raised; never the exception's message, which may
@@ -81,7 +82,7 @@ A request that doesn't validate is `request.invalid` with `errors` (where and wh
 `messageKinds` in `src/i18n/<lang>.ts`): the code's own words, else its area's, else its kind's. So a code newer than
 the screen still gets a sentence in the reader's language. The tables are typed from the registry, and
 `messages.test.ts` fails on a code, area or kind without words in a language. An answer that isn't the gateway's (a
-proxy's 502) gets its status's general code.
+proxy's 502) gets its status's general code, from the registry's `general`.
 
 ## The appliance's web setup
 
@@ -139,7 +140,7 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   it on (a conversation in a case the caller may not see reads as missing; a contributor may delete their own
   noticed upload). They catch `Problem` and read its `status`.
 - **A failed reading says why as a code** (#152). A job that failed carries `failure`, `{kind, code, params}`,
-  made at the API's edge from the reader's own reason (`suveryn_rag.reading.CODES`; a test holds the two together):
+  the code the reader raised (`suveryn_rag.reading.Unreadable`; it keeps no list of its own, #158):
   a reason the reader knows is **refused** (`document.password_protected`, `document.pages_too_many` with `pages` and `max`
   …: nothing was read, the person gives another file), and a crash nobody planned for is **internal**:
   `system.internal` with a reference, logged with the exception's type and where it was raised, never its message.

@@ -235,7 +235,7 @@ def test_a_waiting_upload_cancelled_is_never_read_and_a_finished_one_cant_be(tmp
 
 def test_a_failure_carries_its_code_for_the_interface(tmp_path):
     docs = running(tmp_path, WatchedIngest(fails=Unreadable("the document has 900 pages; at most 500 can be read",
-                                                            "pages_too_many", pages=900, max=500)))
+                                                            "document.pages_too_many", pages=900, max=500)))
     job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
     assert wait(lambda: job.status == "failed")
     out = job.public()
@@ -297,8 +297,10 @@ def test_each_document_in_a_zip_becomes_a_job_named_after_its_file(tmp_path):
     assert a.filename == "Prospectus.zip"
     assert sorted(j.filename for j in a.jobs) == ["Book17.xlsx", "Project Sky FR.docx", "deed.pdf", "notes.md"]
     assert all(j.status == "queued" and j.owner == "user-a" and j.archive == "Prospectus.zip" for j in a.jobs)
-    assert a.skipped == [{"name": "empty.csv", "reason": "empty"}, {"name": "inner.zip", "reason": "archive"},
-                         {"name": "old.doc", "reason": "unsupported"}, {"name": "renamed.pdf", "reason": "invalid"}]
+    # why each was left out: a code of the registry (suveryn-tracker#158)
+    assert [(s["name"], s["failure"]["code"]) for s in a.skipped] == [
+        ("empty.csv", "upload.empty"), ("inner.zip", "upload.archive_inside_unsupported"), ("old.doc", "upload.unsupported"),
+        ("renamed.pdf", "upload.content_mismatch")]
     assert uploads(tmp_path) == [".zip"]  # nothing unpacked yet: each entry waits in the archive
     assert len(docs.pending_jobs("user-a")) == 4
     assert a.public()["jobs"][0]["archive"] == "Prospectus.zip"
@@ -320,6 +322,19 @@ def test_an_archive_that_cant_be_used_adds_nothing_and_leaves_nothing(tmp_path, 
     assert not docs.pending_jobs("user-a")
 
 
+def test_an_encrypted_file_in_a_zip_is_left_out_as_protected_with_a_password(tmp_path):
+    data = bytearray(zipped({"deed.pdf": b"%PDF-1.7 a deed", "locked.pdf": b"%PDF-1.7 protected"}, zipfile.ZIP_STORED).getvalue())
+    # mark locked.pdf encrypted, as an encrypted entry says of itself (bit 0 of its flags), in its local header and
+    # in the central directory; Python's zipfile writes no encrypted entries
+    for sig, at in ((b"PK\x03\x04", 6), (b"PK\x01\x02", 8)):
+        i = data.index(sig, data.index(sig) + 1)  # the second entry's
+        data[i + at] |= 0x1
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    a = docs.accept_archive(io.BytesIO(bytes(data)), "a.zip", "user-a")
+    assert [j.filename for j in a.jobs] == ["deed.pdf"]
+    assert [(s["name"], s["failure"]["code"]) for s in a.skipped] == [("locked.pdf", "document.password_protected")]
+
+
 def test_an_archive_with_nothing_to_read_says_why_for_each_file(tmp_path, monkeypatch):
     # The VM check of adccf00: one 400 MB entry was refused as "holds no PDF, Word…", which said nothing.
     monkeypatch.setattr(service, "MAX_UPLOAD_BYTES", 1024 * 1024)
@@ -327,7 +342,8 @@ def test_an_archive_with_nothing_to_read_says_why_for_each_file(tmp_path, monkey
     a = docs.accept_archive(zipped({"scan.pdf": b"%PDF-1.7" + b"\0" * (2 * 1024 * 1024), "photo.jpg": b"\xff\xd8"}),
                             "a.zip", "user-a")
     assert a.jobs == []
-    assert a.skipped == [{"name": "photo.jpg", "reason": "unsupported"}, {"name": "scan.pdf", "reason": "too_large"}]
+    assert [(s["name"], s["failure"]["code"]) for s in a.skipped] == [("photo.jpg", "upload.unsupported"), ("scan.pdf", "upload.too_large")]
+    assert a.skipped[1]["failure"]["params"]["max_mb"] > 0  # with the limit
     assert not list((tmp_path / "uploads").iterdir()) and not docs.pending_jobs("user-a")
 
 
@@ -453,7 +469,7 @@ def test_an_entry_larger_than_an_upload_or_damaged_is_left_out(tmp_path, monkeyp
     data = data[:i] + b"y" + data[i + 1:]  # one byte changed: the entry's checksum no longer fits
     a = docs.accept_archive(io.BytesIO(data), "a.zip", "user-a")
     assert [j.filename for j in a.jobs] == ["ok.pdf"]
-    assert a.skipped == [{"name": "bad.pdf", "reason": "damaged"}, {"name": "big.pdf", "reason": "too_large"}]
+    assert [(s["name"], s["failure"]["code"]) for s in a.skipped] == [("bad.pdf", "document.damaged"), ("big.pdf", "upload.too_large")]
     assert uploads(tmp_path) == [".zip"]
 
 
@@ -554,18 +570,35 @@ def test_marking_by_meaning_is_on_and_zero_turns_it_off(monkeypatch):
     assert RagSettings.from_env().mark_by_meaning == 0.7
 
 
-def test_every_reason_the_reader_knows_is_a_code_of_the_registry():
-    # A failed job says why as ``failure``, a code of the registry's document area that the interface words
-    # (docs/design/messages.md): a reason the reader has and the registry lacks would stop the job's answer.
+def test_the_reader_says_its_reasons_and_notes_as_the_registrys_codes_and_keeps_no_list_of_its_own():
+    """suveryn-tracker#158: the reader kept its reasons (reading.CODES) and its notes (integrity.KINDS) as words of its
+    own, made into codes one step later. Now each is the registry's code where it is made: a reason is a refusal of
+    the document area (nothing was read), a note a warning; anything else is document.unreadable."""
+    import ast
+    from pathlib import Path
     from suveryn_harness.messages import CODES as REGISTRY, message
-    from suveryn_rag.reading import CODES
-    assert {f"document.{code}" for code in CODES} <= set(REGISTRY)
-    assert {REGISTRY[f"document.{code}"].kind for code in CODES} == {"refused"}  # nothing was read: never a warning
-    # and every note a reading can leave is a warning of the registry, stored as {kind, code, params}
-    from suveryn_rag.integrity import KINDS, IntegrityWarning
-    assert {REGISTRY[f"document.{kind}"].kind for kind in KINDS} == {"warning"}
-    assert IntegrityWarning(4, "page_coverage_low", "12% read").message() == {
+    from suveryn_rag import integrity, reading
+    from suveryn_rag.integrity import IntegrityWarning
+    from suveryn_rag.reading import Unreadable
+    assert not hasattr(reading, "CODES") and not hasattr(integrity, "KINDS")
+    said = {"Unreadable": set(), "ExtractionFailed": set(), "IntegrityWarning": set()}
+    for path in Path(reading.__file__).parent.glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            name = getattr(getattr(node, "func", None), "id", None)
+            if isinstance(node, ast.Call) and name in said:
+                said[name] |= {a.value for a in node.args[1:2] if isinstance(a, ast.Constant) and isinstance(a.value, str)}
+    reasons, notes = said["Unreadable"] | said["ExtractionFailed"], said["IntegrityWarning"]
+    # and every code the reader writes anywhere else (a passage kept outside the layout carries its note's code)
+    written = {n.value for path in Path(reading.__file__).parent.glob("*.py") for n in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+               if isinstance(n, ast.Constant) and isinstance(n.value, str) and re.fullmatch(r"(document|upload)\.[a-z_]+", n.value)
+               and n.value != "document.pdf"}  # a file name, not a code
+    assert written <= set(REGISTRY), written - set(REGISTRY)
+    assert len(reasons) >= 6 and {REGISTRY[c].kind for c in reasons} == {"refused"} and all(c.startswith("document.") for c in reasons)
+    assert len(notes) >= 3 and {REGISTRY[c].kind for c in notes} == {"warning"} and all(c.startswith("document.") for c in notes)
+    assert Unreadable("x", "damaged").code == "document.unreadable"  # a word of its own is no code
+    assert Unreadable("x", "document.page_coverage_low").code == "document.unreadable"  # a warning is no reason
+    assert IntegrityWarning(4, "document.page_coverage_low", "12% read").message() == {
         "kind": "warning", "code": "document.page_coverage_low", "params": {"page": 4}, "detail": "12% read"}
-    assert IntegrityWarning(None, "instruction_like_text", "x").message()["params"] == {}
+    assert IntegrityWarning(None, "document.instruction_like_text", "x").message()["params"] == {}
     assert message("document.pages_too_many", pages=900, max=500)["params"] == {"pages": 900, "max": 500}
     assert message("document.reading_too_slow", minutes=30)["params"] == {"minutes": 30}

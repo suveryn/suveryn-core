@@ -34,7 +34,6 @@ export const notes: Notes<typeof en> = {
   messageAreas: "What is said for a code this screen doesn't know yet, by the part of sūveryn it is about. Whole sentences.",
   messageKinds: "What is said when neither the code nor its part is known: refused, a part is down, something unplanned, or done with a warning. Whole sentences.",
   messageInternalRef: "An unplanned failure. {ref} is the code the administrator finds in the log; keep it at the end, where it is easy to read out.",
-  archiveSkipped: "A file inside a .zip that wasn't added. {reason} is the reader's code for why: unsupported (a kind of file sūveryn doesn't read), archive (a .zip inside the .zip), encrypted, too_large, empty, invalid (content doesn't match the extension), damaged. {archive} is the .zip's name.",
   eventMemberAdded: "A row of a case's access log (as every entry whose name starts with 'event'): one sentence without a full stop, with {who}, the person who did it, shown in bold wherever the sentence puts them. {role} is the member's role: manager, contributor, or reader.",
   eventRoleChanged: "A row of a case's access log. {role} is the member's new role: manager, contributor, or reader.",
   eventAsked: "A row of a case's access log. {n} is how many documents the question was about; none means all of the case.",

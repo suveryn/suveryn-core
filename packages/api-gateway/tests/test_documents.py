@@ -15,6 +15,7 @@ from suveryn_harness import Citation, LlamaServerClient, LLMSettings, SourceRef
 from suveryn_rag.store import Scope
 
 DOC = str(uuid.uuid4())
+UNSUPPORTED = {"kind": "refused", "code": "upload.unsupported", "params": {}}  # a file left out of a .zip, and why
 
 
 class FakeJob:
@@ -49,7 +50,7 @@ class FakeDocuments:
         jobs = [FakeJob(n, owner, case_id) for n in ("akte.pdf", "notes.docx")]
         self.jobs.update({j.id: j for j in jobs})
         return type("A", (), {"jobs": jobs, "public": lambda _: {
-            "archive": filename, "jobs": [j.public() for j in jobs], "skipped": [{"name": "photo.jpg", "reason": "unsupported"}]}})()
+            "archive": filename, "jobs": [j.public() for j in jobs], "skipped": [{"name": "photo.jpg", "failure": UNSUPPORTED}]}})()
 
     def cancel(self, job_id, owner):
         job = self.jobs.get(job_id)
@@ -461,13 +462,13 @@ def test_a_zip_adds_each_document_inside_and_says_what_was_left_out():
         assert body["archive"] == "Dossier.zip"
         assert sorted(j["filename"] for j in body["jobs"]) == ["Prospectus FR.docx", "akte.pdf"]
         assert all(j["status"] == "queued" for j in body["jobs"])
-        assert body["skipped"] == [{"name": "photo.jpg", "reason": "unsupported"}]
+        assert body["skipped"] == [{"name": "photo.jpg", "failure": UNSUPPORTED}]
         assert c.get(f"/v1/documents/jobs/{body['jobs'][0]['id']}").json()["status"] == "queued"
         stored = sorted(p.suffix for p in (svc.settings.work_dir / "uploads").iterdir())
         assert stored == [".zip"]  # kept until its documents are read, each unpacked in its turn
         r = c.post("/v1/documents", files={"file": ("photos.zip", io.BytesIO(zip_of({"a.jpg": b"\xff\xd8"})), "application/zip")})
         assert r.status_code == 202 and r.json()["jobs"] == []  # nothing to read: each file says why
-        assert r.json()["skipped"] == [{"name": "a.jpg", "reason": "unsupported"}]
+        assert r.json()["skipped"] == [{"name": "a.jpg", "failure": UNSUPPORTED}]
         r = c.post("/v1/documents", files={"file": ("empty.zip", io.BytesIO(zip_of({})), "application/zip")})
         assert r.status_code == 415 and r.json()["code"] == "upload.archive_empty"
 
@@ -485,7 +486,7 @@ def test_a_zip_goes_to_the_service_as_an_archive_and_each_document_is_logged():
     docs = FakeDocuments()
     with client(docs) as c:
         r = c.post("/v1/documents", files={"file": ("Dossier.ZIP", io.BytesIO(b"PK\x03\x04"), "application/zip")})
-        assert r.status_code == 202 and len(r.json()["jobs"]) == 2 and r.json()["skipped"][0]["reason"] == "unsupported"
+        assert r.status_code == 202 and len(r.json()["jobs"]) == 2 and r.json()["skipped"][0]["failure"]["code"] == "upload.unsupported"
 
 
 def test_an_upload_is_refused_while_the_disk_is_nearly_full(monkeypatch):

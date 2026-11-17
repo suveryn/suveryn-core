@@ -84,8 +84,8 @@ def page_count(pdf: Path) -> int:
         doc = pdfium.PdfDocument(str(pdf))
     except pdfium.PdfiumError as e:
         if "password" in str(e).lower():
-            raise Unreadable("the PDF is protected with a password", "password_protected") from None
-        raise Unreadable("the file is damaged or not a valid PDF", "damaged") from None
+            raise Unreadable("the PDF is protected with a password", "document.password_protected") from None
+        raise Unreadable("the file is damaged or not a valid PDF", "document.damaged") from None
     try:
         return len(doc)
     finally:
@@ -244,7 +244,7 @@ class Extractor:
         pages = page_count(pdf)
         if pages > self.settings.max_pages:  # before OCR: one huge PDF would hold up everyone's documents
             raise Unreadable(f"the document has {pages} pages; at most {self.settings.max_pages} can be read",
-                             "pages_too_many", pages=pages, max=self.settings.max_pages)
+                             "document.pages_too_many", pages=pages, max=self.settings.max_pages)
         t0 = time.perf_counter()
         profiles = page_profiles(pdf)
         to_ocr = plan_ocr(profiles)
@@ -274,7 +274,7 @@ class Extractor:
                                      optimize=0, progress_bar=True, plugins=["suveryn_rag.ocr_progress"], tesseract_timeout=180,
                                      invalidate_digital_signatures=True)
                     except ocrmypdf.exceptions.EncryptedPdfError:
-                        raise Unreadable("the PDF is protected with a password", "password_protected") from None
+                        raise Unreadable("the PDF is protected with a password", "document.password_protected") from None
                 timings["ocr"] = time.perf_counter() - t
             watch.check()
             watch.report(Progress("layout", None, pages))

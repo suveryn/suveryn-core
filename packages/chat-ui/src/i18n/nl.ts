@@ -60,6 +60,7 @@ const nl: Messages = {
     "upload.archive_files_too_many": m("Dit archief bevat meer bestanden dan de server aanvaardt ({max, number})."),
     "upload.archive_too_large": "Dit archief wordt uitgepakt groter dan de server aanvaardt.",
     "upload.archive_empty": "Dit archief is leeg.",
+    "upload.archive_inside_unsupported": "Een archief in het archief wordt niet geopend. Voeg het apart toe.",
     "upload.inbox_unavailable": "Documenten kunnen nu niet worden toegevoegd. Vraag uw beheerder om Status na te kijken.",
     "upload.disk_full": "De schijf van de appliance is bijna vol. Er kunnen geen documenten worden toegevoegd tot er ruimte is: vraag uw beheerder om Status na te kijken.",
     "upload.already_read": "Deze upload is al gelezen en is nu een document. Verwijder het document.",
@@ -166,7 +167,6 @@ const nl: Messages = {
   uploadInterrupted: "Het uploaden werd onderbroken.",
   uploadLost: "Deze pagina is de upload uit het oog verloren. Staat hij niet bij de documenten, voeg hem dan opnieuw toe.",
   streamCutOff: "De verbinding werd verbroken voordat het antwoord volledig was.",
-  archiveSkipped: m("{reason, select, unsupported {Uit {archive}: sūveryn leest dit soort bestand niet.} archive {Uit {archive}: een archief in het archief wordt niet geopend; voeg het apart toe.} encrypted {Uit {archive}: het is beveiligd met een wachtwoord.} too_large {Uit {archive}: het is groter dan de server aanvaardt.} empty {Uit {archive}: het is leeg.} invalid {Uit {archive}: de inhoud past niet bij de extensie.} damaged {Uit {archive}: het is beschadigd in het archief.} other {Uit {archive}: het kan niet worden gelezen.}}"),
 
   emptyIntro: "Voeg een document toe en stel er een vraag over. Elk antwoord noemt zijn bron.",
 
@@ -797,6 +797,7 @@ const nl: Messages = {
   cardCheckNeeded: "Bruikbaar · controleer het",
   cardFailed: "Kon niet worden gelezen.",
   cardNotAdded: "Niet toegevoegd.",
+  cardNotAddedFrom: m("{file} uit {archive} werd niet toegevoegd."),
   cardNoticedFrom: m("dossier {caseRef}, {day}"),
   cardNoticedNotSource: "Het telt niet als bron.",
   deleteUpload: "Verwijderen",

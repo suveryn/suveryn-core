@@ -21,7 +21,7 @@ from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from ..accounts import Account, AccountEvent, AccountRefused, Accounts, AccountsUnavailable, RightsRefused
+from ..accounts import Account, AccountEvent, Accounts, AccountsUnavailable, RightsRefused
 from ..auth import AuthError, AuthUnavailable
 from .common import Scope, admin_or_403, case_settings, cases_or_503, docs_or_503, flush_soon, history_or_503, owner_of
 
@@ -78,12 +78,6 @@ async def as_admin(request: Request) -> tuple[Accounts, str]:
 async def _do(call):
     try:
         return await call
-    except AccountRefused as e:
-        if e.code == "not_found":
-            raise Problem("request.not_found", "No such account.") from e
-        if e.code == "exists":
-            raise Problem("account.email_exists", "An account with this e-mail address exists.") from e
-        raise Problem("request.conflict", e.code) from e
     except RightsRefused:
         raise  # app.py: 503 with reason "rights", which the page says in its own sentence
     except AccountsUnavailable as e:
@@ -279,8 +273,8 @@ async def delete_account(sub: str, request: Request):
             await run_in_threadpool(cases.depart, sub, user.username, user.name, owner_of(request))
         try:
             await accounts.delete(token, sub)
-        except AccountRefused as e:
-            if e.code != "not_found":  # not found: gone already, which is what was asked
+        except Problem as e:
+            if e.code != "request.not_found":  # not found: gone already, which is what was asked
                 raise
     except RightsRefused:
         raise  # its own sentence (app.py); deleting again once the rights are back finishes it

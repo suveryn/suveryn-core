@@ -397,6 +397,21 @@ def test_an_account_is_deleted_only_once_it_is_off_and_its_name_stays(setup):
     assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 404  # gone
 
 
+def test_an_account_already_gone_from_the_sign_in_service_when_it_is_deleted_counts_as_deleted(setup, monkeypatch):
+    """The account service says the registry's code itself (suveryn-tracker#158): a deletion that finds the account
+    gone in the sign-in service, between the check and the delete, has done what was asked."""
+    c, kc, api, cases = setup
+    admin = as_user(kc, ALICE, admin=True)
+    c.put(f"/v1/admin/users/{BOB}/enabled", json={"enabled": False}, headers=admin)
+    real = api.handler
+
+    def gone_on_delete(request):
+        return httpx.Response(404) if request.method == "DELETE" and request.url.path.endswith(BOB) else real(request)
+    monkeypatch.setattr(api, "handler", gone_on_delete)
+    c.app.state.accounts._http = httpx.AsyncClient(transport=httpx.MockTransport(api.handler))
+    assert c.delete(f"/v1/admin/users/{BOB}", headers=admin).status_code == 204
+
+
 
 def test_last_sign_in_is_found_beyond_the_newest_two_thousand(setup):
     """External review, pass 7: the last sign-in came from the newest 2,000 sign-ins, so someone who signed in

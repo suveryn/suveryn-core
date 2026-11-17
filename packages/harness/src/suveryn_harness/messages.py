@@ -69,6 +69,24 @@ def load(path: Path = Path(__file__).parent / "messages.json") -> tuple[tuple[st
 AREAS, CODES = load()
 
 
+def load_general(path: Path = Path(__file__).parent / "messages.json") -> tuple[dict[int, str], str, str]:
+    """The code each status stands for when an answer carries none of its own (the registry's ``general``): the
+    listed statuses, else ``client`` for 4xx and ``server`` for 5xx. A code that isn't in the registry stops the load."""
+    g = json.loads(path.read_text(encoding="utf-8"))["general"]
+    statuses = {int(s): c for s, c in g["statuses"].items()}
+    if not set(statuses.values()) | {g["client"], g["server"]} <= set(CODES):
+        raise ValueError("messages.json: a general code isn't in the registry")
+    return statuses, g["client"], g["server"]
+
+
+GENERAL, _CLIENT, _SERVER = load_general()
+
+
+def general(status: int) -> str:
+    """The code a status stands for, for an answer that carries no code of its own."""
+    return GENERAL.get(status, _SERVER if status >= 500 else _CLIENT)
+
+
 def message(code: str, **params) -> dict:
     """``{kind, code, params}`` for a listed code: what travels inside an answer, is stored, or is logged. A code
     that isn't listed, or a parameter it doesn't have or of another type, is a programming error."""

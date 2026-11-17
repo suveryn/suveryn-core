@@ -79,7 +79,7 @@ export function archiveCards(m: Messages, upload: ArchiveUpload, key: () => stri
   return [
     ...upload.jobs.map((j) => attachmentFromJob(m, { key: key(), filename: j.filename, status: "queued", jobId: j.id }, j)),
     ...upload.skipped.map((s): Attachment => ({ key: key(), filename: s.name, status: "failed", notAdded: true,
-                                               error: m.archiveSkipped({ archive: upload.archive, reason: s.reason }) })),
+                                               archive: upload.archive, failure: s.failure })),
   ];
 }
 

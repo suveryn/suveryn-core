@@ -69,7 +69,7 @@ export function AttachmentCard({ a, onRemove, onUseAsSource, onDelete, onReplace
         </span>
       )}
       {a.status === "failed" && <>
-        <span className="card-attachment-state" data-tone="warn">{[a.notAdded ? m.cardNotAdded : m.cardFailed, why].filter(Boolean).join(" ")}</span>
+        <span className="card-attachment-state" data-tone="warn">{[a.notAdded ? (a.archive ? m.cardNotAddedFrom({ file: a.filename, archive: a.archive }) : m.cardNotAdded) : m.cardFailed, why].filter(Boolean).join(" ")}</span>
         {(onReplace || onDelete) && (
           <span className="card-attachment-actions">
             {onReplace && (

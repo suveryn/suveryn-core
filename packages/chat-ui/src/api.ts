@@ -67,9 +67,8 @@ export type Job = {
 };
 const ANSWER_TOKENS = 3000;
 
-/** What a .zip upload became: a job per document inside it, and the files left out with a reason
- *  (suveryn_rag.service.SKIP_REASONS). */
-export type ArchiveUpload = { archive: string; jobs: Job[]; skipped: { name: string; reason: string }[] };
+/** A .zip upload: a job per document, and the files left out, each with why as a code of the registry. */
+export type ArchiveUpload = { archive: string; jobs: Job[]; skipped: { name: string; failure: Message }[] };
 export const isArchiveUpload = (r: Job | ArchiveUpload): r is ArchiveUpload => "jobs" in r;
 /** sūveryn's export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file. */
 export type Noticed = { ref: string; kind: "answer" | "playbook"; line: string };

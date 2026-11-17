@@ -20,6 +20,25 @@
   "network",
   "bundle"
  ],
+ "general": {
+  "_about": "The code a status stands for, for an answer that carries no code of its own: a status the framework answers itself (a 405), or a page that isn't the gateway's (a proxy's 502). Otherwise `client` for 4xx and `server` for 5xx. The server and the chat UI both read it here (suveryn-tracker#158).",
+  "statuses": {
+   "400": "request.invalid",
+   "401": "auth.signed_out",
+   "403": "request.forbidden",
+   "404": "request.not_found",
+   "405": "request.invalid",
+   "409": "request.conflict",
+   "411": "request.invalid",
+   "413": "request.too_large",
+   "415": "request.unsupported",
+   "422": "request.invalid",
+   "429": "request.too_many",
+   "500": "system.internal"
+  },
+  "client": "request.invalid",
+  "server": "system.unavailable"
+ },
  "codes": {
   "system.internal": {
    "kind": "internal",
@@ -181,6 +200,12 @@
   "upload.archive_empty": {
    "kind": "refused",
    "title": "The archive is empty.",
+   "status": 415,
+   "since": "0.2.0"
+  },
+  "upload.archive_inside_unsupported": {
+   "kind": "refused",
+   "title": "An archive inside the archive isn't opened; it can be added on its own.",
    "status": 415,
    "since": "0.2.0"
   },

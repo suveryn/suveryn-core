@@ -103,7 +103,7 @@ class Chunker:
         # 1. Completeness: body text the chunker left out (e.g. a heading with nothing after it).
         covered = {it.self_ref for c in raw for it in c.meta.doc_items}
         used_headings = {norm(h) for c in chunks for h in c.headings}
-        leftovers: list[tuple[int | None, str, str]] = []
+        leftovers: list[tuple[int | None, str, str, str]] = []  # page, text, chunk origin, the note's code
         for item, _ in document.iterate_items(included_content_layers={ContentLayer.BODY}):
             label = item.label.value
             if item.self_ref in covered or label == "picture":
@@ -111,19 +111,19 @@ class Chunker:
             text = item.export_to_markdown(doc=document) if label == "table" else (getattr(item, "text", "") or "")
             if not text.strip() or (label in ("section_header", "title") and norm(text) in used_headings):
                 continue
-            leftovers.append((_page(item), text, "text_recovered"))
+            leftovers.append((_page(item), text, "text_recovered", "document.text_recovered"))
 
         # 2. Furniture rule: keep header/footer text unless it really repeats.
         furniture = [(_page(it), it.text) for it, _ in document.iterate_items(included_content_layers={ContentLayer.FURNITURE})
                      if getattr(it, "text", None) and _page(it) is not None]
         dropped, restored = split_furniture(furniture, max(len(page_texts), 1))
-        leftovers += [(p, t, "header_footer_recovered") for p, t in restored]
+        leftovers += [(p, t, "header_footer_recovered", "document.header_footer_recovered") for p, t in restored]
 
         warnings: list[IntegrityWarning] = []
-        for page, text, kind in leftovers:
+        for page, text, kind, note in leftovers:
             chunks.append(Chunk(index=len(chunks), text=text, embed_text=text, page_start=page, page_end=page,
                                 headings=[], origin=kind))
-            warnings.append(IntegrityWarning(page, kind, f"{len(text)} characters kept as a separate chunk"))
+            warnings.append(IntegrityWarning(page, note, f"{len(text)} characters kept as a separate chunk"))
 
         # 3. Recover from the PDF text layer: lines with words that no stored text contains (e.g. table
         #    cells the table model couldn't place) are kept as a chunk for that page. OCR noise (text in an
@@ -139,7 +139,7 @@ class Chunker:
             if text:
                 chunks.append(Chunk(index=len(chunks), text=text, embed_text=text, page_start=page, page_end=page,
                                     headings=[], origin="text_layer_recovered"))
-                warnings.append(IntegrityWarning(page, "text_layer_recovered",
+                warnings.append(IntegrityWarning(page, "document.text_layer_recovered",
                                                  f"{len(missing)} words recovered from the PDF text layer"))
 
         # 4. Page coverage: anything still missing after recovery means the document needs review.

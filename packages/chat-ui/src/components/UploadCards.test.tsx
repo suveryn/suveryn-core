@@ -19,6 +19,13 @@ describe("the cards of an upload (board G13)", () => {
     expect(card({ status: "needs_review", reviewPages: [2], reviewKind: "page_coverage_low" })).toContain("Usable · check p. 2 (hard to read)");
     expect(card({ status: "needs_review", reviewPages: [2] })).toContain("Usable · check p. 2<");  // a kind without words: no brackets
   });
+  it("names a file left out of a .zip, the archive, and why in a sentence of its own (suveryn-tracker#158)", () => {
+    const html = card({ status: "failed", notAdded: true, filename: "akte.pdf", archive: "dossier.zip",
+                        failure: { kind: "refused", code: "document.password_protected", params: {} } });
+    expect(html).toContain("akte.pdf from dossier.zip wasn&#x27;t added. It is protected with a password.");
+    expect(card({ status: "failed", notAdded: true, failure: { kind: "refused", code: "upload.empty", params: {} } }))
+      .toContain("Not added. This file is empty.");  // refused on arrival, not from an archive
+  });
   it("counts the pages recognised, not the one being worked on", () => {
     expect(card({ status: "processing", reading: { step: "ocr", done: 4, total: 12 } })).toContain("Recognising text · page 4 of 12");
     expect(card({ status: "processing", reading: { step: "ocr", done: 0, total: 12 } })).toContain(">Recognising text<");

@@ -272,7 +272,7 @@ class Job:
     db_retries: int = 0     # how often the database was unreachable while reading it
     noticed: dict | None = None  # the file carries sūveryn's export mark (marks.py): not a source until confirmed
     progress: Progress | None = None  # how far reading has got (reading.Progress), while processing
-    error_code: str | None = None     # why it failed, one of reading.CODES: the API says it as ``failure`` (public)
+    error_code: str | None = None     # why it failed, a code of the registry: the API says it as ``failure`` (public)
     error_detail: dict = field(default_factory=dict)  # the numbers that message needs (pages, max, minutes)
     error_ref: str | None = None      # it failed in a way nobody planned for: the reference its log line has
     cancel_requested: bool = False    # the person cancelled it while it was read; the worker stops it
@@ -294,8 +294,13 @@ class Job:
         # A reason the reader knows is refused (nothing was read: another file, or try again); a crash is internal,
         # with the reference the log has, as any unplanned failure is.
         code, detail, ref = out.pop("error_code"), out.pop("error_detail"), out.pop("error_ref")
-        out["failure"] = message("system.internal", ref=ref) if ref else message(f"document.{code}", **detail) if code else None
+        out["failure"] = message("system.internal", ref=ref) if ref else message(code, **detail) if code else None
         return out
+
+
+def _too_large() -> dict:
+    """A file larger than an upload may be, with the limit."""
+    return message("upload.too_large", max_mb=MAX_UPLOAD_BYTES // (1024 * 1024))
 
 
 def _crashed(e: Exception) -> str:
@@ -443,11 +448,11 @@ class DocumentService:
                 while block := src.read(1 << 20):
                     size += len(block)
                     if size > MAX_UPLOAD_BYTES:
-                        raise Unreadable("the file in the archive is too large", "too_large")
+                        raise Unreadable("the file in the archive is too large", "document.too_large")
                     out.write(block)
         except (OSError, KeyError, zipfile.BadZipFile, EOFError, NotImplementedError, RuntimeError, zlib_error):
             path.unlink(missing_ok=True)
-            raise Unreadable("the file couldn't be unpacked from its archive", "damaged") from None
+            raise Unreadable("the file couldn't be unpacked from its archive", "document.damaged") from None
 
     def _unstage(self, path: Path) -> None:
         """Remove the reader's copy in the inbox, if any; the private upload stays."""
@@ -568,7 +573,7 @@ class DocumentService:
     def accept_archive(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Archive:
         """A .zip upload: each PDF, Word, Excel, Markdown or CSV file inside becomes a job of its own, named
         after the file (its folders in the archive left out), queued in turn; the rest is listed in
-        ``skipped`` with a reason. Every entry is checked now; each is unpacked only when it is read (see
+        ``skipped``, each with why as a message of the registry (``failure``). Every entry is checked now; each is unpacked only when it is read (see
         the module's notes). Raises ``UploadRejected`` when the archive itself can't be used, is empty, or
         no upload may wait now; then nothing is added."""
         name = clean_name(filename or "archive.zip")
@@ -605,12 +610,10 @@ class DocumentService:
                         raise UploadRejected("the archive is empty", "upload.archive_empty")
                     good, unpacked = [], 0
                     for entry, kind in wanted:
-                        reason, size = self._check_entry(z, entry, kind, MAX_ARCHIVE_UNPACKED - unpacked)
+                        failure, size = self._check_entry(z, entry, kind, MAX_ARCHIVE_UNPACKED - unpacked)
                         unpacked += size
-                        if reason == "limit":
-                            raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB", "upload.archive_too_large", max_mb=MAX_ARCHIVE_UNPACKED // (1024 * 1024))
-                        if reason:
-                            skipped.append({"name": clean_name(entry.filename), "reason": reason})
+                        if failure:
+                            skipped.append({"name": clean_name(entry.filename), "failure": failure})
                         else:
                             good.append((entry, kind))
             except zipfile.BadZipFile:
@@ -635,45 +638,47 @@ class DocumentService:
 
     @staticmethod
     def _sort_entries(entries: list[zipfile.ZipInfo]) -> tuple[list[tuple[zipfile.ZipInfo, str]], list[dict]]:
-        """The entries to read, with their kind, and those left out with a reason; folders and junk are ignored.
-        An entry larger than an upload by what the archive says is left out unread ("too_large")."""
+        """The entries to read, with their kind, and those left out with why (a message of the registry); folders
+        and junk are ignored. An entry larger than an upload by what the archive says is left out unread."""
         wanted, skipped = [], []
         for e in entries:
             name = PurePosixPath(e.filename.replace("\\", "/"))
             if e.is_dir() or not name.name or junk(name):
                 continue
             kind = kind_of(name.name)
-            reason = ("archive" if is_archive(name.name) else "unsupported" if kind is None
-                      else "encrypted" if e.flag_bits & 0x1 else "too_large" if e.file_size > MAX_UPLOAD_BYTES
-                      else "empty" if e.file_size == 0 else None)
-            if reason:
-                skipped.append({"name": clean_name(e.filename), "reason": reason})
+            failure = (message("upload.archive_inside_unsupported") if is_archive(name.name) else message("upload.unsupported") if kind is None
+                       else message("document.password_protected") if e.flag_bits & 0x1
+                       else _too_large() if e.file_size > MAX_UPLOAD_BYTES else message("upload.empty") if e.file_size == 0 else None)
+            if failure:
+                skipped.append({"name": clean_name(e.filename), "failure": failure})
             else:
                 wanted.append((e, kind))
         return wanted, skipped
 
     @staticmethod
-    def _check_entry(z: zipfile.ZipFile, entry: zipfile.ZipInfo, kind: str, room: int) -> tuple[str | None, int]:
+    def _check_entry(z: zipfile.ZipFile, entry: zipfile.ZipInfo, kind: str, room: int) -> tuple[dict | None, int]:
         """Read one entry through, writing nothing: whether its first bytes fit its kind, its checksum holds,
-        and how many bytes it really unpacks to (not what the archive says). Returns (the reason it can't be
-        used, or None; bytes read). "limit": the archive's total would pass ``room``."""
+        and how many bytes it really unpacks to (not what the archive says). Returns (why it can't be used, a
+        message of the registry, or None; bytes read). Raises ``UploadRejected`` when the archive's total would
+        pass ``room``: then nothing of it is added."""
         size = 0
         try:
             with z.open(entry) as src:
                 head = src.read(8)
                 if not head:
-                    return "empty", 0
+                    return message("upload.empty"), 0
                 if not looks_like(kind, head):
-                    return "invalid", 0
+                    return message("upload.content_mismatch"), 0
                 size = len(head)
                 while block := src.read(1 << 20):
                     size += len(block)
                     if size > room:
-                        return "limit", size
+                        raise UploadRejected(f"the archive unpacks to more than {MAX_ARCHIVE_UNPACKED // (1024 * 1024)} MB",
+                                             "upload.archive_too_large", max_mb=MAX_ARCHIVE_UNPACKED // (1024 * 1024))
                     if size > MAX_UPLOAD_BYTES:
-                        return "too_large", size
+                        return _too_large(), size
         except (zipfile.BadZipFile, EOFError, NotImplementedError, RuntimeError, zlib_error):
-            return "damaged", size  # a bad CRC, a truncated entry, a compression method zipfile doesn't know
+            return message("document.damaged"), size  # a bad CRC, a truncated entry, a compression method zipfile doesn't know
         return None, size
 
     def _prune(self) -> None:

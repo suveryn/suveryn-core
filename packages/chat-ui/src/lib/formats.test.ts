@@ -3,6 +3,7 @@ import { httpErrorText } from "../api";
 import { setLang } from "../i18n";
 import { sourceFileName } from "./copy";
 import { ACCEPTED_FILES, DOCUMENT_EXTENSION, DOCUMENT_FILES, formatName } from "./formats";
+import { messageText } from "./messages";
 
 describe("the files sūveryn reads", () => {
   it("offers every format the server reads, and only those", () => {
@@ -44,11 +45,12 @@ describe("the files sūveryn reads", () => {
     expect(httpErrorText(429, refused("run.too_many"))).toBe(TEXT.nl.messages["run.too_many"]);
     expect(httpErrorText(415, "the archive is empty")).toBe(TEXT.nl.messages["request.unsupported"]);  // the words alone mean nothing here
     setLang("en", false);
+    // a file left out of a .zip says it was, from which archive, and why in a sentence of its own (suveryn-tracker#158)
     for (const t of Object.values(TEXT)) {
-      for (const reason of ["unsupported", "archive", "encrypted", "too_large", "empty", "invalid", "damaged"]) {
-        expect(t.archiveSkipped({ archive: "Prospectus.zip", reason })).toContain("Prospectus.zip");
-        expect(t.archiveSkipped({ archive: "a.zip", reason })).not.toBe(t.archiveSkipped({ archive: "a.zip", reason: "something else" }));
-      }
+      expect(t.cardNotAddedFrom({ file: "akte.pdf", archive: "Prospectus.zip" })).toMatch(/akte\.pdf.*Prospectus\.zip/);
+      for (const code of ["upload.unsupported", "upload.archive_inside_unsupported", "document.password_protected", "upload.empty",
+                          "upload.content_mismatch", "document.damaged"] as const) expect(t.messages[code]).toMatch(/\.$/);
+      expect(messageText({ code: "upload.too_large", params: { max_mb: 200 } }, t)).toContain("200");
     }
   });
 });
