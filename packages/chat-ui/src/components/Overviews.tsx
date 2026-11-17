@@ -289,8 +289,8 @@ export function ConversationsOverview({ conversations, cases, me, initialCase = 
     { id: "messages", label: m.colMessages, align: "end", render: (c) => c.messages ?? 0 },
     { id: "activity", label: m.colActivity, render: (c) => <span className="overview-dim">{dayLabel(c.updated_at)}</span> },
     { id: "actions", label: m.colActions, hideLabel: true, width: "48px",
-      render: (c) => <RowMenu name={listedTitle(c)} entries={conversationMenu(c, me.sub, m, true)}
-                              onAction={(id) => (id === "open" ? onOpen(c) : onAction(c, id as ConversationAction))} /> },
+      render: (c) => <RowMenu name={listedTitle(c)} entries={conversationMenu(c, me.sub, m)}
+                              onAction={(id) => onAction(c, id as ConversationAction)} /> },
   ];
 
   return (
