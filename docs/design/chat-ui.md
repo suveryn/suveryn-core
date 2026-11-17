@@ -547,7 +547,7 @@ and its strings (artboards 26 to 43). The colour and copy rules of section 1 app
 
 Decided with the founder on 21 October, after the Pod runs on 10 real documents and 44 questions: asking
 across the whole case gave 37/40 right facts and 7/44 answers citing another document; the server
-guessing the document gave 32/40 and 10/44, at up to 33 s; the one document attached gave 15/15 and
+guessing the document gave 32/40 and 10/44, kept the wrong document on 9 of 44, at up to 33 s; the one document attached gave 15/15 and
 44/44, in 2 to 11 s. Choosing works, guessing doesn't. Artboards 20 to 22 (correcting after the
 answer, and both together) were drawn and **not chosen**: when the documents were wrong, the person
 asks again with the right ones.
@@ -556,7 +556,7 @@ asks again with the right ones.
 narrow screen's pill): *Ask about: all documents* ▾.
 
 - It opens a `DocumentPicker`, a new kit component: a `DialogTrigger` with a `Popover`, an
-  "All documents in case 123" option, a `SearchField` (from about nine sources), and a `ListBox`
+  "All documents" option ("The whole case, including what is added later"), a `SearchField` (from five sources), and a `ListBox`
   with `selectionMode="multiple"`. `MenuButton` can't do multiple choice with search.
 - Each row shows the name, the kind of file, the pages, and who added it and when. Chosen documents
   stay at the top, under "Chosen", even when the search no longer matches them.
@@ -593,10 +593,10 @@ narrow screen's pill): *Ask about: all documents* ▾.
 
 - A chosen document that is deleted, or replaced by a new version, leaves the choice; the question
   reads the documents that remain. When none remain, it reads the whole case again, and the line
-  under the question box says so: "The chosen documents are no longer in the case. Answers use all
-  its documents again."
+  under the question box says so: "The chosen documents are gone. Answers use the whole case
+  again."
 - When the chosen documents are too large to be read whole, the answer says so above its text: "Too
-  large to read in full: the passages that best match your question were read."
+  large: only the best-matching passages were read."
 - A question that names one document by its kind and maybe its language ("de Franstalige volmacht", "the
   shareholders' agreement", "les statuts") reads only that one, when exactly one in the choice fits by its file
   name (and its own language); the answer says so under its text: "Your question names a document: only R2
@@ -607,7 +607,7 @@ narrow screen's pill): *Ask about: all documents* ▾.
 
 **Server.**
 
-- The server's guess was measured and dropped (*As built: Ask about*, below): with nothing chosen, a question reads the case's sources.
+- The server doesn't guess which documents a question is about (above), apart from a question that names one document (*Edge cases*); with nothing chosen, a question reads the case's sources (*As built*, below).
 - A question carries the chosen document ids, as an attachment does today; the server reads exactly
   those.
 - The choice is saved with each question in the conversation's history, as its attachments are now,
@@ -635,11 +635,10 @@ before choosing a number.
 
 ### As built: *Ask about*
 
-- `DocumentPicker` (`ui/picker.tsx`): a popover, or on a narrow screen a sheet with *Done*. "All documents" is pressed when nothing is chosen; the list is a multiple-selection `ListBox` whose Escape closes the picker rather than clearing the choice. The search field shows from nine sources and doesn't take the focus.
+- In the `DocumentPicker`, "All documents" is pressed when nothing is chosen, and the search field doesn't take the focus.
 - The paperclip is a plain upload button. In a case an upload is chosen once it is read, and removing its card takes it out of the choice. A document opened from the Documents overview is chosen.
-- The choice is saved on each question as `about`; deleting a document empties its name there. "Too large to read in full" shows when the server says the passages were a selection (the stream's `complete`).
+- The choice is saved as `about`; deleting a document empties its name there. "Too large" shows when the server says the passages were a selection (the stream's `complete`).
 - With nothing chosen, a question in a case reads its sources, newest first, up to the server's 50 (`lib/questionDocuments.ts`); sūveryn's own output and uploads waiting for a choice are never read. More than 50 sources is an open point.
-- **Tried and dropped: guessing the document.** Narrowing a question on the server to the documents it seemed to be about made answers worse than reading the whole case: on ten real documents, right facts fell from 37/40 to 32/40, answers citing another document rose from 7/44 to 10/44, and the wrong document was kept on 9 of 44 questions. With the one document chosen: 15/15. Hence *Ask about*. (A question that names one document by its kind is different: *Server*, above.)
 - A question asked right after a colleague deleted one of the case's documents: a question about the whole case is asked again at once with the documents there are now; a question about chosen documents says one of them was deleted meanwhile.
 
 ## 11. A strictly confidential case (artboards 23 and 24)
@@ -665,7 +664,7 @@ under professional secrecy, so the ordinary level has no label.
     page layout view); the line in every sheet's header and footer; and the line as the first and last
     row of every sheet. Any of them can be taken out by whoever has the file: the mark names who
     exported it, it doesn't prevent (suveryn-tracker#183, #184).
-  - Markdown and CSV: a first line.
+  - Markdown, CSV and the sources' text files: a first line.
   - *Copy* can't carry a watermark and stays as it is.
 - In *Recent*, in search results and in the Conversations overview, its conversations appear
   without their title: "Shielded conversation" with the case reference, so the person can still go
@@ -693,7 +692,7 @@ with two uses reads as deliberate.
   for this meaning only, and never alone: the key icon and the words are always there. In suveryn-brand
   tokens v3.4 (`confidential`, `on-confidential`), with `chart-1` to `chart-4`.
 - **A band above the case header**, with `folder-key`, in `confidential`: "Strictly confidential ·
-  Members only · Conversations aren't shared · Exports carry a watermark". It says what the label
+  Members only · No sharing · Exports watermarked". It says what the label
   does, not how secret the case is.
 - On narrow screens, the band shortens to the icon, the label and *What does this mean?*, which
   opens the three rules in a sheet.
@@ -723,8 +722,7 @@ conversations, and the client shows the placeholder.
 
 - Turning the label on also restricts the access, and the access can't be opened while it is on (409); turning it off and opening in one change is allowed. The `UPDATE` itself refuses while the label is on, so two managers changing the case at once can't leave it labelled and open. Unsharing happens in the same request, and the access log's `confidential_on` says how many were unshared.
 - Only `GET /v1/conversations?all=true` (Recent, search, the Conversations overview) shields titles; the case's own list keeps them. A shielded title isn't searched.
-- Word: the same picture as Excel's sheet background, the label with the case, the person and the time, as Word's own picture watermark (Design › Watermark, so Word recognises it), in the brand's confidential violet, light (the token at 30% on white, `OFFICE_COLOURS.watermark`); without a canvas, the label alone as Word's text watermark. With it, the line in the header and "Strictly confidential" in the export mark. Excel: the header, the footer and the two pictures (the sheet background, landscape, and the header's, shaped like a page) are added through write-excel-file's own extension point, its "features" (`lib/excelWatermark.ts`); the pictures are drawn in the browser (`OffscreenCanvas`) in the same violet, and without a canvas the file has the rest. LibreOffice prints the sheet background, repeated across the page, and leaves out the header's picture. Markdown, CSV and the sources' text files: the line first. The playbook result's Word file and a saved answer carry it too; *Copy* doesn't. The watermark is made at each download, with the person's name and the time, in the interface language (`lib/watermark.ts`).
-- The switch is in *Members and access* for the manager, with what it changes and how many conversations it will unshare.
+- Word: the same picture as Excel's sheet background, as Word's own picture watermark (Design › Watermark, so Word recognises it), in `confidential` at 30% on white (`OFFICE_COLOURS.watermark`); without a canvas, the label alone as Word's text watermark. Excel: the header, the footer and the two pictures (the sheet background, landscape, and the header's, shaped like a page) are added through write-excel-file's own extension point, its "features" (`lib/excelWatermark.ts`); the pictures are drawn in the browser (`OffscreenCanvas`) in the same violet, and without a canvas the file has the rest. LibreOffice prints the sheet background, repeated across the page, and leaves out the header's picture. The export mark ends with "· Strictly confidential" (`lib/saved.ts`, `RunConversation.tsx`). The playbook result's Word file carries the watermark too. The watermark is made at each download, with the person's name and the time, in the interface language (`lib/watermark.ts`).
 
 ## 12. Dialogs
 
@@ -771,20 +769,19 @@ pattern (a full-width orange button with Cancel as a text link); they follow in 
   - The navigation rows are plain buttons.
   - *Pinned* uses the `Expander` from the UI kit for pinned cases: a row button that opens the case,
     and a chevron that expands it.
-  - Then the pinned personal conversations, *Recent*, and the account `MenuTrigger`.
+  - Then the pinned personal conversations, *Recent*, and the account menu (`ActionMenu`).
   - A conversation's menu is `conversationMenu` (`ConversationDialogs.tsx`, from
     `lib/conversationActions.ts`), the same in the column and the Conversations overview; its
     *Rename* and *Move to a case* dialogs are there too.
 - **`ui/`**:
-  - `Avatar`, with a `badge` prop: `admin`, `manager` or `owner`;
+  - `Avatar` and `IconBadge`, the overlay icons of section 2 (`avatar.tsx`);
   - `IconButton`, `Button`;
-  - `menus.tsx`, for New, the actions and the account menu;
-  - a small `Badge` overlay for the avatar;
-  - a `Table` wrapper for the overviews.
-- **`Composer.tsx`**: the playbook chip, *Ask about* (`DocumentPicker`, new in `ui/`) and the model dialog
+  - `menus.tsx`: `ActionMenu` for New, the row actions and the account menu, `SplitButton` for the downloads;
+  - `DataTable` (`table.tsx`) for the overviews.
+- **`Composer.tsx`**: the playbook chip, *Ask about* (`DocumentPicker`, `ui/picker.tsx`) and the model dialog
   (`ModelPicker.tsx`).
 - **`Messages.tsx`**: the answer toolbar, the split buttons, `WaitingDots`, and "Thought for".
-- **`App.tsx`**: the three overviews in the main area. *Playbooks* is an item of Administration's side
+- **`Overviews.tsx`**: the three overviews in the main area. *Playbooks* is an item of Administration's side
   menu (`Admin.tsx`).
 - **`i18n/*.ts`**: every new string, in the three languages.
 
