@@ -189,7 +189,7 @@ A person shows one badge at a time: the one that matters where the avatar appear
 ### As built: the column
 
 - The navigation rows open their overview. *Recent* shows the eight newest conversations. *New chat* is always personal; in an open case the *New* menu offers *New conversation in case 123* to its contributors.
-- Start screen: "Welcome, *first name*" over the question box; *Work in a case* lists the open cases the person is a member of, and *New case*. First use (no conversations, no cases): the two cards and "Personal conversation · only you see this".
+- Start screen: "Welcome, *first name*" over the question box; *Work in a case* lists the open cases the person is a member of, and *New case*. First use (no conversations, no cases): the two cards and a lock and "Personal conversation".
 - Narrow screens: the drawer is a modal (focus inside, Escape or the scrim closes it, the focus returns to the menu button) and closes once something is chosen. The composer's "+" holds the document, the case's playbooks and the model.
 - The collapsed rail has no separate expand button: the mark expands it (with a title). A pinned case's chevron turns in 150 ms.
 - **Full-width pages fold the column** (G06 to G08, the B boards): Conversations, Cases, Documents and Administration show the column as the rail. It comes from the view, not from the person's choice (`suveryn.sidebar` keeps what they set); opening the column there opens it on that page only. The drawer on a narrow screen is unchanged.
@@ -261,7 +261,7 @@ A person shows one badge at a time: the one that matters where the avatar appear
 - The overview is unfiltered when opened from the column, and filtered on a case when reached from
   a count or from the case itself.
 - A colleague's conversation appears only when it is shared with the case.
-- Row menu: *Open*, *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*.
+- Row menu: *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*; the row itself opens the conversation (artboards 05 to 08).
 
 **Documents**:
 
@@ -287,7 +287,7 @@ A legend under the table explains *Source* and *Made*.
 - One table for the three overviews (`ui/table.tsx`, React Aria's `Table`): arrow keys move between rows and cells, Enter opens the row, a cell's own buttons are reached with the arrow keys. 25 rows per page, not virtualised (nothing to gain at that size). The sort is one `Select` per page. The overviews read their lists again whenever one is opened.
 - A case's counts are what the person may see, and each opens that overview filtered on the case. An administrator who isn't a member sees that a case exists, not its members. The *From* column shows a colleague's own initials when the member list doesn't name them, never the viewer's.
 - Status of a case: *Open*; *Open · n documents to check*; closed with its deletion date, or *kept until deleted*. Status of a document: the case's closure first, then *Not a source* for sūveryn's own output (*Confirmed* for a confirmed playbook result), then *To check* with the pages, or *Ready*. A file still being read is *Being read*; one that couldn't be read, *Failed*.
-- Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Documents: *Use in this conversation*, *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice), *Delete*, which follows the server's rule (`lib/overviews.ts`). Conversations: *Open*, *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*; for one in a case *Pin* is disabled with "Pin the case instead" and *Move* is disabled; for a colleague's shared one everything but *Open* is. Row actions are always shown on a touch screen (`hover: none`).
+- Row menus. Cases: *Open*, *Pin*/*Unpin*, *Members*, *Access log*, *Close case*. Documents: *Use in this conversation*, *Download as Word* (a saved answer), *Use as a source anyway* (an upload waiting for a choice), *Delete*, which follows the server's rule (`lib/overviews.ts`). Conversations: *Open* (to go: suveryn-tracker#182), *Pin* or *Unpin*, *Rename*, *Move to a case*, *Delete*; for one in a case *Pin* is disabled with "Pin the case instead" and *Move* is disabled; for a colleague's shared one everything but *Open* is. Row actions are always shown on a touch screen (`hover: none`).
 - Long columns are truncated at 200 px with the full text as a tooltip, so the row menu stays visible at 1440 px; on a phone the table scrolls inside its box.
 - Expired conversations are left out of every list at once and deleted by the hourly sweep, not on each request.
 
@@ -295,8 +295,8 @@ A legend under the table explains *Source* and *Made*.
 
 **Personal or in a case.**
 
-A personal conversation has a white pane and a title bar: its title and its menu. "Personal chat · only you can
-see this" sits under the composer.
+A personal conversation has a white pane and a title bar: its title and its menu. A lock and
+"Personal conversation" sit under the composer (artboard 12).
 
 A conversation in a case has:
 
@@ -672,7 +672,8 @@ under professional secrecy, so the ordinary level has no label.
   - Word: a diagonal "STRICTLY CONFIDENTIAL" (in the interface language) on every page, a
     header with the case, the person's name and the time (whoever leaks it is named on it), and
     the existing export mark with "Strictly confidential" added.
-  - Excel: the same line first and last on every sheet.
+  - Excel: the same line first and last on every sheet. The founder wants a watermark rather than
+    rows; its form is to be decided (suveryn-tracker#183).
   - Markdown and CSV: a first line.
   - *Copy* can't carry a watermark and stays as it is.
 - In *Recent*, in search results and in the Conversations overview, its conversations appear
