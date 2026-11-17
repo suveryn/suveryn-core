@@ -10,13 +10,13 @@ const kase = (over: Partial<Case> = {}): Case => ({
   opened_at: "", closed_at: null, keep_until: null, keep: false, manager: "alice", created_by: "alice", updated_at: "",
   my_role: "contributor", ...over,
 });
-const offered = (c: ConversationSummary, me = "alice", withOpen = false) =>
-  conversationActions(c, me, withOpen).map((a) => `${a.id}${a.disabled ? "-" : ""}${a.reason ? `(${a.reason})` : ""}`);
+const offered = (c: ConversationSummary, me = "alice") =>
+  conversationActions(c, me).map((a) => `${a.id}${a.disabled ? "-" : ""}${a.reason ? `(${a.reason})` : ""}`);
 
 describe("a conversation's menu (docs/design/chat-ui.md §3 and §4)", () => {
   it("offers everything for one's own personal conversation", () => {
     expect(offered(conv())).toEqual(["pin", "rename", "move", "delete"]);
-    expect(offered(conv({ pinned: true }), "alice", true)).toEqual(["open", "unpin", "rename", "move", "delete"]);
+    expect(offered(conv({ pinned: true }))).toEqual(["unpin", "rename", "move", "delete"]);  // no Open: the row opens it (suveryn-tracker#182)
   });
 
   it("lets a conversation in a case follow its case: no pin, no move", () => {

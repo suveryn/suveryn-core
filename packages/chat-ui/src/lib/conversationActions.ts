@@ -10,7 +10,7 @@
  */
 import type { Case, ConversationSummary } from "../api";
 
-export type ConversationAction = "open" | "pin" | "unpin" | "rename" | "move" | "delete";
+export type ConversationAction = "pin" | "unpin" | "rename" | "move" | "delete";
 type ActionState = { id: ConversationAction; disabled: boolean; reason?: "followsCase" };
 
 /** More than this many pinned conversations shows the hint "Five pinned. A case keeps them together." */
@@ -20,12 +20,11 @@ function isOwn(c: Pick<ConversationSummary, "owner">, me: string | undefined): b
   return !c.owner || c.owner === me;
 }
 
-/** The menu's actions in their order, *Open* first when the list doesn't open a row by itself. */
-export function conversationActions(c: ConversationSummary, me: string | undefined, withOpen = false): ActionState[] {
+/** The menu's actions in their order. No *Open*: the row itself opens the conversation (artboards 05 to 08). */
+export function conversationActions(c: ConversationSummary, me: string | undefined): ActionState[] {
   const own = isOwn(c, me);
   const inCase = !!c.case_id;
   return [
-    ...(withOpen ? [{ id: "open" as const, disabled: false }] : []),
     { id: c.pinned ? "unpin" : "pin", disabled: inCase || !own, ...(inCase ? { reason: "followsCase" as const } : {}) },
     { id: "rename", disabled: !own },
     { id: "move", disabled: inCase || !own },

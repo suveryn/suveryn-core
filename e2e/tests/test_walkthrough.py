@@ -209,6 +209,15 @@ def test_full_width_pages_fold_the_column_and_a_personal_conversation_has_its_ti
     for item in ("Pin", "Rename", "Move to a case", "Delete"):
         expect(page.get_by_role("menuitem", name=re.compile(f"^{item}"))).to_be_visible()
     page.keyboard.press("Escape")
+    # the same menu in the Conversations overview: no Open, the row itself opens the conversation (artboards 05 to
+    # 08; suveryn-tracker#182)
+    page.get_by_role("button", name="Conversations", exact=True).click()
+    page.locator("main").get_by_role("button", name=re.compile("^Actions for")).first.click()
+    expect(page.get_by_role("menuitem", name=re.compile("^Rename"))).to_be_visible()
+    expect(page.get_by_role("menuitem", name=re.compile("^Open"))).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.get_by_role("row").nth(1).press("Enter")     # the row is the way in, by keyboard
+    expect(page.locator("main").get_by_role("textbox", name=re.compile("^Your question"))).to_be_visible()
 
 
 def test_an_account_switched_off_loses_its_session_at_once(page, browser):

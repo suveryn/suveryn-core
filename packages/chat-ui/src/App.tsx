@@ -660,7 +660,7 @@ function Chat({ me }: { me: Me }) {
                  health.documents.status === "failed" ? m.documentsFailed : null}
                onNewConversation={closing((outside) => { if (outside && caseId) goTo(null); newChat(); })} onNewCase={closing(() => setNewCase(true))}
                onOpenView={closing((v: SideView) => { setOverviewFilter("all"); setView(v); })} onOpenConversation={closing(openListed)} onOpenDocument={closing(openDocument)} onOpenCase={closing(openCase)}
-               onCaseAction={closing(caseAction)} onConversationAction={(c, a) => (a === "open" ? closing(conversationAction)(c, a) : conversationAction(c, a))}
+               onCaseAction={closing(caseAction)} onConversationAction={conversationAction}
                pinHint={pinHint} tokensToday={tokensToday} activePlaybooks={activePlaybooks} onOpenUsage={closing(() => setView("usage"))}
                onOpenAdmin={closing((page) => { setAdminPage(page); setView("admin"); })} onOpenSettings={closing(() => setShowSettings(true))}
                onOpenAvatar={closing(() => setShowAvatar(true))} onSignOut={closing(requestSignOut)} runState={runState} />
@@ -974,8 +974,7 @@ function Chat({ me }: { me: Me }) {
     }
   };
   const conversationAction = (c: ConversationSummary, action: ConversationAction) => {
-    if (action === "open") openListed(c);
-    else if (action === "pin" || action === "unpin") pinOwnConversation(c, action === "pin");
+    if (action === "pin" || action === "unpin") pinOwnConversation(c, action === "pin");
     else if (action === "rename") setRenaming(c);
     else if (action === "move") setMoving(c);
     else if (action === "delete") removeConversation(c.id);

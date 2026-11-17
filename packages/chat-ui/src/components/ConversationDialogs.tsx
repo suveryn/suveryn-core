@@ -2,7 +2,7 @@
  * The conversation menu's two dialogs (docs/design/chat-ui.md §4): *Rename* and *Move to a case*. The
  * server decides (routes/conversations.py); these only ask, and say what went wrong.
  */
-import { FolderInput, MessageSquare, Pencil, Pin, PinOff, Trash } from "lucide-react";
+import { FolderInput, Pencil, Pin, PinOff, Trash } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { moveConversation, renameConversation, type Case, type ConversationSummary } from "../api";
 import { useT } from "../i18n";
@@ -14,16 +14,16 @@ const MAX_TITLE = 200;
 
 /** A conversation's menu (the column's rows and the overview's), from lib/conversationActions.ts: *Pin*
  *  or *Unpin*, *Rename*, *Move to a case*, then *Delete* apart. Disabled, never hidden. */
-export function conversationMenu(c: ConversationSummary, me: string | undefined, m: ReturnType<typeof useT>, withOpen = false): MenuEntry[] {
+export function conversationMenu(c: ConversationSummary, me: string | undefined, m: ReturnType<typeof useT>): MenuEntry[] {
   const icons: Record<ConversationAction, ReactNode> = {
-    open: <MessageSquare size={16} />, pin: <Pin size={16} />, unpin: <PinOff size={16} />, rename: <Pencil size={16} />,
+    pin: <Pin size={16} />, unpin: <PinOff size={16} />, rename: <Pencil size={16} />,
     move: <FolderInput size={16} />, delete: <Trash size={16} />,
   };
   const labels: Record<ConversationAction, string> = {
-    open: m.open, pin: m.pin, unpin: m.unpin, rename: m.rename, move: m.moveToCase, delete: m.delete,
+    pin: m.pin, unpin: m.unpin, rename: m.rename, move: m.moveToCase, delete: m.delete,
   };
   const entries: MenuEntry[] = [];
-  for (const a of conversationActions(c, me, withOpen)) {
+  for (const a of conversationActions(c, me)) {
     if (a.id === "delete") entries.push("-");
     entries.push({ id: a.id, label: labels[a.id], icon: icons[a.id], isDisabled: a.disabled,
                    ...(a.reason === "followsCase" ? { description: m.pinCaseInstead } : {}) });
