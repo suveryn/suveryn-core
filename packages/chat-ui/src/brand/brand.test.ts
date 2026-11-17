@@ -63,5 +63,6 @@ describe("the colours in Word and Excel files", () => {
     const { OFFICE_COLOURS } = await import("../lib/office");
     expect(OFFICE_COLOURS.accentInk).toBe(hex(token("accent-ink")));
     expect(OFFICE_COLOURS.textDimmer).toBe(hex(token("text-dimmer")));
+    expect(OFFICE_COLOURS.watermark).toBe(hex(`${token("confidential")} / 0.30`));  // the confidential violet, light
   });
 });

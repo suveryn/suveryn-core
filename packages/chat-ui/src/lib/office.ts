@@ -5,6 +5,7 @@
  */
 import type { Segment, Table } from "./answer";
 import { cellValue, segmentText, tableRows, type AnswerExport, type SourceItem } from "./export";
+import { excelWatermark, watermarkPicture } from "./excelWatermark";
 import type { Watermark } from "./watermark";
 
 export type OfficeText = {
@@ -23,13 +24,15 @@ export type OfficeText = {
 export const OFFICE_COLOURS = {
   accentInk: "BE2E00",   // --accent-ink: a figure to check, underlined as on screen
   textDimmer: "737476",  // --text-dimmer (#010205 at 0.55) on white: the export mark, small and light
+  watermark: "CEC1DE",   // --confidential at 0.30 on white: a strictly confidential case's watermark, Word and Excel
 };
 
 const DATE = (d: Date, lang: string) => d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
 const where = (s: SourceItem) => s.citation.source?.location ?? (s.citation.source?.page ? `p. ${s.citation.source.page}` : "");
 
 /** The answer as a Word document: question, answer (paragraphs, lists, tables), checks, sources. */
-export async function answerToWord(a: AnswerExport, text: OfficeText, lang: string): Promise<Blob> {
+export async function answerToWord(a: AnswerExport, text: OfficeText, lang: string,
+                                   picture: WatermarkPicture = PICTURE): Promise<Blob> {
   const d = await import("docx");
   const runs = (segments: Segment[]) => segments.map((s) =>
     s.kind === "cite" ? new d.TextRun({ text: `[${s.n}]`, superScript: true })
@@ -69,18 +72,34 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
   }
   body.push(new d.Paragraph({ children: [new d.TextRun({ text: text.disclaimer, italics: true, size: 16 })] }));
   return d.Packer.toBlob(new d.Document({ creator: "sūveryn", title: a.question,
-                                          sections: [{ children: body, headers: await watermarkHeader(d, a.watermark),
+                                          sections: [{ children: body, headers: await watermarkHeader(d, a.watermark, picture),
                                                        footers: markFooter(d, a.mark) }] }));
 }
 
-/** A strictly confidential case's watermark on every page (docs/design/chat-ui.md §11): the label
- *  across the page, as Word's own Design > Watermark draws it (so Word recognises it), and the line
- *  with the case, the person and the time at the top. */
-async function watermarkHeader(d: typeof import("docx"), w: Watermark | undefined) {
+/** The picture behind a strictly confidential export: the label, and the case, the person and the time. Made in
+ *  the browser (lib/excelWatermark.ts); the tests give their own, or none. */
+export type WatermarkPicture = (w: Watermark) => Promise<ArrayBuffer | undefined>;
+const PICTURE: WatermarkPicture = (w) => watermarkPicture(w, OFFICE_COLOURS.watermark);
+
+/** The picture, or none when it can't be made: a download never fails on its watermark picture; the file
+ *  then has the rest of the watermark (lib/excelWatermark.ts). */
+async function pictureOrNone(picture: WatermarkPicture, w: Watermark): Promise<ArrayBuffer | undefined> {
+  try { return await picture(w); } catch { return undefined; }
+}
+
+/** A strictly confidential case's watermark on every page (docs/design/chat-ui.md §11): the picture
+ *  Excel has too, the label with the case, the person and the time, behind the text as Word's own
+ *  Design > Watermark puts a picture (so Word recognises it), and the line at the top. Without a
+ *  picture (no canvas), the label alone, as Word's text watermark. */
+async function watermarkHeader(d: typeof import("docx"), w: Watermark | undefined, picture: WatermarkPicture) {
   if (!w) return undefined;
-  const { TextWatermark } = await import("docx/watermarks");
+  const { ImageWatermark, TextWatermark } = await import("docx/watermarks");
+  const data = await pictureOrNone(picture, w);
+  const mark = data
+    ? new ImageWatermark({ type: "png", data, transformation: { width: 760, height: 507 }, washout: false, title: w.label })
+    : new TextWatermark({ text: w.label, color: OFFICE_COLOURS.watermark, opacity: 1, layout: "diagonal" });
   return { default: new d.Header({ children: [
-    new d.Paragraph({ children: [new TextWatermark({ text: w.label, color: "C0C0C0", opacity: 0.5, layout: "diagonal" }) as never] }),
+    new d.Paragraph({ children: [mark as never] }),
     new d.Paragraph({ children: [new d.TextRun({ text: w.line, bold: true, size: 16 })] }),
   ] }) };
 }
@@ -92,8 +111,11 @@ function markFooter(d: typeof import("docx"), mark: string | undefined) {
   return { default: new d.Footer({ children: [new d.Paragraph({ children: [new d.TextRun({ text: mark, size: 14, color: OFFICE_COLOURS.textDimmer })] })] }) };
 }
 
-/** One table as an Excel workbook: the table (with each row's sources), the sources, what to check. */
-export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText): Promise<Blob> {
+/** One table as an Excel workbook: the table (with each row's sources), the sources, what to check. In a strictly
+ *  confidential case, with its watermark (lib/excelWatermark.ts); `picture` makes the sheet background, and is
+ *  given by the tests, which have no canvas. */
+export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText,
+                                   picture: WatermarkPicture = PICTURE): Promise<Blob> {
   const { default: writeExcelFile } = await import("write-excel-file/browser");
   const { header, rows } = tableRows(t, text.sourceColumn);
   const width = (texts: string[]) => Math.min(60, Math.max(8, ...texts.map((x) => x.length + 2)));
@@ -120,8 +142,8 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText):
   if (a.checks.length) {
     sheets.push({ sheet: text.sheetChecks, stickyRowsCount: 0, data: a.checks.map((c) => [{ value: c, wrap: true }]) as never, columns: [{ width: 100 }] });
   }
-  // A strictly confidential case (§11): the watermark line first and last on every sheet. The library
-  // can't write a sheet's page header and footer, so it is in the cells, above the frozen header.
+  // A strictly confidential case (§11): the watermark line first and last on every sheet, above the frozen
+  // header; the header, the footer and the sheet background are added by the feature below.
   if (a.watermark) {
     const line = [{ value: a.watermark.line, fontWeight: "bold" as const }];
     for (const sh of sheets) {
@@ -129,10 +151,13 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText):
       if (sh.stickyRowsCount) sh.stickyRowsCount += 2;
     }
   }
-  return writeExcelFile(sheets as never).toBlob();
+  if (!a.watermark) return writeExcelFile(sheets as never).toBlob();
+  const utility = await import("write-excel-file/utility");
+  const feature = excelWatermark(a.watermark, await pictureOrNone(picture, a.watermark), utility);
+  return writeExcelFile(sheets as never, { features: [feature] } as never).toBlob();
 }
 
-type IntakeExport = {
+export type IntakeExport = {
   title: string; caseName: string; version: string; confirmedOn: string;
   facts: { label: string; value: string; sources: string[] }[];
   sourcesHeading: string; emptyValue: string; disclaimer: string;
@@ -143,7 +168,7 @@ type IntakeExport = {
 /** A playbook run's confirmed facts as a Word document (suveryn-tracker#51): a heading, a table of
  *  facts with where each was read from, and the disclaimer. The case's record; sūveryn's own layout
  *  until the office's templates exist (suveryn-tracker#22). */
-export async function intakeToWord(x: IntakeExport): Promise<Blob> {
+export async function intakeToWord(x: IntakeExport, picture: WatermarkPicture = PICTURE): Promise<Blob> {
   const d = await import("docx");
   const cell = (text: string, bold = false) => new d.TableCell({ children: [new d.Paragraph({ children: [new d.TextRun({ text, bold })] })] });
   const table = new d.Table({
@@ -153,7 +178,7 @@ export async function intakeToWord(x: IntakeExport): Promise<Blob> {
       ...x.facts.map((f) => new d.TableRow({ children: [cell(f.label, true), cell(f.value || x.emptyValue), cell(f.sources.join(", "))] })),
     ],
   });
-  const doc = new d.Document({ sections: [{ headers: await watermarkHeader(d, x.watermark), footers: markFooter(d, x.mark), children: [
+  const doc = new d.Document({ sections: [{ headers: await watermarkHeader(d, x.watermark, picture), footers: markFooter(d, x.mark), children: [
     new d.Paragraph({ text: x.title, heading: d.HeadingLevel.HEADING_1 }),
     new d.Paragraph({ children: [new d.TextRun({ text: x.caseName })] }),
     new d.Paragraph({ children: [new d.TextRun({ text: `${x.confirmedOn} · ${x.version}`, italics: true, size: 18 })] }),
