@@ -674,10 +674,11 @@ under professional secrecy, so the ordinary level has no label.
     person's name and the time (whoever leaks it is named on it); and the existing export mark with
     "Strictly confidential" added.
   - Excel: a picture behind the cells, the label with the case, the person and the time, diagonal and
-    light violet (Excel's own sheet background: Excel shows it on screen and doesn't print it; LibreOffice
-    prints it); the line in every sheet's header and footer (on paper); and the line as the first and
-    last row of every sheet. Any of them can be taken out by whoever has the file:
-    the mark names who exported it, it doesn't prevent (suveryn-tracker#183).
+    light violet (Excel's own sheet background, on screen); the same picture in every sheet's header, so
+    it prints on every page (Microsoft's own way to print a watermark from Excel; on screen only in the
+    page layout view); the line in every sheet's header and footer; and the line as the first and last
+    row of every sheet. Any of them can be taken out by whoever has the file: the mark names who
+    exported it, it doesn't prevent (suveryn-tracker#183, #184).
   - Markdown and CSV: a first line.
   - *Copy* can't carry a watermark and stays as it is.
 - In *Recent*, in search results and in the Conversations overview, its conversations appear
@@ -736,7 +737,7 @@ conversations, and the client shows the placeholder.
 
 - Turning the label on also restricts the access, and the access can't be opened while it is on (409); turning it off and opening in one change is allowed. The `UPDATE` itself refuses while the label is on, so two managers changing the case at once can't leave it labelled and open. Unsharing happens in the same request, and the access log's `confidential_on` says how many were unshared.
 - Only `GET /v1/conversations?all=true` (Recent, search, the Conversations overview) shields titles; the case's own list keeps them. A shielded title isn't searched.
-- Word: the same picture as Excel's, the label with the case, the person and the time, as Word's own picture watermark (Design › Watermark, so Word recognises it), in the brand's confidential violet, light (the token at 30% on white, `OFFICE_COLOURS.watermark`); without a canvas, the label alone as Word's text watermark. With it, the line in the header and "Strictly confidential" in the export mark. Excel: the header, the footer and the picture are added through write-excel-file's own extension point, its "features" (`lib/excelWatermark.ts`); the picture is drawn in the browser (`OffscreenCanvas`) in the same violet, and without a canvas the file has the rest. Markdown, CSV and the sources' text files: the line first. The playbook result's Word file and a saved answer carry it too; *Copy* doesn't. The watermark is made at each download, with the person's name and the time, in the interface language (`lib/watermark.ts`).
+- Word: the same picture as Excel's sheet background, the label with the case, the person and the time, as Word's own picture watermark (Design › Watermark, so Word recognises it), in the brand's confidential violet, light (the token at 30% on white, `OFFICE_COLOURS.watermark`); without a canvas, the label alone as Word's text watermark. With it, the line in the header and "Strictly confidential" in the export mark. Excel: the header, the footer and the two pictures (the sheet background, landscape, and the header's, shaped like a page) are added through write-excel-file's own extension point, its "features" (`lib/excelWatermark.ts`); the pictures are drawn in the browser (`OffscreenCanvas`) in the same violet, and without a canvas the file has the rest. LibreOffice prints the sheet background, repeated across the page, and leaves out the header's picture. Markdown, CSV and the sources' text files: the line first. The playbook result's Word file and a saved answer carry it too; *Copy* doesn't. The watermark is made at each download, with the person's name and the time, in the interface language (`lib/watermark.ts`).
 - The switch is in *Members and access* for the manager, with what it changes and how many conversations it will unshare.
 
 ## 12. Dialogs

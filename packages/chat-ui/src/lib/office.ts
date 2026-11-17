@@ -5,7 +5,7 @@
  */
 import type { Segment, Table } from "./answer";
 import { cellValue, segmentText, tableRows, type AnswerExport, type SourceItem } from "./export";
-import { excelWatermark, watermarkPicture } from "./excelWatermark";
+import { excelWatermark, PAPER, SCREEN, watermarkPicture, type PictureSize } from "./excelWatermark";
 import type { Watermark } from "./watermark";
 
 export type OfficeText = {
@@ -78,13 +78,13 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
 
 /** The picture behind a strictly confidential export: the label, and the case, the person and the time. Made in
  *  the browser (lib/excelWatermark.ts); the tests give their own, or none. */
-export type WatermarkPicture = (w: Watermark) => Promise<ArrayBuffer | undefined>;
-const PICTURE: WatermarkPicture = (w) => watermarkPicture(w, OFFICE_COLOURS.watermark);
+export type WatermarkPicture = (w: Watermark, size: PictureSize) => Promise<ArrayBuffer | undefined>;
+const PICTURE: WatermarkPicture = (w, size) => watermarkPicture(w, OFFICE_COLOURS.watermark, size);
 
 /** The picture, or none when it can't be made: a download never fails on its watermark picture; the file
  *  then has the rest of the watermark (lib/excelWatermark.ts). */
-async function pictureOrNone(picture: WatermarkPicture, w: Watermark): Promise<ArrayBuffer | undefined> {
-  try { return await picture(w); } catch { return undefined; }
+async function pictureOrNone(picture: WatermarkPicture, w: Watermark, size: PictureSize = SCREEN): Promise<ArrayBuffer | undefined> {
+  try { return await picture(w, size); } catch { return undefined; }
 }
 
 /** A strictly confidential case's watermark on every page (docs/design/chat-ui.md §11): the picture
@@ -112,8 +112,8 @@ function markFooter(d: typeof import("docx"), mark: string | undefined) {
 }
 
 /** One table as an Excel workbook: the table (with each row's sources), the sources, what to check. In a strictly
- *  confidential case, with its watermark (lib/excelWatermark.ts); `picture` makes the sheet background, and is
- *  given by the tests, which have no canvas. */
+ *  confidential case, with its watermark (lib/excelWatermark.ts); `picture` makes the sheet background and the
+ *  printed picture, and is given by the tests, which have no canvas. */
 export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText,
                                    picture: WatermarkPicture = PICTURE): Promise<Blob> {
   const { default: writeExcelFile } = await import("write-excel-file/browser");
@@ -143,7 +143,7 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText,
     sheets.push({ sheet: text.sheetChecks, stickyRowsCount: 0, data: a.checks.map((c) => [{ value: c, wrap: true }]) as never, columns: [{ width: 100 }] });
   }
   // A strictly confidential case (§11): the watermark line first and last on every sheet, above the frozen
-  // header; the header, the footer and the sheet background are added by the feature below.
+  // header; the header, the footer and the two pictures are added by the feature below.
   if (a.watermark) {
     const line = [{ value: a.watermark.line, fontWeight: "bold" as const }];
     for (const sh of sheets) {
@@ -153,7 +153,8 @@ export async function tableToExcel(t: Table, a: AnswerExport, text: OfficeText,
   }
   if (!a.watermark) return writeExcelFile(sheets as never).toBlob();
   const utility = await import("write-excel-file/utility");
-  const feature = excelWatermark(a.watermark, await pictureOrNone(picture, a.watermark), utility);
+  const feature = excelWatermark(a.watermark, { screen: await pictureOrNone(picture, a.watermark, SCREEN),
+                                                paper: await pictureOrNone(picture, a.watermark, PAPER) }, utility);
   return writeExcelFile(sheets as never, { features: [feature] } as never).toBlob();
 }
 
