@@ -290,8 +290,9 @@ A legend under the table explains *Source* and *Made*.
 
 **Personal or in a case.**
 
-A personal conversation has a white pane and a title bar: its title and its menu. A lock and
-"Personal conversation" sit under the composer (artboard 12).
+A personal conversation has a white pane and, on a wide screen, a title bar: its title and a chevron that opens the
+same menu as its row in the column (G03, G05). A lock and "Personal conversation" sit under the
+composer (artboard 12).
 
 A conversation in a case has:
 
@@ -324,17 +325,16 @@ Every conversation's turns are rows in the `turns` table; a playbook's are writt
 - **Models**: each with one line on what it is for, and a check on the current one.
 - **Thinking**: a segmented `RadioGroup` with *Fast* (answers at once) or *Thorough* (thinks first,
   slower).
-  - The choice applies to the conversation. The default lives under *Settings*.
+  - The choice applies to the conversation. The default lives under *Settings*, kept in this browser.
   - With a model that cannot think, *Thorough* is disabled and gives the reason. Whether a model can
     think is decided by model family in the harness (`ModelInfo.thinks`).
-- The chip shows the model and, when thinking is on, the ink `brain` icon and "· Thorough" (decided
-  21 October: the model's name stays on the chip).
-- Built: the per-request flag `ChatRequest.thinking`; the presets still switch thinking off by
-  default, and a request turns it on for itself (`suveryn_harness/thinking.py`).
+- The chip shows the model and, when thinking is on, the ink `brain` icon and "· Thorough".
+- The presets switch thinking off by default, and a request turns it on for itself
+  (`suveryn_harness/thinking.py`).
 
 **Working** (artboard 10).
 
-Built: `WaitingDots` in Messages.tsx. Three outlined squircles (the mark's shape) in `text-dim`
+`WaitingDots` in Messages.tsx: Three outlined squircles (the mark's shape) in `text-dim`
 bounce in turn; they stand still under `prefers-reduced-motion`.
 
 - Before the first word, one status line with the squircles. Each step replaces the last: `sending`,
@@ -343,11 +343,7 @@ bounce in turn; they stand still under `prefers-reduced-motion`.
 - No step list, no caret.
 - `aria-live="polite"`, `aria-busy`.
 
-Built in phase b: *Stop* (Esc) in the send button's place, with the input still usable for the
-next question.
-
-Built: a collapsed "Thought for 14 s" button above the answer, in *Thorough* only, that opens the
-reasoning, with the line that it isn't checked.
+*Stop* (Esc) takes the send button's place, and the input stays usable for the next question.
 
 **Citations and the source panel** (artboard 11).
 
@@ -362,7 +358,7 @@ marker in the text or the item in the line opens the source panel on that source
 is filled in both places, and its link carries `aria-current`. Its name is "Source 1: Compromis_DeSmet.pdf,
 page 4". A playbook's card and the facts list show a fact's source with the same `SourceRef`.
 
-Clicking a citation opens a 440 px panel on the right; Esc closes it. The panel holds:
+Clicking a citation opens a 440 px panel on the right. The panel holds:
 
 - the source number, the file, the page and the case;
 - previous and next, between the answer's sources;
@@ -389,30 +385,28 @@ is ready.
 
 - A bar at the top: `surface-alt`, ink, a `wifi-off` icon. It says "Can't reach the sūveryn server.",
   that nothing is lost, "Trying again in 10 seconds.", and offers *Try now*.
-- An answer that was cut off says so under its last word, with *Regenerate*.
 - The composer keeps the typed text. Send is disabled (grey, not orange), with the reason beside it.
 
 ### As built: the pane
 
-- The case header: the case and its type, the conversation, the members (the manager first; the button opens *Members*), the document count (opens Documents filtered on the case) and the case's menu. The members are read when it opens and after *Members* closes. In a case the pane is `case-surface`, and the case's documents are read again every 30 seconds while the page is visible.
-- The composer has no case chip: the header, the placeholder ("Ask about case 123…") and the line under the box name the case.
-- Attachments are cards inside the question box (above it on a narrow screen); in the person's turn they are chips. Asking doesn't wait for documents being read: a question goes with what is read, and a document still being read stays in the composer for the next question (`staysInComposer`).
+- The case header: the case and its type, the conversation, the members (the manager first; the button opens *Members*), the document count (opens Documents filtered on the case) and the case's menu. The members are read when it opens and after *Members* closes. The case's documents are read again every 30 seconds while the page is visible.
+- The composer has no case chip: the header, the placeholder and the line under the box name the case.
+- In the person's turn, attachments are chips. A question goes with what is read; a document still being read stays in the composer for the next question (`staysInComposer`).
 - A card shows the reading's progress: "Recognising text · page 4 of 12" while scanned pages are recognised (the reader reports pages through an OCRmyPDF plugin, `ocr_progress.py`), then "Reading the layout of 12 pages" with a moving bar (Docling reports no pages), then "Storing". Its × cancels: an upload on its way stops in the browser; one waiting is never read; one being read stops at once (the reader is killed); one already being stored finishes. Cancelling is in the access log.
 - The × on a card only takes the file out of the question; it never deletes (decision of 9 November 2026, board G13). Deleting is a quiet worded link under the card's button ("Uit dossier verwijderen" in a case), with a confirmation, on the card sūveryn noticed as its own answer and on the card that couldn't be read (look review of 9 November). A card that needs checking says why ("check p. 2 (hard to read)"), and a noticed answer names the case and the day it came from.
 - A failed card says the reason from the job's `failure`, a code of the registry's `document` area (`document.password_protected`, `document.damaged`, `document.pages_too_many`, `document.too_large`, `document.no_text`, `document.unsupported`, `document.reading_too_slow`, `document.unreadable`; [messages.md](messages.md)), in the interface's language (`failureText`); the English sentence stays for the API and the log. *Another file* replaces the card.
 - The source panel replaces a card under the answer. It is not modal; the focus moves into it when a citation opens it and back when it closes; Esc closes it from inside it. Below 768 px it is a modal drawer from the right. *Open document at p. 3* opens the file as uploaded in a new tab, a PDF at the cited page (`#page=3`); a Word or Markdown file has no page, so it reads *Open document*. It sits next to *Copy passage* and replaces the passage's download (board G11, 6 November 2026). A playbook fact's passage whose document was deleted since offers the passage's download instead.
-- The verdict in words: for a marker, whether its sentence's names, dates and figures are in the passage; for an item of the sources line, whether everything the answer takes from that source is; "not checked" for a stopped answer. The active marker is filled teal with ink text, in the text and in the sources line.
+- The verdict in words: for a marker, whether its sentence's names, dates and figures are in the passage; for an item of the sources line, whether everything the answer takes from that source is; "not checked" for a stopped answer.
 - Above every sourced answer a quiet line names the documents it rests on ("Based on akte-verkoop.pdf"): it is the one cue that shows an answer mixing documents.
-- **A personal conversation has a title bar** (G03): its title and a chevron that opens the same menu as its row in the column (G05). A conversation in a case keeps the case header.
 - **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`, `withoutDocument`).
 
 ### As built: stopping, failing and asking again
 
 - A stopped answer keeps what was written, with "Stopped. Incomplete and not checked." Its markers still open their passages, because a grounded answer's passages are sent before its first word (SSE `sources`). Checks run only on a finished answer, and Word export is offered for finished answers only. A stopped answer is saved, but not sent to the model as history.
 - Stopping stops the model: the gateway watches the connection from the start and closes its own to llama-server when it closes. Tokens used until then are still recorded. Esc stops wherever the focus is, except in an open menu or dialog, which it closes first; the focus then goes to the question box.
-- A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, under "Answer interrupted: the connection dropped." Any other failure shows nothing of the attempt. Both offer *Regenerate* on the last answer: the same question, with the same documents, in its place.
+- A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, with "Answer interrupted: the connection dropped." under its last word. Any other failure shows nothing of the attempt. Both offer *Regenerate* on the last answer: the same question, with the same documents, in its place.
 - An answer that stops at its length limit says so; a cut-off answer says it is incomplete. The server logs such a stop by counts only.
-- The server-unreachable bar shows after a health check found nothing, not while the first one runs; it counts down to the next check (every 10 seconds) and *Try now* checks at once. Its title is announced once, the countdown isn't. The composer keeps the text and says why it can't send.
+- The server-unreachable bar shows after a health check found nothing, not while the first one runs; it counts down to the next check (every 10 seconds) and *Try now* checks at once. Its title is announced once, the countdown isn't.
 - When the database or the sign-in service is down, the gateway's 503s carry a code (`system.database_unavailable`, `auth.unavailable`; [messages.md](messages.md)) so every message can say which part is down. The sign-in page says the database can't be reached, what to do if it stays so, and offers *Try again*. A sign-in service that answers with a server error doesn't sign people out; their session waits. Deleting a document while the saved conversations can't be read is refused in the app with a sentence, and on the server.
 - The question being typed is kept for the browser tab (`lib/draft.ts`, sessionStorage) until it is sent, emptied or the person signs out, so it survives signing in again after a restart.
 - A grounded answer that cites none of its passages is logged by counts only (passages, whole or selected, earlier answers and their markers, answer length, thinking), to study the cause without document text (suveryn-tracker#54).
@@ -426,8 +420,8 @@ is ready.
 
 - `ChatRequest.thinking`: for a model that can think (`ModelInfo.thinks`, by family), the request sends llama-server `chat_template_kwargs: {"enable_thinking": …}`, and *Thorough* gets 4,096 tokens on top of the answer's own. The reasoning comes back apart from the answer (`reasoning_content`) or between `<think>` tags, taken out even when split over chunks. The stream sends a `thinking` status, `thinking` events, then the answer; `done` carries `reasoning` and `thought_seconds`. The reasoning is never in the answer, its checks, *Copy* or the downloads, and never goes back to the model.
 - When the thinking runs past its 4,096 tokens without an answer, or the answer comes back empty because the thinking used the budget, the question is asked again without thinking, and the answer says "Thorough thought for too long without an answer, so this one was written without thinking. Ask more narrowly to have it thought through." (`done.thinking_cut`). The whole answer at once (`POST /v1/chat` without streaming) does the same, and gives `thought_seconds` as the thinking's share of the call.
-- The model chip opens one dialog (`ChipDialog`): the models when there are several, and *Fast* / *Thorough* (`Segmented`). With a model that can't think, *Thorough* is disabled with the reason. On a narrow screen the "+" menu has a *Thinking* submenu.
-- The choice belongs to the conversation: each answer records it, and a reopened conversation goes on with it. A new conversation starts with the default under *Settings*, kept in this browser. "Thought for 14 s" opens the reasoning, with "How the model reasoned. Not checked; the answer is."
+- The dialog is `ChipDialog`: the models when there are several, and *Fast* / *Thorough* (`Segmented`). On a narrow screen the "+" menu has a *Thinking* submenu.
+- Each answer records the choice, and a reopened conversation goes on with it. In *Thorough* only, a collapsed "Thought for 14 s" above the answer opens the reasoning, with "How the model reasoned. Not checked; the answer is."
 
 ### As built: a playbook in the conversation
 
@@ -439,7 +433,7 @@ is ready.
 - **Typing while sūveryn reads** (P04, 3): the field stays open ("U kunt al verder typen…"); what is sent is held in the page and goes as the person's turn when the playbook next waits. A reload before then loses it.
 - **The thread in the reader's language** (suveryn-tracker#126, the handbook's decision of 12 November 2026): the playbook's lines, its questions and a person's button answers are stored as their meaning and worded here (`lib/runTurns.ts`), so two colleagues in one case each read the run in their own language; the run's title in the column and the overviews too (`listedTitle`, from the conversation's `titles`).
 - **Who a run waits for** (P04, 7): the chip in the lists reads "Akte-intake · wacht op Mieke", "· wacht op u" for the person who started it, "· wacht op een lid" at the checkpoint; the same words beside the run under its case in the column (P01), in bold.
-- **The last run in the playbook menu** (P04, 9): under each playbook, "Laatst: vandaag, klaar · start een nieuw gesprek" from the case's runs (`GET /v1/cases/{id}/playbooks/runs`); for a run still open, "Loopt: wacht op Mieke · opent dat gesprek", and choosing the playbook opens that conversation. Never run in this case: no line.
+- **The last run in the playbook menu** (P04, 9): under each playbook, "Laatst: vandaag, klaar · start een nieuw gesprek" from the case's runs (`GET /v1/cases/{id}/playbooks/runs`); for a run still open, "Loopt: wacht op Mieke · opent dat gesprek". Never run in this case: no line.
 
 ## 6. Saving answers, and where a document comes from
 
@@ -447,7 +441,7 @@ is ready.
 ("Answer actions") holds:
 
 - *Copy*;
-- *Word*: already built (`lib/office.ts`, `OfficeButton` in Messages.tsx), with the question, date,
+- *Word* (`lib/office.ts`, `OfficeButton` in Messages.tsx), with the question, date,
   model, warnings and sources;
 - *Save to case*, in a case only.
 
@@ -459,26 +453,23 @@ source per row; amounts become numbers, and anything ambiguous stays text.
 - The word downloads the default format.
 - The chevron opens a `Menu`: *Word (.docx)* or *Markdown (.md)* for an answer, *Excel (.xlsx)* or
   *CSV (.csv)* for a table.
-- Every format has the same content. CSV is UTF-8 with semicolons (as Belgian Excel expects) and the
-  source as a column.
-- The last format chosen becomes the person's default.
+- Every format has the same content, apart from the export mark (below).
 - The code: `answerToMarkdown` and `tableToCsv` in `lib/textfiles.ts`, next to `lib/office.ts` and
   built on the same `AnswerExport` and `tableRows`; the default in `lib/downloadFormat.ts`; the
   kit's `SplitButton`.
 
 **Save to case** stores the answer as a case document with origin `answer`, beside `uploaded`,
-`generated` and `playbook`: what builds the Word file, not the file.
+`generated` and `playbook`.
 
 - Afterwards the toolbar reads "✓ Saved to case 123 as *title*.docx", with *Open* (Documents,
   filtered on the case) and *Undo*.
 - *Undo* deletes the document, and is offered until the person leaves the conversation.
 - `POST /v1/cases/{id}/documents` takes the answer's text and content with the conversation and
   message ids, so the document leads back to the answer.
-- The file is built in the browser on download.
 - Personal conversations have no *Save to case*; download stays.
 
 **Source or Made.** Every document shows where it comes from, as an icon and a word, both ink
-(built in phase a, `lib/origin.ts`):
+(`lib/origin.ts`):
 
 - **Source** (`file-text`): what a person uploaded. The model may cite it.
 - **Made** (`file-output`): a playbook result, an export or a saved answer. It is **never a
@@ -492,13 +483,13 @@ table explains the two words. The same icon follows the document wherever it app
 
 **sūveryn's own output coming back as an upload.** A downloaded answer can be edited and uploaded
 again; then it would be a source, and the model would cite its own earlier output as evidence. This
-can't be closed completely, but the common case is caught (built in phase a):
+can't be closed completely, but the common case is caught:
 
 - **The mark** is one plain line of real text on every Word and Excel export: "Made by sūveryn:
   answer from case 2026/0611, 19/10/2026 · sūveryn-ref A-3f9c2e1b", small and light in the Word
   footer, at the end of the Excel sources sheet. The words follow the interface language;
   `sūveryn-ref` and the code don't, so it is found in any language. Being real text, it survives
-  "Save as PDF"; a scanned printout is not caught. Markdown gets it as a comment (phase e); CSV
+  "Save as PDF"; a scanned printout is not caught. Markdown gets it as an HTML comment; CSV
   carries none, by decision.
 - **On upload**, the mark is read from the text layer (footers included). The upload is stored and
   never blocked. The attachment card says "This looks like an answer from sūveryn", quotes the
@@ -515,21 +506,21 @@ can't be closed completely, but the common case is caught (built in phase a):
 - The mark is a visible line rather than document properties or a hash, because it survives conversion to PDF (tested with a Word export saved as PDF, in `packages/rag/tests/fixtures`).
 - Uploads can be PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV (`suveryn_rag.formats`). The others are read directly from the file, in the same sandboxed reader, with no OCR or layout model. Older .doc and .xls, macro-enabled and password-protected files are refused with the list of what can be added.
 - Where a passage comes from: in Word and Markdown, its section ("Article 2 › Price"); in Excel and CSV, its cells in Excel's notation ("Prices!A2:D31"), the same in every language. Word and Markdown have no pages, so the sources line shows the file name; *Copy passage* and the downloads give the section. Lists show "Word", "Excel", "Markdown" or "CSV" where a PDF shows its pages.
-- Excel values are read as last calculated, never as formulas; each sheet's first row is repeated at the top of its passages, so the model sees what the columns are; hidden sheets are read. Word headers and footers and Markdown comments are not passages, but are checked for the export mark. CSV carries no mark.
+- Excel values are read as last calculated, never as formulas; each sheet's first row is repeated at the top of its passages, so the model sees what the columns are; hidden sheets are read. Word headers and footers and Markdown comments are not passages, but are checked for the export mark.
 
 ### As built: saving answers
 
-- What is stored is what builds the Word file, not the file: the question, the answer, its sources with their file names as they were, its checks and the answer's id (`documents.content`). The file is built again in the browser on download, mark included. The question and answer are also stored as text, so search finds them.
+- What is stored: the question, the answer, its sources with their file names as they were, its checks and the answer's id (`documents.content`). The file is built again in the browser on download, mark included. The question and answer are also stored as text, so search finds them.
 - The file is named after the answer's own question, so several answers from one conversation can be told apart. Saving the same answer again gives the document already saved.
 - Deleting a document takes its passages and file name out of the answers saved where it was, as out of saved conversations (suveryn-tracker#12); the answer stays.
-- The case's manager may delete a saved answer, and so may the contributor who saved it (*Undo*, offered during the visit in which it was saved). *Open* shows Documents filtered on the case. Saving is in the case's access log.
-- The answer's actions are a `Toolbar` after the sources (one Tab stop, arrow keys), with *Copy*: the answer without markers, then its sources.
+- The case's manager may delete a saved answer, and so may the contributor who saved it (*Undo*). Saving is in the case's access log.
+- The toolbar is one Tab stop, with arrow keys inside; *Copy* gives the answer without markers, then its sources.
 
 ### As built: downloads
 
 - The download button is two buttons in a group: the word ("Download this answer as a Word document, with its sources") and the chevron, "Other formats", a single-choice menu with the default ticked. Choosing a format downloads it and makes it the default, per kind (answers, tables), kept in this browser (`suveryn.format.answer`, `suveryn.format.table`). While a file is made the buttons stay enabled and a second press is ignored, so the focus isn't lost.
-- Markdown: the question as the heading, the date and model, the answer with its markers, *To check*, each cited source with its passage as a quote, the disclaimer, and the export mark as an HTML comment. What the model wrote is escaped, so it can't add headings, links or HTML.
-- CSV: UTF-8 with a byte order mark, semicolons and CRLF, as Belgian Excel opens it, with a last column of sources. A cell that starts with `=`, `+`, `-` or `@` and isn't a number gets a leading `'`, so it can't run as a formula. No mark.
+- Markdown: the question as the heading, the date and model, the answer with its markers, *To check*, each cited source with its passage as a quote, and the disclaimer. What the model wrote is escaped, so it can't add headings, links or HTML.
+- CSV: UTF-8 with a byte order mark, semicolons and CRLF, as Belgian Excel opens it, with a last column of sources. A cell that starts with `=`, `+`, `-` or `@` and isn't a number gets a leading `'`, so it can't run as a formula.
 - Download names lose a trailing dot.
 
 ## 7. Administration
