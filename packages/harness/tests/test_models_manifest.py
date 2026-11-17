@@ -21,3 +21,20 @@ def test_every_model_file_has_its_size_and_checksum():
     assert files, "no model file in the manifest"
     for model in files:
         assert re.fullmatch(r"[0-9a-f]{64}", model["sha256"]) and model["size_bytes"] > 0, model["id"]
+
+
+def test_the_example_presets_load_the_manifests_file_and_cache():
+    """The example presets repeat each model's file and cache (suveryn-tracker#133: Mistral's file and its 4-bit
+    cache are what keep the document reader room on a 24 GB card); this keeps those two settings the same in both
+    copies. Generating the presets from the manifest would end the copy (#133's comment, settings as data)."""
+    import configparser
+    import shlex
+
+    ini = configparser.ConfigParser(inline_comment_prefixes=(";",), interpolation=None)
+    ini.read(Path(__file__).parents[3] / "models" / "llama-server-presets.example.ini", encoding="utf-8")
+    for model in (m for m in MANIFEST["models"] if m["role"] == "llm"):
+        preset = ini[model["id"]]
+        assert Path(preset["model"]).name == model["file"], model["id"]
+        args = shlex.split(model["llama_server_args"])
+        for flag, key in (("-ctk", "cache-type-k"), ("-ctv", "cache-type-v")):
+            assert preset.get(key, ini["*"][key]) == args[args.index(flag) + 1], (model["id"], key)
