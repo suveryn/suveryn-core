@@ -21,6 +21,7 @@ export type Attachment = {
   removed?: boolean; // the document was deleted; its name was taken out (suveryn-tracker#12)
   noticed?: Noticed;  // sūveryn's export mark found in the file (docs/design/chat-ui.md §6)
   notAdded?: boolean; // failed on arrival: refused, or left out of its archive. Nothing went wrong reading it
+  archive?: string;   // left out of this .zip (with notAdded; why: failure)
 };
 
 /** A document chosen under *Ask about* (docs/design/chat-ui.md §10). ``removed``: deleted since, its

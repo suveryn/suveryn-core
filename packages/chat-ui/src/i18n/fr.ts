@@ -60,6 +60,7 @@ const fr: Messages = {
     "upload.archive_files_too_many": m("Cette archive contient plus de fichiers que le serveur n''en accepte ({max, number})."),
     "upload.archive_too_large": "Une fois décompressée, cette archive dépasse la taille acceptée par le serveur.",
     "upload.archive_empty": "Cette archive est vide.",
+    "upload.archive_inside_unsupported": "Une archive dans l'archive n'est pas ouverte. Ajoutez-la séparément.",
     "upload.inbox_unavailable": "Les documents ne peuvent pas être ajoutés pour le moment. Demandez à votre administrateur de consulter État.",
     "upload.disk_full": "Le disque de l'appliance est presque plein. Aucun document ne peut être ajouté tant qu'il n'y a pas de place : demandez à votre administrateur de consulter État.",
     "upload.already_read": "Cet envoi a déjà été lu et est maintenant un document. Supprimez plutôt le document.",
@@ -166,7 +167,6 @@ const fr: Messages = {
   uploadInterrupted: "L'envoi a été interrompu.",
   uploadLost: "Cette page a perdu la trace du téléversement. S'il n'est pas dans les documents, ajoutez-le à nouveau.",
   streamCutOff: "La connexion a été coupée avant que la réponse soit complète.",
-  archiveSkipped: m("{reason, select, unsupported {Depuis {archive} : sūveryn ne lit pas ce type de fichier.} archive {Depuis {archive} : une archive dans l''archive n''est pas ouverte ; ajoutez-la séparément.} encrypted {Depuis {archive} : il est protégé par un mot de passe.} too_large {Depuis {archive} : il dépasse la taille acceptée par le serveur.} empty {Depuis {archive} : il est vide.} invalid {Depuis {archive} : son contenu ne correspond pas à son extension.} damaged {Depuis {archive} : il est endommagé dans l''archive.} other {Depuis {archive} : il ne peut pas être lu.}}"),
 
   emptyIntro: "Ajoutez un document et posez une question à son sujet. Chaque réponse cite sa source.",
 
@@ -797,6 +797,7 @@ const fr: Messages = {
   cardCheckNeeded: "Utilisable · à vérifier",
   cardFailed: "N'a pas pu être lu.",
   cardNotAdded: "Non ajouté.",
+  cardNotAddedFrom: m("{file} de {archive} n'a pas été ajouté."),
   cardNoticedFrom: m("dossier {caseRef}, {day}"),
   cardNoticedNotSource: "Il ne compte pas comme source.",
   deleteUpload: "Supprimer",

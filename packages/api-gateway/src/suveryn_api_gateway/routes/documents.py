@@ -49,9 +49,9 @@ async def create_upload(request: Request, file: UploadFile = File(...), case: st
     ``needs_review``), then use its ``document_id`` in chat requests.
 
     A .zip archive adds each of those files inside it as a document of its own: the answer is then
-    ``{"archive": name, "jobs": [job, …], "skipped": [{"name", "reason"}, …]}``, a job per document and
-    the entries left out (another kind of file, an archive inside it, encrypted, too large, empty, not
-    what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty. An archive is
+    ``{"archive": name, "jobs": [job, …], "skipped": [{"name", "failure"}, …]}``, a job per document and
+    the entries left out, each with why as a message of the registry (``failure``: another kind of file, an
+    archive inside it, encrypted, too large, empty, not what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty. An archive is
     one upload against the queue limits, however many documents it holds."""
     docs = docs_or_503(request)
     scope = await scope_of(request, case, "contribute")

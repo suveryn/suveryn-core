@@ -200,10 +200,10 @@ class Rag:
         # (suveryn-tracker#21). It doesn't change the status: the text isn't missing.
         # Pages the layout model couldn't read (suveryn-tracker: GPU out of memory, 2026-10-11): their text
         # comes only from the text-layer recovery, without structure; the document needs review.
-        result.warnings += [IntegrityWarning(page, "layout_failed", "the layout model couldn't read this page; "
+        result.warnings += [IntegrityWarning(page, "document.layout_failed", "the layout model couldn't read this page; "
                                              "its text was recovered from the PDF text layer") for page in ex.layout_failed_pages]
         suspicious = {page: kinds for page, text in enumerate(ex.page_texts, 1) if (kinds := instruction_like(text))}
-        result.warnings += [IntegrityWarning(page, "instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))
+        result.warnings += [IntegrityWarning(page, "document.instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))
                             for page, kinds in suspicious.items()]
         ex.timings["chunk"] = time.perf_counter() - t
         t = time.perf_counter()
@@ -238,9 +238,9 @@ class Rag:
         chunks = [Chunk(i, p.text, "\n".join([*p.headings, p.text]), None, None, list(p.headings), place=p.place)
                   for i, p in enumerate(ex.passages)]
         if not chunks:
-            raise Unreadable("the file has no text", "no_text")
+            raise Unreadable("the file has no text", "document.no_text")
         kinds = sorted({k for c in chunks for k in instruction_like(c.text)})
-        warnings = [IntegrityWarning(None, "instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))] if kinds else []
+        warnings = [IntegrityWarning(None, "document.instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))] if kinds else []
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         ex.timings["embed"] = time.perf_counter() - t
         t = time.perf_counter()

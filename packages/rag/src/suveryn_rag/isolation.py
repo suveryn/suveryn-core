@@ -185,13 +185,13 @@ class IsolatedExtractor:
                 left = deadline - time.monotonic()
                 if left <= 0:
                     self._stop()
-                    raise ExtractionFailed(too_slow, "reading_too_slow", minutes=max(1, round(self.timeout_s / 60)))
+                    raise ExtractionFailed(too_slow, "document.reading_too_slow", minutes=max(1, round(self.timeout_s / 60)))
                 if not sel.select(min(left, CANCEL_CHECK_S)):
                     continue
                 block = os.read(self._proc.stdout.fileno(), 1 << 20)
                 if not block:
                     self._stop()
-                    raise ExtractionFailed("the document reader stopped (the file may be damaged or malformed)", "damaged")
+                    raise ExtractionFailed("the document reader stopped (the file may be damaged or malformed)", "document.damaged")
                 self._pending += block
                 if len(self._pending) > MAX_MESSAGE_BYTES:
                     self._stop()
@@ -232,7 +232,7 @@ class IsolatedExtractor:
                 r = self._receive(deadline, too_slow, watch)
             if not r.get("ok"):
                 detail = r.get("detail") if isinstance(r.get("detail"), dict) else {}
-                raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300], str(r.get("code") or "unreadable"),
+                raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300], str(r.get("code") or "document.unreadable"),
                                        **{k: v for k, v in detail.items() if k in ("pages", "max", "minutes") and isinstance(v, int)})
             try:
                 return Extraction(document=_document_from_json(r["document"]), pages=int(r["pages"]),
@@ -293,7 +293,7 @@ def serve(extract: Callable[..., Extraction], requests: IO[bytes], answers: IO[b
                   "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
                   "layout_failed_pages": ex.layout_failed_pages, "passages": passages, "furniture": ex.furniture})
         except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
-            send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}", "code": getattr(e, "code", "unreadable"),
+            send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}", "code": getattr(e, "code", "document.unreadable"),
                   "detail": getattr(e, "detail", {})})
 
 

@@ -71,6 +71,7 @@ const en = {
     "upload.archive_files_too_many": m("This archive holds more files than the server accepts ({max, number}).", "max"),
     "upload.archive_too_large": "This archive unpacks to more than the server accepts.",
     "upload.archive_empty": "This archive is empty.",
+    "upload.archive_inside_unsupported": "An archive inside the archive isn't opened. Add it on its own.",
     "upload.inbox_unavailable": "Documents can't be added right now. Ask your administrator to look at Status.",
     "upload.disk_full": "The appliance's disk is nearly full. No documents can be added until there is room: ask your administrator to look at Status.",
     "upload.already_read": "This upload has already been read and is a document now. Delete the document instead.",
@@ -178,7 +179,6 @@ const en = {
   uploadLost: "This page lost track of the upload. If it isn't in the documents, add it again.",
   streamCutOff: "The connection closed before the answer was complete.",
   // Server errors, by HTTP status (the server's own text is English).
-  archiveSkipped: m("{reason, select, unsupported {From {archive}: sūveryn doesn''t read this kind of file.} archive {From {archive}: an archive inside the archive isn''t opened; add it on its own.} encrypted {From {archive}: it is protected by a password.} too_large {From {archive}: it is larger than the server accepts.} empty {From {archive}: it is empty.} invalid {From {archive}: its content doesn''t match its extension.} damaged {From {archive}: it is damaged in the archive.} other {From {archive}: it can''t be read.}}", "archive", "reason"),
 
   // empty state
   emptyIntro: "Add a document and ask about it. Every answer names its source.",
@@ -835,6 +835,7 @@ const en = {
   cardCheckNeeded: "Usable · check it",
   cardFailed: "Couldn't be read.",
   cardNotAdded: "Not added.",
+  cardNotAddedFrom: m("{file} from {archive} wasn't added.", "file", "archive"),
   // board G13: an upload that looks like sūveryn's own answer, where it came from
   cardNoticedFrom: m("case {caseRef}, {day}", "caseRef", "day"),
   cardNoticedNotSource: "It doesn't count as a source.",

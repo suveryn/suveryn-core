@@ -34,9 +34,9 @@ def fake_extract(pdf: Path, watch: Watch | None = None) -> Extraction:
     if pdf.stem == "fails":
         raise ValueError("no pages")
     if pdf.stem == "locked":
-        raise Unreadable("the PDF is protected with a password", "password_protected")
+        raise Unreadable("the PDF is protected with a password", "document.password_protected")
     if pdf.stem == "big":
-        raise Unreadable("the document has 900 pages; at most 500 can be read", "pages_too_many", pages=900, max=500)
+        raise Unreadable("the document has 900 pages; at most 500 can be read", "document.pages_too_many", pages=900, max=500)
     if pdf.stem in ("progress", "slow"):
         for done in range(1, 4 if pdf.stem == "progress" else 2):
             watch.report(Progress("ocr", done, 3))

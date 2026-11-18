@@ -66,11 +66,11 @@ export function messageText(msg: Message, m: MessageWords): string {
   return m.messageKinds[kind] ?? m.messageKinds.refused;
 }
 
-/** The general code a status stands for, for an answer that isn't the gateway's own (a proxy's 502, a page of HTML). */
+/** The general code a status stands for, for an answer that isn't the gateway's own (a proxy's 502, a page of HTML):
+ *  the registry's `general`, which the server reads too. */
 export function generalMessage(status: number): Message {
-  const code: MessageCode = status === 401 ? "auth.signed_out" : status === 403 ? "request.forbidden" : status === 404 ? "request.not_found"
-    : status === 409 ? "request.conflict" : status === 413 ? "request.too_large" : status === 415 ? "request.unsupported"
-    : status === 429 ? "request.too_many" : status === 500 ? "system.internal" : status >= 500 ? "system.unavailable" : "request.invalid";
+  const general = registry.general as { statuses: Record<string, MessageCode>; client: MessageCode; server: MessageCode };
+  const code = general.statuses[String(status)] ?? (status >= 500 ? general.server : general.client);
   return { kind: registry.codes[code].kind, code, params: {} };
 }
 

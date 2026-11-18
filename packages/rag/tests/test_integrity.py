@@ -47,7 +47,7 @@ def test_page_coverage_flags_missing_text_only():
              "Artikel 2 Voor eensluidend afschrift getekend door de notaris te Gent op heden.\n2"]
     chunks = [(1, 1, "De koopprijs bedraagt EUR 412.500,00 voor het woonhuis. Artikel 1")]
     w = page_coverage(pages, chunks, dropped=[(2, "2")])
-    assert [(x.page, x.kind, x.needs_review) for x in w] == [(2, "page_coverage_low", True)]
+    assert [(x.page, x.code, x.needs_review) for x in w] == [(2, "document.page_coverage_low", True)]
     chunks.append((2, 2, "Artikel 2 Voor eensluidend afschrift getekend door de notaris te Gent op heden."))
     assert page_coverage(pages, chunks, dropped=[(2, "2")]) == []
 

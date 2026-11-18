@@ -15,10 +15,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
 
-Step = Literal["read", "ocr", "layout", "store"]
+from suveryn_harness import messages
 
-# What the interface says for each code (chat-ui i18n, ``failure*``). Keep the two in step.
-CODES = ("password_protected", "damaged", "pages_too_many", "too_large", "no_text", "unsupported", "reading_too_slow", "unreadable")
+Step = Literal["read", "ocr", "layout", "store"]
 
 
 @dataclass(frozen=True)
@@ -43,10 +42,13 @@ class Watch:
 
 
 class Unreadable(ValueError):
-    """The document can't be read. ``code`` is one of ``CODES``; ``detail`` holds numbers for the message
-    (``pages``, ``max``, ``minutes``). A ValueError, as the reasons were before they had codes."""
+    """The document can't be read. ``code`` is a refusal of the registry's ``document`` area
+    (suveryn_harness/messages.json), with ``detail``'s numbers as its parameters (``pages``, ``max``,
+    ``minutes``); anything else is ``document.unreadable``. A ValueError, as the reasons were before they had
+    codes."""
 
-    def __init__(self, message: str, code: str = "unreadable", **detail: int):
+    def __init__(self, message: str, code: str = "document.unreadable", **detail: int):
         super().__init__(message)
-        self.code = code if code in CODES else "unreadable"
+        known = messages.CODES.get(code)
+        self.code = code if known and code.startswith("document.") and known.kind == "refused" else "document.unreadable"
         self.detail = {k: int(v) for k, v in detail.items()}

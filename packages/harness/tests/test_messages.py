@@ -68,7 +68,8 @@ def test_a_reference_reads_aloud():
 
 def test_the_server_uses_only_listed_codes():
     """Every code written where a message is made, in any package, is in the registry."""
-    makers = {"Problem", "UploadRejected", "CalcError", "AmbiguousSeparator", "answer", "message", "msg", "problem"}
+    makers = {"Problem", "UploadRejected", "CalcError", "AmbiguousSeparator", "answer", "message", "msg", "problem",
+              "Unreadable", "ExtractionFailed", "IntegrityWarning"}
     used = set()
     for path in PACKAGES.glob("*/src/**/*.py"):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

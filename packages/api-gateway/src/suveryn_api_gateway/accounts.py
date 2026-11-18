@@ -26,6 +26,7 @@ from urllib.parse import quote
 
 import httpx
 from pydantic import BaseModel
+from suveryn_harness.messages import Problem
 
 log = logging.getLogger("suveryn.gateway")
 ADMIN_ROLE = "suveryn-admin"
@@ -45,14 +46,6 @@ class AccountsUnavailable(Exception):
 class RightsRefused(AccountsUnavailable):
     """Keycloak refused the administrator's token for its admin API: the ``suveryn-admin`` role lacks its
     composites (a realm imported before them; the provisioning adds them again)."""
-
-
-class AccountRefused(Exception):
-    """Keycloak refused the change for a reason the administrator can act on (``code``)."""
-
-    def __init__(self, code: str):
-        super().__init__(code)
-        self.code = code
 
 
 @dataclass(frozen=True)
@@ -134,7 +127,7 @@ class Accounts:
         except httpx.HTTPError as e:
             raise AccountsUnavailable(f"the sign-in service can't be reached ({type(e).__name__})") from e
         if r.status_code == 404:
-            raise AccountRefused("not_found")
+            raise Problem("request.not_found", "No such account.")
         if r.status_code in (401, 403):
             raise RightsRefused(f"the sign-in service refused the administrator's rights (HTTP {r.status_code})")
         if r.status_code >= 400 and r.status_code != 409:
@@ -213,7 +206,7 @@ class Accounts:
             "username": email.lower(), "email": email.lower(), "firstName": first, "lastName": last, "enabled": True,
             "emailVerified": True, "requiredActions": ["UPDATE_PASSWORD", *(["CONFIGURE_TOTP"] if two_step else [])]})
         if r.status_code == 409:
-            raise AccountRefused("exists")
+            raise Problem("account.email_exists", "An account with this e-mail address exists.")
         sub = r.headers.get("location", "").rstrip("/").rsplit("/", 1)[-1]
         password = await self.reset_password(token, sub)
         if admin:
@@ -365,7 +358,7 @@ def _changes(events: list[dict], known: dict[str, str]) -> list[AccountEvent]:
 
 def _check_id(sub: str) -> None:
     if not sub or len(sub) > 64 or not all(c.isalnum() or c == "-" for c in sub):
-        raise AccountRefused("not_found")
+        raise Problem("request.not_found", "No such account.")
 
 
 def _account(u: dict, admin: bool, last: datetime | None, unknown: bool = False) -> Account:

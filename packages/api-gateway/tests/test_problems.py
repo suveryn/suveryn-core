@@ -64,7 +64,7 @@ def test_a_refusal_without_a_code_of_its_own_gets_its_status_s_general_code():
         r = c.get("/v1/test/number/twelve")
         assert (r.status_code, r.json()["code"]) == (422, "request.invalid")
         assert r.json()["errors"][0]["loc"] == ["path", "n"] and "input" not in r.json()["errors"][0]  # never the values sent
-    assert set(problems.GENERAL.values()) <= set(CODES)
+    assert problems.general(405) == "request.invalid" and problems.general(502) == "system.unavailable"  # the registry's
 
 
 def test_anything_unplanned_gets_a_reference_and_the_log_holds_no_message(caplog):

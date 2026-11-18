@@ -44,8 +44,6 @@ COVERAGE_THRESHOLD = 0.95  # share of a page's words that must be found in store
 MIN_MISSING_WORDS = 3      # ignore tiny shortfalls (hyphenation, stray OCR marks)
 
 
-# The notes a reading can leave: each is ``document.<kind>``, a warning of the registry (a test holds them together).
-KINDS = ("text_recovered", "header_footer_recovered", "text_layer_recovered", "page_coverage_low", "instruction_like_text", "layout_failed")
 
 
 @dataclass(frozen=True)
@@ -53,22 +51,22 @@ class IntegrityWarning:
     """Something a reviewer of the document should know: where, what kind, and a text-free detail."""
 
     page: int | None
-    kind: str     # "text_recovered" | "header_footer_recovered" | "text_layer_recovered" | "page_coverage_low"
-                  # | "instruction_like_text" (text addressed to an AI; pipeline.py, suveryn-tracker#21)
-                  # | "layout_failed" (Docling couldn't read the page; pipeline.py)
+    code: str     # a warning of the registry's document area: document.text_recovered, .header_footer_recovered,
+                  # .text_layer_recovered, .page_coverage_low, .instruction_like_text (text addressed to an AI;
+                  # pipeline.py, suveryn-tracker#21), .layout_failed (Docling couldn't read the page; pipeline.py)
     detail: str
 
     def message(self) -> dict:
         """The warning as it is stored and sent: a code of the registry's document area with its page, ``{kind, code,
         params}`` like every message (docs/design/messages.md), and the detail, in English, for developers."""
-        return {**message(f"document.{self.kind}", **({} if self.page is None else {"page": self.page})), "detail": self.detail}
+        return {**message(self.code, **({} if self.page is None else {"page": self.page})), "detail": self.detail}
 
     @property
     def needs_review(self) -> bool:
         """True if this warning should put the document in ``needs_review``."""
         # Recovered or restored text is kept, so the document is complete; a coverage
         # shortfall means text may be missing, which a person has to check.
-        return self.kind in ("page_coverage_low", "layout_failed")
+        return self.code in ("document.page_coverage_low", "document.layout_failed")
 
 
 # Characters read with the wrong encoding. A PDF font can encode its text as Mac Roman; read as Windows-1252
@@ -220,7 +218,7 @@ def page_coverage(page_texts: list[str], chunk_pages: list[tuple[int | None, int
     for p, (ref, missing) in missing_words(page_texts, chunk_pages, dropped).items():
         coverage = 1 - len(missing) / len(ref)
         if coverage < COVERAGE_THRESHOLD and len(missing) >= MIN_MISSING_WORDS:
-            warnings.append(IntegrityWarning(p, "page_coverage_low",
+            warnings.append(IntegrityWarning(p, "document.page_coverage_low",
                                     f"{coverage:.1%} of the page's words found in stored text; {len(missing)} missing"))
     return warnings
 

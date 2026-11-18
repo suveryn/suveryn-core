@@ -152,8 +152,8 @@ def test_pages_with_text_the_layout_model_missed_are_found():
 def test_layout_failures_put_the_document_in_review():
     from suveryn_rag.integrity import IntegrityWarning
 
-    assert IntegrityWarning(3, "layout_failed", "x").needs_review
-    assert not IntegrityWarning(3, "instruction_like_text", "x").needs_review
+    assert IntegrityWarning(3, "document.layout_failed", "x").needs_review
+    assert not IntegrityWarning(3, "document.instruction_like_text", "x").needs_review
 
 
 def test_an_identical_upload_reads_again_only_a_poorly_read_copy():

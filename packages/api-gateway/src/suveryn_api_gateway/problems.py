@@ -6,7 +6,8 @@ Three ways an answer becomes a problem, and one shape for all:
 
 - a ``Problem`` raised anywhere (the one way new code refuses): its own code and parameters;
 - a plain ``HTTPException``, which only the framework raises (an unknown address; ``tests/test_problems.py`` fails on
-  one anywhere in the gateway): the general code for its status (``GENERAL``), its English detail kept for developers;
+  one anywhere in the gateway): the general code for its status (the registry's ``general``), its English detail kept
+  for developers;
 - anything nobody planned for: ``system.internal`` with a reference. The log has the reference, the exception's
   type and where it was raised, never its message, which may quote a document.
 
@@ -20,25 +21,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from suveryn_harness.messages import Problem, loggable, message, problem, unplanned
+from suveryn_harness.messages import Problem, general, loggable, message, problem, unplanned
 
 log = logging.getLogger("suveryn.gateway")
 
 MEDIA_TYPE = "application/problem+json"
-# The general code a status stands for, for a refusal that has no code of its own yet.
-GENERAL = {400: "request.invalid", 401: "auth.signed_out", 403: "request.forbidden", 404: "request.not_found",
-           405: "request.invalid", 409: "request.conflict", 411: "request.invalid", 413: "request.too_large",
-           415: "request.unsupported", 422: "request.invalid", 429: "request.too_many"}
 
 
 def answer(code: str, detail: str = "", status: int | None = None, headers: dict[str, str] | None = None, **params) -> JSONResponse:
     """The Problem Details answer for a code."""
     body = problem(code, detail, status, **params)
     return JSONResponse(body, status_code=body["status"], headers=headers, media_type=MEDIA_TYPE)
-
-
-def general(status: int) -> str:
-    return GENERAL.get(status, "system.unavailable" if status >= 500 else "request.invalid")
 
 
 def install(app: FastAPI) -> None:
@@ -78,4 +71,4 @@ def catch_all(app: FastAPI) -> None:
             return answer("system.internal", ref=ref)
 
 
-__all__ = ["GENERAL", "MEDIA_TYPE", "Problem", "answer", "catch_all", "general", "install", "message"]
+__all__ = ["MEDIA_TYPE", "Problem", "answer", "catch_all", "general", "install", "message"]
