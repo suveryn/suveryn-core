@@ -1,4 +1,4 @@
-"""A step's ``when`` (format 3, "Choices"): the one condition a step may carry, read by a notary at a
+"""A step's ``when`` (docs/design/playbooks.md, "The routine"): the one condition a step may carry, read by a notary at a
 glance: ``contribution_kind == cash``, ``contribution_kind != in_kind``. The fact is a ``choice``; the
 option one of its options. The runtime evaluates it when the step is reached, on the choice's value
 as it stands; a step whose condition doesn't hold is skipped and the thread says why. No and/or, no

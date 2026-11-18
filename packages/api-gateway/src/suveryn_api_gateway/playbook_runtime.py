@@ -174,7 +174,7 @@ class Runtime:
                 out[fid] = words.label(fid)
         return out
 
-    # -- conditions (format 3, "Choices"): a step runs when its choice has the option it names; else it is skipped and says why
+    # -- conditions (docs/design/playbooks.md, "The routine"): a step runs when its choice has the option it names; else it is skipped and says why
 
     def choice_value(self, run: Run, fact_id: str) -> str:
         """A choice fact's value as it stands (read, answered or confirmed), or empty."""

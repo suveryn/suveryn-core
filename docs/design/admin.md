@@ -5,8 +5,8 @@ the office and the appliance, drawn on artboards 26 to 43 of the design canvas. 
 `sidebar.md` (now [chat-ui.md](chat-ui.md)) on 28 October 2026. The colour and copy rules of
 chat-ui.md section 1 apply here; this file only adds what is particular to *Administration*.
 
-This file says how things are to be **now**; where an artboard and this file disagree, this file
-wins. Interface text is quoted in English, with Dutch and French under *Strings*.
+This file says what *Administration* does now; a page not built yet says so. Where an artboard and
+this file disagree, this file wins. Interface text is quoted in English, with Dutch and French under *Strings*.
 
 ## The pages
 
@@ -17,20 +17,25 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 **A side menu in two groups** (built: `components/Admin.tsx`; the pages not built yet are left out):
 
 - *Office*: Users, Cases, Playbooks, Usage, Settings.
-- *Appliance*: Status, Updates and models, Backups, Network, Licence.
+- *Appliance*: Status, Updates and models, Backups, Network, Licence. *Updates and models*, *Network*
+  and *Licence* join the menu as their pages are built.
 - A triangle beside an item that needs attention, a download icon beside *Updates and models* when
   an update is ready. *Status* opens first.
 - Narrow screens (42): the menu becomes the first page, a list with the same groups; every page has
   a back arrow to it. Tables become lists, row menus and dialogs become sheets, targets 44 px.
 
-**Status** (30): plain words, no product names.
+**Status** (30, B01): plain words, no product names. It reads `GET /v1/admin/status`; the gateway
+checks every minute, so "since" is when a failure began.
 
 - *Needs attention*, only when something does, each with the button that fixes it. A key test with a file
   that isn't this appliance's recovery key says so on *Backups* only ("This key doesn't open the backup. Try
   another file."), with when the right key last passed; the key's state stays that last passing test, so one
   wrong file doesn't put "the last test of the recovery key failed" here (`key_test.failure` is `backup.key_mismatch`; `last_ok`). A test that fails on the backup itself still does.
+  One row per item: the backups' own state (*View*) and the recovery key (*Test now*), also both at
+  once. The key's row gives the date of the last test that opened a backup ("Herstelsleutel niet
+  getest sinds 21 juli. Test elke drie maanden."), or "nog nooit getest" when none did.
 - *Is everything working?*: answering questions (the model), reading documents, signing in
-  (Keycloak), keeping your data (the database), disk space. A teal check with "Working", or an ink cross
+  (Keycloak), keeping your data (the database), disk space (a full disk says "Almost full"). A teal check with "Working", or an ink cross
   with "Not working since 09:12" and what still works (39). Signing in asks Keycloak each time, not a copy read at
   start, in two steps: does it answer (its discovery document), and can it sign
   someone in, which needs its database (the number of accounts, read with the directory's service
@@ -48,7 +53,9 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   while a time server keeps the clock. How: the gateway's README, *The clock*. When the browsers' earlier
   reports say "On time" but this PC measures it off, the row says what this PC measured, and this PC's
   measurement is reported and the checks read again.
-- An overview: version, last backup, users against the agreement, support.
+- An overview of tiles: the version, when the appliance has one (its release and the core commit, or
+  `SUVERYN_VERSION`); the last backup ("Last night 02:14 · On the USB disk"); the users against the
+  agreement ("12 of 15"). The support tile and the update row come with *Licence* and the updates.
 
 **Users** (32, 34): manages accounts through Keycloak's admin API, so nobody needs its console.
 
@@ -61,7 +68,7 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   until its first use. The person chooses a password at first sign-in, and sets up two-step sign-in
   then too when the office requires it (Settings).
 - The row menu: make administrator or remove the rights; have the password set again (a new
-  temporary password, as above); have two-step sign-in set again; sign out everywhere; switch the
+  temporary password, as above; the pass-on dialog has no "Valid until"); have two-step sign-in set again; sign out everywhere; switch the
   account off, or on again; and, only once it is off, *Delete account*.
 - **Switching off someone who manages cases** hands each case over inside the dialog, showing only
   the case's reference and name. The button waits until every case has a new manager: the one
@@ -71,7 +78,12 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
   *Administration* closes for you.
 - **More users than agreed** shows a triangle by the count and one sentence in the add dialog.
   Adding still works.
-- *Sign-ins and changes*: Keycloak's sign-in and admin events in plain words, kept 180 days.
+- *Sign-ins and changes*: Keycloak's sign-in and admin events in plain words, kept 180 days. Admin
+  events name the administrator but hold no details, so switching an account off or on reads as
+  "Account changed".
+- The Dutch and French texts name a person by their name or "de", never "haar", "hij", "ze", "il" or
+  "elle": an account has no known gender. There is no "Advanced: open Keycloak" link; nobody should
+  need it.
 - **Through Keycloak's admin REST API**, called by the gateway with the signed-in administrator's own
   access token, never by the browser and with no service-account client of its own. The `suveryn-admin`
   role carries `manage-users`, `view-users`, `view-realm` and `view-events`, and `manage-realm` for the
@@ -114,27 +126,42 @@ cases and conversations are kept, whether two-step sign-in is required for every
 Decision, 29 October 2026; on asks everyone for a code at every sign-in, and whoever has no authenticator app
 sets one up first; the confirmation says so), and the rates for the indicative cost. *Cases* changes the
 three case settings in place too, and *Usage* shows the rates, with "Change in Settings". *Save* is active after a change, and a shorter keep
-period asks for confirmation with the number of cases or conversations that will go.
+period for conversations asks for confirmation with the number that will go.
 
 - *Who sees a case* applies to new cases or, by choice, to all cases. *All cases* asks for
-  confirmation with the count ("38 cases become visible to everyone in the office"). Strictly
-  confidential cases never change with it; their members decide.
+  confirmation with the count ("38 cases become visible to everyone in the office"), also opens cases
+  a manager restricted, and writes a line in each access log. Strictly confidential cases never
+  change with it; their members decide. For *New cases*, the existing cases keep their members:
+  those that followed the default are restricted (the case model has no other way to hold "as it
+  was"). Closing to the members needs no choice (it applies to every case that follows the default)
+  but is confirmed with its count too.
+- A shorter keep period for closed cases deletes nothing at once (it applies to cases closed from
+  then on, cases.md), so only conversations are counted in its confirmation.
+- *Cases* (B05) shows the same three case settings with the same confirmation
+  (`SettingsConsequences`) when a change touches existing cases or conversations.
 
 **Backups** (36) become editable here, not in Settings: they belong with the backup's status and
 test.
 
 - *Back up now* (primary), with "Next: tonight at 02:00." beside it. A backup closes nobody out.
 - *Every day at*: the time of the daily run, 02:00 by default, in whole hours.
-- No "last failed" card (built on 29): a failure of the latest run shows in *Last backup* and on *Status*; an older one is history.
+- No "last failed" card: a failure of the latest run shows in the notice at the top of the page and on *Status*; an older one is history. The status and the key test stay as they were before the page became editable.
 - The target after setup: USB disk (the detected disk) or network share (SMB or NFS: address,
-  user, password, *Test connection*), with the setup's cards, fields and strings. Old backups stay
-  where they were.
+  user, password, *Test connection*), with the setup's cards, fields and strings. *Test connection*
+  signs in and writes and removes a test file (the setup's own only checks that the server answers).
+  Old backups stay where they were.
 - Retention: 14, 30, 90 days or 1 year.
+- The time, the target and the retention have one *Save*.
 - **The recovery sheet**: the appliance holds only the public half of the key, so it can never
-  print the key. *Print the recovery sheet* prints what it knows (appliance name and ID, where the
-  backups are, the key's fingerprint, the restore steps) and a box "Key kept at:" (39). *Make a new
+  print the key. *Print the recovery sheet* prints what it knows (the appliance's address, where the
+  backups are, the key's fingerprint, the restore steps) and a box "Key kept at:" (39). The
+  fingerprint is the key's public half shortened, as on the key file's "public key" line; the
+  appliance's ID joins the sheet with the licence manifest (#41). *Make a new
   recovery key…* creates one in the browser, as setup does; only then can the sheet be printed once
   with the key. Older backups still need the old key, and the confirmation says so.
+- The gateway can't change the appliance's backups itself: each change is a request its backup
+  service checks as the setup does (suveryn-appliance `backup/README.md`). Since /etc is read-only,
+  the hour is in the backup settings and the timer runs hourly.
 
 **Licence and support** (37): what differs from the agreement first (more users than agreed, a
 missed check-in, an expiry), each in ink with a way out, and "Nothing is blocked". Then the
@@ -166,7 +193,7 @@ dashboard". Name and address read-only (console option 2); connected or air-gapp
 approved destinations only or everything; sūveryn's destinations locked, the office's own
 removable; the daily check.
 
-**Playbooks** (28), as built:
+**Playbooks** (28):
 
 - The list: name, id, version, pack, covered or not.
 - An *Active* switch per playbook (`playbook_settings`, `GET /v1/admin/playbooks`,
@@ -174,9 +201,9 @@ removable; the daily check.
   - An inactive playbook leaves the composer's menu, and starting it answers 404.
   - Runs already made stay readable.
 
-**Creating a playbook** (an office's own: name, case types, facts, instructions, labels in nl, fr
-and en) is wanted, but it pulls the manifest and pack format forward (platform.md). An office
-playbook is never covered.
+**Creating a playbook** (an office's own) is wanted and not built. The manifest format exists
+([playbooks.md](playbooks.md)); what is missing is the administrator's upload, and whether an
+office's playbook may carry its words inline. An office playbook is never covered.
 
 **Charts on Usage** (26) use the chart palette (chat-ui.md section 1): input violet, output ochre; per kind
 violet, ochre, sky blue.
@@ -210,43 +237,3 @@ The strings are in `packages/chat-ui/src/i18n/` (`en.ts`, `nl.ts`, `fr.ts`), the
 - **The dark theme waits**: the chat UI has none yet, so the dark artboards aren't built.
 - The update durations (20 and 15 minutes) stay estimates for #40 to confirm, and the place on
   suveryn.com where an appliance learns of a new version isn't designed yet.
-
-## As built
-
-- The side menu (and the narrow list): *Users*, *Cases*, *Playbooks*, *Usage* and *Settings* for the
-  office, *Status* and *Backups* for the appliance; *Updates and models*, *Network* and *Licence* join as
-  their pages are built. *Status* reads `GET /v1/admin/status` (the
-  gateway checks every minute, so "since" is when a failure began); the overview shows the version when
-  the appliance has one (its release and the core commit, or `SUVERYN_VERSION`; decision, 29 October), and the
-  last backup. The support tile joins
-  with *Licence*. A full disk says "Almost full" (a string the table didn't have).
-- **Status, Needs attention** (B01): one row per item, the backups' own state ("View") and the recovery key ("Test now"), also both at once. The overview's tiles: version, last backup ("Last night 02:14 · On the USB disk"), users ("12 of 15"). The update row, the support tile and the Updates, Network and Licence pages come with their features.
-- **The recovery key in Status** (B01): "Herstelsleutel niet getest sinds 21 juli. Test elke drie maanden.", the date of the last test that opened a backup; "nog nooit getest" when none did.
-- *Users*, as the administrator who is signed in (decision, 28 October: no extra client; the gateway's
-  README). Built as drawn, with these
-  differences: the temporary password has no expiry (decision, 28 October: Keycloak is the password
-  manager and can't expire one password; it works until its first use, and one never used shows as
-  "never" signed in), so the pass-on dialog has no "Valid until"; *Sign-ins and changes* takes the changes from Keycloak's
-  admin events, which name the administrator but hold no details, so switching an account off or on reads
-  as "Account changed"; the dialog titles, the event lines and the filter
-  needed strings the table didn't have; *Delete account* in the row menu once an account is off (decision, 29 October); the Dutch and French texts that named a person "haar", "hij",
-  "ze", "il" or "elle" (drawn for one example person) use the name or "de" instead, since an account
-  has no known gender; the "Advanced: open Keycloak" link isn't built, as nobody should need it.
-- *Settings*: who sees a case, the two keep periods and the indicative cost's rates, one *Save* for all;
-  *Usage* only shows the rates, with "Change in Settings". Differences: "New cases" keeps the
-  existing cases with their members by restricting those that followed the default (the case model has no
-  other way to hold "as it was"); "All cases" also opens cases a manager restricted, as drawn, with a line
-  in each access log; closing to the members needs no choice (it applies to every case that follows the
-  default) but is confirmed with its count too; a shorter period for closed cases deletes nothing at once
-  (it applies to cases closed from then on, cases.md), so only conversations are counted.
-- **Administration › Cases** (B05) changes the office's three case settings in place, the same settings as Settings with the same confirmation (`SettingsConsequences`) when a change touches existing cases or conversations.
-
-- *Backups*, editable: *Back up now* with when the next one runs, where (the USB disk, or a share whose
-  *Test connection* now signs in and writes a test file: the setup's only saw whether the server answered),
-  *Every day at* (whole hours, 02:00 by default) and *Retention* with one *Save*, and the recovery sheet
-  with *Make a new recovery key…*. The gateway can't change the appliance's backups itself: each change is
-  a request its backup service checks as the setup does (suveryn-appliance `backup/README.md`). Since /etc
-  is read-only, the hour is in the backup settings and the timer runs hourly. Differences: the sheet shows
-  the appliance's address, not its ID (that comes with the manifest, #41), and the key's fingerprint is
-  its public half shortened, as on the key file's "public key" line; the existing status and the key test
-  stay as they were, so a failure still shows in the notice at the top. The share test signs in and writes and removes a test file; the setup's own only checks that the server answers.

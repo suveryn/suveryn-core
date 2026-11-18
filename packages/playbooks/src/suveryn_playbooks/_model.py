@@ -9,7 +9,7 @@ from typing import Literal
 # What one value is: ``text``, an ``amount`` (money), a ``date`` or a ``number`` (a count, a share, a
 # percentage: a figure without currency). ``list`` (format 3) is a fact that holds several entries,
 # each a record of plain-valued fields or one plain value; its leaves are the entries' values.
-# ``choice`` (format 3, "Choices"): one of a few named options (``Fact.options``), read by the model
+# ``choice`` (Writing a playbook, "Choices, and steps that depend on them"): one of a few named options (``Fact.options``), read by the model
 # when the documents say it and otherwise asked; what a step's ``when`` turns on.
 LeafKind = Literal["text", "amount", "date", "number", "choice"]
 FactKind = Literal["text", "amount", "date", "number", "choice", "list"]
