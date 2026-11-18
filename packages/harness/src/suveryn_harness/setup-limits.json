@@ -1,0 +1,6 @@
+{
+  "name_max": 200,
+  "email_max": 254,
+  "password_min": 15,
+  "password_max": 512
+}

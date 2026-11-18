@@ -5,7 +5,7 @@
 import { Info } from "lucide-react";
 import { useState } from "react";
 import { Form, Note, PasswordField, TextField } from "../../ui";
-import { checkAdministrator } from "../administrator";
+import { checkAdministrator, LIMITS } from "../administrator";
 import { saveAdministrator, type AdministratorAnswer, type SetupState } from "../api";
 import { useText } from "../i18n";
 import { checkThenSave, StepFooter } from "./common";
@@ -36,13 +36,13 @@ export function Administrator({ state, onBack, onDone, headingId }: Props) {
       <h1 id={headingId} className="setup-title">{t.adminTitle}</h1>
       <p className="setup-lead">{t.adminLead}</p>
 
-      <TextField name="name" label={t.fullName} placeholder={t.fullNamePlaceholder} autoComplete="name"
+      <TextField name="name" label={t.fullName} placeholder={t.fullNamePlaceholder} autoComplete="name" maxLength={LIMITS.name_max}
                  value={name} onChange={setName} />
-      <TextField name="email" type="email" label={t.email} placeholder={t.emailPlaceholder} autoComplete="username"
+      <TextField name="email" type="email" label={t.email} placeholder={t.emailPlaceholder} autoComplete="username" maxLength={LIMITS.email_max}
                  description={t.emailHint} value={email} onChange={setEmail} />
-      <PasswordField name="password" label={t.password} placeholder={t.passwordPlaceholder} autoComplete="new-password"
-                     showLabel={t.showPassword} value={password} onChange={setPassword} />
-      <PasswordField name="confirm" label={t.confirmPassword} placeholder={t.confirmPlaceholder} autoComplete="new-password"
+      <PasswordField name="password" label={t.password} placeholder={t.passwordPlaceholder({ min: LIMITS.password_min })} autoComplete="new-password" maxLength={LIMITS.password_max}
+                     showLabel={t.showPassword} description={t.passwordMax({ max: LIMITS.password_max })} value={password} onChange={setPassword} />
+      <PasswordField name="confirm" label={t.confirmPassword} placeholder={t.confirmPlaceholder} autoComplete="new-password" maxLength={LIMITS.password_max}
                      value={confirm} onChange={setConfirm} />
       <Note icon={<Info size={16} />}>{t.adminNote}</Note>
 
