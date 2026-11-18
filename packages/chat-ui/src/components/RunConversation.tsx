@@ -239,7 +239,7 @@ export function RunThread({ run, kase, playbook, words, me, canAnswer, nameOf, p
           : t.role === "user"
             ? <PersonTurn key={t.seq} turn={t} nameOf={nameOf} words={words} />
             : <PlaybookTurn key={t.seq} turn={t} title={title} showSpeaker={speaker(i)} words={words}
-                            // a choice the playbook asks about: its options as buttons (format 3, "Choices")
+                            // a choice the playbook asks about: its options as buttons (Writing a playbook, "Choices, and steps that depend on them")
                             choices={t.meta.kind === "ask" && canAnswer && run.status === "waiting" && t.seq === openAsk
                               ? ((t.meta.facts as string[] | undefined) ?? []).filter((f) => playbook?.choices?.[f]).map((f) => ({
                                   fact: f, label: factLabel(words, f),

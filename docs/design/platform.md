@@ -2,8 +2,8 @@
 
 A design note, October 2026, written after two outside reviews of the repositories and a
 discussion of what "features, playbooks and connectors" (the [manifesto](https://github.com/suveryn/suveryn-docs/blob/main/MANIFESTO.md))
-mean once they have to be built. It records decisions, not code. `packages/playbooks` is built, by hand, with deed intake
-(step 1 below); `packages/mcp-host` and `packages/connectors` are still placeholders, and this note
+mean once they have to be built. It records decisions, not code. `packages/playbooks` is built (step 1 of
+*Sequencing*); `packages/mcp-host` and `packages/connectors` are still placeholders, and this note
 says what has to be known before they stop being placeholders. What exists today is in
 [architecture.md](../architecture.md); cases are in [cases.md](cases.md).
 
@@ -140,20 +140,11 @@ connector/<vendor>-<product>          a connector; the egress declaration travel
 
 ## Sequencing
 
-`packages/playbooks` is built by hand, with deed intake; `packages/mcp-host` and
-`packages/connectors` are not. The biggest risk is still designing the platform from a
-specification. The order:
+The biggest risk is designing the platform from a specification, so each layer is drawn from what the one before it needed. The order now:
 
-1. **Three hand-built playbooks for notaries**, hard-coded and plain: deed intake first (it
-   exercises everything at once: documents in a case, facts read and checked against their
-   passages, a checkpoint where the notary confirms, a Word document out with origin
-   `playbook`, and the facts it needs are what the French benchmark, suveryn-tracker#50, needs
-   to score), then a mandate or proxy check, then a closing checklist on the case lifecycle that
-   exists.
-2. **Extract** the playbook runtime, the manifest schema, the pack format and the versioning
-   rules from what those three actually needed.
-3. **Then** the SDK, the registry's signing and revocation, and the first connector, sandboxed,
-   with its declaration.
+1. **Built: playbooks as manifests, and the runtime that walks them in a case** ([playbooks.md](playbooks.md)). Deed intake came first because it exercises everything at once: documents in a case, facts read and checked against their passages, a checkpoint where the notary confirms, a document out with origin `playbook`. Company formation and the care mandate followed, in suveryn-packs, and all three run start to finish with the real model in the GPU round.
+2. **Next: `propose`, and the deed from the office's own template**, in the stages [templates.md](templates.md) proposes, open until a notary has answered on dossier versus deed. Then the pack format, generalised from the three playbooks.
+3. **Then** the SDK, the registry's signing and revocation, and the first connector, sandboxed, with its declaration.
 
 The failure mode this avoids has a name: building the marketplace before the market.
 

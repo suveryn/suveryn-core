@@ -3,7 +3,7 @@
 The official playbooks as **manifest files**, and the loader that reads them. A playbook says what
 it asks for and tells the model, and carries its identity (id, pack, version). No runtime lives
 here: the gateway runs them (`suveryn_api_gateway.playbooks`). Design:
-[docs/design/playbooks.md](../../docs/design/playbooks.md), "The manifest".
+[docs/design/playbooks.md](../../docs/design/playbooks.md); the format: [Writing a playbook](https://github.com/suveryn/suveryn-docs/blob/main/playbooks/writing-a-playbook.md).
 
 | Playbook | Id | Pack |
 |---|---|---|
@@ -22,21 +22,7 @@ land: whether a playbook is certified and listed in the appliance's manifest. An
 still runs, with a warning to everyone (the licensing model warns, never blocks); today every
 official playbook is covered.
 
-A manifest is a YAML file with the identity, the case types it fits, its facts (id, what to ask,
-kind: text, amount, date or number; a `list` of entries, each a record of `of` fields or one value of
-kind `of`), the instructions the model gets and the routine's `steps` (`request`, `read`, `ask`,
-`checkpoint`, `produce`, `check`, each with `needs` and, for a branch, `when` on a `choice` fact (`conditions.py`); a
-request may be named with `expects` and a read aimed at named requests with `documents`; a check states one
-`rule`, `rules.py`); `manifest: 3`. The shape of
-the model's answer is the runtime's: the loader derives its JSON Schema from the facts (`read_schema`,
-which the model server enforces by grammar) and appends it in words to the instructions. A list's
-values are named by path (`founders[2].name`, `paths.py`); the wording per language is the pack's, in
-`text/<lang>.json` beside the file: title, summary, a label per fact and per field (`founders.name`),
-and the questions the routine puts to people (by step id, with `{label}` in an ask's template, or by
-`step.fact`). Unknown keys, malformed values and a wrong
-graph (a circle, a produce before any checkpoint, an ask about a fact no read reads) are refused
-with the file and the step or field named. The runtime that walks the steps is the gateway's
-(`suveryn_api_gateway.playbook_runtime`). Editors can validate against `schema/playbook-manifest.schema.json`
+Editors can validate against `schema/playbook-manifest.schema.json`
 (regenerate it with `python -m suveryn_playbooks.manifest` after changing `manifest.py`; a test
 checks they agree).
 
