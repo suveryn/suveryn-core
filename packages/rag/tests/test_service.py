@@ -482,9 +482,9 @@ def test_each_document_read_is_logged_with_its_stage_times_and_never_its_name():
     job = Job(id="job-1", filename="Verkoopakte Peeters.PDF", owner="u")
     job.pages, job.ocr_pages, job.created_at = 38, 38, time.time() - 5
     line = reading_line(job, {"classify": 0.1, "ocr": 24.1, "layout": 9.52, "layout_on_cpu": 1.0, "chunk": 0.4,
-                              "embed": 1.83, "store": 0.62}, time.time() - 1)
+                              "embed": 1.83, "embed_on_cpu": 1.0, "store": 0.62}, time.time() - 1)
     assert line.startswith("document read: job job-1 pdf pages=38 ocr_pages=38 ocr=24.10 layout=9.52 chunk=0.40 embed=1.83 store=0.62")
-    assert "layout_on_cpu" in line and "waited=4." in line and "total=1." in line
+    assert "layout_on_cpu embed_on_cpu" in line and "waited=4." in line and "total=1." in line
     assert "Peeters" not in line and "Verkoopakte" not in line
     odd = Job(id="j", filename="no extension", owner="u")
     assert " ? pages=" in reading_line(odd, {}, time.time())
@@ -541,6 +541,9 @@ def test_similarity_by_the_search_embedder(tmp_path):
         docs.similarity(["a claim"], ["a sentence"])  # not loaded yet
 
     class Unit:  # fixed unit vectors per text
+        def fell_back(self):
+            return False
+
         def embed(self, texts):
             table = {"claim": [1.0, 0.0], "same": [1.0, 0.0], "other": [0.0, 1.0], "half": [0.6, 0.8]}
             return np.array([table[t] for t in texts], dtype=np.float32)

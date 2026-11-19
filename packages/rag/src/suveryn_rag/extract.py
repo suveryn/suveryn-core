@@ -28,6 +28,7 @@ import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
 
 from .config import RagSettings
+from . import gpu
 from .reading import Progress, Unreadable, Watch
 from .workspace import private_workdir
 
@@ -149,7 +150,7 @@ def plan_ocr(profiles: list[PageProfile]) -> list[int]:
 
 
 def _gpu_out_of_memory(errors) -> bool:
-    return any("out of memory" in (getattr(e, "error_message", "") or "").lower() for e in errors)
+    return any(gpu.out_of_memory(getattr(e, "error_message", "")) for e in errors)
 
 
 def unread_pages(document, page_texts: list[str]) -> list[int]:

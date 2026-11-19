@@ -33,7 +33,7 @@ Limits: 300 MB unpacked for an Office file, 250,000 filled cells, 5 million char
    - **Digitally signed PDFs and PDFs with form fields** (common for deeds) are OCR'd from a private copy with the form flattened: each field's visible content stays on the page, the form and the signature are dropped from that copy. OCRmyPDF refuses such files otherwise. The uploaded original is never changed, and sūveryn does not check signatures.
    - [Docling](https://github.com/docling-project/docling) then reads the text layer with `do_ocr=False`, running only its layout and table models on the GPU.
 2. **Chunking (`chunking.py`)** uses Docling's HybridChunker (384 tokens). Each chunk keeps the pages it comes from (`page_start`, `page_end`) and its section headings.
-3. **Embeddings (`embed.py`)** use [`BAAI/bge-m3`](https://huggingface.co/BAAI/bge-m3) (1024 dimensions, multilingual), in fp16 on the GPU.
+3. **Embeddings (`embed.py`)** use [`BAAI/bge-m3`](https://huggingface.co/BAAI/bge-m3) (1024 dimensions, multilingual), in fp16 on the GPU; when the GPU is full, on the CPU (`gpu.py` says when it is full, for the layout model too).
 4. **Storage (`store.py`)** uses PostgreSQL with [pgvector](https://github.com/pgvector/pgvector): the tables `documents` and `chunks`, with a full-text index, and `originals`: the file each upload was read from, as uploaded, served by the gateway for *Open document at p. 3*. There is no vector index: answers compare the question with every chunk of the chosen documents exactly, and keeping an HNSW index up to date made storing a document a hundred times slower. Deleting a document deletes its chunks and its file.
 5. **Retrieval (`store.py`, `pipeline.py`)** is hybrid. Vector similarity is merged with PostgreSQL keyword search through Reciprocal Rank Fusion. Query words found in more than 20% of the chunks are left out of the keyword part, so specific terms ("huurachterstand", "vierde rang", "1563") outweigh boilerplate. Results come back as the harness's `Citation` objects, with `source = {document_id, page, location}`. `location` reads like `p. 3-4 · Artikel 2 - Koopprijs`. Chunks of fewer than three words (a reference code, a stray header) are left out of the vector ranking; keyword search still finds them. For answering, `Rag.passages` gives small documents whole, in reading order (up to `WHOLE_DOCUMENT_CHARS`), and for larger ones the best-matching passages that fit the same budget, also in reading order (`Store.best_chunks`, an exact ranking of every chunk of those documents, in one scan: a case of 6,500 passages is ranked in under half a second).
 
@@ -47,6 +47,7 @@ Real deeds showed that text can disappear between the PDF and the stored chunks.
 | Footer rule | Content the layout model labelled as header/footer | Only page numbers and text that repeats on at least half the pages are dropped; the rest is kept (`origin = header_footer_recovered`) |
 | Text-layer recovery | Text the layout or table model dropped, e.g. table cells it couldn't place (seen on a real bank statement) | The page's text-layer lines holding 3+ missing words are kept as a chunk (`origin = text_layer_recovered`); taken verbatim from the PDF, nothing reworded. Lines that look like OCR noise (an upside-down figure read as letters: odd words, mostly unknown to the rest of the document, `ocr_noise`) are not text that went missing and are left out |
 | Layout failure | Pages Docling's layout model couldn't read, e.g. out of GPU memory | Read again on the CPU; pages still unread get a `layout_failed` warning, and status `needs_review` |
+| Embedding out of GPU memory | The GPU full when passages are turned into vectors (`gpu.out_of_memory`) | Embedded on the CPU instead, slice by slice so a question waits for one slice only; `embed_on_cpu` in the reading line |
 | Page coverage | Any loss that remains after recovery: each page's PDF text layer is compared with the stored text for that page | Below 95% of the page's words: a `page_coverage_low` warning, and status `needs_review` |
 
 Every document gets a `status` (`ok` or `needs_review`) and a list of `warnings`, each a warning of the registry (`{kind: "warning", code: "document.page_coverage_low", params: {page}}` and an English `detail`; [messages.md](../../docs/design/messages.md)). `suveryn-ingest` prints both.
@@ -145,7 +146,8 @@ document read: job 3f9c… pdf pages=38 ocr_pages=38 ocr=24.10 layout=9.52 chunk
 ```
 
 The stages in seconds: `read` (Word, Excel and the like), `ocr` (Tesseract, on the CPU), `layout` (Docling's
-layout and table models, on the GPU; `layout_on_cpu` when it fell back), `chunk`, `embed` (on the GPU)
+layout and table models, on the GPU; `layout_on_cpu` when it fell back), `chunk`, `embed` (on the GPU;
+`embed_on_cpu` when it fell back)
 and `store`; `waited` is the time in the queue, `total` the time from the worker taking it.
 `scripts/intake-benchmark` reads a folder of fictional documents with each batch size given and
 samples the CPU and the GPU meanwhile, for the measurements #58 asks for.

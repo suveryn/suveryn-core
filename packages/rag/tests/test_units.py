@@ -5,6 +5,7 @@ import stat
 import tempfile
 from types import SimpleNamespace as NS
 
+import numpy as np
 import pytest
 
 pytest.importorskip("suveryn_rag")
@@ -207,3 +208,107 @@ def test_a_passage_comes_with_the_sentences_around_it_on_its_page():
     assert only_after.start == 0 and only_after.text.startswith(hit.text)
     long = passage_context(hit, ("x" * 2000, 3, 3, None), None)
     assert long.start <= 401  # at most CONTEXT_CHARS before it
+
+
+# ---------------------------------------------------------------- the embedding model running out of GPU memory
+# suveryn-tracker#133, 17 November: on a card held to 24 GB the layout model fell back to the CPU over and over,
+# and then a document failed to read. Turning its passages into vectors on the GPU had no fallback; it now has.
+
+class _FakeModel:
+    def __init__(self, device, fails=None):
+        self.device, self.fails, self.calls = device, fails, 0
+
+    def half(self):
+        return self
+
+    def get_sentence_embedding_dimension(self):
+        return 2
+
+    def encode(self, texts, **kwargs):
+        self.calls += 1
+        if self.fails:
+            raise self.fails
+        return np.array([[1.0, 0.0]] * len(texts), dtype=np.float32)
+
+
+def _embedder(monkeypatch, gpu_fails):
+    import sys
+    import types
+
+    from suveryn_rag.embed import Embedder
+
+    made = []
+
+    def sentence_transformer(model, device):
+        made.append(_FakeModel(device, gpu_fails if device == "cuda" else None))
+        return made[-1]
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=sentence_transformer))
+    return Embedder("bge-m3", "cuda"), made
+
+
+@pytest.mark.parametrize("full", ["CUDA out of memory. Tried to allocate 100.00 MiB.",
+                                  "CUDA error: out of memory",
+                                  "CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`"])
+def test_a_full_gpu_embeds_on_the_cpu(monkeypatch, full):
+    embedder, made = _embedder(monkeypatch, RuntimeError(full))
+    vectors = embedder.embed(["first passage", "second passage"])
+    assert vectors.shape == (2, 2) and vectors.dtype == np.float32
+    assert [m.device for m in made] == ["cuda", "cpu"] and embedder.fell_back()
+    embedder.embed(["third passage"])
+    assert len(made) == 2 and made[1].calls == 2  # the CPU's copy is loaded once, then kept
+
+
+def test_another_gpu_failure_is_not_hidden(monkeypatch):
+    embedder, made = _embedder(monkeypatch, ValueError("the input is not text"))
+    with pytest.raises(ValueError):
+        embedder.embed(["passage"])
+    assert [m.device for m in made] == ["cuda"]
+
+
+def test_the_layout_fallback_knows_a_full_gpu_by_each_of_its_messages():
+    from suveryn_rag import gpu
+
+    for full in ("CUDA out of memory.", "CUDA error: out of memory", "CUBLAS_STATUS_ALLOC_FAILED", "CUDNN_STATUS_ALLOC_FAILED"):
+        assert gpu.out_of_memory(full)
+    assert not gpu.out_of_memory("unsupported image") and not gpu.out_of_memory(None)
+
+
+def test_on_the_cpu_a_full_memory_is_not_hidden(monkeypatch):
+    import sys
+    import types
+
+    from suveryn_rag.embed import Embedder
+
+    model = _FakeModel("cpu", RuntimeError("out of memory"))
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=lambda m, device: model))
+    with pytest.raises(RuntimeError):
+        Embedder("bge-m3", "cpu").embed(["passage"])
+
+
+def test_a_long_document_is_embedded_in_slices_and_a_question_waits_for_one_slice(monkeypatch):
+    embedder, made = _embedder(monkeypatch, None)
+    vectors = embedder.embed([f"passage {i}" for i in range(150)])
+    assert vectors.shape == (150, 2) and made[0].calls == 3 and not embedder.fell_back()  # 64, 64, 22
+
+
+def test_the_layout_is_read_again_on_the_cpu_when_cublas_cant_get_memory():
+    pytest.importorskip("docling")
+    from docling.datamodel.base_models import ConversionStatus
+    from suveryn_rag.extract import convert_with_fallback
+
+    gpu = _Converter(_Result(ConversionStatus.PARTIAL_SUCCESS, [], ["CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`"]))
+    cpu = _Converter(_Result(ConversionStatus.SUCCESS, [1, 2]))
+    assert convert_with_fallback("x.pdf", gpu, lambda: cpu, on_gpu=True)[1:] == ("cpu", []) and cpu.calls == 1
+
+
+def test_a_documents_reading_line_says_when_its_passages_were_embedded_on_the_cpu(monkeypatch):
+    import time
+
+    from suveryn_rag.pipeline import Rag
+
+    embedder, _ = _embedder(monkeypatch, RuntimeError("CUDA out of memory."))
+    rag = Rag.__new__(Rag)
+    rag.embedder = embedder
+    timings: dict[str, float] = {}
+    vectors = rag._embed_passages([NS(embed_text="first"), NS(embed_text="second")], timings, time.perf_counter())
+    assert vectors.shape == (2, 2) and timings["embed_on_cpu"] == 1.0 and timings["embed"] >= 0
