@@ -25,6 +25,6 @@ screens are not here; they are the gateway's and the UI's. **Start with
 | `usage.py` | `UsageRecord` (user, kind, model, prompt/completion tokens; never text) and the `UsageRecorder` hook: token usage is captured here, once, for every model call (suveryn-tracker#7); the gateway stores it |
 | `audit.py` | Audit events (ids, pages and kinds; never text), such as passages that address an AI |
 | `messages.py`, `messages.json` | The registry of codes and the one way to use one (`message`, `Problem`); standard library only, as the appliance's web setup loads it ([messages.md](../../docs/design/messages.md)) |
-| `setup-limits.json` | The web setup's field lengths (the name, the email address, the password's minimum and maximum): the setup screen reads them, and the appliance's setup service is to read them as well (suveryn-tracker#163) |
+| `setup-limits.json` | The web setup's field lengths (the name, the email address, the password's minimum and maximum): the setup screen and the appliance's setup service use all four; the appliance's Keycloak realm takes the password's minimum (suveryn-tracker#163) |
 | `released.py`, `messages-released.json` | The list of released codes and the command that adds to it ([names.md](../../docs/design/names.md), *Released*) |
 | `config.py` | `LLMSettings` from `SUVERYN_LLM_BASE_URL`, `SUVERYN_LLM_DEFAULT_MODEL`, `SUVERYN_LLM_TIMEOUT_S` |

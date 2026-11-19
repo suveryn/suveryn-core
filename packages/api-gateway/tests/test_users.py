@@ -11,6 +11,7 @@ import json
 import re
 import time
 import uuid
+from importlib.resources import files
 
 import httpx
 import pytest
@@ -337,6 +338,9 @@ def test_temporary_passwords_are_readable_and_long_enough():
     for _ in range(50):
         p = temporary_password()
         assert len(p) == 19 and re.fullmatch(r"[a-km-z2-9]{4}(-[a-km-z2-9]{4}){3}", p) and not set("lo01") & set(p)
+    # Keycloak's policy on the appliance takes its least length from the web setup's (suveryn-tracker#163)
+    limits = json.loads((files("suveryn_harness") / "setup-limits.json").read_text(encoding="utf-8"))
+    assert len(p) >= limits["password_min"]
 
 
 def test_nobody_else_can_and_a_browser_session_calls_with_a_fresh_token(setup):

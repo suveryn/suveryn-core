@@ -1,13 +1,12 @@
 /**
  * The administrator account's rules (setup screen 2, suveryn-tracker#37): a name, an email address,
- * a password of at least 15 characters that isn't a common password and doesn't contain the name,
+ * a password long enough that isn't a common password and doesn't contain the name,
  * the email address or the appliance's name, typed twice. Checked when Continue is pressed, never
- * while typing. Keycloak's password policy must enforce the same rules (length(15),
- * notUsername, notEmail, passwordBlacklist), since the account lives there.
+ * while typing. Keycloak's password policy must enforce the same rules (length, notUsername,
+ * notEmail; passwordBlacklist once the list is on the appliance, #37), since the account lives there.
  *
- * The lengths are in suveryn_harness/setup-limits.json, which the appliance's setup service is to read
- * as well, in place of its own numbers (its half of suveryn-tracker#163): the fields stop at the maxima,
- * so a longer value never leaves the screen. A field counts UTF-16 units and the appliance counts
+ * The lengths are in suveryn_harness/setup-limits.json (who else reads it: packages/harness/README.md):
+ * the fields stop at the maxima, so a longer value never leaves the screen. A field counts UTF-16 units and the appliance counts
  * characters, so what the screen lets through is never too long there.
  *
  * The common-password check here is a short list for the spike: the real one needs a list of
