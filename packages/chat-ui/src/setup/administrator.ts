@@ -5,13 +5,20 @@
  * while typing. Keycloak's password policy must enforce the same rules (length(15),
  * notUsername, notEmail, passwordBlacklist), since the account lives there.
  *
+ * The lengths are in suveryn_harness/setup-limits.json, which the appliance's setup service is to read
+ * as well, in place of its own numbers (its half of suveryn-tracker#163): the fields stop at the maxima,
+ * so a longer value never leaves the screen. A field counts UTF-16 units and the appliance counts
+ * characters, so what the screen lets through is never too long there.
+ *
  * The common-password check here is a short list for the spike: the real one needs a list of
  * leaked passwords on the appliance, shared with Keycloak's passwordBlacklist (open point, #37).
  */
 import type { FieldErrors } from "../ui";
 import type { Text } from "./i18n";
+import LIMITS from "../../../harness/src/suveryn_harness/setup-limits.json";
 
-const MIN_PASSWORD = 15;
+export { LIMITS };
+const MIN_PASSWORD = LIMITS.password_min;
 
 const COMMON = new Set([
   "passwordpassword", "password1234567", "123456789012345", "1234567890123456", "qwertyuiopasdfgh",

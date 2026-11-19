@@ -1,9 +1,12 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PREVENT_SCROLL_STYLE, reactAriaCsp } from "../../vite.config";
-import { checkAdministrator, isCommonPassword } from "./administrator";
+import { checkAdministrator, isCommonPassword, LIMITS } from "./administrator";
+import { Administrator } from "./steps/Administrator";
 import { copyProblems, strings } from "../i18n/rules";
 import { LANGS, pickLang, TEXT } from "./i18n";
 
@@ -52,6 +55,18 @@ describe("the administrator account", () => {
     for (const p of ["my name is Lotte, hello", "a long verbeke password!", "brussels office 2026", "the notary password"]) {
       expect(check({ password: p, confirm: p }).password, p).toBe(en.errPasswordPersonal);
     }
+  });
+  it("gives each field the appliance's maximum, and says the password's (suveryn-tracker#163)", () => {
+    const html = renderToStaticMarkup(createElement(Administrator, {
+      state: { name: "suveryn-4f2a", answers: {}, usb_disks: [], restore: null } as never,
+      onBack: () => {}, onDone: () => {}, headingId: "h" }));
+    const maxOf = (name: string) => html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0].match(/maxLength="(\d+)"/i)?.[1];
+    expect(maxOf("name")).toBe(String(LIMITS.name_max));
+    expect(maxOf("email")).toBe(String(LIMITS.email_max));
+    expect(maxOf("password")).toBe(String(LIMITS.password_max));
+    expect(maxOf("confirm")).toBe(String(LIMITS.password_max));
+    expect(html).toContain(en.passwordMax({ max: LIMITS.password_max }));
+    expect(html).toContain(`placeholder="${en.passwordPlaceholder({ min: LIMITS.password_min })}"`);
   });
   it("needs the confirmation to match, but only once the password itself is right", () => {
     expect(check({ confirm: "something else" })).toEqual({ confirm: en.errConfirm });
