@@ -34,7 +34,7 @@ MAX_USERS = 1000
 MAX_EVENTS = 200
 EVENTS_KEPT_DAYS = 180  # the realm's eventsExpiration (development and production): older sign-ins are gone
 PAIRED_S = 2  # what one change does in several calls, one right after the other, shows as one line
-# A temporary password the policy accepts (15 characters or more) and a person can read out: four groups
+# A temporary password the policy accepts (at least suveryn_harness/setup-limits.json's password_min) and a person can read out: four groups
 # of letters and digits without look-alikes (no l, 1, o, 0).
 _ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"
 
