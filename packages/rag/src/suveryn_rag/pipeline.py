@@ -207,8 +207,7 @@ class Rag:
                             for page, kinds in suspicious.items()]
         ex.timings["chunk"] = time.perf_counter() - t
         t = time.perf_counter()
-        vectors = self.embedder.embed([c.embed_text for c in chunks])
-        ex.timings["embed"] = time.perf_counter() - t
+        vectors = self._embed_passages(chunks, ex.timings, t)
         t = time.perf_counter()
         noticed = None
         if existing:
@@ -241,8 +240,7 @@ class Rag:
             raise Unreadable("the file has no text", "document.no_text")
         kinds = sorted({k for c in chunks for k in instruction_like(c.text)})
         warnings = [IntegrityWarning(None, "document.instruction_like_text", "text addressed to an AI: " + ", ".join(kinds))] if kinds else []
-        vectors = self.embedder.embed([c.embed_text for c in chunks])
-        ex.timings["embed"] = time.perf_counter() - t
+        vectors = self._embed_passages(chunks, ex.timings, t)
         t = time.perf_counter()
         noticed = None
         if existing:
@@ -276,6 +274,14 @@ class Rag:
         vectors = self.embedder.embed([c.embed_text for c in chunks])
         digest = hashlib.sha256(f"{uuid.uuid4()}:{text}".encode()).hexdigest()  # unique: never de-duplicated
         return self.store.add_document(filename, digest, 0, 0, chunks, vectors, [], owner, case_id, origin, provenance, content)
+
+    def _embed_passages(self, chunks: list[Chunk], timings: dict[str, float], started: float):
+        """A document's passages as vectors, and in ``timings`` how long it took and whether the GPU was full
+        (``embed_on_cpu``, in the reading log line)."""
+        vectors = self.embedder.embed([c.embed_text for c in chunks])
+        timings["embed"] = time.perf_counter() - started
+        timings["embed_on_cpu"] = float(self.embedder.fell_back())
+        return vectors
 
     def passages(self, question: str, document_ids: list[uuid.UUID], k: int) -> tuple[list[RetrievedChunk], bool]:
         """Passages to ground an answer on, and whether they are the documents' complete text.

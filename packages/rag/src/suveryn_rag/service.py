@@ -217,7 +217,7 @@ def reading_line(job: "Job", timings: dict[str, float], started: float) -> str:
     file type only), its pages, and the seconds per stage, waiting included. Never a file name or text."""
     kind = PurePosixPath(job.filename).suffix.lower().lstrip(".")[:8] or "?"
     stages = " ".join(f"{s}={timings[s]:.2f}" for s in STAGES if s in timings)
-    cpu = " layout_on_cpu" if timings.get("layout_on_cpu") else ""
+    cpu = "".join(f" {flag}" for flag in ("layout_on_cpu", "embed_on_cpu") if timings.get(flag))
     return (f"document read: job {job.id} {kind if kind.isalnum() else '?'} pages={job.pages} ocr_pages={job.ocr_pages} "
             f"{stages}{cpu} waited={started - job.created_at:.2f} total={time.time() - started:.2f}")
 

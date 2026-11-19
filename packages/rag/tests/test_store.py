@@ -231,6 +231,9 @@ def test_word_and_spreadsheet_passages_are_stored_with_their_place(tmp_path):
     from suveryn_rag.pipeline import Rag, _hit
 
     class Embedder:
+        def fell_back(self):
+            return False
+
         def embed(self, texts):
             return np.stack([unit(i) for i in range(len(texts))])
 
