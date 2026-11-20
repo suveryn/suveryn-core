@@ -49,6 +49,9 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: "2026-07-01T10:00:00Z" } }, now)).toBe("key_due");
     expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: null } }, now)).toBe("key_due");  // never passed, a month of backups
     expect(backupAttention({ ...base, key_test: { ...wrong, failure: { kind: "refused", code: "backup.damaged", params: {} }, last_ok: null } }, now)).toBe("key_failed");  // the backup itself
+    const noKey = { ...wrong, failure: { kind: "refused", code: "backup.not_a_key", params: {} } };  // a file with no key in it (#164)
+    expect(keyTestState({ ...base, key_test: noKey }, now)).toMatchObject({ kind: "wrong_file", lastOk: "2026-10-22T09:50:00Z" });
+    expect(backupAttention({ ...base, key_test: noKey }, now)).toBeNull();
   });
 
   it("lists each thing that needs attention on its own row, the key also while the backups fail (board B01)", () => {
