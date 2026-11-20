@@ -1,0 +1,3 @@
+# The fictional test pack's case types (suveryn-tracker#229): the two its playbooks fit, and one without a playbook.
+pack: pack/be-test
+case_types: [company-formation, care-mandate, estate]

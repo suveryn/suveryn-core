@@ -374,6 +374,17 @@ def test_create_list_and_open_a_case(office):
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/cases", json={**NEW, "reference": "2026/0417"}, headers=bob)) == (409, "case.reference_exists")
 
 
+def test_the_case_types_offered_come_from_core_and_the_installed_packs(office):
+    """suveryn-tracker#229: the server knows which case types exist (core's reference content's, then the installed
+    packs': here the test pack's), each with its words; signed in only."""
+    c, kc, _, _, _ = office
+    types = c.get("/v1/case-types", headers=as_user(kc, BOB)).json()
+    assert [(t["id"], t["pack"]) for t in types][:2] == [("sale", "pack/be-notary"), ("company-formation", "pack/be-test")]
+    assert types[0]["text"] == {"en": "Sale", "nl": "Verkoop", "fr": "Vente"}
+    assert "estate" in [t["id"] for t in types]  # a type without a playbook is offered too
+    assert c.get("/v1/case-types").status_code == 401
+
+
 def test_only_the_manager_changes_or_deletes_a_case(office):
     c, kc, _, _, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)

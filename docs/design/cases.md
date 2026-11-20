@@ -43,9 +43,14 @@ Membership adds rights; it never takes them away.
 
 ## Case types and what a case is about
 
-The **type** says what kind of file it is and decides which playbooks fit: for notaries, sale,
-company formation, estate, gift, marriage contract, care mandate (4 November 2026, for the pack's care-mandate playbook); other sectors bring their own list. Types are
-data, not code: a short list per appliance, with sūveryn's own per sector.
+The **type** says what kind of file it is and decides which playbooks fit. The server knows which types
+exist (`GET /v1/case-types`, suveryn-tracker#229): core's reference content brings `sale`, the type its deed
+intake fits, and each installed pack brings its own in its `case-types.yaml`, with their words in its
+`text/<lang>.json` (be-notary: company formation, estate, gift, marriage contract, care mandate). A type
+has one source on an appliance and is never renamed or removed once released; a type without a playbook is
+offered too. A stored case keeps its type, also when the pack that brought it is gone. Until the screens
+read this list (#229, with #228 and #230), the new-case dialog offers its own six and the server stores the
+type it is sent.
 
 What a case is about in its type's terms (a property for a sale, an application number for a patent)
 is not stored on the case yet. There is no free-form `subject`: an open field invites a client's name on

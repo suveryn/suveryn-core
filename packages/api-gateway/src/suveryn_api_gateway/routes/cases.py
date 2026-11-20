@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
+from suveryn_playbooks import CASE_TYPES
 
 from ..cases import (
     KEEP_PERIODS,
@@ -16,6 +17,7 @@ from ..cases import (
     CaseEvent,
     CaseIn,
     CaseOverview,
+    CaseTypeOut,
     CaseUpdate,
     DuplicateReference,
     HandoverIn,
@@ -57,6 +59,14 @@ router = APIRouter(tags=["cases"])  # the group its operations are in, in the de
 users_routes = APIRouter(tags=["users"])
 settings_routes = APIRouter(tags=["settings"])
 routers = (router, users_routes, settings_routes)
+
+
+@router.get("/v1/case-types", response_model=list[CaseTypeOut])
+async def list_case_types():
+    """The case types this appliance offers, in order: core's reference content's, then each installed pack's
+    (suveryn-tracker#229). A type without a playbook is offered too; a stored case keeps its type when the
+    type's pack is gone."""
+    return [CaseTypeOut(id=t.id, pack=t.pack, text=dict(t.text)) for t in CASE_TYPES]
 
 
 @router.get("/v1/cases", response_model=list[Case])

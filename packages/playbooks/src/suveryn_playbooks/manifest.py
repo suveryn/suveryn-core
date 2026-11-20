@@ -49,7 +49,7 @@ from typing import Any, ClassVar, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from ._model import Calendar, Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
+from ._model import Calendar, CaseType, Fact, FactKind, LeafKind, Playbook, Step, StepKind, Wording
 from .paths import MAX_ENTRIES
 
 MANIFEST_VERSIONS = (3,)
@@ -560,6 +560,8 @@ def load(path: Path, text: dict[str, Wording] | None = None) -> Playbook:
 
 
 CALENDAR_FILE = "calendar.yaml"  # a pack's working days, beside its manifests; never a manifest itself
+CASE_TYPES_FILE = "case-types.yaml"  # the case types a pack brings, beside its manifests; never a manifest itself
+PACK_FILES = (CALENDAR_FILE, CASE_TYPES_FILE)  # a pack's files that aren't manifests
 _DAY = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 _DATE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -621,6 +623,55 @@ def calendar_from_dir(pack_dir: Path) -> Calendar | None:
         raise ManifestError(f"{f}: {e}") from None
     return Calendar(name=dict(spec.name), workdays=tuple(_WEEKDAYS.index(d) for d in spec.workdays), fixed=spec.fixed,
                     after_easter=spec.after_easter, dates=spec.dates)
+
+
+class CaseTypesSpec(BaseModel):
+    """The case types a pack brings, as written in its ``case-types.yaml``; their words are in the pack's
+    ``text/<lang>.json`` under ``caseTypes`` (docs/translations.md)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    pack: str = Field(pattern=_PACK.pattern, description="pack/<profession-jurisdiction>: the pack that declares them")
+    case_types: tuple[str, ...] = Field(min_length=1, max_length=100, description="Their ids, in the order a list offers them")
+
+    @field_validator("case_types")
+    @classmethod
+    def _ids(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        for t in v:
+            if not _CASE_TYPE.match(t):
+                raise ValueError(f"case type {t!r}: lower-case letters, digits and hyphens")
+        if len(set(v)) != len(v):
+            raise ValueError("a case type is listed twice")
+        return v
+
+
+def case_types_from_dir(pack_dir: Path) -> tuple[CaseType, ...]:
+    """The case types ``<pack_dir>/case-types.yaml`` declares, each with its word in every language from the
+    pack's ``text/<lang>.json`` (``caseTypes``); none when the pack has no such file."""
+    import json
+
+    from ._model import LANGUAGES
+
+    f = pack_dir / CASE_TYPES_FILE
+    if not f.is_file():
+        return ()
+    try:
+        spec = CaseTypesSpec.model_validate(yaml.safe_load(f.read_text(encoding="utf-8")))
+    except (ValidationError, yaml.YAMLError) as e:
+        raise ManifestError(f"{f}: {e}") from None
+    words: dict[str, dict[str, str]] = {t: {} for t in spec.case_types}
+    for lang in LANGUAGES:
+        t_file = pack_dir / "text" / f"{lang}.json"
+        try:
+            given = json.loads(t_file.read_text(encoding="utf-8"))["caseTypes"]
+            for t in spec.case_types:
+                word = given[t]
+                if not isinstance(word, str) or not word.strip():
+                    raise ValueError("empty")
+                words[t][lang] = word
+        except (OSError, KeyError, TypeError, ValueError) as e:
+            raise ManifestError(f"{f}: {t_file}: no word for every case type under caseTypes ({e})") from None
+    return tuple(CaseType(id=t, pack=spec.pack, text=words[t]) for t in spec.case_types)
 
 
 def pack_text_from_dir(pack_dir: Path, slug: str, *, where: str) -> dict[str, Wording]:

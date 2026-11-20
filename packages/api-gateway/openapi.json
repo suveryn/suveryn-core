@@ -1481,6 +1481,33 @@
     "title": "CaseOverview",
     "type": "object"
    },
+   "CaseTypeOut": {
+    "description": "A case type an appliance offers (``GET /v1/case-types``, suveryn-tracker#229): its id, the pack that\nbrings it (core's reference content or an installed pack) and its word per language, which the screen shows.",
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "pack": {
+      "title": "Pack",
+      "type": "string"
+     },
+     "text": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Text",
+      "type": "object"
+     }
+    },
+    "required": [
+     "id",
+     "pack",
+     "text"
+    ],
+    "title": "CaseTypeOut",
+    "type": "object"
+   },
    "CaseUpdate": {
     "description": "Body of ``PATCH /v1/cases/{id}``: what a manager may change. Fields left out stay as they are.",
     "properties": {
@@ -6301,6 +6328,32 @@
     "summary": "Reset Account Two Step",
     "tags": [
      "users"
+    ]
+   }
+  },
+  "/v1/case-types": {
+   "get": {
+    "description": "The case types this appliance offers, in order: core's reference content's, then each installed pack's\n(suveryn-tracker#229). A type without a playbook is offered too; a stored case keeps its type when the\ntype's pack is gone.",
+    "operationId": "list_case_types",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/CaseTypeOut"
+         },
+         "title": "Response List Case Types",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Case Types",
+    "tags": [
+     "cases"
     ]
    }
   },

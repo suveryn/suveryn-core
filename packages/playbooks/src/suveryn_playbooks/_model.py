@@ -131,6 +131,17 @@ class Step:
 
 
 @dataclass(frozen=True)
+class CaseType:
+    """A case type a pack brings (suveryn-tracker#229): its id, stored on the case and named in a playbook's
+    ``case_types``, the pack that declares it, and its word per language. A type is declared by exactly one
+    source on an appliance, and never renamed or removed once released."""
+
+    id: str
+    pack: str
+    text: dict[str, str]
+
+
+@dataclass(frozen=True)
 class Calendar:
     """The days a pack's deeds count as working days (docs/design/playbooks.md, "Working days"): the pack's own data,
     as the law behind it differs per country (``calendar.yaml`` beside the pack's manifests). ``workdays``: the
