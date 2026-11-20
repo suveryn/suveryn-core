@@ -315,6 +315,7 @@ const en = {
     "backup.key_mismatch": "The recovery key doesn't open this backup. Choose the key file of the appliance that made it.",
     "backup.damaged": m("The backups there made from {oldest} to {newest} are damaged and can't be restored. Contact your partner.", "oldest", "newest"),
     "backup.target_unreachable": "The appliance couldn't reach the backups. Check the disk or the share's address, user name and password.",
+    "backup.file_system_unsupported": "The appliance can't read this disk's format. Choose the disk the backups were made on, or copy the suveryn-backups folder to an exFAT disk.",
     "request.invalid": "The answers were incomplete. Enter them again.",
   } satisfies Record<SetupCode | BackupCode, Wording> & Partial<Record<MessageCode, Wording>>,
   messagesBare: { "backup.damaged": "The newest backup there is damaged and can't be restored. Contact your partner.", "setup.provisioning_failed": "It stopped. Nothing you entered is lost. Try again; if it stops again, restart the appliance from its console and reload this page." } satisfies Partial<Record<MessageCode, string>>,

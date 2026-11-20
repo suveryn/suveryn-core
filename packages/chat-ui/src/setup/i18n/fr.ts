@@ -315,6 +315,7 @@ const fr: Text = {
     "backup.key_mismatch": "La clé de récupération n'ouvre pas cette sauvegarde. Choisissez le fichier de clé de l'appliance qui l'a faite.",
     "backup.damaged": m("Les sauvegardes à cet endroit, faites du {oldest} au {newest}, sont endommagées et ne peuvent pas être restaurées. Contactez votre partenaire."),
     "backup.target_unreachable": "L'appliance n'a pas pu atteindre les sauvegardes. Vérifiez le disque, ou l'adresse, le nom d'utilisateur et le mot de passe du partage.",
+    "backup.file_system_unsupported": "L'appliance ne peut pas lire le format de ce disque. Choisissez le disque sur lequel les sauvegardes ont été faites, ou copiez le dossier suveryn-backups sur un disque exFAT.",
     "request.invalid": "Les réponses étaient incomplètes. Saisissez-les à nouveau.",
   },
   messagesBare: { "backup.damaged": "La sauvegarde la plus récente à cet endroit est endommagée et ne peut pas être restaurée. Contactez votre partenaire.", "setup.provisioning_failed": "Elle s'est arrêtée. Rien de ce que vous avez saisi n'est perdu. Réessayez ; si elle s'arrête encore, redémarrez l'appliance depuis sa console et rechargez cette page." },

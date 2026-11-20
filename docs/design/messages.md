@@ -103,8 +103,9 @@ Two screens word codes, each for its own reader. The chat's tables (`src/i18n/<l
 `setup` area; the setup's tables (`src/setup/i18n/<lang>.ts`) word that area in full sentences that speak of the
 appliance and the partner, and its own `messageKinds` say anything else. Both meet the backup service's codes
 (Administration › Backups; a restore in the setup): those are worded once, in `src/i18n/backups/<lang>.ts`, which
-both tables take, and the setup says four its own way (`backup.damaged` among them, with the dates of the backups a
-restore tried, suveryn-tracker#166). `setup/screens.test.ts` fails on a `setup` or `backup` code
+both tables take, and the setup says five its own way (`backup.damaged` among them, with the dates of the backups a
+restore tried, suveryn-tracker#166; and `backup.file_system_unsupported` without Administration's "format it", since a
+restore's disk holds the backups). `setup/screens.test.ts` fails on a `setup` or `backup` code
 without words in a language, and on words for a code the registry doesn't list.
 
 ## The appliance's helpers: backups and the clock
