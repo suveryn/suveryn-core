@@ -49,6 +49,9 @@ def _official() -> tuple[tuple[Playbook, ...], tuple[CaseType, ...]]:
     ids = [p.id for p in out]
     if len(set(ids)) != len(ids):
         raise ManifestError("two official manifests declare the same id: " + ", ".join(i for i in ids if ids.count(i) > 1))
+    type_ids = [t.id for t in types]
+    if len(set(type_ids)) != len(type_ids):
+        raise ManifestError("two official packs declare the same case type: " + ", ".join(t for t in type_ids if type_ids.count(t) > 1))
     return tuple(out), tuple(types)
 
 

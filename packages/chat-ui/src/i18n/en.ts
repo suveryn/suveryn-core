@@ -110,6 +110,7 @@ const en = {
     "case.closed": "This case is closed. Nothing can be added or changed until it is reopened.",
     "case.manager_or_administrator_only": "Only the case manager or an administrator can do this.",
     "case.reference_exists": "A case with this number already exists. Choose another number.",
+    "case.type_unsupported": "This case type isn't offered here. Choose one from the list.",
     "case.strictly_confidential": "This can't be done in a strictly confidential case: it stays with its members.",
     "case.single_manager": "A case always has one manager. Hand the case over to change who that is.",
     "case.deletion_failed": "The case couldn't be deleted just now, and nothing was deleted. Try again shortly.",

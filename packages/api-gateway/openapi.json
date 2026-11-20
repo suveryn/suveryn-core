@@ -6405,7 +6405,7 @@
     ]
    },
    "post": {
-    "description": "Open a new case. The caller becomes its manager and first member.\nThe reference is the office's own file number, unique on this appliance; never put a client's\nname in it or the name.",
+    "description": "Open a new case. The caller becomes its manager and first member.\nThe reference is the office's own file number, unique on this appliance; never put a client's\nname in it or the name. The type is one this appliance offers (``GET /v1/case-types``).",
     "operationId": "create_case",
     "requestBody": {
      "content": {
@@ -6432,14 +6432,7 @@
       "description": "A case with this reference exists"
      },
      "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
+      "description": "A case type this appliance doesn't offer"
      }
     },
     "summary": "Create Case",
@@ -6563,7 +6556,7 @@
     ]
    },
    "patch": {
-    "description": "Change a case's reference, name, type, access or strictly confidential label (its\nmanager only). Turning the label on restricts the access and unshares the case's conversations.",
+    "description": "Change a case's reference, name, type, access or strictly confidential label (its\nmanager only). Turning the label on restricts the access and unshares the case's conversations.\nA new type is one this appliance offers; a case whose stored type it no longer offers keeps it, and\nits other fields still change.",
     "operationId": "update_case",
     "parameters": [
      {
@@ -6607,14 +6600,7 @@
       "description": "A case with this reference exists, or the access can't be opened while strictly confidential"
      },
      "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
+      "description": "A case type this appliance doesn't offer"
      }
     },
     "summary": "Update Case",

@@ -45,12 +45,12 @@ Membership adds rights; it never takes them away.
 
 The **type** says what kind of file it is and decides which playbooks fit. The server knows which types
 exist (`GET /v1/case-types`, suveryn-tracker#229): core's reference content brings `sale`, the type its deed
-intake fits, and each installed pack brings its own in its `case-types.yaml`, with their words in its
-`text/<lang>.json` (be-notary: company formation, estate, gift, marriage contract, care mandate). A type
-has one source on an appliance and is never renamed or removed once released; a type without a playbook is
-offered too. A stored case keeps its type, also when the pack that brought it is gone. Until the screens
-read this list (#229, with #228 and #230), the new-case dialog offers its own six and the server stores the
-type it is sent.
+intake fits, and each installed pack brings the rest in its `case-types.yaml`, with their words in its
+`text/<lang>.json`. A type has one source on an appliance; a type without a playbook is offered too. The
+server refuses a new case, or a change of type, to a type it doesn't offer (`case.type_unsupported`); a
+stored case keeps its type, also when the pack that brought it is gone, and its other fields still change.
+Until the screens read this list (#229, with #228 and #230), the new-case dialog offers its own six, and
+one an installed pack doesn't declare is refused.
 
 What a case is about in its type's terms (a property for a sale, an application number for a patent)
 is not stored on the case yet. There is no free-form `subject`: an open field invites a client's name on

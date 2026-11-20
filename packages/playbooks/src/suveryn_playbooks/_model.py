@@ -134,7 +134,7 @@ class Step:
 class CaseType:
     """A case type a pack brings (suveryn-tracker#229): its id, stored on the case and named in a playbook's
     ``case_types``, the pack that declares it, and its word per language. A type is declared by exactly one
-    source on an appliance, and never renamed or removed once released."""
+    source on an appliance."""
 
     id: str
     pack: str

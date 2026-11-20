@@ -3,6 +3,7 @@ it says so, and that deed intake as a manifest is the deed intake that was code.
 
 import dataclasses
 import json
+import os
 import re
 from pathlib import Path
 
@@ -534,6 +535,21 @@ def test_case_types_come_from_core_and_the_packs_one_source_each(tmp_path):
     for lang in ("nl", "fr"):
         (tmp_path / "be-example" / "text" / f"{lang}.json").write_text((tmp_path / "be-example" / "text" / "en.json").read_text(), encoding="utf-8")
     assert main([str(tmp_path)], (), official) == 0
+
+
+def test_an_installed_pack_whose_playbook_fits_an_undeclared_type_stops_the_import(tmp_path):
+    """suveryn-tracker#229: the check runs when suveryn_playbooks loads, as for any pack that doesn't load."""
+    import shutil
+    import subprocess
+    import sys
+    packs = tmp_path / "packs"
+    shutil.copytree(Path(__file__).parent / "fixtures" / "packs", packs)
+    run = lambda: subprocess.run([sys.executable, "-c", "import suveryn_playbooks"], capture_output=True, text=True,  # noqa: E731
+                                 env={**os.environ, "SUVERYN_PACKS_DIR": str(packs)})
+    assert run().returncode == 0
+    (packs / "be-test" / "case-types.yaml").write_text("pack: pack/be-test\ncase_types: [company-formation, estate]\n", encoding="utf-8")
+    r = run()
+    assert r.returncode != 0 and "playbook/be-test/care-mandate: case type 'care-mandate' is declared by no installed pack" in r.stderr
 
 
 DEED = (PACK / "deed-intake.yaml").read_text(encoding="utf-8")
