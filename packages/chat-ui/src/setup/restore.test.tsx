@@ -5,6 +5,9 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { backupMessages as enBackups } from "../i18n/backups/en";
+import { backupMessages as frBackups } from "../i18n/backups/fr";
+import { backupMessages as nlBackups } from "../i18n/backups/nl";
 import { TEXT } from "./i18n";
 import { madeAt, RestoreConfirm, RestoreDone, RestoreSource } from "./steps/Restore";
 import { Welcome } from "./steps/Welcome";
@@ -93,10 +96,16 @@ describe("restoring a backup from the web setup", () => {
   it("has every code the appliance answers a restore with, in every language", () => {
     for (const t of Object.values(TEXT)) {
       for (const code of ["backup.key_mismatch", "backup.not_found", "backup.target_unreachable", "backup.damaged", "backup.version_too_new",
-        "backup.restore_failed", "backup.not_a_key", "setup.restore_started", "setup.backup_not_checked", "backup.disk_gone", "backup.share_address_invalid"]) {
+        "backup.restore_failed", "backup.not_a_key", "setup.restore_started", "setup.backup_not_checked", "backup.disk_gone", "backup.share_address_invalid",
+        "backup.share_login_refused", "backup.too_large", "backup.file_system_unsupported"]) {
         expect((t.messages as Record<string, unknown>)[code], code).toBeTruthy();
       }
       expect(t.messages["request.invalid"]).toBeTruthy();  // answers that were incomplete
+    }
+    // a restore's disk holds the backups: never Administration's "format it" there (suveryn-tracker#164)
+    for (const [lang, night] of [["en", enBackups], ["nl", nlBackups], ["fr", frBackups]] as const) {
+      expect(TEXT[lang].messages["backup.file_system_unsupported"], lang).not.toBe(night["backup.file_system_unsupported"]);
+      expect(String(TEXT[lang].messages["backup.file_system_unsupported"]), lang).not.toMatch(/\bFormat it\b|\bFormatteer\b|\bFormatez\b/);  // the verb, never on the disk with the backups
     }
   });
 });

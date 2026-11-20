@@ -735,6 +735,12 @@
    "status": 422,
    "since": "0.2.0"
   },
+  "backup.too_large": {
+   "kind": "refused",
+   "title": "The backup is larger than this appliance can restore: more than it has room for, or past its limits on entries or on the settings folders' size.",
+   "status": 422,
+   "since": "0.2.0"
+  },
   "backup.settings_invalid": {
    "kind": "refused",
    "title": "A backup couldn't start: its settings aren't valid (no target, no recovery key, a period or an hour that isn't one).",
@@ -745,6 +751,12 @@
    "title": "The disk or share with the backups can't be reached, or can't be written to.",
    "status": 503,
    "retry": true,
+   "since": "0.2.0"
+  },
+  "backup.file_system_unsupported": {
+   "kind": "refused",
+   "title": "The backup disk is there, and has no file system the appliance uses.",
+   "status": 422,
    "since": "0.2.0"
   },
   "backup.disk_full": {

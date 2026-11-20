@@ -315,6 +315,7 @@ const nl: Text = {
     "backup.key_mismatch": "De herstelsleutel opent deze back-up niet. Kies het sleutelbestand van de appliance die de back-up maakte.",
     "backup.damaged": m("De back-ups daar, gemaakt van {oldest} tot {newest}, zijn beschadigd en kunnen niet worden teruggezet. Neem contact op met uw partner."),
     "backup.target_unreachable": "De appliance kon de back-ups niet bereiken. Controleer de schijf, of het adres, de gebruikersnaam en het wachtwoord van de gedeelde map.",
+    "backup.file_system_unsupported": "De appliance kan het formaat van deze schijf niet lezen. Kies de schijf waarop de back-ups zijn gemaakt, of kopieer de map suveryn-backups naar een exFAT-schijf.",
     "request.invalid": "De antwoorden waren onvolledig. Vul ze opnieuw in.",
   },
   messagesBare: { "backup.damaged": "De nieuwste back-up daar is beschadigd en kan niet worden teruggezet. Neem contact op met uw partner.", "setup.provisioning_failed": "Ze stopte. Niets van wat u invulde, gaat verloren. Probeer het opnieuw; stopt ze opnieuw, herstart de appliance dan via haar console en laad deze pagina opnieuw." },
