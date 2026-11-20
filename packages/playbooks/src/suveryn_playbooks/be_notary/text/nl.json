@@ -47,5 +47,8 @@
       "title_read": "Lezen van de eigendomstitel",
       "certificates_read": "Lezen van de attesten"
     }
+  },
+  "caseTypes": {
+    "sale": "Verkoop"
   }
 }

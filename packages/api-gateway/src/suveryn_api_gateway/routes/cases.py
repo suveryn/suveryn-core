@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
+from suveryn_playbooks import CASE_TYPES, case_type
 
 from ..cases import (
     KEEP_PERIODS,
@@ -16,6 +17,7 @@ from ..cases import (
     CaseEvent,
     CaseIn,
     CaseOverview,
+    CaseTypeOut,
     CaseUpdate,
     DuplicateReference,
     HandoverIn,
@@ -59,6 +61,14 @@ settings_routes = APIRouter(tags=["settings"])
 routers = (router, users_routes, settings_routes)
 
 
+@router.get("/v1/case-types", response_model=list[CaseTypeOut])
+async def list_case_types():
+    """The case types this appliance offers, in order: core's reference content's, then each installed pack's
+    (suveryn-tracker#229). A type without a playbook is offered too; a stored case keeps its type when the
+    type's pack is gone."""
+    return [CaseTypeOut(id=t.id, pack=t.pack, text=dict(t.text)) for t in CASE_TYPES]
+
+
 @router.get("/v1/cases", response_model=list[Case])
 async def list_cases(request: Request, closed: bool = False):
     """The cases the caller may see: open ones first, most recently active first. Closed cases
@@ -90,12 +100,20 @@ async def list_case_overviews(request: Request):
     return out
 
 
-@router.post("/v1/cases", response_model=Case, status_code=201, responses={409: {"description": "A case with this reference exists"}})
+def offered_type(type_id: str) -> None:
+    """Refuses a case type this appliance doesn't offer (``GET /v1/case-types``, suveryn-tracker#229)."""
+    if case_type(type_id) is None:
+        raise Problem("case.type_unsupported", "This appliance doesn't offer this case type.")
+
+
+@router.post("/v1/cases", response_model=Case, status_code=201, responses={
+    409: {"description": "A case with this reference exists"}, 422: {"description": "A case type this appliance doesn't offer"}})
 async def create_case(body: CaseIn, request: Request):
     """Open a new case. The caller becomes its manager and first member.
     The reference is the office's own file number, unique on this appliance; never put a client's
-    name in it or the name."""
+    name in it or the name. The type is one this appliance offers (``GET /v1/case-types``)."""
     store = cases_or_503(request)
+    offered_type(body.type)
     await remember_user(request)
     try:
         return await run_in_threadpool(store.create, body, owner_of(request), *who(request))
@@ -113,11 +131,16 @@ async def get_case(case_id: str, request: Request):
 
 @router.patch("/v1/cases/{case_id}", response_model=Case, responses={
     403: {"description": "Not the case's manager, or the case is closed"}, 404: {"description": "Unknown case"},
-    409: {"description": "A case with this reference exists, or the access can't be opened while strictly confidential"}})
+    409: {"description": "A case with this reference exists, or the access can't be opened while strictly confidential"},
+    422: {"description": "A case type this appliance doesn't offer"}})
 async def update_case(case_id: str, body: CaseUpdate, request: Request):
     """Change a case's reference, name, type, access or strictly confidential label (its
-    manager only). Turning the label on restricts the access and unshares the case's conversations."""
+    manager only). Turning the label on restricts the access and unshares the case's conversations.
+    A new type is one this appliance offers; a case whose stored type it no longer offers keeps it, and
+    its other fields still change."""
     case = await case_for(request, case_id, "manage")
+    if body.type is not None and body.type != case.type:
+        offered_type(body.type)
     try:
         changed = await run_in_threadpool(cases_or_503(request).update, uuid.UUID(case.id), body)
     except DuplicateReference:

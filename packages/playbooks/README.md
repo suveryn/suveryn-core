@@ -30,16 +30,17 @@ What is here:
 
 | Path | Contents |
 |---|---|
-| `src/suveryn_playbooks/__init__.py` | `PLAYBOOKS`, every manifest in the official packs and the installed packs directory, loaded at import; `covered`, `find`, `by_slug` and `for_case_type`; `LANGUAGES`, the interface languages |
+| `src/suveryn_playbooks/__init__.py` | `PLAYBOOKS`, every manifest in the official packs and the installed packs directory, loaded at import; `CASE_TYPES`, the case types they declare, one source each, every playbook's types among them; `covered`, `find`, `by_slug`, `for_case_type` and `case_type`; `LANGUAGES`, the interface languages |
 | `src/suveryn_playbooks/packs.py`, `__main__.py` | Packs from a directory (`SUVERYN_PACKS_DIR`): the certified content an appliance has installed; `python -m suveryn_playbooks <dir>` checks one |
-| `src/suveryn_playbooks/_model.py` | `Playbook`, `Fact`, `Step` and `Wording`: a playbook as the product sees it |
+| `src/suveryn_playbooks/_model.py` | `Playbook`, `Fact`, `Step` and `Wording`: a playbook as the product sees it; `CaseType` |
 | `src/suveryn_playbooks/manifest.py` | The manifest format (`Manifest`, validated strictly; `validate_steps` for the graph), `parse`, `load`, the table scaffold and the JSON Schema |
 | `src/suveryn_playbooks/paths.py` | Paths into a list's values (`founders[2].name`): split, root, entry |
 | `src/suveryn_playbooks/be_notary/deed-intake.yaml` | Deed intake: its facts (three of them lists; two dates that count from the agreement's date when written as a term), the instructions the model gets, the case type it fits, its steps and its version |
 | `src/suveryn_playbooks/record.py` | A playbook as a record and back: what a run keeps (``playbook_runs.manifest``) |
 | `src/suveryn_playbooks/rules.py` | A check's rule: one comparison, parsed and checked against the facts; the harness evaluates it |
 | `src/suveryn_playbooks/conditions.py` | A step's `when`: one condition on a choice fact; the runtime evaluates it when the step is reached |
-| `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary, fact labels and questions in English, Dutch and French |
+| `src/suveryn_playbooks/be_notary/case-types.yaml` | The case type core's reference content brings: `sale`, which deed intake fits; the pack brings the rest |
+| `src/suveryn_playbooks/be_notary/text/<lang>.json` | Each playbook's title, summary, fact labels and questions, and each case type's word (`caseTypes`), in English, Dutch and French |
 | `schema/playbook-manifest.schema.json` | The format as JSON Schema, generated from `manifest.py` |
 | `tests/fixtures/packs/be-test/` | The fictional test pack: a formation playbook with fewer facts, for the tests of lists, choices, documents by name, checks and the manager's checkpoint |
 | `tests/test_content.py` | The identities, the case types, and that every playbook has its words and its questions in each language |

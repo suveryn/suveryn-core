@@ -47,5 +47,8 @@
       "title_read": "Reading the title",
       "certificates_read": "Reading the certificates"
     }
+  },
+  "caseTypes": {
+    "sale": "Sale"
   }
 }

@@ -487,6 +487,12 @@
    "status": 409,
    "since": "0.2.0"
   },
+  "case.type_unsupported": {
+   "kind": "refused",
+   "title": "This appliance doesn't offer this case type.",
+   "status": 422,
+   "since": "0.2.0"
+  },
   "case.strictly_confidential": {
    "kind": "refused",
    "title": "Not in a strictly confidential case: it is for its members only, and nothing in it is shared.",

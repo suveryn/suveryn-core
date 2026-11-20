@@ -1,0 +1,5 @@
+# The case type core's reference playbook, deed intake, fits (suveryn-tracker#229). Core keeps it with that
+# playbook; pack/be-notary in suveryn-packs declares the rest. A type has one source on an appliance.
+# Its words: text/<lang>.json, caseTypes.
+pack: pack/be-notary
+case_types: [sale]

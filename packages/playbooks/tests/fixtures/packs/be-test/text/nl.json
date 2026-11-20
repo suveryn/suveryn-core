@@ -73,5 +73,10 @@
       "incapacity_read": "Het bewijs van onbekwaamheid lezen",
       "gift_read": "De voorwaarden voor schenkingen lezen"
     }
+  },
+  "caseTypes": {
+    "company-formation": "Oprichting vennootschap",
+    "care-mandate": "Zorgvolmacht",
+    "estate": "Nalatenschap"
   }
 }

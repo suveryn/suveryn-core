@@ -73,5 +73,10 @@
       "incapacity_read": "Lecture de la preuve d'incapacité",
       "gift_read": "Lecture des conditions des donations"
     }
+  },
+  "caseTypes": {
+    "company-formation": "Constitution de société",
+    "care-mandate": "Mandat de protection",
+    "estate": "Succession"
   }
 }

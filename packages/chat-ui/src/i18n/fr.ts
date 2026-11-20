@@ -99,6 +99,7 @@ const fr: Messages = {
     "case.closed": "Ce dossier est clôturé. Rien ne peut y être ajouté ni modifié tant qu'il n'est pas rouvert.",
     "case.manager_or_administrator_only": "Seul le gestionnaire du dossier ou un administrateur peut le faire.",
     "case.reference_exists": "Un dossier porte déjà ce numéro. Choisissez un autre numéro.",
+    "case.type_unsupported": "Ce type de dossier n'est pas proposé ici. Choisissez-en un dans la liste.",
     "case.strictly_confidential": "Ce n'est pas possible dans un dossier strictement confidentiel : il reste réservé à ses membres.",
     "case.single_manager": "Un dossier a toujours un seul gestionnaire. Transmettez le dossier pour en changer.",
     "case.deletion_failed": "Le dossier n'a pas pu être supprimé pour le moment, et rien n'a été supprimé. Réessayez dans un instant.",

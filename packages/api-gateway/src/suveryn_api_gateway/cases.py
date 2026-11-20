@@ -228,6 +228,15 @@ class CaseUpdate(BaseModel):
     confidential: bool | None = None
 
 
+class CaseTypeOut(BaseModel):
+    """A case type an appliance offers (``GET /v1/case-types``, suveryn-tracker#229): its id, the pack that
+    brings it (core's reference content or an installed pack) and its word per language, which the screen shows."""
+
+    id: str
+    pack: str
+    text: dict[str, str]
+
+
 class Case(BaseModel):
     """A case as the API returns it. ``my_role`` is the caller's: a member's role, ``reader`` for a
     non-member in an office-wide appliance, None for an administrator who only sees it exists."""

@@ -374,6 +374,34 @@ def test_create_list_and_open_a_case(office):
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/cases", json={**NEW, "reference": "2026/0417"}, headers=bob)) == (409, "case.reference_exists")
 
 
+def test_the_case_types_offered_come_from_core_and_the_installed_packs(office):
+    """suveryn-tracker#229: the server knows which case types exist (core's reference content's, then the installed
+    packs': here the test pack's), each with its words; signed in only."""
+    c, kc, _, _, _ = office
+    types = c.get("/v1/case-types", headers=as_user(kc, BOB)).json()
+    assert [(t["id"], t["pack"]) for t in types][:2] == [("sale", "pack/be-notary"), ("company-formation", "pack/be-test")]
+    assert types[0]["text"] == {"en": "Sale", "nl": "Verkoop", "fr": "Vente"}
+    assert "estate" in [t["id"] for t in types]  # a type without a playbook is offered too
+    assert c.get("/v1/case-types").status_code == 401
+
+
+def test_a_case_type_the_appliance_doesnt_offer_is_refused_and_a_stored_one_is_kept(office):
+    """suveryn-tracker#229: a new case or a change of type takes an offered type only; a case whose stored type is no
+    longer offered (its pack is gone) keeps it, and its other fields still change."""
+    c, kc, cases, _, _ = office
+    alice = as_user(kc, ALICE)
+    code = lambda r: (r.status_code, r.json().get("code"))  # noqa: E731
+    assert code(c.post("/v1/cases", json={**NEW, "type": "gift"}, headers=alice)) == (422, "case.type_unsupported")
+    made = c.post("/v1/cases", json={**NEW, "type": "estate"}, headers=alice).json()
+    assert made["type"] == "estate"
+    assert code(c.patch(f"/v1/cases/{made['id']}", json={"type": "marriage-contract"}, headers=alice)) == (422, "case.type_unsupported")
+    assert c.patch(f"/v1/cases/{made['id']}", json={"type": "sale"}, headers=alice).json()["type"] == "sale"
+    cid = uuid.UUID(made["id"])
+    cases.cases[cid] = cases.cases[cid].model_copy(update={"type": "gift"})  # stored when a pack declared it
+    r = c.patch(f"/v1/cases/{made['id']}", json={"name": "Schenking (deel 2)", "type": "gift"}, headers=alice)
+    assert r.status_code == 200 and (r.json()["type"], r.json()["name"]) == ("gift", "Schenking (deel 2)")
+
+
 def test_only_the_manager_changes_or_deletes_a_case(office):
     c, kc, _, _, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)

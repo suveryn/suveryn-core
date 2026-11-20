@@ -99,6 +99,7 @@ const nl: Messages = {
     "case.closed": "Dit dossier is afgesloten. Er kan niets worden toegevoegd of gewijzigd tot het heropend is.",
     "case.manager_or_administrator_only": "Alleen de dossierbeheerder of een beheerder kan dit doen.",
     "case.reference_exists": "Er bestaat al een dossier met dit nummer. Kies een ander nummer.",
+    "case.type_unsupported": "Dit type dossier wordt hier niet aangeboden. Kies er een uit de lijst.",
     "case.strictly_confidential": "Dit kan niet in een strikt vertrouwelijk dossier: dat blijft alleen voor de leden.",
     "case.single_manager": "Een dossier heeft altijd één beheerder. Draag het dossier over om dat te wijzigen.",
     "case.deletion_failed": "Het dossier kon nu niet worden verwijderd; er is niets verwijderd. Probeer het zo meteen opnieuw.",

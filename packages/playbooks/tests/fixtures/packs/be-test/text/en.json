@@ -73,5 +73,10 @@
       "incapacity_read": "Reading the proof of incapacity",
       "gift_read": "Reading the gift terms"
     }
+  },
+  "caseTypes": {
+    "company-formation": "Company formation",
+    "care-mandate": "Care mandate",
+    "estate": "Estate"
   }
 }

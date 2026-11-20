@@ -47,5 +47,8 @@
       "title_read": "Lecture du titre",
       "certificates_read": "Lecture des certificats"
     }
+  },
+  "caseTypes": {
+    "sale": "Vente"
   }
 }

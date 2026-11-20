@@ -24,8 +24,8 @@ import os
 import sys
 from pathlib import Path
 
-from ._model import Playbook
-from .manifest import CALENDAR_FILE, ManifestError, load
+from ._model import CaseType, Playbook
+from .manifest import PACK_FILES, ManifestError, case_types_from_dir, load
 
 ENV = "SUVERYN_PACKS_DIR"
 
@@ -38,7 +38,7 @@ def load_dir(path: Path, taken: tuple[Playbook, ...] = ()) -> tuple[Playbook, ..
     if not path.is_dir():
         raise ManifestError(f"{path}: not a directory of packs")
     for pack_dir in sorted(d for d in path.iterdir() if d.is_dir() and not d.name.startswith(".")):
-        manifests = sorted(p for p in pack_dir.glob("*.yaml") if p.name != CALENDAR_FILE)
+        manifests = sorted(p for p in pack_dir.glob("*.yaml") if p.name not in PACK_FILES)
         if not manifests:
             continue
         for m in manifests:
@@ -52,24 +52,51 @@ def load_dir(path: Path, taken: tuple[Playbook, ...] = ()) -> tuple[Playbook, ..
     return tuple(out)
 
 
+def case_types_dir(path: Path, taken: tuple[CaseType, ...] = ()) -> tuple[CaseType, ...]:
+    """The case types the packs under ``path`` declare (each pack's ``case-types.yaml``), in folder order.
+    ``taken``: types the directory may not declare again (the official ones): a type has one source."""
+    out: list[CaseType] = []
+    by = {t.id: "the official case types" for t in taken}
+    for pack_dir in sorted(d for d in path.iterdir() if d.is_dir() and not d.name.startswith(".")):
+        for t in case_types_from_dir(pack_dir):
+            if t.pack != f"pack/{pack_dir.name}":
+                raise ManifestError(f"{pack_dir}: case types of {t.pack!r} in folder {pack_dir.name!r}; a pack's folder is named as its id")
+            if t.id in by:
+                raise ManifestError(f"{pack_dir}: case type {t.id!r} is already declared by {by[t.id]}")
+            by[t.id] = f"pack folder {pack_dir.name!r}"
+            out.append(t)
+    return tuple(out)
+
+
+def check(playbooks: tuple[Playbook, ...], types: tuple[CaseType, ...]) -> None:
+    """Every case type a playbook fits is declared by an installed source; ``ManifestError`` names the first that isn't."""
+    known = {t.id for t in types}
+    for p in playbooks:
+        for t in p.case_types:
+            if t not in known:
+                raise ManifestError(f"{p.id}: case type {t!r} is declared by no installed pack (case-types.yaml)")
+
+
 def configured() -> Path | None:
     """The packs directory the environment names, or None."""
     value = os.environ.get(ENV, "").strip()
     return Path(value) if value else None
 
 
-def main(argv: list[str], official: tuple[Playbook, ...]) -> int:
+def main(argv: list[str], official: tuple[Playbook, ...], official_types: tuple[CaseType, ...] = ()) -> int:
     if len(argv) != 1:
         print("usage: python -m suveryn_playbooks <packs directory>", file=sys.stderr)
         return 2
     try:
         found = load_dir(Path(argv[0]), official)
+        types = case_types_dir(Path(argv[0]), official_types)
+        check(found, official_types + types)
     except ManifestError as e:
         print(e, file=sys.stderr)
         return 1
     for p in found:
         kinds = ", ".join(f"{s.kind}" for s in p.steps)
         print(f"{p.id} {p.version}: {len(p.facts)} facts, steps {kinds}; words in {', '.join(sorted(p.text))}")
-    print(f"{len(found)} playbook(s) load")
+    print(f"{len(found)} playbook(s) load; case types: {', '.join(t.id for t in types) or 'none'}")
     return 0
 

@@ -3,6 +3,7 @@ it says so, and that deed intake as a manifest is the deed intake that was code.
 
 import dataclasses
 import json
+import os
 import re
 from pathlib import Path
 
@@ -450,7 +451,7 @@ def test_a_wrong_choice_or_condition_is_refused_and_the_error_names_it(old, new,
 def test_a_packs_directory_loads_beside_the_official_playbooks_and_refuses_a_second_id(tmp_path):
     """An appliance's installed packs (``packs.load_dir``, ``SUVERYN_PACKS_DIR``): one folder per pack, named as
     the pack's id; the fictional test pack is what core's own tests run on (conftest.py)."""
-    from suveryn_playbooks import PLAYBOOKS, by_slug, from_record, to_record
+    from suveryn_playbooks import CASE_TYPES, PLAYBOOKS, by_slug, from_record, to_record
     from suveryn_playbooks.packs import load_dir, main
     test_pack = by_slug("company-formation")
     assert test_pack is not None and test_pack.pack == "pack/be-test" and test_pack.step("confirm").by == "manager"
@@ -474,7 +475,81 @@ def test_a_packs_directory_loads_beside_the_official_playbooks_and_refuses_a_sec
                                   .replace("pack: pack/be-notary", "pack: pack/be-example")).to_playbook(WORDS),))
     with pytest.raises(ManifestError, match="not a directory of packs"):
         load_dir(tmp_path / "nowhere")
-    assert main([str(tmp_path)], ()) == 0 and main([str(tmp_path / "nowhere")], ()) == 1 and main([], ()) == 2
+    assert main([str(tmp_path)], (), CASE_TYPES) == 0 and main([str(tmp_path / "nowhere")], ()) == 1 and main([], ()) == 2
+
+
+def test_case_types_come_from_core_and_the_packs_one_source_each(tmp_path):
+    """suveryn-tracker#229: a pack's case-types.yaml declares the case types it brings, with their words in its
+    text files; core's reference content declares deed intake's (sale). A type has one source, and a playbook
+    fits only declared types."""
+    from suveryn_playbooks import CASE_TYPES, PLAYBOOKS, case_type
+    from suveryn_playbooks.packs import case_types_dir, check, load_dir, main
+    official = tuple(t for t in CASE_TYPES if t.pack == "pack/be-notary")
+    assert [t.id for t in official] == ["sale"] and case_type("sale").text == {"en": "Sale", "nl": "Verkoop", "fr": "Vente"}
+    # the test pack (SUVERYN_PACKS_DIR in these tests) brings its own, a type without a playbook among them
+    assert [t.id for t in CASE_TYPES if t.pack == "pack/be-test"] == ["company-formation", "care-mandate", "estate"]
+    assert case_type("estate").text["nl"] == "Nalatenschap" and case_type("gift") is None
+    assert all(t in {c.id for c in CASE_TYPES} for p in PLAYBOOKS for t in p.case_types)
+
+    def pack(name: str, types: str, words: dict | None = None):
+        d = tmp_path / name
+        (d / "text").mkdir(parents=True, exist_ok=True)
+        (d / "case-types.yaml").write_text(f"pack: pack/{name}\ncase_types: [{types}]\n", encoding="utf-8")
+        for lang in ("en", "nl", "fr"):
+            (d / "text" / f"{lang}.json").write_text(json.dumps({"caseTypes": words if words is not None else
+                                                                 {t.strip(): t.strip().title() for t in types.split(",")}}), encoding="utf-8")
+        return d
+
+    pack("be-example", "gift, marriage-contract")
+    assert [(t.id, t.pack) for t in case_types_dir(tmp_path, official)] == [("gift", "pack/be-example"), ("marriage-contract", "pack/be-example")]
+    assert load_dir(tmp_path) == ()  # case-types.yaml is never read as a playbook
+    with pytest.raises(ManifestError, match="case type 'sale' is already declared by the official case types"):
+        pack("be-example", "sale"), case_types_dir(tmp_path, official)
+    with pytest.raises(ManifestError, match="case type 'gift' is already declared by pack folder 'be-example'"):
+        pack("be-example", "gift"), pack("be-other", "gift"), case_types_dir(tmp_path)
+    pack("be-other", "will")
+    (tmp_path / "be-other" / "case-types.yaml").write_text("pack: pack/be-example\ncase_types: [will]\n", encoding="utf-8")
+    with pytest.raises(ManifestError, match="in folder 'be-other'; a pack's folder is named as its id"):
+        case_types_dir(tmp_path)
+    with pytest.raises(ManifestError, match="no word for every case type under caseTypes"):
+        pack("be-other", "will", {"testament": "Will"})
+        case_types_dir(tmp_path)
+    with pytest.raises(ManifestError, match="lower-case letters, digits and hyphens"):
+        pack("be-other", "Will")
+        case_types_dir(tmp_path)
+    # a playbook that fits a type no source declares is refused, at load and by the pack check
+    with pytest.raises(ManifestError, match="case type 'sale' is declared by no installed pack"):
+        check(PLAYBOOKS, ())
+    check(PLAYBOOKS, CASE_TYPES)
+    for d in ("be-example", "be-other"):
+        (tmp_path / d / "case-types.yaml").unlink()
+    (tmp_path / "be-example" / "example.yaml").write_text(MINIMAL.replace("id: playbook/be-notary/example", "id: playbook/be-example/example")
+                                                     .replace("pack: pack/be-notary", "pack: pack/be-example")
+                                                     .replace("case_types: [sale]", "case_types: [gift]"), encoding="utf-8")
+    for lang in ("en", "nl", "fr"):
+        (tmp_path / "be-example" / "text" / f"{lang}.json").write_text(json.dumps({"example": {"title": "Example", "summary": "x", "labels": {"price": "P", "sellers": "S"}}}), encoding="utf-8")
+    assert main([str(tmp_path)], (), official) == 1  # fits gift, which nothing declares
+    pack("be-example", "gift")
+    (tmp_path / "be-example" / "text" / "en.json").write_text(json.dumps({"example": {"title": "Example", "summary": "x", "labels": {"price": "P", "sellers": "S"}},
+                                                                          "caseTypes": {"gift": "Gift"}}), encoding="utf-8")
+    for lang in ("nl", "fr"):
+        (tmp_path / "be-example" / "text" / f"{lang}.json").write_text((tmp_path / "be-example" / "text" / "en.json").read_text(), encoding="utf-8")
+    assert main([str(tmp_path)], (), official) == 0
+
+
+def test_an_installed_pack_whose_playbook_fits_an_undeclared_type_stops_the_import(tmp_path):
+    """suveryn-tracker#229: the check runs when suveryn_playbooks loads, as for any pack that doesn't load."""
+    import shutil
+    import subprocess
+    import sys
+    packs = tmp_path / "packs"
+    shutil.copytree(Path(__file__).parent / "fixtures" / "packs", packs)
+    run = lambda: subprocess.run([sys.executable, "-c", "import suveryn_playbooks"], capture_output=True, text=True,  # noqa: E731
+                                 env={**os.environ, "SUVERYN_PACKS_DIR": str(packs)})
+    assert run().returncode == 0
+    (packs / "be-test" / "case-types.yaml").write_text("pack: pack/be-test\ncase_types: [company-formation, estate]\n", encoding="utf-8")
+    r = run()
+    assert r.returncode != 0 and "playbook/be-test/care-mandate: case type 'care-mandate' is declared by no installed pack" in r.stderr
 
 
 DEED = (PACK / "deed-intake.yaml").read_text(encoding="utf-8")
