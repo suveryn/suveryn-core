@@ -12,16 +12,21 @@ from suveryn_harness import LlamaServerClient, LLMSettings
 MODEL = "Qwen3.8-27B-UD-Q4_K_M.gguf"
 
 
-def fake_backend(health_status: int = 200, chat_status: int = 200):
+def fake_backend(health_status: int = 200, chat_status: int = 200, garbled: bool | str = False):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
             return httpx.Response(health_status, json={"status": "ok" if health_status == 200 else "loading"})
+        if request.url.path == "/models" and garbled == "models":  # a router's list of models, not one
+            return httpx.Response(200, json={"data": "not a list"})
         if request.url.path == "/v1/models":
             return httpx.Response(200, json={"data": [{"id": f"/workspace/models/{MODEL}"}]})
         if request.url.path == "/v1/chat/completions":
             if chat_status != 200:
                 return httpx.Response(chat_status, text="boom")
             body = json.loads(request.content)
+            if garbled is True:  # answered, and not what an answer looks like
+                return httpx.Response(200, text="data: {not json\n\n" if body["stream"] else "{not json",
+                                      headers={"content-type": "text/event-stream" if body["stream"] else "application/json"})
             if body["stream"]:
                 chunks = [{"choices": [{"delta": {"content": t}, "finish_reason": None}]} for t in ("Een ", "akte.")]
                 chunks.append({"choices": [{"delta": {}, "finish_reason": "stop"}]})
@@ -85,6 +90,24 @@ def test_a_model_that_cant_be_reached_is_a_part_that_is_down(make_client):
     with make_client(fake_backend(chat_status=500)) as c:
         r = c.post("/v1/chat", json=REQ)
         assert (r.status_code, r.json()["kind"], r.json()["code"]) == (503, "unavailable", "model.unavailable")
+
+
+def test_a_model_that_answers_something_unreadable_is_an_unplanned_failure_not_a_part_that_is_down(make_client):
+    """suveryn-tracker#164: model.unavailable was said for it too; now a reference the log has, asked or streamed."""
+    with make_client(fake_backend(garbled=True)) as c:
+        r = c.post("/v1/chat", json=REQ)
+        assert (r.status_code, r.json()["kind"], r.json()["code"]) == (500, "internal", "system.internal") and r.json()["params"]["ref"]
+        with c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as s:
+            last = s.read().decode().rstrip().split("\n\n")[-1]
+    said = json.loads(last.split("data: ", 1)[1])
+    assert last.startswith("event: error") and (said["kind"], said["code"]) == ("internal", "system.internal") and said["params"]["ref"]
+    with make_client(fake_backend(garbled="models")) as c:  # the list of models, too
+        r = c.get("/v1/models")
+        assert (r.status_code, r.json()["code"]) == (500, "system.internal")
+        r = c.post("/v1/chat", json={**REQ, "model": MODEL})
+        assert (r.status_code, r.json()["code"]) == (500, "system.internal")
+        with c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as s:  # not asked for by name: the answer goes ahead
+            assert s.read().decode().rstrip().split("\n\n")[-1].startswith("event: done")
 
 
 def test_stream_backend_error_event(make_client, caplog):

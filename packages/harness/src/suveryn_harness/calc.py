@@ -3,7 +3,8 @@
 Language models make arithmetic mistakes, and a wrong total in a notarial answer is worse than
 none. So the model never calculates itself: it writes a calculation as a marker,
 ``[[calc: 6.507,11 + 6.417,42]]``, with every figure copied exactly as the excerpts write it. The
-server computes it with ``Decimal`` (no floating-point error) and replaces the marker with
+server computes it exactly, with fractions of whole numbers of any length (no floating-point error, no
+limit on the digits; only the result is rounded, once) and replaces the marker with
 ``6.507,11 + 6.417,42 = 12.924,53``, in the number style of the figures. Each figure is checked
 against the excerpts; one that doesn't appear there is reported, so the reader knows to check it.
 
@@ -17,14 +18,15 @@ the calculation uses; mixed styles ("1.5 + 2,25") and figures that could be read
 separator the sources mostly use.
 
 Rounding: sums and differences keep the decimals of the most precise figure (exact). Products keep
-every decimal of the exact result, up to 6. Divisions are rounded half up to at least 2 decimals.
+every decimal of the exact result, up to 6. Divisions are rounded half up to at least 2 decimals; a
+division inside a longer calculation stays a fraction until then, so nothing is lost on the way.
 Figures are checked against the passages the answer cites, as whole numbers: "2.500,00" is not
 "found" inside "12.500,00".
 """
 
 import re
 from dataclasses import dataclass, field
-from decimal import ROUND_HALF_UP, Decimal, localcontext
+from fractions import Fraction
 
 from .messages import message as msg
 from .schemas import Calculation
@@ -86,30 +88,43 @@ def _check_style(figure: str, sep: str | None) -> None:
         raise CalcError(f"{figure} doesn't match the number style of the other figures", "calc.number_styles_mixed")
 
 
-def _to_decimal(figure: str, sep: str | None) -> Decimal:
+def _to_number(figure: str, sep: str | None) -> Fraction:
+    """The figure's exact value: a fraction of two whole numbers, whatever its length."""
     s = re.sub(f"[{GROUPING_SPACES}]", "", figure)
     if sep:
         s = s.replace("." if sep == "," else ",", "").replace(sep, ".")
-    return Decimal(s)
+    return Fraction(s)
 
 
-def _format(value: Decimal, places: int, sep: str | None, grouping: str | None) -> str:
-    """The result in the figures' own style: same decimal separator, grouping and number of decimals."""
-    value = value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP) if places else value.to_integral_value(ROUND_HALF_UP)
-    sign, digits = ("-" if value < 0 else ""), f"{abs(value):f}"
-    whole, _, frac = digits.partition(".")
-    if grouping:
-        whole = f"{int(whole):,}".replace(",", grouping)
-    return sign + whole + ((sep or ".") + frac if frac else "")
+def _format(value: Fraction, places: int, sep: str | None, grouping: str | None) -> str:
+    """The result in the figures' own style: same decimal separator, grouping and number of decimals. Rounded
+    half up (away from zero) to ``places`` decimals, in whole numbers: the one rounding of a calculation."""
+    scaled = abs(value) * 10 ** places
+    units = (2 * scaled.numerator + scaled.denominator) // (2 * scaled.denominator)
+    whole, frac = divmod(units, 10 ** places)
+    sign = "-" if value < 0 and units else ""  # what rounds to zero has no sign
+    digits = f"{whole:,}".replace(",", grouping) if grouping else str(whole)
+    return sign + digits + ((sep or ".") + f"{frac:0{places}d}" if places else "")
+
+
+def _exact_decimals(value: Fraction) -> int:
+    """How many decimals a product of decimal figures has, written out in full (its denominator is 2s and 5s only)."""
+    twos = fives = 0
+    d = value.denominator
+    while d % 2 == 0:
+        d, twos = d // 2, twos + 1
+    while d % 5 == 0:
+        d, fives = d // 5, fives + 1
+    return max(twos, fives)
 
 
 class _Parser:
     """expr := term (('+'|'-') term)* ; term := factor (('*'|'/') factor)* ; factor := ('+'|'-') factor | NUMBER | '(' expr ')'."""
 
-    def __init__(self, tokens: list[tuple[str, Decimal | str]]):
+    def __init__(self, tokens: list[tuple[str, Fraction | str]]):
         self.tokens, self.i = tokens, 0
 
-    def parse(self) -> Decimal:
+    def parse(self) -> Fraction:
         value = self.expr()
         if self.i != len(self.tokens):
             raise CalcError("unexpected text in the calculation")
@@ -118,7 +133,7 @@ class _Parser:
     def _peek(self):
         return self.tokens[self.i][1] if self.i < len(self.tokens) else None
 
-    def expr(self) -> Decimal:
+    def expr(self) -> Fraction:
         value = self.term()
         while self._peek() in ("+", "-"):
             op = self.tokens[self.i][1]
@@ -126,7 +141,7 @@ class _Parser:
             value = value + self.term() if op == "+" else value - self.term()
         return value
 
-    def term(self) -> Decimal:
+    def term(self) -> Fraction:
         value = self.factor()
         while self._peek() in ("*", "/"):
             op = self.tokens[self.i][1]
@@ -137,7 +152,7 @@ class _Parser:
             value = value * right if op == "*" else value / right
         return value
 
-    def factor(self) -> Decimal:
+    def factor(self) -> Fraction:
         if self.i >= len(self.tokens):
             raise CalcError("the calculation is incomplete")
         kind, tok = self.tokens[self.i]
@@ -183,7 +198,7 @@ def evaluate(expression: str, default_sep: str | None = None,
         return (*same, [])
     except CalcError:
         raise
-    except (ArithmeticError, ValueError) as e:  # decimal errors (e.g. precision), malformed numbers
+    except (ArithmeticError, ValueError) as e:  # a safety net: a figure Python can't read, a result it can't write out
         raise CalcError("the calculation can't be done") from e
     except RecursionError:  # brackets or signs nested hundreds deep (text in a document could ask for it)
         raise CalcError("the calculation is nested too deeply") from None
@@ -193,10 +208,8 @@ def _the_same_either_way(expression: str, default_sep: str | None) -> tuple[str,
     """The result when reading the figures with a decimal comma and with a decimal point gives one value; else None.
     It is written as for whole numbers (the figures read as thousands), with the sources' decimal separator."""
     try:
-        with localcontext() as ctx:
-            ctx.prec = 60
-            if _value(expression, ",") != _value(expression, "."):
-                return None
+        if _value(expression, ",") != _value(expression, "."):
+            return None
         figures = re.findall(NUMBER.pattern, _plain(expression))
         grouped_by = "." if any("." in f for f in figures) else ","
         whole = "," if grouped_by == "." else "."          # the reading in which the figures are whole numbers
@@ -208,7 +221,7 @@ def _the_same_either_way(expression: str, default_sep: str | None) -> tuple[str,
         return None
 
 
-def _value(expression: str, forced: str) -> Decimal:
+def _value(expression: str, forced: str) -> Fraction:
     """The expression's value with ``forced`` as the decimal separator of every figure."""
     expression = _plain(expression)
     tokens = []
@@ -216,7 +229,7 @@ def _value(expression: str, forced: str) -> Decimal:
         tok = m.group(0).strip()
         if NUMBER.fullmatch(tok):
             _check_style(tok, forced)
-            tokens.append(("num", _to_decimal(tok, forced)))
+            tokens.append(("num", _to_number(tok, forced)))
         elif tok in "+-*/()":
             tokens.append(("op", tok))
         else:
@@ -264,20 +277,17 @@ def _evaluate(expression: str, default_sep: str | None, forced: str | None = Non
     sep = forced or _decimal_separator(figures)
     for f in figures:
         _check_style(f, sep)
-    with localcontext() as ctx:
-        ctx.prec = 60  # far beyond any amount in a deed; quantize below needs the headroom
-        tokens = [(k, _to_decimal(v, sep)) if k == "num" else (k, v) for k, v in raw]
-        value = _Parser(tokens).parse()
-        decimals = [len(f.rsplit(sep, 1)[1]) if sep and sep in f else 0 for f in figures]
-        places = max(decimals)
-        if "*" in expression and "/" not in expression:  # after a division the result is rounded anyway
-            exact = max(0, -value.normalize().as_tuple().exponent)
-            places = max(places, min(exact, MAX_PRODUCT_PLACES))
-        if "/" in expression:
-            places = max(places, 2)
-        thousands = ("." if sep == "," else ",") if sep else None
-        grouping = next((g for g in (thousands, *GROUPING_SPACES) if g and any(g in f for f in figures)), None)
-        return _format(value, places, sep or default_sep, grouping), figures
+    tokens = [(k, _to_number(v, sep)) if k == "num" else (k, v) for k, v in raw]
+    value = _Parser(tokens).parse()
+    decimals = [len(f.rsplit(sep, 1)[1]) if sep and sep in f else 0 for f in figures]
+    places = max(decimals)
+    if "*" in expression and "/" not in expression:  # after a division the result is rounded anyway
+        places = max(places, min(_exact_decimals(value), MAX_PRODUCT_PLACES))
+    if "/" in expression:
+        places = max(places, 2)
+    thousands = ("." if sep == "," else ",") if sep else None
+    grouping = next((g for g in (thousands, *GROUPING_SPACES) if g and any(g in f for f in figures)), None)
+    return _format(value, places, sep or default_sep, grouping), figures
 
 
 def found_in(figure: str, source: str) -> bool:

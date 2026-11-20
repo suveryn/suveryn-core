@@ -236,6 +236,28 @@ def test_a_grounded_answer_says_whether_it_saw_the_documents_whole(whole):
     assert plain.complete is None  # no documents, nothing to have read in part
 
 
+def test_when_asking_again_gets_an_answer_that_cant_be_read_the_first_answer_stands():
+    """Asking again is a second chance, not a new failure: a garbled second answer keeps the first, with its warning (#164)."""
+    from suveryn_harness import Citation, SourceRef
+
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
+        calls.append(1)
+        if len(calls) > 1:
+            return httpx.Response(200, text="{not json", headers={"content-type": "application/json"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Samen 1.000 aandelen [1]."}, "finish_reason": "stop"}], "usage": {}})
+
+    async def retriever(question, ids, k, owner, case_id):
+        return [(Citation(text="A neemt 400 aandelen, B neemt 600 aandelen.", source=SourceRef(document_id="d1", page=1)), "akte.pdf")], True
+
+    service = ChatService(LlamaServerClient(LLMSettings(base_url="http://llm", default_model="q"), transport=httpx.MockTransport(handler)), retriever)
+    r = asyncio.run(service.answer(ChatRequest(messages=[ChatMessage(role="user", content="Hoeveel aandelen samen?")], document_ids=["d1"]), "alice"))
+    assert len(calls) == 2 and r.asked_again and r.unverified_figures == ["1.000"] and "1.000" in r.answer
+
+
 @pytest.mark.parametrize("stream", [False, True])
 def test_an_answer_with_a_figure_it_worked_out_is_asked_again(stream):
     """The model must never compute: an answer with a figure in no passage that the server didn't compute is asked

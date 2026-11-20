@@ -5,7 +5,6 @@ unexpected error during a streamed answer is reported to the client as a generic
 and logged by exception type only, because exception messages can contain document text.
 """
 
-import json
 import logging
 import uuid
 from contextlib import aclosing
@@ -157,9 +156,10 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str):
                     yield _sse("delta", StreamDelta(text=event.text))
                 elif isinstance(event, Done):
                     yield _sse("done", event.response)
-    except (BackendError, json.JSONDecodeError) as e:
+    except BackendError as e:
         # What failed, without what the model server said back (it may quote the prompt): round 4, finding 3.
-        what = str(e).split(":", 1)[0] if isinstance(e, BackendError) else "an unreadable answer"
+        # An answer that can't be read isn't the model being down: it falls to the unplanned failure below (#164).
+        what = str(e).split(":", 1)[0]
         cause = f" ({type(e.__cause__).__name__})" if e.__cause__ else ""
         log.warning("chat stream failed: %s%s, model %s", what, cause, req.model or "default")
         yield _sse("error", StreamError(**message("model.unavailable"), detail=what))

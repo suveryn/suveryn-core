@@ -349,7 +349,7 @@
   },
   "model.unavailable": {
    "kind": "unavailable",
-   "title": "The model can't be reached, or what it sent back couldn't be read: no answer, and no reading of an answer given in words.",
+   "title": "The model can't be reached, or answered with an error: no answer, and no reading of an answer given in words.",
    "status": 503,
    "retry": true,
    "since": "0.2.0"
@@ -598,7 +598,7 @@
   },
   "account.administrator_rights_refused": {
    "kind": "unavailable",
-   "title": "The sign-in service refused the administrator's rights: the administrator role lacks a permission.",
+   "title": "The sign-in service refused the administrator's rights: the administrator role lacks a permission, or the token was refused.",
    "status": 503,
    "since": "0.2.0"
   },
@@ -749,7 +749,7 @@
   },
   "backup.settings_invalid": {
    "kind": "refused",
-   "title": "A backup couldn't start: its settings aren't valid (no target, no recovery key, a period or an hour that isn't one).",
+   "title": "The backup settings aren't valid (no target, no recovery key, a period or an hour that isn't one).",
    "since": "0.2.0"
   },
   "backup.target_unreachable": {

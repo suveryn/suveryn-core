@@ -629,7 +629,8 @@ def talking(runs):
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/chat/completions") and "answered in their own words" in _json.loads(request.content)["messages"][-1]["content"]:
-            return httpx.Response(200, json={"id": "m", "choices": [{"message": {"content": replies.pop(0)}, "finish_reason": "stop"}]})
+            reply = replies.pop(0)  # the words the model answers, or a whole response (one that can't be read)
+            return reply if isinstance(reply, httpx.Response) else httpx.Response(200, json={"id": "m", "choices": [{"message": {"content": reply}, "finish_reason": "stop"}]})
         return reading(request)
 
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))
@@ -637,6 +638,44 @@ def talking(runs):
                      case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
     with TestClient(app) as c:
         yield c, kc, docs, replies
+
+
+@needs_db
+def test_an_answer_in_words_whose_model_answer_cant_be_read_is_an_unplanned_failure_not_a_model_that_is_down(talking):
+    """suveryn-tracker#164: the model answered, so it isn't down: nobody planned for it, and the log has the reference."""
+    c, kc, docs, replies = talking
+    cid, alice, _ = a_case_with_a_contributor(c, kc, role="contributor")
+    run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()
+    url = RUN.format(cid=cid, rid=run["id"])
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    c.post(url + "/say", json={"text": "Hier is het compromis.", "documents": [DOC]}, headers=alice)
+    for step in ("title_deed", "certificates"):
+        c.post(url + "/answer", json={"step_id": step, "none": True}, headers=alice)
+    assert wait_for(c, url, alice, "waiting")["step"] == "missing"
+    garbled = httpx.Response(200, text="{not json", headers={"content-type": "application/json"})
+    replies.append(garbled)  # an answer in words, and the model sends back what isn't an answer
+    r = c.post(url + "/say", json={"text": "Kadaster: Gent 5e afd., sectie B, nr. 123."}, headers=alice)
+    assert (r.status_code, r.json()["code"]) == (500, "system.internal") and r.json()["params"]["ref"]
+
+
+@needs_db
+def test_a_reading_whose_model_answer_cant_be_read_fails_the_run_with_a_reference(runs):
+    """The other way to the model, a read step: the run fails as an unplanned failure, not as a model that is down (#164)."""
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    usual = llm_transport([]).handle_request
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, text="{not json", headers={"content-type": "application/json"})
+        if request.url.path.endswith("/chat/completions") else usual(request)))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    with TestClient(app) as c:
+        cid, alice, _ = a_case_with_a_contributor(c, kc)
+        rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "nl"}, headers=alice).json()["id"]
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        deliver(c, RUN.format(cid=cid, rid=rid), alice, text="Het compromis.")
+        failed = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "failed")
+        assert (failed["failure"]["kind"], failed["failure"]["code"]) == ("internal", "system.internal") and failed["failure"]["params"]["ref"]
 
 
 @needs_db
