@@ -30,16 +30,20 @@ type KeyTestState =
   | { kind: "testing" }
   | { kind: "never" }                                                        // no test since backups began
   | { kind: "failed" | "ok" | "due"; test: NonNullable<BackupStatus["key_test"]> }
-  /** The file tested isn't this appliance's recovery key: says nothing about the office's key, whose state is
-   *  the last test that passed (``lastOk``), or none (VM regression 03c8f74, finding 4). */
+  /** The file tested isn't this appliance's recovery key (another key, or no key at all): says nothing about the
+   *  office's key, whose state is the last test that passed (``lastOk``), or none (VM regression 03c8f74, finding 4). */
   | { kind: "wrong_file"; test: NonNullable<BackupStatus["key_test"]>; lastOk: string | null; due: boolean };
+
+/** The key test's answers about the file tested, not the office's key: another key, or a file with no key in it
+ *  (the gateway refuses most such files first; the backup service may still answer it). */
+const WRONG_FILE = new Set(["backup.key_mismatch", "backup.not_a_key"]);
 
 export function keyTestState(s: BackupStatus, now: Date = new Date()): KeyTestState {
   if (s.key_testing) return { kind: "testing" };
   const t = s.key_test;
   if (!t) return { kind: "never" };
   const old = (at: string) => now.getTime() - Date.parse(at) > KEY_TEST_DAYS * DAY;
-  if (!t.ok && t.failure?.code === "backup.key_mismatch") {
+  if (!t.ok && WRONG_FILE.has(t.failure?.code ?? "")) {
     const lastOk = t.last_ok ?? null;
     return { kind: "wrong_file", test: t, lastOk, due: lastOk !== null && old(lastOk) };
   }

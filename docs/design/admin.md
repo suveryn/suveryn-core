@@ -28,9 +28,9 @@ browser. Artboards 26 to 29 show the first pages, still with tabs; 30 to 43 are 
 checks every minute, so "since" is when a failure began.
 
 - *Needs attention*, only when something does, each with the button that fixes it. A key test with a file
-  that isn't this appliance's recovery key says so on *Backups* only ("This key doesn't open the backup. Try
-  another file."), with when the right key last passed; the key's state stays that last passing test, so one
-  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.failure` is `backup.key_mismatch`; `last_ok`). A test that fails on the backup itself still does.
+  that isn't this appliance's recovery key says so on *Backups* only, in the code's own sentence ("This key
+  doesn't open the backup. Try another file.", or that it isn't a recovery key file), with when the right key last passed; the key's state stays that last passing test, so one
+  wrong file doesn't put "the last test of the recovery key failed" here (`key_test.failure` is `backup.key_mismatch` or `backup.not_a_key`; `last_ok`). A test that fails on the backup itself still does.
   One row per item: the backups' own state (*View*) and the recovery key (*Test now*), also both at
   once. The key's row gives the date of the last test that opened a backup ("Herstelsleutel niet
   getest sinds 21 juli. Test elke drie maanden."), or "nog nooit getest" when none did.
