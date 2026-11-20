@@ -69,7 +69,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .side-sub[data-run] { color: var(--text); font-weight: 600; }
 .side-run-state { font-weight: 400; margin-left: auto; }
 .side-sub[data-guide] { padding-left: 0; }
-.side-dot { flex: none; width: 8px; height: 8px; margin-left: -4px !important; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--control-off); background: var(--surface); }
+/* the dot sits on the row's 1 px line: its centre at the line's centre, half a pixel left of the content edge (the
+   line is the row's border-left, so the content starts after it); translate, so the size stays on the 4 px grid */
+.side-dot { flex: none; width: 8px; height: 8px; margin-left: -4px !important; transform: translateX(-0.5px); border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--control-off); background: var(--surface); }
 .side-sub[aria-current] .side-dot, .side-dot[data-current] { background: var(--text); border-color: var(--text); }  /* navigation: ink */
 .side-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-text b { font-weight: 600; }
