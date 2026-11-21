@@ -1,16 +1,20 @@
 /**
  * Cases, stage 2 (suveryn-tracker#10): the members of a case and its access log.
  *
- * MembersDialog: who is in the case and as what. Its manager adds a colleague from the office's
- * directory (a combo box that searches as you type), changes a member's role, removes one, hands
- * the case over, and restricts the case to its members or opens it to the office. Everyone else
- * who may read the case sees the list only. An administrator who isn't a member sees the manager
- * and can hand the case over (decision 6), nothing more.
+ * MembersDialog: the case's settings and members (board 80; suveryn-tracker#228, #229, #230), in three
+ * sections: its type, its access (who sees it, and Strictly confidential), its members. Its manager
+ * chooses the type from the server's list and sets the access, both applied by Save; adds a colleague
+ * from the office's directory (a combo box that searches as you type), changes a member's role, removes
+ * one and hands the case over, at once. Everyone else who may read the case sees the same, to read, with
+ * who can change it. An administrator who isn't a member can hand the case over (decision 6), nothing
+ * more. Opened at a section (``focus``): the band's *Change access*, the playbook menu's *Change the case
+ * type*.
  *
  * AccessLogDialog: who did what in the case, newest first (decision 15), for the manager and the
  * administrators. Names come from the member list; a user no longer a member is shown by id.
  */
 import { ArrowRightLeft, CircleAlert, Folder, Info, ScrollText, Trash, UserPlus } from "lucide-react";
+import { caseTypeLabel, useCaseTypes } from "../lib/caseTypes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   casePlaybooks, handOver, listCaseEvents, listMembers, removeMember, searchUsers, setMember, updateCase,
@@ -31,14 +35,17 @@ type Props = {
   onClose: () => void;
   /** How many of the case's conversations are shared: turning Strictly confidential on unshares them. */
   sharedCount?: number;
+  /** The section to open at, its control focused: the type (the playbook menu) or the access (the band). */
+  focus?: "type" | "access" | null;
 };
 
 export function roleLabel(role: string | null, m: ReturnType<typeof useT>): string {
   return role === "manager" ? m.roleManager : role === "contributor" ? m.roleContributor : role === "reader" ? m.roleReader : "";
 }
 
-export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, onChanged, onClose, sharedCount = 0 }: Props) {
+export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, onChanged, onClose, sharedCount = 0, focus = null }: Props) {
   const m = useT();
+  const types = useCaseTypes();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,20 +56,39 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
   // Strictly confidential and the access wait for *Save* (board G21): unsharing conversations isn't easy to undo
   const [confidential, setConfidential] = useState<boolean | null>(null);
   const [access, setAccess] = useState<Case["access"] | null>(null);
+  const [type, setType] = useState<string | null>(null);
+  const typeAt = useRef<HTMLElement>(null);
+  const accessAt = useRef<HTMLElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     try { setMembers(await listMembers(kase.id)); } catch (e) { setError((e as Error).message); }
   }, [kase.id]);
   useEffect(() => {
-    if (open) { setError(null); setQuery(""); setFound([]); setHandingOver(null); setConfidential(null); setAccess(null); refresh(); }
+    if (open) { setError(null); setQuery(""); setFound([]); setHandingOver(null); setConfidential(null); setAccess(null); setType(null); refresh(); }
   }, [open, refresh]);
   const confidentialNow = confidential ?? !!kase.confidential;
   const accessNow = access ?? kase.access;
+  const typeNow = type ?? kase.type;
   const changes = {
+    ...(typeNow !== kase.type ? { type: typeNow } : {}),
     ...(confidentialNow !== !!kase.confidential ? { confidential: confidentialNow } : {}),
     ...(accessNow !== kase.access ? { access: accessNow } : {}),
   };
+  // Opened at a section: its control takes the focus once the dialog has placed its own (on its first field or ×).
+  useEffect(() => {
+    if (!open || !focus) return;
+    const at = (focus === "type" ? typeAt : accessAt).current;
+    const t = setTimeout(() => {
+      at?.scrollIntoView({ block: "nearest" });
+      at?.querySelector<HTMLElement>("input, button")?.focus();
+    }, 60);
+    return () => clearTimeout(t);
+  }, [open, focus]);
+  const manager = members?.find((x) => x.role === "manager");
+  // The server's list; a stored type it no longer offers stays shown as stored (suveryn-tracker#229)
+  const typeOptions = [...types.map((t) => ({ id: t.id, label: caseTypeLabel(t.id, types) })),
+                       ...(types.some((t) => t.id === kase.type) ? [] : [{ id: kase.type, label: kase.type }])];
   const changed = Object.keys(changes).length > 0;
 
   const labelOf = (p: Person) => (p.name === p.username ? p.name : `${p.name} (${p.username})`);
@@ -102,24 +128,46 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
 
   const body = (
     <>
-      {canManage && (
-        // Strictly confidential (docs/design/chat-ui.md §11; board G21): the manager's switch, and what Save will do.
-        <div className="case-confidential">
-          <Switch label={m.strictlyConfidential} checked={confidentialNow} onChange={setConfidential} isDisabled={busy} />
-          <p className="ui-hint">{m.confidentialHint}</p>
-          {confidentialNow && !kase.confidential && sharedCount > 0 && (
-            <InlineNotice icon={<Info size={14} />} status>{m.confidentialWillUnshare({ n: sharedCount })}</InlineNotice>
+      {/* who may change the type and the access: the manager, or, said to everyone else, by name (board 80) */}
+      <p className="caption case-settings-who">{canManage ? m.youManageCase : manager ? m.onlyManagerChanges({ name: manager.name || manager.username }) : ""}</p>
+      <section className="case-settings-section" ref={typeAt}>
+        <h3 className="ui-label">{m.caseType}</h3>
+        {canManage
+          ? <Select label={m.caseType} options={typeOptions} value={typeNow} onChange={setType} className="case-type-select" />
+          : <p className="case-settings-value">{caseTypeLabel(kase.type, types)}</p>}
+        <p className="ui-hint">{m.caseTypeDecides}</p>
+        {typeNow !== kase.type && (
+          <InlineNotice icon={<Info size={14} />} status>{m.caseTypeWillOffer({ type: caseTypeLabel(typeNow, types) })}</InlineNotice>
+        )}
+      </section>
+      <section className="case-settings-section" ref={accessAt}>
+        <h3 className="ui-label">{m.caseSectionAccess}</h3>
+        {canManage ? <>
+          {/* Strictly confidential (docs/design/chat-ui.md §11; boards G21, 24): the manager's switch, and what Save will do. */}
+          <div className="case-confidential">
+            <Switch label={m.strictlyConfidential} checked={confidentialNow} onChange={setConfidential} isDisabled={busy} />
+            <p className="ui-hint">{m.confidentialHint}</p>
+            {confidentialNow && !kase.confidential && sharedCount > 0 && (
+              <InlineNotice icon={<Info size={14} />} status>{m.confidentialWillUnshare({ n: sharedCount })}</InlineNotice>
+            )}
+            {!confidentialNow && kase.confidential && (
+              <InlineNotice icon={<Info size={14} />} status>{m.confidentialOffNotice}</InlineNotice>
+            )}
+          </div>
+          {officeWide && (
+            <div className="case-access">
+              <span className="ui-label">{m.caseAccess}</span>
+              <Segmented label={m.caseAccess} value={accessNow} onChange={(v) => setAccess(v as Case["access"])} isDisabled={confidentialNow}
+                         options={[{ value: "default", label: m.accessOffice }, { value: "restricted", label: m.accessMembers }]} />
+              <p className="ui-hint">{accessNow === "restricted" ? m.accessMembersHint : m.accessOfficeHint}</p>
+            </div>
           )}
-        </div>
-      )}
-      {canManage && officeWide && (
-        <div className="case-access">
-          <span className="ui-label">{m.caseAccess}</span>
-          <Segmented label={m.caseAccess} value={accessNow} onChange={(v) => setAccess(v as Case["access"])} isDisabled={confidentialNow}
-                     options={[{ value: "default", label: m.accessOffice }, { value: "restricted", label: m.accessMembers }]} />
-          <p className="ui-hint">{accessNow === "restricted" ? m.accessMembersHint : m.accessOfficeHint}</p>
-        </div>
-      )}
+        </> : <>
+          <p className="case-settings-value">{kase.confidential ? m.strictlyConfidential : kase.access === "restricted" ? m.accessMembers : m.accessOffice}</p>
+          <p className="ui-hint">{kase.confidential ? m.confidentialHint : kase.access === "restricted" ? m.accessMembersHint : m.accessOfficeHint}</p>
+        </>}
+      </section>
+      <h3 className="ui-label case-settings-members">{m.members}</h3>
       {members === null ? <p className="caption">{m.loading}</p> : (
         <ul className="member-list">
           {members.map((member) => (
@@ -169,14 +217,14 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
       {error && <InlineNotice icon={<CircleAlert size={14} />} tone="error" alert>{error}</InlineNotice>}
     </>
   );
-  // the manager changes the access, applied by Save (board G21); everyone else sees who is in the case
+  // the manager changes the type and the access, applied by Save (boards 80, G21); everyone else reads them
   return canManage ? (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="form" title={m.membersAccessTitle({ reference: kase.reference })}
+    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="form" title={m.caseSettingsTitle({ reference: kase.reference })}
             cancel={{ label: m.cancel }} primary={{ label: m.save, onPress: save, disabled: !changed }}>
       {body}
     </Dialog>
   ) : (
-    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="information" title={m.membersTitle({ reference: kase.reference })}>
+    <Dialog isOpen={open} onClose={onClose} busy={busy} closeLabel={m.close} kind="information" title={m.caseSettingsTitle({ reference: kase.reference })}>
       {body}
     </Dialog>
   );

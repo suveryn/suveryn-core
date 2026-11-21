@@ -247,7 +247,7 @@ cases the person is a member of, and *New case*.
 | Last activity | With who; cut at 200 px, the full text in a tooltip |
 
 An administrator who isn't a member sees that a case exists, not its members. Row menu: *Open*,
-*Pin* or *Unpin*, *Members*, *Access log*, *Close case*.
+*Pin* or *Unpin*, *Settings and members* (with the member count), *Access log*, *Close case*.
 
 **Conversations**:
 
@@ -300,8 +300,8 @@ composer (artboard 12).
 A conversation in a case has:
 
 - a case header: folder icon, reference in Space Grotesk, name and type, the conversation, the
-  members (the manager first; the button opens *Members*), the document count (it opens Documents
-  filtered on the case) and the case's menu. The members are read when it opens and after *Members*
+  members (the manager first; the button opens *Settings and members*), the document count (it opens Documents
+  filtered on the case) and the case's menu. The members are read when it opens and after *Settings and members*
   closes; the case's documents are read again every 30 seconds while the page is visible;
 - `case-surface` on the pane and the header;
 - the composer placeholder "Ask about case 123…";
@@ -322,7 +322,12 @@ A conversation in a case has:
 It has no case chip: the header, the placeholder and the line under the box name the case.
 
 The playbook chip opens a menu of the playbooks that fit the case type
-(`GET /v1/cases/{id}/playbooks`). Each item shows the name, one line, the version, and its coverage
+(`GET /v1/cases/{id}/playbooks`). In a case the chip is always there for its members, once that list is read
+(suveryn-tracker#228; an administrator outside the case doesn't get it): when no playbook fits, or the
+administrator switched off those that do, the menu says one line, "There is no playbook for cases of the type
+{type}.", as text, not an item (the menu's description), and for the case's manager one item under a divider,
+*Change the case type*, which opens *Settings and members* at its type. The narrow composer's "+" sheet shows
+the same under its *Playbook* heading (board 80). Each item shows the name, one line, the version, and its coverage
 from `covered()`: "Covered" (teal) or "Not covered" (ink triangle, never blocking). Choosing one starts
 it as a new conversation in the case (board 53), or opens the conversation of a run of it still open: a playbook is a conversation, listed with the route
 icon in the column, in *Recent* and in the Conversations overview, opened in the conversation's place
@@ -529,9 +534,26 @@ and its strings (artboards 26 to 43). The colour and copy rules of section 1 app
 
 - **Reference**: with the duplicate error in ink and a link to the existing case.
 - **Name**: with `caseNameHint`.
-- **Type**: a `ComboBox`; the type decides the playbooks.
+- **Type**: a `Select` from the server's list (`GET /v1/case-types`, suveryn-tracker#229: core's reference
+  content and the installed packs), stored by its id; its hint says the type decides the playbooks and the
+  case's manager can change it later (board 14). No type of one's own.
 - **Access**: two radio cards, *Whole office* (the office default) and *Members only*.
 - **Buttons**: *Cancel* and *Open case*.
+
+**Settings and members** (board 80; suveryn-tracker#228, #229, #230) is the case's one dialog for what it is
+and who sees it, opened from the case's menu, the column's and the Cases overview's row menu, the members in the
+case header, the band's *Change access* and the playbook menu's *Change the case type* (each at its own
+section). Under its title, who can change it: "You manage this case." or "Only {name}, the case manager, can
+change this." Three sections:
+
+- **Type**: for the manager a `Select` from the server's list, with "The type decides which playbooks this case
+  offers." and, once changed, a grey notice before *Save*: "After Save, this case offers the playbooks for
+  {type}." A stored type no longer offered shows as stored.
+- **Access**: Strictly confidential and who sees the case (section 11).
+- **Members**: as before; adding, changing or removing a member is immediate.
+
+The type and the access wait for *Save*; *Cancel* leaves them. Everyone else who can open the case sees the
+same to read, with *Close* only.
 
 ## 9. Still to build
 
@@ -670,8 +692,10 @@ under professional secrecy, so the ordinary level has no label.
   review's pass 7). They never see its documents, its conversations or their titles. Its manager and
   members still show, for handing it over.
 
-**Who sets it**: the case's manager, in *Members and access*, as a switch with one paragraph on what
-changes. Turning it on or off goes to the case's access log.
+**Who sets it**: the case's manager, in *Settings and members*, under *Access*, as a switch with one paragraph
+on what changes. Turning it off shows, before *Save*, what that lifts: exports without the watermark,
+conversations can be shared again, the case can be opened to the office; nothing is shared by itself
+(suveryn-tracker#230, board 24). Turning it on or off goes to the case's access log.
 
 **How it looks**: one sign, the same everywhere, and one colour of its own. Six options were drawn
 on artboard 25 (violet, night blue, aubergine, raspberry, ochre, ink). Ink was chosen on 21 October,
@@ -684,9 +708,12 @@ with two uses reads as deliberate.
   tokens v3.4 (`confidential`, `on-confidential`), with `chart-1` to `chart-4`.
 - **A band above the case header**, with `folder-key`, in `confidential`: "Strictly confidential ·
   Members only · No sharing · Exports watermarked". It says what the label
-  does, not how secret the case is.
+  does, not how secret the case is. At its end, who can change it (board 80): for the case's manager
+  *Change access*, underlined in the band's colour, which opens *Settings and members* at its access with
+  the focus on the switch; for everyone else "Only {name}, the case manager, can change this." When the band
+  is short, the rules shorten with an ellipsis; that line doesn't.
 - On narrow screens, the band shortens to the icon, the label and *What does this mean?*, which
-  opens the three rules in a sheet.
+  opens the three rules in a sheet, with the same *Change access* or line under them.
 - **One sign: the key**, in the shape of the thing it marks. The shape says what it is; the key or
   lock on it says "only those who belong".
   - The case: Lucide `folder-key`, in the column, the case header, the Cases overview, its filter,
@@ -769,6 +796,8 @@ pattern (a full-width orange button with Cancel as a text link); they follow in 
   - `DataTable` (`table.tsx`) for the overviews.
 - **`Composer.tsx`**: the playbook chip, *Ask about* (`DocumentPicker`, `ui/picker.tsx`) and the model dialog
   (`ModelPicker.tsx`).
+- **`CaseMembers.tsx`**: *Settings and members* (`MembersDialog`) and the access log; **`ConfidentialBand.tsx`**: the band.
+- **`lib/caseTypes.ts`**: the server's case types, read once, and a type's word in the interface language.
 - **`Messages.tsx`**: the answer toolbar, the split buttons, `WaitingDots`, and "Thought for".
 - **`Overviews.tsx`**: the three overviews in the main area. *Playbooks* is an item of Administration's side
   menu (`Admin.tsx`).

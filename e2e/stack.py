@@ -52,7 +52,9 @@ STUB = "http://127.0.0.1:8080"
 # A real model server instead of the stub (the GPU round, scripts/gpu-round.sh): no stub is started, the gateway asks
 # this one, with a real model's timeout. The playbook runs' scenario (tests/test_playbook_runs.py) runs only then.
 REAL_LLM = os.environ.get("E2E_LLM", "")
-PACKS_DIR = os.environ.get("E2E_PACKS_DIR", "")   # suveryn-packs' playbooks too (a checkout's folders), as SUVERYN_PACKS_DIR
+# suveryn-packs' playbooks (a checkout's folders), as SUVERYN_PACKS_DIR; else core's fictional test pack, so a case can be
+# of more than one type (suveryn-tracker#229: the types come from the packs)
+PACKS_DIR = os.environ.get("E2E_PACKS_DIR", "") or str(ROOT / "packages" / "playbooks" / "tests" / "fixtures" / "packs")
 RAG_DEVICE = os.environ.get("E2E_RAG_DEVICE", "cpu")  # cuda on the GPU machine, next to the model
 NO_UI = os.environ.get("E2E_NO_UI", "") == "1"     # the API only: no Node to build the chat UI (a GPU pod)
 LLM = REAL_LLM or STUB

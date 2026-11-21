@@ -179,10 +179,9 @@ def new_case(page, reference: str, name: str, kind: str = "Sale", access: str | 
     page.get_by_role("menuitem", name="New case").click()
     page.get_by_label("Reference").fill(reference)
     page.get_by_label("Name", exact=True).fill(name)
-    page.get_by_role("combobox", name="Type").fill(kind)
-    option = page.get_by_role("option", name=re.compile(kind, re.I))
-    if option.count():
-        option.first.click()
+    # the type is chosen from the server's list (suveryn-tracker#229)
+    page.get_by_role("button", name="Type").click()
+    page.get_by_role("option", name=kind, exact=True).click()
     if access:
         page.get_by_role("radio", name=access).check()
     page.get_by_role("button", name="Open case").click()

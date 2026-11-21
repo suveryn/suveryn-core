@@ -206,6 +206,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .event-what { display: flex; align-items: baseline; gap: var(--space-1); color: var(--text-dim); }
 .event-what svg { flex: none; align-self: center; }
 .case-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.case-form-type { display: flex; flex-direction: column; gap: var(--space-2); }
+.case-form-type .ui-hint { margin: 0; }
 
 /* the avatar dialog: pick, frame, save */
 .avatar-pick { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
@@ -435,14 +437,24 @@ span.chip-run { cursor: default; }
 .answer-table tr:last-child td { border-bottom: none; }
 /* Strictly confidential (§11): the band above the case header, in violet (tokens v3.4: confidential, with
    on-confidential for its text and icon); the switch in Members and access. */
-.confidential-band { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-height: 32px; padding: var(--space-1) var(--space-4);
-                     background: var(--confidential); color: var(--on-confidential); font-size: var(--text-caption); }
+.confidential-band { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: var(--space-1) var(--space-4);
+                     background: var(--confidential); color: var(--on-confidential); font-size: var(--text-caption); white-space: nowrap; }
 .confidential-band b { font-weight: 600; }
-.confidential-rules-line { opacity: 0.85; }
-.confidential-band .confidential-what { color: var(--on-confidential); text-decoration: underline; font-size: var(--text-caption); }
+/* the rules give way with an ellipsis; who can change it (board 80) keeps its place at the end */
+.confidential-rules-line { opacity: 0.85; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.confidential-band .confidential-what, .confidential-band .confidential-change { color: var(--on-confidential); text-decoration: underline; font-size: var(--text-caption); flex-shrink: 0; }
+.confidential-who { flex-shrink: 0; }
+.confidential-sheet-who { margin: var(--space-3) 0 0; }
 .confidential-rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: var(--space-2); }
 .case-confidential { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
 .case-confidential .ui-hint { margin: 0; }
+/* the case's settings (board 80): Type, Access, Members, each under its heading */
+.case-settings-who { margin: 0 0 var(--space-3); }
+.case-settings-section { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+.case-settings-section > h3.ui-label, .case-settings-members { margin: 0; }
+.case-settings-members { margin-bottom: var(--space-2); }
+.case-settings-section .ui-hint, .case-settings-value { margin: 0; }
+.case-type-select { align-self: flex-start; }
 [data-shielded] { color: var(--text-dim); }
 .overview-status-cell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 /* "Strikt vertrouwelijk" on a case's row: violet, the one colour that means it (§11; boards G07, B05) */

@@ -21,7 +21,7 @@
  */
 import {
   ChevronDown, CircleAlert, Ellipsis, Eye, FileText, Folder, FolderKey, FolderPlus, Lock, LogIn, Menu, MessageSquare,
-  RotateCw, ScrollText, Share2, Trash, Users, UsersRound
+  RotateCw, ScrollText, Share2, SlidersHorizontal, Trash, UsersRound
 } from "lucide-react";
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,7 +34,8 @@ import {
   HttpError,
 } from "./api";
 import { Lockup } from "./components/Brand";
-import { caseTypeLabel, CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
+import { CloseCaseDialog, DeleteCaseDialog, NewCaseDialog } from "./components/CaseDialogs";
+import { caseTypeLabel, useCaseTypes } from "./lib/caseTypes";
 import { conversationMenu, MoveConversationDialog, RenameConversationDialog } from "./components/ConversationDialogs";
 import { AccessLogDialog, CaseFaces, MembersDialog, roleLabel } from "./components/CaseMembers";
 import { AvatarDialog } from "./components/AvatarDialog";
@@ -172,6 +173,7 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
 function Chat({ me }: { me: Me }) {
   const m = useT();
   const language = useLang();
+  const caseTypes = useCaseTypes();  // the server's list (suveryn-tracker#229)
   const [health, setHealth] = useState<Health | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [chosenModel, setChosenModel] = useState<string | null>(null); // null: the appliance default
@@ -212,7 +214,8 @@ function Chat({ me }: { me: Me }) {
   const [showSettings, setShowSettings] = useState(false);
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
-  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
+  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);
+  const [playbooksFor, setPlaybooksFor] = useState<string | null>(null);  // the case they were read for: the chip waits for them                      // the open case's
   const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});         // the live playbook run per case (the chip)
   const [runsHere, setRunsHere] = useState<RunSummary[]>([]);                         // the open case's runs, newest first (the playbook menu)
   const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
@@ -226,6 +229,9 @@ function Chat({ me }: { me: Me }) {
   const [pinHint, setPinHint] = useState(false);
   const [closingCase, setClosingCase] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  // the case's settings opened at a section (board 80): the band's Change access, the playbook menu's Change the case type
+  const [settingsAt, setSettingsAt] = useState<"type" | "access" | null>(null);
+  const openSettings = (at: "type" | "access" | null = null) => { setSettingsAt(at); setShowMembers(true); };
   const [showAvatar, setShowAvatar] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(me.avatar ?? null);  // the picture's ETag; null: initials
   const self: Me = { ...me, avatar };
@@ -382,8 +388,8 @@ function Chat({ me }: { me: Me }) {
   // space. Read again on returning to the chat: an administrator may just have switched one off.
   useEffect(() => {
     if (view !== "chat") return;
-    if (!caseId || role === null) { setPlaybooks([]); return; }
-    casePlaybooks(caseId).then(setPlaybooks).catch(() => setPlaybooks([]));
+    if (!caseId || role === null) { setPlaybooks([]); setPlaybooksFor(null); return; }
+    casePlaybooks(caseId).then((ps) => { setPlaybooks(ps); setPlaybooksFor(caseId); }).catch(() => { setPlaybooks([]); setPlaybooksFor(null); });
   }, [caseId, role, view]);
 
   // The live run per case (docs/design/playbooks.md, "A running playbook is visible"): the chip on the
@@ -671,10 +677,10 @@ function Chat({ me }: { me: Me }) {
   const caseMenu = currentCase && (
             <ActionMenu className="case-menu" aria-label={m.caseMenu({ reference: currentCase!.reference })} menuLabel={m.caseMenu({ reference: currentCase!.reference })}
                         placement="bottom end"
-                        header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase!.type, m)}
+                        header={<span className="ui-menu-eyebrow">{caseTypeLabel(currentCase!.type, caseTypes)}
                           {role && ` · ${roleLabel(role, m)}`}</span>}
                         entries={[
-                          { id: "members", label: m.members, icon: <Users size={16} /> },
+                          { id: "members", label: m.caseSettings, icon: <SlidersHorizontal size={16} />, meta: caseMembers.length ? String(caseMembers.length) : undefined },
                           ...(canShare ? [current?.shared
                             ? { id: "unshare", label: m.unshareConversation, icon: <UsersRound size={16} />, meta: m.sharedHint }
                             // §11: not in a strictly confidential case (disabled)
@@ -685,7 +691,7 @@ function Chat({ me }: { me: Me }) {
                             { id: "delete", label: m.deleteCase, icon: <Trash size={16} />, tone: "accent" as const }] : []),
                         ]}
                         onAction={(id) => {
-                          if (id === "members") setShowMembers(true);
+                          if (id === "members") openSettings();
                           else if (id === "share") share(true);
                           else if (id === "unshare") share(false);
                           else if (id === "log") setShowLog(true);
@@ -910,7 +916,7 @@ function Chat({ me }: { me: Me }) {
     else if (action === "pin" || action === "unpin") pin(c, action === "pin");
     else if (needsCaseOpen(action)) {
       if (inAnotherPlace(c.id, caseId)) goTo(c);
-      if (action === "members") setShowMembers(true);
+      if (action === "members") openSettings();
       else if (action === "log") setShowLog(true);
       else setClosingCase(true);
     }
@@ -1067,7 +1073,7 @@ function Chat({ me }: { me: Me }) {
       <CloseCaseDialog open={closingCase} kase={currentCase} period={me.cases_keep} onCloseCase={shutCase} onCancel={() => setClosingCase(false)} />
       <AvatarDialog open={showAvatar} me={self} onClose={() => setShowAvatar(false)} onChanged={setAvatar} />
       {currentCase && (
-        <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers}
+        <MembersDialog open={showMembers} kase={currentCase} canManage={manages && !closed} canHandOver={manages || administers} focus={settingsAt}
                        officeWide={me.office_wide ?? false} onClose={() => { setShowMembers(false); loadMembers(currentCase.id); }}
                        sharedCount={conversations.filter((x) => x.shared).length}
                        onChanged={(c) => { setCurrentCase(c); setCases((cs) => cs.map((x) => (x.id === c.id ? c : x))); refreshConversations(); }} />
@@ -1147,7 +1153,8 @@ function Chat({ me }: { me: Me }) {
             </ActionMenu>
           </header>
         )}
-        {currentCase?.confidential && <ConfidentialBand narrow={narrow} />}
+        {currentCase?.confidential && <ConfidentialBand narrow={narrow} onChangeAccess={manages && !closed ? () => openSettings("access") : null}
+                                                        manager={(() => { const x = caseMembers.find((y) => y.role === "manager"); return x ? x.name || x.username : ""; })()} />}
         {currentCase && (
           // The case header (docs/design/chat-ui.md §5, artboard 02): the case and its type, the
           // conversation, the members (the manager set apart), its documents and one menu for the case's actions.
@@ -1155,7 +1162,7 @@ function Chat({ me }: { me: Me }) {
             {closed ? <Lock size={15} aria-hidden /> : currentCase.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
             <span className="case-ref">{currentCase.reference}</span>
             <span className="case-name" title={currentCase.name}>{currentCase.name}</span>
-            <span className="case-type">{caseTypeLabel(currentCase.type, m)}</span>
+            <span className="case-type">{caseTypeLabel(currentCase.type, caseTypes)}</span>
             {openRunId && openRun ? <>
               <span className="case-sep" aria-hidden>/</span>
               {/* a playbook's conversation: its title and, while it runs, its state: the one place the state is said */}
@@ -1167,7 +1174,7 @@ function Chat({ me }: { me: Me }) {
             </>}
             <span className="case-space" />
             {caseMembers.length > 0 && (
-              <Button variant="plain" className="case-members" onPress={() => setShowMembers(true)}
+              <Button variant="plain" className="case-members" onPress={() => openSettings()}
                       aria-label={m.headMembers({ names: caseMembers.map((x) => (x.role === "manager" ? m.asManager({ name: x.name || x.username }) : x.name || x.username)).join(", ") })}>
                 <CaseFaces members={caseMembers} />
               </Button>
@@ -1265,8 +1272,9 @@ function Chat({ me }: { me: Me }) {
                   onRemoveAttachment={removeAttachment}
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
-                  caseType={currentCase ? caseTypeLabel(currentCase.type, m) : null}
-                  playbooks={administers ? [] : playbooks} onPlaybook={(slug) => void startPlaybook(slug)} playbookNotes={playbookNotes}
+                  caseType={currentCase ? caseTypeLabel(currentCase.type, caseTypes) : null}
+                  playbooks={playbooksFor === caseId ? playbooks : null} onPlaybook={administers ? undefined : (slug) => void startPlaybook(slug)}
+                  onChangeType={manages && !closed ? () => openSettings("type") : null} playbookNotes={playbookNotes}
                   compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : !currentCase && turns.length > 0 ? m.replyPlaceholder : undefined /* a personal conversation under way: "Reply…" (board G03) */}
                   workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),
                                                                   onChoose: openCase, onNew: () => setNewCase(true) } : null} />}

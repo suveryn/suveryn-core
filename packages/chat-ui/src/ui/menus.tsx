@@ -19,7 +19,7 @@
  * the appliance's CSP allows (it blocks only <style> elements and style attributes in markup).
  */
 import { Check, ChevronDown, ChevronRight, CircleAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   Button as AriaButton,
   FieldError,
@@ -225,7 +225,7 @@ export function SplitButton({ children, label, onPress, isDisabled, moreLabel, m
 }
 
 /** One entry of an ActionMenu: an action, or `"-"` for a separator between groups. */
-export type MenuEntry = "-" | { heading: string; items: MenuEntry[] } | {
+export type MenuEntry = "-" | { heading: string; items: MenuEntry[]; /** A line of text under the heading, not an item to choose. */ note?: string } | {
   id: string;
   label: string;
   /** A small icon before the label (decorative). */
@@ -259,6 +259,8 @@ type ActionMenuProps = {
   onAction: (id: string) => void;
   /** Shown above the items (an account's name), inside the popover. */
   header?: ReactNode;
+  /** A line of text under the header, not an item to choose: read when the menu opens (its description). */
+  note?: ReactNode;
   /** Shown under the items (fine print). */
   footer?: ReactNode;
   placement?: Placement;
@@ -275,7 +277,7 @@ function entries(items: MenuEntry[], onAction: (id: string) => void, narrow = fa
     if ("heading" in e) {  // a group under a small label ("Administrators only")
       return (
         <MenuSection key={`section-${i}`} className="ui-menu-section">
-          <Header className="ui-menu-section-title">{e.heading}</Header>
+          <Header className="ui-menu-section-title">{e.heading}{e.note && <span className="ui-menu-section-note">{e.note}</span>}</Header>
           {entries(e.items, onAction, narrow)}
         </MenuSection>
       );
@@ -320,9 +322,10 @@ function entries(items: MenuEntry[], onAction: (id: string) => void, narrow = fa
   });
 }
 
-export function ActionMenu({ children, menuLabel, entries: items, onAction, header, footer, placement = "bottom start",
+export function ActionMenu({ children, menuLabel, entries: items, onAction, header, note, footer, placement = "bottom start",
                              className, popoverClassName, isDisabled, ...rest }: ActionMenuProps) {
   const narrow = useMedia(NARROW);
+  const noteId = useId();
   return (
     <MenuTrigger>
       {/* data-* attributes go on the button (the run's chip styles by its data-status: ink when paused) */}
@@ -332,7 +335,8 @@ export function ActionMenu({ children, menuLabel, entries: items, onAction, head
       </AriaButton>
       <Popover className={cx("ui-popover", "ui-popover-rich", popoverClassName)} placement={placement} offset={6}>
         {header && <div className="ui-menu-header">{header}</div>}
-        <Menu aria-label={menuLabel} className="ui-menu" onAction={(k: Key) => onAction(String(k))}>
+        {note && <p className="ui-menu-note" id={noteId}>{note}</p>}
+        <Menu aria-label={menuLabel} aria-describedby={note ? noteId : undefined} className="ui-menu" onAction={(k: Key) => onAction(String(k))}>
           {entries(items, onAction, narrow)}
         </Menu>
         {footer && <div className="ui-menu-footer">{footer}</div>}

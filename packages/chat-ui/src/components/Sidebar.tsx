@@ -24,7 +24,7 @@ import { conversationMenu } from "./ConversationDialogs";
 import {
   ChartColumn, ChevronDown, ChevronsUpDown, Clock, Ellipsis, FileText, Folder, FolderKey, FolderOpen,
   FolderPlus, Languages, Lock, LogOut, MessageSquare, MessageSquareLock, MessagesSquare, PanelLeft, Pin, PinOff, Route,
-  Plus, ScrollText, Search, Settings, Shield, Users, X
+  Plus, ScrollText, Search, Settings, Shield, SlidersHorizontal, Users, X
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
@@ -219,7 +219,7 @@ export function Sidebar(p: Props) {
     { id: "open", label: m.open, icon: <Folder size={16} /> },
     // a pinned case unpins; the open conversation's case, unfolded under Recent, pins
     c.pinned ? { id: "unpin", label: m.unpin, icon: <PinOff size={16} /> } : { id: "pin", label: m.pin, icon: <Pin size={16} /> },
-    { id: "members", label: m.members, icon: <Users size={16} />, isDisabled: c.my_role === null },
+    { id: "members", label: m.caseSettings, icon: <SlidersHorizontal size={16} />, isDisabled: c.my_role === null },
     { id: "log", label: m.accessLog, icon: <ScrollText size={16} />, isDisabled: !(c.my_role === "manager" || (p.admin && c.my_role === null)) },
     "-",
     { id: "close", label: m.closeCase, icon: <Lock size={16} />, isDisabled: c.my_role !== "manager" || c.state === "closed" },
