@@ -37,6 +37,12 @@ class BackendError(RuntimeError):
     """The model backend is unreachable or returned an error."""
 
 
+class UnreadableAnswer(RuntimeError):
+    """The model backend answered, and what it sent back can't be read. Not ``BackendError``: the model isn't
+    down, and nobody planned for it, so the gateway answers it as an unplanned failure with a reference
+    (suveryn-tracker#164)."""
+
+
 @dataclass
 class BackendHealth:
     """Result of a health probe; ``status`` is "ok", "loading", "error" or "unreachable"."""
@@ -115,7 +121,7 @@ class LlamaServerClient:
         llama-server in router mode lists its presets at ``/models`` with a status, and loads a
         model on the first request for it (one at a time on a 24 GB card). A single-model
         llama-server has no ``/models``; it serves exactly one model, always loaded.
-        Raises ``BackendError`` if the server can't be asked.
+        Raises ``BackendError`` if the server can't be asked, ``UnreadableAnswer`` if what it lists can't be read.
         """
         try:
             r = await self._http.get("/models", timeout=5.0)
@@ -127,8 +133,10 @@ class LlamaServerClient:
             self._router = False
             name = await self.model_name()
             return [ModelInfo(id=name, loaded=True, default=True, thinks=can_think(name))]
-        except (httpx.HTTPError, KeyError, TypeError, ValueError) as e:
+        except httpx.HTTPError as e:
             raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
+        except (KeyError, TypeError, ValueError) as e:  # it answered, and not with a list of models (#164)
+            raise UnreadableAnswer(f"model backend returned an unexpected list of models: {type(e).__name__}") from e
 
     async def model_name(self, requested: str | None = None) -> str:
         """Name of the model that answers: the requested one, else the served or default one.
@@ -203,7 +211,8 @@ class LlamaServerClient:
             log.error("token usage not recorded: %s", type(e).__name__)
 
     async def complete(self, req: ChatRequest, *, user: str | None = None, kind: Kind = "chat") -> ChatResponse:
-        """Ask for a whole answer at once. Raises ``BackendError`` if the server fails.
+        """Ask for a whole answer at once. Raises ``BackendError`` if the server fails, ``UnreadableAnswer``
+        if what it sent back can't be read.
 
         With ``user`` (the Keycloak user id), the call's token counts go to ``on_usage`` as ``kind``.
         """
@@ -221,7 +230,7 @@ class LlamaServerClient:
             reasoning = message.get("reasoning_content") or ""
             u = d.get("usage") or {}
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
-            raise BackendError(f"model backend returned an unexpected answer: {type(e).__name__}") from e
+            raise UnreadableAnswer(f"model backend returned an unexpected answer: {type(e).__name__}") from e
         usage = Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0))
         await self._record(user, kind, req.model, usage if u else None)  # no counts reported: nothing to record
         split = ThinkSplitter()  # a server that leaves the reasoning in the text
@@ -240,8 +249,9 @@ class LlamaServerClient:
         """Yield the answer as it is generated.
 
         Text chunks come first; the finish reason and token usage arrive in the last events.
-        Raises ``BackendError`` on connection failures or a non-200 response, possibly after
-        some text has already been yielded; the caller must handle a partial answer. With
+        Raises ``BackendError`` on connection failures or a non-200 response, and ``UnreadableAnswer`` when
+        what came back can't be read, possibly after some text has already been yielded; the caller must
+        handle a partial answer. With
         ``user``, the token counts go to ``on_usage`` when llama-server reports them at the end.
 
         Stopping: closing this generator (or cancelling the task reading it, as the gateway does
@@ -263,25 +273,29 @@ class LlamaServerClient:
                     data = line[6:].strip()
                     if data == "[DONE]":
                         break
-                    d = json.loads(data)
-                    if isinstance(t := d.get("timings"), dict):
-                        prompt_n = int(t.get("prompt_n") or prompt_n)
-                        predicted_n = int(t.get("predicted_n") or predicted_n)
-                    chunk = StreamChunk()
-                    if d.get("choices"):
-                        c = d["choices"][0]
-                        delta = c.get("delta") or {}
-                        reasoning, chunk.text = split.feed(delta.get("content") or "")
-                        chunk.reasoning = (delta.get("reasoning_content") or "") + reasoning
-                        chunk.finish_reason = c.get("finish_reason")
-                        chunks += bool(chunk.text or chunk.reasoning)
-                    if chunk.finish_reason:
-                        reasoning, rest = split.flush()
-                        chunk.reasoning, chunk.text = chunk.reasoning + reasoning, chunk.text + rest
-                    if d.get("usage"):
-                        u = d["usage"]
-                        chunk.usage = Usage(prompt_tokens=u.get("prompt_tokens", 0),
-                                            completion_tokens=u.get("completion_tokens", 0))
+                    try:
+                        d = json.loads(data)
+                        if isinstance(t := d.get("timings"), dict):
+                            prompt_n = int(t.get("prompt_n") or prompt_n)
+                            predicted_n = int(t.get("predicted_n") or predicted_n)
+                        chunk = StreamChunk()
+                        if d.get("choices"):
+                            c = d["choices"][0]
+                            delta = c.get("delta") or {}
+                            reasoning, chunk.text = split.feed(delta.get("content") or "")
+                            chunk.reasoning = (delta.get("reasoning_content") or "") + reasoning
+                            chunk.finish_reason = c.get("finish_reason")
+                            chunks += bool(chunk.text or chunk.reasoning)
+                        if chunk.finish_reason:
+                            reasoning, rest = split.flush()
+                            chunk.reasoning, chunk.text = chunk.reasoning + reasoning, chunk.text + rest
+                        if d.get("usage"):
+                            u = d["usage"]
+                            chunk.usage = Usage(prompt_tokens=u.get("prompt_tokens", 0),
+                                                completion_tokens=u.get("completion_tokens", 0))
+                    except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+                        raise UnreadableAnswer(f"model backend returned an unexpected answer: {type(e).__name__}") from e
+                    if chunk.usage:
                         recorded = True
                         await self._record(user, kind, req.model, chunk.usage)
                     if chunk.text or chunk.reasoning or chunk.finish_reason or chunk.usage:

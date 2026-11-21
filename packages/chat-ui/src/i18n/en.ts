@@ -126,7 +126,7 @@ const en = {
     "account.manages_cases": m("{n, plural, one {This account still manages # case. Hand it over first.} other {This account still manages # cases. Hand them over first.}}", "n"),
     "account.not_switched_off": "Switch the account off first.",
     "account.rights_removed": "Your administrator rights were removed meanwhile, by another administrator.",
-    "account.administrator_rights_refused": "The sign-in service refused your administrator rights: its administrator role is missing a permission. Ask support.",
+    "account.administrator_rights_refused": "The sign-in service refused your administrator rights. Sign out and sign in again; if it happens again, ask support.",
     "account.deletion_unfinished": "The deletion stopped partway: the account is still there, switched off, and part of its own space may be gone. Delete it again to finish.",
     "calc.number_styles_mixed": "The figures are written in different number styles.",
     "calc.decimal_separator_unclear": "The figures don't show which separator is the decimal one.",

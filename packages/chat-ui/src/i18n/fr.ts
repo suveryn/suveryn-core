@@ -115,7 +115,7 @@ const fr: Messages = {
     "account.manages_cases": m("{n, plural, one {Ce compte gère encore # dossier. Transmettez-le d''abord.} other {Ce compte gère encore # dossiers. Transmettez-les d''abord.}}"),
     "account.not_switched_off": "Désactivez d'abord le compte.",
     "account.rights_removed": "Vos droits d'administrateur ont été retirés entre-temps par un autre administrateur.",
-    "account.administrator_rights_refused": "Le service de connexion a refusé vos droits d'administrateur : il manque un droit au rôle d'administrateur. Contactez le support.",
+    "account.administrator_rights_refused": "Le service de connexion a refusé vos droits d'administrateur. Déconnectez-vous puis reconnectez-vous ; si cela se reproduit, contactez le support.",
     "account.deletion_unfinished": "La suppression s'est arrêtée en cours de route : le compte existe encore, désactivé, et une partie de son espace peut déjà avoir disparu. Supprimez-le à nouveau pour terminer.",
     "calc.number_styles_mixed": "Les montants sont écrits dans des formats différents.",
     "calc.decimal_separator_unclear": "Les montants ne montrent pas quel signe sépare les décimales.",

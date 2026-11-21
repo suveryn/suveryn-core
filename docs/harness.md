@@ -145,7 +145,7 @@ The answer is checked by rules, not by a second model, so the checks are predict
 tested:
 
 - **Calculations** ([`calc.py`](../packages/harness/src/suveryn_harness/calc.py)). The model never
-  calculates. Each `[[calc: …]]` is computed exactly by the server (`Decimal` and a small parser, never
+  calculates. Each `[[calc: …]]` is computed exactly by the server (fractions of whole numbers of any length, so no figure is too long and only the result is rounded; a small parser, never
   `eval`: `+ - * /`, brackets, signs) and replaced by `figures = result` as the answer streams (a marker split across
   chunks is held back until it is complete). A sum keeps the decimals of its most precise figure, a product its
   exact decimals (up to 6), and a division, and anything after one, is rounded half up to at least 2; a share as

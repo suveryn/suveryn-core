@@ -22,7 +22,7 @@ from .grounding import (
     without_earlier_markers,
 )
 from .guard import instruction_like
-from .llm import BackendError, LlamaServerClient
+from .llm import BackendError, LlamaServerClient, UnreadableAnswer
 from .thinking import THINKING_TOKENS
 from .schemas import (
     Calculation,
@@ -168,7 +168,7 @@ class ChatService:
         """The model that must be loaded before this answer can start, or None if it is loaded."""
         try:
             models = await self.llm.list_models()
-        except BackendError:
+        except (BackendError, UnreadableAnswer):
             return None  # the request itself will report the problem
         wanted = req.model or self.llm.settings.default_model
         for m in models:
@@ -244,7 +244,8 @@ class ChatService:
         log.info("answer asked again: figures in no passage and not computed by the server (count=%d)", len(first.unverified_figures))
         try:
             response = await self.llm.complete(again.model_copy(update={"thinking": False}), user=owner, kind="chat")
-        except BackendError:
+        except (BackendError, UnreadableAnswer) as e:  # the first answer stands, with its warning
+            log.warning("answer asked again: no second answer (%s); the first stands", type(e).__name__)
             return first.model_copy(update={"asked_again": True})
         second = await self._grounded(response.model_copy(update={"narrowed_to": first.narrowed_to, "complete": first.complete}),
                                       citations, req, owner)
@@ -256,7 +257,7 @@ class ChatService:
 
         Status steps are the pipeline's real stages, so a UI can say what is happening: searching
         the documents, loading a model, reading the passages or writing. Raises ``BackendError``
-        (possibly after some deltas) or ``DocumentsUnavailable``. Closing the generator stops the
+        or ``UnreadableAnswer`` (possibly after some deltas) or ``DocumentsUnavailable``. Closing the generator stops the
         model (``LLMClient.stream``).
         """
         if req.document_ids:

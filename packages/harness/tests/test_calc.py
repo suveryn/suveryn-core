@@ -75,6 +75,45 @@ def test_why_a_calculation_fails_is_a_code_the_screen_words():
     assert codes == {"10 / 0": "calc.division_by_zero", "abc": "calc.unreadable", "6.507,11 + 1,250.5": "calc.number_styles_mixed"}
 
 
+def digits(result: str) -> int:
+    return int("".join(c for c in result if c.isdigit()))
+
+
+def test_figures_of_any_length_are_computed_exactly():
+    """No limit on the digits (the founder, 21 November 2026): the calculator kept 60 and rounded longer sums and
+    products without a word. Checked against Python's own whole numbers, which have no limit either."""
+    a, b = "7" * 140, "3" * 140
+    assert digits(evaluate(f"{a} * {b}")[0]) == int(a) * int(b)
+    assert digits(evaluate("1" * 70 + " + 1")[0]) == int("1" * 70) + 1
+    assert digits(evaluate("9" * 59 + " * 99")[0]) == int("9" * 59) * 99
+    assert digits(evaluate(f"{a} - {b}")[0]) == int(a) - int(b)
+    long = "1" * 80 + ",25"
+    assert evaluate(f"{long} + 0,75")[0] == "1" * 79 + "2,00"  # decimals too, in the figures' style
+    assert evaluate("1 / 3 * " + "9" * 100)[0] == "3" * 100 + ".00"  # refused before: now it is just computed
+
+
+def test_a_division_inside_a_calculation_loses_nothing_on_the_way():
+    """A third stays a third until the result is written: only the result is rounded, once."""
+    assert evaluate("(1 / 3 + 1 / 3 + 1 / 3) * 900")[0] == "900.00"
+    assert evaluate("1 / 3 * 3")[0] == "1.00"
+    assert evaluate("2 / 3")[0] == "0.67" and evaluate("1 / 3")[0] == "0.33"
+    assert evaluate("1 / 7 * 7000000")[0] == "1000000.00"
+
+
+def test_the_result_is_rounded_half_up_away_from_zero():
+    assert evaluate("1 / 8")[0] == "0.13" and evaluate("0 - 1 / 8")[0] == "-0.13"  # 0.125
+    assert evaluate("1 / 200")[0] == "0.01" and evaluate("1 / 201")[0] == "0.00"
+    assert evaluate("0 - 1 / 201")[0] == "0.00"  # what rounds to zero has no sign
+    assert evaluate("10 / 4")[0] == "2.50" and evaluate("0,5 * 0,5")[0] == "0,25"
+    assert evaluate("1,5 * 1,5 * 1,5 * 1,5")[0] == "5,0625" and evaluate("0,001 * 0,001 * 0,5")[0] == "0,000001"  # at most 6: 0.0000005
+
+
+def test_a_result_too_long_to_write_out_is_refused_never_a_crash():
+    """Beyond anything a marker can hold (300 characters): Python writes whole numbers of up to 4300 digits."""
+    with pytest.raises(CalcError):
+        evaluate("9" * 3000 + " * " + "9" * 3000)
+
+
 def test_streaming_marker_split_across_chunks_and_citations_untouched():
     r = CalcRewriter(SOURCE)
     pieces = ["Totaal [1", "] is [", "[cal", "c: 6.507,11 + 6.", "417,42]", "] EUR [2]."]

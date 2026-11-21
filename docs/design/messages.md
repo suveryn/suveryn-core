@@ -165,7 +165,8 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   `run.interrupted` (a part was down: try again), `run.no_document`, `run.answer_unreadable` and `run.too_many`
   (nothing could be read), `system.internal` with a reference (nobody planned for it).
 - **One code for one situation.** The model that can't be reached is `model.unavailable` wherever it is met:
-  asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere.
+  asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere. A model that answers
+  with something that can't be read isn't down: that is an unplanned failure, `system.internal` with a reference.
   Its sentence is the one the playbook's board shows (P04) and the banner uses: "The model isn't available right now."
 - **An unplanned failure is logged alike everywhere**: `suveryn_harness.messages.unplanned` gives the reference and
   where the exception was raised, for an HTTP answer, a stream, a run and a reading. The log line has the

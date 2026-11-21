@@ -115,7 +115,7 @@ const nl: Messages = {
     "account.manages_cases": m("{n, plural, one {Dit account beheert nog # dossier. Draag het eerst over.} other {Dit account beheert nog # dossiers. Draag ze eerst over.}}"),
     "account.not_switched_off": "Schakel het account eerst uit.",
     "account.rights_removed": "Uw beheerrechten werden intussen ingetrokken door een andere beheerder.",
-    "account.administrator_rights_refused": "De aanmeldservice weigerde uw beheerrechten: de beheerdersrol mist een recht. Vraag ondersteuning.",
+    "account.administrator_rights_refused": "De aanmeldservice weigerde uw beheerrechten. Meld u af en opnieuw aan; gebeurt het opnieuw, vraag dan ondersteuning.",
     "account.deletion_unfinished": "Het verwijderen stopte halverwege: het account bestaat nog, uitgeschakeld, en een deel van de eigen ruimte kan al weg zijn. Verwijder het opnieuw om af te ronden.",
     "calc.number_styles_mixed": "De bedragen zijn in verschillende notaties geschreven.",
     "calc.decimal_separator_unclear": "Uit de bedragen blijkt niet welk teken de decimalen scheidt.",
