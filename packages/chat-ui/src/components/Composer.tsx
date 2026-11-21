@@ -80,6 +80,13 @@ type Props = {
 
 const CASES_IN_CHIP = 8;
 
+/** The playbook menu of a case no playbook fits (board 80, suveryn-tracker#228): one line, as text, and for the case's
+ *  manager the one item that changes its type. */
+export function emptyPlaybookMenu(caseType: string, manager: boolean, m: ReturnType<typeof useT>): { note: string; entries: MenuEntry[] } {
+  return { note: m.noPlaybookForType({ type: caseType }),
+           entries: manager ? [{ id: "change-type", label: m.changeCaseType, icon: <SlidersHorizontal size={16} /> }] : [] };
+}
+
 export function Composer({ askAbout = null, caseNote = null, locked = false, attachments, models, chosenModel, onChooseModel, thinking, onThinking, disabledReason, busy, onAttach,
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
                           playbooks = [], onPlaybook, onChangeType = null, playbookNotes = {}, compact = false, hint = null, placeholder, workInCase = null }: Props) {
@@ -120,8 +127,9 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   // In a case, the chip is always there once the case's playbooks are read; with none, the menu says so (board 80).
   const chip = !!caseReference && !!onPlaybook && playbooks !== null;
   const none = chip && playbooks.length === 0;
-  const noneLine = m.noPlaybookForType({ type: caseType ?? "" });
-  const changeType: MenuEntry[] = none && onChangeType ? [{ id: "change-type", label: m.changeCaseType, icon: <SlidersHorizontal size={16} /> }] : [];
+  const empty = emptyPlaybookMenu(caseType ?? "", !!onChangeType, m);
+  const noneLine = empty.note;
+  const changeType = empty.entries;
   const playbookEntries: MenuEntry[] = (playbooks ?? []).map((p) => ({
     id: p.slug, label: playbookWords(p, lang()).title, icon: <Route size={16} />,
     description: [playbookWords(p, lang()).summary, `v${p.version}`].filter(Boolean).join(" · "),

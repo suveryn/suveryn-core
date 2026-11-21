@@ -206,8 +206,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text
 .event-what { display: flex; align-items: baseline; gap: var(--space-1); color: var(--text-dim); }
 .event-what svg { flex: none; align-self: center; }
 .case-form { display: flex; flex-direction: column; gap: var(--space-3); }
-.case-form-type { display: flex; flex-direction: column; gap: var(--space-2); }
-.case-form-type .ui-hint { margin: 0; }
 
 /* the avatar dialog: pick, frame, save */
 .avatar-pick { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
@@ -454,7 +452,6 @@ span.chip-run { cursor: default; }
 .case-settings-section > h3.ui-label, .case-settings-members { margin: 0; }
 .case-settings-members { margin-bottom: var(--space-2); }
 .case-settings-section .ui-hint, .case-settings-value { margin: 0; }
-.case-type-select { align-self: flex-start; }
 [data-shielded] { color: var(--text-dim); }
 .overview-status-cell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 /* "Strikt vertrouwelijk" on a case's row: violet, the one colour that means it (§11; boards G07, B05) */

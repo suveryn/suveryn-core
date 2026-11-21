@@ -15,8 +15,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createCase, HttpError, type Case, type KeepPeriod, type NewCase } from "../api";
 import { useT } from "../i18n";
-import { caseTypeLabel, useCaseTypes } from "../lib/caseTypes";
-import { Dialog, Form, RadioCards, Select, TextButton, TextField } from "../ui";
+import { caseTypeLabel, loadCaseTypes, useCaseTypes, useCaseTypesFailure } from "../lib/caseTypes";
+import { Dialog, Form, RadioCards, SelectField, TextButton, TextField } from "../ui";
 
 export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisting, onCancel }: {
   open: boolean;
@@ -31,6 +31,7 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
 }) {
   const m = useT();
   const types = useCaseTypes();
+  const typesFailure = useCaseTypesFailure();
   const [reference, setReference] = useState("");
   const [name, setName] = useState("");
   const [type, setType] = useState<string>("");
@@ -40,7 +41,8 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (open) { setReference(""); setName(""); setType(""); setAccess("default"); setTaken(null); setError(null); setBusy(false); }
-  }, [open]);
+    if (open && !types.length) void loadCaseTypes();  // a list that couldn't be read is asked for again
+  }, [open]);  // eslint-disable-line react-hooks/exhaustive-deps -- on opening
   const created = useRef<Case | null>(null);
 
   // The type chosen, else the list's first (the server's order: core's reference content first)
@@ -50,7 +52,7 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
     const errors: Record<string, string> = {};
     if (!reference.trim()) errors.reference = m.required;
     if (!name.trim()) errors.name = m.required;
-    if (!typeId) errors.type = m.required;
+    if (!typeId) errors.type = typesFailure ?? m.required;
     if (Object.keys(errors).length) return errors;
     setBusy(true);
     setError(null);
@@ -81,12 +83,8 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
                    onChange={(v) => { setReference(v); setTaken(null); }} autoFocus maxLength={100}
                    errorAction={existing && <><TextButton link onPress={() => onOpenExisting(existing)}>{m.openCaseRef({ ref: existing.reference })}</TextButton>.</>} />
         <TextField name="name" label={m.caseName} description={m.caseNameHint} value={name} onChange={setName} maxLength={200} />
-        <div className="case-form-type">
-          <span className="ui-label">{m.caseType}</span>
-          <Select label={m.caseType} value={typeId} onChange={setType} className="case-type-select"
-                  options={types.map((t) => ({ id: t.id, label: caseTypeLabel(t.id, types) }))} />
-          <p className="ui-hint">{m.caseTypeHint}</p>
-        </div>
+        <SelectField name="type" label={m.caseType} description={m.caseTypeHint} value={typeId} onChange={setType}
+                     placeholder={typesFailure ?? m.loading} options={types.map((t) => ({ id: t.id, label: caseTypeLabel(t.id, types) }))} />
         {officeWide && (
           <div className="case-form-access">
             <span className="ui-label">{m.whoSeesThisCase}</span>

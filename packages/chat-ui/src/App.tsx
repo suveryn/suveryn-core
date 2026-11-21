@@ -214,8 +214,9 @@ function Chat({ me }: { me: Me }) {
   const [showSettings, setShowSettings] = useState(false);
   const [allConversations, setAllConversations] = useState<ConversationSummary[]>([]);  // the user's own, everywhere, and colleagues' shared ones
   const [allDocuments, setAllDocuments] = useState<AllDocument[]>([]);                 // everything they may see
-  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);
-  const [playbooksFor, setPlaybooksFor] = useState<string | null>(null);  // the case they were read for: the chip waits for them                      // the open case's
+  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);                      // the open case's
+  // the case and type they were read for: the chip waits for them, and a new type reads them again (board 80)
+  const [playbooksFor, setPlaybooksFor] = useState<string | null>(null);
   const [activeRuns, setActiveRuns] = useState<Record<string, RunSummary>>({});         // the live playbook run per case (the chip)
   const [runsHere, setRunsHere] = useState<RunSummary[]>([]);                         // the open case's runs, newest first (the playbook menu)
   const [activePlaybooks, setActivePlaybooks] = useState<number | null>(null);         // administrators: how many are on
@@ -265,6 +266,7 @@ function Chat({ me }: { me: Me }) {
   // What the signed-in user is in the open case: a member's role, "reader" for a colleague in an
   // office-wide appliance, or null for an administrator who only sees the case exists.
   const role = currentCase?.my_role ?? null;
+  const caseType = currentCase?.type ?? null;  // a changed type reads the case's playbooks again
   const closed = currentCase?.state === "closed";
   // The open conversation as the sidebar lists it: someone else's shared one is read-only (stage 4).
   // Also from the list of everything: a colleague's conversation shared since the case's list was read
@@ -389,8 +391,9 @@ function Chat({ me }: { me: Me }) {
   useEffect(() => {
     if (view !== "chat") return;
     if (!caseId || role === null) { setPlaybooks([]); setPlaybooksFor(null); return; }
-    casePlaybooks(caseId).then((ps) => { setPlaybooks(ps); setPlaybooksFor(caseId); }).catch(() => { setPlaybooks([]); setPlaybooksFor(null); });
-  }, [caseId, role, view]);
+    const key = `${caseId} ${caseType}`;
+    casePlaybooks(caseId).then((ps) => { setPlaybooks(ps); setPlaybooksFor(key); }).catch(() => { setPlaybooks([]); setPlaybooksFor(null); });
+  }, [caseId, caseType, role, view]);
 
   // The live run per case (docs/design/playbooks.md, "A running playbook is visible"): the chip on the
   // case lists and the line under the case header. Read when the view changes and when a case opens,
@@ -1273,7 +1276,7 @@ function Chat({ me }: { me: Me }) {
                   onUseAsSource={useNoticedAsSource} onDeleteAttachment={deleteNoticed}
                   onSend={send} onStop={stop} caseReference={currentCase?.reference ?? null}
                   caseType={currentCase ? caseTypeLabel(currentCase.type, caseTypes) : null}
-                  playbooks={playbooksFor === caseId ? playbooks : null} onPlaybook={administers ? undefined : (slug) => void startPlaybook(slug)}
+                  playbooks={playbooksFor === `${caseId} ${caseType}` ? playbooks : null} onPlaybook={administers ? undefined : (slug) => void startPlaybook(slug)}
                   onChangeType={manages && !closed ? () => openSettings("type") : null} playbookNotes={playbookNotes}
                   compact={narrow} hint={start && firstUse ? m.personalHint : null} placeholder={start ? m.startPlaceholder : !currentCase && turns.length > 0 ? m.replyPlaceholder : undefined /* a personal conversation under way: "Reply…" (board G03) */}
                   workInCase={start && !firstUse && !narrow && casesReady ? { cases: cases.filter((c) => c.state === "open" && c.my_role !== null),

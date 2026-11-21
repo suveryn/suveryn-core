@@ -248,6 +248,7 @@ const en = {
   changeCaseType: "Change the case type",
   changeAccess: "Change access",
   confidentialOffNotice: "After Save: exports carry no watermark, conversations can be shared again, and the case can be opened to the whole office. Nothing is shared by itself.",
+  confidentialOffNoticeMembers: "After Save: exports carry no watermark and conversations can be shared again. Nothing is shared by itself.",
   membersCount: m("{n, plural, other {# members} one {# member}}", "n"),
   close: "Close",
   loading: "Loading…",

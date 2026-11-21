@@ -23,7 +23,7 @@ import {
 import { lang, locale, useT } from "../i18n";
 import { playbookWords } from "../lib/playbooks";
 import { dayLabel } from "../lib/conversations";
-import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, Switch, TextButton } from "../ui";
+import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, SelectField, Switch, TextButton } from "../ui";
 
 type Props = {
   open: boolean;
@@ -38,6 +38,15 @@ type Props = {
   /** The section to open at, its control focused: the type (the playbook menu) or the access (the band). */
   focus?: "type" | "access" | null;
 };
+
+/** What Save sends (board 80): only what was changed; a stored type no longer offered isn't sent back. */
+export function caseChanges(kase: Case, now: { type: string; confidential: boolean; access: Case["access"] }) {
+  return {
+    ...(now.type !== kase.type ? { type: now.type } : {}),
+    ...(now.confidential !== !!kase.confidential ? { confidential: now.confidential } : {}),
+    ...(now.access !== kase.access ? { access: now.access } : {}),
+  };
+}
 
 export function roleLabel(role: string | null, m: ReturnType<typeof useT>): string {
   return role === "manager" ? m.roleManager : role === "contributor" ? m.roleContributor : role === "reader" ? m.roleReader : "";
@@ -70,18 +79,15 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
   const confidentialNow = confidential ?? !!kase.confidential;
   const accessNow = access ?? kase.access;
   const typeNow = type ?? kase.type;
-  const changes = {
-    ...(typeNow !== kase.type ? { type: typeNow } : {}),
-    ...(confidentialNow !== !!kase.confidential ? { confidential: confidentialNow } : {}),
-    ...(accessNow !== kase.access ? { access: accessNow } : {}),
-  };
+  const changes = caseChanges(kase, { type: typeNow, confidential: confidentialNow, access: accessNow });
   // Opened at a section: its control takes the focus once the dialog has placed its own (on its first field or ×).
   useEffect(() => {
     if (!open || !focus) return;
     const at = (focus === "type" ? typeAt : accessAt).current;
     const t = setTimeout(() => {
       at?.scrollIntoView({ block: "nearest" });
-      at?.querySelector<HTMLElement>("input, button")?.focus();
+      // the type's button (its field's hidden select isn't a control), the access's switch
+      at?.querySelector<HTMLElement>(focus === "type" ? "button" : "input")?.focus();
     }, 60);
     return () => clearTimeout(t);
   }, [open, focus]);
@@ -129,13 +135,18 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
   const body = (
     <>
       {/* who may change the type and the access: the manager, or, said to everyone else, by name (board 80) */}
-      <p className="caption case-settings-who">{canManage ? m.youManageCase : manager ? m.onlyManagerChanges({ name: manager.name || manager.username }) : ""}</p>
+      {/* a closed case changes for nobody: no line */}
+      {kase.state === "open" && (
+        <p className="caption case-settings-who">{canManage ? m.youManageCase : manager ? m.onlyManagerChanges({ name: manager.name || manager.username }) : ""}</p>
+      )}
       <section className="case-settings-section" ref={typeAt}>
         <h3 className="ui-label">{m.caseType}</h3>
         {canManage
-          ? <Select label={m.caseType} options={typeOptions} value={typeNow} onChange={setType} className="case-type-select" />
-          : <p className="case-settings-value">{caseTypeLabel(kase.type, types)}</p>}
-        <p className="ui-hint">{m.caseTypeDecides}</p>
+          ? <SelectField name="type" label={m.caseType} hideLabel description={m.caseTypeDecides} options={typeOptions} value={typeNow} onChange={setType} />
+          : <>
+            <p className="case-settings-value">{caseTypeLabel(kase.type, types)}</p>
+            <p className="ui-hint">{m.caseTypeDecides}</p>
+          </>}
         {typeNow !== kase.type && (
           <InlineNotice icon={<Info size={14} />} status>{m.caseTypeWillOffer({ type: caseTypeLabel(typeNow, types) })}</InlineNotice>
         )}
@@ -151,7 +162,8 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
               <InlineNotice icon={<Info size={14} />} status>{m.confidentialWillUnshare({ n: sharedCount })}</InlineNotice>
             )}
             {!confidentialNow && kase.confidential && (
-              <InlineNotice icon={<Info size={14} />} status>{m.confidentialOffNotice}</InlineNotice>
+              // what it lifts; opening to the whole office only where the office's appliance allows it
+              <InlineNotice icon={<Info size={14} />} status>{officeWide ? m.confidentialOffNotice : m.confidentialOffNoticeMembers}</InlineNotice>
             )}
           </div>
           {officeWide && (

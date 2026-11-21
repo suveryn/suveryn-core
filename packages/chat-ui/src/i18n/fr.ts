@@ -232,6 +232,7 @@ const fr: Messages = {
   changeCaseType: "Modifier le type du dossier",
   changeAccess: "Modifier l'accès",
   confidentialOffNotice: "Après Enregistrer : exports sans filigrane, les conversations peuvent de nouveau être partagées, et le dossier peut être ouvert à toute l'étude. Rien n'est partagé automatiquement.",
+  confidentialOffNoticeMembers: "Après Enregistrer : exports sans filigrane, et les conversations peuvent de nouveau être partagées. Rien n'est partagé automatiquement.",
   membersCount: m("{n, plural, one {# membre} other {# membres}}"),
   close: "Fermer",
   loading: "Chargement…",

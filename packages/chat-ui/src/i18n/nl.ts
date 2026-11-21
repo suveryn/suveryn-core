@@ -232,6 +232,7 @@ const nl: Messages = {
   changeCaseType: "Type van het dossier wijzigen",
   changeAccess: "Toegang wijzigen",
   confidentialOffNotice: "Na Bewaren: exports zonder watermerk, gesprekken mogen weer gedeeld worden, en het dossier kan voor het hele kantoor open. Niets wordt vanzelf gedeeld.",
+  confidentialOffNoticeMembers: "Na Bewaren: exports zonder watermerk, en gesprekken mogen weer gedeeld worden. Niets wordt vanzelf gedeeld.",
   membersCount: m("{n, plural, other {# leden} one {# lid}}"),
   close: "Sluiten",
   loading: "Laden…",

@@ -105,7 +105,7 @@ export const PREVIEWS: Preview[] = [
   { id: "g80-settings", board: "G80", lang: "nl", title: "Instellingen en leden: de beheerder",
     render: () => <MembersDialog open kase={CASE_124} canManage canHandOver officeWide onChanged={nothing} onClose={nothing} /> },
   { id: "g80-settings-type", board: "G80", lang: "nl", title: "Het type gewijzigd, nog niet bewaard",
-    render: () => <Steps steps={[{ click: "Type" }, { click: "Schenking" }]}>
+    render: () => <Steps steps={[{ click: "Verkoop" }, { click: "Schenking" }]}>
       <MembersDialog open kase={CASE_124} canManage canHandOver officeWide onChanged={nothing} onClose={nothing} /></Steps> },
   { id: "g80-settings-member", board: "G80", lang: "nl", title: "Instellingen en leden: een lid leest mee",
     render: () => <MembersDialog open kase={CASE_118} canManage={false} canHandOver={false} officeWide onChanged={nothing} onClose={nothing} /> },
