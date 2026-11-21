@@ -16,7 +16,11 @@ CASE = f"E2E/{int(time.time()) % 100000:05d}"  # new on every run: a reference i
 
 
 def test_sign_in_lands_on_the_welcome_screen(page):
-    sign_in(page)
+    # a signed-in browser measures the appliance's clock and reports it, through the code generated from the
+    # gateway's description (suveryn-tracker#236): here in a real browser against the real gateway
+    with page.expect_response(lambda r: r.url.endswith("/v1/clock") and r.request.method == "POST") as reported:
+        sign_in(page)
+    assert reported.value.status == 204 and set(reported.value.request.post_data_json) == {"offset_ms", "rtt_ms"}
     expect(page.get_by_role("heading", name=re.compile("Welcome, Nora"))).to_be_visible()
     expect(page.get_by_role("button", name=re.compile("Model and thinking: Qwen3.8-27B"))).to_be_visible()
 

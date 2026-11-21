@@ -1,7 +1,7 @@
 # Names
 
 How sūveryn names two things: an **operation** (what the gateway can be asked to do; its name is what the chat
-UI's generated code will call it by, once that code is generated: suveryn-tracker#159) and a **code** (what went
+UI's generated code calls it by: suveryn-tracker#159, one area at a time) and a **code** (what went
 wrong or needs checking; [messages.md](messages.md)). A code's name is permanent once released; an operation's
 isn't yet (*Released*, below). The founder's decision of 15 November 2026, after independent reviews
 (suveryn-tracker#159, #161, #162).

@@ -1,0 +1,199 @@
+{
+ "asked": {
+  "body": {
+   "failure": null,
+   "id": "0123456789abcdef",
+   "moved_ms": null,
+   "ok": null,
+   "pending": true
+  },
+  "media_type": "application/json",
+  "status": 202
+ },
+ "busy": {
+  "body": {
+   "code": "clock.busy",
+   "detail": "The appliance is still busy with the last change to its clock.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The appliance is still busy with the last change to its clock, or it was changed a moment ago.",
+   "type": "urn:suveryn:problem:clock.busy"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "invalid": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "The request's body or parameters aren't valid.",
+   "errors": [
+    {
+     "loc": [
+      "body",
+      "offset_ms"
+     ],
+     "msg": "Input should be a valid integer, unable to parse string as an integer",
+     "type": "int_parsing"
+    },
+    {
+     "loc": [
+      "body",
+      "rtt_ms"
+     ],
+     "msg": "Field required",
+     "type": "missing"
+    }
+   ],
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "no_such_request": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "No such request.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "not_set": {
+  "body": {
+   "failure": {
+    "code": "clock.synced",
+    "kind": "refused",
+    "params": {}
+   },
+   "id": "0123456789abcdef",
+   "moved_ms": null,
+   "ok": false,
+   "pending": false
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "now": {
+  "body": {
+   "now_ms": 1795000000000
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "pending": {
+  "body": {
+   "failure": null,
+   "id": "0123456789abcdef",
+   "moved_ms": null,
+   "ok": null,
+   "pending": true
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "reported": {
+  "body": null,
+  "media_type": null,
+  "status": 204
+ },
+ "set": {
+  "body": {
+   "failure": null,
+   "id": "0123456789abcdef",
+   "moved_ms": 95000,
+   "ok": true,
+   "pending": false
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "signed_out": {
+  "body": {
+   "code": "auth.signed_out",
+   "detail": "Sign in to continue.",
+   "kind": "refused",
+   "params": {},
+   "status": 401,
+   "title": "No session, or it has ended.",
+   "type": "urn:suveryn:problem:auth.signed_out"
+  },
+  "media_type": "application/problem+json",
+  "status": 401
+ },
+ "synced": {
+  "body": {
+   "code": "clock.synced",
+   "detail": "A time server keeps the appliance's clock.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "A time server keeps the appliance's clock: it isn't set by hand.",
+   "type": "urn:suveryn:problem:clock.synced"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "too_slow": {
+  "body": {
+   "code": "clock.measurement_too_slow",
+   "detail": "The measurement took too long to say how far off the clock is; try again.",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The measurement took too long to say how far off the clock is.",
+   "type": "urn:suveryn:problem:clock.measurement_too_slow"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "unavailable": {
+  "body": {
+   "code": "clock.unavailable",
+   "detail": "The appliance's clock can't be set from here.",
+   "kind": "unavailable",
+   "params": {},
+   "status": 503,
+   "title": "The appliance's clock can't be set from here: its helper isn't there, or the system may not set its clock.",
+   "type": "urn:suveryn:problem:clock.unavailable"
+  },
+  "media_type": "application/problem+json",
+  "status": 503
+ },
+ "unplanned": {
+  "body": {
+   "code": "system.internal",
+   "detail": "Something nobody planned for: a bug, a file that should be there. The log has the detail under the reference.",
+   "kind": "internal",
+   "params": {
+    "ref": "7F3K-92QD"
+   },
+   "status": 500,
+   "title": "Something nobody planned for: a bug, a file that should be there. The log has the detail under the reference.",
+   "type": "urn:suveryn:problem:system.internal"
+  },
+  "media_type": "application/problem+json",
+  "status": 500
+ }
+}

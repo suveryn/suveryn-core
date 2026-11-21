@@ -76,3 +76,116 @@ def test_every_route_of_the_gateway_is_in_the_description():
     assert declared == len(operations()), f"{declared} routes are declared in routes/, {len(operations())} are described"
     # the two sign-in redirects: a browser follows them, no screen's code calls them
     assert sorted(hidden) == ["callback", "login"], f"routes left out of the description: {sorted(hidden)}"
+
+
+# The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
+# and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
+# here in the change that moves it.
+STRICT = {"clock"}
+PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
+
+
+def strict_operations() -> list[tuple[str, str, dict]]:
+    return [(method, path, op) for method, path, op in operations() if op["tags"][0] in STRICT]
+
+
+def test_a_strict_operation_describes_every_refusal_in_the_one_shape():
+    from suveryn_api_gateway import problems
+
+    assert strict_operations()
+    for method, path, op in operations():
+        refusals = {int(status): r for status, r in op["responses"].items() if int(status) >= 400}
+        ours = [s for s, r in refusals.items() if r.get("content", {}).get(problems.MEDIA_TYPE, {}).get("schema") == PROBLEM]
+        if op["tags"][0] not in STRICT:
+            assert not ours, f"{method} {path} describes its refusals: add its group to STRICT"
+            continue
+        assert sorted(ours) == sorted(refusals), f"{method} {path}: a refusal in another shape or media type"
+        assert all(list(r["content"]) == [problems.MEDIA_TYPE] for r in refusals.values()), f"{method} {path}"
+        assert set(problems.EVERY_OPERATION) <= set(refusals), f"{method} {path}: {sorted(refusals)}"
+
+
+def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_raises_and_no_other():
+    import ast
+    import pathlib
+
+    from suveryn_api_gateway import problems
+    from suveryn_harness.messages import CODES
+
+    raised: dict[str, set[int]] = {}
+    for module in (pathlib.Path(description.__file__).parent / "routes").glob("*.py"):
+        for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
+            if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+                codes = [c.args[0].value for c in ast.walk(node) if isinstance(c, ast.Call) and getattr(c.func, "id", "") == "Problem"]
+                raised[node.name] = {CODES[code].status for code in codes}
+    for method, path, op in strict_operations():
+        own = {int(s) for s in op["responses"] if int(s) >= 400} - set(problems.EVERY_OPERATION)
+        takes_input = bool(op.get("parameters") or op.get("requestBody"))  # FastAPI checks it: 422, as request.invalid
+        expected = (raised[op["operationId"]] | ({422} if takes_input else set())) - set(problems.EVERY_OPERATION)
+        assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
+
+
+def test_a_strict_operation_leaves_nothing_undescribed():
+    # "any object", "anything": what generated code can only call unknown
+    schemas = json.loads(description.FILE.read_text(encoding="utf-8"))["components"]["schemas"]
+
+    def loose(schema, seen, where):
+        if isinstance(schema, list):
+            return [x for i, s in enumerate(schema) for x in loose(s, seen, where)]
+        if not isinstance(schema, dict):
+            return []
+        if "$ref" in schema:
+            name = schema["$ref"].rsplit("/", 1)[1]
+            if name in seen:
+                return []
+            return loose(schemas[name], seen | {name}, name)
+        found = []
+        typed = any(k in schema for k in ("type", "anyOf", "oneOf", "allOf", "enum", "const"))
+        if not typed or schema.get("additionalProperties") is True or (schema.get("type") == "object" and "properties" not in schema
+                                                                       and not isinstance(schema.get("additionalProperties"), dict)):
+            found.append(where)
+        for key in ("properties", "additionalProperties", "items", "anyOf", "oneOf", "allOf"):
+            value = schema.get(key)
+            for child in (value.values() if key == "properties" and isinstance(value, dict) else [value]):
+                found += loose(child, seen, where)
+        return found
+
+    for method, path, op in strict_operations():
+        assert any(str(s).startswith("2") for s in op["responses"])
+        parts = [op.get("requestBody", {}), *op["responses"].values()]
+        schemas_used = [c["schema"] for part in parts for c in part.get("content", {}).values()]
+        schemas_used += [p["schema"] for p in op.get("parameters", [])]
+        assert not loose(schemas_used, frozenset(), f"{method} {path}"), f"{method} {path}: {loose(schemas_used, frozenset(), path)}"
+        for status, r in op["responses"].items():
+            assert status == "204" or r.get("content"), f"{method} {path}: {status} has no described body"
+
+
+class _Answer:
+    def __init__(self, status, body, media_type="application/json"):
+        self.status_code, self._body, self.headers = status, body, {"content-type": media_type}
+        self.content = b"" if body is None else json.dumps(body).encode()
+
+    def json(self):
+        return self._body
+
+
+def test_the_check_of_an_answer_against_the_description_fails_when_they_differ():
+    import pytest
+    from described import answer_is_described
+
+    good = {"id": "ab", "pending": False, "ok": False, "moved_ms": None, "failure": {"kind": "refused", "code": "clock.synced", "params": {}}}
+    answer_is_described(_Answer(200, good), "GET", "/v1/admin/clock/{rid}")
+    problem = {"type": "urn:suveryn:problem:clock.busy", "title": "t", "status": 409, "detail": "d", "kind": "refused", "code": "clock.busy", "params": {}}
+    answer_is_described(_Answer(409, problem, "application/problem+json; charset=utf-8"), "POST", "/v1/admin/clock")
+    for answer, method, path, says in (
+        (_Answer(418, good), "GET", "/v1/admin/clock/{rid}", "not a status"),
+        (_Answer(409, problem), "POST", "/v1/admin/clock", "sent as"),                                   # the wrong media type
+        (_Answer(200, {k: v for k, v in good.items() if k != "id"}), "GET", "/v1/admin/clock/{rid}", "'id' is a required"),
+        (_Answer(200, {**good, "moved_ms": "far"}), "GET", "/v1/admin/clock/{rid}", "moved_ms"),          # another type
+        (_Answer(200, {**good, "note": "x"}), "GET", "/v1/admin/clock/{rid}", "'note'"),                  # a member it doesn't name
+        (_Answer(200, {**good, "failure": {"kind": "odd", "code": "x", "params": {}}}), "GET", "/v1/admin/clock/{rid}", "failure"),
+        (_Answer(200, {**good, "failure": {"kind": "refused", "code": "x", "params": {}, "more": 1}}), "GET", "/v1/admin/clock/{rid}", "'more'"),
+        (_Answer(204, {"now_ms": 1}), "POST", "/v1/clock", "a body where"),
+        (_Answer(200, {"now_ms": "now"}), "GET", "/v1/clock", "now_ms"),
+    ):
+        with pytest.raises(AssertionError, match=says):
+            answer_is_described(answer, method, path)
