@@ -111,12 +111,25 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
     from suveryn_api_gateway import problems
     from suveryn_harness.messages import CODES
 
-    raised: dict[str, set[int]] = {}
+    # what each function of routes/ raises itself, and which other functions of routes/ it calls: a refusal is
+    # often raised by a helper (routes/common.py), and counts for every operation that reaches it
+    own_codes: dict[str, set[str]] = {}
+    calls: dict[str, set[str]] = {}
     for module in (pathlib.Path(description.__file__).parent / "routes").glob("*.py"):
         for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
             if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
-                codes = [c.args[0].value for c in ast.walk(node) if isinstance(c, ast.Call) and getattr(c.func, "id", "") == "Problem"]
-                raised[node.name] = {CODES[code].status for code in codes}
+                inside = [c for c in ast.walk(node) if isinstance(c, ast.Call)]
+                own_codes.setdefault(node.name, set()).update(c.args[0].value for c in inside if getattr(c.func, "id", "") == "Problem")
+                calls.setdefault(node.name, set()).update(getattr(c.func, "id", None) or getattr(c.func, "attr", "") for c in inside)
+
+    def reached(name: str, seen: set[str]) -> set[str]:
+        if name in seen or name not in own_codes:
+            return set()
+        seen.add(name)
+        return own_codes[name].union(*(reached(callee, seen) for callee in calls[name]))
+
+    raised = {name: {CODES[code].status for code in reached(name, set())} for name in own_codes}
+    assert 403 in raised["create_clock_request"] and 403 not in raised["get_clock"]  # through admin_or_403, a helper
     for method, path, op in strict_operations():
         own = {int(s) for s in op["responses"] if int(s) >= 400} - set(problems.EVERY_OPERATION)
         takes_input = bool(op.get("parameters") or op.get("requestBody"))  # FastAPI checks it: 422, as request.invalid
