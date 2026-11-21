@@ -168,6 +168,32 @@ def test_a_code_is_named_by_the_convention():
     # the test stops a banned word and an unlisted ending; whether a name is true is read from the code that says it
 
 
+# How names.md writes the endings that are a pattern here.
+WRITTEN = {r"not_a_[a-z]+": "not_a_<thing>", r"no_[a-z]+": "no_<thing>", r"already_[a-z]+": "already_<state>",
+           r"[a-z_]+_only": "<role>_only", r"not_(?:allowed|local|writable|switched_off|checked|asked)": "not_<state>"}
+
+
+def test_the_endings_here_are_the_ones_names_md_lists():
+    """One list in two places, the document for people and ENDINGS for the test: neither gains or loses an ending alone
+    (suveryn-tracker#164)."""
+    table = (PACKAGES.parent / "docs" / "design" / "names.md").read_text(encoding="utf-8").split("| Ending | Means |", 1)[1].split("\n\n", 1)[0]
+    documented = {e for row in table.splitlines()[2:] for e in re.findall(r"`([^`]+)`", row.split("|")[1])}
+    here = set()
+    for ending in ENDINGS:
+        if alternatives := re.fullmatch(r"too_\(\?:([a-z|]+)\)", ending):
+            here |= {f"too_{a}" for a in alternatives.group(1).split("|")}
+        else:
+            here.add(WRITTEN.get(ending, ending))
+    assert here == documented, f"only in the test: {sorted(here - documented)}; only in names.md: {sorted(documented - here)}"
+
+
+def test_every_area_has_codes_and_keeps_them_together_in_the_areas_order():
+    """The registry reads area by area: no area without a code, and each area's codes in one block, the blocks in the
+    order of `areas` (suveryn-tracker#164)."""
+    blocks = [area for i, area in enumerate(c.split(".", 1)[0] for c in CODES) if i == 0 or area != list(CODES)[i - 1].split(".", 1)[0]]
+    assert blocks == list(AREAS), f"areas as the codes come: {blocks}; areas as listed: {list(AREAS)}"
+
+
 def test_an_area_that_is_down_says_so_under_its_own_name():
     # `system` is for what has no area of its own: the model and document handling have one
     assert {name for name in CODES if name.startswith("system.")} == {"system.internal", "system.unavailable", "system.database_unavailable"}

@@ -73,7 +73,7 @@ whoever reviews the change.
 
 - **Eleven codes state a fact in words of their own**: `case.single_manager`, `case.strictly_confidential`, `conversation.in_case`, `account.last_administrator`, `account.own_account`, `account.manages_cases`, `calc.division_by_zero`, `document.instruction_like_text`, `setup.password_common`, `setup.password_personal`, `setup.manifest_other_appliance`.
 - **The seven general codes** of the `request` area keep the names of the web's own statuses.
-- **What enforces it.** A test (`packages/harness/tests/test_messages.py`, which holds the list of endings): a code ends in a listed ending or is one of the eleven; a new ending is added on purpose in the same change; banned words fail (`too_big`, `none_found`, anything ending in `_first`); a released code that is no longer in the registry fails. The test stops banned words and lost codes. Whether a name is **true**, says **what**, and is in the **right area** is checked by the reviewer, who reads the code that says it: no test can.
+- **What enforces it.** A test (`packages/harness/tests/test_messages.py`, which holds the list of endings): a code ends in a listed ending or is one of the eleven; a new ending is added on purpose in the same change, to the table above and to the test, which fails when the two differ; every area has codes, kept together in the areas' order; banned words fail (`too_big`, `none_found`, anything ending in `_first`); a released code that is no longer in the registry fails. The test stops banned words and lost codes. Whether a name is **true**, says **what**, and is in the **right area** is checked by the reviewer, who reads the code that says it: no test can.
 
 ## The convention for operations
 

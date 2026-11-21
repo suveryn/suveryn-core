@@ -79,7 +79,7 @@ async def _do(call):
     try:
         return await call
     except RightsRefused:
-        raise  # app.py: 503 with reason "rights", which the page says in its own sentence
+        raise  # app.py answers it: account.rights_removed or account.administrator_rights_refused
     except AccountsUnavailable as e:
         raise Problem("auth.unavailable", str(e)) from e
 
