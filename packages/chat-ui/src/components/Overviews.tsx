@@ -10,7 +10,7 @@
 import {
   ArrowUpDown, Check, CircleX, Clock, Download, Ellipsis, FileOutput, Folder, FolderKey, Funnel,
   LoaderCircle, Lock, MessageSquare, MessageSquareLock, NotebookText, Pin, PinOff, Plus, Route, ScrollText, Trash,
-  TriangleAlert, Upload, Users
+  SlidersHorizontal, TriangleAlert, Upload, Users
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member, type RunSummary } from "../api";
@@ -21,7 +21,7 @@ import { ACCEPTED_FILES } from "../lib/formats";
 import { originKind, originText } from "../lib/origin";
 import { documentStatus, mayDeleteDocument, type DocStatus } from "../lib/overviews";
 import { checkPages, hasNotes, noteDetails, rowNotes } from "../lib/readingNotes";
-import { caseTypeLabel } from "./CaseDialogs";
+import { caseTypeLabel, useCaseTypes } from "../lib/caseTypes";
 import { OriginIcon } from "./ListViews";
 import type { AllDocument, CaseAction } from "./Sidebar";
 import { conversationMenu } from "./ConversationDialogs";
@@ -106,6 +106,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
   onShowDocuments: (caseId: string) => void; onShowConversations: (caseId: string) => void;
 }) {
   const m = useT();
+  const caseTypes = useCaseTypes();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
   const [member, setMember] = useState("all");
@@ -122,7 +123,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
   for (const c of cases) for (const x of c.members) people.set(x.user, x.name || x.username);
 
   const types = [...new Set(cases.map((c) => c.type))];
-  const typeOptions = chip(m.filterType, [{ id: "all", label: m.filterAll }, ...types.map((t) => ({ id: t, label: caseTypeLabel(t, m) }))]);
+  const typeOptions = chip(m.filterType, [{ id: "all", label: m.filterAll }, ...types.map((t) => ({ id: t, label: caseTypeLabel(t, caseTypes) }))]);
   const memberOptions = chip(m.filterMember, [{ id: "all", label: m.everyone },
     ...[...people].sort((a, b) => byText(a[1], b[1])).map(([id, name]) => ({ id, label: name }))]);
   const sortOptions = [{ id: "activity", label: m.sortActivity }, { id: "reference", label: m.sortReference }, { id: "name", label: m.sortName }];
@@ -133,7 +134,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
     .filter((c) => !confidential || c.confidential)
     .filter((c) => type === "all" || c.type === type)
     .filter((c) => member === "all" || c.members.some((x) => x.user === member))
-    .filter((c) => matches(q, c.reference, c.name, caseTypeLabel(c.type, m)))
+    .filter((c) => matches(q, c.reference, c.name, caseTypeLabel(c.type, caseTypes)))
     .sort((a, b) => sort === "reference" ? byText(a.reference, b.reference) : sort === "name" ? byText(a.name, b.name)
       : activity(b).localeCompare(activity(a)));
   const { page, setPage, shown } = usePage(rows);
@@ -163,7 +164,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
   const menu = (c: CaseOverview): MenuEntry[] => [
     { id: "open", label: m.open, icon: <Folder size={16} /> },
     { id: "pin", label: c.pinned ? m.unpin : m.pin, icon: c.pinned ? <PinOff size={16} /> : <Pin size={16} /> },
-    { id: "members", label: m.members, icon: <Users size={16} />, isDisabled: c.my_role === null },
+    { id: "members", label: m.caseSettings, icon: <SlidersHorizontal size={16} />, meta: String(c.members.length), isDisabled: c.my_role === null },
     { id: "log", label: m.accessLog, icon: <ScrollText size={16} />, isDisabled: c.my_role !== "manager" },
     "-",
     { id: "close", label: m.closeCase, icon: <Lock size={16} />, isDisabled: c.my_role !== "manager" || c.state === "closed" },
@@ -175,7 +176,7 @@ export function CasesOverview({ cases, documents, conversations, activeRuns = {}
     { id: "case", label: m.colCase, rowHeader: true,
       render: (c) => <span className="overview-name">{c.state === "closed" ? <Lock size={15} aria-hidden /> : c.confidential ? <FolderKey size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
         <span><b>{c.reference}</b> <span className="overview-dim">{c.name || (c.confidential ? m.strictlyConfidential : "")}</span></span></span> },
-    { id: "type", label: m.colType, render: (c) => <span className="overview-dim">{caseTypeLabel(c.type, m)}</span> },
+    { id: "type", label: m.colType, render: (c) => <span className="overview-dim">{caseTypeLabel(c.type, caseTypes)}</span> },
     { id: "status", label: m.colStatus, render: (c) => <span className="overview-status-cell">{status(c)}
         {/* §11: an ink outline label in words beside the status */}
         {c.confidential && <span className="overview-label"><FolderKey size={12} aria-hidden /> {m.strictlyConfidential}</span>}

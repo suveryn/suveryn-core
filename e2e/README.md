@@ -49,7 +49,7 @@ The stack listens on `http://localhost:5173`; sign in as `notaris.test` (an admi
 
 `E2E_LLM=<llama-server URL>` starts no stub and points the gateway at that server, with a real model's timeout;
 `E2E_NO_UI=1` starts no chat UI (a GPU pod has no Node), `E2E_RAG_DEVICE=cuda` reads on the GPU next to the model,
-and `E2E_PACKS_DIR` installs suveryn-packs' playbooks. The test realm lets the two test accounts take a token with
+and `E2E_PACKS_DIR` installs suveryn-packs' playbooks (without it, core's fictional test pack is installed, so a case can be of more than one type). The test realm lets the two test accounts take a token with
 their password, so the playbook runs' scenario talks to the API without a browser. `scripts/gpu-round.sh` sets all
 of this up on a GPU machine.
 

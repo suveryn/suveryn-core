@@ -4,9 +4,9 @@
  * A new case asks for the office's own file number, a name, the type and, when the office's default is the
  * whole office, who sees it (board G14). A taken reference
  * says so under its field, with a link to that case when the person sees it. The hint under the name says
- * what the design decided: no client names on the label; the parties are in the documents. The type is a combo box: the notarial list as suggestions (stored by their id, so the
- * label follows the interface language), or another sector's own word, stored as typed (types are
- * data per appliance, later).
+ * what the design decided: no client names on the label; the parties are in the documents. The type is chosen from
+ * the server's list (suveryn-tracker#229: core's reference content and the installed packs), stored by its id, so
+ * its word follows the interface language; the case's manager can change it later (board 14).
  * Closing is the normal end of a case: it says the case stays readable, that it is deleted after
  * the office's keep period (or kept until deleted by hand), and that it can be reopened.
  * Deleting is for a case opened by mistake: the dialog says the documents and conversations go
@@ -15,18 +15,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createCase, HttpError, type Case, type KeepPeriod, type NewCase } from "../api";
 import { useT } from "../i18n";
-import { ComboBoxField, Dialog, Form, RadioCards, TextButton, TextField } from "../ui";
-
-const CASE_TYPES = ["sale", "company-formation", "estate", "gift", "marriage-contract", "care-mandate"] as const;
-
-/** The type's label in the interface language; an unknown type (another sector's) is shown as is. */
-export function caseTypeLabel(type: string, m: ReturnType<typeof useT>): string {
-  const labels: Record<string, string> = {
-    "sale": m.caseTypeSale, "company-formation": m.caseTypeCompany, "estate": m.caseTypeEstate, "gift": m.caseTypeGift,
-    "marriage-contract": m.caseTypeMarriage, "care-mandate": m.caseTypeCareMandate,
-  };
-  return labels[type] ?? type;
-}
+import { caseTypeLabel, loadCaseTypes, useCaseTypes, useCaseTypesFailure } from "../lib/caseTypes";
+import { Dialog, Form, RadioCards, SelectField, TextButton, TextField } from "../ui";
 
 export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisting, onCancel }: {
   open: boolean;
@@ -40,26 +30,29 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
   onCancel: () => void;
 }) {
   const m = useT();
+  const types = useCaseTypes();
+  const typesFailure = useCaseTypesFailure();
   const [reference, setReference] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<string>(caseTypeLabel("sale", m));
+  const [type, setType] = useState<string>("");
   const [access, setAccess] = useState<"default" | "restricted">("default");
   const [taken, setTaken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (open) { setReference(""); setName(""); setType(caseTypeLabel("sale", m)); setAccess("default"); setTaken(null); setError(null); setBusy(false); }
-  }, [open, m]);
+    if (open) { setReference(""); setName(""); setType(""); setAccess("default"); setTaken(null); setError(null); setBusy(false); }
+    if (open && !types.length) void loadCaseTypes();  // a list that couldn't be read is asked for again
+  }, [open]);  // eslint-disable-line react-hooks/exhaustive-deps -- on opening
   const created = useRef<Case | null>(null);
 
-  // A known type by its id, whatever the language; another sector's word as typed.
-  const typeId = CASE_TYPES.find((id) => caseTypeLabel(id, m).toLowerCase() === type.trim().toLowerCase()) ?? type.trim();
+  // The type chosen, else the list's first (the server's order: core's reference content first)
+  const typeId = type || types[0]?.id || "";
   // Checked, then opened, in one step: a taken reference is said under its field (board G14), as a field error.
   const check = async (): Promise<Record<string, string>> => {
     const errors: Record<string, string> = {};
     if (!reference.trim()) errors.reference = m.required;
     if (!name.trim()) errors.name = m.required;
-    if (!type.trim()) errors.type = m.required;
+    if (!typeId) errors.type = typesFailure ?? m.required;
     if (Object.keys(errors).length) return errors;
     setBusy(true);
     setError(null);
@@ -90,8 +83,8 @@ export function NewCaseDialog({ open, officeWide, cases, onCreated, onOpenExisti
                    onChange={(v) => { setReference(v); setTaken(null); }} autoFocus maxLength={100}
                    errorAction={existing && <><TextButton link onPress={() => onOpenExisting(existing)}>{m.openCaseRef({ ref: existing.reference })}</TextButton>.</>} />
         <TextField name="name" label={m.caseName} description={m.caseNameHint} value={name} onChange={setName} maxLength={200} />
-        <ComboBoxField name="type" label={m.caseType} description={m.caseTypeHint} value={type} onChange={setType}
-                       options={CASE_TYPES.map((id) => ({ id, label: caseTypeLabel(id, m) }))} />
+        <SelectField name="type" label={m.caseType} description={m.caseTypeHint} value={typeId} onChange={setType}
+                     placeholder={typesFailure ?? m.loading} options={types.map((t) => ({ id: t.id, label: caseTypeLabel(t.id, types) }))} />
         {officeWide && (
           <div className="case-form-access">
             <span className="ui-label">{m.whoSeesThisCase}</span>

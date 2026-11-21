@@ -501,6 +501,16 @@ export type NewCase = { reference: string; name: string; type: string;
   /** default: as the office's default access; restricted: members only (board G14). */
   access?: "default" | "restricted" };
 
+/** A case type this appliance offers (``GET /v1/case-types``, suveryn-tracker#229): its id, the pack that brings it
+ *  (core's reference content or an installed pack) and its word per language, from the pack. */
+export type CaseTypeInfo = { id: string; pack: string; text: Record<string, string> };
+
+export async function listCaseTypes(): Promise<CaseTypeInfo[]> {
+  const r = await fetch("/v1/case-types");
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
 /** The cases the signed-in user may see, most recently active first: open ones, and with
  *  `closed` the closed ones too (after the open ones). */
 export async function listCases(closed = false): Promise<Case[]> {

@@ -11,7 +11,7 @@ import { AccessLogDialog, MembersDialog } from "../components/CaseMembers";
 import { RenameConversationDialog } from "../components/ConversationDialogs";
 import { SignOutDialog } from "../components/SignOutDialog";
 import { HttpError } from "../api";
-import { CASE_124, CONVERSATION } from "./sample";
+import { CASE_118, CASE_124, CONVERSATION, MANAGES_109, MANAGES_118 } from "./sample";
 import { Steps, type Step } from "./steps";
 import { hold, offline, replace } from "./fakeApi";
 import { AS_READER_123 } from "./sample";
@@ -92,12 +92,29 @@ export const PREVIEWS: Preview[] = [
     render: app({ click: "Prijs en kosten" }) },
   { id: "g19-narrow-sheet", board: "G19", lang: "nl", title: "7 · Smal (390 px): Vraag over als blad", width: 390,
     render: app({ click: "Menu openen" }, { click: "Prijs en kosten" }, { click: "Vraag over" }) },
-  { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier",
+  // the band for its manager: Toegang wijzigen at its end (board 80)
+  { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier: de beheerder", setup: () => replace(MANAGES_118),
     render: app({ click: "Dossiers" }, { click: "118" }) },
-  { id: "g21-setting", board: "G21", lang: "nl", title: "De instelling: Strikt vertrouwelijk in Leden en toegang",
-    // the switch turned on, not yet saved: the consequence in a grey note, Bewaren to apply it (board G21)
+  { id: "g20-confidential-member", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier: een lid ziet wie het kan wijzigen",
+    render: app({ click: "Dossiers" }, { click: "118" }) },
+  { id: "g21-setting", board: "G21", lang: "nl", title: "Strikt vertrouwelijk uitzetten in Instellingen en leden",
+    // the switch turned off, not yet saved: what that lifts in a grey note, Bewaren to apply it (board 24)
     render: () => <Steps steps={[{ click: "Strikt vertrouwelijk" }]}>
-      <MembersDialog open kase={CASE_124} canManage canHandOver officeWide sharedCount={2} onChanged={nothing} onClose={nothing} /></Steps> },
+      <MembersDialog open kase={{ ...CASE_124, confidential: true, access: "restricted" }} canManage canHandOver officeWide onChanged={nothing} onClose={nothing} /></Steps> },
+  // the case's settings (board 80): type, access and members in one dialog
+  { id: "g80-settings", board: "G80", lang: "nl", title: "Instellingen en leden: de beheerder",
+    render: () => <MembersDialog open kase={CASE_124} canManage canHandOver officeWide onChanged={nothing} onClose={nothing} /> },
+  { id: "g80-settings-type", board: "G80", lang: "nl", title: "Het type gewijzigd, nog niet bewaard",
+    render: () => <Steps steps={[{ click: "Verkoop" }, { click: "Schenking" }]}>
+      <MembersDialog open kase={CASE_124} canManage canHandOver officeWide onChanged={nothing} onClose={nothing} /></Steps> },
+  { id: "g80-settings-member", board: "G80", lang: "nl", title: "Instellingen en leden: een lid leest mee",
+    render: () => <MembersDialog open kase={CASE_118} canManage={false} canHandOver={false} officeWide onChanged={nothing} onClose={nothing} /> },
+  { id: "g80-no-playbook", board: "G80", lang: "nl", title: "Geen playbook voor dit type: de beheerder kan het type wijzigen", setup: () => replace(MANAGES_109),
+    render: app({ click: "Dossiers" }, { click: "109" }, { click: "Een playbook toepassen op dit dossier" }) },
+  { id: "g80-no-playbook-member", board: "G80", lang: "nl", title: "Geen playbook voor dit type: een lid",
+    render: app({ click: "Dossiers" }, { click: "109" }, { click: "Een playbook toepassen op dit dossier" }) },
+  { id: "g80-narrow-sheet", board: "G80", lang: "nl", title: "Smal (390 px): het blad van de +", width: 390, setup: () => replace(MANAGES_109),
+    render: app({ click: "Menu openen" }, { click: "Dossiers" }, { click: "109" }, { click: "Document, playbook of model" }) },
   { id: "g21-filter", board: "G21", lang: "nl", title: "Dossieroverzicht: gefilterd op Strikt vertrouwelijk",
     render: app({ click: "Dossiers" }, { click: "Strikt vertrouwelijk" }) },
   { id: "g21-narrow", board: "G21", lang: "nl", title: "Smal (390 px): de band wordt korter", width: 390,

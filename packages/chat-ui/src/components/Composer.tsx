@@ -7,7 +7,7 @@
  * playbook and the model, and send. On the start screen, "Work in a case" chooses a case (§2, artboard 01).
  */
 import {
-  ArrowUp, Check, ChevronDown, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Route, Square, TriangleAlert
+  ArrowUp, Check, ChevronDown, Files, Folder, FolderPlus, Lock, Paperclip, Plus, Route, SlidersHorizontal, Square, TriangleAlert
 } from "lucide-react";
 import { keepDraft, readDraft } from "../lib/draft";
 import { useRef, useState, type KeyboardEvent } from "react";
@@ -61,9 +61,12 @@ type Props = {
   caseReference?: string | null;
   /** The open case's type as shown ("Verkoop"), for the playbook menu's title. */
   caseType?: string | null;
-  /** The playbooks that fit the open case (empty: no chip), and what to do when one is chosen. */
-  playbooks?: PlaybookInfo[];
+  /** The playbooks that fit the open case, and what to do when one is chosen. In a case the chip is always there
+   *  (suveryn-tracker#228): with none, its menu says so. null: not read yet (no chip); no onPlaybook: no chip. */
+  playbooks?: PlaybookInfo[] | null;
   onPlaybook?: (slug: string) => void;
+  /** The case's manager's way to its type, offered in the menu when no playbook fits (board 80); null for everyone else. */
+  onChangeType?: (() => void) | null;
   /** Per playbook (slug), its last run in this case in words (board P04, 9); none for one never run here. */
   playbookNotes?: Record<string, string>;
   /** One pill with a "+" menu (narrow screens). */
@@ -77,9 +80,16 @@ type Props = {
 
 const CASES_IN_CHIP = 8;
 
+/** The playbook menu of a case no playbook fits (board 80, suveryn-tracker#228): one line, as text, and for the case's
+ *  manager the one item that changes its type. */
+export function emptyPlaybookMenu(caseType: string, manager: boolean, m: ReturnType<typeof useT>): { note: string; entries: MenuEntry[] } {
+  return { note: m.noPlaybookForType({ type: caseType }),
+           entries: manager ? [{ id: "change-type", label: m.changeCaseType, icon: <SlidersHorizontal size={16} /> }] : [] };
+}
+
 export function Composer({ askAbout = null, caseNote = null, locked = false, attachments, models, chosenModel, onChooseModel, thinking, onThinking, disabledReason, busy, onAttach,
                           onRemoveAttachment, onUseAsSource, onDeleteAttachment, onSend, onStop, caseReference, caseType,
-                          playbooks = [], onPlaybook, playbookNotes = {}, compact = false, hint = null, placeholder, workInCase = null }: Props) {
+                          playbooks = [], onPlaybook, onChangeType = null, playbookNotes = {}, compact = false, hint = null, placeholder, workInCase = null }: Props) {
   const m = useT();
   // The draft outlives a sign-in in this tab (lib/draft.ts).
   const [text, setTextState] = useState(readDraft);
@@ -114,7 +124,13 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
     }
   };
 
-  const playbookEntries: MenuEntry[] = playbooks.map((p) => ({
+  // In a case, the chip is always there once the case's playbooks are read; with none, the menu says so (board 80).
+  const chip = !!caseReference && !!onPlaybook && playbooks !== null;
+  const none = chip && playbooks.length === 0;
+  const empty = emptyPlaybookMenu(caseType ?? "", !!onChangeType, m);
+  const noneLine = empty.note;
+  const changeType = empty.entries;
+  const playbookEntries: MenuEntry[] = (playbooks ?? []).map((p) => ({
     id: p.slug, label: playbookWords(p, lang()).title, icon: <Route size={16} />,
     description: [playbookWords(p, lang()).summary, `v${p.version}`].filter(Boolean).join(" · "),
     meta: p.covered ? m.covered : m.notCovered, metaTone: p.covered ? "teal" as const : "warn" as const,
@@ -125,7 +141,8 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   const current = models.find((x) => x.id === chosenModel) ?? defaultModel(models);
   const moreEntries: MenuEntry[] = [
     { id: "attach", label: attachLabel, icon: <Paperclip size={16} /> },
-    ...(playbooks.length > 0 && onPlaybook ? [{ heading: m.playbook, items: playbookEntries.map((e) => (e === "-" || "heading" in e ? e : { ...e, id: `playbook:${e.id}` })) }] : []),
+    ...(chip ? [{ heading: m.playbook, note: none ? noneLine : undefined,
+                  items: (none ? changeType : playbookEntries).map((e) => (e === "-" || "heading" in e ? e : { ...e, id: `playbook:${e.id}` })) }] : []),
     ...(models.length > 1 ? [{ id: "model", label: m.model, meta: modelName(current?.id)?.family, submenu: models.map((x) => ({
       id: `model:${x.id}`, label: modelName(x.id)?.full ?? x.id,
       description: (x.loaded ? m.modelReady : m.modelLoadsWhenChosen) + (x.thinks ? ` · ${m.modelThinks}` : ""),
@@ -138,6 +155,7 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
   ];
   const onMore = (id: string) => {
     if (id === "attach") picker.open();
+    else if (id === "playbook:change-type") onChangeType?.();
     else if (id.startsWith("playbook:")) onPlaybook?.(id.slice(9));
     else if (id.startsWith("model:")) onChooseModel(id.slice(6));
     else if (id.startsWith("think:")) onThinking(id === "think:thorough");
@@ -206,12 +224,13 @@ export function Composer({ askAbout = null, caseNote = null, locked = false, att
               <FolderPlus size={13} aria-hidden /> {m.workInCase}
             </ActionMenu>
           )}
-          {playbooks.length > 0 && onPlaybook && (
+          {chip && (
             <ActionMenu className="chip-playbook" aria-label={m.playbookChip} menuLabel={m.playbookMenu} placement="top start"
                         popoverClassName="playbook-menu"
                         header={<span className="ui-menu-eyebrow">{(caseType ? m.playbookMenuTitleType({ reference: caseReference ?? "", type: caseType }) : m.playbookMenuTitle({ reference: caseReference ?? "" }))}</span>}
-                        entries={playbookEntries}
-                        onAction={onPlaybook}>
+                        note={none ? noneLine : undefined}
+                        entries={none ? (changeType.length ? ["-" as const, ...changeType] : []) : playbookEntries}
+                        onAction={(id) => (id === "change-type" ? onChangeType?.() : onPlaybook?.(id))}>
               <Route size={13} aria-hidden /> {m.playbook} <ChevronDown size={13} aria-hidden />
             </ActionMenu>
           )}

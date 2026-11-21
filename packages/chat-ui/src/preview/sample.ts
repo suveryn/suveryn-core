@@ -4,6 +4,7 @@
  * Nothing here is real data (CLAUDE.md, "Confidential data").
  */
 import type {
+  CaseTypeInfo,
   Account, AccountEvent, Case, CaseEvent, CaseOverview, ConversationSummary, Health, Me, Member, ModelInfo, PlaybookInfo, PlaybookStep,
   Job, Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
 } from "../api";
@@ -56,6 +57,22 @@ const MEMBERS: Member[] = [
   member("u-test", "test@kantoor.be", "Test Beheerder", "manager"),
   member("u-mieke", "mieke@kantoor.be", "Mieke Delarivière", "contributor"),
   member("u-filip", "filip@kantoor.be", "Filip Tack", "contributor"),
+];
+/** Case 118, which Mieke manages (strictly confidential). */
+const MEMBERS_118: Member[] = [
+  member("u-mieke", "mieke@kantoor.be", "Mieke Delarivière", "manager"),
+  member("u-test", "test@kantoor.be", "Test Beheerder", "contributor"),
+];
+
+/** The case types the server offers (suveryn-tracker#229): core's sale, then be-notary's, each in three languages. */
+const caseType = (id: string, en: string, nl: string, fr: string, pack = "pack/be-notary"): CaseTypeInfo => ({ id, pack, text: { en, nl, fr } });
+const CASE_TYPES: CaseTypeInfo[] = [
+  caseType("sale", "Sale", "Verkoop", "Vente"),
+  caseType("company-formation", "Company formation", "Oprichting vennootschap", "Constitution de société"),
+  caseType("estate", "Estate", "Nalatenschap", "Succession"),
+  caseType("gift", "Gift", "Schenking", "Donation"),
+  caseType("marriage-contract", "Marriage contract", "Huwelijkscontract", "Contrat de mariage"),
+  caseType("care-mandate", "Care mandate", "Zorgvolmacht", "Mandat de protection"),
 ];
 
 // ---------- cases ----------
@@ -325,6 +342,8 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/cases$/, CASES.filter((c) => c.state === "open")],
   ["GET", /^\/v1\/cases\/overview$/, CASES_OVERVIEW],
   ["GET", /^\/v1\/cases\/([^/?]+)$/, (m: RegExpMatchArray) => CASES.find((c) => c.id === m[1]) ?? CASE_123],
+  ["GET", /^\/v1\/case-types$/, CASE_TYPES],
+  ["GET", /^\/v1\/cases\/c118\/members$/, MEMBERS_118],
   ["GET", /^\/v1\/cases\/[^/]+\/members$/, MEMBERS],
   ["GET", /^\/v1\/cases\/[^/]+\/events$/, CASE_EVENTS],
   ["GET", /^\/v1\/cases\/c124\/playbooks\/runs\/run-124$/, () => RUN],
@@ -431,6 +450,13 @@ const SAVED_MIXED: SavedConversation = {
   ],
 };
 /** Case 123 as a reader (board G19, 6): sees what each question read, asks nothing. */
+/** Case 109 (a marriage contract: no playbook fits it) or 118 (strictly confidential) as their manager (board 80). */
+const asManager = (id: string): Route[] => [["GET", new RegExp(`^/v1/cases/${id}$`), { ...CASES.find((c) => c.id === id)!, my_role: "manager", manager: "u-test" }],
+                                            ["GET", new RegExp(`^/v1/cases/${id}/members$`), MEMBERS]];
+export const MANAGES_109 = asManager("c109");
+export const MANAGES_118 = asManager("c118");
+export const CASE_118 = CASES.find((c) => c.id === "c118")!;
+
 export const AS_READER_123: Route[] = [["GET", /^\/v1\/cases\/c123$/, { ...CASE_123, my_role: "reader" }]];
 
 /** The recovery key last tested four months ago (board B01): Status asks for attention. */
