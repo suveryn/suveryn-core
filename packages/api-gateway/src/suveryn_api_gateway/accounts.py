@@ -44,8 +44,9 @@ class AccountsUnavailable(Exception):
 
 
 class RightsRefused(AccountsUnavailable):
-    """Keycloak refused the administrator's token for its admin API: the ``suveryn-admin`` role lacks its
-    composites (a realm imported before them; the provisioning adds them again)."""
+    """Keycloak refused the administrator's token for its admin API (401 or 403): the ``suveryn-admin`` role lacks
+    a permission, the token was refused, or the caller's rights were removed meanwhile. ``app.py`` tells which and
+    answers ``account.rights_removed`` or ``account.administrator_rights_refused``."""
 
 
 @dataclass(frozen=True)
