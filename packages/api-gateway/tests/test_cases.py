@@ -1703,6 +1703,9 @@ def test_every_answer_of_cases_is_what_the_description_says(office):
         assert check(method, path, 401, at, **sent).json()["code"] == "auth.signed_out"
         if "{case_id}" in path:  # a case that doesn't exist, or that the caller may not see: the same answer
             assert check(method, path, 404, at, "no_such_case" if method == "GET" and path == one else None, headers=alice, **sent).json()["code"] == "case.not_found"
+            # what isn't a case id at all is refused by the gateway itself, before anything is looked up
+            r = check(method, path, 422, at.replace(gone, "/v1/cases/not-an-id"), "not_a_case_id" if method == "GET" and path == one else None, headers=alice, **sent)
+            assert r.json()["code"] == "request.invalid"
     assert check("GET", "/v1/admin/cases", 403, keep="not_an_administrator", headers=alice).json()["code"] == "request.forbidden"
 
     assert [t["id"] for t in check("GET", "/v1/case-types", 200, keep="types", headers=alice).json()]
@@ -1750,15 +1753,16 @@ def test_every_answer_of_cases_is_what_the_description_says(office):
     listed = check("GET", "/v1/admin/cases", 200, keep="office", tidy=same, headers=admin).json()
     assert {x["id"] for x in listed} == {cid, other} and all("manager_name" in x for x in listed)
     check("DELETE", one, 204, at(), headers=bob)
+    # a strictly confidential case is for its members only: it can't be given the office's default access
+    assert check("PATCH", one, 200, f"/v1/cases/{other}", json={"confidential": True}, headers=carla).json()["access"] == "restricted"
+    assert check("PATCH", one, 409, f"/v1/cases/{other}", "members_only", json={"access": "default"}, headers=carla).json()["code"] == "case.strictly_confidential"
     check.kept.check()
     # not seen here, each for a reason: what nobody planned for (500); sign-in or a store down (503: test_auth.py,
-    # and the cases' own store away, above in this file); the 422 FastAPI gives an operation whose only input is
-    # an id in the address; sign-in turned off for another machine, for what anyone signed in may do (403)
-    # two people closing, reopening or keeping a case in the same moment: the second is told so (409); and a
-    # case renamed to a reference another has, which the database refuses (409: the store's own tests, above)
+    # and the cases' own store away, above in this file); sign-in turned off for another machine, for what anyone
+    # signed in may do (403); two people closing, reopening or keeping a case in the same moment: the second is
+    # told so (409)
     for method, path, status in check.not_seen():
-        assert status in (500, 503) or (status == 422 and method in ("GET", "DELETE", "POST")) or (
-            status == 409 and path in (one + "/close", one + "/reopen", one + "/keep", one)) or (
+        assert status in (500, 503) or (status == 409 and path in (one + "/close", one + "/reopen", one + "/keep")) or (
             status == 403 and (method, path) in {("GET", "/v1/case-types"), ("GET", "/v1/cases"), ("POST", "/v1/cases"), ("GET", "/v1/cases/overview"),
                                                  ("GET", one), ("GET", members), ("PUT", one + "/pin")}), (method, path, status)
     assert {s for _, _, s in check.seen} == {200, 201, 204, 401, 403, 404, 409, 422}

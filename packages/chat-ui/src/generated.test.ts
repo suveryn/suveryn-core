@@ -17,10 +17,13 @@ const NOT_CALLED: Record<string, string> = {
   deleteUserPicture: "no screen removes someone else's picture yet",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
- *  (`${caseId}`) whatever it is called there, and nothing more of an address after it. */
+ *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first
+ *  part as a string of its own, to which the rest is added (`"/v1/cases/" + id`). A net, not a proof. */
 function names(text: string, address: string): boolean {
-  const literal = address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\$\\\{\w+\\\}/g, "\\$\\{[^}]*\\}");
-  return new RegExp(`["\`]${literal}(?![\\w/-])`).test(text);
+  const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const literal = escaped(address).replace(/\\\$\\\{\w+\\\}/g, "\\$\\{[^}]*\\}");
+  const start = address.includes("${") ? `|["'\`]${escaped(address.slice(0, address.indexOf("${")))}["'\`]` : "";
+  return new RegExp(`["'\`]${literal}(?![\\w/-])${start}`).test(text);
 }
 
 describe("calling generated code", () => {
@@ -58,6 +61,8 @@ describe("calling generated code", () => {
     expect(names("fetch(`/v1/cases${closed ? \"?closed=true\" : \"\"}`)", "/v1/cases")).toBe(true);
     expect(names("fetch(\"/v1/cases\", { method: \"POST\" })", "/v1/cases")).toBe(true);
     expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}?x=1`)", "/v1/cases/${caseId}")).toBe(true);
+    expect(names("fetch('/v1/cases/' + encodeURIComponent(id) + '/members')", "/v1/cases/${caseId}/members")).toBe(true);
+    expect(names("fetch(\"/v1/cases/\" + id)", "/v1/cases/${caseId}")).toBe(true);
     // a case's documents and playbooks are other operations, not generated yet
     expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}/documents`)", "/v1/cases/${caseId}")).toBe(false);
     expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}/documents`)", "/v1/cases")).toBe(false);

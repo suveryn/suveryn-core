@@ -194,6 +194,19 @@
   "media_type": "application/json",
   "status": 200
  },
+ "members_only": {
+  "body": {
+   "code": "case.strictly_confidential",
+   "detail": "A strictly confidential case is for its members only.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "Not in a strictly confidential case: it is for its members only, and nothing in it is shared.",
+   "type": "urn:suveryn:problem:case.strictly_confidential"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
  "mine": {
   "body": [
    {
@@ -231,6 +244,19 @@
   },
   "media_type": "application/problem+json",
   "status": 404
+ },
+ "not_a_case_id": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "Not a case id.",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
  },
  "not_allowed": {
   "body": {

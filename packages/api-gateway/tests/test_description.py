@@ -164,7 +164,7 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
 
 
 # A shape of a strict area that is still "any object", named with what describes it later: a step of #159 of its own.
-LATER = {"CaseEvent": "what each line of the access log records (its actions and their details), for every area that writes one"}
+LATER = {"CaseEvent.detail": "what each line of the access log records (its actions and their details), for every area that writes one"}
 
 
 def test_a_strict_operation_leaves_nothing_undescribed():
@@ -188,8 +188,11 @@ def test_a_strict_operation_leaves_nothing_undescribed():
             found.append(where)
         for key in ("properties", "additionalProperties", "items", "anyOf", "oneOf", "allOf"):
             value = schema.get(key)
-            for child in (value.values() if key == "properties" and isinstance(value, dict) else [value]):
-                found += loose(child, seen, where)
+            if key == "properties" and isinstance(value, dict):  # a member is named: `CaseEvent.detail`
+                for member, child in value.items():
+                    found += loose(child, seen, f"{where}.{member}")
+            else:
+                found += loose(value, seen, where)
         return found
 
     for method, path, op in strict_operations():
