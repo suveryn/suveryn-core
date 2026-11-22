@@ -17,6 +17,7 @@ const NOT_CALLED: Record<string, string> = {
   deleteUserPicture: "no screen removes someone else's picture yet",
   addRunDocuments: "no screen sends a document for a request the run has already had answered yet",
   createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
+  askQuestion: "the screens ask for an answer as a stream, read as it comes (api.ts, streamChat): at the generated address, with the generated body and events",
   getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part

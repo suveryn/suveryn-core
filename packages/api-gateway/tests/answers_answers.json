@@ -1,0 +1,249 @@
+{
+ "grounded": {
+  "body": {
+   "answer": "De koopprijs is EUR 412.500,00 [1].",
+   "asked_again": false,
+   "calculations": [],
+   "citation_issues": [],
+   "citations": [
+    {
+     "context": null,
+     "source": {
+      "decimals": null,
+      "document_id": "00000000-0000-4000-8000-000000000001",
+      "location": "p. 2 · Artikel 2",
+      "page": 2
+     },
+     "text": "De koopprijs bedraagt EUR 412.500,00."
+    }
+   ],
+   "complete": true,
+   "finish_reason": "stop",
+   "id": "x",
+   "instruction_like_sources": [],
+   "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+   "narrowed_to": null,
+   "reasoning": "",
+   "support_spans": [
+    {
+     "facts": [
+      [
+       26,
+       36
+      ]
+     ],
+     "how": "words",
+     "marker": 0,
+     "n": 1,
+     "ranges": [
+      [
+       0,
+       37
+      ]
+     ]
+    }
+   ],
+   "thinking_cut": false,
+   "thought_seconds": null,
+   "unverified_figures": [],
+   "usage": {
+    "completion_tokens": 0,
+    "prompt_tokens": 0
+   }
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "no_such_document": {
+  "body": {
+   "code": "answer.document_not_found",
+   "detail": "Unknown document.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "A document the question was put to isn't there for the caller: deleted since the page read the list, never there, or not the caller's.",
+   "type": "urn:suveryn:problem:answer.document_not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "no_such_model": {
+  "body": {
+   "code": "model.not_found",
+   "detail": "No such model on this appliance: 'nope'",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The model asked for isn't installed on this appliance.",
+   "type": "urn:suveryn:problem:model.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "plain": {
+  "body": {
+   "answer": "De koopprijs is EUR 412.500,00 [1].",
+   "asked_again": false,
+   "calculations": [],
+   "citation_issues": [],
+   "citations": [],
+   "complete": null,
+   "finish_reason": "stop",
+   "id": "x",
+   "instruction_like_sources": [],
+   "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+   "narrowed_to": null,
+   "reasoning": "",
+   "support_spans": [],
+   "thinking_cut": false,
+   "thought_seconds": null,
+   "unverified_figures": [],
+   "usage": {
+    "completion_tokens": 0,
+    "prompt_tokens": 0
+   }
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "stream": {
+  "body": [
+   {
+    "data": {
+     "complete": null,
+     "model": null,
+     "passages": null,
+     "step": "searching"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "citations": [
+      {
+       "context": null,
+       "source": {
+        "decimals": null,
+        "document_id": "00000000-0000-4000-8000-000000000001",
+        "location": "p. 2 · Artikel 2",
+        "page": 2
+       },
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ]
+    },
+    "event": "sources"
+   },
+   {
+    "data": {
+     "complete": true,
+     "model": null,
+     "passages": 1,
+     "step": "reading"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "text": "De koopprijs is EUR 412.500,00 [1]."
+    },
+    "event": "delta"
+   },
+   {
+    "data": {
+     "answer": "De koopprijs is EUR 412.500,00 [1].",
+     "asked_again": false,
+     "calculations": [],
+     "citation_issues": [],
+     "citations": [
+      {
+       "context": null,
+       "source": {
+        "decimals": null,
+        "document_id": "00000000-0000-4000-8000-000000000001",
+        "location": "p. 2 · Artikel 2",
+        "page": 2
+       },
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "complete": true,
+     "finish_reason": "stop",
+     "id": "chat-00000000000040008000000000000002",
+     "instruction_like_sources": [],
+     "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+     "narrowed_to": null,
+     "reasoning": "",
+     "support_spans": [
+      {
+       "facts": [
+        [
+         26,
+         36
+        ]
+       ],
+       "how": "words",
+       "marker": 0,
+       "n": 1,
+       "ranges": [
+        [
+         0,
+         37
+        ]
+       ]
+      }
+     ],
+     "thinking_cut": false,
+     "thought_seconds": null,
+     "unverified_figures": [],
+     "usage": {
+      "completion_tokens": 0,
+      "prompt_tokens": 0
+     }
+    },
+    "event": "done"
+   }
+  ],
+  "media_type": "text/event-stream",
+  "status": 200
+ },
+ "stream_failed": {
+  "body": [
+   {
+    "data": {
+     "complete": null,
+     "model": null,
+     "passages": null,
+     "step": "searching"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "code": "document.unavailable",
+     "detail": "the documents can't be searched",
+     "kind": "unavailable",
+     "params": {}
+    },
+    "event": "error"
+   }
+  ],
+  "media_type": "text/event-stream",
+  "status": 200
+ },
+ "too_many": {
+  "body": {
+   "code": "request.too_many",
+   "detail": "Too many requests. Try again in 60 seconds.",
+   "kind": "refused",
+   "params": {
+    "seconds": 60
+   },
+   "status": 429,
+   "title": "Too many requests from this person; `seconds` until the next is taken.",
+   "type": "urn:suveryn:problem:request.too_many"
+  },
+  "media_type": "application/problem+json",
+  "status": 429
+ }
+}

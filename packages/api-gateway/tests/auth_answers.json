@@ -1,0 +1,51 @@
+{
+ "me": {
+  "body": {
+   "account_url": "http://keycloak.test/realms/suveryn/account",
+   "admin": false,
+   "admin_console_url": null,
+   "avatar": null,
+   "cases_keep": "manual",
+   "name": "Test Notaris",
+   "office_name": null,
+   "office_wide": false,
+   "sub": "user-1",
+   "username": "notaris.test"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "nobody": {
+  "body": {
+   "code": "auth.signed_out",
+   "detail": "Sign in to continue.",
+   "kind": "refused",
+   "params": {},
+   "status": 401,
+   "title": "No session, or it has ended.",
+   "type": "urn:suveryn:problem:auth.signed_out"
+  },
+  "media_type": "application/problem+json",
+  "status": 401
+ },
+ "sign_in_away": {
+  "body": {
+   "code": "auth.unavailable",
+   "detail": "Sign-in is not available: the sign-in service has a problem (HTTP 500).",
+   "kind": "unavailable",
+   "params": {},
+   "status": 503,
+   "title": "The sign-in service can't be reached or has a problem.",
+   "type": "urn:suveryn:problem:auth.unavailable"
+  },
+  "media_type": "application/problem+json",
+  "status": 503
+ },
+ "signed_out": {
+  "body": {
+   "logout_url": "http://keycloak.test/realms/suveryn/protocol/openid-connect/logout?client_id=suveryn-chat&post_logout_redirect_uri=http%3A%2F%2Ftestserver%2F&id_token_hint=…"
+  },
+  "media_type": "application/json",
+  "status": 200
+ }
+}

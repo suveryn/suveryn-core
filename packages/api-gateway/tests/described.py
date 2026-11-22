@@ -50,12 +50,31 @@ def answer_is_described(response, method: str, path: str) -> None:
         return
     media_type = response.headers.get("content-type", "").split(";")[0].strip()
     assert media_type in content, f"{where}: sent as {media_type!r}, described as {sorted(content)}"
+    if media_type == "text/event-stream":  # a stream of events: each one is what the description says one is
+        for n, event in enumerate(events_of(response.text)):
+            said = [one for one in content[media_type]["schema"]["oneOf"] if one["properties"]["event"]["const"] == event["event"]]
+            assert len(said) == 1, f"{where}: event {n} is {event['event']!r}, which the description doesn't name"
+            schema = {**_closed(copy.deepcopy(said[0]["properties"]["data"]["contentSchema"])), "components": COMPONENTS}
+            errors = sorted(f"{'/'.join(map(str, e.absolute_path)) or 'the data'}: {e.message}" for e in Draft202012Validator(schema).iter_errors(event["data"]))
+            assert not errors, f"{where}: event {n} ({event['event']}) isn't the described shape: {errors}"
+        return
     if content[media_type]["schema"] == {"type": "string", "format": "binary"}:
         return  # a file as it is (a picture): its media type is what is described
     schema = {**_closed(copy.deepcopy(content[media_type]["schema"])), "components": COMPONENTS}
     errors = sorted(f"{'/'.join(map(str, e.absolute_path)) or 'the answer'}: {e.message}"
                     for e in Draft202012Validator(schema).iter_errors(response.json()))
     assert not errors, f"{where}: not the described shape: {errors}"
+
+
+def events_of(text: str) -> list[dict]:
+    """A stream of events as it was sent (``text/event-stream``), each with its name and its data read as JSON."""
+    events = []
+    for block in text.split("\n\n"):
+        lines = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line)
+        if lines:
+            assert set(lines) == {"event", "data"}, lines
+            events.append({"event": lines["event"], "data": json.loads(lines["data"])})
+    return events
 
 
 class Kept:
@@ -67,8 +86,9 @@ class Kept:
     def keep(self, name: str, response, tidy=None, **same_every_run) -> None:
         """``same_every_run``: members whose value differs from run to run (an id, a moment), and the value kept.
         ``tidy``: a function that does the same deeper in the body."""
-        json_sent = "json" in response.headers.get("content-type", "")
-        body = response.json() if response.content and json_sent else None  # a file's own bytes are not kept
+        kind = response.headers.get("content-type", "")
+        # a file's own bytes are not kept; a stream of events is, event by event
+        body = events_of(response.text) if "event-stream" in kind else response.json() if response.content and "json" in kind else None
         if tidy:
             tidy(body)
         for member, value in same_every_run.items():
@@ -115,19 +135,21 @@ class Checked:
 
 def same_every_run(known: dict[str, str] | None = None, moments: tuple[str, ...] = ()):
     """A ``tidy`` for ``Kept``: this run's ids, moments and clock readings, wherever they are in an answer, made
-    the same every run. An id (a UUID, written with or without its dashes) becomes a fixed one, in the order the ids
+    the same every run. An id (a UUID, written with or without its dashes, also after a word as in ``chat-…``) becomes a fixed one, in the order the ids
     are first seen (``known``: ones that keep a value of their own); a member named ``at`` or ending in ``_at``, or
     one of ``moments``, becomes one moment, as text or as a number, whichever it was."""
     import re
 
     ids = dict(known or {})
-    an_id = re.compile(r"^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$")
+    an_id = re.compile(r"^([a-z]+-)?([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})$")
 
     def fixed(value: str) -> str:
-        if not an_id.match(value):
+        found = an_id.match(value)
+        if not found:
             return value
-        new = ids.setdefault(value.replace("-", ""), f"00000000-0000-4000-8000-{len(ids) + 1:012x}")
-        return new if "-" in value else new.replace("-", "")
+        word, own = found.group(1) or "", found.group(2)
+        new = ids.setdefault(own.replace("-", ""), f"00000000-0000-4000-8000-{len(ids) + 1:012x}")
+        return word + (new if "-" in own else new.replace("-", ""))
 
     def same(body):
         if isinstance(body, list):

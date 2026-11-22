@@ -21,7 +21,8 @@ describe("the Documents overview", () => {
   it("names a member, and a deleted account by the name the case keeps", () => {
     const html = renderToStaticMarkup(
       <DocumentsOverview documents={[doc({ id: "d1", uploaded_by: "bob" }), doc({ id: "d2", filename: "attest.pdf", uploaded_by: "dirk" })]}
-                         jobs={[]} jobsCase={null} cases={[kase]} me={{ username: "test-alice", name: "Test Alice", sub: "alice" }}
+                         jobs={[]} jobsCase={null} cases={[kase]} me={{ username: "test-alice", name: "Test Alice", sub: "alice", admin: false, office_wide: false, cases_keep: "manual", avatar: null, account_url: null, office_name: null,
+  admin_console_url: null }}
                          departed={{ dirk: "Test Dirk" }} onOpen={none} onDelete={none} onUseAsSource={none} onDownload={none} onUpload={none} />);
     expect(html).toContain("Test Bob");
     expect(html).toContain("Test Dirk");

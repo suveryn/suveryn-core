@@ -81,7 +81,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"backups", "cases", "clock", "conversations", "documents", "models", "playbooks", "settings", "status", "usage", "users"}
+STRICT = {"answers", "auth", "backups", "cases", "clock", "conversations", "documents", "models", "playbooks", "settings", "status", "usage", "users"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
@@ -90,15 +90,22 @@ PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 STATES = {("GET", "/health", 503)}
 
 
-# A refusal the gateway gives before the route is reached, by the request's size (app.py, ``limit_upload_size``): the
-# route's own code never raises it. Each as app.py says it: its code, and its status where that isn't the code's own.
-# The limit is on every PUT under a conversation, so on its pin too; an upload must say its size, and keep to it.
-BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): [("conversation.too_long", None)],
-          ("PUT", "/v1/conversations/{conversation_id}/pin"): [("conversation.too_long", None)],
-          ("POST", "/v1/documents"): [("request.invalid", 411), ("upload.too_large", None)]}
+# A refusal the route's own code never raises: the gateway gives it before the route is reached, by the request's size
+# or by how often a person asks, or it answers for sign-in when that can't say who is there (all app.py). Each as
+# that file says it: its code, its status where that isn't the code's own, and the file.
+# The size limit is on every PUT under a conversation, so on its pin too; an upload must say its size, and keep to it.
+BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): [("conversation.too_long", None, "app.py")],
+          ("PUT", "/v1/conversations/{conversation_id}/pin"): [("conversation.too_long", None, "app.py")],
+          ("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
+          ("POST", "/v1/chat"): [("request.too_many", None, "app.py")],  # the limit on asking, per person
+          ("GET", "/auth/me"): [("auth.unavailable", None, "app.py")]}  # the sign-in service can't be asked (``AuthUnavailable``)
 # An upload is refused by document handling itself (suveryn-rag, ``UploadRejected``: not a file it reads, empty, too
 # large, too many waiting): codes of the registry said outside the gateway, read here from where they are raised.
 UPLOAD = ("POST", "/v1/documents")
+
+
+# Outside /v1 an operation refuses only what its own code does: who is signed in says so when nobody is.
+OUTSIDE = {("GET", "/auth/me"): (401, 503)}
 
 
 def strict_operations() -> list[tuple[str, str, dict]]:
@@ -121,8 +128,8 @@ def test_a_strict_operation_describes_every_refusal_in_the_one_shape():
         # sign-in guards /v1 and nothing else: outside it only what nobody planned for can take the answer's place
         if path.startswith("/v1/"):
             assert set(problems.EVERY_OPERATION) <= set(refusals), f"{method} {path}: {sorted(refusals)}"
-        else:
-            assert set(refusals) == {500}, f"{method} {path}: {sorted(refusals)}"
+        else:  # and what the operation's own code refuses (the next test holds that to the code)
+            assert 500 in refusals and not {401, 503} & set(refusals) - set(OUTSIDE.get((method, path), ())), f"{method} {path}: {sorted(refusals)}"
     described = {(method, path, int(status)) for method, path, op in strict_operations() for status in op["responses"]}
     assert STATES <= described, f"named as a state, and not described: {sorted(STATES - described)}"
 
@@ -167,19 +174,20 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
     raised = {name: {CODES[code].status for code in reached(name, set())} for name in own_codes}
     assert 403 in raised["create_clock_request"] and 403 not in raised["get_clock"]  # through admin_or_403, a helper
     for method, path, op in strict_operations():
-        own = {int(s) for s in op["responses"] if int(s) >= 400} - set(problems.EVERY_OPERATION)
+        every = set(problems.EVERY_OPERATION) if path.startswith("/v1/") else {500}  # sign-in guards /v1 and nothing else
+        own = {int(s) for s in op["responses"] if int(s) >= 400 and (method, path, int(s)) not in STATES} - every
         # FastAPI checks what it reads itself, parameters and a JSON body: 422, as request.invalid. A body the route
         # reads as it is (a key file) is the route's own to refuse.
         takes_input = bool(op.get("parameters") or "application/json" in op.get("requestBody", {}).get("content", {}))
-        expected = (raised[op["operationId"]] | ({422} if takes_input else set())) - set(problems.EVERY_OPERATION)
-        for code, status in BEFORE.get((method, path), []):
-            assert f'"{code}"' in (package / "app.py").read_text(encoding="utf-8"), f"{code} isn't said in app.py"
+        expected = (raised[op["operationId"]] | ({422} if takes_input else set())) - every
+        for code, status, file in BEFORE.get((method, path), []):
+            assert f'"{code}"' in (package / file).read_text(encoding="utf-8"), f"{code} isn't said in {file}"
             expected.add(status or CODES[code].status)
         if (method, path) == UPLOAD:
             reader = (package.parents[2] / "rag" / "src" / "suveryn_rag" / "service.py").read_text(encoding="utf-8")
             rejected = set(re.findall(r'UploadRejected\((?:[^()]|\([^()]*\))*?"(upload\.[a-z_]+)"', reader))
             assert len(rejected) > 5, sorted(rejected)
-            expected |= {CODES[code].status for code in rejected} - set(problems.EVERY_OPERATION)
+            expected |= {CODES[code].status for code in rejected} - every
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
 
@@ -191,6 +199,10 @@ LATER = {"CaseEvent.detail": "what each line of the access log records (its acti
          "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): with the same step",
          "AnswerContent": "what rebuilds a saved answer's file, the chat UI's own data (an answer, its sources and checks): with the answer stream",
          "SavedCitation": "the same", "SavedCitation.source": "the same", "DocumentContent.content": "the same, as it is read back"}
+
+
+# What is "any object" by its nature, and stays so.
+ANY = {"ChatRequest.json_schema": "a JSON Schema the answer must have the shape of (a playbook's read): any object is what a schema is"}
 
 
 def test_a_strict_operation_leaves_nothing_undescribed():
@@ -226,7 +238,7 @@ def test_a_strict_operation_leaves_nothing_undescribed():
         parts = [op.get("requestBody", {}), *op["responses"].values()]
         schemas_used = [c["schema"] for part in parts for c in part.get("content", {}).values()]
         schemas_used += [p["schema"] for p in op.get("parameters", [])]
-        left = set(loose(schemas_used, frozenset(), f"{method} {path}")) - set(LATER)
+        left = set(loose(schemas_used, frozenset(), f"{method} {path}")) - set(LATER) - set(ANY)
         assert not left, f"{method} {path}: {sorted(left)}"
         for status, r in op["responses"].items():
             # nothing to read: done (204), accepted and answered elsewhere later (202), or unchanged (304)

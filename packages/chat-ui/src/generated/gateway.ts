@@ -5,6 +5,75 @@
  * OpenAPI spec version: 0.2.0
  */
 import { gatewayFetch } from '../lib/gateway';
+/**
+ * What ending the session answers: where the browser goes to end the sign-in service's session too (None with
+ * sign-in off, or when there was no session).
+ */
+export interface SignedOut {
+  logout_url: string | null;
+}
+
+export type ProblemDetailsKind = typeof ProblemDetailsKind[keyof typeof ProblemDetailsKind];
+
+
+export const ProblemDetailsKind = {
+  refused: 'refused',
+  unavailable: 'unavailable',
+  internal: 'internal',
+  warning: 'warning',
+} as const;
+
+export type ProblemDetailsParams = {[key: string]: string | number | null};
+
+/**
+ * Where a request wasn't valid and why, for developers: never the value sent.
+ */
+export interface InvalidPart {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+}
+
+/**
+ * What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.
+ */
+export interface ProblemDetails {
+  code: string;
+  detail: string;
+  errors?: InvalidPart[] | null;
+  kind: ProblemDetailsKind;
+  params: ProblemDetailsParams;
+  status: number;
+  title: string;
+  type: string;
+}
+
+export type MeCasesKeep = typeof MeCasesKeep[keyof typeof MeCasesKeep];
+
+
+export const MeCasesKeep = {
+  '6m': '6m',
+  '1y': '1y',
+  '5y': '5y',
+  manual: 'manual',
+} as const;
+
+/**
+ * The signed-in user, for the UI.
+ */
+export interface Me {
+  account_url: string | null;
+  admin: boolean;
+  admin_console_url: string | null;
+  avatar: string | null;
+  cases_keep: MeCasesKeep;
+  name: string;
+  office_name: string | null;
+  office_wide: boolean;
+  sub: string;
+  username: string;
+}
+
 export type HealthResponseStatus = typeof HealthResponseStatus[keyof typeof HealthResponseStatus];
 
 
@@ -102,41 +171,6 @@ export interface HealthResponse {
   history: StoreStatus;
   status: HealthResponseStatus;
   usage: StoreStatus;
-}
-
-export type ProblemDetailsKind = typeof ProblemDetailsKind[keyof typeof ProblemDetailsKind];
-
-
-export const ProblemDetailsKind = {
-  refused: 'refused',
-  unavailable: 'unavailable',
-  internal: 'internal',
-  warning: 'warning',
-} as const;
-
-export type ProblemDetailsParams = {[key: string]: string | number | null};
-
-/**
- * Where a request wasn't valid and why, for developers: never the value sent.
- */
-export interface InvalidPart {
-  loc: (string | number)[];
-  msg: string;
-  type: string;
-}
-
-/**
- * What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.
- */
-export interface ProblemDetails {
-  code: string;
-  detail: string;
-  errors?: InvalidPart[] | null;
-  kind: ProblemDetailsKind;
-  params: ProblemDetailsParams;
-  status: number;
-  title: string;
-  type: string;
 }
 
 export type BackupStatusTarget = typeof BackupStatusTarget[keyof typeof BackupStatusTarget] | null;
@@ -1497,6 +1531,282 @@ export interface StartIn {
   language?: string | null;
 }
 
+export type ChatRequestJsonSchema = { [key: string]: unknown } | null;
+
+export type ChatMessageRole = typeof ChatMessageRole[keyof typeof ChatMessageRole];
+
+
+export const ChatMessageRole = {
+  system: 'system',
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+/**
+ * One turn of the conversation, in OpenAI chat format.
+ */
+export interface ChatMessage {
+  /** @maxLength 100000 */
+  content: string;
+  role: ChatMessageRole;
+}
+
+/**
+ * Body of ``POST /v1/chat``.
+ *
+ * Limits are deliberately bounded: ``max_tokens`` up to 8192 keeps one request from occupying
+ * the GPU for minutes, and ``temperature`` defaults to 0 because notarial answers should be
+ * reproducible rather than creative. The last message must be the user's question; the
+ * conversation is limited to 200 messages, each message to 100,000 characters, and all of them
+ * together to ``MAX_TOTAL_CHARS``.
+ */
+export interface ChatRequest {
+  case_id?: string | null;
+  /** @maxItems 50 */
+  document_ids?: string[];
+  json_schema?: ChatRequestJsonSchema;
+  /**
+     * @minimum 1
+     * @maximum 8192
+     */
+  max_tokens?: number;
+  /**
+     * @minItems 1
+     * @maxItems 200
+     */
+  messages: ChatMessage[];
+  model?: string | null;
+  search?: string | null;
+  stream?: boolean;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  temperature?: number;
+  thinking?: boolean;
+}
+
+export type CalculationReadWith = typeof CalculationReadWith[keyof typeof CalculationReadWith] | null;
+
+
+export const CalculationReadWith = {
+  ',': ',',
+  '.': '.',
+} as const;
+
+/**
+ * A calculation in a grounded answer, computed exactly by the server (``suveryn_harness.calc``).
+ *
+ * The model only chooses the figures; the result is never the model's own arithmetic.
+ * ``figures_not_in_sources`` lists figures that don't appear (as whole numbers) in the passages
+ * the answer cites, which a reader should check. ``result`` is None (and ``error`` says why) if it couldn't be computed.
+ */
+export interface Calculation {
+  code: string | null;
+  error: string | null;
+  expression: string;
+  figures_not_in_sources: string[];
+  read_as: string[];
+  read_with: CalculationReadWith;
+  result: string | null;
+}
+
+/**
+ * A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11).
+ *
+ * ``marker`` is the 0-based occurrence of the marker in ``answer``, counting only markers that refer
+ * to an existing citation, in text order; ``n`` is its number. ``found_in`` lists other passages that
+ * do contain ``item``; ``written_as`` is how a passage spells a name the answer spells differently.
+ */
+export interface CitationIssue {
+  found_in: number[];
+  item: string;
+  /** @minimum 0 */
+  marker: number;
+  /** @minimum 1 */
+  n: number;
+  written_as: string | null;
+}
+
+export type SourceRefDecimals = typeof SourceRefDecimals[keyof typeof SourceRefDecimals] | null;
+
+
+export const SourceRefDecimals = {
+  comma: 'comma',
+  point: 'point',
+  mixed: 'mixed',
+} as const;
+
+/**
+ * Where a cited passage comes from: a stored document, and a position inside it.
+ */
+export interface SourceRef {
+  decimals: SourceRefDecimals;
+  document_id: string;
+  /** Finer position, e.g. 'p. 3-4 · Article 2 - Price', 'Article 2 › Price' or 'Prices!A2:D31' */
+  location: string | null;
+  /** 1-based page number in the source document */
+  page: number | null;
+}
+
+/**
+ * A passage the answer relies on. ``source`` is null when the passage can't be traced to a document.
+ */
+export interface Citation {
+  /** The passage with the sentences around it on its page; null on a short page, a spreadsheet or a scan without text around it */
+  context: PassageContext | null;
+  /** null means unsourced; show as unverified */
+  source: SourceRef | null;
+  /** The passage or claim that is being cited */
+  text: string;
+}
+
+export type SupportSpanHow = typeof SupportSpanHow[keyof typeof SupportSpanHow];
+
+
+export const SupportSpanHow = {
+  words: 'words',
+  meaning: 'meaning',
+} as const;
+
+/**
+ * What the source card marks for one citation marker (suveryn-tracker#25; ``marking.support_spans``).
+ *
+ * ``marker`` is the marker's 0-based occurrence among the answer's valid markers, as ``CitationIssue``
+ * counts them; ``n`` its number. ``ranges`` are the sentences of ``citations[n - 1].text`` the claim
+ * rests on, and ``facts`` what to mark strongly: the claim's facts and names, however the passage writes
+ * them. Both are [start, end) offsets in UTF-16 code units, as the browser counts a string.
+ */
+export interface SupportSpan {
+  /**
+     * @items.minItems 2
+     * @items.maxItems 2
+     */
+  facts: [number, number][];
+  how: SupportSpanHow;
+  /** @minimum 0 */
+  marker: number;
+  /** @minimum 1 */
+  n: number;
+  /**
+     * @items.minItems 2
+     * @items.maxItems 2
+     */
+  ranges: [number, number][];
+}
+
+/**
+ * Token counts reported by the model server, for capacity monitoring (no content).
+ */
+export interface Usage {
+  completion_tokens: number;
+  prompt_tokens: number;
+}
+
+/**
+ * A complete answer. Returned as JSON, or as the final ``done`` event of a stream.
+ *
+ * ``model`` is the model file llama-server reports (e.g. ``Qwen3.8-27B-UD-Q4_K_M.gguf``), so a
+ * reviewer can always tell which model produced an answer.
+ *
+ * Citation contract: in a grounded answer, the marker ``[n]`` in ``answer`` refers to
+ * ``citations[n - 1]``. ``citations`` holds every passage the model was given, in that order;
+ * a passage the answer never cites is still listed, so clients show only the cited ones.
+ */
+export interface ChatResponse {
+  answer: string;
+  asked_again: boolean;
+  calculations: Calculation[];
+  citation_issues: CitationIssue[];
+  citations: Citation[];
+  complete: boolean | null;
+  finish_reason: string | null;
+  id: string;
+  instruction_like_sources: number[];
+  model: string;
+  narrowed_to: string | null;
+  reasoning: string;
+  support_spans: SupportSpan[];
+  thinking_cut: boolean;
+  thought_seconds: number | null;
+  unverified_figures: string[];
+  usage: Usage;
+}
+
+export type StreamStatusStep = typeof StreamStatusStep[keyof typeof StreamStatusStep];
+
+
+export const StreamStatusStep = {
+  searching: 'searching',
+  loading_model: 'loading_model',
+  reading: 'reading',
+  writing: 'writing',
+  thinking: 'thinking',
+} as const;
+
+/**
+ * What the server is doing before the answer's first word (SSE event ``status``).
+ *
+ * Each step is a real stage of the pipeline, so the UI can say so truthfully:
+ * ``searching`` the documents, ``loading_model`` (a switched-to model is being loaded into the
+ * GPU), ``reading`` the passages (the model processes them; ``passages``, and ``complete`` when
+ * they are the documents' whole text), ``writing`` (a plain answer is being prepared), ``thinking``
+ * (*Thorough*: the model reasons before it answers; its reasoning follows as ``thinking`` events).
+ */
+export interface StreamStatus {
+  complete: boolean | null;
+  model: string | null;
+  passages: number | null;
+  step: StreamStatusStep;
+}
+
+/**
+ * The passages a grounded answer is written from, sent before its first word (SSE event ``sources``):
+ * the same list as ``ChatResponse.citations``, so an answer the person stops still shows what its
+ * markers point to. Not sent for a plain answer.
+ */
+export interface StreamSources {
+  citations: Citation[];
+}
+
+/**
+ * One streamed chunk of the model's reasoning before the answer (SSE event ``thinking``), in
+ * *Thorough* only. Not part of the answer: it is never in a ``delta``.
+ */
+export interface StreamThinking {
+  text: string;
+}
+
+/**
+ * One streamed chunk of answer text (SSE event ``delta``).
+ */
+export interface StreamDelta {
+  text: string;
+}
+
+export type StreamErrorKind = typeof StreamErrorKind[keyof typeof StreamErrorKind];
+
+
+export const StreamErrorKind = {
+  refused: 'refused',
+  unavailable: 'unavailable',
+  internal: 'internal',
+  warning: 'warning',
+} as const;
+
+export type StreamErrorParams = {[key: string]: string | number | null};
+
+/**
+ * Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,
+ * document search is unavailable, or an unexpected server error occurred (reported generically).
+ */
+export interface StreamError {
+  code: string;
+  detail: string;
+  kind: StreamErrorKind;
+  params: StreamErrorParams;
+}
+
 export interface Now {
   now_ms: number;
 }
@@ -1979,6 +2289,26 @@ export type ListCasesParams = {
   closed?: boolean;
 };
 
+export type AskQuestion200Two = {
+  data: string;
+  event: 'status';
+} | {
+  data: string;
+  event: 'sources';
+} | {
+  data: string;
+  event: 'thinking';
+} | {
+  data: string;
+  event: 'delta';
+} | {
+  data: string;
+  event: 'done';
+} | {
+  data: string;
+  event: 'error';
+};
+
 export type ListConversationsParams = {
   case?: string | null;
   all?: boolean;
@@ -2053,6 +2383,109 @@ const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string 
   }
   return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
 };
+
+export type signOutResponse200 = {
+  data: SignedOut
+  status: 200
+}
+
+export type signOutResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type signOutResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type signOutResponseSuccess = (signOutResponse200) & {
+  headers: Headers;
+};
+export type signOutResponseError = (signOutResponse403 | signOutResponse500) & {
+  headers: Headers;
+};
+
+export type signOutResponse = (signOutResponseSuccess | signOutResponseError)
+
+export const getSignOutUrl = () => {
+
+
+
+
+  return `/auth/logout`
+}
+
+/**
+ * End the session; ``logout_url`` ends the Keycloak session too (the UI navigates there).
+ * @summary Sign Out
+ */
+export const signOut = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<signOutResponse> => {
+
+  return gatewayFetch<signOutResponse>(getSignOutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type getMeResponse200 = {
+  data: Me
+  status: 200
+}
+
+export type getMeResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getMeResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getMeResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getMeResponseSuccess = (getMeResponse200) & {
+  headers: Headers;
+};
+export type getMeResponseError = (getMeResponse401 | getMeResponse500 | getMeResponse503) & {
+  headers: Headers;
+};
+
+export type getMeResponse = (getMeResponseSuccess | getMeResponseError)
+
+export const getGetMeUrl = () => {
+
+
+
+
+  return `/auth/me`
+}
+
+/**
+ * The signed-in user (username and display name), or 401.
+ * @summary Get Me
+ */
+export const getMe = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getMeResponse> => {
+
+  return gatewayFetch<getMeResponse>(getGetMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 
 export type getHealthResponse200 = {
   data: HealthResponse
@@ -6148,6 +6581,88 @@ export const reopenCase = async (caseId: string, options?: Parameters<typeof gat
     method: 'POST'
 
 
+  }
+);}
+
+
+
+export type askQuestionResponse200ApplicationJson = {
+  data: ChatResponse
+  status: 200
+}
+
+export type askQuestionResponse200TextEventStream = {
+  data: AskQuestion200Two
+  status: 200
+}
+
+export type askQuestionResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type askQuestionResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type askQuestionResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type askQuestionResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type askQuestionResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type askQuestionResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type askQuestionResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type askQuestionResponseSuccess = (askQuestionResponse200ApplicationJson | askQuestionResponse200TextEventStream) & {
+  headers: Headers;
+};
+export type askQuestionResponseError = (askQuestionResponse401 | askQuestionResponse403 | askQuestionResponse404 | askQuestionResponse422 | askQuestionResponse429 | askQuestionResponse500 | askQuestionResponse503) & {
+  headers: Headers;
+};
+
+export type askQuestionResponse = (askQuestionResponseSuccess | askQuestionResponseError)
+
+export const getAskQuestionUrl = () => {
+
+
+
+
+  return `/v1/chat`
+}
+
+/**
+ * Answer a conversation. With ``document_ids``, ground the answer in those documents.
+ *
+ * Grounded answers cite passages as [n], where [n] is ``citations[n-1]``. Without
+ * ``document_ids`` the answer is unsourced (``citations: []``) and must be shown as unverified.
+ * @summary Ask Question
+ */
+export const askQuestion = async (chatRequest: ChatRequest, options?: Parameters<typeof gatewayFetch>[1]): Promise<askQuestionResponse> => {
+
+  return gatewayFetch<askQuestionResponse>(getAskQuestionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(chatRequest)
   }
 );}
 

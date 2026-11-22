@@ -12,48 +12,35 @@ import type { SavedAnswer } from "./lib/saved";
 import * as gateway from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
-type SourceRef = { document_id: string; page: number | null; location: string | null };
-/** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
-/** The text around a cited passage on its page (board G11): the passage is ``text.slice(start, end)``. */
-type PassageContext = { text: string; start: number; end: number };
-export type Citation = { text: string; source: SourceRef | null; removed?: boolean; context?: PassageContext | null };
+/** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
+ *  have it. What a turn holds is described with the turns themselves, a later step (suveryn-tracker#159); until then
+ *  the screens read a turn's passages, calculations and marks through these. */
+type Kept<Shape, Lacking extends keyof Shape> = Omit<Shape, Lacking> & Partial<Pick<Shape, Lacking>>;
+type SourceRef = Kept<gateway.SourceRef, "decimals">;
+/** A passage an answer was written from. ``removed``: its document was deleted, so the passage was taken out of the
+ *  saved turn (suveryn-tracker#12): the conversation's own mark, not the gateway's answer's. ``context``: the text
+ *  around it on its page (board G11): the passage is ``text.slice(start, end)``. */
+export type Citation = Omit<Kept<gateway.Citation, "context">, "source"> & { source: SourceRef | null; removed?: boolean };
 /** A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11). ``marker`` is the
  *  0-based place of the [n] among the answer's valid markers; ``found_in``: other passages that do contain it. */
-export type CitationIssue = { marker: number; n: number; item: string; found_in: number[]; written_as: string | null };
-/** A calculation the server computed exactly; the model only chose the figures. */
-export type Calculation = {
-  expression: string;
-  result: string | null;              // null: it couldn't be computed (see code)
-  figures_not_in_sources: string[];   // figures to check: they don't appear in the passages given
-  error: string | null;               // English, for developers
-  code?: string | null;               // why it couldn't be computed: a code of the registry (calc.*; lib/messages.ts words it)
-  /** Figures that read either way ("28.848"), read as the documents that write them write decimals. */
-  read_as?: string[];
-  read_with?: "," | "." | null;
-};
+export type CitationIssue = gateway.CitationIssue;
+/** A calculation the server computed exactly; the model only chose the figures. ``result`` null: it couldn't be
+ *  computed (``code`` says why, a code of the registry; ``error`` in English, for developers);
+ *  ``figures_not_in_sources``: figures to check, which don't appear in the passages given; ``read_as``: figures that
+ *  read either way ("28.848"), read as the documents that write them write decimals. */
+export type Calculation = Kept<gateway.Calculation, "code" | "read_as" | "read_with">;
 /** What the source card marks for one marker, from the server (suveryn-tracker#25): the sentences of passage ``n``
- *  the claim rests on, and its facts; [start, end) offsets into the passage's text. */
-export type SupportSpan = {
-  marker: number; n: number; ranges: [number, number][]; facts: [number, number][];
-  how?: "words" | "meaning";  // "meaning": found by the embedding model, in other words or another language (step 3)
-};
-export type ChatResponse = {
-  id: string;
-  model: string;
-  answer: string;
-  citations: Citation[];
-  calculations: Calculation[];
-  unverified_figures?: string[];      // figures in no passage and no calculation's result: flag them for checking
-  citation_issues?: CitationIssue[];  // facts the cited passage doesn't contain: flag the marker
-  support_spans: SupportSpan[];       // what the source card marks per marker
-  instruction_like_sources?: number[]; // passages whose text addresses an AI: tell the reader (suveryn-tracker#21)
-  finish_reason: string | null;
-  reasoning?: string;              // *Thorough*: what the model thought before answering, never in ``answer``
-  thought_seconds?: number | null; // and for how long
-  thinking_cut?: boolean;          // *Thorough* thought past its allowance: answered again without thinking
-  narrowed_to?: string | null;     // the question named one document: only that one was read
-};
-export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
+ *  the claim rests on, and its facts; [start, end) offsets into the passage's text. ``how`` "meaning": found by the
+ *  embedding model, in other words or another language (step 3). */
+export type SupportSpan = Kept<gateway.SupportSpan, "how">;
+/** A whole answer. ``unverified_figures``: figures in no passage and no calculation's result, to flag for checking;
+ *  ``citation_issues``: facts the cited passage doesn't contain, to flag the marker; ``instruction_like_sources``:
+ *  passages whose text addresses an AI, to tell the reader (suveryn-tracker#21); ``reasoning``, ``thought_seconds``:
+ *  *Thorough*, what the model thought before answering (never in ``answer``) and for how long; ``thinking_cut``: it
+ *  thought past its allowance and was answered again without thinking; ``narrowed_to``: the question named one
+ *  document, and only that one was read. */
+export type ChatResponse = gateway.ChatResponse;
+export type WireMessage = gateway.ChatMessage;
 
 /** An upload's state. */
 export type JobStatus = gateway.Upload["status"];
@@ -84,22 +71,20 @@ export type PlacedDocument = gateway.PlacedDocument;
 export type Health = gateway.HealthResponse;
 // admin: may open the administration page; office_wide: a new case is open to the whole office by
 // default; cases_keep: how long a closed case is kept before it is deleted ("manual": until deleted by hand)
-export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
+export type KeepPeriod = gateway.Me["cases_keep"];
 // avatar: the ETag of the user's picture (null: initials are shown); see Avatar in the UI kit
 // account_url: where the person changes their password (Keycloak's account console); null with sign-in off
-export type Me = { username: string; name: string; sub?: string; admin?: boolean; office_wide?: boolean; cases_keep?: KeepPeriod; avatar?: string | null;
-                   account_url?: string | null;
-                   /** The office's name (Administration › Settings), after the person's name; null: not set. */
-                   office_name?: string | null;
-                   /** Administrators: the sign-in service's own console; null when there is none. */
-                   admin_console_url?: string | null };
+// office_name: the office's name (Administration › Settings), after the person's name; null: not set
+// admin_console_url: administrators, the sign-in service's own console; null when there is none
+export type Me = gateway.Me;
 /** A pipeline step the server reports before the answer's first word (SSE event `status`). */
-export type StreamStatus = {
-  step: "searching" | "loading_model" | "reading" | "writing" | "thinking";
-  passages: number | null;
-  complete: boolean | null;
-  model: string | null;
-};
+export type StreamStatus = gateway.StreamStatus;
+/** The events of a streamed answer, by name, each with its data (the gateway's description names the same ones:
+ *  src/api.answers.test.ts holds this list to it). */
+type AnswerEvents = { status: gateway.StreamStatus; sources: gateway.StreamSources; thinking: gateway.StreamThinking; delta: gateway.StreamDelta;
+                      done: gateway.ChatResponse; error: gateway.StreamError };
+const EVERY_EVENT: Record<keyof AnswerEvents, true> = { status: true, sources: true, thinking: true, delta: true, done: true, error: true };
+export const ANSWER_EVENTS = Object.keys(EVERY_EVENT);
 /** An installed model; only one is in GPU memory at a time. `thinks`: the model can think before it answers, so
  *  *Thorough* is possible (docs/design/chat-ui.md §5). */
 export type { ModelInfo } from "./generated/gateway";
@@ -136,10 +121,10 @@ async function responseError(r: Response): Promise<Error> {
 
 /** The signed-in user, or null if signed out. Throws if sign-in itself is unavailable. */
 export async function getMe(): Promise<Me | null> {
-  const r = await fetch("/auth/me");
-  if (r.status === 401) return null;
-  if (!r.ok) throw new Error(await errorText(r));
-  return r.json();
+  const answer = await gateway.getMe();
+  if (answer.status === 200 && answer.data) return answer.data;
+  if (answer.status === 401) return null;
+  throw new Error(httpErrorText(answer.status, answer.data));
 }
 
 /** Fired on window when what /auth/me says has changed (the office's name): the app reads it again. */
@@ -155,8 +140,8 @@ export async function signOut(): Promise<void> {
   clearDraft();  // a question typed but not sent doesn't outlive the session on this computer
   let url: string | null = null;
   try {
-    const r = await fetch("/auth/logout", { method: "POST" });
-    url = (await r.json()).logout_url ?? null;
+    const answer = await gateway.signOut();
+    url = answer.status === 200 ? answer.data?.logout_url ?? null : null;
   } catch { /* the session is dropped anyway when it expires */ }
   window.location.assign(url ?? "/");
 }
@@ -172,10 +157,6 @@ export function httpErrorText(status: number, body: unknown = null): string {
 /** An error answer's body: the gateway's Problem Details, or null when it isn't JSON (a proxy's page). */
 async function errorBody(r: Response): Promise<unknown> {
   try { return await r.json(); } catch { return null; }
-}
-
-async function errorText(r: Response): Promise<string> {
-  return httpErrorText(r.status, await errorBody(r));
 }
 
 /** The appliance's state, or null when the gateway isn't reached or answers something else. While the model server
@@ -252,27 +233,26 @@ export async function streamChat(
 ): Promise<ChatResponse> {
   // An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence
   // at about 5,000 (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments).
-  const r = await fetch("/v1/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document_ids: documentIds, stream: true, max_tokens: ANSWER_TOKENS, ...(model ? { model } : {}),
-                           ...(caseId ? { case_id: caseId } : {}), ...(thinking?.on ? { thinking: true } : {}) }),
-    signal,
-  });
+  // The generated call reads an answer whole; a stream is read as it comes, here. What is asked, and where, are the
+  // generated code's.
+  const asked: gateway.ChatRequest = { messages, document_ids: documentIds, stream: true, max_tokens: ANSWER_TOKENS, ...(model ? { model } : {}),
+                                       ...(caseId ? { case_id: caseId } : {}), ...(thinking?.on ? { thinking: true } : {}) };
+  const r = await fetch(gateway.getAskQuestionUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(asked), signal });
   if (!r.ok || !r.body) throw await responseError(r);
   let done: ChatResponse | null = null;
   let failure: Message | null = null;
+  const said = <Name extends keyof AnswerEvents>(_: Name, data: string) => JSON.parse(data) as AnswerEvents[Name];
   const parser = createSSEParser(({ event, data }) => {
-    const payload = JSON.parse(data);
-    if (event === "status") onStatus?.(payload as StreamStatus);
-    else if (event === "sources") onSources?.(payload.citations as Citation[]);
-    else if (event === "thinking") thinking?.onText(payload.text);
-    else if (event === "delta") onDelta(payload.text);
-    else if (event === "done") done = payload as ChatResponse;
+    if (event === "status") onStatus?.(said(event, data));
+    else if (event === "sources") onSources?.(said(event, data).citations);
+    else if (event === "thinking") thinking?.onText(said(event, data).text);
+    else if (event === "delta") onDelta(said(event, data).text);
+    else if (event === "done") done = said(event, data);
     else if (event === "error") {
       // What failed, as every message is said: a code with its kind and values (docs/design/messages.md), worded
       // here; a code this page doesn't know gets its area's or its kind's words, never the server's English.
-      failure = { kind: payload.kind, code: payload.code, params: payload.params ?? {} };
+      const { kind, code, params } = said(event, data);
+      failure = { kind, code, params: params ?? {} };
     }
   });
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();

@@ -604,3 +604,31 @@ def test_the_admin_console_is_derived_from_the_issuer():
     assert admin_console("http://localhost:8180/realms/suveryn") == "http://localhost:8180/admin/suveryn/console/"
     assert admin_console("https://notaris.local/idp") is None
 
+
+
+def test_every_answer_of_auth_is_what_the_description_says(client, kc):
+    """The chat UI's code for who is signed in and for signing out is generated from the description
+    (suveryn-tracker#249): each answer, the refusals too, is checked against it and kept for the chat UI's tests."""
+    from described import Checked, same_every_run
+
+    check, tidy = Checked(client, "auth"), same_every_run()
+    assert check("GET", "/auth/me", 401, keep="nobody").json()["code"] == "auth.signed_out"
+    kc.expires_in = 10  # a session the sign-in service is asked about again soon
+    sign_in(client, kc)
+    me = check("GET", "/auth/me", 200, keep="me").json()
+    assert (me["username"], me["admin"], me["cases_keep"], me["avatar"], me["admin_console_url"]) == ("notaris.test", False, "manual", None, None)
+    kc.down = True  # the sign-in service can't be asked: that is said, and nobody is signed out for it
+    assert check("GET", "/auth/me", 503, keep="sign_in_away").json()["code"] == "auth.unavailable"
+    kc.down = False
+    # signing out: only from the gateway's own pages; it answers where the sign-in service ends its session too
+    assert check("POST", "/auth/logout", 403, headers={"Origin": "http://elsewhere.test"}).json()["code"] == "request.forbidden"
+
+    def same(body):  # the sign-in service's own token for this session
+        tidy(body)
+        body["logout_url"] = body["logout_url"].split("id_token_hint=")[0] + "id_token_hint=…"
+    out = check("POST", "/auth/logout", 200, keep="signed_out", tidy=same, headers={"Origin": PUBLIC}).json()
+    assert "/protocol/openid-connect/logout" in out["logout_url"]
+    assert check("POST", "/auth/logout", 200, headers={"Origin": PUBLIC}).json()["logout_url"]  # again: nothing to end here
+    assert check("GET", "/auth/me", 401).json()["code"] == "auth.signed_out"
+    check.kept.check()
+    assert {status for _, _, status in check.not_seen()} == {500}  # what nobody planned for
