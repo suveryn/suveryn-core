@@ -172,6 +172,34 @@ def test_a_strict_operation_leaves_nothing_undescribed():
             assert status == "204" or r.get("content"), f"{method} {path}: {status} has no described body"
 
 
+# A member an answer doesn't always carry, by the schema's name: named here on purpose.
+SOMETIMES = {("ProblemDetails", "errors")}  # with request.invalid only
+
+
+def test_a_strict_operation_describes_every_member_of_an_answer_as_always_there():
+    # a model's member with a default is always sent, but described as optional unless the model extends
+    # description.Answer (or, outside the gateway, carries its setting): generated code would call it optional
+    schemas = json.loads(description.FILE.read_text(encoding="utf-8"))["components"]["schemas"]
+
+    def named(schema, seen):
+        if isinstance(schema, list):
+            return set().union(*(named(s, seen) for s in schema)) if schema else set()
+        if not isinstance(schema, dict):
+            return set()
+        if "$ref" in schema:
+            name = schema["$ref"].rsplit("/", 1)[1]
+            return set() if name in seen else {name} | named(schemas[name], seen | {name})
+        return named([v for v in schema.values() if isinstance(v, (dict, list))], seen)
+
+    answers = set()
+    for _, _, op in strict_operations():
+        answers |= named([c["schema"] for r in op["responses"].values() for c in r.get("content", {}).values()], frozenset())
+    assert {"SetAnswer", "UsageReport", "ModelInfo", "ProblemDetails"} <= answers
+    optional = {(name, member) for name in answers for member in schemas[name].get("properties", {})
+                if member not in schemas[name].get("required", [])}
+    assert optional == SOMETIMES, f"described as not always there: {sorted(optional - SOMETIMES)}"
+
+
 class _Answer:
     def __init__(self, status, body, media_type="application/json"):
         self.status_code, self._body, self.headers = status, body, {"content-type": media_type}

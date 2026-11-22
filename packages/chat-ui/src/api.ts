@@ -654,9 +654,6 @@ export async function listAdminCases(): Promise<AdminCase[]> {
 /** What saving these settings would do now, for the confirmation in Administration › Settings: counts only. */
 export type SettingsPreview = gateway.SettingsPreview;
 
-/** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
-export type CaseSettingsChanges = Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep" | "two_step" | "office_name">> & { apply_to?: "new" | "all" };
-
 /** Deletes a case with its documents and conversations (its manager only). */
 export async function deleteCase(id: string): Promise<void> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -758,6 +755,10 @@ export async function answered<A extends Answer>(call: Promise<A>): Promise<Extr
   throw new HttpError(httpErrorText(status, body), status, problemOf(status, body));
 }
 
+/** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
+ *  into the address as the word. */
+type Asked<Query> = { [Name in keyof Query]?: NonNullable<Query[Name]> };
+
 /** The models installed on this appliance, with which one is loaded and which is the default. */
 export const listModels = () => answered(gateway.listModels());
 
@@ -773,13 +774,13 @@ export const getOfficeUsage = (start: Date, end?: Date) => answered(gateway.getO
 
 /** Administrators: the rates the notional cost uses, and changing them. */
 export const getRates = () => answered(gateway.getUsageRates());
-export const setRates = (rates: Pick<Rates, "input_per_million" | "output_per_million" | "currency">) => answered(gateway.setUsageRates(rates));
+export const setRates = (rates: gateway.RatesInput) => answered(gateway.setUsageRates(rates));
 
 /** Administrators: the office's settings as they apply now, what a change would do, and the change. */
 export const getCaseSettings = () => answered(gateway.getOfficeSettings());
-export const previewCaseSettings = (q: { default_access?: "office" | "members"; apply_to?: "new" | "all"; conversations_keep?: KeepPeriod }) =>
-  answered(gateway.previewOfficeSettings(q));
-export const setCaseSettings = (changes: CaseSettingsChanges) => answered(gateway.updateOfficeSettings(changes));
+export const previewCaseSettings = (q: Asked<gateway.PreviewOfficeSettingsParams>) => answered(gateway.previewOfficeSettings(q));
+/** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
+export const setCaseSettings = (changes: gateway.SettingsIn) => answered(gateway.updateOfficeSettings(changes));
 
 /** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
 export const setApplianceClock = (measured: Measured): Promise<SetAnswer> => answered(createClockRequest(measured));
