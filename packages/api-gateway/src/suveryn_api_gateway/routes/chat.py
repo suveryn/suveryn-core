@@ -48,8 +48,8 @@ log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["answers"])  # the group its operations are in, in the description (description.py)
 
 
-# The events of a streamed answer, by name, each with the shape of its data (``_stream`` says the order): the one list
-# the stream is written from and described by.
+# The events of a streamed answer, by name, each with the shape of its data: the list the stream is described by.
+# ``_stream`` writes them and says their order; the test that walks an answer fails on an event this list doesn't name.
 EVENTS: dict[str, type[BaseModel]] = {"status": StreamStatus, "sources": StreamSources, "thinking": StreamThinking, "delta": StreamDelta,
                                       "done": ChatResponse, "error": StreamError}
 

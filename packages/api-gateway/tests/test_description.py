@@ -196,7 +196,7 @@ LATER = {"CaseEvent.detail": "what each line of the access log records (its acti
          "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): in a conversation the chat UI saved",
          "SavedTurn": "the same, as the chat UI saves it",
          "Turn.meta": "what a turn of a run's thread holds (its kind and facts, turn_kinds.json): written by the server",
-         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): ",
+         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms)",
          "AnswerContent": "what rebuilds a saved answer's file, the chat UI's own data (an answer, its sources and checks)",
          "SavedCitation": "the same", "SavedCitation.source": "the same", "DocumentContent.content": "the same, as it is read back"}
 

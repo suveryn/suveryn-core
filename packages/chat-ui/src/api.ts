@@ -285,8 +285,8 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
-/** A conversation with its turns. What a turn holds is the screens' own type until the gateway describes it, with the
- *  gateway's own description of it (suveryn-tracker#250). */
+/** A conversation with its turns. What a turn holds is the screens' own type until the gateway describes it
+ *  (suveryn-tracker#250). */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
