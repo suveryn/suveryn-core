@@ -1637,3 +1637,29 @@ def test_administration_refuses_someone_else_before_reading_the_body(office):
                          ("POST", "/v1/admin/backups/requests"), ("PUT", "/v1/admin/usage/rates")):
         r = c.request(method, path, content=b"{not json", headers={**bob, "Content-Type": "application/json"})
         assert r.status_code == 403, (method, path, r.status_code)
+
+
+def test_every_answer_of_the_offices_settings_is_what_the_description_says(office):
+    """The chat UI's code for the office's settings is generated from the description (suveryn-tracker#237)."""
+    from described import Checked
+
+    c, kc, _, _, _ = office
+    check, alice, admin = Checked(c, "settings"), as_user(kc, ALICE), admin_headers(kc)
+    settings, preview = "/v1/admin/cases/settings", "/v1/admin/cases/settings/preview"
+    for method, path, sent in (("GET", settings, {}), ("GET", preview, {}), ("PUT", settings, {"json": {"keep": "1y"}})):
+        assert check(method, path, 401, **sent).json()["code"] == "auth.signed_out"
+        assert check(method, path, 403, keep="not_an_administrator" if method == "PUT" else None, headers=alice, **sent).json()["code"] == "request.forbidden"
+    assert check("GET", settings, 200, keep="as_provisioned", headers=admin).json()["updated_at"] is None
+    c.post("/v1/cases", json=NEW, headers=alice)
+    opened = check("GET", preview, 200, preview + "?default_access=office&apply_to=all", "preview", headers=admin).json()
+    assert opened == {"cases_opened": 1, "cases_closed": 0, "conversations_deleted": 0}
+    assert "errors" in check("GET", preview, 422, preview + "?apply_to=some", headers=admin).json()
+    saved = check("PUT", settings, 200, keep="saved", same_every_run={"updated_at": "2026-11-22T09:00:00Z"}, headers=admin,
+                  json={"default_access": "office", "keep": "1y", "office_name": "  Notariaat   Test  "}).json()
+    assert (saved["default_access"], saved["keep"], saved["office_name"], saved["updated_by"] != "") == ("office", "1y", "Notariaat Test", True)
+    assert check("PUT", settings, 422, keep="nothing_to_change", json={}, headers=admin).json()["code"] == "request.invalid"
+    assert "errors" in check("PUT", settings, 422, json={"keep": "2y"}, headers=admin).json()
+    check.kept.check()
+    # not seen: what nobody planned for; sign-in or the stores down (test_auth.py, test_problems.py, and the cases'
+    # own store away, test_cases.py)
+    assert check.not_seen() == {(m, p, s) for m, p in (("GET", settings), ("GET", preview), ("PUT", settings)) for s in (500, 503)}

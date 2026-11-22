@@ -1,0 +1,161 @@
+{
+ "mine": {
+  "body": {
+   "by_kind": {
+    "chat": {
+     "completion_tokens": 85,
+     "prompt_tokens": 1200,
+     "requests": 1,
+     "total_tokens": 1285
+    }
+   },
+   "end": "2026-11-09T00:00:00Z",
+   "series": [
+    {
+     "completion_tokens": 85,
+     "prompt_tokens": 1200,
+     "requests": 1,
+     "start": "2026-11-02T00:00:00Z",
+     "total_tokens": 1285
+    }
+   ],
+   "start": "2026-11-02T00:00:00Z",
+   "step": "1 hour",
+   "totals": {
+    "completion_tokens": 85,
+    "prompt_tokens": 1200,
+    "requests": 1,
+    "total_tokens": 1285
+   },
+   "totals_only_before": null
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "office": {
+  "body": {
+   "by_kind": {
+    "chat": {
+     "completion_tokens": 85,
+     "prompt_tokens": 1200,
+     "requests": 1,
+     "total_tokens": 1285
+    }
+   },
+   "cost": "0.01",
+   "end": "2026-11-09T00:00:00Z",
+   "per_user": [
+    {
+     "cost": null,
+     "name": "Test Notaris",
+     "totals": {
+      "completion_tokens": 85,
+      "prompt_tokens": 1200,
+      "requests": 1,
+      "total_tokens": 1285
+     },
+     "user_id": "user-b",
+     "username": "user-b"
+    }
+   ],
+   "rates": {
+    "currency": "USD",
+    "input_per_million": "3",
+    "output_per_million": "15",
+    "updated_at": null,
+    "updated_by": null
+   },
+   "series": [
+    {
+     "completion_tokens": 85,
+     "prompt_tokens": 1200,
+     "requests": 1,
+     "start": "2026-11-02T00:00:00Z",
+     "total_tokens": 1285
+    }
+   ],
+   "start": "2026-11-02T00:00:00Z",
+   "step": "1 hour",
+   "totals": {
+    "completion_tokens": 85,
+    "prompt_tokens": 1200,
+    "requests": 1,
+    "total_tokens": 1285
+   },
+   "totals_only_before": null
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "range_refused": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "start must be before end",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "rates": {
+  "body": {
+   "currency": "USD",
+   "input_per_million": "3",
+   "output_per_million": "15",
+   "updated_at": null,
+   "updated_by": null
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "rates_refused": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "The request's body or parameters aren't valid.",
+   "errors": [
+    {
+     "loc": [
+      "body",
+      "input_per_million"
+     ],
+     "msg": "Input should be greater than or equal to 0",
+     "type": "greater_than_equal"
+    }
+   ],
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "rates_saved": {
+  "body": {
+   "currency": "EUR",
+   "input_per_million": "2.5",
+   "output_per_million": "10",
+   "updated_at": null,
+   "updated_by": "Test Notaris"
+  },
+  "media_type": "application/json",
+  "status": 200
+ }
+}

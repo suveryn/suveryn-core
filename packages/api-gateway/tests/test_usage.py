@@ -17,6 +17,7 @@ from suveryn_api_gateway.app import ADMIN_ROLE, create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.usage import (
     AdminUsageReport,
+    UsageBucket,
     Rates,
     UsageReport,
     UsageSettings,
@@ -28,6 +29,7 @@ from suveryn_api_gateway.usage import (
     step_for,
 )
 from suveryn_harness import LlamaServerClient, LLMSettings, UsageRecord
+from described import Checked
 from test_auth import SETTINGS, FakeKeycloak, sign_in
 from test_documents import llm_transport
 
@@ -59,7 +61,8 @@ class FakeUsage:
         totals = UsageTotals(requests=len(mine), prompt_tokens=sum(r.prompt_tokens for r in mine),
                              completion_tokens=sum(r.completion_tokens for r in mine),
                              total_tokens=sum(r.total_tokens for r in mine))
-        return UsageReport(start=start, end=end, step="1 hour", totals=totals, series=[], by_kind={})
+        series = [UsageBucket(start=start, **totals.model_dump())] if mine else []
+        return UsageReport(start=start, end=end, step="1 hour", totals=totals, series=series, by_kind={"chat": totals} if mine else {})
 
     def admin_report(self, start, end):
         self.asked.append(("admin_report",))
@@ -400,3 +403,37 @@ def test_the_next_backup_is_given_in_the_appliances_own_zone(monkeypatch, tmp_pa
     monkeypatch.undo()  # the real appliance_zone, with TZ set as systemd may set it
     monkeypatch.setenv("TZ", "Asia/Tokyo")
     assert str(backups.appliance_zone()) == "Asia/Tokyo"
+
+
+def test_every_answer_of_usage_is_what_the_description_says(setup):
+    """The chat UI's code for usage is generated from the description (suveryn-tracker#237): each answer its
+    operations give, the refusals too, is checked against it, and kept for the chat UI's tests."""
+    c, kc, store = setup
+    check, user, admin = Checked(c, "usage"), as_user(kc, BOB), as_user(kc, ALICE, admin=True)
+    week = "?start=2026-11-02T00:00:00Z&end=2026-11-09T00:00:00Z"
+    for method, path, sent in (("GET", "/v1/usage", {}), ("GET", "/v1/admin/usage", {}), ("GET", "/v1/admin/usage/rates", {}),
+                               ("PUT", "/v1/admin/usage/rates", {"json": {"input_per_million": 1, "output_per_million": 1}})):
+        assert check(method, path, 401, **sent).json()["code"] == "auth.signed_out"
+    assert c.post("/v1/chat", json=CHAT, headers=user).status_code == 200  # something to report
+    assert check("GET", "/v1/usage", 200, "/v1/usage" + week, "mine", headers=user).json()["totals"]["requests"] == 1
+    check("GET", "/v1/usage", 200, "/v1/usage?start=2026-11-02T00:00:00Z", headers=user)  # to now
+    assert check("GET", "/v1/usage", 422, "/v1/usage?start=2026-11-09T00:00:00Z&end=2026-11-02T00:00:00Z", "range_refused",
+                 headers=user).json()["code"] == "request.invalid"
+    assert "errors" in check("GET", "/v1/usage", 422, "/v1/usage?start=soon", headers=user).json()
+    for path in ("/v1/admin/usage", "/v1/admin/usage/rates"):
+        assert check("GET", path, 403, keep="not_an_administrator" if path.endswith("usage") else None, headers=user).json()["code"] == "request.forbidden"
+    assert check("PUT", "/v1/admin/usage/rates", 403, json={"input_per_million": 1, "output_per_million": 1}, headers=user).json()["code"] == "request.forbidden"
+    office = check("GET", "/v1/admin/usage", 200, "/v1/admin/usage" + week, "office", headers=admin).json()
+    assert [u["user_id"] for u in office["per_user"]] == [BOB] and office["rates"]["currency"] == "USD"
+    check("GET", "/v1/admin/usage", 422, "/v1/admin/usage?end=never", headers=admin)
+    check("GET", "/v1/admin/usage/rates", 200, keep="rates", headers=admin)
+    saved = check("PUT", "/v1/admin/usage/rates", 200, keep="rates_saved", headers=admin,
+                  json={"input_per_million": "2.5", "output_per_million": "10", "currency": "EUR"}).json()
+    assert (saved["input_per_million"], saved["currency"], saved["updated_by"]) == ("2.5", "EUR", "Test Notaris")
+    check("PUT", "/v1/admin/usage/rates", 422, keep="rates_refused", json={"input_per_million": -1, "output_per_million": 1}, headers=admin)
+    check.kept.check()
+    # not seen here: what nobody planned for; sign-in or the database down (test_auth.py, test_problems.py, and
+    # usage's own store away: test_without_a_database_usage_is_unavailable_but_answers_work); another site's request, and, for the
+    # read anyone signed in may do, sign-in turned off for another machine
+    assert check.not_seen() == {(m, p, s) for m, p in (("GET", "/v1/usage"), ("GET", "/v1/admin/usage"), ("GET", "/v1/admin/usage/rates"),
+                                                        ("PUT", "/v1/admin/usage/rates")) for s in (500, 503)} | {("GET", "/v1/usage", 403)}

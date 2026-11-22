@@ -58,6 +58,7 @@ import psycopg
 from pydantic import BaseModel, Field
 
 from .db import PgStore
+from .description import Answer
 
 Access = Literal["default", "restricted"]
 State = Literal["open", "closed"]
@@ -290,7 +291,7 @@ class AdminCase(Case):
     members: int = 0
 
 
-class SettingsOut(BaseModel):
+class SettingsOut(Answer):
     """The office's case settings as they apply now (``GET /v1/admin/cases/settings``)."""
 
     default_access: Literal["office", "members"]
@@ -316,7 +317,7 @@ class SettingsIn(BaseModel):
     apply_to: Literal["new", "all"] = "new"
 
 
-class SettingsPreview(BaseModel):
+class SettingsPreview(Answer):
     """What a change in Settings would do now, for its confirmation (``GET /v1/admin/cases/settings/preview``)."""
 
     cases_opened: int = 0  # cases that become visible to everyone in the office

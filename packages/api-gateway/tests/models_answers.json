@@ -1,0 +1,46 @@
+{
+ "installed": {
+  "body": [
+   {
+    "default": false,
+    "id": "mistral-small-3.2-24b",
+    "loaded": false,
+    "thinks": false
+   },
+   {
+    "default": true,
+    "id": "qwen3.8-27b",
+    "loaded": true,
+    "thinks": true
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "signed_out": {
+  "body": {
+   "code": "auth.signed_out",
+   "detail": "Sign in to continue.",
+   "kind": "refused",
+   "params": {},
+   "status": 401,
+   "title": "No session, or it has ended.",
+   "type": "urn:suveryn:problem:auth.signed_out"
+  },
+  "media_type": "application/problem+json",
+  "status": 401
+ },
+ "unavailable": {
+  "body": {
+   "code": "model.unavailable",
+   "detail": "model backend unreachable: ConnectError",
+   "kind": "unavailable",
+   "params": {},
+   "status": 503,
+   "title": "The model can't be reached, or answered with an error: no answer, and no reading of an answer given in words.",
+   "type": "urn:suveryn:problem:model.unavailable"
+  },
+  "media_type": "application/problem+json",
+  "status": 503
+ }
+}

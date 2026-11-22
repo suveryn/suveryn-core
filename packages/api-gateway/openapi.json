@@ -384,6 +384,13 @@
       "type": "string"
      },
      "step": {
+      "enum": [
+       "5 minutes",
+       "1 hour",
+       "1 day",
+       "7 days",
+       "30 days"
+      ],
       "title": "Step",
       "type": "string"
      },
@@ -410,6 +417,7 @@
      "totals",
      "series",
      "by_kind",
+     "totals_only_before",
      "per_user",
      "rates",
      "cost"
@@ -3045,7 +3053,9 @@
     },
     "required": [
      "id",
-     "loaded"
+     "loaded",
+     "default",
+     "thinks"
     ],
     "title": "ModelInfo",
     "type": "object"
@@ -3518,7 +3528,10 @@
     },
     "required": [
      "input_per_million",
-     "output_per_million"
+     "output_per_million",
+     "currency",
+     "updated_at",
+     "updated_by"
     ],
     "title": "Rates",
     "type": "object"
@@ -4432,7 +4445,11 @@
      }
     },
     "required": [
-     "id"
+     "id",
+     "pending",
+     "ok",
+     "failure",
+     "moved_ms"
     ],
     "title": "SetAnswer",
     "type": "object"
@@ -4587,7 +4604,11 @@
     "required": [
      "default_access",
      "keep",
-     "conversations_keep"
+     "conversations_keep",
+     "two_step",
+     "office_name",
+     "updated_at",
+     "updated_by"
     ],
     "title": "SettingsOut",
     "type": "object"
@@ -4611,6 +4632,11 @@
       "type": "integer"
      }
     },
+    "required": [
+     "cases_opened",
+     "cases_closed",
+     "conversations_deleted"
+    ],
     "title": "SettingsPreview",
     "type": "object"
    },
@@ -5025,6 +5051,10 @@
      }
     },
     "required": [
+     "requests",
+     "prompt_tokens",
+     "completion_tokens",
+     "total_tokens",
      "start"
     ],
     "title": "UsageBucket",
@@ -5058,6 +5088,13 @@
       "type": "string"
      },
      "step": {
+      "enum": [
+       "5 minutes",
+       "1 hour",
+       "1 day",
+       "7 days",
+       "30 days"
+      ],
       "title": "Step",
       "type": "string"
      },
@@ -5083,7 +5120,8 @@
      "step",
      "totals",
      "series",
-     "by_kind"
+     "by_kind",
+     "totals_only_before"
     ],
     "title": "UsageReport",
     "type": "object"
@@ -5111,6 +5149,12 @@
       "type": "integer"
      }
     },
+    "required": [
+     "requests",
+     "prompt_tokens",
+     "completion_tokens",
+     "total_tokens"
+    ],
     "title": "UsageTotals",
     "type": "object"
    },
@@ -5162,7 +5206,8 @@
      "user_id",
      "username",
      "name",
-     "totals"
+     "totals",
+     "cost"
     ],
     "title": "UserUsage",
     "type": "object"
@@ -5545,8 +5590,45 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Office Settings",
@@ -5578,18 +5660,55 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
      },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Update Office Settings",
@@ -5671,18 +5790,55 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
      },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Preview Office Settings",
@@ -6034,18 +6190,55 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
      },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Office Usage",
@@ -6069,8 +6262,45 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Usage Rates",
@@ -6102,18 +6332,55 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
      },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Set Usage Rates",
@@ -9414,8 +9681,45 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
      "503": {
-      "description": "Model backend unreachable"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List Models",
@@ -9501,15 +9805,55 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get My Usage",

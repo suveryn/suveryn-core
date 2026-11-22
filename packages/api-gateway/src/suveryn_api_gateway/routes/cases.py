@@ -33,6 +33,7 @@ from ..cases import (
     shielded,
 )
 from ..directory import DirectoryUnavailable, Person
+from ..problems import refusals
 from .users import _do, as_admin
 from .common import (
     LOCAL_OWNER,
@@ -359,7 +360,7 @@ async def list_office_cases(request: Request):
     return await run_in_threadpool(cases_or_503(request).list_all, owner_of(request))
 
 
-@settings_routes.get("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
+@settings_routes.get("/v1/admin/cases/settings", response_model=SettingsOut, responses=refusals())
 async def get_office_settings(request: Request):
     """Administrators: the office's settings as they apply now: the default access of a new case,
     how long closed cases are kept, and how long saved conversations are kept (the data lifecycle,
@@ -373,8 +374,7 @@ async def get_office_settings(request: Request):
                        updated_at=meta[0] if meta else None, updated_by=meta[1] if meta else "")
 
 
-@settings_routes.get("/v1/admin/cases/settings/preview", response_model=SettingsPreview,
-            responses={403: {"description": "Not an administrator"}})
+@settings_routes.get("/v1/admin/cases/settings/preview", response_model=SettingsPreview, responses=refusals())
 async def preview_office_settings(request: Request, default_access: Literal["office", "members"] | None = None,
                                 apply_to: Literal["new", "all"] = "new",
                                 conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None):
@@ -397,7 +397,7 @@ async def preview_office_settings(request: Request, default_access: Literal["off
     return out
 
 
-@settings_routes.put("/v1/admin/cases/settings", response_model=SettingsOut, responses={403: {"description": "Not an administrator"}})
+@settings_routes.put("/v1/admin/cases/settings", response_model=SettingsOut, responses=refusals())
 async def update_office_settings(body: SettingsIn, request: Request):
     """Administrators: change the default access (``office`` or ``members``), the keep period of
     closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).

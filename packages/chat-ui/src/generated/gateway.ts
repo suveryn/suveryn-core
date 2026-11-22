@@ -5,6 +5,139 @@
  * OpenAPI spec version: 0.2.0
  */
 import { gatewayFetch } from '../lib/gateway';
+export type SettingsOutConversationsKeep = typeof SettingsOutConversationsKeep[keyof typeof SettingsOutConversationsKeep];
+
+
+export const SettingsOutConversationsKeep = {
+  '6m': '6m',
+  '1y': '1y',
+  '5y': '5y',
+  manual: 'manual',
+} as const;
+
+export type SettingsOutDefaultAccess = typeof SettingsOutDefaultAccess[keyof typeof SettingsOutDefaultAccess];
+
+
+export const SettingsOutDefaultAccess = {
+  office: 'office',
+  members: 'members',
+} as const;
+
+export type SettingsOutKeep = typeof SettingsOutKeep[keyof typeof SettingsOutKeep];
+
+
+export const SettingsOutKeep = {
+  '6m': '6m',
+  '1y': '1y',
+  '5y': '5y',
+  manual: 'manual',
+} as const;
+
+/**
+ * The office's case settings as they apply now (``GET /v1/admin/cases/settings``).
+ */
+export interface SettingsOut {
+  conversations_keep: SettingsOutConversationsKeep;
+  default_access: SettingsOutDefaultAccess;
+  keep: SettingsOutKeep;
+  office_name: string;
+  two_step: boolean;
+  updated_at: string | null;
+  updated_by: string;
+}
+
+export type ProblemDetailsKind = typeof ProblemDetailsKind[keyof typeof ProblemDetailsKind];
+
+
+export const ProblemDetailsKind = {
+  refused: 'refused',
+  unavailable: 'unavailable',
+  internal: 'internal',
+  warning: 'warning',
+} as const;
+
+export type ProblemDetailsParams = {[key: string]: string | number | null};
+
+/**
+ * Where a request wasn't valid and why, for developers: never the value sent.
+ */
+export interface InvalidPart {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+}
+
+/**
+ * What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.
+ */
+export interface ProblemDetails {
+  code: string;
+  detail: string;
+  errors?: InvalidPart[] | null;
+  kind: ProblemDetailsKind;
+  params: ProblemDetailsParams;
+  status: number;
+  title: string;
+  type: string;
+}
+
+export type SettingsInApplyTo = typeof SettingsInApplyTo[keyof typeof SettingsInApplyTo];
+
+
+export const SettingsInApplyTo = {
+  new: 'new',
+  all: 'all',
+} as const;
+
+export type SettingsInConversationsKeep = typeof SettingsInConversationsKeep[keyof typeof SettingsInConversationsKeep] | null;
+
+
+export const SettingsInConversationsKeep = {
+  '6m': '6m',
+  '1y': '1y',
+  '5y': '5y',
+  manual: 'manual',
+} as const;
+
+export type SettingsInDefaultAccess = typeof SettingsInDefaultAccess[keyof typeof SettingsInDefaultAccess] | null;
+
+
+export const SettingsInDefaultAccess = {
+  office: 'office',
+  members: 'members',
+} as const;
+
+export type SettingsInKeep = typeof SettingsInKeep[keyof typeof SettingsInKeep] | null;
+
+
+export const SettingsInKeep = {
+  '6m': '6m',
+  '1y': '1y',
+  '5y': '5y',
+  manual: 'manual',
+} as const;
+
+/**
+ * Body of ``PUT /v1/admin/cases/settings``: what to change; a field left out stays.
+ */
+export interface SettingsIn {
+  apply_to?: SettingsInApplyTo;
+  conversations_keep?: SettingsInConversationsKeep;
+  default_access?: SettingsInDefaultAccess;
+  keep?: SettingsInKeep;
+  office_name?: string | null;
+  two_step?: boolean | null;
+}
+
+/**
+ * What a change in Settings would do now, for its confirmation (``GET /v1/admin/cases/settings/preview``).
+ */
+export interface SettingsPreview {
+  cases_closed: number;
+  cases_opened: number;
+  conversations_deleted: number;
+}
+
 /**
  * What a browser measured: the appliance's clock minus its own, and the round trip it measured it in.
  */
@@ -43,51 +176,170 @@ export interface Message {
 }
 
 export interface SetAnswer {
-  failure?: Message | null;
+  failure: Message | null;
   id: string;
-  moved_ms?: number | null;
-  ok?: boolean | null;
-  pending?: boolean;
+  moved_ms: number | null;
+  ok: boolean | null;
+  pending: boolean;
 }
 
-export type ProblemDetailsKind = typeof ProblemDetailsKind[keyof typeof ProblemDetailsKind];
+export interface UsageTotals {
+  completion_tokens: number;
+  prompt_tokens: number;
+  requests: number;
+  total_tokens: number;
+}
+
+export type AdminUsageReportByKind = {[key: string]: UsageTotals};
+
+export type AdminUsageReportStep = typeof AdminUsageReportStep[keyof typeof AdminUsageReportStep];
 
 
-export const ProblemDetailsKind = {
-  refused: 'refused',
-  unavailable: 'unavailable',
-  internal: 'internal',
-  warning: 'warning',
+export const AdminUsageReportStep = {
+  '5_minutes': '5 minutes',
+  '1_hour': '1 hour',
+  '1_day': '1 day',
+  '7_days': '7 days',
+  '30_days': '30 days',
 } as const;
 
-export type ProblemDetailsParams = {[key: string]: string | number | null};
-
-/**
- * Where a request wasn't valid and why, for developers: never the value sent.
- */
-export interface InvalidPart {
-  loc: (string | number)[];
-  msg: string;
-  type: string;
+export interface UserUsage {
+  cost: string | null;
+  name: string | null;
+  totals: UsageTotals;
+  user_id: string;
+  username: string | null;
 }
 
 /**
- * What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.
+ * Notional cost per million tokens, as on a comparable cloud API (admin-editable).
  */
-export interface ProblemDetails {
-  code: string;
-  detail: string;
-  errors?: InvalidPart[] | null;
-  kind: ProblemDetailsKind;
-  params: ProblemDetailsParams;
-  status: number;
-  title: string;
-  type: string;
+export interface RatesOutput {
+  /** @pattern ^[A-Z]{3}$ */
+  currency: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d{0,4}0*$ */
+  input_per_million: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d{0,4}0*$ */
+  output_per_million: string;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface UsageBucket {
+  completion_tokens: number;
+  prompt_tokens: number;
+  requests: number;
+  start: string;
+  total_tokens: number;
+}
+
+export interface AdminUsageReport {
+  by_kind: AdminUsageReportByKind;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  cost: string;
+  end: string;
+  per_user: UserUsage[];
+  rates: RatesOutput;
+  series: UsageBucket[];
+  start: string;
+  step: AdminUsageReportStep;
+  totals: UsageTotals;
+  totals_only_before: string | null;
+}
+
+/**
+ * Notional cost per million tokens, as on a comparable cloud API (admin-editable).
+ */
+export interface RatesInput {
+  /** @pattern ^[A-Z]{3}$ */
+  currency?: string;
+  input_per_million: number | string;
+  output_per_million: number | string;
+  updated_at?: string | null;
+  updated_by?: string | null;
 }
 
 export interface Now {
   now_ms: number;
 }
+
+/**
+ * An installed model, as listed by ``GET /v1/models``.
+ */
+export interface ModelInfo {
+  default: boolean;
+  id: string;
+  loaded: boolean;
+  thinks: boolean;
+}
+
+export type UsageReportByKind = {[key: string]: UsageTotals};
+
+export type UsageReportStep = typeof UsageReportStep[keyof typeof UsageReportStep];
+
+
+export const UsageReportStep = {
+  '5_minutes': '5 minutes',
+  '1_hour': '1 hour',
+  '1_day': '1 day',
+  '7_days': '7 days',
+  '30_days': '30 days',
+} as const;
+
+/**
+ * Usage between ``start`` and ``end``: totals, a series in ``step`` buckets (local time), per kind.
+ */
+export interface UsageReport {
+  by_kind: UsageReportByKind;
+  end: string;
+  series: UsageBucket[];
+  start: string;
+  step: UsageReportStep;
+  totals: UsageTotals;
+  totals_only_before: string | null;
+}
+
+export type PreviewOfficeSettingsParams = {
+  default_access?: PreviewOfficeSettingsDefaultAccess;
+  apply_to?: PreviewOfficeSettingsApplyTo;
+  conversations_keep?: PreviewOfficeSettingsConversationsKeep;
+};
+
+export type PreviewOfficeSettingsDefaultAccess = typeof PreviewOfficeSettingsDefaultAccess[keyof typeof PreviewOfficeSettingsDefaultAccess] | null;
+
+
+export const PreviewOfficeSettingsDefaultAccess = {
+  office: 'office',
+  members: 'members',
+} as const;
+
+export type PreviewOfficeSettingsApplyTo = typeof PreviewOfficeSettingsApplyTo[keyof typeof PreviewOfficeSettingsApplyTo];
+
+
+export const PreviewOfficeSettingsApplyTo = {
+  new: 'new',
+  all: 'all',
+} as const;
+
+export type PreviewOfficeSettingsConversationsKeep = typeof PreviewOfficeSettingsConversationsKeep[keyof typeof PreviewOfficeSettingsConversationsKeep] | null;
+
+
+export const PreviewOfficeSettingsConversationsKeep = {
+  '6m': '6m',
+  '1y': '1y',
+  '5y': '5y',
+  manual: 'manual',
+} as const;
+
+export type GetOfficeUsageParams = {
+  start?: string | null;
+  end?: string | null;
+};
+
+export type GetMyUsageParams = {
+  start?: string | null;
+  end?: string | null;
+};
 
 const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
   const seen = new Set<string>();
@@ -108,6 +360,213 @@ const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string 
   }
   return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
 };
+
+export type getOfficeSettingsResponse200 = {
+  data: SettingsOut
+  status: 200
+}
+
+export type getOfficeSettingsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getOfficeSettingsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getOfficeSettingsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getOfficeSettingsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getOfficeSettingsResponseSuccess = (getOfficeSettingsResponse200) & {
+  headers: Headers;
+};
+export type getOfficeSettingsResponseError = (getOfficeSettingsResponse401 | getOfficeSettingsResponse403 | getOfficeSettingsResponse500 | getOfficeSettingsResponse503) & {
+  headers: Headers;
+};
+
+export type getOfficeSettingsResponse = (getOfficeSettingsResponseSuccess | getOfficeSettingsResponseError)
+
+export const getGetOfficeSettingsUrl = () => {
+
+
+
+
+  return `/v1/admin/cases/settings`
+}
+
+/**
+ * Administrators: the office's settings as they apply now: the default access of a new case,
+ * how long closed cases are kept, and how long saved conversations are kept (the data lifecycle,
+ * suveryn-tracker#31). As provisioned, until changed here.
+ * @summary Get Office Settings
+ */
+export const getOfficeSettings = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getOfficeSettingsResponse> => {
+
+  return gatewayFetch<getOfficeSettingsResponse>(getGetOfficeSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type updateOfficeSettingsResponse200 = {
+  data: SettingsOut
+  status: 200
+}
+
+export type updateOfficeSettingsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type updateOfficeSettingsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type updateOfficeSettingsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type updateOfficeSettingsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type updateOfficeSettingsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type updateOfficeSettingsResponseSuccess = (updateOfficeSettingsResponse200) & {
+  headers: Headers;
+};
+export type updateOfficeSettingsResponseError = (updateOfficeSettingsResponse401 | updateOfficeSettingsResponse403 | updateOfficeSettingsResponse422 | updateOfficeSettingsResponse500 | updateOfficeSettingsResponse503) & {
+  headers: Headers;
+};
+
+export type updateOfficeSettingsResponse = (updateOfficeSettingsResponseSuccess | updateOfficeSettingsResponseError)
+
+export const getUpdateOfficeSettingsUrl = () => {
+
+
+
+
+  return `/v1/admin/cases/settings`
+}
+
+/**
+ * Administrators: change the default access (``office`` or ``members``), the keep period of
+ * closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).
+ * Takes effect at once for new cases and for cases closed from now on; a case already closed keeps
+ * its date (extend or keep it from the case). The conversations period applies to every saved
+ * conversation from its last change: shortening it hides the older ones from lists at once and deletes them when it is saved (and by the hourly sweep).
+ *
+ * Opening the default access to the office applies to new cases (``apply_to: new``: the existing ones
+ * stay with their members, restricted, and a manager can open one) or to all of them (``all``: every case,
+ * restricted ones too, each with a line in its access log). Closing it to the members applies to every
+ * case that follows the default. Strictly confidential cases never change: their members decide.
+ * @summary Update Office Settings
+ */
+export const updateOfficeSettings = async (settingsIn: SettingsIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<updateOfficeSettingsResponse> => {
+
+  return gatewayFetch<updateOfficeSettingsResponse>(getUpdateOfficeSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(settingsIn)
+  }
+);}
+
+
+
+export type previewOfficeSettingsResponse200 = {
+  data: SettingsPreview
+  status: 200
+}
+
+export type previewOfficeSettingsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type previewOfficeSettingsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type previewOfficeSettingsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type previewOfficeSettingsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type previewOfficeSettingsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type previewOfficeSettingsResponseSuccess = (previewOfficeSettingsResponse200) & {
+  headers: Headers;
+};
+export type previewOfficeSettingsResponseError = (previewOfficeSettingsResponse401 | previewOfficeSettingsResponse403 | previewOfficeSettingsResponse422 | previewOfficeSettingsResponse500 | previewOfficeSettingsResponse503) & {
+  headers: Headers;
+};
+
+export type previewOfficeSettingsResponse = (previewOfficeSettingsResponseSuccess | previewOfficeSettingsResponseError)
+
+export const getPreviewOfficeSettingsUrl = (params?: PreviewOfficeSettingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/admin/cases/settings/preview?${stringifiedParams}` : `/v1/admin/cases/settings/preview`
+}
+
+/**
+ * Administrators: what saving these settings would do now, for the confirmation in Settings: how many
+ * cases become visible to everyone in the office or to their members only, and how many saved
+ * conversations a shorter keep period deletes. Counts only.
+ * @summary Preview Office Settings
+ */
+export const previewOfficeSettings = async (params?: PreviewOfficeSettingsParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<previewOfficeSettingsResponse> => {
+
+  return gatewayFetch<previewOfficeSettingsResponse>(getPreviewOfficeSettingsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 
 export type createClockRequestResponse202 = {
   data: SetAnswer
@@ -248,6 +707,200 @@ export const getClockRequest = async (rid: string, options?: Parameters<typeof g
 
 
 
+export type getOfficeUsageResponse200 = {
+  data: AdminUsageReport
+  status: 200
+}
+
+export type getOfficeUsageResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getOfficeUsageResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getOfficeUsageResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getOfficeUsageResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getOfficeUsageResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getOfficeUsageResponseSuccess = (getOfficeUsageResponse200) & {
+  headers: Headers;
+};
+export type getOfficeUsageResponseError = (getOfficeUsageResponse401 | getOfficeUsageResponse403 | getOfficeUsageResponse422 | getOfficeUsageResponse500 | getOfficeUsageResponse503) & {
+  headers: Headers;
+};
+
+export type getOfficeUsageResponse = (getOfficeUsageResponseSuccess | getOfficeUsageResponseError)
+
+export const getGetOfficeUsageUrl = (params?: GetOfficeUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/admin/usage?${stringifiedParams}` : `/v1/admin/usage`
+}
+
+/**
+ * Administrators: the office's token usage, per user and in total, with a notional cloud cost.
+ * @summary Get Office Usage
+ */
+export const getOfficeUsage = async (params?: GetOfficeUsageParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<getOfficeUsageResponse> => {
+
+  return gatewayFetch<getOfficeUsageResponse>(getGetOfficeUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type getUsageRatesResponse200 = {
+  data: RatesOutput
+  status: 200
+}
+
+export type getUsageRatesResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getUsageRatesResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getUsageRatesResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getUsageRatesResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getUsageRatesResponseSuccess = (getUsageRatesResponse200) & {
+  headers: Headers;
+};
+export type getUsageRatesResponseError = (getUsageRatesResponse401 | getUsageRatesResponse403 | getUsageRatesResponse500 | getUsageRatesResponse503) & {
+  headers: Headers;
+};
+
+export type getUsageRatesResponse = (getUsageRatesResponseSuccess | getUsageRatesResponseError)
+
+export const getGetUsageRatesUrl = () => {
+
+
+
+
+  return `/v1/admin/usage/rates`
+}
+
+/**
+ * Administrators: the rates the notional cost uses, per million input and output tokens.
+ * @summary Get Usage Rates
+ */
+export const getUsageRates = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getUsageRatesResponse> => {
+
+  return gatewayFetch<getUsageRatesResponse>(getGetUsageRatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type setUsageRatesResponse200 = {
+  data: RatesOutput
+  status: 200
+}
+
+export type setUsageRatesResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setUsageRatesResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setUsageRatesResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setUsageRatesResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setUsageRatesResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setUsageRatesResponseSuccess = (setUsageRatesResponse200) & {
+  headers: Headers;
+};
+export type setUsageRatesResponseError = (setUsageRatesResponse401 | setUsageRatesResponse403 | setUsageRatesResponse422 | setUsageRatesResponse500 | setUsageRatesResponse503) & {
+  headers: Headers;
+};
+
+export type setUsageRatesResponse = (setUsageRatesResponseSuccess | setUsageRatesResponseError)
+
+export const getSetUsageRatesUrl = () => {
+
+
+
+
+  return `/v1/admin/usage/rates`
+}
+
+/**
+ * Administrators: change the rates (e.g. to a cloud model the office would otherwise use).
+ * @summary Set Usage Rates
+ */
+export const setUsageRates = async (ratesInput: RatesInput, options?: Parameters<typeof gatewayFetch>[1]): Promise<setUsageRatesResponse> => {
+
+  return gatewayFetch<setUsageRatesResponse>(getSetUsageRatesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(ratesInput)
+  }
+);}
+
+
+
 export type getClockResponse200 = {
   data: Now
   status: 200
@@ -367,5 +1020,140 @@ export const reportClockMeasurement = async (measured: Measured, options?: Param
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(measured)
+  }
+);}
+
+
+
+export type listModelsResponse200 = {
+  data: ModelInfo[]
+  status: 200
+}
+
+export type listModelsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listModelsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listModelsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listModelsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listModelsResponseSuccess = (listModelsResponse200) & {
+  headers: Headers;
+};
+export type listModelsResponseError = (listModelsResponse401 | listModelsResponse403 | listModelsResponse500 | listModelsResponse503) & {
+  headers: Headers;
+};
+
+export type listModelsResponse = (listModelsResponseSuccess | listModelsResponseError)
+
+export const getListModelsUrl = () => {
+
+
+
+
+  return `/v1/models`
+}
+
+/**
+ * The models installed on this appliance, which one is the default, and which is loaded now.
+ *
+ * Choosing a model that isn't loaded makes the next answer wait while it loads (seconds when
+ * it was used recently, up to about half a minute otherwise), and other people's questions
+ * wait too: the GPU holds one model at a time.
+ * @summary List Models
+ */
+export const listModels = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listModelsResponse> => {
+
+  return gatewayFetch<listModelsResponse>(getListModelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type getMyUsageResponse200 = {
+  data: UsageReport
+  status: 200
+}
+
+export type getMyUsageResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getMyUsageResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getMyUsageResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getMyUsageResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getMyUsageResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getMyUsageResponseSuccess = (getMyUsageResponse200) & {
+  headers: Headers;
+};
+export type getMyUsageResponseError = (getMyUsageResponse401 | getMyUsageResponse403 | getMyUsageResponse422 | getMyUsageResponse500 | getMyUsageResponse503) & {
+  headers: Headers;
+};
+
+export type getMyUsageResponse = (getMyUsageResponseSuccess | getMyUsageResponseError)
+
+export const getGetMyUsageUrl = (params?: GetMyUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/usage?${stringifiedParams}` : `/v1/usage`
+}
+
+/**
+ * The caller's own token usage between ``start`` and ``end`` (ISO 8601 with a time zone;
+ * default: the last 24 hours): totals, a series of buckets in local time, per kind. Never a colleague's.
+ * @summary Get My Usage
+ */
+export const getMyUsage = async (params?: GetMyUsageParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<getMyUsageResponse> => {
+
+  return gatewayFetch<getMyUsageResponse>(getGetMyUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}

@@ -168,8 +168,8 @@ describe("product name", () => {
 
 describe("model picker", () => {
   const models = [
-    { id: "mistral-small-3.2-24b", loaded: false, default: false },
-    { id: "qwen3.8-27b", loaded: true, default: true },
+    { id: "mistral-small-3.2-24b", loaded: false, default: false, thinks: false },
+    { id: "qwen3.8-27b", loaded: true, default: true, thinks: true },
   ];
   it("answers with the default until another model is chosen", async () => {
     const { defaultModel } = await import("../components/ModelPicker");

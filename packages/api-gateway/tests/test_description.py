@@ -81,7 +81,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"clock"}
+STRICT = {"clock", "models", "settings", "usage"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
