@@ -11,6 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from suveryn_playbooks import CASE_TYPES, case_type
 
 from ..cases import (
+    KeepPeriod,
     KEEP_PERIODS,
     AdminCase,
     Case,
@@ -361,7 +362,7 @@ async def get_office_settings(request: Request):
 @settings_routes.get("/v1/admin/cases/settings/preview", response_model=SettingsPreview, responses=refusals())
 async def preview_office_settings(request: Request, default_access: Literal["office", "members"] | None = None,
                                 apply_to: Literal["new", "all"] = "new",
-                                conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None):
+                                conversations_keep: KeepPeriod | None = None):
     """Administrators: what saving these settings would do now, for the confirmation in Settings: how many
     cases become visible to everyone in the office or to their members only, and how many saved
     conversations a shorter keep period deletes. Counts only."""

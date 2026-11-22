@@ -4,14 +4,13 @@ Public (no session needed): these are how one gets a session. The middleware tha
 is in ``app.py``.
 """
 
-from typing import Literal
-
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
 from fastapi.responses import JSONResponse, RedirectResponse
 from suveryn_playbooks import LANGUAGES
 
 from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError
+from ..cases import KeepPeriod
 from ..description import Answer
 from ..problems import refusals
 from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
@@ -30,7 +29,7 @@ class Me(Answer):
     sub: str = ""        # the Keycloak id: what owns documents and conversations, and whom a shared one names
     admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
     office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
-    cases_keep: Literal["6m", "1y", "5y", "manual"] = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
+    cases_keep: KeepPeriod = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
     avatar: str | None = None   # the ETag of the user's picture, None without one (initials are shown)
     account_url: str | None = None  # Keycloak's account console (password, second factor): the settings dialog links to it
     office_name: str | None = None  # the office's name (Administration › Settings), after the person's name in the column
@@ -79,8 +78,8 @@ async def callback(request: Request, code: str | None = None, state: str | None 
 
 
 class SignedOut(Answer):
-    """What ending the session answers: where the browser goes to end the sign-in service's session too (None with
-    sign-in off, or when there was no session)."""
+    """What ending the session answers: where the browser goes to end the sign-in service's session too. None with
+    sign-in off, while the sign-in service can't be asked, or when it has no address for ending a session."""
 
     logout_url: str | None
 

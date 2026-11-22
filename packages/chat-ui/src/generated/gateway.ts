@@ -6,8 +6,8 @@
  */
 import { gatewayFetch } from '../lib/gateway';
 /**
- * What ending the session answers: where the browser goes to end the sign-in service's session too (None with
- * sign-in off, or when there was no session).
+ * What ending the session answers: where the browser goes to end the sign-in service's session too. None with
+ * sign-in off, while the sign-in service can't be asked, or when it has no address for ending a session.
  */
 export interface SignedOut {
   logout_url: string | null;

@@ -231,6 +231,122 @@
   "media_type": "text/event-stream",
   "status": 200
  },
+ "stream_thorough": {
+  "body": [
+   {
+    "data": {
+     "complete": null,
+     "model": null,
+     "passages": null,
+     "step": "searching"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "citations": [
+      {
+       "context": null,
+       "source": {
+        "decimals": null,
+        "document_id": "00000000-0000-4000-8000-000000000001",
+        "location": "p. 2 · Artikel 2",
+        "page": 2
+       },
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ]
+    },
+    "event": "sources"
+   },
+   {
+    "data": {
+     "complete": true,
+     "model": null,
+     "passages": 1,
+     "step": "reading"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "complete": null,
+     "model": null,
+     "passages": null,
+     "step": "thinking"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "text": "Article 2 gives the price."
+    },
+    "event": "thinking"
+   },
+   {
+    "data": {
+     "text": "The price is EUR 412.500,00 [1]."
+    },
+    "event": "delta"
+   },
+   {
+    "data": {
+     "answer": "The price is EUR 412.500,00 [1].",
+     "asked_again": false,
+     "calculations": [],
+     "citation_issues": [],
+     "citations": [
+      {
+       "context": null,
+       "source": {
+        "decimals": null,
+        "document_id": "00000000-0000-4000-8000-000000000001",
+        "location": "p. 2 · Artikel 2",
+        "page": 2
+       },
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "complete": true,
+     "finish_reason": "stop",
+     "id": "chat-00000000000040008000000000000003",
+     "instruction_like_sources": [],
+     "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+     "narrowed_to": null,
+     "reasoning": "Article 2 gives the price.",
+     "support_spans": [
+      {
+       "facts": [
+        [
+         26,
+         36
+        ]
+       ],
+       "how": "words",
+       "marker": 0,
+       "n": 1,
+       "ranges": [
+        [
+         0,
+         37
+        ]
+       ]
+      }
+     ],
+     "thinking_cut": false,
+     "thought_seconds": 0.0,
+     "unverified_figures": [],
+     "usage": {
+      "completion_tokens": 0,
+      "prompt_tokens": 0
+     }
+    },
+    "event": "done"
+   }
+  ],
+  "media_type": "text/event-stream",
+  "status": 200
+ },
  "too_many": {
   "body": {
    "code": "request.too_many",

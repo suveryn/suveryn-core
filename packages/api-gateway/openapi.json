@@ -5451,7 +5451,7 @@
     "type": "object"
    },
    "SignedOut": {
-    "description": "What ending the session answers: where the browser goes to end the sign-in service's session too (None with\nsign-in off, or when there was no session).",
+    "description": "What ending the session answers: where the browser goes to end the sign-in service's session too. None with\nsign-in off, while the sign-in service can't be asked, or when it has no address for ending a session.",
     "properties": {
      "logout_url": {
       "anyOf": [
@@ -12275,7 +12275,7 @@
         }
        },
        "text/event-stream": {
-        "schema": {
+        "itemSchema": {
          "oneOf": [
           {
            "properties": {

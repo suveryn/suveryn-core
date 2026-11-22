@@ -2024,6 +2024,12 @@ def test_every_answer_of_answers_is_what_the_description_says(office):
     assert r.json()["code"] == "answer.document_not_found"
     assert check("POST", chat, 403, json={**ask, "case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
 
+    def away(*_, **__):
+        raise DocumentsUnavailable("the documents can't be searched")
+    found, docs.retrieve = docs.retrieve, away
+    assert check("POST", chat, 503, json={**ask, "document_ids": [DOC]}, headers=alice).json()["code"] == "document.unavailable"
+    docs.retrieve = found
+
     plain = check("POST", chat, 200, keep="plain", tidy=tidy, json=ask, headers=alice).json()
     assert (plain["citations"], plain["calculations"], plain["complete"], plain["finish_reason"]) == ([], [], None, "stop")
     grounded = check("POST", chat, 200, keep="grounded", tidy=tidy, json={**ask, "document_ids": [DOC]}, headers=alice).json()
@@ -2037,9 +2043,6 @@ def test_every_answer_of_answers_is_what_the_description_says(office):
     assert check.kept.answers["stream"]["body"][-1]["data"]["answer"] == grounded["answer"]
 
     # a stream that can't be completed ends with why, as a code of the registry
-    def away(*_, **__):
-        raise DocumentsUnavailable("the documents can't be searched")
-    found = docs.retrieve
     docs.retrieve = away
     check("POST", chat, 200, keep="stream_failed", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True}, headers=alice)
     docs.retrieve = found
@@ -2057,7 +2060,24 @@ def test_every_answer_of_answers_is_what_the_description_says(office):
         check2("POST", chat, 200, json=ask, headers=alice2)
         assert check2("POST", chat, 429, keep="too_many", json=ask, headers=alice2).json()["code"] == "request.too_many"
         check.seen |= check2.seen
+    # *Thorough*: the model thinks first, and its reasoning comes as events of its own, never in the answer
+    thinks = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text="<think>Article 2 gives the price.</think>The price is EUR 412.500,00 [1]."))
+    with TestClient(create_app(thinks, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth)) as c3:
+        check3 = Checked(c3, "answers")
+        check3.kept = check.kept
+        check3("POST", chat, 200, keep="stream_thorough", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True, "thinking": True}, headers=as_user(kc2, ALICE))
+    thorough = check.kept.answers["stream_thorough"]["body"]
+    assert [e["data"]["text"] for e in thorough if e["event"] == "thinking"] == ["Article 2 gives the price."] and thorough[-1]["data"]["reasoning"]
     check.kept.check()
-    # not seen here, each for a reason: what nobody planned for (500); sign-in, the model or the documents down
-    # (503: test_auth.py, test_documents.py)
-    assert {status for _, _, status in check.not_seen()} <= {500, 503}
+    assert {status for _, _, status in check.not_seen()} == {500}  # what nobody planned for
+
+
+def test_the_keep_periods_are_one_list():
+    """A period is asked and answered as a fixed list (``KeepPeriod``) and counted by ``KEEP_PERIODS``: one added to
+    the one and not the other would refuse a setting the office has, or fail who is signed in."""
+    from typing import get_args
+
+    from suveryn_api_gateway.cases import KEEP_PERIODS, KeepPeriod
+
+    assert get_args(KeepPeriod) == tuple(KEEP_PERIODS)
+

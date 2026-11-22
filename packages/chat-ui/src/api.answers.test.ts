@@ -60,6 +60,16 @@ describe("an answer as a stream", () => {
     expect(sent).toEqual([asked("POST", "/v1/chat", { messages: QUESTION, document_ids: ["d1"], stream: true, max_tokens: 3000, model: "Qwen", case_id: "c1" })]);
   });
 
+  it("of a model that thinks first gives its reasoning apart, as it comes, never in the answer's words", async () => {
+    const sent = gatewayAnswers(stream(answers.stream_thorough.body));
+    const [thought, words]: [string[], string[]] = [[], []];
+    const answer = await streamChat(QUESTION, ["d1"], (text) => words.push(text), undefined, null, undefined, null, undefined,
+      { on: true, onText: (text) => thought.push(text) });
+    expect([thought.join(""), answer.reasoning, words.join("").includes("Article 2 gives"), answer.answer]).toEqual([
+      "Article 2 gives the price.", "Article 2 gives the price.", false, words.join("")]);
+    expect(sent[0].body).toEqual({ messages: QUESTION, document_ids: ["d1"], stream: true, max_tokens: 3000, thinking: true });
+  });
+
   it("that can't be completed fails with why, as the code's words, and keeps the message itself", async () => {
     gatewayAnswers(stream(answers.stream_failed.body));
     const e = await failure(streamChat(QUESTION, ["d1"], () => {}));
@@ -84,7 +94,7 @@ describe("an answer as a stream", () => {
 
   it("has the events the gateway's description names, each read as its own shape", () => {
     const described = JSON.parse(readFileSync(new URL("../../api-gateway/openapi.json", import.meta.url), "utf8"));
-    const one = described.paths["/v1/chat"].post.responses["200"].content["text/event-stream"].schema.oneOf as { properties: { event: { const: string } } }[];
+    const one = described.paths["/v1/chat"].post.responses["200"].content["text/event-stream"].itemSchema.oneOf as { properties: { event: { const: string } } }[];
     expect(one.map((event) => event.properties.event.const)).toEqual(ANSWER_EVENTS);
     expect(answers.stream.body.map((e) => e.event).filter((name) => !ANSWER_EVENTS.includes(name))).toEqual([]);
   });

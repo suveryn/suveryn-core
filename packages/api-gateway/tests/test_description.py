@@ -191,18 +191,24 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
 
-# A shape of a strict area that is still "any object", named with what describes it later: a step of #159 of its own.
+# A shape of a strict area that is still "any object", named with what it is: describing them is suveryn-tracker#250.
 LATER = {"CaseEvent.detail": "what each line of the access log records (its actions and their details), for every area that writes one",
-         "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): with the answer stream and the playbooks",
+         "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): in a conversation the chat UI saved",
          "SavedTurn": "the same, as the chat UI saves it",
-         "Turn.meta": "what a turn of a run's thread holds (its kind and facts, turn_kinds.json): with the thread's events",
-         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): with the same step",
-         "AnswerContent": "what rebuilds a saved answer's file, the chat UI's own data (an answer, its sources and checks): with the answer stream",
+         "Turn.meta": "what a turn of a run's thread holds (its kind and facts, turn_kinds.json): written by the server",
+         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): ",
+         "AnswerContent": "what rebuilds a saved answer's file, the chat UI's own data (an answer, its sources and checks)",
          "SavedCitation": "the same", "SavedCitation.source": "the same", "DocumentContent.content": "the same, as it is read back"}
 
 
 # What is "any object" by its nature, and stays so.
 ANY = {"ChatRequest.json_schema": "a JSON Schema the answer must have the shape of (a playbook's read): any object is what a schema is"}
+
+
+def shape(content: dict) -> dict:
+    """What one media type of an answer or a body holds: its schema, or for a stream of events what one event is."""
+    assert ("schema" in content) != ("itemSchema" in content), content
+    return content.get("schema") or content["itemSchema"]
 
 
 def test_a_strict_operation_leaves_nothing_undescribed():
@@ -236,7 +242,7 @@ def test_a_strict_operation_leaves_nothing_undescribed():
     for method, path, op in strict_operations():
         assert any(str(s).startswith("2") for s in op["responses"])
         parts = [op.get("requestBody", {}), *op["responses"].values()]
-        schemas_used = [c["schema"] for part in parts for c in part.get("content", {}).values()]
+        schemas_used = [shape(c) for part in parts for c in part.get("content", {}).values()]
         schemas_used += [p["schema"] for p in op.get("parameters", [])]
         left = set(loose(schemas_used, frozenset(), f"{method} {path}")) - set(LATER) - set(ANY)
         assert not left, f"{method} {path}: {sorted(left)}"
@@ -268,7 +274,7 @@ def test_a_strict_operation_describes_every_member_of_an_answer_as_always_there(
 
     answers = set()
     for _, _, op in strict_operations():
-        answers |= named([c["schema"] for r in op["responses"].values() for c in r.get("content", {}).values()], frozenset())
+        answers |= named([shape(c) for r in op["responses"].values() for c in r.get("content", {}).values()], frozenset())
     assert {"SetAnswer", "UsageReport", "ModelInfo", "ProblemDetails"} <= answers
     optional = {(name, member) for name in answers for member in schemas[name].get("properties", {})
                 if member not in schemas[name].get("required", [])}

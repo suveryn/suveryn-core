@@ -52,7 +52,7 @@ def answer_is_described(response, method: str, path: str) -> None:
     assert media_type in content, f"{where}: sent as {media_type!r}, described as {sorted(content)}"
     if media_type == "text/event-stream":  # a stream of events: each one is what the description says one is
         for n, event in enumerate(events_of(response.text)):
-            said = [one for one in content[media_type]["schema"]["oneOf"] if one["properties"]["event"]["const"] == event["event"]]
+            said = [one for one in content[media_type]["itemSchema"]["oneOf"] if one["properties"]["event"]["const"] == event["event"]]
             assert len(said) == 1, f"{where}: event {n} is {event['event']!r}, which the description doesn't name"
             schema = {**_closed(copy.deepcopy(said[0]["properties"]["data"]["contentSchema"])), "components": COMPONENTS}
             errors = sorted(f"{'/'.join(map(str, e.absolute_path)) or 'the data'}: {e.message}" for e in Draft202012Validator(schema).iter_errors(event["data"]))

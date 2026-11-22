@@ -55,13 +55,11 @@ EVENTS: dict[str, type[BaseModel]] = {"status": StreamStatus, "sources": StreamS
 
 
 def events_described(description: dict) -> dict:
-    """The description with the answer stream's events in it: under ``text/event-stream``, what one event is: its
-    name, and its data as JSON of that event's shape (``contentSchema``), as FastAPI describes its own event
-    streams. FastAPI describes what a route returns; a stream written by hand it can't, so this does.
-
-    The shape of one event stands under ``schema``. OpenAPI 3.2 has a place of its own for it (``itemSchema``), and
-    the description is OpenAPI 3.1 (FastAPI's), which the chat UI's generator holds it to: it moves there when the
-    description becomes 3.2."""
+    """The description with the answer stream's events in it: under ``text/event-stream``, what one event is
+    (``itemSchema``, OpenAPI 3.2's place for it, where FastAPI puts it for its own event streams): its name, and its
+    data as JSON of that event's shape (``contentSchema``). FastAPI describes what a route returns; a stream written
+    by hand it can't, so this does. The chat UI's generator reads OpenAPI 3.1 and is handed the same under
+    ``schema`` (packages/chat-ui/orval.config.ts)."""
     from pydantic.json_schema import models_json_schema
 
     place = "#/components/schemas/{model}"
@@ -77,7 +75,7 @@ def events_described(description: dict) -> dict:
     answered["description"] = ("The answer. With stream=true, as events: zero or more `status`, for a grounded answer one `sources`, with "
                                "`thinking` true and a model that can think zero or more `thinking`, zero or more `delta`, then one `done` "
                                "(the whole answer) or one `error`. Closing the connection stops the answer: the model stops writing.")
-    answered["content"]["text/event-stream"] = {"schema": {"oneOf": one, "title": "One event of the answer stream"}}
+    answered["content"]["text/event-stream"] = {"itemSchema": {"oneOf": one, "title": "One event of the answer stream"}}
     return description
 
 
@@ -154,7 +152,6 @@ class StopOnDisconnect(StreamingResponse):
 
 
 def _sse(event: str, payload: BaseModel) -> str:
-    assert isinstance(payload, EVENTS[event]), event  # an event is said as it is described
     return f"event: {event}\ndata: {payload.model_dump_json()}\n\n"
 
 

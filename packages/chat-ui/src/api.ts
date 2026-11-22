@@ -13,7 +13,7 @@ import * as gateway from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
 /** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
- *  have it. What a turn holds is described with the turns themselves, a later step (suveryn-tracker#159); until then
+ *  have it. What a turn holds isn't described yet (suveryn-tracker#250); until then
  *  the screens read a turn's passages, calculations and marks through these. */
 type Kept<Shape, Lacking extends keyof Shape> = Omit<Shape, Lacking> & Partial<Pick<Shape, Lacking>>;
 type SourceRef = Kept<gateway.SourceRef, "decimals">;
@@ -286,7 +286,7 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
 /** A conversation with its turns. What a turn holds is the screens' own type until the gateway describes it, with the
- *  answer stream and the playbooks (suveryn-tracker#159). */
+ *  gateway's own description of it (suveryn-tracker#250). */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
@@ -474,7 +474,7 @@ export type PlaybookInfo = gateway.PlaybookOut;
  *  notary) only; `allow_none`: at a request, a person may answer that there is no such document. */
 export type PlaybookStep = gateway.StepOut;
 /** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount from a share.
- *  The screens' own type until the gateway describes it (suveryn-tracker#159). */
+ *  The screens' own type until the gateway describes it (suveryn-tracker#250). */
 export type TermComputed = { kind?: undefined; written: string; from: string; base: string; date: string; amount: number;
                              unit: "day" | "week" | "month" | "year" | "workday"; direction: "after" | "before";
                              /** working days: the pack's calendar, its name per language */
@@ -635,7 +635,7 @@ export const confirmAsSource = async (documentId: string, caseId?: string | null
 };
 /** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source. Saving the
  *  same answer again gives the document already saved (`created` false). What it holds (`content`) is the screens'
- *  own type until the gateway describes it, with the answer stream (suveryn-tracker#159). */
+ *  own type until the gateway describes it (suveryn-tracker#250). */
 export const saveAnswerToCase = (caseId: string, body: Omit<gateway.SaveAnswerIn, "content"> & { content: SavedAnswer }) =>
   answered(gateway.saveAnswerAsDocument(encodeURIComponent(caseId), body));
 /** What rebuilds a document sūveryn made (a saved answer's Word file). */
