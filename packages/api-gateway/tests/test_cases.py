@@ -1767,3 +1767,102 @@ def test_every_answer_of_cases_is_what_the_description_says(office):
             status == 403 and (method, path) in {("GET", "/v1/case-types"), ("GET", "/v1/cases"), ("POST", "/v1/cases"), ("GET", "/v1/cases/overview"),
                                                  ("GET", one), ("GET", members), ("PUT", one + "/pin")}), (method, path, status)
     assert {s for _, _, s in check.seen} == {200, 201, 204, 401, 403, 404, 409, 422}
+
+
+def test_every_answer_of_conversations_is_what_the_description_says(office):
+    """The chat UI's code for conversations is generated from the description (suveryn-tracker#246): each answer
+    the operations give, the refusals too, is checked against it and kept for the chat UI's tests. Here and not
+    in test_conversations.py: sharing, moving and a pin need the cases."""
+    from described import Checked
+    from suveryn_api_gateway.conversations import MAX_BODY_BYTES
+
+    c, kc, _, _, _ = office
+    check, alice, bob, carla = Checked(c, "conversations"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
+    CASE, WHEN = "00000000-0000-4000-8000-0000000000c1", "2026-11-23T09:00:00Z"
+    OWN, BOBS, CARLAS, GONE = (f"00000000-0000-4000-8000-0000000000{n}" for n in ("a1", "a2", "a3", "ad"))
+    ids: dict[str, str] = {}
+
+    def same(body):  # this run's case and moments, wherever they are in an answer
+        if isinstance(body, list):
+            for item in body:
+                same(item)
+        elif isinstance(body, dict):
+            for key, value in body.items():
+                if key in ("created_at", "updated_at", "at") and value:
+                    body[key] = WHEN
+                elif isinstance(value, str) and value in ids:
+                    body[key] = ids[value]
+                else:
+                    same(value)
+
+    turns = [{"id": "t1", "role": "user", "text": "Wat is de koopprijs?"}, {"id": "t2", "role": "assistant", "text": "€ 345.000 [1]", "status": "done"}]
+    saved = {"title": "Wat is de koopprijs?", "turns": turns}
+    every, one = "/v1/conversations", "/v1/conversations/{conversation_id}"
+    with_id = [("DELETE", one, "", {}), ("GET", one, "", {}), ("PATCH", one, "", {"json": {"title": "x"}}), ("PUT", one, "", {"json": saved}),
+               ("POST", one + "/move", "/move", {"json": {"case_id": CASE}}), ("PUT", one + "/pin", "/pin", {"json": {"pinned": True}}),
+               ("POST", one + "/share", "/share", {"json": {"shared": True}})]
+    for method, path, at, sent in [("DELETE", every, None, {}), ("GET", every, None, {})]:
+        assert check(method, path, 401, at, **sent).json()["code"] == "auth.signed_out"
+    for method, path, rest, sent in with_id:
+        assert check(method, path, 401, f"{every}/{GONE}{rest}", **sent).json()["code"] == "auth.signed_out"
+        # what isn't a conversation id at all is refused before anything is looked up
+        r = check(method, path, 422, f"{every}/not-an-id{rest}", "not_a_conversation_id" if method == "GET" else None, headers=alice, **sent)
+        assert r.json()["code"] == "request.invalid"
+        if method != "PUT" or rest:  # one that doesn't exist, or isn't the caller's: the same answer (saving under a new id makes it)
+            r = check(method, path, 404, f"{every}/{GONE}{rest}", "no_such_conversation" if method == "GET" else None, headers=alice, **sent)
+            assert r.json()["code"] == "request.not_found"
+
+    assert check("GET", every, 200, keep="none", headers=alice).json() == []
+    check("PUT", one, 204, f"{every}/{OWN}", "done", json=saved, headers=alice)
+    assert "errors" in check("PUT", one, 422, f"{every}/{OWN}", json={**saved, "title": ""}, headers=alice).json()
+    long = check("PUT", one, 413, f"{every}/{OWN}", "too_long", content=b" " * (MAX_BODY_BYTES + 1), headers={**alice, "Content-Type": "application/json"})
+    assert long.json()["code"] == "conversation.too_long"
+    long = check("PUT", one + "/pin", 413, f"{every}/{OWN}/pin", content=b" " * (MAX_BODY_BYTES + 1), headers={**alice, "Content-Type": "application/json"})
+    assert long.json()["code"] == "conversation.too_long"  # the same limit, on every PUT under a conversation
+    assert check("PUT", one, 404, f"{every}/{OWN}", json=saved, headers=bob).json()["code"] == "request.not_found"  # another's: never saved over
+    opened = check("GET", one, 200, f"{every}/{OWN}", "one", tidy=same, headers=alice).json()
+    assert [t["text"] for t in opened["turns"]] == [t["text"] for t in turns] and opened["messages"] == 2
+    assert check("PATCH", one, 200, f"{every}/{OWN}", "renamed", tidy=same, json={"title": "De koopprijs"}, headers=alice).json()["title"] == "De koopprijs"
+    assert "errors" in check("PATCH", one, 422, f"{every}/{OWN}", json={"title": ""}, headers=alice).json()
+    assert check("PUT", one + "/pin", 200, f"{every}/{OWN}/pin", "pinned", tidy=same, json={"pinned": True}, headers=alice).json()["pinned"] is True
+    assert "errors" in check("PUT", one + "/pin", 422, f"{every}/{OWN}/pin", json={}, headers=alice).json()
+    assert [x["id"] for x in check("GET", every, 200, keep="mine", tidy=same, headers=alice).json()] == [OWN]
+
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    ids[cid] = CASE
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
+    check("PUT", one, 204, f"{every}/{BOBS}", json={**saved, "title": "Bob's", "case_id": cid}, headers=bob)
+    check("PUT", one, 204, f"{every}/{CARLAS}", json={**saved, "title": "Carla's", "case_id": cid}, headers=carla)
+    # in a case a conversation follows its case: no pin of its own
+    assert check("PUT", one + "/pin", 409, f"{every}/{BOBS}/pin", "in_a_case", json={"pinned": True}, headers=bob).json()["code"] == "conversation.in_case"
+    assert check("POST", one + "/share", 200, f"{every}/{BOBS}/share", "shared", tidy=same, json={"shared": True}, headers=bob).json()["shared"] is True
+    assert "errors" in check("POST", one + "/share", 422, f"{every}/{BOBS}/share", json={}, headers=bob).json()
+    # a reader changes nothing in the case: not what its members see either
+    assert check("POST", one + "/share", 403, f"{every}/{CARLAS}/share", "not_allowed", json={"shared": True}, headers=carla).json()["code"] == "case.not_allowed"
+    assert check("GET", one, 200, f"{every}/{BOBS}", tidy=same, headers=alice).json()["owner"] == BOB  # shared: Alice reads it
+    listed = check("GET", every, 200, f"{every}?all=true", "all", tidy=same, headers=alice).json()
+    assert {x["id"]: x["owner_name"] for x in listed} == {OWN: "", BOBS: "Bob Janssens"}
+    assert [x["id"] for x in check("GET", every, 200, f"{every}?case={cid}", headers=alice).json()] == [BOBS]
+    assert "errors" in check("GET", every, 422, f"{every}?all=perhaps", headers=alice).json()
+    assert check("GET", every, 404, f"{every}?case={GONE}", headers=alice).json()["code"] == "case.not_found"
+    assert "errors" in check("POST", one + "/move", 422, f"{every}/{OWN}/move", json={}, headers=alice).json()
+    moved = check("POST", one + "/move", 200, f"{every}/{OWN}/move", "moved", tidy=same, json={"case_id": cid}, headers=alice).json()
+    assert moved["case_id"] == cid and moved["pinned"] is False
+    assert check("POST", one + "/move", 409, f"{every}/{OWN}/move", json={"case_id": cid}, headers=alice).json()["code"] == "conversation.in_case"
+    check("PUT", one, 204, f"{every}/{GONE}", json=saved, headers=carla)  # her own, in her personal space
+    assert check("POST", one + "/move", 403, f"{every}/{GONE}/move", json={"case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
+    # in a strictly confidential case nothing is shared
+    c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
+    r = check("POST", one + "/share", 409, f"{every}/{BOBS}/share", "confidential_case", json={"shared": True}, headers=bob)
+    assert r.json()["code"] == "case.strictly_confidential"
+    check("DELETE", one, 204, f"{every}/{BOBS}", headers=bob)
+    assert check("DELETE", every, 200, keep="all_deleted", headers=alice).json() == {"deleted": 1}
+    check.kept.check()
+    # not seen here, each for a reason: what nobody planned for (500); sign-in or the conversations' store down
+    # (503: test_auth.py, test_conversations.py); and sign-in turned off for another machine, for what anyone
+    # signed in may do with a conversation of their own (403)
+    for method, path, status in check.not_seen():
+        assert status in (500, 503) or (status == 403 and (path == every or (method, path) in {
+            ("DELETE", one), ("GET", one), ("PATCH", one), ("PUT", one), ("PUT", one + "/pin")})), (method, path, status)
+    assert {s for _, _, s in check.seen} == {200, 204, 401, 403, 404, 409, 413, 422}

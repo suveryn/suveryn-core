@@ -7,17 +7,18 @@ from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 
-from ..conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from ..conversations import (
     Conversation,
     ConversationIn,
     ConversationSummary,
+    Deleted,
     MoveIn,
     PinIn,
     RenameIn,
     ShareIn,
     cited_documents,
 )
+from ..problems import refusals
 from .common import Scope, case_for, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
 router = APIRouter(tags=["conversations"])  # the group its operations are in, in the description (description.py)
@@ -30,7 +31,7 @@ def _conversation_id(conversation_id: str) -> uuid.UUID:
         raise Problem("request.invalid", "Not a conversation id.") from None
 
 
-@router.get("/v1/conversations", response_model=list[ConversationSummary])
+@router.get("/v1/conversations", response_model=list[ConversationSummary], responses=refusals(404, 422))
 async def list_conversations(request: Request, case: str | None = None, all: bool = False):
     """The caller's saved conversations in their personal space, or in the case ``case`` their own
     and the ones its members shared (``shared``, ``owner``), most recently changed first (titles
@@ -45,8 +46,7 @@ async def list_conversations(request: Request, case: str | None = None, all: boo
     return await run_in_threadpool(store.summaries, owner_of(request), scope.case_id)
 
 
-@router.get("/v1/conversations/{conversation_id}", response_model=Conversation,
-            responses={404: {"description": "Unknown, expired or another user's conversation"}})
+@router.get("/v1/conversations/{conversation_id}", response_model=Conversation, responses=refusals(404, 422))
 async def get_conversation(conversation_id: str, request: Request):
     """One of the caller's conversations with all its turns, or one shared with a case the caller
     may read (read-only for them: saving it answers 404)."""
@@ -64,10 +64,7 @@ async def get_conversation(conversation_id: str, request: Request):
     return found
 
 
-@router.post("/v1/conversations/{conversation_id}/share", response_model=ConversationSummary, responses={
-    403: {"description": "The case is closed, or the caller may not contribute to it"},
-    404: {"description": "Not the caller's conversation, or not in a case"},
-    409: {"description": "The case is strictly confidential"}})
+@router.post("/v1/conversations/{conversation_id}/share", response_model=ConversationSummary, responses=refusals(404, 409, 422))
 async def set_conversation_shared(conversation_id: str, body: ShareIn, request: Request):
     """Share one of the caller's conversations with its case (decision 12), or stop sharing it.
     Its owner only; a shared conversation is read-only for the case's other members. Noted in the
@@ -87,8 +84,7 @@ async def set_conversation_shared(conversation_id: str, body: ShareIn, request: 
     return changed
 
 
-@router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses={
-    404: {"description": "Not the caller's conversation"}})
+@router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses=refusals(404, 422))
 async def update_conversation(conversation_id: str, body: RenameIn, request: Request):
     """Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
     later saves, which otherwise name a conversation after its first question."""
@@ -99,8 +95,7 @@ async def update_conversation(conversation_id: str, body: RenameIn, request: Req
     return changed
 
 
-@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses={
-    404: {"description": "Not the caller's conversation"}, 409: {"description": "In a case: the case is pinned instead"}})
+@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 413, 422))
 async def set_conversation_pinned(conversation_id: str, body: PinIn, request: Request):
     """Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
     pin of its own: it follows its case. Personal, so not in any access log."""
@@ -113,10 +108,7 @@ async def set_conversation_pinned(conversation_id: str, body: PinIn, request: Re
     return await run_in_threadpool(store.set_pinned, cid, owner, body.pinned)
 
 
-@router.post("/v1/conversations/{conversation_id}/move", response_model=ConversationSummary, responses={
-    403: {"description": "The caller may not contribute to the case, or it is closed"},
-    404: {"description": "Not the caller's conversation, or an unknown case"},
-    409: {"description": "Already in a case"}})
+@router.post("/v1/conversations/{conversation_id}/move", response_model=ConversationSummary, responses=refusals(404, 409, 422))
 async def move_conversation(conversation_id: str, body: MoveIn, request: Request):
     """Move one of the caller's personal conversations into a case they contribute to (§4). It isn't
     shared, loses its own pin and follows the case; its questions and answers come along. Its
@@ -136,9 +128,7 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
     return moved
 
 
-@router.put("/v1/conversations/{conversation_id}", status_code=204, responses={
-    404: {"description": "The id belongs to another user's conversation"},
-    413: {"description": f"Larger than {MAX_CONVERSATION_BYTES // (1024 * 1024)} MB"}})
+@router.put("/v1/conversations/{conversation_id}", status_code=204, responses=refusals(404, 413, 422))
 async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):
     """Save the whole conversation under an id the client chose (a UUID): its turns' rows are brought in
     line with the body's. ``case_id`` puts a new conversation in that case (the caller must be able to
@@ -179,8 +169,7 @@ def _deleted_documents(request: Request, body: ConversationIn, scope: Scope):
     return lambda d: d not in existing
 
 
-@router.delete("/v1/conversations/{conversation_id}", status_code=204, responses={
-    404: {"description": "Not the caller's conversation, or a playbook run's (it goes with its case)"}})
+@router.delete("/v1/conversations/{conversation_id}", status_code=204, responses=refusals(404, 422))
 async def delete_conversation(conversation_id: str, request: Request):
     """Delete one of the caller's conversations. A playbook run's goes with its case: stop or cancel the run."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
@@ -190,7 +179,7 @@ async def delete_conversation(conversation_id: str, request: Request):
     return Response(status_code=204)
 
 
-@router.delete("/v1/conversations")
+@router.delete("/v1/conversations", response_model=Deleted, responses=refusals())
 async def delete_my_conversations(request: Request):
     """Delete all of the caller's conversations (the "Delete history" choice when signing out)."""
     store = history_or_503(request)

@@ -125,7 +125,8 @@ const ALL_DOCUMENTS = [
 
 // ---------- conversations ----------
 const conv = (id: string, title: string, when: number, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  id, title, created_at: ago(when + HOUR), updated_at: ago(when), case_id: null, owner: "u-test", messages: 2, ...extra,
+  id, title, created_at: ago(when + HOUR), updated_at: ago(when), case_id: null, owner: "u-test", messages: 2,
+  owner_name: "", pinned: false, run_id: null, shared: false, shielded: false, titles: null, ...extra,
 });
 export const CONVERSATION = conv("conv-clauses", "Akte van verkoop: nazicht clausules", 2 * HOUR, { case_id: "c123" });
 const CASE_CONVERSATIONS: ConversationSummary[] = [
