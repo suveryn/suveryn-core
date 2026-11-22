@@ -662,60 +662,13 @@ export type UsageReport = gateway.UsageReport;
 export type Rates = gateway.RatesOutput;
 export type OfficeUsageReport = gateway.AdminUsageReport;
 
-/** The appliance's backups (suveryn-tracker#33), as its backup service recorded them. */
-export interface BackupStatus {
-  available: boolean;
-  configured: boolean;
-  target?: "usb" | "share" | null;
-  retention_days?: number | null;
-  last_attempt?: string | null;
-  last_success: { at: string; size: number; on_target?: number | null; oldest?: string | null; disk?: string | null } | null;
-  /** The last backup that failed: when, and why as a message of the registry (`backup.disk_full`), worded on the page. */
-  last_error: { at: string; failure: Message } | null;
-  /** The administrator's last test of the recovery key: it opened the newest backup, every part there. */
-  key_test?: { at: string; ok: boolean; created?: string | null; failure?: Message | null; last_ok?: string | null } | null;
-  key_testing?: boolean;
-  /** A backup is being made, since then. */
-  running_since?: string | null;
-  /** Where, when and how long, as saved (Administration › Backups); never the share's password. */
-  settings?: BackupSettings | null;
-}
-
-export type BackupRetention = 14 | 30 | 90 | 365;
-export type BackupSettings = {
-  target: "usb" | "share"; disk: string | null; protocol: "smb" | "nfs" | null; address: string | null; user: string | null;
-  has_password: boolean; retention_days: BackupRetention; hour: number; recipient: string; next_run: string | null;
-};
-/** What Administration › Backups asks the appliance's backup service for (admin.md, artboard 36). */
-type BackupRequest =
-  | { kind: "run" } | { kind: "disks" }
-  | { kind: "test-share"; protocol: "smb" | "nfs"; address: string; user?: string | null; password?: string | null; keep_password?: boolean }
-  | { kind: "settings"; target: "usb" | "share"; disk?: string; protocol?: "smb" | "nfs"; address?: string; user?: string | null;
-      password?: string | null; keep_password?: boolean; retention_days: BackupRetention; hour: number; recipient?: string };
-export type BackupDisk = { id: string; name: string; size_bytes: number };
-type BackupAnswer = {
-  id: string; pending: boolean; ok: boolean | null;
-  /** Why not, as messages of the registry: one for the request, or one per field of the form. */
-  failure: Message | null; fields: Record<string, Message> | null;
-  disks: BackupDisk[] | null; key_changed: boolean | null;
-};
-
-/** Ask the backup service, then ask again every second until it has answered (at most ``seconds``). */
-export async function askBackupService(body: BackupRequest, seconds = 60): Promise<BackupAnswer> {
-  const r = await fetch("/v1/admin/backups/requests", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  if (!r.ok) throw await responseError(r);
-  const { id } = (await r.json()) as BackupAnswer;
-  for (let i = 0; i < seconds; i++) {
-    await new Promise((done) => setTimeout(done, 1000));
-    const a = await fetch(`/v1/admin/backups/requests/${encodeURIComponent(id)}`);
-    if (!a.ok) throw await responseError(a);
-    const answer = (await a.json()) as BackupAnswer;
-    if (!answer.pending) return answer;
-  }
-  throw new Error(messageText({ kind: "unavailable", code: "backup.unavailable" }, t()));
-}
+/** The appliance's backups (suveryn-tracker#33), as its backup service recorded them: the last one made and the last
+ *  that failed (why, as a message of the registry, worded on the page), the administrator's last test of the recovery
+ *  key, and where, when and how long as saved (never the share's password). */
+export type BackupStatus = gateway.BackupStatus;
+export type BackupSettings = gateway.BackupSettings;
+export type BackupRetention = BackupSettings["retention_days"];
+export type BackupDisk = gateway.Disk;
 
 /** Administration › Status (docs/design/admin.md): a check, counts only. ``since``: when it was first seen
  *  failing, while it fails. */
@@ -730,8 +683,10 @@ export type AdminStatus = gateway.AdminStatus;
  */
 export async function answered<A extends Answer>(call: Promise<A>): Promise<Extract<A, { status: 200 | 201 | 202 | 204 }>["data"]> {
   const { data, status } = await call;
+  const { empty } = await call;
   if (status >= 200 && status < 300) {
-    if (status === 204 || data !== undefined) return data as Extract<A, { status: 200 | 201 | 202 | 204 }>["data"];
+    // an answer to read; or nothing to read where there is nothing: done (204), or accepted and answered later (202)
+    if (data !== undefined || status === 204 || (status === 202 && empty)) return data as Extract<A, { status: 200 | 201 | 202 | 204 }>["data"];
     throw new HttpError(httpErrorText(502), status, problemOf(502, null));
   }
   if (status === 401) { signedOutHandler(); throw new SignedOut(); }
@@ -742,6 +697,25 @@ export async function answered<A extends Answer>(call: Promise<A>): Promise<Extr
 /** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
  *  into the address as the word. */
 type Asked<Query> = { [Name in keyof Query]?: NonNullable<Query[Name]> };
+
+/** Administration › Backups: what the backup service recorded. */
+export const getBackups = () => answered(gateway.getBackupStatus());
+
+/** Test the recovery key: the key file as the web setup downloaded it. The appliance checks that it opens
+ * the newest backup, restores nothing and deletes the key; getBackups() then has the result. */
+export const testRecoveryKey = (keyFile: string): Promise<void> => answered(gateway.testRecoveryKey(new Blob([keyFile])));
+
+/** Ask the backup service (admin.md, artboard 36), then ask again every second until it has answered (at most
+ *  ``seconds``). Why not, in its answer, as messages of the registry: one for the request, or one per field of the form. */
+export async function askBackupService(body: gateway.BackupRequest, seconds = 60): Promise<gateway.RequestAnswer> {
+  const { id } = await answered(gateway.createBackupRequest(body));
+  for (let i = 0; i < seconds; i++) {
+    await new Promise((done) => setTimeout(done, 1000));
+    const answer = await answered(gateway.getBackupRequest(encodeURIComponent(id)));
+    if (!answer.pending) return answer;
+  }
+  throw new Error(messageText({ kind: "unavailable", code: "backup.unavailable" }, t()));
+}
 
 /** Administration › Status (docs/design/admin.md): the six checks, counts only. */
 export const getAdminStatus = () => answered(gateway.getApplianceStatus());
@@ -812,20 +786,6 @@ export const accountDeletion = (sub: string) => accountCall<AccountDeletion>(`/$
 export const deleteAccount = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}`, "DELETE");
 export const listAccountEvents = (limit: number) => accountCall<AccountEvent[]>(`/events?limit=${limit}`, "GET");
 
-export async function getBackups(): Promise<BackupStatus> {
-  const r = await fetch("/v1/admin/backups");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Test the recovery key: the key file as the web setup downloaded it. The appliance checks that it opens
- * the newest backup, restores nothing and deletes the key; getBackups() then has the result. */
-export async function testRecoveryKey(keyFile: string): Promise<void> {
-  const r = await fetch("/v1/admin/backups/key-test", {
-    method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: keyFile,
-  });
-  if (!r.ok) throw await responseError(r);
-}
 
 
 // ---------------------------------------------------------------- playbooks (suveryn-tracker#51, docs/design/playbooks.md)

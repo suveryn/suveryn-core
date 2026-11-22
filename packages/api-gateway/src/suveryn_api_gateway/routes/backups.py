@@ -30,6 +30,8 @@ from suveryn_harness.messages import Problem, why
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from ..description import Answer
+from ..problems import Message, refusals
 from .common import admin_or_403
 
 router = APIRouter(tags=["backups"])  # the group its operations are in, in the description (description.py)
@@ -50,7 +52,7 @@ RECIPIENT = re.compile(r"age1[02-9ac-hj-np-z]{58}")
 DEFAULT_HOUR = 2
 
 
-class BackupSuccess(BaseModel):
+class BackupSuccess(Answer):
     at: str
     size: int
     on_target: int | None = None
@@ -58,24 +60,24 @@ class BackupSuccess(BaseModel):
     disk: str | None = None       # which USB disk, when the office swaps two
 
 
-class BackupFailure(BaseModel):
+class BackupFailure(Answer):
     """Why the last backup failed: a message of the registry, as the backup service wrote it (docs/design/messages.md)."""
 
     at: str
-    failure: dict  # {kind, code, params}
+    failure: Message
 
 
-class KeyTest(BaseModel):
+class KeyTest(Answer):
     """The last key test: whether the key opened the newest backup and every part was there."""
 
     at: str
     ok: bool
     created: str | None = None   # when the backup it opened was made
-    failure: dict | None = None  # why it failed: {kind, code, params}; ``backup.key_mismatch`` or ``backup.not_a_key``: the file isn't this appliance's key
+    failure: Message | None = None  # why it failed; ``backup.key_mismatch`` or ``backup.not_a_key``: the file isn't this appliance's key
     last_ok: str | None = None   # after a failed test: when the key last passed (VM regression 03c8f74, finding 4)
 
 
-class BackupSettings(BaseModel):
+class BackupSettings(Answer):
     """Where, when and how long, as saved (``backups.json``). Never the share's password: only whether one is kept."""
 
     target: Literal["usb", "share"]
@@ -84,19 +86,19 @@ class BackupSettings(BaseModel):
     address: str | None = None
     user: str | None = None
     has_password: bool = False
-    retention_days: int
+    retention_days: Literal[14, 30, 90, 365]
     hour: int = DEFAULT_HOUR
     recipient: str      # the recovery key's public half: on the recovery sheet, to compare with the key file
     next_run: str | None = None  # the next run at the office's hour, UTC
 
 
-class BackupStatus(BaseModel):
+class BackupStatus(Answer):
     """``available``: the appliance has a backup service that has run at least once. ``configured``: a
     target is set (the web setup's Backups step). The rest only when known."""
 
     available: bool
     configured: bool = False
-    target: str | None = None
+    target: Literal["usb", "share"] | None = None
     retention_days: int | None = None
     last_attempt: str | None = None
     last_success: BackupSuccess | None = None
@@ -186,7 +188,7 @@ def read_key_test(when) -> KeyTest | None:
                    failure=None if raw["ok"] else why(raw.get("failure")), last_ok=when(passed.get("at")))
 
 
-@router.get("/v1/admin/backups", response_model=BackupStatus, responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/backups", response_model=BackupStatus, responses=refusals())
 async def get_backup_status(request: Request):
     """The last backup and the last failure, as the appliance's backup service recorded them."""
     admin_or_403(request)
@@ -206,9 +208,9 @@ def leave_key(key: bytes) -> None:
             f.write(data)
 
 
-@router.post("/v1/admin/backups/key-test", status_code=202,
-             responses={403: {"description": "Not an administrator"}, 409: {"description": "A test is already running"},
-                        415: {"description": "Not a recovery key file"}, 503: {"description": "Not an appliance"}})
+@router.post("/v1/admin/backups/key-test", status_code=202, response_class=Response, responses=refusals(409, 415), openapi_extra={
+    # the key file as it is, read from the request itself: nothing of it is ever parsed into a model or logged
+    "requestBody": {"required": True, "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}})
 async def test_recovery_key(request: Request):
     """Test the recovery key: the request body is the key file as the web setup downloaded it. The backup
     service checks that it opens the newest backup and that every part is there, restores nothing and
@@ -242,16 +244,24 @@ class BackupRequest(BaseModel):
     recipient: str | None = Field(default=None, pattern=r"^age1[02-9ac-hj-np-z]{58}$")
 
 
-class RequestAnswer(BaseModel):
+class Disk(Answer):
+    """A USB disk connected now, as the backup service lists it."""
+
+    id: str
+    name: str
+    size_bytes: int
+
+
+class RequestAnswer(Answer):
     """The backup service's answer: ``ok``; when it isn't, why, as messages of the registry (``failure`` for the whole
     request, ``fields`` per field); the USB disks; whether the recovery key changed. ``pending`` until it has answered."""
 
     id: str
     pending: bool = False
     ok: bool | None = None
-    failure: dict | None = None
-    fields: dict[str, dict] | None = None
-    disks: list[dict] | None = None
+    failure: Message | None = None
+    fields: dict[str, Message] | None = None
+    disks: list[Disk] | None = None
     key_changed: bool | None = None
 
 
@@ -272,9 +282,7 @@ def leave_request(body: dict) -> str:
     return rid
 
 
-@router.post("/v1/admin/backups/requests", response_model=RequestAnswer, status_code=202, responses={
-    403: {"description": "Not an administrator"}, 409: {"description": "The last request is still being handled"},
-    503: {"description": "Not an appliance"}})
+@router.post("/v1/admin/backups/requests", response_model=RequestAnswer, status_code=202, responses=refusals(409, 422))
 async def create_backup_request(body: BackupRequest, request: Request):
     """Ask the backup service: ``run`` (back up now), ``disks`` (the USB disks connected now), ``test-share``
     (sign in to the share and write a test file) or ``settings`` (save the target, retention, hour and a new
@@ -289,7 +297,7 @@ async def create_backup_request(body: BackupRequest, request: Request):
     return RequestAnswer(id=await run_in_threadpool(leave_request, payload), pending=True)
 
 
-@router.get("/v1/admin/backups/requests/{rid}", response_model=RequestAnswer, responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/backups/requests/{rid}", response_model=RequestAnswer, responses=refusals(404))
 async def get_backup_request(rid: str, request: Request):
     """The backup service's answer to a request, or ``pending`` while it is acting on it."""
     admin_or_403(request)
