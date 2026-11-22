@@ -139,6 +139,202 @@ export interface ProblemDetails {
   type: string;
 }
 
+export type BackupStatusTarget = typeof BackupStatusTarget[keyof typeof BackupStatusTarget] | null;
+
+
+export const BackupStatusTarget = {
+  usb: 'usb',
+  share: 'share',
+} as const;
+
+export type MessageKind = typeof MessageKind[keyof typeof MessageKind];
+
+
+export const MessageKind = {
+  refused: 'refused',
+  unavailable: 'unavailable',
+  internal: 'internal',
+  warning: 'warning',
+} as const;
+
+export type MessageParams = {[key: string]: string | number | null};
+
+/**
+ * A message as it travels inside an answer: a code of the registry, its kind and its values.
+ */
+export interface Message {
+  code: string;
+  kind: MessageKind;
+  params: MessageParams;
+}
+
+/**
+ * The last key test: whether the key opened the newest backup and every part was there.
+ */
+export interface KeyTest {
+  at: string;
+  created: string | null;
+  failure: Message | null;
+  last_ok: string | null;
+  ok: boolean;
+}
+
+/**
+ * Why the last backup failed: a message of the registry, as the backup service wrote it (docs/design/messages.md).
+ */
+export interface BackupFailure {
+  at: string;
+  failure: Message;
+}
+
+export interface BackupSuccess {
+  at: string;
+  disk: string | null;
+  oldest: string | null;
+  on_target: number | null;
+  size: number;
+}
+
+export type BackupSettingsProtocol = typeof BackupSettingsProtocol[keyof typeof BackupSettingsProtocol] | null;
+
+
+export const BackupSettingsProtocol = {
+  smb: 'smb',
+  nfs: 'nfs',
+} as const;
+
+export type BackupSettingsRetentionDays = typeof BackupSettingsRetentionDays[keyof typeof BackupSettingsRetentionDays];
+
+
+export const BackupSettingsRetentionDays = {
+  NUMBER_14: 14,
+  NUMBER_30: 30,
+  NUMBER_90: 90,
+  NUMBER_365: 365,
+} as const;
+
+export type BackupSettingsTarget = typeof BackupSettingsTarget[keyof typeof BackupSettingsTarget];
+
+
+export const BackupSettingsTarget = {
+  usb: 'usb',
+  share: 'share',
+} as const;
+
+/**
+ * Where, when and how long, as saved (``backups.json``). Never the share's password: only whether one is kept.
+ */
+export interface BackupSettings {
+  address: string | null;
+  disk: string | null;
+  has_password: boolean;
+  hour: number;
+  next_run: string | null;
+  protocol: BackupSettingsProtocol;
+  recipient: string;
+  retention_days: BackupSettingsRetentionDays;
+  target: BackupSettingsTarget;
+  user: string | null;
+}
+
+/**
+ * ``available``: the appliance has a backup service that has run at least once. ``configured``: a
+ * target is set (the web setup's Backups step). The rest only when known.
+ */
+export interface BackupStatus {
+  available: boolean;
+  configured: boolean;
+  key_test: KeyTest | null;
+  key_testing: boolean;
+  last_attempt: string | null;
+  last_error: BackupFailure | null;
+  last_success: BackupSuccess | null;
+  retention_days: number | null;
+  running_since: string | null;
+  settings: BackupSettings | null;
+  target: BackupStatusTarget;
+}
+
+export type BackupRequestKind = typeof BackupRequestKind[keyof typeof BackupRequestKind];
+
+
+export const BackupRequestKind = {
+  run: 'run',
+  disks: 'disks',
+  'test-share': 'test-share',
+  settings: 'settings',
+} as const;
+
+export type BackupRequestProtocol = typeof BackupRequestProtocol[keyof typeof BackupRequestProtocol] | null;
+
+
+export const BackupRequestProtocol = {
+  smb: 'smb',
+  nfs: 'nfs',
+} as const;
+
+export type BackupRequestRetentionDays = typeof BackupRequestRetentionDays[keyof typeof BackupRequestRetentionDays] | null;
+
+
+export const BackupRequestRetentionDays = {
+  NUMBER_14: 14,
+  NUMBER_30: 30,
+  NUMBER_90: 90,
+  NUMBER_365: 365,
+} as const;
+
+export type BackupRequestTarget = typeof BackupRequestTarget[keyof typeof BackupRequestTarget] | null;
+
+
+export const BackupRequestTarget = {
+  usb: 'usb',
+  share: 'share',
+} as const;
+
+/**
+ * What the administrator asks the backup service for. ``settings``: the target (a USB disk by the id the
+ * service lists, or a share with its address, user and password), the retention, the hour and, only with a
+ * new recovery key, its public half. ``keep_password``: a share's password left empty keeps the saved one.
+ */
+export interface BackupRequest {
+  address?: string | null;
+  disk?: string | null;
+  hour?: number | null;
+  keep_password?: boolean;
+  kind: BackupRequestKind;
+  password?: string | null;
+  protocol?: BackupRequestProtocol;
+  recipient?: string | null;
+  retention_days?: BackupRequestRetentionDays;
+  target?: BackupRequestTarget;
+  user?: string | null;
+}
+
+export type RequestAnswerFields = {[key: string]: Message} | null;
+
+/**
+ * A USB disk connected now, as the backup service lists it.
+ */
+export interface Disk {
+  id: string;
+  name: string;
+  size_bytes: number;
+}
+
+/**
+ * The backup service's answer: ``ok``; when it isn't, why, as messages of the registry (``failure`` for the whole
+ * request, ``fields`` per field); the USB disks; whether the recovery key changed. ``pending`` until it has answered.
+ */
+export interface RequestAnswer {
+  disks: Disk[] | null;
+  failure: Message | null;
+  fields: RequestAnswerFields;
+  id: string;
+  key_changed: boolean | null;
+  ok: boolean | null;
+  pending: boolean;
+}
+
 export type SettingsOutConversationsKeep = typeof SettingsOutConversationsKeep[keyof typeof SettingsOutConversationsKeep];
 
 
@@ -251,27 +447,6 @@ export interface Measured {
      * @maximum 60000
      */
   rtt_ms: number;
-}
-
-export type MessageKind = typeof MessageKind[keyof typeof MessageKind];
-
-
-export const MessageKind = {
-  refused: 'refused',
-  unavailable: 'unavailable',
-  internal: 'internal',
-  warning: 'warning',
-} as const;
-
-export type MessageParams = {[key: string]: string | number | null};
-
-/**
- * A message as it travels inside an answer: a code of the registry, its kind and its values.
- */
-export interface Message {
-  code: string;
-  kind: MessageKind;
-  params: MessageParams;
 }
 
 export interface SetAnswer {
@@ -533,6 +708,277 @@ export const getGetHealthUrl = () => {
 export const getHealth = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getHealthResponse> => {
 
   return gatewayFetch<getHealthResponse>(getGetHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type getBackupStatusResponse200 = {
+  data: BackupStatus
+  status: 200
+}
+
+export type getBackupStatusResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getBackupStatusResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getBackupStatusResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getBackupStatusResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getBackupStatusResponseSuccess = (getBackupStatusResponse200) & {
+  headers: Headers;
+};
+export type getBackupStatusResponseError = (getBackupStatusResponse401 | getBackupStatusResponse403 | getBackupStatusResponse500 | getBackupStatusResponse503) & {
+  headers: Headers;
+};
+
+export type getBackupStatusResponse = (getBackupStatusResponseSuccess | getBackupStatusResponseError)
+
+export const getGetBackupStatusUrl = () => {
+
+
+
+
+  return `/v1/admin/backups`
+}
+
+/**
+ * The last backup and the last failure, as the appliance's backup service recorded them.
+ * @summary Get Backup Status
+ */
+export const getBackupStatus = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getBackupStatusResponse> => {
+
+  return gatewayFetch<getBackupStatusResponse>(getGetBackupStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type testRecoveryKeyResponse202 = {
+  data: void
+  status: 202
+}
+
+export type testRecoveryKeyResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type testRecoveryKeyResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type testRecoveryKeyResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type testRecoveryKeyResponse415 = {
+  data: ProblemDetails
+  status: 415
+}
+
+export type testRecoveryKeyResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type testRecoveryKeyResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type testRecoveryKeyResponseSuccess = (testRecoveryKeyResponse202) & {
+  headers: Headers;
+};
+export type testRecoveryKeyResponseError = (testRecoveryKeyResponse401 | testRecoveryKeyResponse403 | testRecoveryKeyResponse409 | testRecoveryKeyResponse415 | testRecoveryKeyResponse500 | testRecoveryKeyResponse503) & {
+  headers: Headers;
+};
+
+export type testRecoveryKeyResponse = (testRecoveryKeyResponseSuccess | testRecoveryKeyResponseError)
+
+export const getTestRecoveryKeyUrl = () => {
+
+
+
+
+  return `/v1/admin/backups/key-test`
+}
+
+/**
+ * Test the recovery key: the request body is the key file as the web setup downloaded it. The backup
+ * service checks that it opens the newest backup and that every part is there, restores nothing and
+ * deletes the key; GET /v1/admin/backups then shows the result (``key_test``).
+ * @summary Test Recovery Key
+ */
+export const testRecoveryKey = async (testRecoveryKeyBody: Blob, options?: Parameters<typeof gatewayFetch>[1]): Promise<testRecoveryKeyResponse> => {
+
+  return gatewayFetch<testRecoveryKeyResponse>(getTestRecoveryKeyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: testRecoveryKeyBody
+  }
+);}
+
+
+
+export type createBackupRequestResponse202 = {
+  data: RequestAnswer
+  status: 202
+}
+
+export type createBackupRequestResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type createBackupRequestResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type createBackupRequestResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type createBackupRequestResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type createBackupRequestResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type createBackupRequestResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type createBackupRequestResponseSuccess = (createBackupRequestResponse202) & {
+  headers: Headers;
+};
+export type createBackupRequestResponseError = (createBackupRequestResponse401 | createBackupRequestResponse403 | createBackupRequestResponse409 | createBackupRequestResponse422 | createBackupRequestResponse500 | createBackupRequestResponse503) & {
+  headers: Headers;
+};
+
+export type createBackupRequestResponse = (createBackupRequestResponseSuccess | createBackupRequestResponseError)
+
+export const getCreateBackupRequestUrl = () => {
+
+
+
+
+  return `/v1/admin/backups/requests`
+}
+
+/**
+ * Ask the backup service: ``run`` (back up now), ``disks`` (the USB disks connected now), ``test-share``
+ * (sign in to the share and write a test file) or ``settings`` (save the target, retention, hour and a new
+ * recovery key). The answer comes at ``GET /v1/admin/backups/requests/{id}``. The password is never logged
+ * and never comes back.
+ * @summary Create Backup Request
+ */
+export const createBackupRequest = async (backupRequest: BackupRequest, options?: Parameters<typeof gatewayFetch>[1]): Promise<createBackupRequestResponse> => {
+
+  return gatewayFetch<createBackupRequestResponse>(getCreateBackupRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(backupRequest)
+  }
+);}
+
+
+
+export type getBackupRequestResponse200 = {
+  data: RequestAnswer
+  status: 200
+}
+
+export type getBackupRequestResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getBackupRequestResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getBackupRequestResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getBackupRequestResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getBackupRequestResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getBackupRequestResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getBackupRequestResponseSuccess = (getBackupRequestResponse200) & {
+  headers: Headers;
+};
+export type getBackupRequestResponseError = (getBackupRequestResponse401 | getBackupRequestResponse403 | getBackupRequestResponse404 | getBackupRequestResponse422 | getBackupRequestResponse500 | getBackupRequestResponse503) & {
+  headers: Headers;
+};
+
+export type getBackupRequestResponse = (getBackupRequestResponseSuccess | getBackupRequestResponseError)
+
+export const getGetBackupRequestUrl = (rid: string,) => {
+
+
+
+
+  return `/v1/admin/backups/requests/${rid}`
+}
+
+/**
+ * The backup service's answer to a request, or ``pending`` while it is acting on it.
+ * @summary Get Backup Request
+ */
+export const getBackupRequest = async (rid: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getBackupRequestResponse> => {
+
+  return gatewayFetch<getBackupRequestResponse>(getGetBackupRequestUrl(rid),
   {
     ...options,
     method: 'GET'

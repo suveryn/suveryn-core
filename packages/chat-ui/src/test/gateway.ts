@@ -16,7 +16,9 @@ export function gatewayAnswers(...answers: (KeptAnswer | Response | Error)[]): S
   const sent: Sent[] = [];
   vi.stubGlobal("fetch", vi.fn(async (path: string, init: RequestInit = {}) => {
     const method = init.method ?? "GET";
-    sent.push({ method, path, body: typeof init.body === "string" ? JSON.parse(init.body) : null, cache: init.cache ?? "default" });
+    // what was sent: JSON read back, a file's own text (a key file), or nothing
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : init.body instanceof Blob ? await init.body.text() : null;
+    sent.push({ method, path, body, cache: init.cache ?? "default" });
     const next = answers.shift();
     if (next === undefined) throw new Error(`the test gave no answer for ${method} ${path}`);
     if (next instanceof Error) throw next;

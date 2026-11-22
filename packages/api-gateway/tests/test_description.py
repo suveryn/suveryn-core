@@ -81,7 +81,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"clock", "models", "settings", "status", "usage"}
+STRICT = {"backups", "clock", "models", "settings", "status", "usage"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
@@ -132,7 +132,9 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
             if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
                 inside = [c for c in ast.walk(node) if isinstance(c, ast.Call)]
                 own_codes.setdefault(node.name, set()).update(c.args[0].value for c in inside if getattr(c.func, "id", "") == "Problem")
-                calls.setdefault(node.name, set()).update(getattr(c.func, "id", None) or getattr(c.func, "attr", "") for c in inside)
+                # called, or handed to something that calls it (``run_in_threadpool(leave_key, …)``)
+                calls.setdefault(node.name, set()).update(n.id for n in ast.walk(node) if isinstance(n, ast.Name))
+                calls[node.name].update(c.func.attr for c in inside if isinstance(c.func, ast.Attribute))
 
     def reached(name: str, seen: set[str]) -> set[str]:
         if name in seen or name not in own_codes:
@@ -144,7 +146,9 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
     assert 403 in raised["create_clock_request"] and 403 not in raised["get_clock"]  # through admin_or_403, a helper
     for method, path, op in strict_operations():
         own = {int(s) for s in op["responses"] if int(s) >= 400} - set(problems.EVERY_OPERATION)
-        takes_input = bool(op.get("parameters") or op.get("requestBody"))  # FastAPI checks it: 422, as request.invalid
+        # FastAPI checks what it reads itself, parameters and a JSON body: 422, as request.invalid. A body the route
+        # reads as it is (a key file) is the route's own to refuse.
+        takes_input = bool(op.get("parameters") or "application/json" in op.get("requestBody", {}).get("content", {}))
         expected = (raised[op["operationId"]] | ({422} if takes_input else set())) - set(problems.EVERY_OPERATION)
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
@@ -181,7 +185,8 @@ def test_a_strict_operation_leaves_nothing_undescribed():
         schemas_used += [p["schema"] for p in op.get("parameters", [])]
         assert not loose(schemas_used, frozenset(), f"{method} {path}"), f"{method} {path}: {loose(schemas_used, frozenset(), path)}"
         for status, r in op["responses"].items():
-            assert status == "204" or r.get("content"), f"{method} {path}: {status} has no described body"
+            # nothing to read: done (204), or accepted and answered elsewhere later (202)
+            assert status in ("202", "204") or r.get("content"), f"{method} {path}: {status} has no described body"
 
 
 # A member an answer doesn't always carry, by the schema's name: named here on purpose.

@@ -1,0 +1,260 @@
+{
+ "a_field_refused": {
+  "body": {
+   "disks": null,
+   "failure": null,
+   "fields": {
+    "address": {
+     "code": "backup.share_address_invalid",
+     "kind": "refused",
+     "params": {}
+    }
+   },
+   "id": "0123456789abcdef",
+   "key_changed": null,
+   "ok": false,
+   "pending": false
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "as_recorded": {
+  "body": {
+   "available": true,
+   "configured": true,
+   "key_test": {
+    "at": "2026-10-26T10:00:00Z",
+    "created": null,
+    "failure": {
+     "code": "backup.key_mismatch",
+     "kind": "refused",
+     "params": {}
+    },
+    "last_ok": "2026-10-26T09:50:00Z",
+    "ok": false
+   },
+   "key_testing": false,
+   "last_attempt": "2026-10-23T02:41:07Z",
+   "last_error": {
+    "at": "2026-10-23T02:41:07Z",
+    "failure": {
+     "code": "backup.target_unreachable",
+     "kind": "unavailable",
+     "params": {}
+    }
+   },
+   "last_success": {
+    "at": "2026-10-22T02:39:00Z",
+    "disk": null,
+    "oldest": "2026-09-23T02:31:00Z",
+    "on_target": 12,
+    "size": 123456
+   },
+   "retention_days": 90,
+   "running_since": null,
+   "settings": {
+    "address": "//nas.office.lan/b",
+    "disk": null,
+    "has_password": true,
+    "hour": 23,
+    "next_run": "2026-11-22T22:00:00Z",
+    "protocol": "smb",
+    "recipient": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+    "retention_days": 90,
+    "target": "share",
+    "user": "backup"
+   },
+   "target": "share"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "asked": {
+  "body": {
+   "disks": null,
+   "failure": null,
+   "fields": null,
+   "id": "0123456789abcdef",
+   "key_changed": null,
+   "ok": null,
+   "pending": true
+  },
+  "media_type": "application/json",
+  "status": 202
+ },
+ "busy": {
+  "body": {
+   "code": "backup.busy",
+   "detail": "The backup service is still busy with the last request.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The backup service is still busy with the last request, or a key test is running.",
+   "type": "urn:suveryn:problem:backup.busy"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "disks": {
+  "body": {
+   "disks": [
+    {
+     "id": "usb-Extreme_SER1",
+     "name": "Extreme",
+     "size_bytes": 1000000000000
+    }
+   ],
+   "failure": null,
+   "fields": null,
+   "id": "0123456789abcdef",
+   "key_changed": null,
+   "ok": true,
+   "pending": false
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "failed": {
+  "body": {
+   "disks": null,
+   "failure": {
+    "code": "backup.target_unreachable",
+    "kind": "unavailable",
+    "params": {}
+   },
+   "fields": null,
+   "id": "0123456789abcdef",
+   "key_changed": null,
+   "ok": false,
+   "pending": false
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "key_accepted": {
+  "body": null,
+  "media_type": null,
+  "status": 202
+ },
+ "key_test_running": {
+  "body": {
+   "code": "backup.busy",
+   "detail": "A key test is already running.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The backup service is still busy with the last request, or a key test is running.",
+   "type": "urn:suveryn:problem:backup.busy"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "never_ran": {
+  "body": {
+   "available": false,
+   "configured": false,
+   "key_test": null,
+   "key_testing": false,
+   "last_attempt": null,
+   "last_error": null,
+   "last_success": null,
+   "retention_days": null,
+   "running_since": null,
+   "settings": null,
+   "target": null
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "no_backup_service": {
+  "body": {
+   "code": "backup.unavailable",
+   "detail": "The appliance's backup service can't be reached for a key test.",
+   "kind": "unavailable",
+   "params": {},
+   "status": 503,
+   "title": "The appliance's backup service can't be reached.",
+   "type": "urn:suveryn:problem:backup.unavailable"
+  },
+  "media_type": "application/problem+json",
+  "status": 503
+ },
+ "no_such_request": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "No such request.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "not_a_key": {
+  "body": {
+   "code": "backup.not_a_key",
+   "detail": "That isn't a sūveryn recovery key file.",
+   "kind": "refused",
+   "params": {},
+   "status": 415,
+   "title": "The file holds no recovery key.",
+   "type": "urn:suveryn:problem:backup.not_a_key"
+  },
+  "media_type": "application/problem+json",
+  "status": 415
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "pending": {
+  "body": {
+   "disks": null,
+   "failure": null,
+   "fields": null,
+   "id": "0123456789abcdef",
+   "key_changed": null,
+   "ok": null,
+   "pending": true
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "saved": {
+  "body": {
+   "disks": null,
+   "failure": null,
+   "fields": null,
+   "id": "0123456789abcdef",
+   "key_changed": true,
+   "ok": true,
+   "pending": false
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "settings_incomplete": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "Settings need a target, a retention period and an hour.",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ }
+}

@@ -3,9 +3,11 @@ import type { BackupStatus } from "../api";
 import { backupAttention, backupAttentions, backupState, keyTestState, sizeLabel } from "./backups";
 
 const now = new Date("2026-10-23T09:00:00Z");
-const ok = { at: "2026-10-23T02:40:00Z", size: 1_234_567_890, on_target: 30, oldest: "2026-09-23T02:31:00Z" };
+// as the gateway sends them: every member, the ones that say nothing as null
+const why = (kind: "refused" | "unavailable", code: string) => ({ kind, code, params: {} });
+const ok = { at: "2026-10-23T02:40:00Z", size: 1_234_567_890, on_target: 30, oldest: "2026-09-23T02:31:00Z", disk: null };
 const base: BackupStatus = { available: true, configured: true, target: "usb", retention_days: 30, last_attempt: ok.at,
-                             last_success: ok, last_error: null };
+                             last_success: ok, last_error: null, key_test: null, key_testing: false, running_since: null, settings: null };
 
 describe("the backups, as the administrator sees them (suveryn-tracker#33)", () => {
   it("says what there is to say, from nothing at all to a failing night", () => {
@@ -14,7 +16,7 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     expect(backupState({ ...base, configured: false }, now).kind).toBe("not_set_up");
     expect(backupState({ ...base, last_success: null }, now).kind).toBe("never");
     expect(backupState(base, now).kind).toBe("ok");
-    const failed = { at: "2026-10-23T02:41:00Z", failure: { kind: "unavailable", code: "backup.target_unreachable", params: {} } };
+    const failed = { at: "2026-10-23T02:41:00Z", failure: why("unavailable", "backup.target_unreachable") };
     expect(backupState({ ...base, last_error: failed }, now).kind).toBe("failing");
     expect(backupState({ ...base, last_error: { ...failed, at: "2026-10-20T02:41:00Z" } }, now).kind).toBe("ok");  // fixed since
     expect(backupState(base, new Date("2026-10-25T09:00:00Z")).kind).toBe("stale");
@@ -24,16 +26,16 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     // review of the backup strategy: a lost key or a damaged backup showed only on the day of a restore
     expect(keyTestState({ ...base, key_testing: true }, now).kind).toBe("testing");
     expect(keyTestState(base, now).kind).toBe("never");
-    const test = { at: "2026-10-01T10:00:00Z", ok: true, created: "2026-10-01T02:40:00Z" };
+    const test = { at: "2026-10-01T10:00:00Z", ok: true, created: "2026-10-01T02:40:00Z", failure: null, last_ok: null };
     expect(keyTestState({ ...base, key_test: test }, now).kind).toBe("ok");
     expect(keyTestState({ ...base, key_test: { ...test, at: "2026-07-01T10:00:00Z" } }, now).kind).toBe("due");
-    expect(keyTestState({ ...base, key_test: { ...test, ok: false, failure: { kind: "refused", code: "backup.damaged", params: {} } } }, now).kind).toBe("failed");
+    expect(keyTestState({ ...base, key_test: { ...test, ok: false, failure: why("refused", "backup.damaged") } }, now).kind).toBe("failed");
 
     expect(backupAttention(null, now)).toBeNull();
     expect(backupAttention({ ...base, configured: false }, now)).toBe("not_set_up");
     expect(backupAttention(base, new Date("2026-10-25T09:00:00Z"))).toBe("stale");
-    expect(backupAttention({ ...base, last_error: { at: "2026-10-23T02:41:00Z", failure: { kind: "unavailable", code: "backup.disk_full", params: {} } } }, now)).toBe("failing");
-    expect(backupAttention({ ...base, last_success: null, last_error: { at: "2026-10-23T02:41:00Z", failure: { kind: "unavailable", code: "backup.target_unreachable", params: {} } } }, now)).toBe("failing");
+    expect(backupAttention({ ...base, last_error: { at: "2026-10-23T02:41:00Z", failure: why("unavailable", "backup.disk_full") } }, now)).toBe("failing");
+    expect(backupAttention({ ...base, last_success: null, last_error: { at: "2026-10-23T02:41:00Z", failure: why("unavailable", "backup.target_unreachable") } }, now)).toBe("failing");
     expect(backupAttention(base, now)).toBe("key_due");  // a month of backups and never tested
     expect(backupAttention({ ...base, last_success: { ...ok, oldest: "2026-10-20T02:31:00Z" } }, now)).toBeNull();  // the first week
     expect(backupAttention({ ...base, key_test: test }, now)).toBeNull();
@@ -42,21 +44,21 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
   });
 
   it("doesn't mark the key failing for one wrong file: the last test that passed stands (VM regression 03c8f74, finding 4)", () => {
-    const wrong = { at: "2026-10-22T10:00:00Z", ok: false, failure: { kind: "refused", code: "backup.key_mismatch", params: {} }, last_ok: "2026-10-22T09:50:00Z" };
+    const wrong = { at: "2026-10-22T10:00:00Z", ok: false, created: null, failure: why("refused", "backup.key_mismatch"), last_ok: "2026-10-22T09:50:00Z" };
     const k = keyTestState({ ...base, key_test: wrong }, now);
     expect(k).toMatchObject({ kind: "wrong_file", lastOk: "2026-10-22T09:50:00Z", due: false });
     expect(backupAttention({ ...base, key_test: wrong }, now)).toBeNull();  // nothing on Status
     expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: "2026-07-01T10:00:00Z" } }, now)).toBe("key_due");
     expect(backupAttention({ ...base, key_test: { ...wrong, last_ok: null } }, now)).toBe("key_due");  // never passed, a month of backups
-    expect(backupAttention({ ...base, key_test: { ...wrong, failure: { kind: "refused", code: "backup.damaged", params: {} }, last_ok: null } }, now)).toBe("key_failed");  // the backup itself
-    const noKey = { ...wrong, failure: { kind: "refused", code: "backup.not_a_key", params: {} } };  // a file with no key in it (#164)
+    expect(backupAttention({ ...base, key_test: { ...wrong, failure: why("refused", "backup.damaged"), last_ok: null } }, now)).toBe("key_failed");  // the backup itself
+    const noKey = { ...wrong, failure: why("refused", "backup.not_a_key") };  // a file with no key in it (#164)
     expect(keyTestState({ ...base, key_test: noKey }, now)).toMatchObject({ kind: "wrong_file", lastOk: "2026-10-22T09:50:00Z" });
     expect(backupAttention({ ...base, key_test: noKey }, now)).toBeNull();
   });
 
   it("lists each thing that needs attention on its own row, the key also while the backups fail (board B01)", () => {
-    const test = { at: "2026-10-01T10:00:00Z", ok: true, created: "2026-10-01T02:40:00Z" };
-    const failing = { ...base, last_error: { at: "2026-10-23T02:41:00Z", failure: { kind: "unavailable", code: "backup.disk_full", params: {} } } };
+    const test = { at: "2026-10-01T10:00:00Z", ok: true, created: "2026-10-01T02:40:00Z", failure: null, last_ok: null };
+    const failing = { ...base, last_error: { at: "2026-10-23T02:41:00Z", failure: why("unavailable", "backup.disk_full") } };
     expect(backupAttentions(failing, now)).toEqual(["failing", "key_due"]);          // a month of backups, never tested
     expect(backupAttentions({ ...failing, key_test: test }, now)).toEqual(["failing"]);
     expect(backupAttentions(base, now)).toEqual(["key_due"]);

@@ -613,9 +613,7 @@
       "type": "string"
      },
      "failure": {
-      "additionalProperties": true,
-      "title": "Failure",
-      "type": "object"
+      "$ref": "#/components/schemas/Message"
      }
     },
     "required": [
@@ -836,6 +834,12 @@
       "type": "string"
      },
      "retention_days": {
+      "enum": [
+       14,
+       30,
+       90,
+       365
+      ],
       "title": "Retention Days",
       "type": "integer"
      },
@@ -861,8 +865,15 @@
     },
     "required": [
      "target",
+     "disk",
+     "protocol",
+     "address",
+     "user",
+     "has_password",
      "retention_days",
-     "recipient"
+     "hour",
+     "recipient",
+     "next_run"
     ],
     "title": "BackupSettings",
     "type": "object"
@@ -960,6 +971,10 @@
      "target": {
       "anyOf": [
        {
+        "enum": [
+         "usb",
+         "share"
+        ],
         "type": "string"
        },
        {
@@ -970,7 +985,17 @@
      }
     },
     "required": [
-     "available"
+     "available",
+     "configured",
+     "target",
+     "retention_days",
+     "last_attempt",
+     "last_success",
+     "last_error",
+     "key_test",
+     "key_testing",
+     "running_since",
+     "settings"
     ],
     "title": "BackupStatus",
     "type": "object"
@@ -1021,7 +1046,10 @@
     },
     "required": [
      "at",
-     "size"
+     "size",
+     "on_target",
+     "oldest",
+     "disk"
     ],
     "title": "BackupSuccess",
     "type": "object"
@@ -2422,6 +2450,30 @@
     "title": "Deletion",
     "type": "object"
    },
+   "Disk": {
+    "description": "A USB disk connected now, as the backup service lists it.",
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "size_bytes": {
+      "title": "Size Bytes",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "size_bytes"
+    ],
+    "title": "Disk",
+    "type": "object"
+   },
    "DocumentsStatus": {
     "description": "State of document handling: the rag service's own three (its ``state``; the rag is an optional package, so\nits states are repeated here), and \"unavailable\" where there is none.",
     "properties": {
@@ -2768,14 +2820,12 @@
      "failure": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/Message"
        },
        {
         "type": "null"
        }
-      ],
-      "title": "Failure"
+      ]
      },
      "last_ok": {
       "anyOf": [
@@ -2795,7 +2845,10 @@
     },
     "required": [
      "at",
-     "ok"
+     "ok",
+     "created",
+     "failure",
+     "last_ok"
     ],
     "title": "KeyTest",
     "type": "object"
@@ -3595,8 +3648,7 @@
       "anyOf": [
        {
         "items": {
-         "additionalProperties": true,
-         "type": "object"
+         "$ref": "#/components/schemas/Disk"
         },
         "type": "array"
        },
@@ -3609,21 +3661,18 @@
      "failure": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/Message"
        },
        {
         "type": "null"
        }
-      ],
-      "title": "Failure"
+      ]
      },
      "fields": {
       "anyOf": [
        {
         "additionalProperties": {
-         "additionalProperties": true,
-         "type": "object"
+         "$ref": "#/components/schemas/Message"
         },
         "type": "object"
        },
@@ -3666,7 +3715,13 @@
      }
     },
     "required": [
-     "id"
+     "id",
+     "pending",
+     "ok",
+     "failure",
+     "fields",
+     "disks",
+     "key_changed"
     ],
     "title": "RequestAnswer",
     "type": "object"
@@ -5458,8 +5513,45 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Backup Status",
@@ -5472,26 +5564,80 @@
    "post": {
     "description": "Test the recovery key: the request body is the key file as the web setup downloaded it. The backup\nservice checks that it opens the newest backup and that every part is there, restores nothing and\ndeletes the key; GET /v1/admin/backups then shows the result (``key_test``).",
     "operationId": "test_recovery_key",
+    "requestBody": {
+     "content": {
+      "application/octet-stream": {
+       "schema": {
+        "format": "binary",
+        "type": "string"
+       }
+      }
+     },
+     "required": true
+    },
     "responses": {
      "202": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
      },
      "409": {
-      "description": "A test is already running"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
      },
      "415": {
-      "description": "Not a recovery key file"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unsupported Media Type"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "Not an appliance"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Test Recovery Key",
@@ -5525,24 +5671,65 @@
       },
       "description": "Successful Response"
      },
-     "403": {
-      "description": "Not an administrator"
-     },
-     "409": {
-      "description": "The last request is still being handled"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "Not an appliance"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Create Backup Request",
@@ -5577,18 +5764,65 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
      },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Backup Request",
