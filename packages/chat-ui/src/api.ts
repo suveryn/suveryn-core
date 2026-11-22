@@ -9,6 +9,8 @@ import { lang, t } from "./i18n";
 import { messageText, problemOf, type Message } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
+import { createClockRequest, getClockRequest, type Measured, type SetAnswer } from "./generated/gateway";
+import type { Answer } from "./lib/gateway";
 
 type SourceRef = { document_id: string; page: number | null; location: string | null };
 /** ``removed``: its document was deleted, so the passage was taken out (suveryn-tracker#12). */
@@ -793,20 +795,28 @@ export async function getAdminStatus(): Promise<AdminStatus> {
   return r.json();
 }
 
+/**
+ * What a generated call (src/generated, from the gateway's description) answered, or the failure this file's other
+ * calls throw: signed out, or the gateway's code with its words. A call that never reached the gateway throws what
+ * `fetch` threw. An answer that says it went well but isn't the gateway's (a proxy's or a hotel network's page, a
+ * body cut short or empty) is a failure too, never handed on as the answer: the words of a part that isn't available.
+ */
+export async function answered<A extends Answer>(call: Promise<A>): Promise<Extract<A, { status: 200 | 201 | 202 | 204 }>["data"]> {
+  const { data, status } = await call;
+  if (status >= 200 && status < 300) {
+    if (status === 204 || data !== undefined) return data as Extract<A, { status: 200 | 201 | 202 | 204 }>["data"];
+    throw new HttpError(httpErrorText(502), status, problemOf(502, null));
+  }
+  if (status === 401) { signedOutHandler(); throw new SignedOut(); }
+  const body = data !== null && typeof data === "object" ? data : null; // not JSON: a proxy's page
+  throw new HttpError(httpErrorText(status, body), status, problemOf(status, body));
+}
+
 /** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
-type ClockAnswer = { id: string; pending: boolean; ok: boolean | null; failure: Message | null; moved_ms: number | null };
+export const setApplianceClock = (measured: Measured): Promise<SetAnswer> => answered(createClockRequest(measured));
 
-export async function setApplianceClock(measured: { offset_ms: number; rtt_ms: number }): Promise<ClockAnswer> {
-  const r = await fetch("/v1/admin/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(measured) });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function applianceClockAnswer(id: string): Promise<ClockAnswer> {
-  const r = await fetch(`/v1/admin/clock/${encodeURIComponent(id)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+/** The appliance's answer to that, or `pending` while it acts on it. Orval puts an id in the address as it is given. */
+export const applianceClockAnswer = (id: string): Promise<SetAnswer> => answered(getClockRequest(encodeURIComponent(id)));
 
 /** Administration › Users (admin.md): the office's accounts through the gateway, never Keycloak's console. */
 export type Account = { sub: string; username: string; name: string; email: string; admin: boolean; enabled: boolean; last_sign_in: string | null;

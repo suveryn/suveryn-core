@@ -4,6 +4,8 @@ import json
 import time
 
 import pytest
+from described import DESCRIBED, Kept, answer_is_described
+from test_auth import sign_in
 from test_usage import ALICE, BOB, as_user, setup  # noqa: F401 - the fixture
 
 from suveryn_api_gateway import clock
@@ -153,3 +155,72 @@ def test_reports_arriving_at_once_ask_for_one_nudge(appliance, monkeypatch):
     for t in threads:
         t.join()
     assert len(asks) == 1 and asks[0]
+
+
+def test_every_answer_of_the_clock_is_what_the_description_says(setup, appliance, monkeypatch):  # noqa: F811
+    """The chat UI's code for the clock is generated from the description (suveryn-tracker#236): each answer the
+    clock's operations give, the refusals too, is checked against it."""
+    c, kc, _ = setup
+    user, admin, body = as_user(kc, BOB), as_user(kc, ALICE, admin=True), {"offset_ms": -95_000, "rtt_ms": 40}
+    seen, kept, RID = set(), Kept("clock"), "0123456789abcdef"
+
+    def check(method, path, expected, at=None, keep=None, same_every_run=None, **request):
+        r = c.request(method, at or path, **request)
+        assert r.status_code == expected, f"{method} {at or path}: {r.status_code} {r.text}"
+        answer_is_described(r, method, path)
+        seen.add((method, path, expected))
+        if keep:
+            kept.keep(keep, r, **(same_every_run or {}))
+        return r
+
+    for method, path, at, sent in (("GET", "/v1/clock", None, {}), ("POST", "/v1/clock", None, {"json": body}),
+                                   ("POST", "/v1/admin/clock", None, {"json": body}),
+                                   ("GET", "/v1/admin/clock/{rid}", "/v1/admin/clock/0123456789abcdef", {})):
+        assert check(method, path, 401, at, keep="signed_out" if path == "/v1/clock" and method == "GET" else None, **sent).json()["code"] == "auth.signed_out"
+    check("GET", "/v1/clock", 200, keep="now", same_every_run={"now_ms": 1_795_000_000_000}, headers=user)
+    check("POST", "/v1/clock", 204, keep="reported", json={"offset_ms": 2500, "rtt_ms": 30}, headers=user)
+    invalid = check("POST", "/v1/clock", 422, keep="invalid", json={"offset_ms": "soon"}, headers=user).json()
+    assert invalid["code"] == "request.invalid" and {e["loc"][-1] for e in invalid["errors"]} == {"offset_ms", "rtt_ms"}
+
+    assert check("POST", "/v1/admin/clock", 403, keep="not_an_administrator", json=body, headers=user).json()["code"] == "request.forbidden"
+    assert check("GET", "/v1/admin/clock/{rid}", 403, "/v1/admin/clock/0123456789abcdef", headers=user).json()["code"] == "request.forbidden"
+    assert check("POST", "/v1/admin/clock", 422, keep="too_slow", json={**body, "rtt_ms": 3000}, headers=admin).json()["code"] == "clock.measurement_too_slow"
+    assert check("POST", "/v1/admin/clock", 422, json={}, headers=admin).json()["code"] == "request.invalid"
+    rid = check("POST", "/v1/admin/clock", 202, keep="asked", same_every_run={"id": RID}, json=body, headers=admin).json()["id"]
+    assert check("POST", "/v1/admin/clock", 409, keep="busy", json=body, headers=admin).json()["code"] == "clock.busy"
+    assert check("GET", "/v1/admin/clock/{rid}", 200, f"/v1/admin/clock/{rid}", "pending", {"id": RID}, headers=admin).json()["pending"]
+    assert check("GET", "/v1/admin/clock/{rid}", 404, "/v1/admin/clock/not-an-id", "no_such_request", headers=admin).json()["code"] == "request.not_found"
+    clock.RESULT.write_text(json.dumps({"id": rid, "kind": "set", "ok": False, "failure": {"code": "clock.synced"}}))
+    refused = check("GET", "/v1/admin/clock/{rid}", 200, f"/v1/admin/clock/{rid}", "not_set", {"id": RID}, headers=admin).json()
+    assert refused["ok"] is False and refused["failure"] == {"kind": "refused", "code": "clock.synced", "params": {}}
+    clock.RESULT.write_text(json.dumps({"id": rid, "kind": "set", "ok": True, "moved_ms": 95_000}))
+    assert check("GET", "/v1/admin/clock/{rid}", 200, f"/v1/admin/clock/{rid}", "set", {"id": RID}, headers=admin).json()["moved_ms"] == 95_000
+    (appliance / "request.json").unlink()
+    monkeypatch.setattr(clock, "time_server_keeps_it", lambda: True)
+    c.app.state.clock = Clock()
+    assert check("POST", "/v1/admin/clock", 409, keep="synced", json=body, headers=admin).json()["code"] == "clock.synced"
+    monkeypatch.setattr(clock, "time_server_keeps_it", lambda: False)
+    c.app.state.clock = Clock()
+    monkeypatch.setattr(clock, "REQUESTS", appliance / "gone")
+    assert check("POST", "/v1/admin/clock", 503, keep="unavailable", json=body, headers=admin).json()["code"] == "clock.unavailable"
+
+    sign_in(c, kc)  # a browser's session: a change from another site's page is refused (app.py, require_sign_in)
+    assert check("POST", "/v1/clock", 403, json=body, headers={"Origin": "https://elsewhere.example"}).json()["code"] == "request.forbidden"
+
+    def broken(*_):
+        raise RuntimeError("a document's words")
+    monkeypatch.setattr(clock, "result_of", broken)
+    unplanned = check("GET", "/v1/admin/clock/{rid}", 500, f"/v1/admin/clock/{RID}", "unplanned", {"ref": "7F3K-92QD"}, headers=admin)
+    assert unplanned.json()["code"] == "system.internal" and "document" not in unplanned.text
+    kept.check()
+
+    # every status the description gives the clock's operations was seen here, but: what nobody planned for, seen on
+    # one; sign-in or the database down, and sign-in turned off for another machine, which no operation decides for
+    # itself (test_auth.py, test_problems.py); and the 422 FastAPI gives every operation with a parameter, which an
+    # id in the address, any text, never gets
+    described = {(method.upper(), path, int(status)) for path, by_method in DESCRIBED["paths"].items()
+                 for method, op in by_method.items() if op["tags"] == ["clock"] for status in op["responses"]}
+    assert described - seen == {
+        ("GET", "/v1/clock", 500), ("POST", "/v1/clock", 500), ("POST", "/v1/admin/clock", 500),
+        ("GET", "/v1/clock", 403), ("GET", "/v1/clock", 503), ("POST", "/v1/clock", 503), ("GET", "/v1/admin/clock/{rid}", 503),
+        ("GET", "/v1/admin/clock/{rid}", 422)}

@@ -29,6 +29,7 @@ dev = [
     "pytest>=8.3",
     "reportlab>=4.0",
     "pdf2image>=1.17",
+    "jsonschema>=4.23",  # the gateway's answers against its description (packages/api-gateway/tests/described.py)
 ]
 # The end-to-end scenarios (e2e/README.md): `uv sync --all-packages --group e2e`, then `uv run playwright install chromium`.
 e2e = [

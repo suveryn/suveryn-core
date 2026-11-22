@@ -2647,6 +2647,40 @@
     "title": "HealthResponse",
     "type": "object"
    },
+   "InvalidPart": {
+    "description": "Where a request wasn't valid and why, for developers: never the value sent.",
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Loc",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Msg",
+      "type": "string"
+     },
+     "type": {
+      "title": "Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "InvalidPart",
+    "type": "object"
+   },
    "KeepIn": {
     "description": "Body of ``POST /v1/cases/{id}/keep``: mark the case kept (never deleted by the period) or\nnot, or extend its deletion by one period.",
     "properties": {
@@ -2939,6 +2973,52 @@
      "role"
     ],
     "title": "MemberIn",
+    "type": "object"
+   },
+   "Message": {
+    "description": "A message as it travels inside an answer: a code of the registry, its kind and its values.",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "refused",
+       "unavailable",
+       "internal",
+       "warning"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "kind",
+     "code",
+     "params"
+    ],
+    "title": "Message",
     "type": "object"
    },
    "ModelInfo": {
@@ -3243,6 +3323,86 @@
      "labels"
     ],
     "title": "PlaybookWords",
+    "type": "object"
+   },
+   "ProblemDetails": {
+    "description": "What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "errors": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/InvalidPart"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Errors"
+     },
+     "kind": {
+      "enum": [
+       "refused",
+       "unavailable",
+       "internal",
+       "warning"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "title": "Params",
+      "type": "object"
+     },
+     "status": {
+      "title": "Status",
+      "type": "integer"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     },
+     "type": {
+      "title": "Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "code",
+     "params",
+     "type",
+     "title",
+     "status",
+     "detail"
+    ],
+    "title": "ProblemDetails",
     "type": "object"
    },
    "Rates-Input": {
@@ -4232,14 +4392,12 @@
      "failure": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/Message"
        },
        {
         "type": "null"
        }
-      ],
-      "title": "Failure"
+      ]
      },
      "id": {
       "title": "Id",
@@ -5558,24 +5716,65 @@
       },
       "description": "Successful Response"
      },
-     "403": {
-      "description": "Not an administrator"
-     },
-     "409": {
-      "description": "A time server keeps the clock, or the last request is busy"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "Not an appliance"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Create Clock Request",
@@ -5610,18 +5809,65 @@
       },
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
      "403": {
-      "description": "Not an administrator"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
      },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Clock Request",
@@ -8004,6 +8250,46 @@
        }
       },
       "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Clock",
@@ -8028,15 +8314,55 @@
      "204": {
       "description": "Successful Response"
      },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
      "422": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
       "description": "Validation Error"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Report Clock Measurement",

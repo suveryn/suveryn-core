@@ -3133,6 +3133,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "jsonschema" },
     { name = "pdf2image" },
     { name = "pytest" },
     { name = "reportlab" },
@@ -3149,6 +3150,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "jsonschema", specifier = ">=4.23" },
     { name = "pdf2image", specifier = ">=1.17" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "reportlab", specifier = ">=4.0" },

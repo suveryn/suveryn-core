@@ -5,7 +5,10 @@
  * nudges the appliance's clock when the reports agree. Status measures it again for "Set to this PC's time".
  */
 
-export type Measured = { offset_ms: number; rtt_ms: number };
+import { answered } from "../api";
+import { getClock, reportClockMeasurement, type Measured } from "../generated/gateway";
+
+export type { Measured };
 
 const TRIES = 3;
 export const REPORT_EVERY_MS = 60 * 60 * 1000;
@@ -24,10 +27,10 @@ export async function measureClock(): Promise<Measured | null> {
   const samples: Measured[] = [];
   for (let i = 0; i < TRIES; i++) {
     const sentAt = Date.now();
-    const r = await fetch("/v1/clock", { cache: "no-store" });
+    const answer = await getClock({ cache: "no-store" });
     const receivedAt = Date.now();
-    if (!r.ok) return null;
-    const { now_ms } = (await r.json()) as { now_ms: number };
+    if (answer.status < 200 || answer.status >= 300) return null; // refused or down: nothing measured, and no sign-in screen
+    const { now_ms } = await answered(Promise.resolve(answer)); // an answer that isn't the gateway's: thrown, as no network is
     samples.push(difference(sentAt, now_ms, receivedAt));
   }
   return quickest(samples);
@@ -35,7 +38,7 @@ export async function measureClock(): Promise<Measured | null> {
 
 /** Report one measurement to the gateway. */
 export async function sendClock(m: Measured): Promise<void> {
-  await fetch("/v1/clock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(m) });
+  await reportClockMeasurement(m);
 }
 
 /** Measure and report; quietly nothing when that doesn't work (the clock is not the page's business). */

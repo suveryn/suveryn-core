@@ -17,7 +17,8 @@ ssh -N -L 8000:127.0.0.1:8000 -L 8180:127.0.0.1:8180 root@<gpu-host> -p <ssh-por
 
 Other commands:
 
-- `npm test`: unit tests (SSE parsing, answer rendering, copy and download, that the brand files match `suveryn-brand`, the web setup's text and rules, and the Content-Security-Policy rules: `src/csp.test.ts`)
+- `npm run generate`: write `src/generated` again from the gateway's description (see [below](#the-gateways-code-generated))
+- `npm test`: first that `src/generated` is what the gateway's description gives today, then the unit tests (SSE parsing, answer rendering, copy and download, that the brand files match `suveryn-brand`, the web setup's text and rules, and the Content-Security-Policy rules: `src/csp.test.ts`)
 - `npm run brand:sync`: re-copy the brand files from `suveryn-brand` (see below)
 - `npm run typecheck`
 - `npm run build`: static files in `dist/` (the chat, `index.html`, and the appliance's web setup, `setup.html`), plus `THIRD-PARTY-NOTICES.txt`
@@ -140,6 +141,16 @@ Every step is saved on the appliance when Continue is pressed (a reload resumes 
 **The backup recovery key.** The browser makes an [age](https://age-encryption.org) X25519 key pair (WebCrypto, `src/setup/recoveryKey.ts`) and downloads the private half as an age identity file (`suveryn-backup-recovery-key-<name>.txt`); only the public half (`age1…`) goes to the appliance, which encrypts backups to it. So the appliance can make backups but can't read them, and nobody can without that file. Setup continues only once the file has been downloaded and the administrator confirms it is stored safely. The format is checked against the real `age-keygen` in `screens.test.ts`.
 
 **Without an appliance.** `npm run dev`, and the preview build `npx vite build --mode demo`, answer from [`src/setup/demo.ts`](src/setup/demo.ts) with the design's example values; a production build doesn't contain it (`screens.test.ts` checks the guard). In the demo any `.yaml` file is a valid manifest, a share address containing "fail" can't be reached, and adding `#check-fails`, `#provisioning-fails` or `#no-disk` to the address tries those cases. The browser check that walks every screen in all three languages, with axe and the real CSP: [`docs/spikes/react-aria/check.py`](../../docs/spikes/react-aria/check.py).
+
+## The gateway's code (generated)
+
+The code that calls the gateway is being moved from hand-written (`src/api.ts`) to generated from the gateway's own description, one area at a time (suveryn-tracker#159). The clock is the first (#236).
+
+- [`src/generated`](src/generated) is written by `npm run generate` and never edited: for each operation of a moved area a function named after it (`getClock`, `createClockRequest`), with the types of what it is sent and what it answers, refusals included. `npm test` first fails when it isn't what the description gives today ([`scripts/generate.mjs`](scripts/generate.mjs)).
+- The generator is Orval, pinned to one version in `package.json` (a development tool: nothing of it is bundled; the decision and what was looked at are in [architecture.md](../../docs/architecture.md), *Decisions*). [`orval.config.ts`](orval.config.ts) generates the groups the gateway describes strictly; the list is `STRICT` in the gateway's [`tests/test_description.py`](../api-gateway/tests/test_description.py). To change Orval's version: change it in `package.json`, `npm install`, `npm run generate`, and read the difference in `src/generated`.
+- Generated code reaches the gateway through the one hand-written `fetch` in [`src/lib/gateway.ts`](src/lib/gateway.ts), which hands on the answer as it came. A screen calls a generated function through `answered` in `src/api.ts`, which turns a refusal into what the hand-written calls throw: the sign-in screen for a session that ended, otherwise an `HttpError` with the gateway's code and its words; an answer that isn't the gateway's is a failure too. The hourly clock report (`src/lib/clock.ts`) reads a refusal itself instead: a session that ended there must not bring up the sign-in screen.
+- Orval puts an id into an address as it is given: the caller encodes it (`encodeURIComponent`), as `applianceClockAnswer` does.
+- Tests answer the generated code with what the gateway really answered ([`src/test/gateway.ts`](src/test/gateway.ts)): its own tests keep those answers as a file, `packages/api-gateway/tests/<area>_answers.json`, and fail when it is out of date. `src/api.clock.test.ts` is the example to follow.
 
 ## Token usage
 

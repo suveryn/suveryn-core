@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from .. import clock as clock_module
+from ..problems import Message, refusals
 from .common import admin_or_403, principal
 
 router = APIRouter(tags=["clock"])  # the group its operations are in, in the description (description.py)
@@ -31,18 +32,18 @@ class SetAnswer(BaseModel):
     id: str
     pending: bool = False
     ok: bool | None = None
-    failure: dict | None = None  # why it wasn't set: {kind, code, params}, as the clock's helper wrote it
+    failure: Message | None = None  # why it wasn't set, as the clock's helper wrote it
     moved_ms: int | None = None
 
 
-@router.get("/v1/clock", response_model=Now)
+@router.get("/v1/clock", response_model=Now, responses=refusals())
 async def get_clock(response: Response):
     """The appliance's clock, for a signed-in browser to measure the difference with its own."""
     response.headers["Cache-Control"] = "no-store"
     return Now(now_ms=time.time_ns() // 1_000_000)
 
 
-@router.post("/v1/clock", status_code=204)
+@router.post("/v1/clock", status_code=204, responses=refusals())
 async def report_clock_measurement(body: Measured, request: Request):
     """A signed-in browser's measurement. The newest per account counts for a day; when they agree the
     appliance is asked to nudge its clock (``clock.Clock.report``)."""
@@ -51,9 +52,7 @@ async def report_clock_measurement(body: Measured, request: Request):
     return Response(status_code=204)
 
 
-@router.post("/v1/admin/clock", response_model=SetAnswer, status_code=202, responses={
-    403: {"description": "Not an administrator"}, 409: {"description": "A time server keeps the clock, or the last request is busy"},
-    503: {"description": "Not an appliance"}})
+@router.post("/v1/admin/clock", response_model=SetAnswer, status_code=202, responses=refusals(409, 422))
 async def create_clock_request(body: Measured, request: Request):
     """Administrators: set the appliance's clock to this PC's time, by the difference just measured (Status, after a
     confirmation that shows both times). The answer comes at ``GET /v1/admin/clock/{id}``."""
@@ -74,7 +73,7 @@ async def create_clock_request(body: Measured, request: Request):
     return SetAnswer(id=rid, pending=True)
 
 
-@router.get("/v1/admin/clock/{rid}", response_model=SetAnswer, responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/clock/{rid}", response_model=SetAnswer, responses=refusals(404))
 async def get_clock_request(rid: str, request: Request):
     """The appliance's answer to setting its clock, or ``pending`` while it acts on it."""
     admin_or_403(request)
