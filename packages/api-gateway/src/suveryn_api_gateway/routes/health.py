@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
-from suveryn_harness import BackendError, LlamaServerClient, ModelInfo
+from suveryn_harness import BackendError, BackendState, LlamaServerClient, ModelInfo
 
 from ..description import Answer
 from ..problems import refusals
@@ -21,14 +21,15 @@ class BackendStatus(Answer):
     """State of the model server as seen from the gateway."""
 
     reachable: bool
-    status: Literal["ok", "loading", "error", "unreachable"]  # the harness's ``BackendHealth``
+    status: BackendState
     url: str | None = None  # not reported: /health is public (the server log has it)
     model: str | None = None
     detail: str | None = None
 
 
 class DocumentsStatus(Answer):
-    """State of document handling: "unavailable" where there is none."""
+    """State of document handling: the rag service's own three (its ``state``; the rag is an optional package, so
+    its states are repeated here), and "unavailable" where there is none."""
 
     status: Literal["ready", "starting", "failed", "unavailable"]
     detail: str | None = None

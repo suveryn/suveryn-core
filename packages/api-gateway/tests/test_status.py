@@ -69,17 +69,20 @@ def test_every_answer_of_status_is_what_the_description_says(setup, tmp_path, mo
     monkeypatch.setattr(status, "DATA_PATH", tmp_path)
     check, user, admin = Checked(c, "status"), as_user(kc, BOB), as_user(kc, ALICE, admin=True)
 
-    def same_every_run(body):  # the moments, and this machine's disk
+    monkeypatch.setattr(status, "_disk", lambda: (300 * 1024**3, 900 * 1024**3))  # not this machine's disk: room enough
+    monkeypatch.setattr(status, "FRESH_S", 0)  # checked now, not what the monitor found when the app started
+
+    def same_every_run(body):  # the moment a check was first seen failing
         for row in body["checks"]:
             row["since"] = row["since"] and "2026-11-22T09:00:00Z"
-            if row["id"] == "disk":
-                row["free"], row["total"] = 300 * 1024**3, 900 * 1024**3
 
     assert check("GET", "/v1/admin/status", 401).json()["code"] == "auth.signed_out"
     assert check("GET", "/v1/admin/status", 403, keep="not_an_administrator", headers=user).json()["code"] == "request.forbidden"
     answer = check("GET", "/v1/admin/status", 200, keep="checks", same_every_run={"checked_at": "2026-11-22T09:00:05Z"},
                    tidy=same_every_run, headers=admin).json()
     assert [x["id"] for x in answer["checks"]] == ["answering", "reading", "signin", "data", "disk", "clock"]
+    disk = answer["checks"][4]
+    assert (disk["ok"], disk["since"], disk["free"], disk["total"]) == (True, None, 300 * 1024**3, 900 * 1024**3)
 
     # health is public: no sign-in, the same body with 200 and, while the model server isn't ready, with 503
     def health(transport, expected, keep):
@@ -90,6 +93,8 @@ def test_every_answer_of_status_is_what_the_description_says(setup, tmp_path, mo
             return check("GET", "/health", expected, keep=keep).json()
     assert health(fake_backend(), 200, "ready")["status"] == "ok"
     assert health(fake_backend(health_status=503), 503, "loading")["backend"]["status"] == "loading"
+    assert health(fake_backend(health_status=500), 503, "error")["backend"] == {"reachable": True, "status": "error", "url": None,
+                                                                              "model": None, "detail": None}
     assert health(unreachable_backend(), 503, "unreachable")["backend"]["reachable"] is False
     check.kept.check()
     # not seen: what nobody planned for; and for Status, sign-in or the database down

@@ -2423,7 +2423,7 @@
     "type": "object"
    },
    "DocumentsStatus": {
-    "description": "State of document handling: \"unavailable\" where there is none.",
+    "description": "State of document handling: the rag service's own three (its ``state``; the rag is an optional package, so\nits states are repeated here), and \"unavailable\" where there is none.",
     "properties": {
      "detail": {
       "anyOf": [

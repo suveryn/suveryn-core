@@ -7,7 +7,7 @@ facts read from its table). No storage, rights or screens: those are the gateway
 
 from .config import LLMSettings
 from .grounding import GROUNDED_INSTRUCTIONS, cited_numbers, grounded_messages
-from .llm import BackendError, BackendHealth, LlamaServerClient, StreamChunk
+from .llm import BackendError, BackendHealth, BackendState, LlamaServerClient, StreamChunk
 from .schemas import (
     Calculation,
     ChatMessage,
@@ -44,6 +44,7 @@ __all__ = [
     "PASSAGES",
     "BackendError",
     "BackendHealth",
+    "BackendState",
     "Calculation",
     "ChatMessage",
     "ChatRequest",

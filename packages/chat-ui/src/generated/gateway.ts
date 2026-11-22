@@ -82,7 +82,8 @@ export const DocumentsStatusStatus = {
 } as const;
 
 /**
- * State of document handling: "unavailable" where there is none.
+ * State of document handling: the rag service's own three (its ``state``; the rag is an optional package, so
+ * its states are repeated here), and "unavailable" where there is none.
  */
 export interface DocumentsStatus {
   detail: string | null;

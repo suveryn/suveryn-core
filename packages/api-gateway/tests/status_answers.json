@@ -52,8 +52,8 @@
      "id": "disk",
      "in_progress": null,
      "offset_ms": null,
-     "ok": false,
-     "since": "2026-11-22T09:00:00Z",
+     "ok": true,
+     "since": null,
      "synced": null,
      "total": 966367641600,
      "waiting": null
@@ -74,6 +74,44 @@
   },
   "media_type": "application/json",
   "status": 200
+ },
+ "error": {
+  "body": {
+   "auth": {
+    "detail": null,
+    "status": "disabled"
+   },
+   "backend": {
+    "detail": null,
+    "model": null,
+    "reachable": true,
+    "status": "error",
+    "url": null
+   },
+   "cases": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "directory": {
+    "detail": null,
+    "status": "ready"
+   },
+   "documents": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "history": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "status": "degraded",
+   "usage": {
+    "detail": null,
+    "status": "unavailable"
+   }
+  },
+  "media_type": "application/json",
+  "status": 503
  },
  "loading": {
   "body": {
