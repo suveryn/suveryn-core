@@ -34,7 +34,7 @@ const MODELS: ModelInfo[] = [{ id: "Qwen3.8-27B", loaded: true, default: true, t
 
 // ---------- people ----------
 const account = (sub: string, name: string, email: string, admin: boolean, enabled: boolean, last: number | null): Account => ({
-  sub, username: email, name, email, admin, enabled, last_sign_in: last === null ? null : ago(last),
+  sub, username: email, name, email, admin, enabled, last_sign_in: last === null ? null : ago(last), last_sign_in_unknown: false,
 });
 const USERS: UsersList = {
   agreement_users: 10,

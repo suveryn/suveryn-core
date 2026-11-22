@@ -563,8 +563,113 @@ export interface RatesInput {
   updated_by?: string | null;
 }
 
+export interface Account {
+  admin: boolean;
+  email: string;
+  enabled: boolean;
+  last_sign_in: string | null;
+  last_sign_in_unknown: boolean;
+  name: string;
+  sub: string;
+  username: string;
+}
+
+export interface UsersOut {
+  agreement_users: number | null;
+  users: Account[];
+}
+
+export interface NewUser {
+  admin?: boolean;
+  /**
+     * @minLength 3
+     * @maxLength 254
+     * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
+     */
+  email: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+}
+
+/**
+ * A temporary password to pass on, shown once: where to sign in, and with what.
+ */
+export interface Temporary {
+  address: string;
+  password: string;
+  user: Account;
+}
+
+export type AccountEventKind = typeof AccountEventKind[keyof typeof AccountEventKind];
+
+
+export const AccountEventKind = {
+  signed_in: 'signed_in',
+  sign_in_failed: 'sign_in_failed',
+  signed_out: 'signed_out',
+  added: 'added',
+  made_admin: 'made_admin',
+  admin_removed: 'admin_removed',
+  password_reset: 'password_reset',
+  two_step_reset: 'two_step_reset',
+  signed_out_everywhere: 'signed_out_everywhere',
+  switched_off: 'switched_off',
+  switched_on: 'switched_on',
+  changed: 'changed',
+  deleted: 'deleted',
+} as const;
+
+export type AccountEventReason = typeof AccountEventReason[keyof typeof AccountEventReason] | null;
+
+
+export const AccountEventReason = {
+  wrong_password: 'wrong_password',
+  locked: 'locked',
+  switched_off: 'switched_off',
+  other: 'other',
+} as const;
+
+/**
+ * One line of *Sign-ins and changes*: who, what, when, and by whom for a change. Never a password or text.
+ */
+export interface AccountEvent {
+  at: string;
+  by: string | null;
+  kind: AccountEventKind;
+  name: string;
+  reason: AccountEventReason;
+  user: string | null;
+}
+
+export interface AdminIn {
+  admin: boolean;
+}
+
+/**
+ * What deleting an account removes (its own space) and what stays with its cases.
+ */
+export interface Deletion {
+  conversations: number;
+  documents: number;
+  shared_conversations: number;
+}
+
+export interface EnabledIn {
+  enabled: boolean;
+}
+
 export interface Now {
   now_ms: number;
+}
+
+/**
+ * The caller's picture, by its ETag: what a page puts behind the picture's address so a new one is fetched.
+ */
+export interface Picture {
+  avatar: string;
 }
 
 /**
@@ -601,6 +706,17 @@ export interface UsageReport {
   step: UsageReportStep;
   totals: UsageTotals;
   totals_only_before: string | null;
+}
+
+/**
+ * One account, as the API lists it.
+ */
+export interface Person {
+  admin: boolean;
+  avatar: string | null;
+  name: string;
+  sub: string;
+  username: string;
 }
 
 export type PreviewOfficeSettingsParams = {
@@ -640,10 +756,20 @@ export type GetOfficeUsageParams = {
   end?: string | null;
 };
 
+export type ListAccountEventsParams = {
+  limit?: number;
+};
+
 export type GetMyUsageParams = {
   start?: string | null;
   end?: string | null;
 };
+
+export type ListUsersParams = {
+  q?: string;
+};
+
+export type ListDepartedUsers200 = {[key: string]: string};
 
 const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
   const seen = new Set<string>();
@@ -1065,6 +1191,11 @@ export type updateOfficeSettingsResponse403 = {
   status: 403
 }
 
+export type updateOfficeSettingsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
 export type updateOfficeSettingsResponse422 = {
   data: ProblemDetails
   status: 422
@@ -1083,7 +1214,7 @@ export type updateOfficeSettingsResponse503 = {
 export type updateOfficeSettingsResponseSuccess = (updateOfficeSettingsResponse200) & {
   headers: Headers;
 };
-export type updateOfficeSettingsResponseError = (updateOfficeSettingsResponse401 | updateOfficeSettingsResponse403 | updateOfficeSettingsResponse422 | updateOfficeSettingsResponse500 | updateOfficeSettingsResponse503) & {
+export type updateOfficeSettingsResponseError = (updateOfficeSettingsResponse401 | updateOfficeSettingsResponse403 | updateOfficeSettingsResponse404 | updateOfficeSettingsResponse422 | updateOfficeSettingsResponse500 | updateOfficeSettingsResponse503) & {
   headers: Headers;
 };
 
@@ -1588,6 +1719,733 @@ export const setUsageRates = async (ratesInput: RatesInput, options?: Parameters
 
 
 
+export type listAccountsResponse200 = {
+  data: UsersOut
+  status: 200
+}
+
+export type listAccountsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listAccountsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listAccountsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listAccountsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listAccountsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listAccountsResponseSuccess = (listAccountsResponse200) & {
+  headers: Headers;
+};
+export type listAccountsResponseError = (listAccountsResponse401 | listAccountsResponse403 | listAccountsResponse404 | listAccountsResponse500 | listAccountsResponse503) & {
+  headers: Headers;
+};
+
+export type listAccountsResponse = (listAccountsResponseSuccess | listAccountsResponseError)
+
+export const getListAccountsUrl = () => {
+
+
+
+
+  return `/v1/admin/users`
+}
+
+/**
+ * Every person's account: name, e-mail, administrator or not, on or off, last sign-in.
+ * @summary List Accounts
+ */
+export const listAccounts = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listAccountsResponse> => {
+
+  return gatewayFetch<listAccountsResponse>(getListAccountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type createAccountResponse201 = {
+  data: Temporary
+  status: 201
+}
+
+export type createAccountResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type createAccountResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type createAccountResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type createAccountResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type createAccountResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type createAccountResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type createAccountResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type createAccountResponseSuccess = (createAccountResponse201) & {
+  headers: Headers;
+};
+export type createAccountResponseError = (createAccountResponse401 | createAccountResponse403 | createAccountResponse404 | createAccountResponse409 | createAccountResponse422 | createAccountResponse500 | createAccountResponse503) & {
+  headers: Headers;
+};
+
+export type createAccountResponse = (createAccountResponseSuccess | createAccountResponseError)
+
+export const getCreateAccountUrl = () => {
+
+
+
+
+  return `/v1/admin/users`
+}
+
+/**
+ * A new account, with a temporary password to pass on (shown once). The person signs in with the e-mail
+ * address, then chooses a password, and sets up two-step sign-in when the office requires it (Settings).
+ * @summary Create Account
+ */
+export const createAccount = async (newUser: NewUser, options?: Parameters<typeof gatewayFetch>[1]): Promise<createAccountResponse> => {
+
+  return gatewayFetch<createAccountResponse>(getCreateAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(newUser)
+  }
+);}
+
+
+
+export type listAccountEventsResponse200 = {
+  data: AccountEvent[]
+  status: 200
+}
+
+export type listAccountEventsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listAccountEventsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listAccountEventsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listAccountEventsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listAccountEventsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listAccountEventsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listAccountEventsResponseSuccess = (listAccountEventsResponse200) & {
+  headers: Headers;
+};
+export type listAccountEventsResponseError = (listAccountEventsResponse401 | listAccountEventsResponse403 | listAccountEventsResponse404 | listAccountEventsResponse422 | listAccountEventsResponse500 | listAccountEventsResponse503) & {
+  headers: Headers;
+};
+
+export type listAccountEventsResponse = (listAccountEventsResponseSuccess | listAccountEventsResponseError)
+
+export const getListAccountEventsUrl = (params?: ListAccountEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/admin/users/events?${stringifiedParams}` : `/v1/admin/users/events`
+}
+
+/**
+ * *Sign-ins and changes*, newest first: Keycloak's sign-in events and its admin events on accounts, kept 180
+ * days, each change with the administrator who made it. Names and actions only.
+ * @summary List Account Events
+ */
+export const listAccountEvents = async (params?: ListAccountEventsParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<listAccountEventsResponse> => {
+
+  return gatewayFetch<listAccountEventsResponse>(getListAccountEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type deleteAccountResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteAccountResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteAccountResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteAccountResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type deleteAccountResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type deleteAccountResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type deleteAccountResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteAccountResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteAccountResponseSuccess = (deleteAccountResponse204) & {
+  headers: Headers;
+};
+export type deleteAccountResponseError = (deleteAccountResponse401 | deleteAccountResponse403 | deleteAccountResponse404 | deleteAccountResponse409 | deleteAccountResponse422 | deleteAccountResponse500 | deleteAccountResponse503) & {
+  headers: Headers;
+};
+
+export type deleteAccountResponse = (deleteAccountResponseSuccess | deleteAccountResponseError)
+
+export const getDeleteAccountUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}`
+}
+
+/**
+ * Delete an account (decision, 29 October). Only one that is switched off, so its cases are handed over already.
+ * Its own space goes with it: its documents outside a case, the conversations nobody else can read, its picture,
+ * its pins. What it did in its cases stays with them under its name: documents it added, conversations it
+ * shared, the access log. Then the account itself, in Keycloak. Usage keeps its counts. Repeatable: a step
+ * that failed is done again.
+ * @summary Delete Account
+ */
+export const deleteAccount = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteAccountResponse> => {
+
+  return gatewayFetch<deleteAccountResponse>(getDeleteAccountUrl(sub),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type setAccountAdminResponse200 = {
+  data: Account
+  status: 200
+}
+
+export type setAccountAdminResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setAccountAdminResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setAccountAdminResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setAccountAdminResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type setAccountAdminResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setAccountAdminResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setAccountAdminResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setAccountAdminResponseSuccess = (setAccountAdminResponse200) & {
+  headers: Headers;
+};
+export type setAccountAdminResponseError = (setAccountAdminResponse401 | setAccountAdminResponse403 | setAccountAdminResponse404 | setAccountAdminResponse409 | setAccountAdminResponse422 | setAccountAdminResponse500 | setAccountAdminResponse503) & {
+  headers: Headers;
+};
+
+export type setAccountAdminResponse = (setAccountAdminResponseSuccess | setAccountAdminResponseError)
+
+export const getSetAccountAdminUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}/admin`
+}
+
+/**
+ * Make someone an administrator, or remove the rights; never the last administrator's.
+ * @summary Set Account Admin
+ */
+export const setAccountAdmin = async (sub: string,
+    adminIn: AdminIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setAccountAdminResponse> => {
+
+  return gatewayFetch<setAccountAdminResponse>(getSetAccountAdminUrl(sub),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(adminIn)
+  }
+);}
+
+
+
+export type previewAccountDeletionResponse200 = {
+  data: Deletion
+  status: 200
+}
+
+export type previewAccountDeletionResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type previewAccountDeletionResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type previewAccountDeletionResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type previewAccountDeletionResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type previewAccountDeletionResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type previewAccountDeletionResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type previewAccountDeletionResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type previewAccountDeletionResponseSuccess = (previewAccountDeletionResponse200) & {
+  headers: Headers;
+};
+export type previewAccountDeletionResponseError = (previewAccountDeletionResponse401 | previewAccountDeletionResponse403 | previewAccountDeletionResponse404 | previewAccountDeletionResponse409 | previewAccountDeletionResponse422 | previewAccountDeletionResponse500 | previewAccountDeletionResponse503) & {
+  headers: Headers;
+};
+
+export type previewAccountDeletionResponse = (previewAccountDeletionResponseSuccess | previewAccountDeletionResponseError)
+
+export const getPreviewAccountDeletionUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}/deletion`
+}
+
+/**
+ * What deleting this account would remove, for the confirmation: counts only.
+ * @summary Preview Account Deletion
+ */
+export const previewAccountDeletion = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<previewAccountDeletionResponse> => {
+
+  return gatewayFetch<previewAccountDeletionResponse>(getPreviewAccountDeletionUrl(sub),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type setAccountEnabledResponse200 = {
+  data: Account
+  status: 200
+}
+
+export type setAccountEnabledResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setAccountEnabledResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setAccountEnabledResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setAccountEnabledResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type setAccountEnabledResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setAccountEnabledResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setAccountEnabledResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setAccountEnabledResponseSuccess = (setAccountEnabledResponse200) & {
+  headers: Headers;
+};
+export type setAccountEnabledResponseError = (setAccountEnabledResponse401 | setAccountEnabledResponse403 | setAccountEnabledResponse404 | setAccountEnabledResponse409 | setAccountEnabledResponse422 | setAccountEnabledResponse500 | setAccountEnabledResponse503) & {
+  headers: Headers;
+};
+
+export type setAccountEnabledResponse = (setAccountEnabledResponseSuccess | setAccountEnabledResponseError)
+
+export const getSetAccountEnabledUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}/enabled`
+}
+
+/**
+ * Switch an account off, or on again. Off: not your own, not the last administrator, and only once every
+ * case it manages has a new manager.
+ * @summary Set Account Enabled
+ */
+export const setAccountEnabled = async (sub: string,
+    enabledIn: EnabledIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setAccountEnabledResponse> => {
+
+  return gatewayFetch<setAccountEnabledResponse>(getSetAccountEnabledUrl(sub),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(enabledIn)
+  }
+);}
+
+
+
+export type resetAccountPasswordResponse200 = {
+  data: Temporary
+  status: 200
+}
+
+export type resetAccountPasswordResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type resetAccountPasswordResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type resetAccountPasswordResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type resetAccountPasswordResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type resetAccountPasswordResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type resetAccountPasswordResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type resetAccountPasswordResponseSuccess = (resetAccountPasswordResponse200) & {
+  headers: Headers;
+};
+export type resetAccountPasswordResponseError = (resetAccountPasswordResponse401 | resetAccountPasswordResponse403 | resetAccountPasswordResponse404 | resetAccountPasswordResponse422 | resetAccountPasswordResponse500 | resetAccountPasswordResponse503) & {
+  headers: Headers;
+};
+
+export type resetAccountPasswordResponse = (resetAccountPasswordResponseSuccess | resetAccountPasswordResponseError)
+
+export const getResetAccountPasswordUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}/password`
+}
+
+/**
+ * A new temporary password: the current one stops working.
+ * @summary Reset Account Password
+ */
+export const resetAccountPassword = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<resetAccountPasswordResponse> => {
+
+  return gatewayFetch<resetAccountPasswordResponse>(getResetAccountPasswordUrl(sub),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type signOutAccountResponse204 = {
+  data: void
+  status: 204
+}
+
+export type signOutAccountResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type signOutAccountResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type signOutAccountResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type signOutAccountResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type signOutAccountResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type signOutAccountResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type signOutAccountResponseSuccess = (signOutAccountResponse204) & {
+  headers: Headers;
+};
+export type signOutAccountResponseError = (signOutAccountResponse401 | signOutAccountResponse403 | signOutAccountResponse404 | signOutAccountResponse422 | signOutAccountResponse500 | signOutAccountResponse503) & {
+  headers: Headers;
+};
+
+export type signOutAccountResponse = (signOutAccountResponseSuccess | signOutAccountResponseError)
+
+export const getSignOutAccountUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}/sign-out`
+}
+
+/**
+ * Signed out on every device; they can sign in again straight away.
+ * @summary Sign Out Account
+ */
+export const signOutAccount = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<signOutAccountResponse> => {
+
+  return gatewayFetch<signOutAccountResponse>(getSignOutAccountUrl(sub),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type resetAccountTwoStepResponse204 = {
+  data: void
+  status: 204
+}
+
+export type resetAccountTwoStepResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type resetAccountTwoStepResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type resetAccountTwoStepResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type resetAccountTwoStepResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type resetAccountTwoStepResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type resetAccountTwoStepResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type resetAccountTwoStepResponseSuccess = (resetAccountTwoStepResponse204) & {
+  headers: Headers;
+};
+export type resetAccountTwoStepResponseError = (resetAccountTwoStepResponse401 | resetAccountTwoStepResponse403 | resetAccountTwoStepResponse404 | resetAccountTwoStepResponse422 | resetAccountTwoStepResponse500 | resetAccountTwoStepResponse503) & {
+  headers: Headers;
+};
+
+export type resetAccountTwoStepResponse = (resetAccountTwoStepResponseSuccess | resetAccountTwoStepResponseError)
+
+export const getResetAccountTwoStepUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/admin/users/${sub}/two-step`
+}
+
+/**
+ * The authenticator app removed (a lost phone): the person sets it up again at the next sign-in when the office
+ * requires two-step sign-in, and may otherwise.
+ * @summary Reset Account Two Step
+ */
+export const resetAccountTwoStep = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<resetAccountTwoStepResponse> => {
+
+  return gatewayFetch<resetAccountTwoStepResponse>(getResetAccountTwoStepUrl(sub),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
 export type getClockResponse200 = {
   data: Now
   status: 200
@@ -1707,6 +2565,135 @@ export const reportClockMeasurement = async (measured: Measured, options?: Param
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(measured)
+  }
+);}
+
+
+
+export type deleteMyPictureResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteMyPictureResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteMyPictureResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteMyPictureResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteMyPictureResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteMyPictureResponseSuccess = (deleteMyPictureResponse204) & {
+  headers: Headers;
+};
+export type deleteMyPictureResponseError = (deleteMyPictureResponse401 | deleteMyPictureResponse403 | deleteMyPictureResponse500 | deleteMyPictureResponse503) & {
+  headers: Headers;
+};
+
+export type deleteMyPictureResponse = (deleteMyPictureResponseSuccess | deleteMyPictureResponseError)
+
+export const getDeleteMyPictureUrl = () => {
+
+
+
+
+  return `/v1/me/avatar`
+}
+
+/**
+ * Remove the caller's picture; their initials are shown again.
+ * @summary Delete My Picture
+ */
+export const deleteMyPicture = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteMyPictureResponse> => {
+
+  return gatewayFetch<deleteMyPictureResponse>(getDeleteMyPictureUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type setMyPictureResponse200 = {
+  data: Picture
+  status: 200
+}
+
+export type setMyPictureResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setMyPictureResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setMyPictureResponse413 = {
+  data: ProblemDetails
+  status: 413
+}
+
+export type setMyPictureResponse415 = {
+  data: ProblemDetails
+  status: 415
+}
+
+export type setMyPictureResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setMyPictureResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setMyPictureResponseSuccess = (setMyPictureResponse200) & {
+  headers: Headers;
+};
+export type setMyPictureResponseError = (setMyPictureResponse401 | setMyPictureResponse403 | setMyPictureResponse413 | setMyPictureResponse415 | setMyPictureResponse500 | setMyPictureResponse503) & {
+  headers: Headers;
+};
+
+export type setMyPictureResponse = (setMyPictureResponseSuccess | setMyPictureResponseError)
+
+export const getSetMyPictureUrl = () => {
+
+
+
+
+  return `/v1/me/avatar`
+}
+
+/**
+ * Set the caller's picture: the request body is the image (PNG, JPEG or WebP; the UI sends the
+ * square it cropped). It is re-encoded on the server (``avatars.normalise``); answers ``{"avatar": etag}``.
+ * @summary Set My Picture
+ */
+export const setMyPicture = async (setMyPictureBody: Blob, options?: Parameters<typeof gatewayFetch>[1]): Promise<setMyPictureResponse> => {
+
+  return gatewayFetch<setMyPictureResponse>(getSetMyPictureUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: setMyPictureBody
   }
 );}
 
@@ -1837,6 +2824,277 @@ export const getGetMyUsageUrl = (params?: GetMyUsageParams,) => {
 export const getMyUsage = async (params?: GetMyUsageParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<getMyUsageResponse> => {
 
   return gatewayFetch<getMyUsageResponse>(getGetMyUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listUsersResponse200 = {
+  data: Person[]
+  status: 200
+}
+
+export type listUsersResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listUsersResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listUsersResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listUsersResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listUsersResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listUsersResponseSuccess = (listUsersResponse200) & {
+  headers: Headers;
+};
+export type listUsersResponseError = (listUsersResponse401 | listUsersResponse403 | listUsersResponse422 | listUsersResponse500 | listUsersResponse503) & {
+  headers: Headers;
+};
+
+export type listUsersResponse = (listUsersResponseSuccess | listUsersResponseError)
+
+export const getListUsersUrl = (params?: ListUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/users?${stringifiedParams}` : `/v1/users`
+}
+
+/**
+ * The office's people (id, username, name) whose username, name or email contains ``q``,
+ * to add a colleague to a case. From Keycloak, through the ``suveryn-directory`` client.
+ * @summary List Users
+ */
+export const listUsers = async (params?: ListUsersParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<listUsersResponse> => {
+
+  return gatewayFetch<listUsersResponse>(getListUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listDepartedUsersResponse200 = {
+  data: ListDepartedUsers200
+  status: 200
+}
+
+export type listDepartedUsersResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listDepartedUsersResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listDepartedUsersResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listDepartedUsersResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listDepartedUsersResponseSuccess = (listDepartedUsersResponse200) & {
+  headers: Headers;
+};
+export type listDepartedUsersResponseError = (listDepartedUsersResponse401 | listDepartedUsersResponse403 | listDepartedUsersResponse500 | listDepartedUsersResponse503) & {
+  headers: Headers;
+};
+
+export type listDepartedUsersResponse = (listDepartedUsersResponseSuccess | listDepartedUsersResponseError)
+
+export const getListDepartedUsersUrl = () => {
+
+
+
+
+  return `/v1/users/departed`
+}
+
+/**
+ * The names of accounts an administrator deleted, by id: what they did in the cases keeps their name
+ * (who added a document, whose shared conversation). Names only.
+ * @summary List Departed Users
+ */
+export const listDepartedUsers = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listDepartedUsersResponse> => {
+
+  return gatewayFetch<listDepartedUsersResponse>(getListDepartedUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type deleteUserPictureResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteUserPictureResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteUserPictureResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteUserPictureResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type deleteUserPictureResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteUserPictureResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteUserPictureResponseSuccess = (deleteUserPictureResponse204) & {
+  headers: Headers;
+};
+export type deleteUserPictureResponseError = (deleteUserPictureResponse401 | deleteUserPictureResponse403 | deleteUserPictureResponse422 | deleteUserPictureResponse500 | deleteUserPictureResponse503) & {
+  headers: Headers;
+};
+
+export type deleteUserPictureResponse = (deleteUserPictureResponseSuccess | deleteUserPictureResponseError)
+
+export const getDeleteUserPictureUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/users/${sub}/avatar`
+}
+
+/**
+ * Administrators: remove someone's picture (one that shouldn't be there). Never set one.
+ * @summary Delete User Picture
+ */
+export const deleteUserPicture = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteUserPictureResponse> => {
+
+  return gatewayFetch<deleteUserPictureResponse>(getDeleteUserPictureUrl(sub),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type getUserPictureResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type getUserPictureResponse304 = {
+  data: void
+  status: 304
+}
+
+export type getUserPictureResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getUserPictureResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getUserPictureResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getUserPictureResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getUserPictureResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getUserPictureResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getUserPictureResponseSuccess = (getUserPictureResponse200) & {
+  headers: Headers;
+};
+export type getUserPictureResponseError = (getUserPictureResponse304 | getUserPictureResponse401 | getUserPictureResponse403 | getUserPictureResponse404 | getUserPictureResponse422 | getUserPictureResponse500 | getUserPictureResponse503) & {
+  headers: Headers;
+};
+
+export type getUserPictureResponse = (getUserPictureResponseSuccess | getUserPictureResponseError)
+
+export const getGetUserPictureUrl = (sub: string,) => {
+
+
+
+
+  return `/v1/users/${sub}/avatar`
+}
+
+/**
+ * A colleague's picture (every signed-in user may see it), with an ETag: a browser that has it
+ * sends ``If-None-Match`` and gets 304. 404 when the person has none (the UI shows initials).
+ * @summary Get User Picture
+ */
+export const getUserPicture = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getUserPictureResponse> => {
+
+  return gatewayFetch<getUserPictureResponse>(getGetUserPictureUrl(sub),
   {
     ...options,
     method: 'GET'

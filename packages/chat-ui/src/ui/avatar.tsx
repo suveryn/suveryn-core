@@ -2,10 +2,11 @@
  * Avatar: a person's picture, or their initials, in the rounded square of the brand mark's outer
  * boundary (corner radius a quarter of the side, as suveryn-icon.svg: rx 5 on 20) with a fine line
  * border. An administrator wears a shield over the corner, an overlay icon like any other
- * (IconBadge). The picture is the gateway's `/v1/users/{sub}/avatar`, keyed by its ETag so a new
+ * (IconBadge). The picture is the gateway's own (its address from the generated code), keyed by its ETag so a new
  * upload shows at once; when there is none, or it fails to load, the initials show instead (never a
  * broken image).
  */
+import { getGetUserPictureUrl } from "../generated/gateway";
 import { Shield } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { cx } from "./Button";
@@ -47,7 +48,7 @@ export function initialsOf(name: string): string {
 
 /** The picture's URL for a person, or null without one (`etag` null or undefined). */
 export function avatarUrl(sub: string, etag: string | null | undefined): string | null {
-  return etag ? `/v1/users/${encodeURIComponent(sub)}/avatar?v=${encodeURIComponent(etag)}` : null;
+  return etag ? `${getGetUserPictureUrl(encodeURIComponent(sub))}?v=${encodeURIComponent(etag)}` : null;
 }
 
 export function Avatar({ name, sub, etag, admin, size = "normal", adminLabel, shield = true, className }: {

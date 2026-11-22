@@ -81,7 +81,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"backups", "clock", "models", "settings", "status", "usage"}
+STRICT = {"backups", "clock", "models", "settings", "status", "usage", "users"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
@@ -124,17 +124,27 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
     from suveryn_harness.messages import CODES
 
     # what each function of routes/ raises itself, and which other functions of routes/ it calls: a refusal is
-    # often raised by a helper (routes/common.py), and counts for every operation that reaches it
+    # often raised by a helper (routes/common.py), and counts for every operation that reaches it. The accounts
+    # (accounts.py, Keycloak's answers as codes) refuse for themselves outside routes/: a route reaches them as
+    # ``accounts.<method>``, and they are kept under that name, apart from the routes' own functions.
     own_codes: dict[str, set[str]] = {}
     calls: dict[str, set[str]] = {}
-    for module in (pathlib.Path(description.__file__).parent / "routes").glob("*.py"):
+    package = pathlib.Path(description.__file__).parent
+
+    def read(module: pathlib.Path, prefix: str) -> None:
         for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
             if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
-                inside = [c for c in ast.walk(node) if isinstance(c, ast.Call)]
-                own_codes.setdefault(node.name, set()).update(c.args[0].value for c in inside if getattr(c.func, "id", "") == "Problem")
+                name, inside = prefix + node.name, [c for c in ast.walk(node) if isinstance(c, ast.Call)]
+                own_codes.setdefault(name, set()).update(c.args[0].value for c in inside if getattr(c.func, "id", "") == "Problem")
                 # called, or handed to something that calls it (``run_in_threadpool(leave_key, …)``)
-                calls.setdefault(node.name, set()).update(n.id for n in ast.walk(node) if isinstance(n, ast.Name))
-                calls[node.name].update(c.func.attr for c in inside if isinstance(c.func, ast.Attribute))
+                calls.setdefault(name, set()).update(prefix + n.id for n in ast.walk(node) if isinstance(n, ast.Name))
+                attributes = [n for n in ast.walk(node) if isinstance(n, ast.Attribute)]
+                calls[name].update(prefix + a.attr for a in attributes)
+                calls[name].update("accounts." + a.attr for a in attributes if getattr(a.value, "id", "") in ("accounts", "self") and (prefix or a.value.id == "accounts"))
+
+    for module in (package / "routes").glob("*.py"):
+        read(module, "")
+    read(package / "accounts.py", "accounts.")
 
     def reached(name: str, seen: set[str]) -> set[str]:
         if name in seen or name not in own_codes:
@@ -185,8 +195,8 @@ def test_a_strict_operation_leaves_nothing_undescribed():
         schemas_used += [p["schema"] for p in op.get("parameters", [])]
         assert not loose(schemas_used, frozenset(), f"{method} {path}"), f"{method} {path}: {loose(schemas_used, frozenset(), path)}"
         for status, r in op["responses"].items():
-            # nothing to read: done (204), or accepted and answered elsewhere later (202)
-            assert status in ("202", "204") or r.get("content"), f"{method} {path}: {status} has no described body"
+            # nothing to read: done (204), accepted and answered elsewhere later (202), or unchanged (304)
+            assert status in ("202", "204", "304") or r.get("content"), f"{method} {path}: {status} has no described body"
 
 
 # A member an answer doesn't always carry, by the schema's name: named here on purpose.

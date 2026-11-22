@@ -1,0 +1,331 @@
+{
+ "accounts": {
+  "body": {
+   "agreement_users": null,
+   "users": [
+    {
+     "admin": true,
+     "email": "alice@office.test",
+     "enabled": true,
+     "last_sign_in": null,
+     "last_sign_in_unknown": true,
+     "name": "Alice Admin",
+     "sub": "user-a",
+     "username": "alice@office.test"
+    },
+    {
+     "admin": false,
+     "email": "bob@office.test",
+     "enabled": true,
+     "last_sign_in": "2026-10-26T07:33:20Z",
+     "last_sign_in_unknown": false,
+     "name": "Bob Peeters",
+     "sub": "user-b",
+     "username": "bob@office.test"
+    },
+    {
+     "admin": false,
+     "email": "carol@office.test",
+     "enabled": true,
+     "last_sign_in": null,
+     "last_sign_in_unknown": true,
+     "name": "Carol Claes",
+     "sub": "user-c",
+     "username": "carol@office.test"
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "added": {
+  "body": {
+   "address": "http://testserver",
+   "password": "abcd-efgh-jkmn-pqrs",
+   "user": {
+    "admin": false,
+    "email": "jonas.c@office.test",
+    "enabled": true,
+    "last_sign_in": null,
+    "last_sign_in_unknown": false,
+    "name": "Jonas Claes",
+    "sub": "00000000-0000-4000-8000-000000000001",
+    "username": "jonas.c@office.test"
+   }
+  },
+  "media_type": "application/json",
+  "status": 201
+ },
+ "deletion": {
+  "body": {
+   "conversations": 0,
+   "documents": 0,
+   "shared_conversations": 0
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "departed": {
+  "body": {
+   "00000000-0000-4000-8000-000000000001": "Jonas Claes"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "directory_away": {
+  "body": {
+   "code": "auth.unavailable",
+   "detail": "The office's directory is not available right now: unreachable.",
+   "kind": "unavailable",
+   "params": {},
+   "status": 503,
+   "title": "The sign-in service can't be reached or has a problem.",
+   "type": "urn:suveryn:problem:auth.unavailable"
+  },
+  "media_type": "application/problem+json",
+  "status": 503
+ },
+ "done": {
+  "body": null,
+  "media_type": "application/json",
+  "status": 204
+ },
+ "email_exists": {
+  "body": {
+   "code": "account.email_exists",
+   "detail": "An account with this e-mail address exists.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "An account with this e-mail address exists.",
+   "type": "urn:suveryn:problem:account.email_exists"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "events": {
+  "body": [
+   {
+    "at": "2026-11-22T09:00:00Z",
+    "by": "Alice Admin",
+    "kind": "switched_off",
+    "name": "Jonas Claes",
+    "reason": null,
+    "user": "00000000-0000-4000-8000-000000000001"
+   },
+   {
+    "at": "2026-11-22T09:00:00Z",
+    "by": "Alice Admin",
+    "kind": "signed_out_everywhere",
+    "name": "Jonas Claes",
+    "reason": null,
+    "user": "00000000-0000-4000-8000-000000000001"
+   },
+   {
+    "at": "2026-11-22T09:00:00Z",
+    "by": "Alice Admin",
+    "kind": "admin_removed",
+    "name": "Jonas Claes",
+    "reason": null,
+    "user": "00000000-0000-4000-8000-000000000001"
+   },
+   {
+    "at": "2026-11-22T09:00:00Z",
+    "by": "Alice Admin",
+    "kind": "made_admin",
+    "name": "Jonas Claes",
+    "reason": null,
+    "user": "00000000-0000-4000-8000-000000000001"
+   },
+   {
+    "at": "2026-11-22T09:00:00Z",
+    "by": "Alice Admin",
+    "kind": "added",
+    "name": "Jonas Claes",
+    "reason": null,
+    "user": "00000000-0000-4000-8000-000000000001"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "last_administrator": {
+  "body": {
+   "code": "account.last_administrator",
+   "detail": "There must always be one administrator.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "There must always be one administrator.",
+   "type": "urn:suveryn:problem:account.last_administrator"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "made_administrator": {
+  "body": {
+   "admin": true,
+   "email": "jonas.c@office.test",
+   "enabled": true,
+   "last_sign_in": null,
+   "last_sign_in_unknown": false,
+   "name": "Jonas Claes",
+   "sub": "00000000-0000-4000-8000-000000000001",
+   "username": "jonas.c@office.test"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "no_picture": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "No picture.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "no_picture_sent": {
+  "body": {
+   "code": "request.unsupported",
+   "detail": "Send the picture as the request body.",
+   "kind": "refused",
+   "params": {},
+   "status": 415,
+   "title": "What was sent is of a type that isn't accepted.",
+   "type": "urn:suveryn:problem:request.unsupported"
+  },
+  "media_type": "application/problem+json",
+  "status": 415
+ },
+ "no_such_account": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "No such account.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "not_switched_off": {
+  "body": {
+   "code": "account.not_switched_off",
+   "detail": "Switch the account off first.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "An account is switched off before it is deleted.",
+   "type": "urn:suveryn:problem:account.not_switched_off"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "own_account": {
+  "body": {
+   "code": "account.own_account",
+   "detail": "You can't switch your own account off.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "An administrator can't switch off or delete their own account.",
+   "type": "urn:suveryn:problem:account.own_account"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "password_reset": {
+  "body": {
+   "address": "http://testserver",
+   "password": "abcd-efgh-jkmn-pqrs",
+   "user": {
+    "admin": false,
+    "email": "jonas.c@office.test",
+    "enabled": true,
+    "last_sign_in": null,
+    "last_sign_in_unknown": false,
+    "name": "Jonas Claes",
+    "sub": "00000000-0000-4000-8000-000000000001",
+    "username": "jonas.c@office.test"
+   }
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "people": {
+  "body": [
+   {
+    "admin": false,
+    "avatar": "bobs",
+    "name": "Bob Peeters",
+    "sub": "user-b",
+    "username": "bob@office.test"
+   },
+   {
+    "admin": false,
+    "avatar": null,
+    "name": "Carol Claes",
+    "sub": "user-c",
+    "username": "carol@office.test"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "picture_set": {
+  "body": {
+   "avatar": "new1"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "picture_too_large": {
+  "body": {
+   "code": "user.picture_too_large",
+   "detail": "The picture is larger than 2 MB.",
+   "kind": "refused",
+   "params": {
+    "max_mb": 2
+   },
+   "status": 413,
+   "title": "The picture is larger than `max_mb`.",
+   "type": "urn:suveryn:problem:user.picture_too_large"
+  },
+  "media_type": "application/problem+json",
+  "status": 413
+ },
+ "switched_off": {
+  "body": {
+   "admin": false,
+   "email": "jonas.c@office.test",
+   "enabled": false,
+   "last_sign_in": null,
+   "last_sign_in_unknown": false,
+   "name": "Jonas Claes",
+   "sub": "00000000-0000-4000-8000-000000000001",
+   "username": "jonas.c@office.test"
+  },
+  "media_type": "application/json",
+  "status": 200
+ }
+}

@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 
 import httpx
-from pydantic import BaseModel
+from .description import Answer
 
 log = logging.getLogger("suveryn.gateway")
 ADMIN_ROLE = "suveryn-admin"  # the realm role; routes/common.py names the same
@@ -63,7 +63,7 @@ class DirectorySettings:
         return f"{self.issuer}/protocol/openid-connect/token"
 
 
-class Person(BaseModel):
+class Person(Answer):
     """One account, as the API lists it."""
 
     sub: str

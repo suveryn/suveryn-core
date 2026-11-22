@@ -10,7 +10,6 @@ import { messageText, problemOf, type Message } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
 import * as gateway from "./generated/gateway";
-import { createClockRequest, getClockRequest, type Measured, type SetAnswer } from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
 type SourceRef = { document_id: string; page: number | null; location: string | null };
@@ -554,17 +553,11 @@ export async function updateCase(id: string, changes: Partial<NewCase> & { acces
 /** A member of a case, with the name as it was when they were added. */
 export type Member = { user: string; username: string; name: string; role: CaseRole; added_by: string; added_at: string; admin?: boolean; avatar?: string | null };
 /** One of the office's accounts, from the directory (Keycloak), to add to a case. */
-export type Person = { sub: string; username: string; name: string; admin?: boolean; avatar?: string | null };
+export type Person = gateway.Person;
 /** One line of a case's access log: who did what, when (never document text). */
 /** ``name``: who, as the case knows them or, for a deleted account, as it was called. */
 export type CaseEvent = { id: number; user: string; at: string; action: string; detail: Record<string, unknown>; name?: string };
 
-/** The names of deleted accounts, by id: what they did in the cases keeps their name. */
-export async function departedNames(): Promise<Record<string, string>> {
-  const r = await fetch("/v1/users/departed");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
 
 export async function listMembers(caseId: string): Promise<Member[]> {
   const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members`);
@@ -595,12 +588,6 @@ export async function handOver(caseId: string, user: string): Promise<Case> {
   return r.json();
 }
 
-/** The office's accounts whose name or username contains `q`. */
-export async function searchUsers(q: string): Promise<Person[]> {
-  const r = await fetch(`/v1/users?q=${encodeURIComponent(q)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
 
 /** The case's access log, newest first (its manager and the administrators). */
 export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
@@ -754,47 +741,38 @@ export const previewCaseSettings = (q: Asked<gateway.PreviewOfficeSettingsParams
 export const setCaseSettings = (changes: gateway.SettingsIn) => answered(gateway.updateOfficeSettings(changes));
 
 /** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
-export const setApplianceClock = (measured: Measured): Promise<SetAnswer> => answered(createClockRequest(measured));
+export const setApplianceClock = (measured: gateway.Measured) => answered(gateway.createClockRequest(measured));
 
 /** The appliance's answer to that, or `pending` while it acts on it. Orval puts an id in the address as it is given. */
-export const applianceClockAnswer = (id: string): Promise<SetAnswer> => answered(getClockRequest(encodeURIComponent(id)));
+export const applianceClockAnswer = (id: string) => answered(gateway.getClockRequest(encodeURIComponent(id)));
 
-/** Administration › Users (admin.md): the office's accounts through the gateway, never Keycloak's console. */
-export type Account = { sub: string; username: string; name: string; email: string; admin: boolean; enabled: boolean; last_sign_in: string | null;
-  /** No sign-in found, and the account is older than the 180 days of sign-ins Keycloak keeps. */
-  last_sign_in_unknown?: boolean };
-export type UsersList = { users: Account[]; agreement_users: number | null };
+/** Administration › Users (admin.md): the office's accounts through the gateway, never Keycloak's console.
+ *  `last_sign_in_unknown`: no sign-in found, and the account is older than the 180 days of sign-ins Keycloak keeps. */
+export type Account = gateway.Account;
+export type UsersList = gateway.UsersOut;
 /** A temporary password to pass on, in the answer once and nowhere else. */
-export type TemporaryPassword = { user: Account; address: string; password: string };
-type AccountEventKind = "signed_in" | "sign_in_failed" | "signed_out" | "added" | "made_admin" | "admin_removed"
-  | "password_reset" | "two_step_reset" | "signed_out_everywhere" | "switched_off" | "switched_on" | "changed" | "deleted";
-export type AccountEvent = {
-  at: string; kind: AccountEventKind; user: string | null; name: string; by: string | null;
-  reason: "wrong_password" | "locked" | "switched_off" | "other" | null;
-};
-
-async function accountCall<T>(path: string, method: string, body?: unknown): Promise<T> {
-  const r = await fetch(`/v1/admin/users${path}`, {
-    method, ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return (r.status === 204 ? undefined : await r.json()) as T;
-}
-
-export const listAccounts = () => accountCall<UsersList>("", "GET");
-export const addAccount = (name: string, email: string, admin: boolean) =>
-  accountCall<TemporaryPassword>("", "POST", { name, email, admin });
-export const setAccountAdmin = (sub: string, admin: boolean) => accountCall<Account>(`/${encodeURIComponent(sub)}/admin`, "PUT", { admin });
-export const setAccountEnabled = (sub: string, enabled: boolean) =>
-  accountCall<Account>(`/${encodeURIComponent(sub)}/enabled`, "PUT", { enabled });
-export const resetAccountPassword = (sub: string) => accountCall<TemporaryPassword>(`/${encodeURIComponent(sub)}/password`, "POST");
-export const resetAccountTwoStep = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}/two-step`, "POST");
-export const signAccountOut = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}/sign-out`, "POST");
+export type TemporaryPassword = gateway.Temporary;
+export type AccountEvent = gateway.AccountEvent;
 /** Deleting an account (decision, 29 October): only once it is off. What would go, for the confirmation. */
-export type AccountDeletion = { documents: number; conversations: number; shared_conversations: number };
-export const accountDeletion = (sub: string) => accountCall<AccountDeletion>(`/${encodeURIComponent(sub)}/deletion`, "GET");
-export const deleteAccount = (sub: string) => accountCall<void>(`/${encodeURIComponent(sub)}`, "DELETE");
-export const listAccountEvents = (limit: number) => accountCall<AccountEvent[]>(`/events?limit=${limit}`, "GET");
+export type AccountDeletion = gateway.Deletion;
+
+export const listAccounts = () => answered(gateway.listAccounts());
+export const addAccount = (name: string, email: string, admin: boolean) => answered(gateway.createAccount({ name, email, admin }));
+export const setAccountAdmin = (sub: string, admin: boolean) => answered(gateway.setAccountAdmin(encodeURIComponent(sub), { admin }));
+export const setAccountEnabled = (sub: string, enabled: boolean) => answered(gateway.setAccountEnabled(encodeURIComponent(sub), { enabled }));
+export const resetAccountPassword = (sub: string) => answered(gateway.resetAccountPassword(encodeURIComponent(sub)));
+export const resetAccountTwoStep = (sub: string): Promise<void> => answered(gateway.resetAccountTwoStep(encodeURIComponent(sub)));
+export const signAccountOut = (sub: string): Promise<void> => answered(gateway.signOutAccount(encodeURIComponent(sub)));
+export const accountDeletion = (sub: string) => answered(gateway.previewAccountDeletion(encodeURIComponent(sub)));
+export const deleteAccount = (sub: string): Promise<void> => answered(gateway.deleteAccount(encodeURIComponent(sub)));
+export const listAccountEvents = (limit: number) => answered(gateway.listAccountEvents({ limit }));
+
+/** The names of deleted accounts, by id: what they did in the cases keeps their name. */
+export const departedNames = () => answered(gateway.listDepartedUsers());
+
+/** The office's accounts whose name or username contains `q`. */
+export const searchUsers = (q: string) => answered(gateway.listUsers({ q }));
+
 
 
 
@@ -989,14 +967,7 @@ export async function confirmRun(caseId: string, runId: string, facts: { id: str
 // ---------------------------------------------------------------- avatars (docs/design/avatars.md)
 
 /** Sets the caller's picture: the square the crop dialog made (PNG). The server re-encodes it; returns the new ETag. */
-export async function setMyAvatar(image: Blob): Promise<string> {
-  const r = await fetch("/v1/me/avatar", { method: "PUT", headers: { "Content-Type": image.type || "image/png" }, body: image });
-  if (!r.ok) throw await responseError(r);
-  return (await r.json()).avatar as string;
-}
+export const setMyAvatar = async (image: Blob): Promise<string> => (await answered(gateway.setMyPicture(image))).avatar;
 
 /** Removes the caller's picture: their initials are shown again. */
-export async function removeMyAvatar(): Promise<void> {
-  const r = await fetch("/v1/me/avatar", { method: "DELETE" });
-  if (!r.ok) throw await responseError(r);
-}
+export const removeMyAvatar = (): Promise<void> => answered(gateway.deleteMyPicture());

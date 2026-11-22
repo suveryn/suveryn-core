@@ -242,7 +242,7 @@ async def set_case_keep(case_id: str, body: KeepIn, request: Request):
 
 
 # ------------------------------------------------------------------ members and the office's directory (stage 2)
-@users_routes.get("/v1/users", response_model=list[Person], responses={503: {"description": "The directory is not available"}})
+@users_routes.get("/v1/users", response_model=list[Person], responses=refusals())
 async def list_users(request: Request, q: str = ""):
     """The office's people (id, username, name) whose username, name or email contains ``q``,
     to add a colleague to a case. From Keycloak, through the ``suveryn-directory`` client."""
@@ -253,7 +253,7 @@ async def list_users(request: Request, q: str = ""):
     return await with_faces(request, people)
 
 
-@users_routes.get("/v1/users/departed", response_model=dict[str, str])
+@users_routes.get("/v1/users/departed", response_model=dict[str, str], responses=refusals())
 async def list_departed_users(request: Request):
     """The names of accounts an administrator deleted, by id: what they did in the cases keeps their name
     (who added a document, whose shared conversation). Names only."""
@@ -397,7 +397,7 @@ async def preview_office_settings(request: Request, default_access: Literal["off
     return out
 
 
-@settings_routes.put("/v1/admin/cases/settings", response_model=SettingsOut, responses=refusals())
+@settings_routes.put("/v1/admin/cases/settings", response_model=SettingsOut, responses=refusals(404))
 async def update_office_settings(body: SettingsIn, request: Request):
     """Administrators: change the default access (``office`` or ``members``), the keep period of
     closed cases and the keep period of saved conversations (each ``6m``, ``1y``, ``5y`` or ``manual``).
