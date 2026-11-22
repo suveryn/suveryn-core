@@ -23,13 +23,15 @@ from pydantic import BaseModel, Field
 
 from ..accounts import Account, AccountEvent, Accounts, AccountsUnavailable, RightsRefused
 from ..auth import AuthError, AuthUnavailable
+from ..description import Answer
+from ..problems import refusals
 from .common import Scope, admin_or_403, case_settings, cases_or_503, docs_or_503, flush_soon, history_or_503, owner_of
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["users"])  # the group its operations are in, in the description (description.py)
 
 
-class UsersOut(BaseModel):
+class UsersOut(Answer):
     users: list[Account]
     # how many accounts the support agreement covers, once the appliance reads it (suveryn-tracker#41)
     agreement_users: int | None = None
@@ -41,7 +43,7 @@ class NewUser(BaseModel):
     admin: bool = False
 
 
-class Temporary(BaseModel):
+class Temporary(Answer):
     """A temporary password to pass on, shown once: where to sign in, and with what."""
 
     user: Account
@@ -104,15 +106,14 @@ async def _admins(accounts: Accounts, token: str) -> list[Account]:
     return [a for a in await _do(accounts.everyone(token)) if a.admin and a.enabled]
 
 
-@router.get("/v1/admin/users", response_model=UsersOut, responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/users", response_model=UsersOut, responses=refusals(404))
 async def list_accounts(request: Request):
     """Every person's account: name, e-mail, administrator or not, on or off, last sign-in."""
     accounts, token = await as_admin(request)
     return UsersOut(users=await _do(accounts.everyone(token)))
 
 
-@router.post("/v1/admin/users", response_model=Temporary, status_code=201,
-             responses={403: {"description": "Not an administrator"}, 409: {"description": "The e-mail address has an account"}})
+@router.post("/v1/admin/users", response_model=Temporary, status_code=201, responses=refusals(404, 409, 422))
 async def create_account(body: NewUser, request: Request):
     """A new account, with a temporary password to pass on (shown once). The person signs in with the e-mail
     address, then chooses a password, and sets up two-step sign-in when the office requires it (Settings)."""
@@ -121,8 +122,7 @@ async def create_account(body: NewUser, request: Request):
     return _temporary(request, user, password)
 
 
-@router.put("/v1/admin/users/{sub}/admin", response_model=Account, responses={
-    403: {"description": "Not an administrator"}, 409: {"description": "The last administrator"}})
+@router.put("/v1/admin/users/{sub}/admin", response_model=Account, responses=refusals(404, 409, 422))
 async def set_account_admin(sub: str, body: AdminIn, request: Request):
     """Make someone an administrator, or remove the rights; never the last administrator's."""
     accounts, token = await as_admin(request)
@@ -135,7 +135,7 @@ async def set_account_admin(sub: str, body: AdminIn, request: Request):
     return user.model_copy(update={"admin": body.admin})
 
 
-@router.post("/v1/admin/users/{sub}/password", response_model=Temporary, responses={403: {"description": "Not an administrator"}})
+@router.post("/v1/admin/users/{sub}/password", response_model=Temporary, responses=refusals(404, 422))
 async def reset_account_password(sub: str, request: Request):
     """A new temporary password: the current one stops working."""
     accounts, token = await as_admin(request)
@@ -144,7 +144,7 @@ async def reset_account_password(sub: str, request: Request):
     return _temporary(request, user, password)
 
 
-@router.post("/v1/admin/users/{sub}/two-step", status_code=204, responses={403: {"description": "Not an administrator"}})
+@router.post("/v1/admin/users/{sub}/two-step", status_code=204, responses=refusals(404, 422))
 async def reset_account_two_step(sub: str, request: Request):
     """The authenticator app removed (a lost phone): the person sets it up again at the next sign-in when the office
     requires two-step sign-in, and may otherwise."""
@@ -152,7 +152,7 @@ async def reset_account_two_step(sub: str, request: Request):
     await _do(accounts.reset_two_step(token, sub, require=case_settings(request).two_step))
 
 
-@router.post("/v1/admin/users/{sub}/sign-out", status_code=204, responses={403: {"description": "Not an administrator"}})
+@router.post("/v1/admin/users/{sub}/sign-out", status_code=204, responses=refusals(404, 422))
 async def sign_out_account(sub: str, request: Request):
     """Signed out on every device; they can sign in again straight away."""
     accounts, token = await as_admin(request)
@@ -160,9 +160,7 @@ async def sign_out_account(sub: str, request: Request):
     request.app.state.auth.drop_user(sub)  # this gateway's own sessions too, not only Keycloak's
 
 
-@router.put("/v1/admin/users/{sub}/enabled", response_model=Account, responses={
-    403: {"description": "Not an administrator"},
-    409: {"description": "Your own account, the last administrator, or the account still manages cases"}})
+@router.put("/v1/admin/users/{sub}/enabled", response_model=Account, responses=refusals(404, 409, 422))
 async def set_account_enabled(sub: str, body: EnabledIn, request: Request):
     """Switch an account off, or on again. Off: not your own, not the last administrator, and only once every
     case it manages has a new manager."""
@@ -185,7 +183,7 @@ async def set_account_enabled(sub: str, body: EnabledIn, request: Request):
     return user.model_copy(update={"enabled": body.enabled})
 
 
-@router.get("/v1/admin/users/events", response_model=list[AccountEvent], responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/users/events", response_model=list[AccountEvent], responses=refusals(404, 422))
 async def list_account_events(request: Request, limit: int = 20):
     """*Sign-ins and changes*, newest first: Keycloak's sign-in events and its admin events on accounts, kept 180
     days, each change with the administrator who made it. Names and actions only."""
@@ -200,7 +198,7 @@ async def list_account_events(request: Request, limit: int = 20):
 
 
 # ------------------------------------------------------------------ deleting an account
-class Deletion(BaseModel):
+class Deletion(Answer):
     """What deleting an account removes (its own space) and what stays with its cases."""
 
     documents: int = 0              # its own documents, outside any case
@@ -231,8 +229,7 @@ async def _deletable(request: Request, accounts: Accounts, token: str, sub: str)
     return user
 
 
-@router.get("/v1/admin/users/{sub}/deletion", response_model=Deletion, responses={
-    403: {"description": "Not an administrator"}, 409: {"description": "Your own account, one that is on, or one that manages cases"}})
+@router.get("/v1/admin/users/{sub}/deletion", response_model=Deletion, responses=refusals(404, 409, 422))
 async def preview_account_deletion(sub: str, request: Request):
     """What deleting this account would remove, for the confirmation: counts only."""
     accounts, token = await as_admin(request)
@@ -247,8 +244,7 @@ async def preview_account_deletion(sub: str, request: Request):
     return out
 
 
-@router.delete("/v1/admin/users/{sub}", status_code=204, responses={
-    403: {"description": "Not an administrator"}, 409: {"description": "Your own account, one that is on, or one that manages cases"}})
+@router.delete("/v1/admin/users/{sub}", status_code=204, responses=refusals(404, 409, 422))
 async def delete_account(sub: str, request: Request):
     """Delete an account (decision, 29 October). Only one that is switched off, so its cases are handed over already.
     Its own space goes with it: its documents outside a case, the conversations nobody else can read, its picture,

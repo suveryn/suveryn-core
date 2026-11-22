@@ -1662,4 +1662,6 @@ def test_every_answer_of_the_offices_settings_is_what_the_description_says(offic
     check.kept.check()
     # not seen: what nobody planned for; sign-in or the stores down (test_auth.py, test_problems.py, and the cases'
     # own store away, test_cases.py)
-    assert check.not_seen() == {(m, p, s) for m, p in (("GET", settings), ("GET", preview), ("PUT", settings)) for s in (500, 503)}
+    # and an account gone from the sign-in service while two-step sign-in is switched on for everyone (test_users.py)
+    assert check.not_seen() == {(m, p, s) for m, p in (("GET", settings), ("GET", preview), ("PUT", settings)) for s in (500, 503)} | {
+        ("PUT", settings, 404)}

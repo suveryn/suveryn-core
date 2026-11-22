@@ -50,6 +50,8 @@ def answer_is_described(response, method: str, path: str) -> None:
         return
     media_type = response.headers.get("content-type", "").split(";")[0].strip()
     assert media_type in content, f"{where}: sent as {media_type!r}, described as {sorted(content)}"
+    if content[media_type]["schema"] == {"type": "string", "format": "binary"}:
+        return  # a file as it is (a picture): its media type is what is described
     schema = {**_closed(copy.deepcopy(content[media_type]["schema"])), "components": COMPONENTS}
     errors = sorted(f"{'/'.join(map(str, e.absolute_path)) or 'the answer'}: {e.message}"
                     for e in Draft202012Validator(schema).iter_errors(response.json()))
@@ -65,7 +67,8 @@ class Kept:
     def keep(self, name: str, response, tidy=None, **same_every_run) -> None:
         """``same_every_run``: members whose value differs from run to run (an id, a moment), and the value kept.
         ``tidy``: a function that does the same deeper in the body."""
-        body = response.json() if response.content else None
+        json_sent = "json" in response.headers.get("content-type", "")
+        body = response.json() if response.content and json_sent else None  # a file's own bytes are not kept
         if tidy:
             tidy(body)
         for member, value in same_every_run.items():

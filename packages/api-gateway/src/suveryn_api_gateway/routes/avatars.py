@@ -8,6 +8,8 @@ from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 
 from ..avatars import CONTENT_TYPE, MAX_UPLOAD_BYTES, AvatarStore, NotAnImage
+from ..description import Answer
+from ..problems import refusals
 from .common import admin_or_403, owner_of
 
 log = logging.getLogger("suveryn.gateway")
@@ -24,7 +26,17 @@ def avatars_or_503(request: Request) -> AvatarStore:
     return store
 
 
-@router.get("/v1/users/{sub}/avatar", responses={404: {"description": "No picture"}, 304: {"description": "Unchanged"}})
+class Picture(Answer):
+    """The caller's picture, by its ETag: what a page puts behind the picture's address so a new one is fetched."""
+
+    avatar: str
+
+
+BINARY = {"schema": {"type": "string", "format": "binary"}}
+
+
+@router.get("/v1/users/{sub}/avatar", response_class=Response, responses={
+    **refusals(404), 200: {"content": {CONTENT_TYPE: BINARY}, "description": "The picture"}, 304: {"description": "Unchanged"}})
 async def get_user_picture(sub: str, request: Request):
     """A colleague's picture (every signed-in user may see it), with an ETag: a browser that has it
     sends ``If-None-Match`` and gets 304. 404 when the person has none (the UI shows initials)."""
@@ -40,7 +52,9 @@ async def get_user_picture(sub: str, request: Request):
     return Response(content=image, media_type=CONTENT_TYPE, headers=headers)
 
 
-@router.put("/v1/me/avatar", responses={413: {"description": "Larger than 2 MB"}, 415: {"description": "Not a picture"}})
+@router.put("/v1/me/avatar", response_model=Picture, responses=refusals(413, 415), openapi_extra={
+    # the image as it is, read from the request itself and re-encoded on the server
+    "requestBody": {"required": True, "content": {"application/octet-stream": BINARY}}})
 async def set_my_picture(request: Request):
     """Set the caller's picture: the request body is the image (PNG, JPEG or WebP; the UI sends the
     square it cropped). It is re-encoded on the server (``avatars.normalise``); answers ``{"avatar": etag}``."""
@@ -53,17 +67,17 @@ async def set_my_picture(request: Request):
         etag = await run_in_threadpool(avatars_or_503(request).set, owner_of(request), upload)
     except NotAnImage as e:
         raise Problem("user.picture_unreadable", "That isn't a picture sūveryn can read: use a PNG, JPEG or WebP file.") from e
-    return {"avatar": etag}
+    return Picture(avatar=etag)
 
 
-@router.delete("/v1/me/avatar", status_code=204)
+@router.delete("/v1/me/avatar", status_code=204, responses=refusals())
 async def delete_my_picture(request: Request):
     """Remove the caller's picture; their initials are shown again."""
     await run_in_threadpool(avatars_or_503(request).remove, owner_of(request))
     return Response(status_code=204)
 
 
-@router.delete("/v1/users/{sub}/avatar", status_code=204, responses={403: {"description": "Not an administrator"}})
+@router.delete("/v1/users/{sub}/avatar", status_code=204, responses=refusals())
 async def delete_user_picture(sub: str, request: Request):
     """Administrators: remove someone's picture (one that shouldn't be there). Never set one."""
     admin_or_403(request)

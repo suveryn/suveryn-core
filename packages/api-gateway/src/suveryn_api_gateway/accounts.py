@@ -25,7 +25,7 @@ from typing import Literal
 from urllib.parse import quote
 
 import httpx
-from pydantic import BaseModel
+from .description import Answer
 from suveryn_harness.messages import Problem
 
 log = logging.getLogger("suveryn.gateway")
@@ -67,7 +67,7 @@ class AccountsSettings:
         return f"{base}/admin/realms/{realm}"
 
 
-class Account(BaseModel):
+class Account(Answer):
     sub: str
     username: str
     name: str
@@ -85,7 +85,7 @@ EventKind = Literal["signed_in", "sign_in_failed", "signed_out", "added", "made_
                     "changed", "deleted"]
 
 
-class AccountEvent(BaseModel):
+class AccountEvent(Answer):
     """One line of *Sign-ins and changes*: who, what, when, and by whom for a change. Never a password or text."""
 
     at: datetime
