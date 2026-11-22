@@ -95,7 +95,7 @@ async def update_conversation(conversation_id: str, body: RenameIn, request: Req
     return changed
 
 
-@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 422))
+@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 413, 422))
 async def set_conversation_pinned(conversation_id: str, body: PinIn, request: Request):
     """Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
     pin of its own: it follows its case. Personal, so not in any access log."""

@@ -11094,6 +11094,16 @@
       },
       "description": "Conflict"
      },
+     "413": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Request Entity Too Large"
+     },
      "422": {
       "content": {
        "application/problem+json": {

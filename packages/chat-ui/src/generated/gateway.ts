@@ -4728,6 +4728,11 @@ export type setConversationPinnedResponse409 = {
   status: 409
 }
 
+export type setConversationPinnedResponse413 = {
+  data: ProblemDetails
+  status: 413
+}
+
 export type setConversationPinnedResponse422 = {
   data: ProblemDetails
   status: 422
@@ -4746,7 +4751,7 @@ export type setConversationPinnedResponse503 = {
 export type setConversationPinnedResponseSuccess = (setConversationPinnedResponse200) & {
   headers: Headers;
 };
-export type setConversationPinnedResponseError = (setConversationPinnedResponse401 | setConversationPinnedResponse403 | setConversationPinnedResponse404 | setConversationPinnedResponse409 | setConversationPinnedResponse422 | setConversationPinnedResponse500 | setConversationPinnedResponse503) & {
+export type setConversationPinnedResponseError = (setConversationPinnedResponse401 | setConversationPinnedResponse403 | setConversationPinnedResponse404 | setConversationPinnedResponse409 | setConversationPinnedResponse413 | setConversationPinnedResponse422 | setConversationPinnedResponse500 | setConversationPinnedResponse503) & {
   headers: Headers;
 };
 

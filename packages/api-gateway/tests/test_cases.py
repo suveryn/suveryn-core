@@ -1817,6 +1817,8 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     assert "errors" in check("PUT", one, 422, f"{every}/{OWN}", json={**saved, "title": ""}, headers=alice).json()
     long = check("PUT", one, 413, f"{every}/{OWN}", "too_long", content=b" " * (MAX_BODY_BYTES + 1), headers={**alice, "Content-Type": "application/json"})
     assert long.json()["code"] == "conversation.too_long"
+    long = check("PUT", one + "/pin", 413, f"{every}/{OWN}/pin", content=b" " * (MAX_BODY_BYTES + 1), headers={**alice, "Content-Type": "application/json"})
+    assert long.json()["code"] == "conversation.too_long"  # the same limit, on every PUT under a conversation
     assert check("PUT", one, 404, f"{every}/{OWN}", json=saved, headers=bob).json()["code"] == "request.not_found"  # another's: never saved over
     opened = check("GET", one, 200, f"{every}/{OWN}", "one", tidy=same, headers=alice).json()
     assert [t["text"] for t in opened["turns"]] == [t["text"] for t in turns] and opened["messages"] == 2

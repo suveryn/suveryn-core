@@ -91,8 +91,9 @@ STATES = {("GET", "/health", 503)}
 
 
 # A refusal the gateway gives before the route is reached, by the request's size (app.py, ``limit_upload_size``): the
-# route's own code never raises it.
-BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): "conversation.too_long"}
+# route's own code never raises it. The limit is on every PUT under a conversation, so on its pin too.
+BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): "conversation.too_long",
+          ("PUT", "/v1/conversations/{conversation_id}/pin"): "conversation.too_long"}
 
 
 def strict_operations() -> list[tuple[str, str, dict]]:
