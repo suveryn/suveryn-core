@@ -229,7 +229,7 @@ class CaseUpdate(BaseModel):
     confidential: bool | None = None
 
 
-class CaseTypeOut(BaseModel):
+class CaseTypeOut(Answer):
     """A case type an appliance offers (``GET /v1/case-types``, suveryn-tracker#229): its id, the pack that
     brings it (core's reference content or an installed pack) and its word per language, which the screen shows."""
 
@@ -238,7 +238,7 @@ class CaseTypeOut(BaseModel):
     text: dict[str, str]
 
 
-class Case(BaseModel):
+class Case(Answer):
     """A case as the API returns it. ``my_role`` is the caller's: a member's role, ``reader`` for a
     non-member in an office-wide appliance, None for an administrator who only sees it exists."""
 
@@ -325,7 +325,7 @@ class SettingsPreview(Answer):
     conversations_deleted: int = 0  # saved conversations a shorter keep period deletes
 
 
-class Member(BaseModel):
+class Member(Answer):
     """One member of a case, as the API lists it (the name as it was when they were added)."""
 
     user: str
@@ -350,7 +350,7 @@ class HandoverIn(BaseModel):
     user: str = Field(min_length=1, max_length=200)
 
 
-class PinIn(BaseModel):
+class CasePinIn(BaseModel):
     """Body of ``PUT /v1/cases/{id}/pin``: whether the caller pins the case in their sidebar."""
 
     pinned: bool
@@ -364,7 +364,7 @@ class KeepIn(BaseModel):
     extend: bool = False
 
 
-class CaseEvent(BaseModel):
+class CaseEvent(Answer):
     """One line of a case's access log: who, when, what (never document text)."""
 
     id: int

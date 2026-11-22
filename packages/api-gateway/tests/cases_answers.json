@@ -1,0 +1,533 @@
+{
+ "already_closed": {
+  "body": {
+   "code": "case.closed",
+   "detail": "This case is closed.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The case is closed: nothing is added or changed in it until it is reopened.",
+   "type": "urn:suveryn:problem:case.closed"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "closed": {
+  "body": {
+   "access": "default",
+   "closed_at": "2026-11-23T09:00:00Z",
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": "2026-11-23T09:00:00Z",
+   "manager": "bob-sub",
+   "my_role": "manager",
+   "name": "Verkoop Kerkstraat 14",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "closed",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "created": {
+  "body": {
+   "access": "default",
+   "closed_at": null,
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": null,
+   "manager": "alice-sub",
+   "my_role": "manager",
+   "name": "Verkoop Kerkstraat 12",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "open",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 201
+ },
+ "done": {
+  "body": null,
+  "media_type": null,
+  "status": 204
+ },
+ "events": {
+  "body": [
+   {
+    "action": "member_added",
+    "at": "2026-11-23T09:00:00Z",
+    "detail": {
+     "role": "reader",
+     "user": "bob-sub"
+    },
+    "id": 0,
+    "name": "Alice Peeters",
+    "user": "alice-sub"
+   },
+   {
+    "action": "changed",
+    "at": "2026-11-23T09:00:00Z",
+    "detail": {
+     "fields": [
+      "name"
+     ]
+    },
+    "id": 1,
+    "name": "Alice Peeters",
+    "user": "alice-sub"
+   },
+   {
+    "action": "opened",
+    "at": "2026-11-23T09:00:00Z",
+    "detail": {},
+    "id": 2,
+    "name": "Alice Peeters",
+    "user": "alice-sub"
+   },
+   {
+    "action": "created",
+    "at": "2026-11-23T09:00:00Z",
+    "detail": {},
+    "id": 3,
+    "name": "Alice Peeters",
+    "user": "alice-sub"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "handed_over": {
+  "body": {
+   "access": "default",
+   "closed_at": null,
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": null,
+   "manager": "bob-sub",
+   "my_role": "contributor",
+   "name": "Verkoop Kerkstraat 14",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "open",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "kept": {
+  "body": {
+   "access": "default",
+   "closed_at": "2026-11-23T09:00:00Z",
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": true,
+   "keep_until": "2026-11-23T09:00:00Z",
+   "manager": "bob-sub",
+   "my_role": "manager",
+   "name": "Verkoop Kerkstraat 14",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "closed",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "member_added": {
+  "body": {
+   "added_at": "2026-11-23T09:00:00Z",
+   "added_by": "alice-sub",
+   "admin": false,
+   "avatar": null,
+   "name": "Bob Janssens",
+   "role": "reader",
+   "user": "bob-sub",
+   "username": "bob"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "members": {
+  "body": [
+   {
+    "added_at": "2026-11-23T09:00:00Z",
+    "added_by": "alice-sub",
+    "admin": false,
+    "avatar": null,
+    "name": "Test Notaris",
+    "role": "manager",
+    "user": "alice-sub",
+    "username": "notaris.test"
+   },
+   {
+    "added_at": "2026-11-23T09:00:00Z",
+    "added_by": "alice-sub",
+    "admin": false,
+    "avatar": null,
+    "name": "Bob Janssens",
+    "role": "reader",
+    "user": "bob-sub",
+    "username": "bob"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "mine": {
+  "body": [
+   {
+    "access": "default",
+    "closed_at": null,
+    "confidential": false,
+    "created_at": "2026-11-23T09:00:00Z",
+    "created_by": "alice-sub",
+    "id": "00000000-0000-4000-8000-0000000000c1",
+    "keep": false,
+    "keep_until": null,
+    "manager": "alice-sub",
+    "my_role": "manager",
+    "name": "Verkoop Kerkstraat 14",
+    "opened_at": "2026-11-23T09:00:00Z",
+    "pinned": false,
+    "reference": "2026/0417",
+    "state": "open",
+    "type": "sale",
+    "updated_at": "2026-11-23T09:00:00Z"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "no_such_case": {
+  "body": {
+   "code": "case.not_found",
+   "detail": "Unknown case.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "No such case, or the caller may not see it (answered alike).",
+   "type": "urn:suveryn:problem:case.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "not_allowed": {
+  "body": {
+   "code": "case.not_allowed",
+   "detail": "You may not do this in this case.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller's role in this case doesn't allow this.",
+   "type": "urn:suveryn:problem:case.not_allowed"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "nothing_to_change": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "Say what to change: keep, or extend.",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "office": {
+  "body": [
+   {
+    "access": "default",
+    "closed_at": null,
+    "confidential": false,
+    "created_at": "2026-11-23T09:00:00Z",
+    "created_by": "carla-sub",
+    "id": "00000000-0000-4000-8000-0000000000c2",
+    "keep": false,
+    "keep_until": null,
+    "manager": "carla-sub",
+    "manager_name": "Test Notaris",
+    "manager_username": "notaris.test",
+    "members": 1,
+    "my_role": null,
+    "name": "Verkoop Kerkstraat 12",
+    "opened_at": "2026-11-23T09:00:00Z",
+    "pinned": false,
+    "reference": "2026/0418",
+    "state": "open",
+    "type": "sale",
+    "updated_at": "2026-11-23T09:00:00Z"
+   },
+   {
+    "access": "default",
+    "closed_at": null,
+    "confidential": false,
+    "created_at": "2026-11-23T09:00:00Z",
+    "created_by": "alice-sub",
+    "id": "00000000-0000-4000-8000-0000000000c1",
+    "keep": false,
+    "keep_until": null,
+    "manager": "bob-sub",
+    "manager_name": "Bob Janssens",
+    "manager_username": "bob",
+    "members": 1,
+    "my_role": null,
+    "name": "Verkoop Kerkstraat 14",
+    "opened_at": "2026-11-23T09:00:00Z",
+    "pinned": false,
+    "reference": "2026/0417",
+    "state": "open",
+    "type": "sale",
+    "updated_at": "2026-11-23T09:00:00Z"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "one": {
+  "body": {
+   "access": "default",
+   "closed_at": null,
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": null,
+   "manager": "alice-sub",
+   "my_role": "manager",
+   "name": "Verkoop Kerkstraat 12",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "open",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "overview": {
+  "body": [
+   {
+    "access": "default",
+    "closed_at": null,
+    "confidential": false,
+    "created_at": "2026-11-23T09:00:00Z",
+    "created_by": "alice-sub",
+    "id": "00000000-0000-4000-8000-0000000000c1",
+    "keep": false,
+    "keep_until": null,
+    "last_activity_at": "2026-11-23T09:00:00Z",
+    "last_activity_by": "Test Notaris",
+    "manager": "alice-sub",
+    "members": [
+     {
+      "added_at": "2026-11-23T09:00:00Z",
+      "added_by": "alice-sub",
+      "admin": false,
+      "avatar": null,
+      "name": "Test Notaris",
+      "role": "manager",
+      "user": "alice-sub",
+      "username": "notaris.test"
+     },
+     {
+      "added_at": "2026-11-23T09:00:00Z",
+      "added_by": "alice-sub",
+      "admin": false,
+      "avatar": null,
+      "name": "Bob Janssens",
+      "role": "reader",
+      "user": "bob-sub",
+      "username": "bob"
+     }
+    ],
+    "my_role": "manager",
+    "name": "Verkoop Kerkstraat 14",
+    "opened_at": "2026-11-23T09:00:00Z",
+    "pinned": false,
+    "reference": "2026/0417",
+    "state": "open",
+    "type": "sale",
+    "updated_at": "2026-11-23T09:00:00Z"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "pinned": {
+  "body": {
+   "access": "default",
+   "closed_at": null,
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": null,
+   "manager": "alice-sub",
+   "my_role": "reader",
+   "name": "Verkoop Kerkstraat 14",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": true,
+   "reference": "2026/0417",
+   "state": "open",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "reference_taken": {
+  "body": {
+   "code": "case.reference_exists",
+   "detail": "A case with this reference already exists.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "A case with this reference exists.",
+   "type": "urn:suveryn:problem:case.reference_exists"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "renamed": {
+  "body": {
+   "access": "default",
+   "closed_at": null,
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": null,
+   "manager": "alice-sub",
+   "my_role": "manager",
+   "name": "Verkoop Kerkstraat 14",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "open",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "reopened": {
+  "body": {
+   "access": "default",
+   "closed_at": null,
+   "confidential": false,
+   "created_at": "2026-11-23T09:00:00Z",
+   "created_by": "alice-sub",
+   "id": "00000000-0000-4000-8000-0000000000c1",
+   "keep": false,
+   "keep_until": null,
+   "manager": "bob-sub",
+   "my_role": "manager",
+   "name": "Verkoop Kerkstraat 14",
+   "opened_at": "2026-11-23T09:00:00Z",
+   "pinned": false,
+   "reference": "2026/0417",
+   "state": "open",
+   "type": "sale",
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "still_open": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "This case is open; close it first.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "types": {
+  "body": [
+   {
+    "id": "sale",
+    "pack": "pack/be-notary",
+    "text": {
+     "en": "Sale",
+     "fr": "Vente",
+     "nl": "Verkoop"
+    }
+   },
+   {
+    "id": "company-formation",
+    "pack": "pack/be-test",
+    "text": {
+     "en": "Company formation",
+     "fr": "Constitution de société",
+     "nl": "Oprichting vennootschap"
+    }
+   },
+   {
+    "id": "care-mandate",
+    "pack": "pack/be-test",
+    "text": {
+     "en": "Care mandate",
+     "fr": "Mandat de protection",
+     "nl": "Zorgvolmacht"
+    }
+   },
+   {
+    "id": "estate",
+    "pack": "pack/be-test",
+    "text": {
+     "en": "Estate",
+     "fr": "Succession",
+     "nl": "Nalatenschap"
+    }
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ }
+}

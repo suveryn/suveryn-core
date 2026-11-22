@@ -335,6 +335,58 @@ export interface RequestAnswer {
   pending: boolean;
 }
 
+export type AdminCaseAccess = typeof AdminCaseAccess[keyof typeof AdminCaseAccess];
+
+
+export const AdminCaseAccess = {
+  default: 'default',
+  restricted: 'restricted',
+} as const;
+
+export type AdminCaseMyRole = typeof AdminCaseMyRole[keyof typeof AdminCaseMyRole] | null;
+
+
+export const AdminCaseMyRole = {
+  reader: 'reader',
+  contributor: 'contributor',
+  manager: 'manager',
+} as const;
+
+export type AdminCaseState = typeof AdminCaseState[keyof typeof AdminCaseState];
+
+
+export const AdminCaseState = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+/**
+ * A case as the administrator's list shows it (stage 4): with its manager's name and how many
+ * members it has. Nothing from inside the case.
+ */
+export interface AdminCase {
+  access: AdminCaseAccess;
+  closed_at: string | null;
+  confidential: boolean;
+  created_at: string;
+  created_by: string;
+  id: string;
+  keep: boolean;
+  keep_until: string | null;
+  manager: string;
+  manager_name: string;
+  manager_username: string;
+  members: number;
+  my_role: AdminCaseMyRole;
+  name: string;
+  opened_at: string;
+  pinned: boolean;
+  reference: string;
+  state: AdminCaseState;
+  type: string;
+  updated_at: string;
+}
+
 export type SettingsOutConversationsKeep = typeof SettingsOutConversationsKeep[keyof typeof SettingsOutConversationsKeep];
 
 
@@ -661,6 +713,253 @@ export interface EnabledIn {
   enabled: boolean;
 }
 
+export type CaseTypeOutText = {[key: string]: string};
+
+/**
+ * A case type an appliance offers (``GET /v1/case-types``, suveryn-tracker#229): its id, the pack that
+ * brings it (core's reference content or an installed pack) and its word per language, which the screen shows.
+ */
+export interface CaseTypeOut {
+  id: string;
+  pack: string;
+  text: CaseTypeOutText;
+}
+
+export type CaseAccess = typeof CaseAccess[keyof typeof CaseAccess];
+
+
+export const CaseAccess = {
+  default: 'default',
+  restricted: 'restricted',
+} as const;
+
+export type CaseMyRole = typeof CaseMyRole[keyof typeof CaseMyRole] | null;
+
+
+export const CaseMyRole = {
+  reader: 'reader',
+  contributor: 'contributor',
+  manager: 'manager',
+} as const;
+
+export type CaseState = typeof CaseState[keyof typeof CaseState];
+
+
+export const CaseState = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+/**
+ * A case as the API returns it. ``my_role`` is the caller's: a member's role, ``reader`` for a
+ * non-member in an office-wide appliance, None for an administrator who only sees it exists.
+ */
+export interface Case {
+  access: CaseAccess;
+  closed_at: string | null;
+  confidential: boolean;
+  created_at: string;
+  created_by: string;
+  id: string;
+  keep: boolean;
+  keep_until: string | null;
+  manager: string;
+  my_role: CaseMyRole;
+  name: string;
+  opened_at: string;
+  pinned: boolean;
+  reference: string;
+  state: CaseState;
+  type: string;
+  updated_at: string;
+}
+
+export type CaseInAccess = typeof CaseInAccess[keyof typeof CaseInAccess];
+
+
+export const CaseInAccess = {
+  default: 'default',
+  restricted: 'restricted',
+} as const;
+
+/**
+ * Body of ``POST /v1/cases``: the office's file number, a name and the type.
+ */
+export interface CaseIn {
+  access?: CaseInAccess;
+  confidential?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^\S(.*\S)?$
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @pattern ^\S(.*\S)?$
+     */
+  reference: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     * @pattern ^\S(.*\S)?$
+     */
+  type: string;
+}
+
+export type CaseOverviewAccess = typeof CaseOverviewAccess[keyof typeof CaseOverviewAccess];
+
+
+export const CaseOverviewAccess = {
+  default: 'default',
+  restricted: 'restricted',
+} as const;
+
+export type CaseOverviewMyRole = typeof CaseOverviewMyRole[keyof typeof CaseOverviewMyRole] | null;
+
+
+export const CaseOverviewMyRole = {
+  reader: 'reader',
+  contributor: 'contributor',
+  manager: 'manager',
+} as const;
+
+export type CaseOverviewState = typeof CaseOverviewState[keyof typeof CaseOverviewState];
+
+
+export const CaseOverviewState = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export type MemberRole = typeof MemberRole[keyof typeof MemberRole];
+
+
+export const MemberRole = {
+  reader: 'reader',
+  contributor: 'contributor',
+  manager: 'manager',
+} as const;
+
+/**
+ * One member of a case, as the API lists it (the name as it was when they were added).
+ */
+export interface Member {
+  added_at: string;
+  added_by: string;
+  admin: boolean;
+  avatar: string | null;
+  name: string;
+  role: MemberRole;
+  user: string;
+  username: string;
+}
+
+/**
+ * A case as the Cases overview shows it (docs/design/chat-ui.md §4): with its members (the
+ * manager first) and its last activity, who and when, from the access log. For an administrator who
+ * isn't a member, no members: only that the case exists.
+ */
+export interface CaseOverview {
+  access: CaseOverviewAccess;
+  closed_at: string | null;
+  confidential: boolean;
+  created_at: string;
+  created_by: string;
+  id: string;
+  keep: boolean;
+  keep_until: string | null;
+  last_activity_at: string | null;
+  last_activity_by: string;
+  manager: string;
+  members: Member[];
+  my_role: CaseOverviewMyRole;
+  name: string;
+  opened_at: string;
+  pinned: boolean;
+  reference: string;
+  state: CaseOverviewState;
+  type: string;
+  updated_at: string;
+}
+
+export type CaseUpdateAccess = typeof CaseUpdateAccess[keyof typeof CaseUpdateAccess] | null;
+
+
+export const CaseUpdateAccess = {
+  default: 'default',
+  restricted: 'restricted',
+} as const;
+
+/**
+ * Body of ``PATCH /v1/cases/{id}``: what a manager may change. Fields left out stay as they are.
+ */
+export interface CaseUpdate {
+  access?: CaseUpdateAccess;
+  confidential?: boolean | null;
+  name?: string | null;
+  reference?: string | null;
+  type?: string | null;
+}
+
+export type CaseEventDetail = { [key: string]: unknown };
+
+/**
+ * One line of a case's access log: who, when, what (never document text).
+ */
+export interface CaseEvent {
+  action: string;
+  at: string;
+  detail: CaseEventDetail;
+  id: number;
+  name: string;
+  user: string;
+}
+
+/**
+ * Body of ``POST /v1/cases/{id}/handover``: the member (or colleague) who takes the case over.
+ */
+export interface HandoverIn {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  user: string;
+}
+
+/**
+ * Body of ``POST /v1/cases/{id}/keep``: mark the case kept (never deleted by the period) or
+ * not, or extend its deletion by one period.
+ */
+export interface KeepIn {
+  extend?: boolean;
+  keep?: boolean | null;
+}
+
+export type MemberInRole = typeof MemberInRole[keyof typeof MemberInRole];
+
+
+export const MemberInRole = {
+  reader: 'reader',
+  contributor: 'contributor',
+  manager: 'manager',
+} as const;
+
+/**
+ * Body of ``PUT /v1/cases/{id}/members/{user}``.
+ */
+export interface MemberIn {
+  role: MemberInRole;
+}
+
+/**
+ * Body of ``PUT /v1/cases/{id}/pin``: whether the caller pins the case in their sidebar.
+ */
+export interface CasePinIn {
+  pinned: boolean;
+}
+
 export interface Now {
   now_ms: number;
 }
@@ -758,6 +1057,10 @@ export type GetOfficeUsageParams = {
 
 export type ListAccountEventsParams = {
   limit?: number;
+};
+
+export type ListCasesParams = {
+  closed?: boolean;
 };
 
 export type GetMyUsageParams = {
@@ -1105,6 +1408,67 @@ export const getGetBackupRequestUrl = (rid: string,) => {
 export const getBackupRequest = async (rid: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getBackupRequestResponse> => {
 
   return gatewayFetch<getBackupRequestResponse>(getGetBackupRequestUrl(rid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listOfficeCasesResponse200 = {
+  data: AdminCase[]
+  status: 200
+}
+
+export type listOfficeCasesResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listOfficeCasesResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listOfficeCasesResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listOfficeCasesResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listOfficeCasesResponseSuccess = (listOfficeCasesResponse200) & {
+  headers: Headers;
+};
+export type listOfficeCasesResponseError = (listOfficeCasesResponse401 | listOfficeCasesResponse403 | listOfficeCasesResponse500 | listOfficeCasesResponse503) & {
+  headers: Headers;
+};
+
+export type listOfficeCasesResponse = (listOfficeCasesResponseSuccess | listOfficeCasesResponseError)
+
+export const getListOfficeCasesUrl = () => {
+
+
+
+
+  return `/v1/admin/cases`
+}
+
+/**
+ * Administrators: every case on the appliance, open ones first, with who manages it and how
+ * many members it has; nothing from inside a case. For handing cases over before an account
+ * goes (decision 6), and for seeing what is closed and due.
+ * @summary List Office Cases
+ */
+export const listOfficeCases = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listOfficeCasesResponse> => {
+
+  return gatewayFetch<listOfficeCasesResponse>(getListOfficeCasesUrl(),
   {
     ...options,
     method: 'GET'
@@ -2436,6 +2800,1144 @@ export const getResetAccountTwoStepUrl = (sub: string,) => {
 export const resetAccountTwoStep = async (sub: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<resetAccountTwoStepResponse> => {
 
   return gatewayFetch<resetAccountTwoStepResponse>(getResetAccountTwoStepUrl(sub),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type listCaseTypesResponse200 = {
+  data: CaseTypeOut[]
+  status: 200
+}
+
+export type listCaseTypesResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCaseTypesResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCaseTypesResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCaseTypesResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCaseTypesResponseSuccess = (listCaseTypesResponse200) & {
+  headers: Headers;
+};
+export type listCaseTypesResponseError = (listCaseTypesResponse401 | listCaseTypesResponse403 | listCaseTypesResponse500 | listCaseTypesResponse503) & {
+  headers: Headers;
+};
+
+export type listCaseTypesResponse = (listCaseTypesResponseSuccess | listCaseTypesResponseError)
+
+export const getListCaseTypesUrl = () => {
+
+
+
+
+  return `/v1/case-types`
+}
+
+/**
+ * The case types this appliance offers, in order: core's reference content's, then each installed pack's
+ * (suveryn-tracker#229). A type without a playbook is offered too; a stored case keeps its type when the
+ * type's pack is gone.
+ * @summary List Case Types
+ */
+export const listCaseTypes = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listCaseTypesResponse> => {
+
+  return gatewayFetch<listCaseTypesResponse>(getListCaseTypesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listCasesResponse200 = {
+  data: Case[]
+  status: 200
+}
+
+export type listCasesResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCasesResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCasesResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listCasesResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCasesResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCasesResponseSuccess = (listCasesResponse200) & {
+  headers: Headers;
+};
+export type listCasesResponseError = (listCasesResponse401 | listCasesResponse403 | listCasesResponse422 | listCasesResponse500 | listCasesResponse503) & {
+  headers: Headers;
+};
+
+export type listCasesResponse = (listCasesResponseSuccess | listCasesResponseError)
+
+export const getListCasesUrl = (params?: ListCasesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/cases?${stringifiedParams}` : `/v1/cases`
+}
+
+/**
+ * The cases the caller may see: open ones first, most recently active first. Closed cases
+ * only with ``closed=true``. ``my_role`` is the caller's role in each.
+ * @summary List Cases
+ */
+export const listCases = async (params?: ListCasesParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<listCasesResponse> => {
+
+  return gatewayFetch<listCasesResponse>(getListCasesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type createCaseResponse201 = {
+  data: Case
+  status: 201
+}
+
+export type createCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type createCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type createCaseResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type createCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type createCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type createCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type createCaseResponseSuccess = (createCaseResponse201) & {
+  headers: Headers;
+};
+export type createCaseResponseError = (createCaseResponse401 | createCaseResponse403 | createCaseResponse409 | createCaseResponse422 | createCaseResponse500 | createCaseResponse503) & {
+  headers: Headers;
+};
+
+export type createCaseResponse = (createCaseResponseSuccess | createCaseResponseError)
+
+export const getCreateCaseUrl = () => {
+
+
+
+
+  return `/v1/cases`
+}
+
+/**
+ * Open a new case. The caller becomes its manager and first member.
+ * The reference is the office's own file number, unique on this appliance; never put a client's
+ * name in it or the name. The type is one this appliance offers (``GET /v1/case-types``).
+ * @summary Create Case
+ */
+export const createCase = async (caseIn: CaseIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<createCaseResponse> => {
+
+  return gatewayFetch<createCaseResponse>(getCreateCaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(caseIn)
+  }
+);}
+
+
+
+export type listCaseOverviewsResponse200 = {
+  data: CaseOverview[]
+  status: 200
+}
+
+export type listCaseOverviewsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCaseOverviewsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCaseOverviewsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCaseOverviewsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCaseOverviewsResponseSuccess = (listCaseOverviewsResponse200) & {
+  headers: Headers;
+};
+export type listCaseOverviewsResponseError = (listCaseOverviewsResponse401 | listCaseOverviewsResponse403 | listCaseOverviewsResponse500 | listCaseOverviewsResponse503) & {
+  headers: Headers;
+};
+
+export type listCaseOverviewsResponse = (listCaseOverviewsResponseSuccess | listCaseOverviewsResponseError)
+
+export const getListCaseOverviewsUrl = () => {
+
+
+
+
+  return `/v1/cases/overview`
+}
+
+/**
+ * Every case the caller may see, open and closed, as the Cases overview shows them
+ * (docs/design/chat-ui.md §4): each with its members (the manager first, with their pictures'
+ * ETags) and its last activity, who and when. An administrator who isn't a member sees no members.
+ * @summary List Case Overviews
+ */
+export const listCaseOverviews = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listCaseOverviewsResponse> => {
+
+  return gatewayFetch<listCaseOverviewsResponse>(getListCaseOverviewsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type deleteCaseResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteCaseResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type deleteCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type deleteCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteCaseResponseSuccess = (deleteCaseResponse204) & {
+  headers: Headers;
+};
+export type deleteCaseResponseError = (deleteCaseResponse401 | deleteCaseResponse403 | deleteCaseResponse404 | deleteCaseResponse422 | deleteCaseResponse500 | deleteCaseResponse503) & {
+  headers: Headers;
+};
+
+export type deleteCaseResponse = (deleteCaseResponseSuccess | deleteCaseResponseError)
+
+export const getDeleteCaseUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}`
+}
+
+/**
+ * Delete a case with its documents and conversations (its manager only). Closing and the
+ * keep period (docs/design/cases.md, stage 3) are the office's way; this is for a case opened
+ * by mistake. See ``Store.delete_document`` for what deletion does and doesn't guarantee.
+ * @summary Delete Case
+ */
+export const deleteCase = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteCaseResponse> => {
+
+  return gatewayFetch<deleteCaseResponse>(getDeleteCaseUrl(caseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type getCaseResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type getCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getCaseResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getCaseResponseSuccess = (getCaseResponse200) & {
+  headers: Headers;
+};
+export type getCaseResponseError = (getCaseResponse401 | getCaseResponse403 | getCaseResponse404 | getCaseResponse422 | getCaseResponse500 | getCaseResponse503) & {
+  headers: Headers;
+};
+
+export type getCaseResponse = (getCaseResponseSuccess | getCaseResponseError)
+
+export const getGetCaseUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}`
+}
+
+/**
+ * One case the caller may see.
+ * @summary Get Case
+ */
+export const getCase = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getCaseResponse> => {
+
+  return gatewayFetch<getCaseResponse>(getGetCaseUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type updateCaseResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type updateCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type updateCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type updateCaseResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type updateCaseResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type updateCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type updateCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type updateCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type updateCaseResponseSuccess = (updateCaseResponse200) & {
+  headers: Headers;
+};
+export type updateCaseResponseError = (updateCaseResponse401 | updateCaseResponse403 | updateCaseResponse404 | updateCaseResponse409 | updateCaseResponse422 | updateCaseResponse500 | updateCaseResponse503) & {
+  headers: Headers;
+};
+
+export type updateCaseResponse = (updateCaseResponseSuccess | updateCaseResponseError)
+
+export const getUpdateCaseUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}`
+}
+
+/**
+ * Change a case's reference, name, type, access or strictly confidential label (its
+ * manager only). Turning the label on restricts the access and unshares the case's conversations.
+ * A new type is one this appliance offers; a case whose stored type it no longer offers keeps it, and
+ * its other fields still change.
+ * @summary Update Case
+ */
+export const updateCase = async (caseId: string,
+    caseUpdate: CaseUpdate, options?: Parameters<typeof gatewayFetch>[1]): Promise<updateCaseResponse> => {
+
+  return gatewayFetch<updateCaseResponse>(getUpdateCaseUrl(caseId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(caseUpdate)
+  }
+);}
+
+
+
+export type closeCaseResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type closeCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type closeCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type closeCaseResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type closeCaseResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type closeCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type closeCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type closeCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type closeCaseResponseSuccess = (closeCaseResponse200) & {
+  headers: Headers;
+};
+export type closeCaseResponseError = (closeCaseResponse401 | closeCaseResponse403 | closeCaseResponse404 | closeCaseResponse409 | closeCaseResponse422 | closeCaseResponse500 | closeCaseResponse503) & {
+  headers: Headers;
+};
+
+export type closeCaseResponse = (closeCaseResponseSuccess | closeCaseResponseError)
+
+export const getCloseCaseUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/close`
+}
+
+/**
+ * Close the case (its manager only): read-only from now, reopenable while it is kept, and
+ * deleted after the office's keep period (``SUVERYN_CASES_KEEP``; with ``manual``, kept until
+ * deleted by hand). ``keep_until`` says when.
+ * @summary Close Case
+ */
+export const closeCase = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<closeCaseResponse> => {
+
+  return gatewayFetch<closeCaseResponse>(getCloseCaseUrl(caseId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type listCaseEventsResponse200 = {
+  data: CaseEvent[]
+  status: 200
+}
+
+export type listCaseEventsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCaseEventsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCaseEventsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listCaseEventsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listCaseEventsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCaseEventsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCaseEventsResponseSuccess = (listCaseEventsResponse200) & {
+  headers: Headers;
+};
+export type listCaseEventsResponseError = (listCaseEventsResponse401 | listCaseEventsResponse403 | listCaseEventsResponse404 | listCaseEventsResponse422 | listCaseEventsResponse500 | listCaseEventsResponse503) & {
+  headers: Headers;
+};
+
+export type listCaseEventsResponse = (listCaseEventsResponseSuccess | listCaseEventsResponseError)
+
+export const getListCaseEventsUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/events`
+}
+
+/**
+ * The case's access log, newest first: who did what, when (decision 15). For its manager
+ * and the administrators; kept 180 days, as the sign-in events.
+ * @summary List Case Events
+ */
+export const listCaseEvents = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<listCaseEventsResponse> => {
+
+  return gatewayFetch<listCaseEventsResponse>(getListCaseEventsUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type handOverCaseResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type handOverCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type handOverCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type handOverCaseResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type handOverCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type handOverCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type handOverCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type handOverCaseResponseSuccess = (handOverCaseResponse200) & {
+  headers: Headers;
+};
+export type handOverCaseResponseError = (handOverCaseResponse401 | handOverCaseResponse403 | handOverCaseResponse404 | handOverCaseResponse422 | handOverCaseResponse500 | handOverCaseResponse503) & {
+  headers: Headers;
+};
+
+export type handOverCaseResponse = (handOverCaseResponseSuccess | handOverCaseResponseError)
+
+export const getHandOverCaseUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/handover`
+}
+
+/**
+ * Make another colleague the case's manager: the current manager may, and an administrator
+ * (decision 6: an account can't go while it manages a case). The previous manager stays on as
+ * a contributor.
+ * @summary Hand Over Case
+ */
+export const handOverCase = async (caseId: string,
+    handoverIn: HandoverIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<handOverCaseResponse> => {
+
+  return gatewayFetch<handOverCaseResponse>(getHandOverCaseUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(handoverIn)
+  }
+);}
+
+
+
+export type setCaseKeepResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type setCaseKeepResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setCaseKeepResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setCaseKeepResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setCaseKeepResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type setCaseKeepResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setCaseKeepResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setCaseKeepResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setCaseKeepResponseSuccess = (setCaseKeepResponse200) & {
+  headers: Headers;
+};
+export type setCaseKeepResponseError = (setCaseKeepResponse401 | setCaseKeepResponse403 | setCaseKeepResponse404 | setCaseKeepResponse409 | setCaseKeepResponse422 | setCaseKeepResponse500 | setCaseKeepResponse503) & {
+  headers: Headers;
+};
+
+export type setCaseKeepResponse = (setCaseKeepResponseSuccess | setCaseKeepResponseError)
+
+export const getSetCaseKeepUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/keep`
+}
+
+/**
+ * On a closed case: ``{"keep": true}`` marks it kept (never deleted by the period), ``{"keep":
+ * false}`` plans its deletion one period from now again, ``{"extend": true}`` moves its
+ * deletion one period later. The manager's and the administrators' right (decision 11).
+ * @summary Set Case Keep
+ */
+export const setCaseKeep = async (caseId: string,
+    keepIn: KeepIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setCaseKeepResponse> => {
+
+  return gatewayFetch<setCaseKeepResponse>(getSetCaseKeepUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(keepIn)
+  }
+);}
+
+
+
+export type listCaseMembersResponse200 = {
+  data: Member[]
+  status: 200
+}
+
+export type listCaseMembersResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCaseMembersResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCaseMembersResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listCaseMembersResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listCaseMembersResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCaseMembersResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCaseMembersResponseSuccess = (listCaseMembersResponse200) & {
+  headers: Headers;
+};
+export type listCaseMembersResponseError = (listCaseMembersResponse401 | listCaseMembersResponse403 | listCaseMembersResponse404 | listCaseMembersResponse422 | listCaseMembersResponse500 | listCaseMembersResponse503) & {
+  headers: Headers;
+};
+
+export type listCaseMembersResponse = (listCaseMembersResponseSuccess | listCaseMembersResponseError)
+
+export const getListCaseMembersUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/members`
+}
+
+/**
+ * The case's members and their roles, the manager first (anyone who may read the case).
+ * @summary List Case Members
+ */
+export const listCaseMembers = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<listCaseMembersResponse> => {
+
+  return gatewayFetch<listCaseMembersResponse>(getListCaseMembersUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type removeCaseMemberResponse204 = {
+  data: void
+  status: 204
+}
+
+export type removeCaseMemberResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type removeCaseMemberResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type removeCaseMemberResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type removeCaseMemberResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type removeCaseMemberResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type removeCaseMemberResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type removeCaseMemberResponseSuccess = (removeCaseMemberResponse204) & {
+  headers: Headers;
+};
+export type removeCaseMemberResponseError = (removeCaseMemberResponse401 | removeCaseMemberResponse403 | removeCaseMemberResponse404 | removeCaseMemberResponse422 | removeCaseMemberResponse500 | removeCaseMemberResponse503) & {
+  headers: Headers;
+};
+
+export type removeCaseMemberResponse = (removeCaseMemberResponseSuccess | removeCaseMemberResponseError)
+
+export const getRemoveCaseMemberUrl = (caseId: string,
+    user: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/members/${user}`
+}
+
+/**
+ * Take a member out of the case (the manager's right). The manager can't be removed: hand
+ * the case over first.
+ * @summary Remove Case Member
+ */
+export const removeCaseMember = async (caseId: string,
+    user: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<removeCaseMemberResponse> => {
+
+  return gatewayFetch<removeCaseMemberResponse>(getRemoveCaseMemberUrl(caseId,user),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type setCaseMemberResponse200 = {
+  data: Member
+  status: 200
+}
+
+export type setCaseMemberResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setCaseMemberResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setCaseMemberResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setCaseMemberResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setCaseMemberResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setCaseMemberResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setCaseMemberResponseSuccess = (setCaseMemberResponse200) & {
+  headers: Headers;
+};
+export type setCaseMemberResponseError = (setCaseMemberResponse401 | setCaseMemberResponse403 | setCaseMemberResponse404 | setCaseMemberResponse422 | setCaseMemberResponse500 | setCaseMemberResponse503) & {
+  headers: Headers;
+};
+
+export type setCaseMemberResponse = (setCaseMemberResponseSuccess | setCaseMemberResponseError)
+
+export const getSetCaseMemberUrl = (caseId: string,
+    user: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/members/${user}`
+}
+
+/**
+ * Add a colleague to the case as a reader or contributor, or change a member's role (the
+ * manager's right). The colleague must be one of the office's accounts. To make someone the
+ * manager, hand the case over (``POST .../handover``).
+ * @summary Set Case Member
+ */
+export const setCaseMember = async (caseId: string,
+    user: string,
+    memberIn: MemberIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setCaseMemberResponse> => {
+
+  return gatewayFetch<setCaseMemberResponse>(getSetCaseMemberUrl(caseId,user),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(memberIn)
+  }
+);}
+
+
+
+export type setCasePinnedResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type setCasePinnedResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setCasePinnedResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setCasePinnedResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setCasePinnedResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setCasePinnedResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setCasePinnedResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setCasePinnedResponseSuccess = (setCasePinnedResponse200) & {
+  headers: Headers;
+};
+export type setCasePinnedResponseError = (setCasePinnedResponse401 | setCasePinnedResponse403 | setCasePinnedResponse404 | setCasePinnedResponse422 | setCasePinnedResponse500 | setCasePinnedResponse503) & {
+  headers: Headers;
+};
+
+export type setCasePinnedResponse = (setCasePinnedResponseSuccess | setCasePinnedResponseError)
+
+export const getSetCasePinnedUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/pin`
+}
+
+/**
+ * Pin or unpin the case in the caller's own sidebar (docs/design/chat-ui.md): anyone who may
+ * read it; per user, never shared, not in the access log.
+ * @summary Set Case Pinned
+ */
+export const setCasePinned = async (caseId: string,
+    casePinIn: CasePinIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setCasePinnedResponse> => {
+
+  return gatewayFetch<setCasePinnedResponse>(getSetCasePinnedUrl(caseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(casePinIn)
+  }
+);}
+
+
+
+export type reopenCaseResponse200 = {
+  data: Case
+  status: 200
+}
+
+export type reopenCaseResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type reopenCaseResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type reopenCaseResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type reopenCaseResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type reopenCaseResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type reopenCaseResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type reopenCaseResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type reopenCaseResponseSuccess = (reopenCaseResponse200) & {
+  headers: Headers;
+};
+export type reopenCaseResponseError = (reopenCaseResponse401 | reopenCaseResponse403 | reopenCaseResponse404 | reopenCaseResponse409 | reopenCaseResponse422 | reopenCaseResponse500 | reopenCaseResponse503) & {
+  headers: Headers;
+};
+
+export type reopenCaseResponse = (reopenCaseResponseSuccess | reopenCaseResponseError)
+
+export const getReopenCaseUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/reopen`
+}
+
+/**
+ * Reopen a closed case (its manager only): open again, no deletion planned.
+ * @summary Reopen Case
+ */
+export const reopenCase = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<reopenCaseResponse> => {
+
+  return gatewayFetch<reopenCaseResponse>(getReopenCaseUrl(caseId),
   {
     ...options,
     method: 'POST'
