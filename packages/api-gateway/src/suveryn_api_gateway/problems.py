@@ -64,11 +64,12 @@ class ProblemDetails(Message):
     errors: list[InvalidPart] | None = None  # with ``request.invalid`` only
 
 
-def refusals(*statuses: int) -> dict:
+def refusals(*statuses: int, signed_in: bool = True) -> dict:
     """``responses=`` for a route whose refusals are described: the statuses of the codes its own code raises, and
     the ones every operation can answer. ``described`` gives them their media type, and the status of a request
-    that isn't valid, which FastAPI adds by itself in a shape the gateway doesn't answer."""
-    return {status: {"model": ProblemDetails} for status in sorted({*EVERY_OPERATION, *statuses})}
+    that isn't valid, which FastAPI adds by itself in a shape the gateway doesn't answer. ``signed_in=False`` for
+    an operation outside ``/v1``, which nothing guards: only what nobody planned for."""
+    return {status: {"model": ProblemDetails} for status in sorted({*(EVERY_OPERATION if signed_in else (500,)), *statuses})}
 
 
 def described(description: dict) -> dict:

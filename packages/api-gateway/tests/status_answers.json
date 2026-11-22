@@ -1,0 +1,243 @@
+{
+ "checks": {
+  "body": {
+   "checked_at": "2026-11-22T09:00:05Z",
+   "checks": [
+    {
+     "free": null,
+     "id": "answering",
+     "in_progress": 0,
+     "offset_ms": null,
+     "ok": true,
+     "since": null,
+     "synced": null,
+     "total": null,
+     "waiting": null
+    },
+    {
+     "free": null,
+     "id": "reading",
+     "in_progress": null,
+     "offset_ms": null,
+     "ok": false,
+     "since": "2026-11-22T09:00:00Z",
+     "synced": null,
+     "total": null,
+     "waiting": null
+    },
+    {
+     "free": null,
+     "id": "signin",
+     "in_progress": null,
+     "offset_ms": null,
+     "ok": true,
+     "since": null,
+     "synced": null,
+     "total": null,
+     "waiting": null
+    },
+    {
+     "free": null,
+     "id": "data",
+     "in_progress": null,
+     "offset_ms": null,
+     "ok": true,
+     "since": null,
+     "synced": null,
+     "total": null,
+     "waiting": null
+    },
+    {
+     "free": 322122547200,
+     "id": "disk",
+     "in_progress": null,
+     "offset_ms": null,
+     "ok": true,
+     "since": null,
+     "synced": null,
+     "total": 966367641600,
+     "waiting": null
+    },
+    {
+     "free": null,
+     "id": "clock",
+     "in_progress": null,
+     "offset_ms": null,
+     "ok": true,
+     "since": null,
+     "synced": null,
+     "total": null,
+     "waiting": null
+    }
+   ],
+   "version": null
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "error": {
+  "body": {
+   "auth": {
+    "detail": null,
+    "status": "disabled"
+   },
+   "backend": {
+    "detail": null,
+    "model": null,
+    "reachable": true,
+    "status": "error",
+    "url": null
+   },
+   "cases": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "directory": {
+    "detail": null,
+    "status": "ready"
+   },
+   "documents": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "history": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "status": "degraded",
+   "usage": {
+    "detail": null,
+    "status": "unavailable"
+   }
+  },
+  "media_type": "application/json",
+  "status": 503
+ },
+ "loading": {
+  "body": {
+   "auth": {
+    "detail": null,
+    "status": "disabled"
+   },
+   "backend": {
+    "detail": null,
+    "model": null,
+    "reachable": true,
+    "status": "loading",
+    "url": null
+   },
+   "cases": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "directory": {
+    "detail": null,
+    "status": "ready"
+   },
+   "documents": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "history": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "status": "degraded",
+   "usage": {
+    "detail": null,
+    "status": "unavailable"
+   }
+  },
+  "media_type": "application/json",
+  "status": 503
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "ready": {
+  "body": {
+   "auth": {
+    "detail": null,
+    "status": "disabled"
+   },
+   "backend": {
+    "detail": null,
+    "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+    "reachable": true,
+    "status": "ok",
+    "url": null
+   },
+   "cases": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "directory": {
+    "detail": null,
+    "status": "ready"
+   },
+   "documents": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "history": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "status": "ok",
+   "usage": {
+    "detail": null,
+    "status": "unavailable"
+   }
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "unreachable": {
+  "body": {
+   "auth": {
+    "detail": null,
+    "status": "disabled"
+   },
+   "backend": {
+    "detail": null,
+    "model": null,
+    "reachable": false,
+    "status": "unreachable",
+    "url": null
+   },
+   "cases": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "directory": {
+    "detail": null,
+    "status": "ready"
+   },
+   "documents": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "history": {
+    "detail": null,
+    "status": "unavailable"
+   },
+   "status": "degraded",
+   "usage": {
+    "detail": null,
+    "status": "unavailable"
+   }
+  },
+  "media_type": "application/json",
+  "status": 503
+ }
+}

@@ -93,15 +93,8 @@ export type StoredDocument = {
   source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)
   provenance?: Provenance | null;
 };
-export type Health = {
-  status: "ok" | "degraded";
-  backend: { reachable: boolean; status: string; model: string | null };
-  documents: { status: "ready" | "starting" | "failed" | "unavailable"; detail: string | null };
-  auth: { status: "ready" | "unavailable" | "not_configured" | "disabled"; detail: string | null };
-  history: { status: "ready" | "failed" | "unavailable"; detail: string | null };
-  cases?: { status: "ready" | "failed" | "unavailable"; detail: string | null };
-  directory?: { status: "ready" | "unavailable"; detail: string | null };
-};
+/** What the appliance says of its own health: states only (it is public). The same body whether the model server is ready or not. */
+export type Health = gateway.HealthResponse;
 // admin: may open the administration page; office_wide: a new case is open to the whole office by
 // default; cases_keep: how long a closed case is kept before it is deleted ("manual": until deleted by hand)
 export type KeepPeriod = "6m" | "1y" | "5y" | "manual";
@@ -198,10 +191,12 @@ async function errorText(r: Response): Promise<string> {
   return httpErrorText(r.status, await errorBody(r));
 }
 
+/** The appliance's state, or null when the gateway isn't reached or answers something else. While the model server
+ *  isn't ready the status is 503 and the body the same. */
 export async function getHealth(): Promise<Health | null> {
   try {
-    const r = await fetch("/health");
-    return (await r.json()) as Health; // 503 still carries a body
+    const answer = await gateway.getHealth();
+    return answer.status === 200 || answer.status === 503 ? answer.data ?? null : null;
   } catch {
     return null; // gateway not reachable
   }
@@ -722,21 +717,10 @@ export async function askBackupService(body: BackupRequest, seconds = 60): Promi
   throw new Error(messageText({ kind: "unavailable", code: "backup.unavailable" }, t()));
 }
 
-/** Administration › Status (docs/design/admin.md): the five checks, counts only. ``since``: when it was first seen
+/** Administration › Status (docs/design/admin.md): a check, counts only. ``since``: when it was first seen
  *  failing, while it fails. */
-type StatusCheckId = "answering" | "reading" | "signin" | "data" | "disk" | "clock";
-export type StatusCheck = {
-  id: StatusCheckId; ok: boolean; since: string | null;
-  in_progress: number | null; waiting: number | null; free: number | null; total: number | null;
-  offset_ms?: number | null; synced?: boolean | null; // clock: how far ahead (positive) or behind; a time server keeps it
-};
-export type AdminStatus = { checked_at: string; checks: StatusCheck[]; version: string | null };
-
-export async function getAdminStatus(): Promise<AdminStatus> {
-  const r = await fetch("/v1/admin/status");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+export type StatusCheck = gateway.Check;
+export type AdminStatus = gateway.AdminStatus;
 
 /**
  * What a generated call (src/generated, from the gateway's description) answered, or the failure this file's other
@@ -758,6 +742,9 @@ export async function answered<A extends Answer>(call: Promise<A>): Promise<Extr
 /** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
  *  into the address as the word. */
 type Asked<Query> = { [Name in keyof Query]?: NonNullable<Query[Name]> };
+
+/** Administration › Status (docs/design/admin.md): the six checks, counts only. */
+export const getAdminStatus = () => answered(gateway.getApplianceStatus());
 
 /** The models installed on this appliance, with which one is loaded and which is the default. */
 export const listModels = () => answered(gateway.listModels());

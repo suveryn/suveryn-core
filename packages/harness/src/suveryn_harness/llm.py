@@ -20,6 +20,7 @@ import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from typing import Literal
 
 import anyio
 import httpx
@@ -43,12 +44,17 @@ class UnreadableAnswer(RuntimeError):
     (suveryn-tracker#164)."""
 
 
+# The model server's states, as a health probe finds them. Listed once, here: the gateway's description of
+# ``/health`` is made from this list.
+BackendState = Literal["ok", "loading", "error", "unreachable"]
+
+
 @dataclass
 class BackendHealth:
-    """Result of a health probe; ``status`` is "ok", "loading", "error" or "unreachable"."""
+    """Result of a health probe."""
 
     reachable: bool
-    status: str
+    status: BackendState
     model: str | None = None
     detail: str | None = None  # exception class or HTTP status, never request content
 

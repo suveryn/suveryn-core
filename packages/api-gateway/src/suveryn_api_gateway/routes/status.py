@@ -21,9 +21,10 @@ from typing import Literal
 
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
 
 from ..clock import WARN_MS
+from ..description import Answer
+from ..problems import refusals
 from .common import admin_or_403, signin_status
 
 log = logging.getLogger("suveryn.gateway")
@@ -65,7 +66,7 @@ DATA_PATH = Path(os.environ.get("SUVERYN_DATA_PATH", "/var/lib/suveryn"))
 CheckId = Literal["answering", "reading", "signin", "data", "disk", "clock"]
 
 
-class Check(BaseModel):
+class Check(Answer):
     id: CheckId
     ok: bool
     since: datetime | None = None  # when it was first seen failing, while it fails
@@ -77,7 +78,7 @@ class Check(BaseModel):
     synced: bool | None = None  # clock: a time server keeps it
 
 
-class AdminStatus(BaseModel):
+class AdminStatus(Answer):
     checked_at: datetime
     checks: list[Check]
     version: str | None = None  # the appliance's version (appliance_version)
@@ -154,7 +155,7 @@ class StatusMonitor:
             await asyncio.sleep(INTERVAL_S)
 
 
-@router.get("/v1/admin/status", response_model=AdminStatus, responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/status", response_model=AdminStatus, responses=refusals())
 async def get_appliance_status(request: Request):
     """Is everything working? The six checks, the latest at most a quarter of a minute old."""
     admin_or_403(request)

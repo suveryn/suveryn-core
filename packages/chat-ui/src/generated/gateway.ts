@@ -5,6 +5,140 @@
  * OpenAPI spec version: 0.2.0
  */
 import { gatewayFetch } from '../lib/gateway';
+export type HealthResponseStatus = typeof HealthResponseStatus[keyof typeof HealthResponseStatus];
+
+
+export const HealthResponseStatus = {
+  ok: 'ok',
+  degraded: 'degraded',
+} as const;
+
+export type AuthStatusStatus = typeof AuthStatusStatus[keyof typeof AuthStatusStatus];
+
+
+export const AuthStatusStatus = {
+  ready: 'ready',
+  unavailable: 'unavailable',
+  not_configured: 'not_configured',
+  disabled: 'disabled',
+} as const;
+
+/**
+ * State of sign-in: "unavailable" (Keycloak unreachable, or it can't sign anyone in), "not_configured" or
+ * "disabled" (development only).
+ */
+export interface AuthStatus {
+  detail: string | null;
+  status: AuthStatusStatus;
+}
+
+export type BackendStatusStatus = typeof BackendStatusStatus[keyof typeof BackendStatusStatus];
+
+
+export const BackendStatusStatus = {
+  ok: 'ok',
+  loading: 'loading',
+  error: 'error',
+  unreachable: 'unreachable',
+} as const;
+
+/**
+ * State of the model server as seen from the gateway.
+ */
+export interface BackendStatus {
+  detail: string | null;
+  model: string | null;
+  reachable: boolean;
+  status: BackendStatusStatus;
+  url: string | null;
+}
+
+export type StoreStatusStatus = typeof StoreStatusStatus[keyof typeof StoreStatusStatus];
+
+
+export const StoreStatusStatus = {
+  ready: 'ready',
+  failed: 'failed',
+  unavailable: 'unavailable',
+} as const;
+
+/**
+ * State of a database-backed feature (saved conversations, token usage): "ready", "failed"
+ * (database unreachable) or "unavailable" (no database configured).
+ */
+export interface StoreStatus {
+  detail: string | null;
+  status: StoreStatusStatus;
+}
+
+export type DocumentsStatusStatus = typeof DocumentsStatusStatus[keyof typeof DocumentsStatusStatus];
+
+
+export const DocumentsStatusStatus = {
+  ready: 'ready',
+  starting: 'starting',
+  failed: 'failed',
+  unavailable: 'unavailable',
+} as const;
+
+/**
+ * State of document handling: the rag service's own three (its ``state``; the rag is an optional package, so
+ * its states are repeated here), and "unavailable" where there is none.
+ */
+export interface DocumentsStatus {
+  detail: string | null;
+  status: DocumentsStatusStatus;
+}
+
+/**
+ * Body of ``GET /health``.
+ */
+export interface HealthResponse {
+  auth: AuthStatus;
+  backend: BackendStatus;
+  cases: StoreStatus;
+  directory: StoreStatus;
+  documents: DocumentsStatus;
+  history: StoreStatus;
+  status: HealthResponseStatus;
+  usage: StoreStatus;
+}
+
+export type ProblemDetailsKind = typeof ProblemDetailsKind[keyof typeof ProblemDetailsKind];
+
+
+export const ProblemDetailsKind = {
+  refused: 'refused',
+  unavailable: 'unavailable',
+  internal: 'internal',
+  warning: 'warning',
+} as const;
+
+export type ProblemDetailsParams = {[key: string]: string | number | null};
+
+/**
+ * Where a request wasn't valid and why, for developers: never the value sent.
+ */
+export interface InvalidPart {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+}
+
+/**
+ * What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.
+ */
+export interface ProblemDetails {
+  code: string;
+  detail: string;
+  errors?: InvalidPart[] | null;
+  kind: ProblemDetailsKind;
+  params: ProblemDetailsParams;
+  status: number;
+  title: string;
+  type: string;
+}
+
 export type SettingsOutConversationsKeep = typeof SettingsOutConversationsKeep[keyof typeof SettingsOutConversationsKeep];
 
 
@@ -44,41 +178,6 @@ export interface SettingsOut {
   two_step: boolean;
   updated_at: string | null;
   updated_by: string;
-}
-
-export type ProblemDetailsKind = typeof ProblemDetailsKind[keyof typeof ProblemDetailsKind];
-
-
-export const ProblemDetailsKind = {
-  refused: 'refused',
-  unavailable: 'unavailable',
-  internal: 'internal',
-  warning: 'warning',
-} as const;
-
-export type ProblemDetailsParams = {[key: string]: string | number | null};
-
-/**
- * Where a request wasn't valid and why, for developers: never the value sent.
- */
-export interface InvalidPart {
-  loc: (string | number)[];
-  msg: string;
-  type: string;
-}
-
-/**
- * What the gateway answers instead of the answer asked for (RFC 9457): the standard members, and the message's.
- */
-export interface ProblemDetails {
-  code: string;
-  detail: string;
-  errors?: InvalidPart[] | null;
-  kind: ProblemDetailsKind;
-  params: ProblemDetailsParams;
-  status: number;
-  title: string;
-  type: string;
 }
 
 export type SettingsInApplyTo = typeof SettingsInApplyTo[keyof typeof SettingsInApplyTo];
@@ -181,6 +280,36 @@ export interface SetAnswer {
   moved_ms: number | null;
   ok: boolean | null;
   pending: boolean;
+}
+
+export type CheckId = typeof CheckId[keyof typeof CheckId];
+
+
+export const CheckId = {
+  answering: 'answering',
+  reading: 'reading',
+  signin: 'signin',
+  data: 'data',
+  disk: 'disk',
+  clock: 'clock',
+} as const;
+
+export interface Check {
+  free: number | null;
+  id: CheckId;
+  in_progress: number | null;
+  offset_ms: number | null;
+  ok: boolean;
+  since: string | null;
+  synced: boolean | null;
+  total: number | null;
+  waiting: number | null;
+}
+
+export interface AdminStatus {
+  checked_at: string;
+  checks: Check[];
+  version: string | null;
 }
 
 export interface UsageTotals {
@@ -360,6 +489,59 @@ const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string 
   }
   return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
 };
+
+export type getHealthResponse200 = {
+  data: HealthResponse
+  status: 200
+}
+
+export type getHealthResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getHealthResponse503 = {
+  data: HealthResponse
+  status: 503
+}
+
+export type getHealthResponseSuccess = (getHealthResponse200) & {
+  headers: Headers;
+};
+export type getHealthResponseError = (getHealthResponse500 | getHealthResponse503) & {
+  headers: Headers;
+};
+
+export type getHealthResponse = (getHealthResponseSuccess | getHealthResponseError)
+
+export const getGetHealthUrl = () => {
+
+
+
+
+  return `/health`
+}
+
+/**
+ * Report whether the model server is ready (and which model it serves) and whether documents work.
+ *
+ * 200 when the model server is ready; 503 while it loads, fails or can't be reached. The
+ * ``documents`` part doesn't affect the status code: chat works without it. Public (no sign-in),
+ * so it gives states only: no internal addresses or error texts (those are in the server log).
+ * @summary Get Health
+ */
+export const getHealth = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getHealthResponse> => {
+
+  return gatewayFetch<getHealthResponse>(getGetHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 
 export type getOfficeSettingsResponse200 = {
   data: SettingsOut
@@ -697,6 +879,65 @@ export const getGetClockRequestUrl = (rid: string,) => {
 export const getClockRequest = async (rid: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getClockRequestResponse> => {
 
   return gatewayFetch<getClockRequestResponse>(getGetClockRequestUrl(rid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type getApplianceStatusResponse200 = {
+  data: AdminStatus
+  status: 200
+}
+
+export type getApplianceStatusResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getApplianceStatusResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getApplianceStatusResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getApplianceStatusResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getApplianceStatusResponseSuccess = (getApplianceStatusResponse200) & {
+  headers: Headers;
+};
+export type getApplianceStatusResponseError = (getApplianceStatusResponse401 | getApplianceStatusResponse403 | getApplianceStatusResponse500 | getApplianceStatusResponse503) & {
+  headers: Headers;
+};
+
+export type getApplianceStatusResponse = (getApplianceStatusResponseSuccess | getApplianceStatusResponseError)
+
+export const getGetApplianceStatusUrl = () => {
+
+
+
+
+  return `/v1/admin/status`
+}
+
+/**
+ * Is everything working? The six checks, the latest at most a quarter of a minute old.
+ * @summary Get Appliance Status
+ */
+export const getApplianceStatus = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<getApplianceStatusResponse> => {
+
+  return gatewayFetch<getApplianceStatusResponse>(getGetApplianceStatusUrl(),
   {
     ...options,
     method: 'GET'
