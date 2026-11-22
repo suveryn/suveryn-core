@@ -1220,7 +1220,12 @@
     },
     "required": [
      "expression",
-     "result"
+     "result",
+     "figures_not_in_sources",
+     "error",
+     "code",
+     "read_as",
+     "read_with"
     ],
     "title": "Calculation",
     "type": "object"
@@ -1987,7 +1992,21 @@
     "required": [
      "id",
      "model",
-     "answer"
+     "answer",
+     "citations",
+     "calculations",
+     "unverified_figures",
+     "citation_issues",
+     "support_spans",
+     "instruction_like_sources",
+     "finish_reason",
+     "usage",
+     "reasoning",
+     "thought_seconds",
+     "thinking_cut",
+     "narrowed_to",
+     "complete",
+     "asked_again"
     ],
     "title": "ChatResponse",
     "type": "object"
@@ -2179,7 +2198,9 @@
      }
     },
     "required": [
-     "text"
+     "text",
+     "source",
+     "context"
     ],
     "title": "Citation",
     "type": "object"
@@ -2223,7 +2244,9 @@
     "required": [
      "marker",
      "n",
-     "item"
+     "item",
+     "found_in",
+     "written_as"
     ],
     "title": "CitationIssue",
     "type": "object"
@@ -3140,6 +3163,12 @@
      },
      "cases_keep": {
       "default": "manual",
+      "enum": [
+       "6m",
+       "1y",
+       "5y",
+       "manual"
+      ],
       "title": "Cases Keep",
       "type": "string"
      },
@@ -3175,7 +3204,15 @@
     },
     "required": [
      "username",
-     "name"
+     "name",
+     "sub",
+     "admin",
+     "office_wide",
+     "cases_keep",
+     "avatar",
+     "account_url",
+     "office_name",
+     "admin_console_url"
     ],
     "title": "Me",
     "type": "object"
@@ -5413,6 +5450,27 @@
     "title": "ShareIn",
     "type": "object"
    },
+   "SignedOut": {
+    "description": "What ending the session answers: where the browser goes to end the sign-in service's session too. None with\nsign-in off, while the sign-in service can't be asked, or when it has no address for ending a session.",
+    "properties": {
+     "logout_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Logout Url"
+     }
+    },
+    "required": [
+     "logout_url"
+    ],
+    "title": "SignedOut",
+    "type": "object"
+   },
    "Skipped": {
     "description": "A file of an archive that was left out, and why.",
     "properties": {
@@ -5481,7 +5539,10 @@
      }
     },
     "required": [
-     "document_id"
+     "document_id",
+     "page",
+     "location",
+     "decimals"
     ],
     "title": "SourceRef",
     "type": "object"
@@ -5757,6 +5818,164 @@
     "title": "StoredDocument",
     "type": "object"
    },
+   "StreamDelta": {
+    "description": "One streamed chunk of answer text (SSE event ``delta``).",
+    "properties": {
+     "text": {
+      "title": "Text",
+      "type": "string"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "StreamDelta",
+    "type": "object"
+   },
+   "StreamError": {
+    "description": "Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,\ndocument search is unavailable, or an unexpected server error occurred (reported generically).",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "refused",
+       "unavailable",
+       "internal",
+       "warning"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "default": {},
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "kind",
+     "code",
+     "params",
+     "detail"
+    ],
+    "title": "StreamError",
+    "type": "object"
+   },
+   "StreamSources": {
+    "description": "The passages a grounded answer is written from, sent before its first word (SSE event ``sources``):\nthe same list as ``ChatResponse.citations``, so an answer the person stops still shows what its\nmarkers point to. Not sent for a plain answer.",
+    "properties": {
+     "citations": {
+      "items": {
+       "$ref": "#/components/schemas/Citation"
+      },
+      "title": "Citations",
+      "type": "array"
+     }
+    },
+    "required": [
+     "citations"
+    ],
+    "title": "StreamSources",
+    "type": "object"
+   },
+   "StreamStatus": {
+    "description": "What the server is doing before the answer's first word (SSE event ``status``).\n\nEach step is a real stage of the pipeline, so the UI can say so truthfully:\n``searching`` the documents, ``loading_model`` (a switched-to model is being loaded into the\nGPU), ``reading`` the passages (the model processes them; ``passages``, and ``complete`` when\nthey are the documents' whole text), ``writing`` (a plain answer is being prepared), ``thinking``\n(*Thorough*: the model reasons before it answers; its reasoning follows as ``thinking`` events).",
+    "properties": {
+     "complete": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Complete"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Model"
+     },
+     "passages": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Passages"
+     },
+     "step": {
+      "enum": [
+       "searching",
+       "loading_model",
+       "reading",
+       "writing",
+       "thinking"
+      ],
+      "title": "Step",
+      "type": "string"
+     }
+    },
+    "required": [
+     "step",
+     "passages",
+     "complete",
+     "model"
+    ],
+    "title": "StreamStatus",
+    "type": "object"
+   },
+   "StreamThinking": {
+    "description": "One streamed chunk of the model's reasoning before the answer (SSE event ``thinking``), in\n*Thorough* only. Not part of the answer: it is never in a ``delta``.",
+    "properties": {
+     "text": {
+      "title": "Text",
+      "type": "string"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "StreamThinking",
+    "type": "object"
+   },
    "SupportSpan": {
     "description": "What the source card marks for one citation marker (suveryn-tracker#25; ``marking.support_spans``).\n\n``marker`` is the marker's 0-based occurrence among the answer's valid markers, as ``CitationIssue``\ncounts them; ``n`` its number. ``ranges`` are the sentences of ``citations[n - 1].text`` the claim\nrests on, and ``facts`` what to mark strongly: the claim's facts and names, however the passage writes\nthem. Both are [start, end) offsets in UTF-16 code units, as the browser counts a string.",
     "properties": {
@@ -5816,7 +6035,10 @@
     },
     "required": [
      "marker",
-     "n"
+     "n",
+     "ranges",
+     "facts",
+     "how"
     ],
     "title": "SupportSpan",
     "type": "object"
@@ -6084,6 +6306,10 @@
       "type": "integer"
      }
     },
+    "required": [
+     "prompt_tokens",
+     "completion_tokens"
+    ],
     "title": "Usage",
     "type": "object"
    },
@@ -6402,10 +6628,32 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/SignedOut"
+        }
        }
       },
       "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      }
     },
     "summary": "Sign Out",
@@ -6430,7 +6678,34 @@
       "description": "Successful Response"
      },
      "401": {
-      "description": "Not signed in"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Me",
@@ -11999,18 +12274,211 @@
          "$ref": "#/components/schemas/ChatResponse"
         }
        },
-       "text/event-stream": {}
+       "text/event-stream": {
+        "itemSchema": {
+         "oneOf": [
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamStatus"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "status",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "status event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamSources"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "sources",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "sources event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamThinking"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "thinking",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "thinking event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamDelta"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "delta",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "delta event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/ChatResponse"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "done",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "done event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamError"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "error",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "error event",
+           "type": "object"
+          }
+         ],
+         "title": "One event of the answer stream"
+        }
+       }
       },
-      "description": "With stream=true: SSE events `status` ({step, ...}), for a grounded answer `sources` ({citations}), with `thinking` true and a model that can think `thinking` ({text}, its reasoning), `delta` ({text}), then `done` (a full ChatResponse) or `error` ({kind, code, params}, a code of the registry, and an English detail). Closing the connection stops the answer: the model stops writing."
+      "description": "The answer. With stream=true, as events: zero or more `status`, for a grounded answer one `sources`, with `thinking` true and a model that can think zero or more `thinking`, zero or more `delta`, then one `done` (the whole answer) or one `error`. Closing the connection stops the answer: the model stops writing."
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
      },
      "404": {
-      "description": "A document id doesn't exist or belongs to another user"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
      },
      "422": {
-      "description": "Invalid request, e.g. a malformed document id"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "Model backend unreachable or returned an error, or grounded answer requested but document search is unavailable"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Ask Question",

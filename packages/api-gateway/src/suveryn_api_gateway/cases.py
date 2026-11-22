@@ -74,6 +74,8 @@ EVENT_RETENTION_DAYS = 180  # as the sign-in events (suveryn-tracker#16)
 MAX_EVENTS = 1000           # one listing of the access log
 KEEP_PERIODS: dict[str, timedelta | None] = {"6m": timedelta(days=183), "1y": timedelta(days=366),
                                              "5y": timedelta(days=5 * 366), "manual": None}
+# The same periods as a type, for what is asked and answered (a test holds the two together).
+KeepPeriod = Literal["6m", "1y", "5y", "manual"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -158,8 +160,8 @@ class CaseSettings:
 
     database_url: str = ""
     default_access: Literal["office", "members"] = "members"  # fail closed
-    keep: Literal["6m", "1y", "5y", "manual"] = "manual"      # how long closed cases are kept; manual: until deleted by hand
-    conversations_keep: Literal["6m", "1y", "5y", "manual"] = "manual"  # saved conversations, from their last change
+    keep: KeepPeriod = "manual"      # how long closed cases are kept; manual: until deleted by hand
+    conversations_keep: KeepPeriod = "manual"  # saved conversations, from their last change
     # Two-step sign-in for every account: off unless an administrator turns it on (decision, 29 October 2026)
     two_step: bool = False
     # The office's name, shown after a person's name in the column and in the account menu (board G01, G04);
@@ -295,8 +297,8 @@ class SettingsOut(Answer):
     """The office's case settings as they apply now (``GET /v1/admin/cases/settings``)."""
 
     default_access: Literal["office", "members"]
-    keep: Literal["6m", "1y", "5y", "manual"]
-    conversations_keep: Literal["6m", "1y", "5y", "manual"]
+    keep: KeepPeriod
+    conversations_keep: KeepPeriod
     two_step: bool = False  # every account must set up two-step sign-in
     office_name: str = ""   # the office's name; empty: not set
     updated_at: datetime | None = None  # None: as provisioned, never changed in the dashboard
@@ -307,8 +309,8 @@ class SettingsIn(BaseModel):
     """Body of ``PUT /v1/admin/cases/settings``: what to change; a field left out stays."""
 
     default_access: Literal["office", "members"] | None = None
-    keep: Literal["6m", "1y", "5y", "manual"] | None = None
-    conversations_keep: Literal["6m", "1y", "5y", "manual"] | None = None
+    keep: KeepPeriod | None = None
+    conversations_keep: KeepPeriod | None = None
     two_step: bool | None = None
     office_name: str | None = Field(default=None, max_length=OFFICE_NAME_MAX)  # "" clears it
     # When the default access opens up to the office: "new" (the default) leaves the existing cases with

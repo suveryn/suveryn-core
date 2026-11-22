@@ -7,10 +7,12 @@ is in ``app.py``.
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel
 from suveryn_playbooks import LANGUAGES
 
 from ..auth import LOGIN_COOKIE, LOGIN_TTL_S, Authenticator, AuthError
+from ..cases import KeepPeriod
+from ..description import Answer
+from ..problems import refusals
 from .common import ADMIN_ROLE, LOCAL_OWNER, case_settings
 
 SIGN_IN_LANG_COOKIE = "suveryn_sign_in_lang"  # the language chosen on the sign-in page, for the page to take once
@@ -19,7 +21,7 @@ UI_LANGUAGES = set(LANGUAGES)  # the interface languages (docs/translations.md),
 router = APIRouter(tags=["auth"])  # the group its operations are in, in the description (description.py)
 
 
-class Me(BaseModel):
+class Me(Answer):
     """The signed-in user, for the UI."""
 
     username: str
@@ -27,7 +29,7 @@ class Me(BaseModel):
     sub: str = ""        # the Keycloak id: what owns documents and conversations, and whom a shared one names
     admin: bool = False  # may open the administration page (realm role ``suveryn-admin``)
     office_wide: bool = False  # the appliance's default access for cases (SUVERYN_CASES_DEFAULT_ACCESS=office)
-    cases_keep: str = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
+    cases_keep: KeepPeriod = "manual"  # how long a closed case is kept before deletion (SUVERYN_CASES_KEEP)
     avatar: str | None = None   # the ETag of the user's picture, None without one (initials are shown)
     account_url: str | None = None  # Keycloak's account console (password, second factor): the settings dialog links to it
     office_name: str | None = None  # the office's name (Administration › Settings), after the person's name in the column
@@ -75,7 +77,14 @@ async def callback(request: Request, code: str | None = None, state: str | None 
     return response
 
 
-@router.get("/auth/me", response_model=Me, responses={401: {"description": "Not signed in"}})
+class SignedOut(Answer):
+    """What ending the session answers: where the browser goes to end the sign-in service's session too. None with
+    sign-in off, while the sign-in service can't be asked, or when it has no address for ending a session."""
+
+    logout_url: str | None
+
+
+@router.get("/auth/me", response_model=Me, responses=refusals(401, 503, signed_in=False))
 async def get_me(request: Request):
     """The signed-in user (username and display name), or 401."""
     authenticator, cases = _auth(request), case_settings(request)
@@ -109,7 +118,7 @@ async def _avatar_etag(request: Request, sub: str) -> str | None:
     return await run_in_threadpool(store.etag, sub) if store is not None else None
 
 
-@router.post("/auth/logout")
+@router.post("/auth/logout", response_model=SignedOut, responses=refusals(403, signed_in=False))
 async def sign_out(request: Request):
     """End the session; ``logout_url`` ends the Keycloak session too (the UI navigates there)."""
     authenticator = _auth(request)

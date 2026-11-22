@@ -328,6 +328,13 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                   docs_url="/docs" if show_docs else None, redoc_url=None,
                   generate_unique_id_function=description.operation_id)
     problems.install(app)  # every refusal and failure in the one shape (Problem Details with a code)
+    described = app.openapi
+
+    def openapi() -> dict:  # and the answer stream's events, which FastAPI can't describe by itself (routes/chat.py)
+        fresh = app.openapi_schema is None
+        return routes.chat.events_described(described()) if fresh else described()
+
+    app.openapi = openapi
 
     # What the routes read (routes/common.py): set before the app starts, unchanged after.
     app.state.auth = authenticator

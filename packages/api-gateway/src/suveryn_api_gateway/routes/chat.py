@@ -33,6 +33,7 @@ from suveryn_harness import (
     Thinking,
 )
 
+from ..problems import refusals
 from .common import (
     DocumentNotFound,
     docs_or_503,
@@ -47,16 +48,38 @@ log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["answers"])  # the group its operations are in, in the description (description.py)
 
 
-@router.post("/v1/chat", response_model=ChatResponse, responses={
-    200: {"content": {"text/event-stream": {}},
-          "description": "With stream=true: SSE events `status` ({step, ...}), for a grounded answer `sources` ({citations}), "
-                         "with `thinking` true and a model that can think `thinking` ({text}, its reasoning), "
-                         "`delta` ({text}), then `done` (a full ChatResponse) or `error` ({kind, code, params}, a code of the registry, and an English detail). Closing the connection "
-                         "stops the answer: the model stops writing."},
-    404: {"description": "A document id doesn't exist or belongs to another user"},
-    422: {"description": "Invalid request, e.g. a malformed document id"},
-    503: {"description": "Model backend unreachable or returned an error, or grounded answer requested but document search is unavailable"},
-})
+# The events of a streamed answer, by name, each with the shape of its data: the list the stream is described by.
+# ``_stream`` writes them and says their order; the test that walks an answer fails on an event this list doesn't name.
+EVENTS: dict[str, type[BaseModel]] = {"status": StreamStatus, "sources": StreamSources, "thinking": StreamThinking, "delta": StreamDelta,
+                                      "done": ChatResponse, "error": StreamError}
+
+
+def events_described(description: dict) -> dict:
+    """The description with the answer stream's events in it: under ``text/event-stream``, what one event is
+    (``itemSchema``, OpenAPI 3.2's place for it, where FastAPI puts it for its own event streams): its name, and its
+    data as JSON of that event's shape (``contentSchema``). FastAPI describes what a route returns; a stream written
+    by hand it can't, so this does. The chat UI's generator reads OpenAPI 3.1 and is handed the same under
+    ``schema`` (packages/chat-ui/orval.config.ts)."""
+    from pydantic.json_schema import models_json_schema
+
+    place = "#/components/schemas/{model}"
+    _, shapes = models_json_schema([(model, "serialization") for model in EVENTS.values()], ref_template=place)
+    known = description.setdefault("components", {}).setdefault("schemas", {})
+    for name, shape in shapes.get("$defs", {}).items():
+        known.setdefault(name, shape)
+    one = [{"type": "object", "title": f"{name} event", "required": ["event", "data"], "properties": {
+        "event": {"type": "string", "const": name},
+        "data": {"type": "string", "contentMediaType": "application/json", "contentSchema": {"$ref": place.format(model=model.__name__)}}}}
+        for name, model in EVENTS.items()]
+    answered = description["paths"]["/v1/chat"]["post"]["responses"]["200"]
+    answered["description"] = ("The answer. With stream=true, as events: zero or more `status`, for a grounded answer one `sources`, with "
+                               "`thinking` true and a model that can think zero or more `thinking`, zero or more `delta`, then one `done` "
+                               "(the whole answer) or one `error`. Closing the connection stops the answer: the model stops writing.")
+    answered["content"]["text/event-stream"] = {"itemSchema": {"oneOf": one, "title": "One event of the answer stream"}}
+    return description
+
+
+@router.post("/v1/chat", response_model=ChatResponse, responses={200: {"content": {"text/event-stream": {}}}, **refusals(404, 422, 429)})
 async def ask_question(req: ChatRequest, request: Request):
     """Answer a conversation. With ``document_ids``, ground the answer in those documents.
 

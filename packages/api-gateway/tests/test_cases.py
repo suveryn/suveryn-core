@@ -1998,3 +1998,86 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
         assert status_code in (500, 503) or (status_code == 422 and path == upload) or (
             status_code == 403 and (path in (upload, everywhere, original, content) or (method, path) == ("GET", every))), (method, path, status_code)
     assert {s for _, _, s in check.seen} == {200, 201, 202, 204, 401, 403, 404, 409, 411, 413, 415, 422, 429, 507}
+
+
+def test_every_answer_of_answers_is_what_the_description_says(office):
+    """The chat UI's code for an answer is generated from the description (suveryn-tracker#249): the answer as JSON
+    and each event of it as a stream, the refusals too, are checked against it and kept for the chat UI's tests."""
+    from described import Checked, same_every_run
+    from suveryn_api_gateway.ratelimit import RateLimits
+    from suveryn_harness import DocumentsUnavailable
+
+    c, kc, _, _, docs = office
+    check, alice, bob, carla = Checked(c, "answers"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
+    tidy, chat = same_every_run(), "/v1/chat"
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
+    ask = {"messages": [{"role": "user", "content": "Wat is de koopprijs?"}]}
+    assert check("POST", chat, 401, json=ask).json()["code"] == "auth.signed_out"
+    # refused before anything is asked: not a question, not a document id, a model this appliance doesn't have
+    assert "errors" in check("POST", chat, 422, json={"messages": [{"role": "assistant", "content": "x"}]}, headers=alice).json()
+    assert check("POST", chat, 422, json={**ask, "document_ids": ["nope"]}, headers=alice).json()["code"] == "request.invalid"
+    assert check("POST", chat, 422, "/v1/chat", "no_such_model", json={**ask, "model": "nope"}, headers=alice).json()["code"] == "model.not_found"
+    # a case the caller doesn't see, a document that isn't the caller's, and a reader, who may read and not ask
+    assert check("POST", chat, 404, json={**ask, "case_id": str(uuid.uuid4())}, headers=alice).json()["code"] == "case.not_found"
+    r = check("POST", chat, 404, keep="no_such_document", json={**ask, "document_ids": [DOC]}, headers=bob)
+    assert r.json()["code"] == "answer.document_not_found"
+    assert check("POST", chat, 403, json={**ask, "case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
+
+    def away(*_, **__):
+        raise DocumentsUnavailable("the documents can't be searched")
+    found, docs.retrieve = docs.retrieve, away
+    assert check("POST", chat, 503, json={**ask, "document_ids": [DOC]}, headers=alice).json()["code"] == "document.unavailable"
+    docs.retrieve = found
+
+    plain = check("POST", chat, 200, keep="plain", tidy=tidy, json=ask, headers=alice).json()
+    assert (plain["citations"], plain["calculations"], plain["complete"], plain["finish_reason"]) == ([], [], None, "stop")
+    grounded = check("POST", chat, 200, keep="grounded", tidy=tidy, json={**ask, "document_ids": [DOC]}, headers=alice).json()
+    assert grounded["citations"][0]["source"]["page"] == 2 and grounded["answer"].endswith("[1].") and grounded["complete"] is True
+
+    # the same answer as a stream: what the server does, the passages, the words, then the whole answer
+    stream = check("POST", chat, 200, keep="stream", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True}, headers=alice)
+    assert stream.headers["content-type"].startswith("text/event-stream")
+    names = [e["event"] for e in check.kept.answers["stream"]["body"]]
+    assert names[-1] == "done" and {"status", "sources", "delta", "done"} <= set(names) and names.index("sources") < names.index("delta")
+    assert check.kept.answers["stream"]["body"][-1]["data"]["answer"] == grounded["answer"]
+
+    # a stream that can't be completed ends with why, as a code of the registry
+    docs.retrieve = away
+    check("POST", chat, 200, keep="stream_failed", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True}, headers=alice)
+    docs.retrieve = found
+    last = check.kept.answers["stream_failed"]["body"][-1]
+    assert (last["event"], last["data"]["code"], last["data"]["kind"]) == ("error", "document.unavailable", "unavailable")
+
+    # the limit on asking, per person (an office of its own, with a limit of one)
+    kc2 = FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc2.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    limited = create_app(llm, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth, rate_limits=RateLimits(chat=1))
+    with TestClient(limited) as c2:
+        check2, alice2 = Checked(c2, "answers"), as_user(kc2, ALICE)
+        check2.kept = check.kept
+        check2("POST", chat, 200, json=ask, headers=alice2)
+        assert check2("POST", chat, 429, keep="too_many", json=ask, headers=alice2).json()["code"] == "request.too_many"
+        check.seen |= check2.seen
+    # *Thorough*: the model thinks first, and its reasoning comes as events of its own, never in the answer
+    thinks = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text="<think>Article 2 gives the price.</think>The price is EUR 412.500,00 [1]."))
+    with TestClient(create_app(thinks, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth)) as c3:
+        check3 = Checked(c3, "answers")
+        check3.kept = check.kept
+        check3("POST", chat, 200, keep="stream_thorough", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True, "thinking": True}, headers=as_user(kc2, ALICE))
+    thorough = check.kept.answers["stream_thorough"]["body"]
+    assert [e["data"]["text"] for e in thorough if e["event"] == "thinking"] == ["Article 2 gives the price."] and thorough[-1]["data"]["reasoning"]
+    check.kept.check()
+    assert {status for _, _, status in check.not_seen()} == {500}  # what nobody planned for
+
+
+def test_the_keep_periods_are_one_list():
+    """A period is asked and answered as a fixed list (``KeepPeriod``) and counted by ``KEEP_PERIODS``: one added to
+    the one and not the other would refuse a setting the office has, or fail who is signed in."""
+    from typing import get_args
+
+    from suveryn_api_gateway.cases import KEEP_PERIODS, KeepPeriod
+
+    assert get_args(KeepPeriod) == tuple(KEEP_PERIODS)
+

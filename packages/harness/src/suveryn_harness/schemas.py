@@ -93,7 +93,7 @@ class ChatRequest(BaseModel):
         return self
 
 
-class SourceRef(BaseModel):
+class SourceRef(Answer):
     """Where a cited passage comes from: a stored document, and a position inside it."""
 
     document_id: str
@@ -104,7 +104,7 @@ class SourceRef(BaseModel):
     decimals: Literal["comma", "point", "mixed"] | None = None
 
 
-class PassageContext(BaseModel):
+class PassageContext(Answer):
     """The text around a cited passage on the same page (board G11): ``text`` holds the passage itself at
     ``[start, end)``, with a few sentences before and after it, for the source panel to dim around it."""
 
@@ -113,7 +113,7 @@ class PassageContext(BaseModel):
     end: int = Field(ge=0)
 
 
-class Citation(BaseModel):
+class Citation(Answer):
     """A passage the answer relies on. ``source`` is null when the passage can't be traced to a document."""
 
     text: str = Field(description="The passage or claim that is being cited")
@@ -122,7 +122,7 @@ class Citation(BaseModel):
                                                                      "null on a short page, a spreadsheet or a scan without text around it")
 
 
-class Usage(BaseModel):
+class Usage(Answer):
     """Token counts reported by the model server, for capacity monitoring (no content)."""
 
     prompt_tokens: int = 0
@@ -141,7 +141,7 @@ class ModelInfo(BaseModel):
     thinks: bool = False    # the model family can think before answering: *Thorough* is possible (docs/design/chat-ui.md §5)
 
 
-class Calculation(BaseModel):
+class Calculation(Answer):
     """A calculation in a grounded answer, computed exactly by the server (``suveryn_harness.calc``).
 
     The model only chooses the figures; the result is never the model's own arithmetic.
@@ -161,7 +161,7 @@ class Calculation(BaseModel):
     read_with: Literal[",", "."] | None = None   # the decimal separator they were read with
 
 
-class CitationIssue(BaseModel):
+class CitationIssue(Answer):
     """A fact in a cited claim that the cited passage doesn't contain (suveryn-tracker#11).
 
     ``marker`` is the 0-based occurrence of the marker in ``answer``, counting only markers that refer
@@ -176,7 +176,7 @@ class CitationIssue(BaseModel):
     written_as: str | None = None
 
 
-class SupportSpan(BaseModel):
+class SupportSpan(Answer):
     """What the source card marks for one citation marker (suveryn-tracker#25; ``marking.support_spans``).
 
     ``marker`` is the marker's 0-based occurrence among the answer's valid markers, as ``CitationIssue``
@@ -194,7 +194,7 @@ class SupportSpan(BaseModel):
     how: Literal["words", "meaning"] = "words"
 
 
-class ChatResponse(BaseModel):
+class ChatResponse(Answer):
     """A complete answer. Returned as JSON, or as the final ``done`` event of a stream.
 
     ``model`` is the model file llama-server reports (e.g. ``Qwen3.8-27B-UD-Q4_K_M.gguf``), so a
@@ -243,20 +243,20 @@ class ChatResponse(BaseModel):
     asked_again: bool = False
 
 
-class StreamDelta(BaseModel):
+class StreamDelta(Answer):
     """One streamed chunk of answer text (SSE event ``delta``)."""
 
     text: str
 
 
-class StreamThinking(BaseModel):
+class StreamThinking(Answer):
     """One streamed chunk of the model's reasoning before the answer (SSE event ``thinking``), in
     *Thorough* only. Not part of the answer: it is never in a ``delta``."""
 
     text: str
 
 
-class StreamStatus(BaseModel):
+class StreamStatus(Answer):
     """What the server is doing before the answer's first word (SSE event ``status``).
 
     Each step is a real stage of the pipeline, so the UI can say so truthfully:
@@ -272,7 +272,7 @@ class StreamStatus(BaseModel):
     model: str | None = None
 
 
-class StreamSources(BaseModel):
+class StreamSources(Answer):
     """The passages a grounded answer is written from, sent before its first word (SSE event ``sources``):
     the same list as ``ChatResponse.citations``, so an answer the person stops still shows what its
     markers point to. Not sent for a plain answer."""
@@ -280,14 +280,14 @@ class StreamSources(BaseModel):
     citations: list[Citation]
 
 
-class StreamError(BaseModel):
+class StreamError(Answer):
     """Sent as SSE event ``error`` when the answer can't be completed: the model backend failed,
     document search is unavailable, or an unexpected server error occurred (reported generically)."""
 
     # What failed, as every message is said (docs/design/messages.md): a code of the registry with its kind and
     # parameters, which the page words in the reader's language. An unplanned failure is ``system.internal`` with a
     # reference. ``detail`` is English, for developers.
-    kind: str
+    kind: Literal["refused", "unavailable", "internal", "warning"]
     code: str
-    params: dict = {}
+    params: dict[str, str | int | float | None] = {}
     detail: str = ""
