@@ -1754,6 +1754,7 @@ def test_every_answer_of_cases_is_what_the_description_says(office):
     assert {x["id"] for x in listed} == {cid, other} and all("manager_name" in x for x in listed)
     check("DELETE", one, 204, at(), headers=bob)
     # a strictly confidential case is for its members only: it can't be given the office's default access
+    # (the other 409 of a change, a reference another case has, is the database's: the store's own tests, above)
     assert check("PATCH", one, 200, f"/v1/cases/{other}", json={"confidential": True}, headers=carla).json()["access"] == "restricted"
     assert check("PATCH", one, 409, f"/v1/cases/{other}", "members_only", json={"access": "default"}, headers=carla).json()["code"] == "case.strictly_confidential"
     check.kept.check()
