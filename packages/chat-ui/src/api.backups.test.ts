@@ -42,9 +42,12 @@ describe("testing the recovery key", () => {
     expect([e.status, e.problem.code, e.message]).toEqual([status, code, messageText({ code }, t())]);
   });
 
-  it("an accepted answer that isn't the gateway's is a failure", async () => {
-    gatewayAnswers(new Response("<html>Sign in to the hotel's network</html>", { status: 202, headers: { "Content-Type": "text/html" } }));
-    expect(await failure(testRecoveryKey(KEY_FILE))).toBeInstanceOf(HttpError);
+  it("an accepted answer that isn't the gateway's is a failure: a page, or done where it should be accepted", async () => {
+    for (const answer of [new Response("<html>Sign in to the hotel's network</html>", { status: 202, headers: { "Content-Type": "text/html" } }),
+      new Response(null, { status: 200 }), new Response(JSON.stringify({ id: "x" }), { status: 202, headers: { "Content-Type": "application/json" } })]) {
+      gatewayAnswers(answer);
+      expect(await failure(testRecoveryKey(KEY_FILE))).toBeInstanceOf(HttpError);
+    }
   });
 });
 
@@ -85,6 +88,13 @@ describe("asking the backup service", () => {
     gatewayAnswers(answer);
     const e = await failure(askBackupService({ kind: "run" }));
     expect([e.status, e.problem.code, e.message]).toEqual([status, code, messageText({ code }, t())]);
+  });
+
+  it("an accepted answer with nothing in it is not the gateway's: asking is answered with an id", async () => {
+    gatewayAnswers(new Response(null, { status: 202 }));
+    const e = await failure(askBackupService({ kind: "run" }));
+    expect(e).toBeInstanceOf(HttpError);
+    expect(e.message).toBe(messageText(e.problem, t()));
   });
 
   it("gives up in words when the service doesn't answer in time", async () => {

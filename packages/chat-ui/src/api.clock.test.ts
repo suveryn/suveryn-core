@@ -84,11 +84,12 @@ describe("an administrator sets the appliance's clock", () => {
     const cut = () => new Response('{"id": "0123', { status: 200, headers: { "Content-Type": "application/json" } });
     const bare = () => new Response("ok", { status: 200 });
     const empty = () => new Response("", { status: 200, headers: { "Content-Type": "application/json" } });
-    for (const answer of [page, cut, bare, empty]) {
+    const accepted = () => new Response(null, { status: 202 });
+    for (const answer of [page, cut, bare, empty, accepted]) {
       gatewayAnswers(answer());
       const e = await failure(applianceClockAnswer("0123456789abcdef"));
       expect(e).toBeInstanceOf(HttpError);
-      expect([e.status, e.problem.kind, e.message]).toEqual([200, "unavailable", messageText(e.problem, t())]);
+      expect([e.status, e.problem.kind, e.message]).toEqual([answer().status, "unavailable", messageText(e.problem, t())]);
       gatewayAnswers(answer());
       expect(await failure(measureClock())).toBeInstanceOf(HttpError);
       gatewayAnswers(answer());

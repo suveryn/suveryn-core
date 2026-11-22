@@ -675,23 +675,33 @@ export type BackupDisk = gateway.Disk;
 export type StatusCheck = gateway.Check;
 export type AdminStatus = gateway.AdminStatus;
 
+/** The failure this file's calls throw for an answer that isn't the one asked for: signed out; the gateway's code
+ *  with its words; or, for one that says it went well but isn't the gateway's (a proxy's or a hotel network's page,
+ *  a body cut short or empty), the words of a part that isn't available. */
+function failed({ data, status }: Answer): Error {
+  if (status >= 200 && status < 300) return new HttpError(httpErrorText(502), status, problemOf(502, null));
+  if (status === 401) { signedOutHandler(); return new SignedOut(); }
+  const body = data !== null && typeof data === "object" ? data : null; // not JSON: a proxy's page
+  return new HttpError(httpErrorText(status, body), status, problemOf(status, body));
+}
+
 /**
  * What a generated call (src/generated, from the gateway's description) answered, or the failure this file's other
- * calls throw: signed out, or the gateway's code with its words. A call that never reached the gateway throws what
- * `fetch` threw. An answer that says it went well but isn't the gateway's (a proxy's or a hotel network's page, a
- * body cut short or empty) is a failure too, never handed on as the answer: the words of a part that isn't available.
+ * calls throw. A call that never reached the gateway throws what `fetch` threw. An answer is read as JSON, or is
+ * nothing where the gateway says it is done (204).
  */
 export async function answered<A extends Answer>(call: Promise<A>): Promise<Extract<A, { status: 200 | 201 | 202 | 204 }>["data"]> {
-  const { data, status } = await call;
-  const { empty } = await call;
-  if (status >= 200 && status < 300) {
-    // an answer to read; or nothing to read where there is nothing: done (204), or accepted and answered later (202)
-    if (data !== undefined || status === 204 || (status === 202 && empty)) return data as Extract<A, { status: 200 | 201 | 202 | 204 }>["data"];
-    throw new HttpError(httpErrorText(502), status, problemOf(502, null));
-  }
-  if (status === 401) { signedOutHandler(); throw new SignedOut(); }
-  const body = data !== null && typeof data === "object" ? data : null; // not JSON: a proxy's page
-  throw new HttpError(httpErrorText(status, body), status, problemOf(status, body));
+  const answer = await call;
+  const { data, status } = answer;
+  if (status >= 200 && status < 300 && (data !== undefined || status === 204)) return data as Extract<A, { status: 200 | 201 | 202 | 204 }>["data"];
+  throw failed(answer);
+}
+
+/** A generated call the gateway accepts with nothing to read (202: its result comes elsewhere, later), or the same
+ *  failures. Only for an operation described that way: anywhere else an empty answer is not the gateway's. */
+export async function accepted(call: Promise<Answer>): Promise<void> {
+  const answer = await call;
+  if (answer.status !== 202 || !answer.empty) throw failed(answer);
 }
 
 /** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
@@ -703,7 +713,7 @@ export const getBackups = () => answered(gateway.getBackupStatus());
 
 /** Test the recovery key: the key file as the web setup downloaded it. The appliance checks that it opens
  * the newest backup, restores nothing and deletes the key; getBackups() then has the result. */
-export const testRecoveryKey = (keyFile: string): Promise<void> => answered(gateway.testRecoveryKey(new Blob([keyFile])));
+export const testRecoveryKey = (keyFile: string): Promise<void> => accepted(gateway.testRecoveryKey(new Blob([keyFile])));
 
 /** Ask the backup service (admin.md, artboard 36), then ask again every second until it has answered (at most
  *  ``seconds``). Why not, in its answer, as messages of the registry: one for the request, or one per field of the form. */
