@@ -965,6 +965,128 @@ export interface Now {
 }
 
 /**
+ * What ``DELETE /v1/conversations`` answers: how many of the caller's conversations were deleted.
+ */
+export interface Deleted {
+  deleted: number;
+}
+
+export type ConversationSummaryTitles = {[key: string]: string} | null;
+
+/**
+ * One entry of ``GET /v1/conversations``.
+ */
+export interface ConversationSummary {
+  case_id: string | null;
+  created_at: string;
+  id: string;
+  messages: number;
+  owner: string;
+  owner_name: string;
+  pinned: boolean;
+  run_id: string | null;
+  shared: boolean;
+  shielded: boolean;
+  title: string | null;
+  titles: ConversationSummaryTitles;
+  updated_at: string;
+}
+
+export type ConversationTitles = {[key: string]: string} | null;
+
+export type ConversationTurnsItem = { [key: string]: unknown };
+
+/**
+ * Body of ``GET /v1/conversations/{id}``: each turn as the UI saved it, with ``seq``, ``by`` and
+ * ``at`` (and a playbook's ``step_id``) from its row.
+ */
+export interface Conversation {
+  case_id: string | null;
+  created_at: string;
+  id: string;
+  messages: number;
+  owner: string;
+  owner_name: string;
+  pinned: boolean;
+  run_id: string | null;
+  shared: boolean;
+  shielded: boolean;
+  title: string | null;
+  titles: ConversationTitles;
+  turns: ConversationTurnsItem[];
+  updated_at: string;
+}
+
+/**
+ * Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, kept over later saves.
+ */
+export interface RenameIn {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^\S(.*\S)?$
+     */
+  title: string;
+}
+
+export type SavedTurnRole = typeof SavedTurnRole[keyof typeof SavedTurnRole];
+
+
+export const SavedTurnRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+/**
+ * One turn as the UI saves it. Only the role is checked; the other fields are the UI's own.
+ */
+export interface SavedTurn {
+  role: SavedTurnRole;
+  /** @maxLength 200000 */
+  text?: string;
+  [key: string]: unknown;
+ }
+
+/**
+ * Body of ``PUT /v1/conversations/{id}``: the whole conversation, replacing what was stored.
+ */
+export interface ConversationIn {
+  case_id?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  turns: SavedTurn[];
+}
+
+/**
+ * Body of ``POST /v1/conversations/{id}/move``: the case a personal conversation moves into.
+ */
+export interface MoveIn {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  case_id: string;
+}
+
+/**
+ * Body of ``PUT /v1/conversations/{id}/pin``.
+ */
+export interface PinIn {
+  pinned: boolean;
+}
+
+/**
+ * Body of ``POST /v1/conversations/{id}/share``.
+ */
+export interface ShareIn {
+  shared: boolean;
+}
+
+/**
  * The caller's picture, by its ETag: what a page puts behind the picture's address so a new one is fetched.
  */
 export interface Picture {
@@ -1061,6 +1183,11 @@ export type ListAccountEventsParams = {
 
 export type ListCasesParams = {
   closed?: boolean;
+};
+
+export type ListConversationsParams = {
+  case?: string | null;
+  all?: boolean;
 };
 
 export type GetMyUsageParams = {
@@ -4067,6 +4194,663 @@ export const reportClockMeasurement = async (measured: Measured, options?: Param
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(measured)
+  }
+);}
+
+
+
+export type deleteMyConversationsResponse200 = {
+  data: Deleted
+  status: 200
+}
+
+export type deleteMyConversationsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteMyConversationsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteMyConversationsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteMyConversationsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteMyConversationsResponseSuccess = (deleteMyConversationsResponse200) & {
+  headers: Headers;
+};
+export type deleteMyConversationsResponseError = (deleteMyConversationsResponse401 | deleteMyConversationsResponse403 | deleteMyConversationsResponse500 | deleteMyConversationsResponse503) & {
+  headers: Headers;
+};
+
+export type deleteMyConversationsResponse = (deleteMyConversationsResponseSuccess | deleteMyConversationsResponseError)
+
+export const getDeleteMyConversationsUrl = () => {
+
+
+
+
+  return `/v1/conversations`
+}
+
+/**
+ * Delete all of the caller's conversations (the "Delete history" choice when signing out).
+ * @summary Delete My Conversations
+ */
+export const deleteMyConversations = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteMyConversationsResponse> => {
+
+  return gatewayFetch<deleteMyConversationsResponse>(getDeleteMyConversationsUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type listConversationsResponse200 = {
+  data: ConversationSummary[]
+  status: 200
+}
+
+export type listConversationsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listConversationsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listConversationsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listConversationsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listConversationsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listConversationsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listConversationsResponseSuccess = (listConversationsResponse200) & {
+  headers: Headers;
+};
+export type listConversationsResponseError = (listConversationsResponse401 | listConversationsResponse403 | listConversationsResponse404 | listConversationsResponse422 | listConversationsResponse500 | listConversationsResponse503) & {
+  headers: Headers;
+};
+
+export type listConversationsResponse = (listConversationsResponseSuccess | listConversationsResponseError)
+
+export const getListConversationsUrl = (params?: ListConversationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/conversations?${stringifiedParams}` : `/v1/conversations`
+}
+
+/**
+ * The caller's saved conversations in their personal space, or in the case ``case`` their own
+ * and the ones its members shared (``shared``, ``owner``), most recently changed first (titles
+ * and dates, no content). With ``all``: every one of their own, across the cases they may read
+ * and their personal space (the sidebar's list, docs/design/chat-ui.md).
+ * @summary List Conversations
+ */
+export const listConversations = async (params?: ListConversationsParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<listConversationsResponse> => {
+
+  return gatewayFetch<listConversationsResponse>(getListConversationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type deleteConversationResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteConversationResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteConversationResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteConversationResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type deleteConversationResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type deleteConversationResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteConversationResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteConversationResponseSuccess = (deleteConversationResponse204) & {
+  headers: Headers;
+};
+export type deleteConversationResponseError = (deleteConversationResponse401 | deleteConversationResponse403 | deleteConversationResponse404 | deleteConversationResponse422 | deleteConversationResponse500 | deleteConversationResponse503) & {
+  headers: Headers;
+};
+
+export type deleteConversationResponse = (deleteConversationResponseSuccess | deleteConversationResponseError)
+
+export const getDeleteConversationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}`
+}
+
+/**
+ * Delete one of the caller's conversations. A playbook run's goes with its case: stop or cancel the run.
+ * @summary Delete Conversation
+ */
+export const deleteConversation = async (conversationId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteConversationResponse> => {
+
+  return gatewayFetch<deleteConversationResponse>(getDeleteConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type getConversationResponse200 = {
+  data: Conversation
+  status: 200
+}
+
+export type getConversationResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getConversationResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getConversationResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getConversationResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getConversationResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getConversationResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getConversationResponseSuccess = (getConversationResponse200) & {
+  headers: Headers;
+};
+export type getConversationResponseError = (getConversationResponse401 | getConversationResponse403 | getConversationResponse404 | getConversationResponse422 | getConversationResponse500 | getConversationResponse503) & {
+  headers: Headers;
+};
+
+export type getConversationResponse = (getConversationResponseSuccess | getConversationResponseError)
+
+export const getGetConversationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}`
+}
+
+/**
+ * One of the caller's conversations with all its turns, or one shared with a case the caller
+ * may read (read-only for them: saving it answers 404).
+ * @summary Get Conversation
+ */
+export const getConversation = async (conversationId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getConversationResponse> => {
+
+  return gatewayFetch<getConversationResponse>(getGetConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type updateConversationResponse200 = {
+  data: ConversationSummary
+  status: 200
+}
+
+export type updateConversationResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type updateConversationResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type updateConversationResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type updateConversationResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type updateConversationResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type updateConversationResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type updateConversationResponseSuccess = (updateConversationResponse200) & {
+  headers: Headers;
+};
+export type updateConversationResponseError = (updateConversationResponse401 | updateConversationResponse403 | updateConversationResponse404 | updateConversationResponse422 | updateConversationResponse500 | updateConversationResponse503) & {
+  headers: Headers;
+};
+
+export type updateConversationResponse = (updateConversationResponseSuccess | updateConversationResponseError)
+
+export const getUpdateConversationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}`
+}
+
+/**
+ * Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
+ * later saves, which otherwise name a conversation after its first question.
+ * @summary Update Conversation
+ */
+export const updateConversation = async (conversationId: string,
+    renameIn: RenameIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<updateConversationResponse> => {
+
+  return gatewayFetch<updateConversationResponse>(getUpdateConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(renameIn)
+  }
+);}
+
+
+
+export type saveConversationResponse204 = {
+  data: void
+  status: 204
+}
+
+export type saveConversationResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type saveConversationResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type saveConversationResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type saveConversationResponse413 = {
+  data: ProblemDetails
+  status: 413
+}
+
+export type saveConversationResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type saveConversationResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type saveConversationResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type saveConversationResponseSuccess = (saveConversationResponse204) & {
+  headers: Headers;
+};
+export type saveConversationResponseError = (saveConversationResponse401 | saveConversationResponse403 | saveConversationResponse404 | saveConversationResponse413 | saveConversationResponse422 | saveConversationResponse500 | saveConversationResponse503) & {
+  headers: Headers;
+};
+
+export type saveConversationResponse = (saveConversationResponseSuccess | saveConversationResponseError)
+
+export const getSaveConversationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}`
+}
+
+/**
+ * Save the whole conversation under an id the client chose (a UUID): its turns' rows are brought in
+ * line with the body's. ``case_id`` puts a new conversation in that case (the caller must be able to
+ * read it); a saved conversation stays where it was first saved. A playbook run's conversation is
+ * written by the server, never saved over: 404.
+ * @summary Save Conversation
+ */
+export const saveConversation = async (conversationId: string,
+    conversationIn: ConversationIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<saveConversationResponse> => {
+
+  return gatewayFetch<saveConversationResponse>(getSaveConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(conversationIn)
+  }
+);}
+
+
+
+export type moveConversationResponse200 = {
+  data: ConversationSummary
+  status: 200
+}
+
+export type moveConversationResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type moveConversationResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type moveConversationResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type moveConversationResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type moveConversationResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type moveConversationResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type moveConversationResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type moveConversationResponseSuccess = (moveConversationResponse200) & {
+  headers: Headers;
+};
+export type moveConversationResponseError = (moveConversationResponse401 | moveConversationResponse403 | moveConversationResponse404 | moveConversationResponse409 | moveConversationResponse422 | moveConversationResponse500 | moveConversationResponse503) & {
+  headers: Headers;
+};
+
+export type moveConversationResponse = (moveConversationResponseSuccess | moveConversationResponseError)
+
+export const getMoveConversationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}/move`
+}
+
+/**
+ * Move one of the caller's personal conversations into a case they contribute to (§4). It isn't
+ * shared, loses its own pin and follows the case; its questions and answers come along. Its
+ * documents stay in the personal space, so its next questions read the case's documents. Noted in
+ * the case's access log.
+ * @summary Move Conversation
+ */
+export const moveConversation = async (conversationId: string,
+    moveIn: MoveIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<moveConversationResponse> => {
+
+  return gatewayFetch<moveConversationResponse>(getMoveConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(moveIn)
+  }
+);}
+
+
+
+export type setConversationPinnedResponse200 = {
+  data: ConversationSummary
+  status: 200
+}
+
+export type setConversationPinnedResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setConversationPinnedResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setConversationPinnedResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setConversationPinnedResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type setConversationPinnedResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setConversationPinnedResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setConversationPinnedResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setConversationPinnedResponseSuccess = (setConversationPinnedResponse200) & {
+  headers: Headers;
+};
+export type setConversationPinnedResponseError = (setConversationPinnedResponse401 | setConversationPinnedResponse403 | setConversationPinnedResponse404 | setConversationPinnedResponse409 | setConversationPinnedResponse422 | setConversationPinnedResponse500 | setConversationPinnedResponse503) & {
+  headers: Headers;
+};
+
+export type setConversationPinnedResponse = (setConversationPinnedResponseSuccess | setConversationPinnedResponseError)
+
+export const getSetConversationPinnedUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}/pin`
+}
+
+/**
+ * Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
+ * pin of its own: it follows its case. Personal, so not in any access log.
+ * @summary Set Conversation Pinned
+ */
+export const setConversationPinned = async (conversationId: string,
+    pinIn: PinIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setConversationPinnedResponse> => {
+
+  return gatewayFetch<setConversationPinnedResponse>(getSetConversationPinnedUrl(conversationId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(pinIn)
+  }
+);}
+
+
+
+export type setConversationSharedResponse200 = {
+  data: ConversationSummary
+  status: 200
+}
+
+export type setConversationSharedResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setConversationSharedResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setConversationSharedResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setConversationSharedResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type setConversationSharedResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setConversationSharedResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setConversationSharedResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setConversationSharedResponseSuccess = (setConversationSharedResponse200) & {
+  headers: Headers;
+};
+export type setConversationSharedResponseError = (setConversationSharedResponse401 | setConversationSharedResponse403 | setConversationSharedResponse404 | setConversationSharedResponse409 | setConversationSharedResponse422 | setConversationSharedResponse500 | setConversationSharedResponse503) & {
+  headers: Headers;
+};
+
+export type setConversationSharedResponse = (setConversationSharedResponseSuccess | setConversationSharedResponseError)
+
+export const getSetConversationSharedUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}/share`
+}
+
+/**
+ * Share one of the caller's conversations with its case (decision 12), or stop sharing it.
+ * Its owner only; a shared conversation is read-only for the case's other members. Noted in the
+ * case's access log. A conversation in the personal space can't be shared.
+ * @summary Set Conversation Shared
+ */
+export const setConversationShared = async (conversationId: string,
+    shareIn: ShareIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setConversationSharedResponse> => {
+
+  return gatewayFetch<setConversationSharedResponse>(getSetConversationSharedUrl(conversationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(shareIn)
   }
 );}
 

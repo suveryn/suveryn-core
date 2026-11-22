@@ -374,97 +374,17 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
   return [...new Set(pages)].sort((a, b) => a - b);
 }
 
-/** A saved conversation in the list (GET /v1/conversations): no content, newest first. */
-// owner: who started it (a Keycloak id); shared: shared with the case's members (stage 4), read-only for them
-export type ConversationSummary = {
-  id: string; title: string | null; created_at: string; updated_at: string; case_id?: string | null; owner?: string; shared?: boolean;
-  shielded?: boolean;  // in a strictly confidential case: no title in the lists that span cases (§11)
-  messages?: number;    // how many turns it has (the Conversations overview)
-  owner_name?: string;  // a colleague's shared conversation: their name as the case knows it
-  pinned?: boolean;     // a personal conversation its owner pinned in the sidebar (§3); one in a case follows its case
-  run_id?: string | null;  // a playbook run's conversation: opens the run; its icon is the route; it goes with its case
-  titles?: Record<string, string> | null;  // a run's title in every language (the pack's words): listedTitle shows the reader's
-};
-export type SavedConversation = ConversationSummary & { turns: Turn[] };
-
-/** Renames one of the signed-in user's conversations; the title is kept over later saves (§4). */
-export async function renameConversation(id: string, title: string): Promise<ConversationSummary> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Pins one of the signed-in user's personal conversations in their sidebar, or unpins it (§3). */
-export async function pinConversation(id: string, pinned: boolean): Promise<ConversationSummary> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}/pin`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Moves one of the signed-in user's personal conversations into a case they contribute to (§4). It
- *  isn't shared and loses its own pin; its documents stay in the personal space. */
-export async function moveConversation(id: string, caseId: string): Promise<ConversationSummary> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}/move`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ case_id: caseId }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Shares one of the signed-in user's conversations with its case, or stops sharing it (its owner only, open case). */
-export async function shareConversation(id: string, shared: boolean): Promise<ConversationSummary> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}/share`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shared }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** The signed-in user's saved conversations in the personal space, or in a case theirs and the shared ones, most recently changed first. */
-export async function listConversations(caseId?: string | null): Promise<ConversationSummary[]> {
-  const r = await fetch(`/v1/conversations${inCase(caseId)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** The signed-in user's own conversations everywhere they may still look (their space and every case
- *  they may read), most recently changed first: the sidebar's "Conversations" (docs/design/chat-ui.md). */
-export async function listAllConversations(): Promise<ConversationSummary[]> {
-  const r = await fetch("/v1/conversations?all=true");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function getConversation(id: string): Promise<SavedConversation> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Saves the whole conversation, replacing an earlier save under the same id. A new conversation goes
- *  into the case `caseId` (or the personal space); a saved one stays where it was first saved. */
-export async function saveConversation(id: string, title: string, turns: Turn[], caseId?: string | null): Promise<void> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, turns, ...(caseId ? { case_id: caseId } : {}) }),
-  });
-  if (!r.ok) throw await responseError(r);
-}
-
-export async function deleteConversation(id: string): Promise<void> {
-  const r = await fetch(`/v1/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!r.ok && r.status !== 404) throw await responseError(r);
-}
-
-/** Deletes every saved conversation of the signed-in user (the sign-out choice "Delete history"). */
-export async function deleteAllConversations(): Promise<void> {
-  const r = await fetch("/v1/conversations", { method: "DELETE" });
-  if (!r.ok) throw await responseError(r);
-}
+/** A saved conversation in a list: no content, newest first. `owner`: who started it (a Keycloak id); `shared`: shared
+ *  with the case's members (stage 4), read-only for them; `shielded`: in a strictly confidential case, so no title in
+ *  the lists that span cases (§11); `messages`: how many turns it has (the Conversations overview); `owner_name`: a
+ *  colleague's shared conversation, their name as the case knows it; `pinned`: a personal conversation its owner pinned
+ *  in the sidebar (§3), one in a case follows its case; `run_id`: a playbook run's conversation, which opens the run and
+ *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
+ *  reader's. */
+export type ConversationSummary = gateway.ConversationSummary;
+/** A conversation with its turns. What a turn holds is the screens' own type until the gateway describes it, with the
+ *  answer stream and the playbooks (suveryn-tracker#159). */
+export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
  *  name. `my_role`: what the signed-in user may do in it (null: an administrator who sees it exists).
@@ -865,3 +785,27 @@ export const removeMember = (caseId: string, user: string) =>
 export const handOver = (caseId: string, user: string) => answered(gateway.handOverCase(encodeURIComponent(caseId), { user }));
 /** The case's access log, newest first (its manager and the administrators). */
 export const listCaseEvents = (caseId: string) => answered(gateway.listCaseEvents(encodeURIComponent(caseId)));
+
+/** The conversations (suveryn-tracker#246). The signed-in user's saved conversations in the personal space, or in a
+ *  case theirs and the shared ones, most recently changed first. */
+export const listConversations = (caseId?: string | null) => answered(gateway.listConversations(caseId ? { case: caseId } : undefined));
+/** The signed-in user's own conversations everywhere they may still look (their space and every case they may read),
+ *  most recently changed first: the sidebar's "Conversations" (docs/design/chat-ui.md). */
+export const listAllConversations = () => answered(gateway.listConversations({ all: true }));
+export const getConversation = (id: string) => answered(gateway.getConversation(encodeURIComponent(id))) as Promise<SavedConversation>;
+/** Saves the whole conversation, replacing an earlier save under the same id. A new conversation goes into the case
+ *  `caseId` (or the personal space); a saved one stays where it was first saved. */
+export const saveConversation = (id: string, title: string, turns: Turn[], caseId?: string | null): Promise<void> =>
+  answered(gateway.saveConversation(encodeURIComponent(id), { title, turns, ...(caseId ? { case_id: caseId } : {}) }));
+/** Renames one of the signed-in user's conversations; the title is kept over later saves (§4). */
+export const renameConversation = (id: string, title: string) => answered(gateway.updateConversation(encodeURIComponent(id), { title }));
+/** Pins one of the signed-in user's personal conversations in their sidebar, or unpins it (§3). */
+export const pinConversation = (id: string, pinned: boolean) => answered(gateway.setConversationPinned(encodeURIComponent(id), { pinned }));
+/** Moves one of the signed-in user's personal conversations into a case they contribute to (§4). It isn't shared and
+ *  loses its own pin; its documents stay in the personal space. */
+export const moveConversation = (id: string, caseId: string) => answered(gateway.moveConversation(encodeURIComponent(id), { case_id: caseId }));
+/** Shares one of the signed-in user's conversations with its case, or stops sharing it (its owner only, open case). */
+export const shareConversation = (id: string, shared: boolean) => answered(gateway.setConversationShared(encodeURIComponent(id), { shared }));
+export const deleteConversation = (id: string) => removed(gateway.deleteConversation(encodeURIComponent(id)));
+/** Deletes every saved conversation of the signed-in user (the sign-out choice "Delete history"). */
+export const deleteAllConversations = async (): Promise<void> => { await answered(gateway.deleteMyConversations()); };

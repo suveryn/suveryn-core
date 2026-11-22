@@ -263,6 +263,9 @@ def test_bad_requests(setup):
     huge = {"title": "x", "turns": [{"role": "user", "text": "a" * 150_000}] * 15}  # over 2 MB
     r = c.put(url, json=huge, headers=alice)
     assert r.status_code == 413 and r.json()["code"] == "conversation.too_long"
+    # the limit is the save's: a pin with as much is read, and refused for what it is
+    r = c.put(url + "/pin", json={"pinned": "a" * (2 * 1024 * 1024)}, headers=alice)
+    assert r.status_code == 422 and r.json()["code"] == "request.invalid"
 
 
 def test_without_a_database_history_is_unavailable():

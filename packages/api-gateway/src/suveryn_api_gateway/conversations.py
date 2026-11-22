@@ -63,6 +63,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .cases import KEEP_PERIODS
 from .db import PgStore
+from .description import Answer
 
 log = logging.getLogger("suveryn.gateway")
 
@@ -165,7 +166,7 @@ class ConversationIn(BaseModel):
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")  # None: the personal space
 
 
-class ConversationSummary(BaseModel):
+class ConversationSummary(Answer):
     """One entry of ``GET /v1/conversations``."""
 
     id: str
@@ -184,6 +185,12 @@ class ConversationSummary(BaseModel):
     run_id: str | None = None  # a playbook run's conversation (its icon is the route; it goes with its case)
     # A run's title in every language (the pack's words): the UI shows the reader's; ``title`` is the starter's.
     titles: dict[str, str] | None = None
+
+
+class Deleted(Answer):
+    """What ``DELETE /v1/conversations`` answers: how many of the caller's conversations were deleted."""
+
+    deleted: int
 
 
 class PinIn(BaseModel):

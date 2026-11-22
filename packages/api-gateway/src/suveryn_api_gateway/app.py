@@ -430,7 +430,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > AVATAR_MAX_BYTES:
                 return problems.answer("user.picture_too_large", "The picture is larger than 2 MB.", max_mb=AVATAR_MAX_BYTES // (1024 * 1024))
-        if request.method == "PUT" and request.url.path.startswith("/v1/conversations/"):
+        # a conversation saved whole (``PUT /v1/conversations/{id}``), not its pin
+        if request.method == "PUT" and request.url.path.startswith("/v1/conversations/") and request.url.path.count("/") == 3:
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > MAX_CONVERSATION_BYTES:
                 return problems.answer("conversation.too_long", "This conversation is too long to save.")

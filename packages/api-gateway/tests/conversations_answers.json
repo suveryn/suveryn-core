@@ -1,0 +1,262 @@
+{
+ "all": {
+  "body": [
+   {
+    "case_id": "00000000-0000-4000-8000-0000000000c1",
+    "created_at": "2026-11-23T09:00:00Z",
+    "id": "00000000-0000-4000-8000-0000000000a2",
+    "messages": 2,
+    "owner": "bob-sub",
+    "owner_name": "Bob Janssens",
+    "pinned": false,
+    "run_id": null,
+    "shared": true,
+    "shielded": false,
+    "title": "Bob's",
+    "titles": null,
+    "updated_at": "2026-11-23T09:00:00Z"
+   },
+   {
+    "case_id": null,
+    "created_at": "2026-11-23T09:00:00Z",
+    "id": "00000000-0000-4000-8000-0000000000a1",
+    "messages": 2,
+    "owner": "alice-sub",
+    "owner_name": "",
+    "pinned": true,
+    "run_id": null,
+    "shared": false,
+    "shielded": false,
+    "title": "De koopprijs",
+    "titles": null,
+    "updated_at": "2026-11-23T09:00:00Z"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "all_deleted": {
+  "body": {
+   "deleted": 1
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "confidential_case": {
+  "body": {
+   "code": "case.strictly_confidential",
+   "detail": "Conversations aren't shared in a strictly confidential case.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "Not in a strictly confidential case: it is for its members only, and nothing in it is shared.",
+   "type": "urn:suveryn:problem:case.strictly_confidential"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "done": {
+  "body": null,
+  "media_type": null,
+  "status": 204
+ },
+ "in_a_case": {
+  "body": {
+   "code": "conversation.in_case",
+   "detail": "A conversation in a case follows its case: pin the case instead.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The conversation is in a case: it follows its case, and can't be pinned or moved by itself.",
+   "type": "urn:suveryn:problem:conversation.in_case"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "mine": {
+  "body": [
+   {
+    "case_id": null,
+    "created_at": "2026-11-23T09:00:00Z",
+    "id": "00000000-0000-4000-8000-0000000000a1",
+    "messages": 2,
+    "owner": "alice-sub",
+    "owner_name": "",
+    "pinned": true,
+    "run_id": null,
+    "shared": false,
+    "shielded": false,
+    "title": "De koopprijs",
+    "titles": null,
+    "updated_at": "2026-11-23T09:00:00Z"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "moved": {
+  "body": {
+   "case_id": "00000000-0000-4000-8000-0000000000c1",
+   "created_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-0000000000a1",
+   "messages": 2,
+   "owner": "alice-sub",
+   "owner_name": "",
+   "pinned": false,
+   "run_id": null,
+   "shared": false,
+   "shielded": false,
+   "title": "De koopprijs",
+   "titles": null,
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "no_such_conversation": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "Unknown conversation.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "none": {
+  "body": [],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "not_a_conversation_id": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "Not a conversation id.",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "not_allowed": {
+  "body": {
+   "code": "case.not_allowed",
+   "detail": "You may not do this in this case.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller's role in this case doesn't allow this.",
+   "type": "urn:suveryn:problem:case.not_allowed"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "one": {
+  "body": {
+   "case_id": null,
+   "created_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-0000000000a1",
+   "messages": 2,
+   "owner": "alice-sub",
+   "owner_name": "",
+   "pinned": false,
+   "run_id": null,
+   "shared": false,
+   "shielded": false,
+   "title": "Wat is de koopprijs?",
+   "titles": null,
+   "turns": [
+    {
+     "id": "t1",
+     "role": "user",
+     "text": "Wat is de koopprijs?"
+    },
+    {
+     "id": "t2",
+     "role": "assistant",
+     "status": "done",
+     "text": "€ 345.000 [1]"
+    }
+   ],
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "pinned": {
+  "body": {
+   "case_id": null,
+   "created_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-0000000000a1",
+   "messages": 2,
+   "owner": "alice-sub",
+   "owner_name": "",
+   "pinned": true,
+   "run_id": null,
+   "shared": false,
+   "shielded": false,
+   "title": "De koopprijs",
+   "titles": null,
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "renamed": {
+  "body": {
+   "case_id": null,
+   "created_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-0000000000a1",
+   "messages": 2,
+   "owner": "alice-sub",
+   "owner_name": "",
+   "pinned": false,
+   "run_id": null,
+   "shared": false,
+   "shielded": false,
+   "title": "De koopprijs",
+   "titles": null,
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "shared": {
+  "body": {
+   "case_id": "00000000-0000-4000-8000-0000000000c1",
+   "created_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-0000000000a2",
+   "messages": 2,
+   "owner": "bob-sub",
+   "owner_name": "",
+   "pinned": false,
+   "run_id": null,
+   "shared": true,
+   "shielded": false,
+   "title": "Bob's",
+   "titles": null,
+   "updated_at": "2026-11-23T09:00:00Z"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "too_long": {
+  "body": {
+   "code": "conversation.too_long",
+   "detail": "This conversation is too long to save.",
+   "kind": "refused",
+   "params": {},
+   "status": 413,
+   "title": "The conversation is too long to save.",
+   "type": "urn:suveryn:problem:conversation.too_long"
+  },
+  "media_type": "application/problem+json",
+  "status": 413
+ }
+}

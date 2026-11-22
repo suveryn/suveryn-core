@@ -81,13 +81,18 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"backups", "cases", "clock", "models", "settings", "status", "usage", "users"}
+STRICT = {"backups", "cases", "clock", "conversations", "models", "settings", "status", "usage", "users"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
 # An answer with a failing status that is the answer asked for, not a refusal: /health says its state with 503
 # while the model server isn't ready, and its body is the same as with 200. Named here on purpose.
 STATES = {("GET", "/health", 503)}
+
+
+# A refusal the gateway gives before the route is reached, by the request's size (app.py, ``limit_upload_size``): the
+# route's own code never raises it.
+BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): "conversation.too_long"}
 
 
 def strict_operations() -> list[tuple[str, str, dict]]:
@@ -160,11 +165,16 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
         # reads as it is (a key file) is the route's own to refuse.
         takes_input = bool(op.get("parameters") or "application/json" in op.get("requestBody", {}).get("content", {}))
         expected = (raised[op["operationId"]] | ({422} if takes_input else set())) - set(problems.EVERY_OPERATION)
+        if (before := BEFORE.get((method, path))) is not None:
+            assert f'"{before}"' in (package / "app.py").read_text(encoding="utf-8"), f"{before} isn't said in app.py"
+            expected.add(CODES[before].status)
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
 
 # A shape of a strict area that is still "any object", named with what describes it later: a step of #159 of its own.
-LATER = {"CaseEvent.detail": "what each line of the access log records (its actions and their details), for every area that writes one"}
+LATER = {"CaseEvent.detail": "what each line of the access log records (its actions and their details), for every area that writes one",
+         "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): with the answer stream and the playbooks",
+         "SavedTurn": "the same, as the chat UI saves it"}
 
 
 def test_a_strict_operation_leaves_nothing_undescribed():
