@@ -30,7 +30,7 @@ function names(text: string, address: string): boolean {
 }
 
 describe("calling generated code", () => {
-  it("an id put into an address is encoded by the caller: Orval puts it in as it is given", () => {
+  it("every generated call is called or named as not called, and an id put into an address is encoded by the caller: Orval puts it in as it is given", () => {
     // the generated calls whose address takes a part: `export const getClockRequest = async (rid: string, …`
     const withPart = [...generated.matchAll(/export const get(\w+)Url = \((\w+): string/g)]
       .map((m) => m[1][0].toLowerCase() + m[1].slice(1));
