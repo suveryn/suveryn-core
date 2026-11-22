@@ -1,7 +1,8 @@
 /**
  * The previews talk to no server: `fetch` is answered from sample.ts. A request it doesn't know is
  * answered 404 and named in the console, so a preview that needs more data says so. A write (POST, PUT,
- * PATCH, DELETE) it doesn't know is answered with what was sent, so a button can be pressed.
+ * PATCH) it doesn't know is answered with what was sent, and a removal (DELETE) as done with nothing to read (204), so a
+ * button can be pressed.
  */
 import { routes, UPLOADS, type Route } from "./sample";
 
@@ -52,6 +53,7 @@ export function useSampleData(): void {
       const match = m === method ? path.match(pattern) : null;
       if (match) return Response.json(typeof answer === "function" ? answer(match, body) : answer);
     }
+    if (method === "DELETE") return new Response(null, { status: 204 });  // removed, as the gateway says it: nothing to read
     if (method !== "GET") return Response.json(body ?? {});
     console.warn(`preview: no sample answer for ${method} ${path}`);
     return Response.json({ detail: "not in the preview's sample data" }, { status: 404 });

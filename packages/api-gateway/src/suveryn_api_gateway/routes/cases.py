@@ -24,7 +24,7 @@ from ..cases import (
     KeepIn,
     Member,
     MemberIn,
-    PinIn,
+    CasePinIn,
     SettingsIn,
     SettingsOut,
     SettingsPreview,
@@ -62,7 +62,7 @@ settings_routes = APIRouter(tags=["settings"])
 routers = (router, users_routes, settings_routes)
 
 
-@router.get("/v1/case-types", response_model=list[CaseTypeOut])
+@router.get("/v1/case-types", response_model=list[CaseTypeOut], responses=refusals())
 async def list_case_types():
     """The case types this appliance offers, in order: core's reference content's, then each installed pack's
     (suveryn-tracker#229). A type without a playbook is offered too; a stored case keeps its type when the
@@ -70,7 +70,7 @@ async def list_case_types():
     return [CaseTypeOut(id=t.id, pack=t.pack, text=dict(t.text)) for t in CASE_TYPES]
 
 
-@router.get("/v1/cases", response_model=list[Case])
+@router.get("/v1/cases", response_model=list[Case], responses=refusals())
 async def list_cases(request: Request, closed: bool = False):
     """The cases the caller may see: open ones first, most recently active first. Closed cases
     only with ``closed=true``. ``my_role`` is the caller's role in each."""
@@ -79,7 +79,7 @@ async def list_cases(request: Request, closed: bool = False):
                                    admin=caller.admin, closed=closed)
 
 
-@router.get("/v1/cases/overview", response_model=list[CaseOverview])
+@router.get("/v1/cases/overview", response_model=list[CaseOverview], responses=refusals())
 async def list_case_overviews(request: Request):
     """Every case the caller may see, open and closed, as the Cases overview shows them
     (docs/design/chat-ui.md §4): each with its members (the manager first, with their pictures'
@@ -107,8 +107,7 @@ def offered_type(type_id: str) -> None:
         raise Problem("case.type_unsupported", "This appliance doesn't offer this case type.")
 
 
-@router.post("/v1/cases", response_model=Case, status_code=201, responses={
-    409: {"description": "A case with this reference exists"}, 422: {"description": "A case type this appliance doesn't offer"}})
+@router.post("/v1/cases", response_model=Case, status_code=201, responses=refusals(409, 422))
 async def create_case(body: CaseIn, request: Request):
     """Open a new case. The caller becomes its manager and first member.
     The reference is the office's own file number, unique on this appliance; never put a client's
@@ -122,7 +121,7 @@ async def create_case(body: CaseIn, request: Request):
         raise Problem("case.reference_exists", "A case with this reference already exists.") from None
 
 
-@router.get("/v1/cases/{case_id}", response_model=Case, responses={404: {"description": "Unknown case"}})
+@router.get("/v1/cases/{case_id}", response_model=Case, responses=refusals(404, 422))
 async def get_case(case_id: str, request: Request):
     """One case the caller may see."""
     case = await case_for(request, case_id, "read")
@@ -130,10 +129,7 @@ async def get_case(case_id: str, request: Request):
     return case
 
 
-@router.patch("/v1/cases/{case_id}", response_model=Case, responses={
-    403: {"description": "Not the case's manager, or the case is closed"}, 404: {"description": "Unknown case"},
-    409: {"description": "A case with this reference exists, or the access can't be opened while strictly confidential"},
-    422: {"description": "A case type this appliance doesn't offer"}})
+@router.patch("/v1/cases/{case_id}", response_model=Case, responses=refusals(404, 409, 422))
 async def update_case(case_id: str, body: CaseUpdate, request: Request):
     """Change a case's reference, name, type, access or strictly confidential label (its
     manager only). Turning the label on restricts the access and unshares the case's conversations.
@@ -165,9 +161,7 @@ async def update_case(case_id: str, body: CaseUpdate, request: Request):
     return shielded(changed.model_copy(update={"my_role": case.my_role, "pinned": case.pinned})) if changed else changed
 
 
-@router.delete("/v1/cases/{case_id}", status_code=204, responses={
-    403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"},
-    503: {"description": "A store the case is in can't be reached: nothing was deleted"}})
+@router.delete("/v1/cases/{case_id}", status_code=204, responses=refusals(404, 422))
 async def delete_case(case_id: str, request: Request):
     """Delete a case with its documents and conversations (its manager only). Closing and the
     keep period (docs/design/cases.md, stage 3) are the office's way; this is for a case opened
@@ -182,8 +176,8 @@ async def delete_case(case_id: str, request: Request):
     return Response(status_code=204)
 
 
-@router.put("/v1/cases/{case_id}/pin", response_model=Case, responses={404: {"description": "Unknown case"}})
-async def set_case_pinned(case_id: str, body: PinIn, request: Request):
+@router.put("/v1/cases/{case_id}/pin", response_model=Case, responses=refusals(404, 422))
+async def set_case_pinned(case_id: str, body: CasePinIn, request: Request):
     """Pin or unpin the case in the caller's own sidebar (docs/design/chat-ui.md): anyone who may
     read it; per user, never shared, not in the access log."""
     case = await case_for(request, case_id, "read")
@@ -193,8 +187,7 @@ async def set_case_pinned(case_id: str, body: PinIn, request: Request):
 
 
 # ------------------------------------------------------------------ closing and the keep period (stage 3)
-@router.post("/v1/cases/{case_id}/close", response_model=Case, responses={
-    403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}, 409: {"description": "Already closed"}})
+@router.post("/v1/cases/{case_id}/close", response_model=Case, responses=refusals(404, 409, 422))
 async def close_case(case_id: str, request: Request):
     """Close the case (its manager only): read-only from now, reopenable while it is kept, and
     deleted after the office's keep period (``SUVERYN_CASES_KEEP``; with ``manual``, kept until
@@ -208,8 +201,7 @@ async def close_case(case_id: str, request: Request):
     return shielded(closed.model_copy(update={"my_role": case.my_role}))
 
 
-@router.post("/v1/cases/{case_id}/reopen", response_model=Case, responses={
-    403: {"description": "Not the case's manager"}, 404: {"description": "Unknown case"}, 409: {"description": "Not closed"}})
+@router.post("/v1/cases/{case_id}/reopen", response_model=Case, responses=refusals(404, 409, 422))
 async def reopen_case(case_id: str, request: Request):
     """Reopen a closed case (its manager only): open again, no deletion planned."""
     case = await case_for(request, case_id, "reopen")
@@ -220,9 +212,7 @@ async def reopen_case(case_id: str, request: Request):
     return shielded(reopened.model_copy(update={"my_role": case.my_role}))
 
 
-@router.post("/v1/cases/{case_id}/keep", response_model=Case, responses={
-    403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case"},
-    409: {"description": "Not closed"}})
+@router.post("/v1/cases/{case_id}/keep", response_model=Case, responses=refusals(404, 409, 422))
 async def set_case_keep(case_id: str, body: KeepIn, request: Request):
     """On a closed case: ``{"keep": true}`` marks it kept (never deleted by the period), ``{"keep":
     false}`` plans its deletion one period from now again, ``{"extend": true}`` moves its
@@ -262,7 +252,7 @@ async def list_departed_users(request: Request):
     return await run_in_threadpool(store.departed_names) if store is not None else {}
 
 
-@router.get("/v1/cases/{case_id}/members", response_model=list[Member], responses={404: {"description": "Unknown case"}})
+@router.get("/v1/cases/{case_id}/members", response_model=list[Member], responses=refusals(404, 422))
 async def list_case_members(case_id: str, request: Request):
     """The case's members and their roles, the manager first (anyone who may read the case)."""
     case = await case_for(request, case_id, "read")
@@ -270,9 +260,7 @@ async def list_case_members(case_id: str, request: Request):
     return await with_faces(request, members, key="user")
 
 
-@router.put("/v1/cases/{case_id}/members/{user}", response_model=Member, responses={
-    403: {"description": "Not the case's manager, or the case is closed"},
-    404: {"description": "Unknown case or user"}, 422: {"description": "The manager's role is changed by handing over"}})
+@router.put("/v1/cases/{case_id}/members/{user}", response_model=Member, responses=refusals(404, 422))
 async def set_case_member(case_id: str, user: str, body: MemberIn, request: Request):
     """Add a colleague to the case as a reader or contributor, or change a member's role (the
     manager's right). The colleague must be one of the office's accounts. To make someone the
@@ -292,9 +280,7 @@ async def set_case_member(case_id: str, user: str, body: MemberIn, request: Requ
     return member
 
 
-@router.delete("/v1/cases/{case_id}/members/{user}", status_code=204, responses={
-    403: {"description": "Not the case's manager, or the case is closed"},
-    404: {"description": "Unknown case or not a member"}, 422: {"description": "The manager can't be removed"}})
+@router.delete("/v1/cases/{case_id}/members/{user}", status_code=204, responses=refusals(404, 422))
 async def remove_case_member(case_id: str, user: str, request: Request):
     """Take a member out of the case (the manager's right). The manager can't be removed: hand
     the case over first."""
@@ -308,8 +294,7 @@ async def remove_case_member(case_id: str, user: str, request: Request):
     return Response(status_code=204)
 
 
-@router.post("/v1/cases/{case_id}/handover", response_model=Case, responses={
-    403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case or user"}})
+@router.post("/v1/cases/{case_id}/handover", response_model=Case, responses=refusals(404, 422))
 async def hand_over_case(case_id: str, body: HandoverIn, request: Request):
     """Make another colleague the case's manager: the current manager may, and an administrator
     (decision 6: an account can't go while it manages a case). The previous manager stays on as
@@ -326,8 +311,7 @@ async def hand_over_case(case_id: str, body: HandoverIn, request: Request):
     return shielded(handed, await run_in_threadpool(store.role_of, cid, caller.sub))
 
 
-@router.get("/v1/cases/{case_id}/events", response_model=list[CaseEvent], responses={
-    403: {"description": "Neither the case's manager nor an administrator"}, 404: {"description": "Unknown case"}})
+@router.get("/v1/cases/{case_id}/events", response_model=list[CaseEvent], responses=refusals(404, 422))
 async def list_case_events(case_id: str, request: Request):
     """The case's access log, newest first: who did what, when (decision 15). For its manager
     and the administrators; kept 180 days, as the sign-in events."""
@@ -351,7 +335,7 @@ async def list_case_events(case_id: str, request: Request):
 
 
 # ------------------------------------------------------------------ the administrator's pages (stage 4)
-@router.get("/v1/admin/cases", response_model=list[AdminCase], responses={403: {"description": "Not an administrator"}})
+@router.get("/v1/admin/cases", response_model=list[AdminCase], responses=refusals())
 async def list_office_cases(request: Request):
     """Administrators: every case on the appliance, open ones first, with who manages it and how
     many members it has; nothing from inside a case. For handing cases over before an account

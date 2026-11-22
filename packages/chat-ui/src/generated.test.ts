@@ -16,6 +16,16 @@ const NOT_CALLED: Record<string, string> = {
   getUserPicture: "a picture is loaded by the page itself, as an image's address: the generated one (ui/avatar.tsx)",
   deleteUserPicture: "no screen removes someone else's picture yet",
 };
+/** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
+ *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first
+ *  part as a string of its own, to which the rest is added (`"/v1/cases/" + id`). A net, not a proof. */
+function names(text: string, address: string): boolean {
+  const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const literal = escaped(address).replace(/\\\$\\\{\w+\\\}/g, "\\$\\{[^}]*\\}");
+  const start = address.includes("${") ? `|["'\`]${escaped(address.slice(0, address.indexOf("${")))}["'\`]` : "";
+  return new RegExp(`["'\`]${literal}(?![\\w/-])${start}`).test(text);
+}
+
 describe("calling generated code", () => {
   it("an id put into an address is encoded by the caller: Orval puts it in as it is given", () => {
     // the generated calls whose address takes a part: `export const getClockRequest = async (rid: string, …`
@@ -38,13 +48,24 @@ describe("calling generated code", () => {
   });
 
   it("an operation that is generated has no hand-written call left", () => {
-    // every address the generated code calls, with a part of it as a pattern: `/v1/admin/clock/${rid}`
-    const addresses = [...generated.matchAll(/return `(\/[^`?]*)`/g)].map((m) => m[1].replace(/\/\$\{\w+\}.*$/, ""));
-    expect(addresses).toEqual(expect.arrayContaining(["/v1/clock", "/health"]));
+    // every address the generated code calls, as it writes it: `/v1/cases/${caseId}/members`
+    const addresses = [...new Set([...generated.matchAll(/return `(\/[^`?]*)`/g)].map((m) => m[1]))];
+    expect(addresses).toEqual(expect.arrayContaining(["/v1/clock", "/health", "/v1/cases/${caseId}/members"]));
     for (const [file, text] of written) {
-      for (const address of new Set(addresses)) {
-        expect(text.includes(`"${address}`) || text.includes(`\`${address}`), `${file} still names ${address}`).toBe(false);
-      }
+      for (const address of addresses) expect(names(text, address), `${file} still names ${address}`).toBe(false);
     }
+  });
+
+  it("which finds an address whatever its parts are called, and not a longer address that starts the same", () => {
+    expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}/members`)", "/v1/cases/${caseId}/members")).toBe(true);
+    expect(names("fetch(`/v1/cases${closed ? \"?closed=true\" : \"\"}`)", "/v1/cases")).toBe(true);
+    expect(names("fetch(\"/v1/cases\", { method: \"POST\" })", "/v1/cases")).toBe(true);
+    expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}?x=1`)", "/v1/cases/${caseId}")).toBe(true);
+    expect(names("fetch('/v1/cases/' + encodeURIComponent(id) + '/members')", "/v1/cases/${caseId}/members")).toBe(true);
+    expect(names("fetch(\"/v1/cases/\" + id)", "/v1/cases/${caseId}")).toBe(true);
+    // a case's documents and playbooks are other operations, not generated yet
+    expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}/documents`)", "/v1/cases/${caseId}")).toBe(false);
+    expect(names("fetch(`/v1/cases/${encodeURIComponent(id)}/documents`)", "/v1/cases")).toBe(false);
+    expect(names("fetch(\"/v1/case-types-of-old\")", "/v1/case-types")).toBe(false);
   });
 });

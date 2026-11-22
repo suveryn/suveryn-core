@@ -467,180 +467,33 @@ export async function deleteAllConversations(): Promise<void> {
 }
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
- *  name. `my_role`: what the signed-in user may do in it (null: an administrator who sees it exists). */
-type CaseRole = "reader" | "contributor" | "manager";
-export type Case = {
-  id: string;
-  reference: string;
-  name: string;
-  type: string;
-  access: "default" | "restricted";
-  state: "open" | "closed";
-  opened_at: string;
-  closed_at: string | null;
-  keep_until: string | null;  // a closed case: when it is deleted (null: kept until deleted by hand)
-  keep: boolean;              // a closed case marked kept: never deleted by the period
-  manager: string;
-  created_by: string;
-  updated_at: string;
-  my_role: CaseRole | null;
-  pinned?: boolean;           // in the signed-in user's sidebar (theirs alone; docs/design/chat-ui.md)
-  confidential?: boolean;     // strictly confidential (docs/design/chat-ui.md §11)
-};
-export type NewCase = { reference: string; name: string; type: string;
-  /** default: as the office's default access; restricted: members only (board G14). */
-  access?: "default" | "restricted" };
-
-/** A case type this appliance offers (``GET /v1/case-types``, suveryn-tracker#229): its id, the pack that brings it
- *  (core's reference content or an installed pack) and its word per language, from the pack. */
-export type CaseTypeInfo = { id: string; pack: string; text: Record<string, string> };
-
-export async function listCaseTypes(): Promise<CaseTypeInfo[]> {
-  const r = await fetch("/v1/case-types");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** The cases the signed-in user may see, most recently active first: open ones, and with
- *  `closed` the closed ones too (after the open ones). */
-export async function listCases(closed = false): Promise<Case[]> {
-  const r = await fetch(`/v1/cases${closed ? "?closed=true" : ""}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
+ *  name. `my_role`: what the signed-in user may do in it (null: an administrator who sees it exists).
+ *  `keep_until`: a closed case, when it is deleted (null: kept until deleted by hand); `keep`: a closed case marked
+ *  kept, never deleted by the period; `pinned`: in the signed-in user's sidebar (theirs alone; docs/design/chat-ui.md);
+ *  `confidential`: strictly confidential (docs/design/chat-ui.md §11). */
+export type Case = gateway.Case;
+/** `access` default: as the office's default access; restricted: members only (board G14). */
+export type NewCase = gateway.CaseIn;
+/** A case type this appliance offers (suveryn-tracker#229): its id, the pack that brings it (core's reference content
+ *  or an installed pack) and its word per language, from the pack. */
+export type CaseTypeInfo = gateway.CaseTypeOut;
 /** A case as the Cases overview shows it (docs/design/chat-ui.md §4): its members (the manager first)
  *  and its last activity, when and who. An administrator who isn't a member gets no members. */
-export type CaseOverview = Case & { members: Member[]; last_activity_at: string | null; last_activity_by: string };
-
-/** Every case the signed-in user may see, open and closed, for the Cases overview. */
-export async function listCasesOverview(): Promise<CaseOverview[]> {
-  const r = await fetch("/v1/cases/overview");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Pins a case in the signed-in user's own sidebar, or unpins it (anyone who may read the case). */
-export async function pinCase(id: string, pinned: boolean): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/pin`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function createCase(body: NewCase): Promise<Case> {
-  const r = await fetch("/v1/cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function getCase(id: string): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Changes a case's reference, name, type or access (its manager only). */
-export async function updateCase(id: string, changes: Partial<NewCase> & { access?: Case["access"]; confidential?: boolean }): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
+export type CaseOverview = gateway.CaseOverview;
 /** A member of a case, with the name as it was when they were added. */
-export type Member = { user: string; username: string; name: string; role: CaseRole; added_by: string; added_at: string; admin?: boolean; avatar?: string | null };
+export type Member = gateway.Member;
 /** One of the office's accounts, from the directory (Keycloak), to add to a case. */
 export type Person = gateway.Person;
-/** One line of a case's access log: who did what, when (never document text). */
-/** ``name``: who, as the case knows them or, for a deleted account, as it was called. */
-export type CaseEvent = { id: number; user: string; at: string; action: string; detail: Record<string, unknown>; name?: string };
-
-
-export async function listMembers(caseId: string): Promise<Member[]> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Adds a colleague as a reader or contributor, or changes a member's role (the manager only). */
-export async function setMember(caseId: string, user: string, role: "reader" | "contributor"): Promise<Member> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members/${encodeURIComponent(user)}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function removeMember(caseId: string, user: string): Promise<void> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/members/${encodeURIComponent(user)}`, { method: "DELETE" });
-  if (!r.ok && r.status !== 404) throw await responseError(r);
-}
-
-/** Makes another colleague the case's manager (the manager, or an administrator). */
-export async function handOver(caseId: string, user: string): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/handover`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-
-/** The case's access log, newest first (its manager and the administrators). */
-export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/events`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Closes a case (its manager only): read-only from then on, deleted after the office's keep period. */
-export async function closeCase(id: string): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/close`, { method: "POST" });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Reopens a closed case (its manager only): open again, no deletion planned. */
-export async function reopenCase(id: string): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/reopen`, { method: "POST" });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** A closed case's keep: `keep` true marks it kept (never deleted by the period), false lets the
- *  period run again from now; `extend` adds one period to its deletion date. Its manager, or an
- *  administrator. */
-export async function keepCase(id: string, change: { keep?: boolean; extend?: boolean }): Promise<Case> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}/keep`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
+/** One line of a case's access log: who did what, when (never document text). ``name``: who, as the case knows them
+ *  or, for a deleted account, as it was called. */
+export type CaseEvent = gateway.CaseEvent;
 /** The administrator's pages (stage 4): every case with its manager, and the office's two case settings. */
-export type AdminCase = Case & { manager_username: string; manager_name: string; members: number };
+export type AdminCase = gateway.AdminCase;
 // conversations_keep: how long saved conversations are kept after their last change, in cases too (the data lifecycle, suveryn-tracker#31)
 // two_step: every account must set up two-step sign-in (off by default; decision, 29 October 2026)
 export type CaseSettings = gateway.SettingsOut;
-
-export async function listAdminCases(): Promise<AdminCase[]> {
-  const r = await fetch("/v1/admin/cases");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
 /** What saving these settings would do now, for the confirmation in Administration › Settings: counts only. */
 export type SettingsPreview = gateway.SettingsPreview;
-
-/** Deletes a case with its documents and conversations (its manager only). */
-export async function deleteCase(id: string): Promise<void> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!r.ok && r.status !== 404) throw await responseError(r);
-}
 
 /** Token counts (suveryn-tracker#7): counts only, never text. `totals_only_before`: the range reaches before the raw
  *  usage kept (24 months): before this, only the office's monthly totals. */
@@ -689,6 +542,12 @@ export async function answered<A extends Answer>(call: Promise<A>): Promise<Extr
 export async function accepted(call: Promise<Answer>): Promise<void> {
   const answer = await call;
   if (answer.status !== 202 || !answer.empty) throw failed(answer);
+}
+
+/** A generated removal: done, or already gone (404), which is the same to the screen; else the same failures. */
+async function removed(call: Promise<Answer>): Promise<void> {
+  const answer = await call;
+  if (answer.status !== 204 && answer.status !== 404) throw failed(answer);
 }
 
 /** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
@@ -971,3 +830,38 @@ export const setMyAvatar = async (image: Blob): Promise<string> => (await answer
 
 /** Removes the caller's picture: their initials are shown again. */
 export const removeMyAvatar = (): Promise<void> => answered(gateway.deleteMyPicture());
+
+/** The cases (suveryn-tracker#244). The types this appliance offers. */
+export const listCaseTypes = () => answered(gateway.listCaseTypes());
+/** The cases the signed-in user may see, most recently active first: open ones, and with `closed` the closed ones too
+ *  (after the open ones). */
+export const listCases = (closed = false) => answered(gateway.listCases(closed ? { closed } : undefined));
+/** Every case the signed-in user may see, open and closed, for the Cases overview. */
+export const listCasesOverview = () => answered(gateway.listCaseOverviews());
+/** Every case of the office with its manager, for the administrator's page. */
+export const listAdminCases = () => answered(gateway.listOfficeCases());
+export const createCase = (body: NewCase) => answered(gateway.createCase(body));
+export const getCase = (id: string) => answered(gateway.getCase(encodeURIComponent(id)));
+/** Changes a case's reference, name, type or access (its manager only). */
+export const updateCase = (id: string, changes: gateway.CaseUpdate) => answered(gateway.updateCase(encodeURIComponent(id), changes));
+/** Deletes a case with its documents and conversations (its manager only). */
+export const deleteCase = (id: string) => removed(gateway.deleteCase(encodeURIComponent(id)));
+/** Pins a case in the signed-in user's own sidebar, or unpins it (anyone who may read the case). */
+export const pinCase = (id: string, pinned: boolean) => answered(gateway.setCasePinned(encodeURIComponent(id), { pinned }));
+/** Closes a case (its manager only): read-only from then on, deleted after the office's keep period. */
+export const closeCase = (id: string) => answered(gateway.closeCase(encodeURIComponent(id)));
+/** Reopens a closed case (its manager only): open again, no deletion planned. */
+export const reopenCase = (id: string) => answered(gateway.reopenCase(encodeURIComponent(id)));
+/** A closed case's keep: `keep` true marks it kept (never deleted by the period), false lets the period run again from
+ *  now; `extend` adds one period to its deletion date. Its manager, or an administrator. */
+export const keepCase = (id: string, change: gateway.KeepIn) => answered(gateway.setCaseKeep(encodeURIComponent(id), change));
+export const listMembers = (caseId: string) => answered(gateway.listCaseMembers(encodeURIComponent(caseId)));
+/** Adds a colleague as a reader or contributor, or changes a member's role (the manager only). */
+export const setMember = (caseId: string, user: string, role: "reader" | "contributor") =>
+  answered(gateway.setCaseMember(encodeURIComponent(caseId), encodeURIComponent(user), { role }));
+export const removeMember = (caseId: string, user: string) =>
+  removed(gateway.removeCaseMember(encodeURIComponent(caseId), encodeURIComponent(user)));
+/** Makes another colleague the case's manager (the manager, or an administrator). */
+export const handOver = (caseId: string, user: string) => answered(gateway.handOverCase(encodeURIComponent(caseId), { user }));
+/** The case's access log, newest first (its manager and the administrators). */
+export const listCaseEvents = (caseId: string) => answered(gateway.listCaseEvents(encodeURIComponent(caseId)));

@@ -8,7 +8,7 @@ const conv = (over: Partial<ConversationSummary> = {}): ConversationSummary => (
 const kase = (over: Partial<Case> = {}): Case => ({
   id: "k1", reference: "2026/0417", name: "Sale", type: "sale", access: "default", state: "open",
   opened_at: "", closed_at: null, keep_until: null, keep: false, manager: "alice", created_by: "alice", updated_at: "",
-  my_role: "contributor", ...over,
+  my_role: "contributor", created_at: "", pinned: false, confidential: false, ...over,
 });
 const offered = (c: ConversationSummary, me = "alice") =>
   conversationActions(c, me).map((a) => `${a.id}${a.disabled ? "-" : ""}${a.reason ? `(${a.reason})` : ""}`);

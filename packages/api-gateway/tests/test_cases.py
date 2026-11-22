@@ -1665,3 +1665,105 @@ def test_every_answer_of_the_offices_settings_is_what_the_description_says(offic
     # and an account gone from the sign-in service while two-step sign-in is switched on for everyone (test_users.py)
     assert check.not_seen() == {(m, p, s) for m, p in (("GET", settings), ("GET", preview), ("PUT", settings)) for s in (500, 503)} | {
         ("PUT", settings, 404)}
+
+
+def test_every_answer_of_cases_is_what_the_description_says(office):
+    """The chat UI's code for cases is generated from the description (suveryn-tracker#244): each answer the
+    operations give, the refusals too, is checked against it and kept for the chat UI's tests."""
+    from described import Checked
+
+    c, kc, _, _, _ = office
+    check, alice, bob, carla, admin = Checked(c, "cases"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA), admin_headers(kc)
+    CASE, OTHER, WHEN = "00000000-0000-4000-8000-0000000000c1", "00000000-0000-4000-8000-0000000000c2", "2026-11-23T09:00:00Z"
+    ids: dict[str, str] = {}
+
+    def same(body):  # this run's ids and moments, wherever they are in an answer
+        if isinstance(body, list):
+            for item in body:
+                same(item)
+        elif isinstance(body, dict):
+            for key, value in body.items():
+                if key in ("opened_at", "created_at", "updated_at", "closed_at", "keep_until", "added_at", "at", "last_activity_at") and value:
+                    body[key] = WHEN
+                elif isinstance(value, str) and value in ids:
+                    body[key] = ids[value]
+                else:
+                    same(value)
+
+    one, members, member = "/v1/cases/{case_id}", "/v1/cases/{case_id}/members", "/v1/cases/{case_id}/members/{user}"
+    gone = "/v1/cases/00000000-0000-4000-8000-00000000dead"
+    every = [("GET", "/v1/admin/cases", None, {}), ("GET", "/v1/case-types", None, {}), ("GET", "/v1/cases", None, {}),
+             ("POST", "/v1/cases", None, {"json": NEW}), ("GET", "/v1/cases/overview", None, {}), ("DELETE", one, gone, {}), ("GET", one, gone, {}),
+             ("PATCH", one, gone, {"json": {"name": "x"}}), ("POST", one + "/close", gone + "/close", {}), ("GET", one + "/events", gone + "/events", {}),
+             ("POST", one + "/handover", gone + "/handover", {"json": {"user": BOB}}), ("POST", one + "/keep", gone + "/keep", {"json": {"keep": True}}),
+             ("GET", members, gone + "/members", {}), ("DELETE", member, gone + f"/members/{BOB}", {}),
+             ("PUT", member, gone + f"/members/{BOB}", {"json": {"role": "reader"}}), ("PUT", one + "/pin", gone + "/pin", {"json": {"pinned": True}}),
+             ("POST", one + "/reopen", gone + "/reopen", {})]
+    for method, path, at, sent in every:
+        assert check(method, path, 401, at, **sent).json()["code"] == "auth.signed_out"
+        if "{case_id}" in path:  # a case that doesn't exist, or that the caller may not see: the same answer
+            assert check(method, path, 404, at, "no_such_case" if method == "GET" and path == one else None, headers=alice, **sent).json()["code"] == "case.not_found"
+            # what isn't a case id at all is refused by the gateway itself, before anything is looked up
+            r = check(method, path, 422, at.replace(gone, "/v1/cases/not-an-id"), "not_a_case_id" if method == "GET" and path == one else None, headers=alice, **sent)
+            assert r.json()["code"] == "request.invalid"
+    assert check("GET", "/v1/admin/cases", 403, keep="not_an_administrator", headers=alice).json()["code"] == "request.forbidden"
+
+    assert [t["id"] for t in check("GET", "/v1/case-types", 200, keep="types", headers=alice).json()]
+    made = check("POST", "/v1/cases", 201, keep="created", tidy=lambda b: (ids.update({b["id"]: CASE}), same(b)), json=NEW, headers=alice).json()
+    cid = made["id"]
+    at = lambda rest="": f"/v1/cases/{cid}{rest}"  # noqa: E731
+    assert check("POST", "/v1/cases", 409, keep="reference_taken", json=NEW, headers=alice).json()["code"].startswith("case.")
+    assert "errors" in check("POST", "/v1/cases", 422, json={"reference": " ", "name": "", "type": "sale"}, headers=alice).json()
+    assert check("GET", one, 200, at(), "one", tidy=same, headers=alice).json()["my_role"] == "manager"
+    assert check("PATCH", one, 200, at(), "renamed", tidy=same, json={"name": "Verkoop Kerkstraat 14"}, headers=alice).json()["name"].endswith("14")
+    assert "errors" in check("PATCH", one, 422, at(), json={"name": ""}, headers=alice).json()
+    added = check("PUT", member, 200, at(f"/members/{BOB}"), "member_added", tidy=same, json={"role": "reader"}, headers=alice).json()
+    assert added["role"] == "reader" and added["user"] == BOB
+    assert "errors" in check("PUT", member, 422, at(f"/members/{BOB}"), json={"role": "owner"}, headers=alice).json()
+    assert len(check("GET", members, 200, at("/members"), "members", tidy=same, headers=alice).json()) == 2
+    # a reader may read the case, and change nothing in it
+    refused = [("PATCH", one, at(), {"json": {"name": "x"}}), ("POST", one + "/close", at("/close"), {}), ("DELETE", one, at(), {}),
+               ("POST", one + "/handover", at("/handover"), {"json": {"user": BOB}}), ("POST", one + "/keep", at("/keep"), {"json": {"keep": True}}),
+               ("PUT", member, at(f"/members/{CARLA}"), {"json": {"role": "reader"}}), ("DELETE", member, at(f"/members/{ALICE}"), {}),
+               ("GET", one + "/events", at("/events"), {}), ("POST", one + "/reopen", at("/reopen"), {})]
+    for method, path, where, sent in refused:
+        r = check(method, path, 403, where, "not_allowed" if method == "PATCH" else None, headers=bob, **sent)
+        assert r.json()["code"] in ("case.not_allowed", "case.manager_or_administrator_only", "request.forbidden"), (method, path, r.json()["code"])
+    assert check("PUT", one + "/pin", 200, at("/pin"), "pinned", tidy=same, json={"pinned": True}, headers=bob).json()["pinned"] is True
+    assert "errors" in check("PUT", one + "/pin", 422, at("/pin"), json={}, headers=bob).json()
+    assert [x["id"] for x in check("GET", "/v1/cases", 200, keep="mine", tidy=same, headers=alice).json()] == [cid]
+    assert "errors" in check("GET", "/v1/cases", 422, "/v1/cases?closed=perhaps", headers=alice).json()
+    overview = check("GET", "/v1/cases/overview", 200, keep="overview", tidy=same, headers=alice).json()
+    assert [m["user"] for m in overview[0]["members"]] == [ALICE, BOB]
+    assert check("GET", one + "/events", 200, at("/events"), "events", tidy=same, headers=alice).json()[0]["action"]
+    assert check("POST", one + "/handover", 200, at("/handover"), "handed_over", tidy=same, json={"user": BOB}, headers=alice).json()["manager"] == BOB
+    assert "errors" in check("POST", one + "/handover", 422, at("/handover"), json={}, headers=bob).json()
+    check("DELETE", member, 204, at(f"/members/{ALICE}"), "done", headers=bob)
+    assert "errors" in check("POST", one + "/keep", 422, at("/keep"), json={"keep": "always"}, headers=bob).json()
+    assert check("POST", one + "/keep", 403, at("/keep"), "still_open", json={"extend": True}, headers=bob).json()["code"] == "request.forbidden"
+    assert check("POST", one + "/reopen", 403, at("/reopen"), headers=bob).json()["code"] == "case.not_allowed"  # it is open
+    assert check("POST", one + "/close", 200, at("/close"), "closed", tidy=same, headers=bob).json()["state"] == "closed"
+    assert check("POST", one + "/close", 403, at("/close"), "already_closed", headers=bob).json()["code"] == "case.closed"
+    assert check("PATCH", one, 403, at(), json={"name": "y"}, headers=bob).json()["code"] == "case.closed"
+    assert check("POST", one + "/keep", 422, at("/keep"), "nothing_to_change", json={}, headers=bob).json()["code"] == "request.invalid"
+    assert check("POST", one + "/keep", 200, at("/keep"), "kept", tidy=same, json={"keep": True}, headers=bob).json()["keep"] is True
+    assert check("POST", one + "/reopen", 200, at("/reopen"), "reopened", tidy=same, headers=bob).json()["state"] == "open"
+    other = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=carla).json()["id"]
+    ids[other] = OTHER
+    listed = check("GET", "/v1/admin/cases", 200, keep="office", tidy=same, headers=admin).json()
+    assert {x["id"] for x in listed} == {cid, other} and all("manager_name" in x for x in listed)
+    check("DELETE", one, 204, at(), headers=bob)
+    # a strictly confidential case is for its members only: it can't be given the office's default access
+    # (the other 409 of a change, a reference another case has, is the database's: the store's own tests, above)
+    assert check("PATCH", one, 200, f"/v1/cases/{other}", json={"confidential": True}, headers=carla).json()["access"] == "restricted"
+    assert check("PATCH", one, 409, f"/v1/cases/{other}", "members_only", json={"access": "default"}, headers=carla).json()["code"] == "case.strictly_confidential"
+    check.kept.check()
+    # not seen here, each for a reason: what nobody planned for (500); sign-in or a store down (503: test_auth.py,
+    # and the cases' own store away, above in this file); sign-in turned off for another machine, for what anyone
+    # signed in may do (403); two people closing, reopening or keeping a case in the same moment: the second is
+    # told so (409)
+    for method, path, status in check.not_seen():
+        assert status in (500, 503) or (status == 409 and path in (one + "/close", one + "/reopen", one + "/keep")) or (
+            status == 403 and (method, path) in {("GET", "/v1/case-types"), ("GET", "/v1/cases"), ("POST", "/v1/cases"), ("GET", "/v1/cases/overview"),
+                                                 ("GET", one), ("GET", members), ("PUT", one + "/pin")}), (method, path, status)
+    assert {s for _, _, s in check.seen} == {200, 201, 204, 401, 403, 404, 409, 422}

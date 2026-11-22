@@ -52,7 +52,7 @@ const ACCOUNT_EVENTS: AccountEvent[] = [
   { at: ago(DAY), kind: "added", user: "u-jonas", name: "Jonas Claes", by: "Test Beheerder", reason: null },
 ];
 const member = (user: string, username: string, name: string, role: Member["role"]): Member => ({
-  user, username, name, role, added_by: "u-test", added_at: ago(40 * DAY),
+  user, username, name, role, added_by: "u-test", added_at: ago(40 * DAY), admin: false, avatar: null,
 });
 const MEMBERS: Member[] = [
   member("u-test", "test@kantoor.be", "Test Beheerder", "manager"),
@@ -79,7 +79,8 @@ const CASE_TYPES: CaseTypeInfo[] = [
 // ---------- cases ----------
 const kase = (id: string, reference: string, name: string, type: string, my_role: Case["my_role"], extra: Partial<Case> = {}): Case => ({
   id, reference, name, type, access: "default", state: "open", opened_at: ago(40 * DAY), closed_at: null,
-  keep_until: null, keep: false, manager: "u-test", created_by: "u-test", updated_at: ago(HOUR), my_role, ...extra,
+  keep_until: null, keep: false, manager: "u-test", created_by: "u-test", created_at: ago(40 * DAY), updated_at: ago(HOUR), my_role,
+  pinned: false, confidential: false, ...extra,
 });
 const CASE_123 = kase("c123", "123", "Thirdexpert Management & Consulting", "sale", "manager", { pinned: true });
 export const CASE_124 = kase("c124", "124", "Van Damme · De Smet", "sale", "manager", { pinned: true, updated_at: ago(DAY) });
@@ -97,10 +98,10 @@ const CASES_OVERVIEW: CaseOverview[] = CASES.map((c) => ({
   ...c, members: MEMBERS, last_activity_at: c.updated_at, last_activity_by: "Mieke Delarivière",
 }));
 const CASE_EVENTS: CaseEvent[] = [
-  { id: 4, user: "u-mieke", at: ago(HOUR), action: "uploaded", detail: {} },
-  { id: 3, user: "u-mieke", at: ago(65 * MIN), action: "playbook_started", detail: {} },
-  { id: 2, user: "u-filip", at: ago(3 * DAY), action: "access_changed", detail: { access: "restricted" } },
-  { id: 1, user: "u-test", at: ago(25 * DAY), action: "created", detail: {} },
+  { id: 4, user: "u-mieke", at: ago(HOUR), action: "uploaded", detail: {}, name: "" },
+  { id: 3, user: "u-mieke", at: ago(65 * MIN), action: "playbook_started", detail: {}, name: "" },
+  { id: 2, user: "u-filip", at: ago(3 * DAY), action: "access_changed", detail: { access: "restricted" }, name: "" },
+  { id: 1, user: "u-test", at: ago(25 * DAY), action: "created", detail: {}, name: "" },
 ];
 
 // ---------- documents ----------
