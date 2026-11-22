@@ -13,12 +13,9 @@ const written = (readdirSync(SRC, { recursive: true }) as string[])
 
 // Generated and called by no screen's code, each for its reason. Taken out of here the day one is called.
 const NOT_CALLED: Record<string, string> = {
-  getUserPicture: "a picture is loaded by the page itself, as an image's address (ui/avatar.tsx)",
+  getUserPicture: "a picture is loaded by the page itself, as an image's address: the generated one (ui/avatar.tsx)",
   deleteUserPicture: "no screen removes someone else's picture yet",
 };
-// An address a page loads itself, written where the element is made: not a call.
-const LOADED_BY_THE_PAGE = [/`\/v1\/users\/(\{sub\}|\$\{encodeURIComponent\(sub\)\})\/avatar/g];
-
 describe("calling generated code", () => {
   it("an id put into an address is encoded by the caller: Orval puts it in as it is given", () => {
     // the generated calls whose address takes a part: `export const getClockRequest = async (rid: string, …`
@@ -34,12 +31,17 @@ describe("calling generated code", () => {
     }
   });
 
+  it("a picture's address is the generated one, with the person's id encoded", async () => {
+    const { avatarUrl } = await import("./ui/avatar");
+    expect(avatarUrl("a/b?c", "e t")).toBe("/v1/users/a%2Fb%3Fc/avatar?v=e%20t");
+    expect(avatarUrl("bob", null)).toBeNull();
+  });
+
   it("an operation that is generated has no hand-written call left", () => {
     // every address the generated code calls, with a part of it as a pattern: `/v1/admin/clock/${rid}`
     const addresses = [...generated.matchAll(/return `(\/[^`?]*)`/g)].map((m) => m[1].replace(/\/\$\{\w+\}.*$/, ""));
     expect(addresses).toEqual(expect.arrayContaining(["/v1/clock", "/health"]));
-    for (const [file, all] of written) {
-      const text = LOADED_BY_THE_PAGE.reduce((rest, address) => rest.replace(address, ""), all);
+    for (const [file, text] of written) {
       for (const address of new Set(addresses)) {
         expect(text.includes(`"${address}`) || text.includes(`\`${address}`), `${file} still names ${address}`).toBe(false);
       }
