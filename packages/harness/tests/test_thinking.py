@@ -292,3 +292,126 @@ def test_an_answer_with_a_figure_it_worked_out_is_asked_again(stream):
     r = asyncio.run(run())
     assert r.asked_again and r.unverified_figures == [] and "400 + 600 = 1000" in r.answer
     assert len(seen) == 2 and "1.000" in seen[1] and "[[calc:" in seen[1]  # told which figure, and how
+
+
+SELLER = "The seller is John Smith, living in Ghent, who sold 12.500 shares on 12 March 2021."
+BUYER = "The buyer is Anna Peeters, living in Bruges."
+
+
+def _two_parties(replies: list[str], seen: list[str], schema: dict | None = None, stream: bool = False, fail_after: int = 0):
+    """A question about two passages (the seller on page 1, the buyer on page 2), answered by ``replies`` in turn;
+    with ``fail_after``, the model server fails from that call on."""
+    from suveryn_harness import Citation, SourceRef
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
+        payload = json.loads(request.content)
+        seen.append(payload["messages"][-1]["content"])
+        if fail_after and len(seen) > fail_after:
+            return httpx.Response(500, text="busy")
+        text = replies[min(len(seen) - 1, len(replies) - 1)]
+        if payload["stream"]:
+            body = f"data: {json.dumps({'choices': [{'delta': {'content': text}, 'finish_reason': None}]})}\n\n"
+            body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": {}})
+
+    async def retriever(question, ids, k, owner, case_id):
+        return [(Citation(text=SELLER, source=SourceRef(document_id="d1", page=1)), "deed.pdf"),
+                (Citation(text=BUYER, source=SourceRef(document_id="d1", page=2)), "deed.pdf")], True
+
+    async def run():
+        service = ChatService(LlamaServerClient(LLMSettings(base_url="http://llm", default_model="q"), transport=httpx.MockTransport(handler)), retriever)
+        req = ChatRequest(messages=[ChatMessage(role="user", content="Who is the buyer?")], document_ids=["d1"], json_schema=schema)
+        if stream:
+            return [e async for e in service.answer_stream(req, "alice")][-1].response
+        return await service.answer(req, "alice")
+
+    return asyncio.run(run())
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_a_name_cited_to_the_wrong_passage_is_asked_again(stream, caplog):
+    """The model had the name and cited the wrong passage (suveryn-tracker#109): it is told once which passage holds
+    it, and a second answer that cites it right replaces the first. The log counts; it never names."""
+    seen: list[str] = []
+    with caplog.at_level("INFO", logger="suveryn.harness"):
+        r = _two_parties(["The buyer is Anna Peeters [1].", "The buyer is Anna Peeters [2]."], seen, stream=stream)
+    assert len(seen) == 2 and '"Peeters" is in [2], not in [1]' in seen[1] and '"Anna" is in [2], not in [1]' in seen[1]
+    assert r.asked_again and r.citation_issues == [] and r.answer == "The buyer is Anna Peeters [2]."
+    assert "Peeters" not in caplog.text and "asked again: names cited" in caplog.text and "is kept" in caplog.text
+
+
+@pytest.mark.parametrize("second", [
+    "The buyer lives in Bruges [2].",                     # the name dropped: fewer flags, but no fix
+    "The buyer is Anna Peeters [1], of Bruges [1].",      # more flags than before
+    "The buyer is Annabel Peetersen [2].",                # the names only inside other words: not stated
+    "",                                                   # nothing
+    "The buyer is Anna Peeters [2], who paid 250.000 [2].",  # cited right, but a figure in no passage
+])
+def test_a_second_answer_that_isnt_better_leaves_the_first(second):
+    """The second answer is kept only when it has fewer citation issues, no figure in no passage, and still states
+    every name the first misplaced, as a word; otherwise the first stands, with its flags."""
+    seen: list[str] = []
+    r = _two_parties(["The buyer is Anna Peeters [1].", second], seen)
+    assert len(seen) == 2 and r.asked_again and r.answer == "The buyer is Anna Peeters [1]."
+    assert {i.item for i in r.citation_issues} == {"Anna", "Peeters"}
+
+
+def test_when_the_second_call_fails_the_first_answer_stands():
+    seen: list[str] = []
+    r = _two_parties(["The buyer is Anna Peeters [1]."], seen, fail_after=1)
+    assert len(seen) == 2 and r.asked_again and r.answer == "The buyer is Anna Peeters [1]." and r.citation_issues
+
+
+def test_only_a_misplaced_name_asks_again():
+    """A clean answer, a figure or a date cited to the wrong passage, a name spelled differently, and a playbook's
+    read (an answer of a fixed shape, checked value by value) are not asked again. (A place is a name to the check.)"""
+    from suveryn_harness.support import misplaced_names
+
+    for reply in ["The buyer is Anna Peeters [2].",      # cited right
+                  "The seller sold 12.500 shares [2].",  # a figure in another passage: not a name
+                  "The sale was on 12 March 2021 [2]."]:  # a date in another passage: not a name
+        seen: list[str] = []
+        r = _two_parties([reply], seen)
+        assert not r.asked_again and len(seen) == 1, reply
+    seen = []
+    schema = {"type": "object", "properties": {"buyer": {"type": "string"}}}
+    assert not _two_parties(["The buyer is Anna Peeters [1]."], seen, schema=schema).asked_again and len(seen) == 1
+    from suveryn_harness import CitationIssue
+    spelled = CitationIssue(marker=0, n=1, item="Petters", found_in=[2], written_as="Peeters")
+    assert misplaced_names([spelled]) == []
+
+
+def test_a_figure_in_no_passage_comes_first():
+    """An answer with both a figure in no passage and a misplaced name is asked once, for the figure: one retry at most."""
+    seen: list[str] = []
+    r = _two_parties(["The buyer Anna Peeters [1] paid 250.000 [1].", "The buyer is Anna Peeters [2]."], seen)
+    assert len(seen) == 2 and "250.000" in seen[1] and "[[calc:" in seen[1] and "is in [2]" not in seen[1]
+    assert r.asked_again
+
+
+@pytest.mark.parametrize("second", ["", "Together 1.000 shares [1]."])
+def test_a_figure_retry_that_isnt_clean_leaves_the_first(second, caplog):
+    """The figure retry keeps the first answer when the second is empty or still has the figure, and the log says so."""
+    from suveryn_harness import Citation, SourceRef
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
+        seen.append(1)
+        text = "Together 1.000 shares [1]." if len(seen) == 1 else second
+        return httpx.Response(200, json={"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": {}})
+
+    async def retriever(question, ids, k, owner, case_id):
+        return [(Citation(text="A takes 400 shares, B takes 600 shares.", source=SourceRef(document_id="d1", page=1)), "deed.pdf")], True
+
+    service = ChatService(LlamaServerClient(LLMSettings(base_url="http://llm", default_model="q"), transport=httpx.MockTransport(handler)), retriever)
+    with caplog.at_level("INFO", logger="suveryn.harness"):
+        r = asyncio.run(service.answer(ChatRequest(messages=[ChatMessage(role="user", content="How many shares together?")],
+                                                   document_ids=["d1"]), "alice"))
+    assert len(seen) == 2 and r.asked_again and r.answer == "Together 1.000 shares [1]." and r.unverified_figures == ["1.000"]
+    assert "isn't better; the first stands" in caplog.text

@@ -186,7 +186,8 @@ def _show(case: dict, r, checks: dict[str, bool], names: dict[str, str]) -> None
                   + (f"\nFigures in no source, not computed: {', '.join(r.unverified_figures)}" if r.unverified_figures else "")
                   + "".join(f"\nNot in its cited source [{i.n}]: {i.item}"
                             + (f" (it is in [{', '.join(str(n) for n in i.found_in)}])" if i.found_in else "") for i in r.citation_issues)
-                  + ("\n(asked again: the first answer had a figure it worked out itself)" if r.asked_again else "")
+                  + ("\n(asked again: the first answer had a figure in no passage or a name cited to the wrong one; the log says which and"
+                     " whether the second answer was kept)" if r.asked_again else "")
                   + (f"\nFAILED: {'; '.join(failed)}" if failed else "") + "\n\n")
 
 

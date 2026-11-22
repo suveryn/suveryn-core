@@ -220,6 +220,19 @@ def _claims(answer: str, available: int):
             start = g.end()
 
 
+def misplaced_names(issues: list[CitationIssue]) -> list[CitationIssue]:
+    """The issues that are a name cited to a passage that doesn't hold it while another passage given does
+    (suveryn-tracker#109): the model had the name and pointed at the wrong source. Not a name spelled differently
+    (``written_as``): that is spelling, not citing. Not a figure or a date: an issue's item is a name when it is one
+    word, as ``_names`` reads them (figures and dates hold a digit or are words written lower case)."""
+    return [i for i in issues if i.found_in and i.written_as is None and WORD.fullmatch(i.item) and i.item[0].isupper()]
+
+
+def states_words(answer: str, items: set[str]) -> bool:
+    """Whether ``answer`` has each of ``items`` as a word of its own (``Jan`` is not stated by ``Janssens``)."""
+    return {fold(i) for i in items} <= _words(answer)
+
+
 def citation_issues(answer: str, citations: list[Citation], calculations: list[Calculation]) -> list[CitationIssue]:
     """Facts in the answer that the passages its markers cite don't contain. See the module docstring."""
     if not citations:

@@ -35,7 +35,7 @@ from .schemas import (
     Usage,
 )
 from .marking import Meaning, cited_style, needs_meaning, support_spans
-from .support import citation_issues, unverified_figures
+from .support import citation_issues, misplaced_names, states_words, unverified_figures
 
 log = logging.getLogger("suveryn.harness")
 
@@ -43,6 +43,13 @@ log = logging.getLogger("suveryn.harness")
 AGAIN = ("\n\nYour previous answer to this wrote figures that are in none of the excerpts: {figures}. Never work out a figure "
          "yourself. Write every sum, difference, product or count as [[calc: …]] with the figures as the excerpts write them, "
          "or quote the figure exactly as an excerpt writes it. Answer the question again.")
+# Said to the model when its answer cited an excerpt for a name that the excerpt doesn't hold while another excerpt
+# it was given does (``_asked_again``, suveryn-tracker#109). On real documents (11 November 2026) 46 of
+# the 47 names the citation check flagged were in another passage the model had: it had the name and pointed at the
+# wrong source. A general line in the instructions about citing lists was tried on 12 and 13 November and cost clean
+# answers (Qwen 93 to 86 of 106 passing), so the model is told once, after the fact, what is where.
+AGAIN_CITED = ("\n\nYour previous answer to this cited an excerpt that doesn't contain what the sentence says: {misplaced}. "
+               "Cite each statement with the excerpt that itself contains it. Answer the question again.")
 
 # Passages to answer a question from, within the given documents of one user or case:
 # (question, document_ids, k, owner, case_id) -> ([(citation, filename), ...], complete). The retriever
@@ -219,9 +226,7 @@ class ChatService:
             return response
         response = response.model_copy(update={"narrowed_to": named, "complete": complete})
         first = await self._grounded(response, citations, req, owner)
-        if first.unverified_figures and req.json_schema is None:
-            return await self._asked_again(prepared, first, citations, req, owner)
-        return first
+        return await self._asked_again(prepared, first, citations, req, owner) if _ask_again(first, req) else first
 
     async def _grounded(self, response: ChatResponse, citations: list[Citation], req: ChatRequest, owner: str) -> ChatResponse:
         """A grounded answer's checks: its calculations made, its figures and citations checked against the passages."""
@@ -234,14 +239,32 @@ class ChatService:
 
     async def _asked_again(self, prepared: ChatRequest, first: ChatResponse, citations: list[Citation], req: ChatRequest,
                            owner: str) -> ChatResponse:
-        """The answer wrote figures that are in no passage and that sūveryn didn't compute: the model worked them out
-        or made them up, which it must never do (the GPU round of 10 November 2026: 2 answers in 53). It is asked once
-        more, told which figures, and that a sum, a difference or a count is written as ``[[calc: …]]``. The second
-        answer is kept when it has no such figure; else the first stays, with its warning. ``asked_again`` says so."""
+        """Ask the model once more, told what was wrong with its first answer, and keep the second only when it is
+        better by the same rules. ``asked_again`` says it was asked. Two reasons, the first that applies:
+
+        - **Figures in no passage** that sūveryn didn't compute: the model worked them out or made them up, which it
+          must never do (the GPU round of 10 November 2026: 2 answers in 53). It is told which figures, and that a
+          sum, a difference or a count is written as ``[[calc: …]]``. The second answer is kept when it has no such
+          figure; else the first stays, with its warning.
+        - **A name cited to the wrong passage** (suveryn-tracker#109): a name the cited passage doesn't hold while
+          another passage it was given does (``support.misplaced_names``). It is told, per name, which passage holds
+          it. The second answer is kept when it has fewer citation issues, no figure in no passage, and still states
+          every name that was misplaced (a name dropped is no fix); else the first stays, with its flags.
+
+        The second answer is written without thinking, as the first retry always was: a *Thorough* answer that is
+        replaced is one written without thinking, and the first answer's reasoning goes with it.
+        """
+        figures = bool(first.unverified_figures)
+        if figures:
+            told = AGAIN.format(figures=", ".join(first.unverified_figures))
+            log.info("answer asked again: figures in no passage and not computed by the server (count=%d)",
+                     len(first.unverified_figures))
+        else:
+            misplaced = _misplaced(first)
+            told = AGAIN_CITED.format(misplaced="; ".join(misplaced))
+            log.info("answer asked again: names cited to a passage that doesn't hold them (count=%d)", len(misplaced))
         *history, last = prepared.messages
-        again = prepared.model_copy(update={"messages": [*history, last.model_copy(update={"content": last.content + AGAIN.format(
-            figures=", ".join(first.unverified_figures))})]})
-        log.info("answer asked again: figures in no passage and not computed by the server (count=%d)", len(first.unverified_figures))
+        again = prepared.model_copy(update={"messages": [*history, last.model_copy(update={"content": last.content + told})]})
         try:
             response = await self.llm.complete(again.model_copy(update={"thinking": False}), user=owner, kind="chat")
         except (BackendError, UnreadableAnswer) as e:  # the first answer stands, with its warning
@@ -249,7 +272,11 @@ class ChatService:
             return first.model_copy(update={"asked_again": True})
         second = await self._grounded(response.model_copy(update={"narrowed_to": first.narrowed_to, "complete": first.complete}),
                                       citations, req, owner)
-        return (first if second.unverified_figures or not second.answer.strip() else second).model_copy(update={"asked_again": True})
+        better = bool(second.answer.strip()) and not second.unverified_figures and (figures or _better_cited(first, second))
+        log.info("answer asked again: the second answer %s (figures in no passage %d, then %d; citation issues %d, then %d)",
+                 "is kept" if better else "isn't better; the first stands", len(first.unverified_figures),
+                 len(second.unverified_figures), len(first.citation_issues), len(second.citation_issues))
+        return (second if better else first).model_copy(update={"asked_again": True})
 
     async def _answer_stream(self, req: ChatRequest, owner: str) -> AsyncIterator[Status | Sources | Thinking | Delta | Done]:
         """Status steps, then for a grounded answer its passages, then in *Thorough* the reasoning, then
@@ -329,11 +356,37 @@ class ChatService:
                                 finish_reason=finish_reason, usage=usage, reasoning="".join(thought).strip(),
                                 thought_seconds=round(ended - began, 1) if began is not None else None, thinking_cut=cut, narrowed_to=named,
                                 complete=complete if req.document_ids else None)
-        if calc and done.unverified_figures and req.json_schema is None:
+        if calc and _ask_again(done, req):
             # the streamed text is replaced by ``Done``'s answer, as the added citation markers already are
             yield Status("writing")
             done = await self._asked_again(prepared, done, citations, req, owner)
         yield Done(done)
+
+
+def _ask_again(first: ChatResponse, req: ChatRequest) -> bool:
+    """Whether a grounded answer is asked for once more (``ChatService._asked_again``). A playbook's read (an answer
+    of a fixed shape, ``json_schema``) never is: its values are checked one by one."""
+    return req.json_schema is None and bool(first.unverified_figures or _misplaced(first))
+
+
+def _misplaced(response: ChatResponse) -> list[str]:
+    """The names the answer cited to a passage that doesn't hold them while another passage it was given does
+    (``support.misplaced_names``), as told to the model: ``"Peeters" is in [2], not in [1]``."""
+    where: dict[str, tuple[set[int], set[int]]] = {}
+    for issue in misplaced_names(response.citation_issues):
+        cited, held = where.setdefault(issue.item, (set(), set()))
+        cited.add(issue.n)
+        held.update(issue.found_in)
+    return [f'"{item}" is in {" or ".join(f"[{n}]" for n in sorted(held))}, not in {" or ".join(f"[{n}]" for n in sorted(cited))}'
+            for item, (cited, held) in where.items()]
+
+
+def _better_cited(first: ChatResponse, second: ChatResponse) -> bool:
+    """The second answer cites better: fewer citation issues, and every name the first misplaced is still stated, as
+    a word of its own. That is all a rule can see: a second answer that leaves out another, rightly cited fact can
+    still be kept (docs/harness.md)."""
+    told = {i.item for i in misplaced_names(first.citation_issues)}
+    return len(second.citation_issues) < len(first.citation_issues) and states_words(second.answer, told)
 
 
 def _finish(calc: CalcRewriter, answer: str, citations: list[Citation],
