@@ -54,7 +54,7 @@ LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
 
 def check_auth_settings(host: str) -> None:
-    """Refuse to start with sign-in turned off on anything but a loopback address.
+    """Refuse to start with sign-in turned off on anything but a loopback address; warn when bearer tokens are on.
 
     ``SUVERYN_AUTH=off`` exists for development on one machine; on a network address it would
     give anyone who can reach the port every document. Raises ``SystemExit``.
@@ -64,6 +64,9 @@ def check_auth_settings(host: str) -> None:
     settings = AuthSettings.from_env()
     if settings.disabled and host not in LOOPBACK:
         raise SystemExit(f"SUVERYN_AUTH=off is only allowed on a loopback address, not {host}.")
+    if settings.bearer:  # nothing else would show it: on an appliance a token would act as its whole person (#142)
+        print("warning: SUVERYN_AUTH_BEARER=on: bearer tokens are accepted on /v1, each acting as its whole person; "
+              "for the end-to-end stack only, never an appliance")
     if not settings.disabled and settings.public_url.startswith("http://") and host not in LOOPBACK:
         print("warning: SUVERYN_PUBLIC_URL is http://; serve the UI over https on a network "
               "(session cookies are only marked Secure with https)")

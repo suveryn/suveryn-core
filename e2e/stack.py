@@ -245,6 +245,9 @@ def gateway_env() -> dict[str, str]:
         "SUVERYN_LLM_BASE_URL": LLM, "SUVERYN_LLM_TIMEOUT_S": "600" if REAL_LLM else "60",
         "SUVERYN_OIDC_ISSUER": ISSUER, "SUVERYN_OIDC_CLIENT_ID": "suveryn-chat", "SUVERYN_OIDC_CLIENT_SECRET": CHAT_SECRET,
         "SUVERYN_DIRECTORY_CLIENT_SECRET": DIRECTORY_SECRET,
+        # the playbook runs' scenario talks to the API with a bearer token, without a browser; an appliance never
+        # accepts one (suveryn-tracker#142)
+        "SUVERYN_AUTH_BEARER": "on",
         "SUVERYN_WORK_DIR": str(work), "SUVERYN_EXTRACT_UNSANDBOXED": "1",
         "SUVERYN_RAG_DEVICE": RAG_DEVICE, "SUVERYN_OCR_JOBS": "2",
         "SUVERYN_VERSION": "e2e", "SUVERYN_LOG_LEVEL": "INFO",

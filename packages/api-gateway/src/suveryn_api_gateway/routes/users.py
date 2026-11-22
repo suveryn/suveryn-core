@@ -7,7 +7,7 @@ The gateway holds the rules, not only the page:
   hand-over of ``POST /v1/cases/{id}/handover``), so no case is left without one (cases.md decision 6).
 
 Every call to Keycloak is made as the administrator who asked, with their own access token (``accounts.py``):
-a fresh one from their session, or the bearer token a non-browser client sent. Keycloak's admin events are
+a fresh one from their session, or the bearer token of a client where those are on (``SUVERYN_AUTH_BEARER``). Keycloak's admin events are
 the record of what changed and who changed it; the gateway keeps none of its own.
 
 A temporary password is in the answer once and nowhere else: not logged, not stored.

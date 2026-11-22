@@ -14,7 +14,9 @@ Flow:
    (with the PKCE verifier and the client secret) at Keycloak's token endpoint, and validates the
    ID token.
 3. A session is created and its id set as the session cookie. Every API request (``/v1/...``)
-   needs a valid session, or a bearer access token for non-browser clients.
+   needs a valid session. A bearer access token instead is accepted only where
+   ``SUVERYN_AUTH_BEARER=on`` (the end-to-end stack, whose playbook runs have no browser), never on
+   an appliance: there no client but the gateway needs one (suveryn-tracker#142).
 4. Shortly before the access token expires, the gateway refreshes it with the refresh token. If
    Keycloak refuses (user disabled, session ended or logged out by an admin), the session is
    dropped and the next request gets 401. So revocation takes effect within one access-token
@@ -24,7 +26,8 @@ Flow:
 
 Token validation (``OIDCProvider.verify``): signature against Keycloak's published keys (JWKS),
 only the algorithms in ``AuthSettings.algorithms`` (RS256; never ``none`` or HMAC), issuer, expiry,
-audience (ID token) or authorised party (access token), and the nonce of an ID token.
+audience (ID token) or authorised party (access token: issued to the gateway's own client, not to another
+client that merely lists it as an audience), and the nonce of an ID token.
 
 Identity providers: by design only Keycloak's own users (local accounts, optionally federated
 from LDAP/Active Directory, optionally with TOTP) can sign in. Social or online identity providers
@@ -92,6 +95,7 @@ class AuthSettings:
     client_secret: str = ""
     public_url: str = ""      # the URL people open the chat UI at, e.g. https://suveryn.office.local
     disabled: bool = False    # SUVERYN_AUTH=off: development only, loopback only (enforced in main.py)
+    bearer: bool = False      # SUVERYN_AUTH_BEARER=on: bearer tokens accepted on /v1 (the end-to-end stack only)
     algorithms: tuple[str, ...] = ("RS256",)
 
     @classmethod
@@ -102,6 +106,7 @@ class AuthSettings:
             client_secret=os.environ.get("SUVERYN_OIDC_CLIENT_SECRET", ""),
             public_url=os.environ.get("SUVERYN_PUBLIC_URL", "").rstrip("/"),
             disabled=os.environ.get("SUVERYN_AUTH", "").lower() == "off",
+            bearer=os.environ.get("SUVERYN_AUTH_BEARER", "").lower() == "on",
         )
 
     @property
@@ -311,9 +316,10 @@ class OIDCProvider:
         if kind == "id" and claims.get("nonce") != nonce:
             raise AuthError("invalid token: nonce mismatch")
         if kind == "access":
-            aud = claims.get("aud")
-            auds = aud if isinstance(aud, list) else [aud] if aud else []
-            if claims.get("azp") != self.settings.client_id and self.settings.client_id not in auds:
+            # Issued to the gateway's own client. A token another client holds is refused even when it names this
+            # client as an audience (an audience mapper in Keycloak would otherwise let that client act for its
+            # person here; suveryn-tracker#142).
+            if claims.get("azp") != self.settings.client_id:
                 raise AuthError("invalid token: issued for another client")
             if claims.get("typ", "Bearer") != "Bearer":
                 raise AuthError("invalid token: not an access token")
@@ -512,7 +518,10 @@ class Authenticator:
             return tokens["access_token"]
 
     async def bearer_user(self, token: str) -> User:
-        """The user of a bearer access token (non-browser clients). Raises ``AuthError``."""
+        """The user of a bearer access token. Raises ``AuthError``, also when bearer tokens aren't accepted here
+        (``AuthSettings.bearer`` off, as on every appliance)."""
+        if not self.settings.bearer:
+            raise AuthError("bearer tokens are not accepted")
         claims = await self._require_provider().verify(token, kind="access")
         return user_from_claims(claims)
 

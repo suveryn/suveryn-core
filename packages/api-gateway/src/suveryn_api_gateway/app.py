@@ -14,7 +14,8 @@ space is the caller's own, and a case needs the right in ``cases.may``. Everythi
 scope is answered with 404, like a missing document or conversation.
 
 Sign-in: every ``/v1/...`` request needs a signed-in user (see ``auth.py``): a session cookie set
-by the OIDC login with the local Keycloak, or a bearer access token. Requests that change something
+by the OIDC login with the local Keycloak, or a bearer access token where ``SUVERYN_AUTH_BEARER=on`` (the
+end-to-end stack only; ``auth.py``). Requests that change something
 (POST, DELETE, ...) with a session cookie must also come from the UI's own origin (``Origin``
 header), which blocks cross-site request forgery on top of the SameSite cookie. ``/health``,
 ``/auth/...`` and ``/openapi.json`` are public. Without sign-in configured the API answers 503;
@@ -339,7 +340,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
 
     @app.middleware("http")
     async def require_sign_in(request: Request, call_next):
-        """Gate ``/v1/...``: a valid session (plus same-origin for changes) or bearer token, else 401/403/503.
+        """Gate ``/v1/...``: a valid session (plus same-origin for changes) or, where accepted, a bearer token,
+        else 401/403/503.
 
         Also applies the rate limits: sign-in per client address, questions and uploads per user (429).
         """
@@ -368,7 +370,9 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                         return problems.answer("request.forbidden", "Request from another site refused.")
         except AuthUnavailable as e:
             return sign_in_unavailable(e)
-        except AuthError:
+        except AuthError as e:
+            if header.lower().startswith("bearer "):  # why a token was refused (off, another client, expired…); never the token
+                log.info("bearer token refused: %s", e)
             user = None
         if user is None:
             return problems.answer("auth.signed_out", "Sign in to continue.",
