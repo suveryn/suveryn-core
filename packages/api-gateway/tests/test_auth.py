@@ -13,7 +13,6 @@ import time
 import uuid
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -476,7 +475,8 @@ def test_questions_and_uploads_are_rate_limited_per_user(kc):
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
     class Uploads(FakeDocuments):
         def accept_upload(self, src, filename, owner, case_id=None):
-            return SimpleNamespace(id="job", public=lambda: {"id": "job"})
+            from suveryn_rag.service import Job
+            return Job(id="job", filename=filename, owner=owner)  # the rag's own, so it is answered as on an appliance
 
     app = create_app(llm, documents=Uploads(), load_documents=False, auth=auth,
                      rate_limits=RateLimits(chat=2, uploads=1))

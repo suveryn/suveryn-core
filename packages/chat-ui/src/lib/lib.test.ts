@@ -123,7 +123,7 @@ describe("Markdown downloads", () => {
 
 describe("documents that need review", () => {
   it("lists the pages where text may be missing, once each and in order", () => {
-    const w = (page: number | null, what = "page_coverage_low") => ({ kind: "warning", code: `document.${what}`, params: page === null ? {} : { page } });
+    const w = (page: number | null, what = "page_coverage_low") => ({ kind: "warning" as const, code: `document.${what}`, params: { ...(page === null ? null : { page }) }, detail: "" });
     expect(reviewPages([w(3), w(1), w(3), w(2, "header_footer_recovered"), w(null)])).toEqual([1, 3]);
     expect(reviewPages(undefined)).toEqual([]);
   });
@@ -446,7 +446,7 @@ describe("sūveryn's own output (docs/design/chat-ui.md §6)", () => {
   it("origin: uploads are sources, sūveryn's output is made, a noticed upload waits for a person", () => {
     const m = TABLES_FOR_TESTS.en;
     const noticed = { ref: "A-3f9c2e1b", kind: "answer" as const, line: "…" };
-    expect(originText({ origin: "uploaded", source: true }, m)).toEqual({ word: "Source", detail: "uploaded" });
+    expect(originText({ origin: "uploaded", source: true, provenance: null }, m)).toEqual({ word: "Source", detail: "uploaded" });
     expect(originText({ origin: "playbook", source: false, provenance: { version: "1.0" } }, m)).toEqual({ word: "Made", detail: "playbook v1.0" });
     expect(originKind({ origin: "uploaded", source: false, provenance: { noticed } })).toBe("pending");
     expect(originText({ origin: "uploaded", source: true, provenance: { noticed, confirmed: { by: "a", at: "" } } }, m))

@@ -55,43 +55,31 @@ export type ChatResponse = {
 };
 export type WireMessage = { role: "user" | "assistant" | "system"; content: string };
 
-export type JobStatus = "queued" | "processing" | "ready" | "needs_review" | "failed" | "cancelled";
+/** An upload's state. */
+export type JobStatus = gateway.Upload["status"];
 /** How far reading has got (suveryn_rag.reading.Progress): text recognition page by page, the layout, storing. */
-export type JobProgress = { step: "read" | "ocr" | "layout" | "store"; done: number | null; total: number | null };
-/** What a reading noticed: a warning of the registry's document area with its page (`params.page`; none for a file without pages). */
-export type Warning = Message;
-export type Job = {
-  id: string; filename: string; status: JobStatus; document_id: string | null; error?: string | null; warnings?: Warning[];
-  pages?: number | null;
-  progress?: JobProgress | null;
-  failure?: Message | null;  // why it failed: a code of the registry's document area with its numbers, worded here
-  noticed?: Noticed | null;  // the file carries sūveryn's own export mark: not a source until someone says so
-};
+export type JobProgress = gateway.Progress;
+/** What a reading noticed: a warning of the registry's document area with its page (`params.page`; none for a file
+ *  without pages), and its detail, in English, for developers. */
+export type Warning = gateway.ReadingWarning;
+/** An upload on its way to being a document. `failure`: why it failed, a code of the registry's document area with
+ *  its numbers, worded here; `noticed`: the file carries sūveryn's own export mark, so it is no source until someone
+ *  says so. */
+export type Job = gateway.Upload;
 const ANSWER_TOKENS = 3000;
 
 /** A .zip upload: a job per document, and the files left out, each with why as a code of the registry. */
-export type ArchiveUpload = { archive: string; jobs: Job[]; skipped: { name: string; failure: Message }[] };
+export type ArchiveUpload = gateway.ArchiveUpload;
 export const isArchiveUpload = (r: Job | ArchiveUpload): r is ArchiveUpload => "jobs" in r;
 /** sūveryn's export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file. */
-export type Noticed = { ref: string; kind: "answer" | "playbook"; line: string };
-/** More about where a document came from (docs/design/chat-ui.md §6). */
-type Provenance = {
-  playbook?: string; version?: string; run?: string;               // a playbook's result
-  noticed?: Noticed; confirmed?: { by: string; at: string };      // an upload that looked like sūveryn's own output
-};
-export type StoredDocument = {
-  id: string;
-  filename: string;
-  pages: number;
-  ocr_pages: number;
-  status: "ok" | "needs_review";
-  warnings: Warning[];
-  created_at: string;
-  origin?: "uploaded" | "generated" | "playbook" | "answer"; // only uploaded documents are sources for answers (suveryn-tracker#10)
-  uploaded_by?: string | null;
-  source?: boolean;               // the model may read and cite it (cases.md decision 7; the server decides)
-  provenance?: Provenance | null;
-};
+export type Noticed = gateway.Noticed;
+/** A stored document. `origin`: only uploaded documents are sources for answers (suveryn-tracker#10); `source`: the
+ *  model may read and cite it (cases.md decision 7; the server decides); `provenance`: more about where it came from
+ *  (docs/design/chat-ui.md §6), only what is known of it: a playbook's result, or an upload that looked like sūveryn's
+ *  own output and who chose to use it anyway. */
+export type StoredDocument = gateway.StoredDocument;
+/** A document with where it is (`case_id` null: the personal space). */
+export type PlacedDocument = gateway.PlacedDocument;
 /** What the appliance says of its own health: states only (it is public). The same body whether the model server is ready or not. */
 export type Health = gateway.HealthResponse;
 // admin: may open the administration page; office_wide: a new case is open to the whole office by
@@ -202,66 +190,28 @@ export async function getHealth(): Promise<Health | null> {
 }
 
 /** `?case=<id>` on a request about a case; nothing for the personal space (suveryn-tracker#10). */
-const inCase = (caseId: string | null | undefined, first = true) =>
-  caseId ? `${first ? "?" : "&"}case=${encodeURIComponent(caseId)}` : "";
+const inCase = (caseId: string | null | undefined) => (caseId ? { case: caseId } : undefined);
 
 /** The file a document was read from, as uploaded (board G11): a PDF opens at ``page``. A plain link, so the
- *  browser opens it in a new tab with the session cookie; the gateway checks the scope as for its passages. */
+ *  browser opens it in a new tab with the session cookie; the gateway checks the scope as for its passages. The
+ *  address is the generated one. */
 export const originalUrl = (documentId: string, caseId?: string | null, page?: number | null) =>
-  `/v1/documents/${encodeURIComponent(documentId)}/original${inCase(caseId)}${page ? `#page=${page}` : ""}`;
-
-/** Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md §6). */
-export async function confirmAsSource(documentId: string, caseId?: string | null): Promise<void> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(documentId)}/source${inCase(caseId)}`, { method: "POST" });
-  if (!r.ok) throw await responseError(r);
-}
-
-/** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source.
- *  Saving the same answer again gives the document already saved (`created` false). */
-export async function saveAnswerToCase(caseId: string, body: {
-  filename: string; text: string; content: SavedAnswer; conversation_id: string; message_id: string;
-}): Promise<{ id: string; filename: string; created: boolean }> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/documents`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** What rebuilds a document sūveryn made (a saved answer's Word file). */
-export async function documentContent(documentId: string, caseId?: string | null): Promise<{ filename: string; origin: string; content: SavedAnswer }> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(documentId)}/content${inCase(caseId)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Every document the signed-in user may see, with where it is (`case_id` null: the personal space),
- *  newest first: the sidebar's "Documents" (docs/design/chat-ui.md). */
-export async function listAllDocuments(): Promise<(StoredDocument & { case_id: string | null })[]> {
-  const r = await fetch("/v1/documents/all");
-  if (!r.ok) throw await responseError(r);
-  return (await r.json()).documents;
-}
-
-/** The documents in the personal space, or in a case. */
-export async function listDocuments(caseId?: string | null): Promise<{ documents: StoredDocument[]; jobs: Job[] }> {
-  const r = await fetch(`/v1/documents${inCase(caseId)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+  `${gateway.getGetDocumentOriginalUrl(encodeURIComponent(documentId), inCase(caseId))}${page ? `#page=${page}` : ""}`;
 
 /**
  * Uploads a document (PDF, Word, Excel, Markdown or CSV: lib/formats.ts) and resolves with its job, or a
  * .zip of them and resolves with a job per document inside (ArchiveUpload). Uses XMLHttpRequest rather
- * than fetch because only XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
+ * than the generated call's fetch because only XHR reports upload progress; `onProgress` gets a fraction from 0 to 1.
  */
 export function uploadDocument(file: File, onProgress?: (fraction: number) => void, caseId?: string | null,
                                signal?: AbortSignal): Promise<Job | ArchiveUpload> {
   return new Promise((resolve, reject) => {
+    // what is sent, and where, are the generated code's: only the sending is this function's own
+    const body: gateway.BodyCreateUpload = { file };
     const form = new FormData();
-    form.append("file", file, file.name);
+    for (const [name, part] of Object.entries(body)) form.append(name, part, file.name);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/v1/documents${inCase(caseId)}`);
+    xhr.open("POST", gateway.getCreateUploadUrl(inCase(caseId)));
     xhr.responseType = "json";
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
     xhr.onload = () => {
@@ -282,33 +232,6 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
     signal?.addEventListener("abort", () => xhr.abort(), { once: true });
     xhr.send(form);
   });
-}
-
-export async function getJob(id: string): Promise<Job> {
-  const r = await fetch(`/v1/documents/jobs/${encodeURIComponent(id)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Cancels an upload still waiting or being read (docs/design/chat-ui.md §5). One already read is a
- *  document (409) and one unknown is gone (404): both are fine to ignore here. */
-export async function cancelJob(id: string): Promise<void> {
-  const r = await fetch(`/v1/documents/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!r.ok && r.status !== 404 && r.status !== 409) throw await responseError(r);
-}
-
-/** Deletes a document. Saved conversations citing it lose its passages ("clean") or are deleted too. */
-export async function deleteDocument(id: string, conversations: "clean" | "delete" = "clean", caseId?: string | null): Promise<void> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}?conversations=${conversations}${inCase(caseId, false)}`,
-                        { method: "DELETE" });
-  if (!r.ok && r.status !== 404) throw await responseError(r);
-}
-
-/** The saved conversations that cite or attach a document (asked before deleting it). */
-export async function documentConversations(id: string, caseId?: string | null): Promise<ConversationSummary[]> {
-  const r = await fetch(`/v1/documents/${encodeURIComponent(id)}/conversations${inCase(caseId)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
 }
 
 /**
@@ -464,10 +387,11 @@ export async function accepted(call: Promise<Answer>): Promise<void> {
   if (answer.status !== 202 || !answer.empty) throw failed(answer);
 }
 
-/** A generated removal: done, or already gone (404), which is the same to the screen; else the same failures. */
-async function removed(call: Promise<Answer>): Promise<void> {
+/** A generated removal: done, or already gone (404), which is the same to the screen; else the same failures.
+ *  `also`: other statuses of that operation that mean the thing is gone as far as the screen is concerned. */
+async function removed(call: Promise<Answer>, also: number[] = []): Promise<void> {
   const answer = await call;
-  if (answer.status !== 204 && answer.status !== 404) throw failed(answer);
+  if (![204, 404, ...also].includes(answer.status)) throw failed(answer);
 }
 
 /** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
@@ -707,3 +631,35 @@ export const runAction = (caseId: string, runId: string, action: "pause" | "resu
  *  `run.facts_changed`) and writes nothing, so an old screen can't put a value back (suveryn-tracker#135). */
 export const confirmRun = (caseId: string, runId: string, facts: gateway.ConfirmedFact[], seen?: number) =>
   aRun(gateway.confirmRunFacts(encodeURIComponent(caseId), encodeURIComponent(runId), { facts, seen }));
+
+/** The documents (suveryn-tracker#248). The documents in the personal space, or in a case, and the uploads there
+ *  still being read or failed. */
+export const listDocuments = (caseId?: string | null) => answered(gateway.listDocuments(inCase(caseId)));
+/** Every document the signed-in user may see, with where it is (`case_id` null: the personal space), newest first:
+ *  the sidebar's "Documents" (docs/design/chat-ui.md). */
+export const listAllDocuments = async () => (await answered(gateway.listAllDocuments())).documents;
+export const getJob = (id: string) => answered(gateway.getUpload(encodeURIComponent(id)));
+/** Cancels an upload still waiting or being read (docs/design/chat-ui.md §5). One already read is a document (409)
+ *  and one unknown is gone (404): both are fine to ignore here. */
+export const cancelJob = (id: string) => removed(gateway.cancelUpload(encodeURIComponent(id)), [409]);
+/** Deletes a document. Saved conversations citing it lose its passages ("clean") or are deleted too. Deleted with
+ *  that cleaning still to be done (202) is deleted. */
+export const deleteDocument = (id: string, conversations: "clean" | "delete" = "clean", caseId?: string | null) =>
+  removed(gateway.deleteDocument(encodeURIComponent(id), { conversations, ...inCase(caseId) }), [202]);
+/** The saved conversations that cite or attach a document (asked before deleting it). */
+export const documentConversations = (id: string, caseId?: string | null) =>
+  answered(gateway.listDocumentConversations(encodeURIComponent(id), inCase(caseId)));
+/** Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md §6). */
+export const confirmAsSource = async (documentId: string, caseId?: string | null): Promise<void> => {
+  await answered(gateway.useDocumentAsSource(encodeURIComponent(documentId), inCase(caseId)));
+};
+/** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source. Saving the
+ *  same answer again gives the document already saved (`created` false). What it holds (`content`) is the screens'
+ *  own type until the gateway describes it, with the answer stream (suveryn-tracker#159). */
+export const saveAnswerToCase = (caseId: string, body: Omit<gateway.SaveAnswerIn, "content"> & { content: SavedAnswer }) =>
+  answered(gateway.saveAnswerAsDocument(encodeURIComponent(caseId), body));
+/** What rebuilds a document sūveryn made (a saved answer's Word file). */
+export const documentContent = (documentId: string, caseId?: string | null) =>
+  answered(gateway.getDocumentContent(encodeURIComponent(documentId), inCase(caseId))) as
+    Promise<Omit<gateway.DocumentContent, "content"> & { content: SavedAnswer }>;
+

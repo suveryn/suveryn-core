@@ -112,6 +112,10 @@ def without(content: dict, document_id: str) -> dict:
     return out
 
 
+# What ``documents.status`` and ``documents.origin`` hold: the lists the gateway describes (its routes/documents.py).
+STATUSES = ("ok", "needs_review")
+ORIGINS = ("uploaded", "generated", "playbook", "answer")
+
 # A source for answers (cases.md decision 7): uploaded, and not sūveryn's own export coming back
 # unless a person chose to use it anyway (docs/design/chat-ui.md §6). Constants only, no input.
 SOURCE = ("d.origin = 'uploaded' AND NOT (coalesce(d.provenance, '{}') ? 'noticed'"

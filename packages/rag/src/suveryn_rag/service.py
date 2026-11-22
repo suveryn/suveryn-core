@@ -56,7 +56,7 @@ import zipfile
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO
+from typing import BinaryIO, Literal
 from zlib import error as zlib_error
 
 from suveryn_harness import Citation
@@ -81,6 +81,9 @@ MAX_QUEUED = 200
 # document waits too, and is read once the database is back (at most MAX_DB_RETRIES times).
 RECONNECT_DELAYS_S = (1, 2, 5, 10, 30)
 MAX_DB_RETRIES = 3
+# The states of an upload: coming in, waiting, being read; then a document (ready, or needs_review when its reading
+# left a warning to check), failed, or cancelled by the person. The gateway describes them (its routes/documents.py).
+JobStatus = Literal["receiving", "queued", "processing", "ready", "needs_review", "failed", "cancelled"]
 WAITING = ("receiving", "queued", "processing")  # counted against the queue limits, an archive as one upload
 JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten after an hour
 
@@ -262,7 +265,7 @@ class Job:
     filename: str
     owner: str
     case_id: uuid.UUID | None = None
-    status: str = "queued"  # receiving | queued | processing | ready | needs_review | failed | cancelled
+    status: JobStatus = "queued"
     document_id: str | None = None
     error: str | None = None
     pages: int | None = None

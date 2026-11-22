@@ -2,7 +2,7 @@
 
 FastAPI builds a description of the gateway from its routes and their models (OpenAPI): what can be asked and what
 comes back. The chat UI's code that calls the server is generated from it, one area at a time, so that a name is
-typed once (#159: #236 to #241, #244, #246 and #247; ``packages/chat-ui/src/generated``). The description
+typed once (#159: #236 to #241, #244 and #246 to #248; ``packages/chat-ui/src/generated``). The description
 names every operation and its group; a moved area's operations also describe every refusal
 (``problems.refusals``). Elsewhere some answers, the states kept as text and the events aren't described yet (#159
 lists them).

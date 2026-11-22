@@ -81,7 +81,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"backups", "cases", "clock", "conversations", "models", "playbooks", "settings", "status", "usage", "users"}
+STRICT = {"backups", "cases", "clock", "conversations", "documents", "models", "playbooks", "settings", "status", "usage", "users"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
@@ -91,9 +91,14 @@ STATES = {("GET", "/health", 503)}
 
 
 # A refusal the gateway gives before the route is reached, by the request's size (app.py, ``limit_upload_size``): the
-# route's own code never raises it. The limit is on every PUT under a conversation, so on its pin too.
-BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): "conversation.too_long",
-          ("PUT", "/v1/conversations/{conversation_id}/pin"): "conversation.too_long"}
+# route's own code never raises it. Each as app.py says it: its code, and its status where that isn't the code's own.
+# The limit is on every PUT under a conversation, so on its pin too; an upload must say its size, and keep to it.
+BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): [("conversation.too_long", None)],
+          ("PUT", "/v1/conversations/{conversation_id}/pin"): [("conversation.too_long", None)],
+          ("POST", "/v1/documents"): [("request.invalid", 411), ("upload.too_large", None)]}
+# An upload is refused by document handling itself (suveryn-rag, ``UploadRejected``: not a file it reads, empty, too
+# large, too many waiting): codes of the registry said outside the gateway, read here from where they are raised.
+UPLOAD = ("POST", "/v1/documents")
 
 
 def strict_operations() -> list[tuple[str, str, dict]]:
@@ -125,6 +130,7 @@ def test_a_strict_operation_describes_every_refusal_in_the_one_shape():
 def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_raises_and_no_other():
     import ast
     import pathlib
+    import re
 
     from suveryn_api_gateway import problems
     from suveryn_harness.messages import CODES
@@ -166,9 +172,14 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
         # reads as it is (a key file) is the route's own to refuse.
         takes_input = bool(op.get("parameters") or "application/json" in op.get("requestBody", {}).get("content", {}))
         expected = (raised[op["operationId"]] | ({422} if takes_input else set())) - set(problems.EVERY_OPERATION)
-        if (before := BEFORE.get((method, path))) is not None:
-            assert f'"{before}"' in (package / "app.py").read_text(encoding="utf-8"), f"{before} isn't said in app.py"
-            expected.add(CODES[before].status)
+        for code, status in BEFORE.get((method, path), []):
+            assert f'"{code}"' in (package / "app.py").read_text(encoding="utf-8"), f"{code} isn't said in app.py"
+            expected.add(status or CODES[code].status)
+        if (method, path) == UPLOAD:
+            reader = (package.parents[2] / "rag" / "src" / "suveryn_rag" / "service.py").read_text(encoding="utf-8")
+            rejected = set(re.findall(r'UploadRejected\((?:[^()]|\([^()]*\))*?"(upload\.[a-z_]+)"', reader))
+            assert len(rejected) > 5, sorted(rejected)
+            expected |= {CODES[code].status for code in rejected} - set(problems.EVERY_OPERATION)
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
 
@@ -177,7 +188,9 @@ LATER = {"CaseEvent.detail": "what each line of the access log records (its acti
          "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): with the answer stream and the playbooks",
          "SavedTurn": "the same, as the chat UI saves it",
          "Turn.meta": "what a turn of a run's thread holds (its kind and facts, turn_kinds.json): with the thread's events",
-         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): with the same step"}
+         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): with the same step",
+         "AnswerContent": "what rebuilds a saved answer's file, the chat UI's own data (an answer, its sources and checks): with the answer stream",
+         "SavedCitation": "the same", "SavedCitation.source": "the same", "DocumentContent.content": "the same, as it is read back"}
 
 
 def test_a_strict_operation_leaves_nothing_undescribed():
@@ -221,7 +234,9 @@ def test_a_strict_operation_leaves_nothing_undescribed():
 
 
 # A member an answer doesn't always carry, by the schema's name: named here on purpose.
-SOMETIMES = {("ProblemDetails", "errors")}  # with request.invalid only
+SOMETIMES = {("ProblemDetails", "errors"),  # with request.invalid only
+             # where a document came from: only what is known of it (routes/documents.py, ``Provenance``)
+             *(("Provenance", member) for member in ("playbook", "version", "run", "conversation", "message", "noticed", "confirmed", "withdrawn"))}
 
 
 def test_a_strict_operation_describes_every_member_of_an_answer_as_always_there():

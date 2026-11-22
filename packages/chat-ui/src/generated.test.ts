@@ -16,6 +16,8 @@ const NOT_CALLED: Record<string, string> = {
   getUserPicture: "a picture is loaded by the page itself, as an image's address: the generated one (ui/avatar.tsx)",
   deleteUserPicture: "no screen removes someone else's picture yet",
   addRunDocuments: "no screen sends a document for a request the run has already had answered yet",
+  createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
+  getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
  *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first
@@ -28,16 +30,25 @@ function names(text: string, address: string): boolean {
 }
 
 describe("calling generated code", () => {
-  it("an id put into an address is encoded by the caller: Orval puts it in as it is given", () => {
+  it("every generated call is called or named as not called, and an id put into an address is encoded by the caller: Orval puts it in as it is given", () => {
     // the generated calls whose address takes a part: `export const getClockRequest = async (rid: string, …`
     const withPart = [...generated.matchAll(/export const get(\w+)Url = \((\w+): string/g)]
       .map((m) => m[1][0].toLowerCase() + m[1].slice(1));
     expect(withPart).toContain("getClockRequest");
-    for (const name of withPart) {
-      // called as `gateway.<name>(`: the screens' own names for calls may be the same words (src/api.ts)
-      const uses = written.flatMap(([file, text]) => [...text.matchAll(new RegExp(`\\bgateway\\.${name}\\(([^)]*)`, "g"))].map((m) => [file, m[1]] as const));
+    // every generated call, with or without a part: `export const listCases = async (`
+    const every = [...generated.matchAll(/export const (\w+) = async \(/g)].map((m) => m[1]);
+    expect(every).toEqual(expect.arrayContaining([...withPart, "createUpload", "listCases"]));
+    expect(Object.keys(NOT_CALLED).filter((name) => !every.includes(name)), "named in NOT_CALLED, and not generated").toEqual([]);
+    for (const name of every) {
+      // called as `gateway.<name>(`: the screens' own names for calls may be the same words (src/api.ts); or by its
+      // own name, in a file that imports it from the generated code by that name (src/lib/clock.ts)
+      const uses = written.flatMap(([file, text]) => {
+        const byName = new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from "[./]+generated/gateway"`).test(text);
+        return [...text.matchAll(new RegExp(`${byName ? "(?<![.\\w])" : "\\bgateway\\."}${name}\\(([^)]*)`, "g"))].map((m) => [file, m[1]] as const);
+      });
       if (name in NOT_CALLED) { expect(uses, `${name} is called now: take it out of NOT_CALLED`).toEqual([]); continue; }
       expect(uses.length, `${name} is generated and nothing calls it`).toBeGreaterThan(0);
+      if (!withPart.includes(name)) continue;
       for (const [file, argument] of uses) expect(argument, `${file}: ${name}(${argument}…`).toMatch(/^encodeURIComponent\(/);
     }
   });

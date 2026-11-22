@@ -108,7 +108,7 @@ const CASE_EVENTS: CaseEvent[] = [
 // ---------- documents ----------
 const doc = (id: string, filename: string, pages: number, when: number, extra: Partial<StoredDocument> = {}): StoredDocument => ({
   id, filename, pages, ocr_pages: 0, status: "ok", warnings: [], created_at: ago(when), origin: "uploaded",
-  uploaded_by: "mieke@kantoor.be", source: true, ...extra,
+  uploaded_by: "mieke@kantoor.be", source: true, provenance: null, ...extra,
 });
 const CASE_DOCUMENTS: StoredDocument[] = [
   doc("d-compromis", "Compromis_Schipperskaai.pdf", 14, HOUR),
@@ -323,13 +323,16 @@ const CASE_124_DOCUMENTS: StoredDocument[] = [
 // ---------- the routes ----------
 type Answer = unknown | ((m: RegExpMatchArray, body: unknown) => unknown);
 // ---------- uploads (board G13): what the server answers for each file, by name ----------
-const job = (id: string, filename: string, more: Partial<Job>): Job => ({ id, filename, status: "ready", document_id: null, ...more });
+const job = (id: string, filename: string, more: Partial<Job>): Job => ({
+  id, filename, status: "ready", document_id: null, case_id: null, error: null, failure: null, pages: null, ocr_pages: null, warnings: [],
+  created_at: 0, finished_at: null, noticed: null, progress: null, already_present: false, archive: null, ...more,
+});
 export const UPLOADS: Record<string, Job> = {
   "Compromis_DeSmet.pdf": job("job-1", "Compromis_DeSmet.pdf", { status: "processing", progress: { step: "ocr", done: 4, total: 12 }, pages: 12 }),  // four pages recognised (board G13)
   "Eigendomstitel_1998.pdf": job("job-2", "Eigendomstitel_1998.pdf", { document_id: "d-up-titel", pages: 9 }),
   "Bodemattest_scan.pdf": job("job-3", "Bodemattest_scan.pdf", { status: "needs_review", document_id: "d-up-bodem", pages: 3,
-    warnings: [{ kind: "warning", code: "document.page_coverage_low", params: { page: 2 } }] }),
-  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", failure: { kind: "refused", code: "document.password_protected" } }),
+    warnings: [{ kind: "warning", code: "document.page_coverage_low", params: { page: 2 }, detail: "" }] }),
+  "Volmacht_koper.pdf": job("job-4", "Volmacht_koper.pdf", { status: "failed", failure: { kind: "refused", code: "document.password_protected", params: {} } }),
   "Termijnen_aangepast.docx": job("job-5", "Termijnen_aangepast.docx", { document_id: "d-up-termijnen", pages: 2,
     noticed: { ref: "A-7c21e04d", kind: "answer", line: "Gemaakt door sūveryn: antwoord uit dossier 124, 17-10-2026" } }),
 };
