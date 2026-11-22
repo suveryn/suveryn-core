@@ -1866,3 +1866,135 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
         assert status in (500, 503) or (status == 403 and (path == every or (method, path) in {
             ("DELETE", one), ("GET", one), ("PATCH", one), ("PUT", one), ("PUT", one + "/pin")})), (method, path, status)
     assert {s for _, _, s in check.seen} == {200, 204, 401, 403, 404, 409, 413, 422}
+
+
+def test_every_answer_of_documents_is_what_the_description_says(office, monkeypatch):
+    """The chat UI's code for documents is generated from the description (suveryn-tracker#248): each answer the
+    operations give, the refusals too, is checked against it and kept for the chat UI's tests. Here and not in
+    test_documents.py: a case's documents, an upload's mark and a saved answer need the cases and sign-in."""
+    import io
+
+    from described import Checked, same_every_run
+    from suveryn_api_gateway.app import MAX_UPLOAD_BYTES
+    from suveryn_rag.reading import Progress
+    from suveryn_rag.service import UploadRejected
+    from suveryn_rag.store import Original
+
+    c, kc, _, history, docs = office
+    check, alice, bob, carla = Checked(c, "documents"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
+    tidy = same_every_run()
+    GONE = "00000000-0000-4000-8000-00000000dead"
+    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
+    pdf = lambda name="akte.pdf": {"files": {"file": (name, io.BytesIO(b"%PDF-1.7"), "application/pdf")}}  # noqa: E731
+
+    every, everywhere, upload, one, save = "/v1/documents", "/v1/documents/all", "/v1/documents/jobs/{job_id}", "/v1/documents/{document_id}", \
+        "/v1/cases/{case_id}/documents"
+    source, citing, original, content = one + "/source", one + "/conversations", one + "/original", one + "/content"
+    of = lambda path, did, rest="": path.replace("{document_id}", did) + rest  # noqa: E731
+    of_document = [("DELETE", one, {}), ("POST", source, {}), ("GET", citing, {}), ("GET", original, {}), ("GET", content, {})]
+    for method, path, at, sent in [("GET", every, None, {}), ("POST", every, None, pdf()), ("GET", everywhere, None, {}),
+                                   ("GET", upload, upload.replace("{job_id}", "x"), {}), ("DELETE", upload, upload.replace("{job_id}", "x"), {}),
+                                   ("POST", save, save.replace("{case_id}", cid), {"json": saved()}), *[(m, p, of(p, DOC), s) for m, p, s in of_document]]:
+        assert check(method, path, 401, at, **sent).json()["code"] == "auth.signed_out"
+    for method, path, sent in of_document:
+        # what isn't a document id at all; a document that isn't there (a case that isn't, where only its manager may ask)
+        assert check(method, path, 422, of(path, "not-an-id"), headers=alice, **sent).json()["code"] == "request.invalid"
+        r = check(method, path, 404, of(path, GONE, f"?case={GONE}" if path == citing else ""), "no_such_document" if path == content else None, headers=alice, **sent)
+        assert r.json()["code"] in ("request.not_found", "case.not_found")
+        if path in (one, source, citing):  # a reader of the case reads its documents, and changes nothing
+            assert check(method, path, 403, of(path, DOC, f"?case={cid}"), headers=carla, **sent).json()["code"] == "case.not_allowed"
+    for method, path, sent in [("GET", every, {}), ("POST", every, pdf())]:
+        assert check(method, path, 422, f"{every}?case=not-an-id", headers=alice, **sent).json()["code"] == "request.invalid"
+        assert check(method, path, 404, f"{every}?case={GONE}", headers=alice, **sent).json()["code"] == "case.not_found"
+
+    # an upload: a document, or an archive of them; refused by its size, by what it is, or while there is no room
+    assert check("POST", every, 403, f"{every}?case={cid}", headers=carla, **pdf()).json()["code"] == "case.not_allowed"
+    assert "errors" in check("POST", every, 422, headers=alice, data={"note": "no file"}).json()
+    waiting = check("POST", every, 202, keep="uploading", tidy=tidy, headers=alice, **pdf()).json()
+    assert (waiting["status"], waiting["document_id"], waiting["failure"], waiting["warnings"]) == ("queued", None, None, [])
+    packed = check("POST", every, 202, f"{every}?case={cid}", "archive", tidy=tidy, headers=bob, **pdf("stukken.zip")).json()
+    assert [j["filename"] for j in packed["jobs"]] == ["akte.pdf", "notes.docx"] and packed["skipped"][0]["failure"]["code"] == "upload.unsupported"
+    r = check("POST", every, 411, content=iter([b"%PDF-"]), headers={**alice, "content-type": "multipart/form-data; boundary=x"})
+    assert r.json()["code"] == "request.invalid"
+    r = check("POST", every, 413, keep="too_large", content=b"%PDF-", headers={**alice, "content-length": str(MAX_UPLOAD_BYTES * 2), "content-type": "multipart/form-data; boundary=x"})
+    assert (r.json()["code"], r.json()["params"]["max_mb"] > 0) == ("upload.too_large", True)
+    accept = docs.accept_upload
+    for status_, code, name in [(415, "upload.unsupported", "not_read"), (429, "upload.too_many", "too_many_waiting")]:
+        def refuse(*_, code=code, **__):  # as document handling itself refuses (suveryn_rag.service)
+            raise UploadRejected("refused", code)
+        docs.accept_upload = refuse
+        assert check("POST", every, status_, keep=name, headers=alice, **pdf("notes.txt")).json()["code"] == code
+    docs.accept_upload = accept
+    with monkeypatch.context() as m:
+        m.setattr("suveryn_api_gateway.routes.documents.disk_low", lambda: True)
+        assert check("POST", every, 507, keep="disk_full", headers=alice, **pdf()).json()["code"] == "upload.disk_full"
+
+    # an upload is followed while it is read, cancelled until it is read
+    job = docs.jobs[waiting["id"]]
+    from suveryn_api_gateway.routes.documents import Upload
+    assert set(job.public()) == set(Upload.model_fields)  # all the rag says of an upload is described, and no more
+    at = upload.replace("{job_id}", job.id)
+    assert check("GET", upload, 404, upload.replace("{job_id}", "nope"), headers=alice).json()["code"] == "request.not_found"
+    assert check("GET", upload, 404, at, headers=bob).json()["code"] == "request.not_found"  # another's: the same answer
+    job.status, job.progress, job.pages = "processing", Progress("ocr", 2, 5), 5
+    reading = check("GET", upload, 200, at, "reading", tidy=tidy, headers=alice).json()
+    assert (reading["status"], reading["progress"]) == ("processing", {"step": "ocr", "done": 2, "total": 5})
+    job.status, job.progress, job.error, job.error_code, job.error_detail = "failed", None, "too many pages", "document.pages_too_many", {"pages": 900, "max": 500}
+    failed = check("GET", upload, 200, at, "failed", tidy=tidy, headers=alice).json()
+    assert (failed["failure"]["code"], failed["failure"]["kind"]) == ("document.pages_too_many", "refused")
+    assert check("DELETE", upload, 409, at, "already_read", headers=alice).json()["code"] == "upload.already_read"
+    assert check("DELETE", upload, 404, upload.replace("{job_id}", "nope"), headers=alice).json()["code"] == "request.not_found"
+    second = check("POST", every, 202, headers=alice, **pdf("tweede.pdf")).json()["id"]
+    check("DELETE", upload, 204, upload.replace("{job_id}", second), "done", headers=alice)
+
+    # the documents of a place, and everywhere; one that carries sūveryn's own mark is no source until someone says so
+    marked = str(uuid.uuid4())
+    docs.docs[marked] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    docs.noticed[marked] = {"ref": "A-3f9c2e1b", "kind": "answer", "line": "sūveryn · A-3f9c2e1b"}
+    mine = check("GET", every, 200, keep="mine", tidy=tidy, headers=alice).json()
+    assert [d["origin"] for d in mine["documents"]] == ["uploaded"] and [j["status"] for j in mine["jobs"]] == ["failed"]
+    in_case = check("GET", every, 200, f"{every}?case={cid}", "in_case", tidy=tidy, headers=carla).json()
+    assert (in_case["documents"][0]["source"], in_case["documents"][0]["provenance"]["noticed"]["ref"]) == (False, "A-3f9c2e1b")
+    assert {d["case_id"] for d in check("GET", everywhere, 200, keep="everywhere", tidy=tidy, headers=alice).json()["documents"]} == {None, cid}
+    assert check("POST", source, 200, of(source, marked, f"?case={cid}"), "used_as_source", tidy=tidy, headers=bob).json()["source"] is True
+    confirmed = check("GET", every, 200, f"{every}?case={cid}", "confirmed", tidy=tidy, headers=carla).json()["documents"][0]
+    assert confirmed["source"] is True and confirmed["provenance"]["confirmed"]["by"]
+    assert check("GET", citing, 200, of(citing, DOC), "citing", headers=alice).json() == []
+
+    # the file as uploaded, where one was kept
+    docs.originals = {DOC: ("Compromis.pdf", Original("application/pdf", b"%PDF-1.7 test")), marked: ("notes.md", Original("text/plain; charset=utf-8", b"# notes"))}
+    assert check("GET", original, 200, of(original, DOC), headers=alice).content == b"%PDF-1.7 test"
+    assert check("GET", original, 200, of(original, marked, f"?case={cid}"), headers=carla).headers["content-type"].startswith("text/plain")
+
+    # an answer saved to the case, once; what rebuilds its file
+    at_case = save.replace("{case_id}", cid)
+    assert check("POST", save, 422, save.replace("{case_id}", "not-an-id"), json=saved(), headers=alice).json()["code"] == "request.invalid"
+    assert check("POST", save, 404, save.replace("{case_id}", GONE), json=saved(), headers=alice).json()["code"] == "case.not_found"
+    assert check("POST", save, 403, at_case, json=saved(), headers=carla).json()["code"] == "case.not_allowed"
+    assert "errors" in check("POST", save, 422, at_case, json=saved(filename="answer.pdf"), headers=bob).json()
+    answer = saved(conversation_id="00000000-0000-4000-8000-0000000000a1")
+    made = check("POST", save, 201, at_case, "saved", tidy=tidy, json=answer, headers=bob).json()
+    assert made["created"] is True
+    assert check("POST", save, 200, at_case, "saved_before", tidy=tidy, json=answer, headers=bob).json() == {**made, "created": False}
+    rebuilt = check("GET", content, 200, of(content, made["id"], f"?case={cid}"), "content", tidy=tidy, headers=carla).json()
+    assert (rebuilt["origin"], rebuilt["content"]["question"]) == ("answer", "What is the price?")
+
+    # deleted, with the conversations that cite it cleaned; accepted when that cleaning is still to be done
+    assert "errors" in check("DELETE", one, 422, of(one, DOC, "?conversations=keep"), headers=alice).json()
+    check("DELETE", one, 204, of(one, made["id"], f"?case={cid}"), headers=bob)  # his own saved answer: undone
+
+    def later(*_, **__):
+        raise RuntimeError("the conversations' store went away")
+    monkeypatch.setattr(history, "remove_document", later)
+    check("DELETE", one, 202, of(one, DOC), headers=alice)
+    check.kept.check()
+    # not seen here, each for a reason: what nobody planned for (500); sign-in, document handling or the saved
+    # conversations down (503: test_auth.py, test_documents.py); an upload's id is any text, so nothing about it
+    # is refused as invalid (422); and sign-in turned off for another machine, for what is the caller's own or
+    # what whoever sees the case may read (403)
+    for method, path, status_code in check.not_seen():
+        assert status_code in (500, 503) or (status_code == 422 and path == upload) or (
+            status_code == 403 and (path in (upload, everywhere, original, content) or (method, path) == ("GET", every))), (method, path, status_code)
+    assert {s for _, _, s in check.seen} == {200, 201, 202, 204, 401, 403, 404, 409, 411, 413, 415, 422, 429, 507}

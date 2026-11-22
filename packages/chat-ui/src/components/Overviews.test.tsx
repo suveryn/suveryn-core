@@ -11,7 +11,7 @@ import type { AllDocument } from "./Sidebar";
 
 const doc = (over: Partial<AllDocument>): AllDocument => ({
   id: "d1", filename: "deed.pdf", pages: 4, ocr_pages: 0, status: "ok", warnings: [], created_at: "2026-10-01T10:00:00Z",
-  origin: "uploaded", uploaded_by: "alice", source: true, case_id: "c1", ...over,
+  origin: "uploaded", uploaded_by: "alice", source: true, provenance: null, case_id: "c1", ...over,
 });
 const kase = { id: "c1", reference: "TEST-1", name: "A fictional sale", state: "open", my_role: "manager",
   members: [{ user: "bob", username: "test-bob", name: "Test Bob", role: "contributor" }], last_activity_at: null, last_activity_by: "" } as unknown as CaseOverview;

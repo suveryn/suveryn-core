@@ -4,7 +4,7 @@ import { documentStatus, mayDeleteDocument } from "./overviews";
 
 const doc = (over: Partial<AllDocument> = {}): AllDocument => ({
   id: "d1", filename: "deed.pdf", pages: 4, ocr_pages: 0, status: "ok", warnings: [], created_at: "2026-10-01T10:00:00Z",
-  origin: "uploaded", uploaded_by: "alice", source: true, case_id: "c1", ...over,
+  origin: "uploaded", uploaded_by: "alice", source: true, provenance: null, case_id: "c1", ...over,
 });
 const open = { state: "open" as const };
 

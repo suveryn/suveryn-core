@@ -9,11 +9,13 @@ from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Request, Response, UploadFile
-from suveryn_harness.messages import Problem
+from suveryn_harness.messages import Problem, stored
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_serializer
 
 from ..conversations import ConversationSummary
+from ..description import Answer
+from ..problems import Message, refusals
 from .status import disk_low
 from .common import (
     docs_or_503,
@@ -29,6 +31,155 @@ from .common import (
 
 log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["documents"])  # the group its operations are in, in the description (description.py)
+BINARY = {"schema": {"type": "string", "format": "binary"}}
+
+# What document handling says, listed here for the description: suveryn-rag is an optional package (the GPU machine
+# only), so the gateway can't take its lists from it. Each names where the rag keeps its own.
+UploadStatus = Literal["receiving", "queued", "processing", "ready", "needs_review", "failed", "cancelled"]  # service.Job.status
+ReadingStep = Literal["read", "ocr", "layout", "store"]                                                       # reading.Step
+DocumentStatus = Literal["ok", "needs_review"]                                                                # store.py, documents.status
+Origin = Literal["uploaded", "generated", "playbook", "answer"]                                               # store.py, documents.origin
+# The files an upload can be, as its original is sent back (formats.CONTENT_TYPE; anything else as bytes).
+ORIGINALS = ("application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "application/octet-stream")
+
+
+class Noticed(Answer):
+    """sūveryn's own export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file."""
+
+    ref: str
+    kind: Literal["answer", "playbook"]
+    line: str
+
+
+class Progress(Answer):
+    """How far reading has got: the step, and its pages done and in all when the step counts pages."""
+
+    step: ReadingStep
+    done: int | None
+    total: int | None
+
+
+class Upload(Answer):
+    """One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text."""
+
+    id: str
+    filename: str
+    case_id: str | None           # the case it goes into; None: the uploader's personal space
+    status: UploadStatus
+    document_id: str | None       # once it is a document
+    error: str | None             # why it failed, in English, for developers
+    failure: Message | None       # why it failed, a code of the registry with its numbers: the interface words it
+    pages: int | None
+    ocr_pages: int | None
+    warnings: list[Message]       # what the reading noticed, each a warning of the registry with its page
+    created_at: float
+    finished_at: float | None
+    noticed: Noticed | None       # the file carries sūveryn's export mark: not a source until someone says so
+    progress: Progress | None     # while it is read
+    already_present: bool         # the same file was stored here before: the stored copy, not read again
+    archive: str | None           # the .zip it came from, by name
+
+
+class Skipped(Answer):
+    """A file of an archive that was left out, and why."""
+
+    name: str
+    failure: Message
+
+
+class ArchiveUpload(Answer):
+    """What an uploaded .zip became: an upload per document in it, and the files left out."""
+
+    archive: str
+    jobs: list[Upload]
+    skipped: list[Skipped]
+
+
+class By(Answer):
+    """Who did something to a document, and when."""
+
+    by: str
+    at: str
+
+
+class Withdrawn(By):
+    reason: str
+
+
+class Provenance(BaseModel):
+    """More about where a document came from: only what is known of it is sent, so no member is always there (the
+    description's test names them, ``SOMETIMES``). A playbook's result: the playbook, its version and the run. A saved
+    answer: its conversation and message. An upload that carries sūveryn's own mark: what was noticed, and who chose
+    to use it as a source anyway. A result whose run was cancelled: withdrawn, by whom and why."""
+
+    playbook: str | None = None
+    version: str | None = None
+    run: str | None = None
+    conversation: str | None = None
+    message: str | None = None
+    noticed: Noticed | None = None
+    confirmed: By | None = None
+    withdrawn: Withdrawn | None = None
+
+    @model_serializer(mode="wrap")
+    def _what_is_known(self, handler):
+        return {k: v for k, v in handler(self).items() if v is not None}
+
+
+class StoredDocument(Answer):
+    """A stored document, without its text."""
+
+    id: str
+    filename: str
+    pages: int
+    ocr_pages: int
+    status: DocumentStatus
+    warnings: list[Message]
+    created_at: str
+    origin: Origin                # only uploaded documents are sources for answers (suveryn-tracker#10)
+    uploaded_by: str | None
+    source: bool                  # the model may read and cite it (cases.md decision 7)
+    provenance: Provenance | None
+
+
+class PlacedDocument(StoredDocument):
+    case_id: str | None           # None: the caller's personal space
+
+
+class Documents(Answer):
+    """A place's documents, newest first, and the caller's uploads there still being read or failed."""
+
+    documents: list[StoredDocument]
+    jobs: list[Upload]
+
+
+class AllDocuments(Answer):
+    """Every document the caller may see, newest first, each with where it is."""
+
+    documents: list[PlacedDocument]
+
+
+class UsedAsSource(Answer):
+    id: str
+    source: bool
+
+
+class SavedAnswerDocument(Answer):
+    """The document an answer was saved as; ``created`` false: it was saved before, and this is that document."""
+
+    id: str
+    filename: str
+    created: bool
+
+
+class DocumentContent(Answer):
+    """What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``)."""
+
+    id: str
+    filename: str
+    origin: Origin
+    content: dict
 
 
 def _document_id(document_id: str) -> uuid.UUID:
@@ -38,10 +189,7 @@ def _document_id(document_id: str) -> uuid.UUID:
         raise Problem("request.invalid", "Not a document id.") from None
 
 
-@router.post("/v1/documents", status_code=202, responses={
-    411: {"description": "No Content-Length"}, 413: {"description": "File too large"},
-    415: {"description": "Not a PDF, Word, Excel, Markdown, CSV or ZIP file"}, 503: {"description": "Unavailable"},
-    507: {"description": "The disk is nearly full"}})
+@router.post("/v1/documents", status_code=202, response_model=Upload | ArchiveUpload, responses=refusals(404, 411, 413, 415, 422, 429, 507))
 async def create_upload(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
     """Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
     Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
@@ -70,7 +218,7 @@ async def create_upload(request: Request, file: UploadFile = File(...), case: st
     return result.public()
 
 
-@router.get("/v1/documents/jobs/{job_id}")
+@router.get("/v1/documents/jobs/{job_id}", response_model=Upload, responses=refusals(404, 422))
 async def get_upload(job_id: str, request: Request):
     """State of one of the caller's uploads: queued, processing, ready, needs_review, failed or cancelled;
     while processing, how far reading has got (``progress``: step, pages done, pages); when failed, why
@@ -82,8 +230,7 @@ async def get_upload(job_id: str, request: Request):
     return job.public()
 
 
-@router.delete("/v1/documents/jobs/{job_id}", status_code=204, responses={
-    404: {"description": "Unknown job"}, 409: {"description": "Already read: it is a document, delete that instead"}})
+@router.delete("/v1/documents/jobs/{job_id}", status_code=204, responses=refusals(404, 409, 422))
 async def cancel_upload(job_id: str, request: Request):
     """Cancel one of the caller's uploads (docs/design/chat-ui.md §5, the attachment card's ×): one still
     waiting is never read; one being read is stopped, its reader with it, before it is stored. One
@@ -101,30 +248,44 @@ async def cancel_upload(job_id: str, request: Request):
     return Response(status_code=204)
 
 
-@router.get("/v1/documents/all")
+def _warning(kept) -> dict:
+    """A warning as it was kept with its document. One that isn't a message as the description has it (a row from
+    before warnings were codes) is read back by the registry (``stored``): it says that something went wrong and no
+    more, and never makes the list of documents unreadable."""
+    try:
+        Message.model_validate(kept)
+    except ValidationError:
+        return stored(kept) or stored("?")
+    return kept
+
+
+def _listed(document: dict, **more) -> dict:
+    """A stored document as it is listed."""
+    return dict(document, id=str(document["id"]), created_at=document["created_at"].isoformat(),
+                warnings=[_warning(w) for w in document["warnings"]], **more)
+
+
+@router.get("/v1/documents/all", response_model=AllDocuments, responses=refusals())
 async def list_all_documents(request: Request):
     """Every document the caller may see, newest first, with its ``case_id`` (null: their personal
     space): the sidebar's "Documents" (docs/design/chat-ui.md). No jobs: those are per place."""
     docs = docs_or_503(request)
     stored = await run_in_threadpool(docs.documents_many, owner_of(request), await readable_case_ids(request))
-    return {"documents": [dict(d, id=str(d["id"]), case_id=str(d["case_id"]) if d.get("case_id") else None,
-                               created_at=d["created_at"].isoformat()) for d in stored]}
+    return {"documents": [_listed(d, case_id=str(d["case_id"]) if d.get("case_id") else None) for d in stored]}
 
 
-@router.get("/v1/documents")
+@router.get("/v1/documents", response_model=Documents, responses=refusals(404, 422))
 async def list_documents(request: Request, case: str | None = None):
     """The stored documents (newest first) in the caller's personal space, or in the case ``case``,
     and the caller's uploads there still being processed or failed."""
     docs, owner = docs_or_503(request), owner_of(request)
     scope = await scope_of(request, case, "read")
     stored = await run_in_threadpool(docs.documents, scope)
-    return {"documents": [dict(d, id=str(d["id"]), created_at=d["created_at"].isoformat()) for d in stored],
-            "jobs": [j.public() for j in docs.pending_jobs(owner, scope)]}
+    return {"documents": [_listed(d) for d in stored], "jobs": [j.public() for j in docs.pending_jobs(owner, scope)]}
 
 
-@router.delete("/v1/documents/{document_id}", status_code=204, responses={
-    202: {"description": "Deleted; the conversations that cite it are cleaned by the next sweep"},
-    503: {"description": "Saved conversations can't be reached: nothing was deleted"}})
+@router.delete("/v1/documents/{document_id}", status_code=204, response_class=Response, responses={
+    202: {"description": "Deleted; the conversations that cite it are cleaned by the next sweep"}, **refusals(404, 422)})
 async def delete_document(document_id: str, request: Request, conversations: Literal["clean", "delete"] = "clean",
                           case: str | None = None):
     """Delete a document and its passages: one of the caller's own, or one in the case ``case``
@@ -178,7 +339,7 @@ async def delete_document(document_id: str, request: Request, conversations: Lit
     return Response(status_code=204)
 
 
-@router.post("/v1/documents/{document_id}/source", responses={404: {"description": "Not here, or nothing was noticed"}})
+@router.post("/v1/documents/{document_id}/source", response_model=UsedAsSource, responses=refusals(404, 422))
 async def use_document_as_source(document_id: str, request: Request, case: str | None = None):
     """Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md
     §6): the person decides, the system only said what it
@@ -194,7 +355,7 @@ async def use_document_as_source(document_id: str, request: Request, case: str |
     return {"id": document_id, "source": True}
 
 
-@router.get("/v1/documents/{document_id}/conversations", response_model=list[ConversationSummary])
+@router.get("/v1/documents/{document_id}/conversations", response_model=list[ConversationSummary], responses=refusals(404, 422))
 async def list_document_conversations(document_id: str, request: Request, case: str | None = None):
     """The saved conversations that cite or attach this document (asked before deleting it): the
     caller's own, or in the case ``case`` (its manager, who may delete there) everyone's."""
@@ -246,9 +407,8 @@ class SaveAnswerIn(BaseModel):
         return v
 
 
-@router.post("/v1/cases/{case_id}/documents", status_code=201, responses={
-    200: {"description": "This answer was saved before: that document"},
-    403: {"description": "Not a contributor, or the case is closed"}, 404: {"description": "No such case here"}})
+@router.post("/v1/cases/{case_id}/documents", status_code=201, response_model=SavedAnswerDocument, responses={
+    200: {"model": SavedAnswerDocument, "description": "This answer was saved before: that document"}, **refusals(404, 422)})
 async def save_answer_as_document(case_id: str, body: SaveAnswerIn, request: Request, response: Response):
     """Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a
     contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
@@ -269,8 +429,8 @@ async def save_answer_as_document(case_id: str, body: SaveAnswerIn, request: Req
     return {"id": document_id, "filename": body.filename, "created": True}
 
 
-@router.get("/v1/documents/{document_id}/original", response_class=Response,
-            responses={200: {"content": {"application/pdf": {}}}, 404: {"description": "Not here, or not an upload"}})
+@router.get("/v1/documents/{document_id}/original", response_class=Response, responses={
+    200: {"content": {kind: BINARY for kind in ORIGINALS}, "description": "The file, as uploaded"}, **refusals(404, 422)})
 async def get_document_original(document_id: str, request: Request, case: str | None = None):
     """The file a document was read from, as uploaded (board G11, "Open document at p. 3"): for whoever may read
     its passages, and noted in the case's access log. A PDF opens in the browser (the page follows as
@@ -298,7 +458,7 @@ def disposition(kind: str, filename: str) -> str:
     return f"{kind}; filename=\"{plain}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
-@router.get("/v1/documents/{document_id}/content", responses={404: {"description": "Not here, or nothing to rebuild"}})
+@router.get("/v1/documents/{document_id}/content", response_model=DocumentContent, responses=refusals(404, 422))
 async def get_document_content(document_id: str, request: Request, case: str | None = None):
     """What rebuilds a document sūveryn made (a saved answer's Word file, built in the browser): for
     whoever may read it."""

@@ -1,0 +1,427 @@
+{
+ "already_read": {
+  "body": {
+   "code": "upload.already_read",
+   "detail": "This upload has been read: it is a document now.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The upload has been read and is a document now: it can't be cancelled, the document can be deleted.",
+   "type": "urn:suveryn:problem:upload.already_read"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "archive": {
+  "body": {
+   "archive": "stukken.zip",
+   "jobs": [
+    {
+     "already_present": false,
+     "archive": null,
+     "case_id": "00000000-0000-4000-8000-000000000003",
+     "created_at": 1795510800.0,
+     "document_id": null,
+     "error": null,
+     "failure": null,
+     "filename": "akte.pdf",
+     "finished_at": null,
+     "id": "00000000000040008000000000000002",
+     "noticed": null,
+     "ocr_pages": null,
+     "pages": null,
+     "progress": null,
+     "status": "queued",
+     "warnings": []
+    },
+    {
+     "already_present": false,
+     "archive": null,
+     "case_id": "00000000-0000-4000-8000-000000000003",
+     "created_at": 1795510800.0,
+     "document_id": null,
+     "error": null,
+     "failure": null,
+     "filename": "notes.docx",
+     "finished_at": null,
+     "id": "00000000000040008000000000000004",
+     "noticed": null,
+     "ocr_pages": null,
+     "pages": null,
+     "progress": null,
+     "status": "queued",
+     "warnings": []
+    }
+   ],
+   "skipped": [
+    {
+     "failure": {
+      "code": "upload.unsupported",
+      "kind": "refused",
+      "params": {}
+     },
+     "name": "photo.jpg"
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 202
+ },
+ "citing": {
+  "body": [],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "confirmed": {
+  "body": {
+   "documents": [
+    {
+     "created_at": "2026-11-23T09:00:00Z",
+     "filename": "akte.pdf",
+     "id": "00000000-0000-4000-8000-000000000006",
+     "ocr_pages": 5,
+     "origin": "uploaded",
+     "pages": 5,
+     "provenance": {
+      "confirmed": {
+       "at": "2026-11-23T09:00:00Z",
+       "by": "notaris.test"
+      },
+      "noticed": {
+       "kind": "answer",
+       "line": "sūveryn · A-3f9c2e1b",
+       "ref": "A-3f9c2e1b"
+      }
+     },
+     "source": true,
+     "status": "ok",
+     "uploaded_by": "local-dev",
+     "warnings": []
+    }
+   ],
+   "jobs": []
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "content": {
+  "body": {
+   "content": {
+    "answer": "The price is EUR 300,000 [1].",
+    "answeredOn": "2026-10-19T10:00:00Z",
+    "citations": [
+     {
+      "source": {
+       "document_id": "00000000-0000-4000-8000-000000000005",
+       "page": 2
+      },
+      "text": "The price is EUR 300,000."
+     }
+    ],
+    "filenames": {
+     "00000000-0000-4000-8000-000000000005": "deed.pdf"
+    },
+    "question": "What is the price?",
+    "turnId": "m-1"
+   },
+   "filename": "What is the price.docx",
+   "id": "00000000-0000-4000-8000-000000000007",
+   "origin": "answer"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "disk_full": {
+  "body": {
+   "code": "upload.disk_full",
+   "detail": "The appliance's disk is nearly full: no documents can be added until there is room.",
+   "kind": "unavailable",
+   "params": {},
+   "status": 507,
+   "title": "The appliance's disk is nearly full: nothing is added until there is room.",
+   "type": "urn:suveryn:problem:upload.disk_full"
+  },
+  "media_type": "application/problem+json",
+  "status": 507
+ },
+ "done": {
+  "body": null,
+  "media_type": null,
+  "status": 204
+ },
+ "everywhere": {
+  "body": {
+   "documents": [
+    {
+     "case_id": null,
+     "created_at": "2026-11-23T09:00:00Z",
+     "filename": "akte.pdf",
+     "id": "00000000-0000-4000-8000-000000000005",
+     "ocr_pages": 5,
+     "origin": "uploaded",
+     "pages": 5,
+     "provenance": null,
+     "source": true,
+     "status": "ok",
+     "uploaded_by": "local-dev",
+     "warnings": []
+    },
+    {
+     "case_id": "00000000-0000-4000-8000-000000000003",
+     "created_at": "2026-11-23T09:00:00Z",
+     "filename": "akte.pdf",
+     "id": "00000000-0000-4000-8000-000000000006",
+     "ocr_pages": 5,
+     "origin": "uploaded",
+     "pages": 5,
+     "provenance": {
+      "noticed": {
+       "kind": "answer",
+       "line": "sūveryn · A-3f9c2e1b",
+       "ref": "A-3f9c2e1b"
+      }
+     },
+     "source": false,
+     "status": "ok",
+     "uploaded_by": "local-dev",
+     "warnings": []
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "failed": {
+  "body": {
+   "already_present": false,
+   "archive": null,
+   "case_id": null,
+   "created_at": 1795510800.0,
+   "document_id": null,
+   "error": "too many pages",
+   "failure": {
+    "code": "document.pages_too_many",
+    "kind": "refused",
+    "params": {
+     "max": 500,
+     "pages": 900
+    }
+   },
+   "filename": "akte.pdf",
+   "finished_at": null,
+   "id": "00000000000040008000000000000001",
+   "noticed": null,
+   "ocr_pages": null,
+   "pages": 5,
+   "progress": null,
+   "status": "failed",
+   "warnings": []
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "in_case": {
+  "body": {
+   "documents": [
+    {
+     "created_at": "2026-11-23T09:00:00Z",
+     "filename": "akte.pdf",
+     "id": "00000000-0000-4000-8000-000000000006",
+     "ocr_pages": 5,
+     "origin": "uploaded",
+     "pages": 5,
+     "provenance": {
+      "noticed": {
+       "kind": "answer",
+       "line": "sūveryn · A-3f9c2e1b",
+       "ref": "A-3f9c2e1b"
+      }
+     },
+     "source": false,
+     "status": "ok",
+     "uploaded_by": "local-dev",
+     "warnings": []
+    }
+   ],
+   "jobs": []
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "mine": {
+  "body": {
+   "documents": [
+    {
+     "created_at": "2026-11-23T09:00:00Z",
+     "filename": "akte.pdf",
+     "id": "00000000-0000-4000-8000-000000000005",
+     "ocr_pages": 5,
+     "origin": "uploaded",
+     "pages": 5,
+     "provenance": null,
+     "source": true,
+     "status": "ok",
+     "uploaded_by": "local-dev",
+     "warnings": []
+    }
+   ],
+   "jobs": [
+    {
+     "already_present": false,
+     "archive": null,
+     "case_id": null,
+     "created_at": 1795510800.0,
+     "document_id": null,
+     "error": "too many pages",
+     "failure": {
+      "code": "document.pages_too_many",
+      "kind": "refused",
+      "params": {
+       "max": 500,
+       "pages": 900
+      }
+     },
+     "filename": "akte.pdf",
+     "finished_at": null,
+     "id": "00000000000040008000000000000001",
+     "noticed": null,
+     "ocr_pages": null,
+     "pages": 5,
+     "progress": null,
+     "status": "failed",
+     "warnings": []
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "no_such_document": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "Unknown document.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "not_read": {
+  "body": {
+   "code": "upload.unsupported",
+   "detail": "refused",
+   "kind": "refused",
+   "params": {},
+   "status": 415,
+   "title": "Not a file type sūveryn reads.",
+   "type": "urn:suveryn:problem:upload.unsupported"
+  },
+  "media_type": "application/problem+json",
+  "status": 415
+ },
+ "reading": {
+  "body": {
+   "already_present": false,
+   "archive": null,
+   "case_id": null,
+   "created_at": 1795510800.0,
+   "document_id": null,
+   "error": null,
+   "failure": null,
+   "filename": "akte.pdf",
+   "finished_at": null,
+   "id": "00000000000040008000000000000001",
+   "noticed": null,
+   "ocr_pages": null,
+   "pages": 5,
+   "progress": {
+    "done": 2,
+    "step": "ocr",
+    "total": 5
+   },
+   "status": "processing",
+   "warnings": []
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "saved": {
+  "body": {
+   "created": true,
+   "filename": "What is the price.docx",
+   "id": "00000000-0000-4000-8000-000000000007"
+  },
+  "media_type": "application/json",
+  "status": 201
+ },
+ "saved_before": {
+  "body": {
+   "created": false,
+   "filename": "What is the price.docx",
+   "id": "00000000-0000-4000-8000-000000000007"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "too_large": {
+  "body": {
+   "code": "upload.too_large",
+   "detail": "The file is larger than 100 MB.",
+   "kind": "refused",
+   "params": {
+    "max_mb": 100
+   },
+   "status": 413,
+   "title": "The file is larger than `max_mb`.",
+   "type": "urn:suveryn:problem:upload.too_large"
+  },
+  "media_type": "application/problem+json",
+  "status": 413
+ },
+ "too_many_waiting": {
+  "body": {
+   "code": "upload.too_many",
+   "detail": "refused",
+   "kind": "refused",
+   "params": {},
+   "status": 429,
+   "title": "Too many documents are waiting to be read: the queue is full, or this person has as many waiting as one person may.",
+   "type": "urn:suveryn:problem:upload.too_many"
+  },
+  "media_type": "application/problem+json",
+  "status": 429
+ },
+ "uploading": {
+  "body": {
+   "already_present": false,
+   "archive": null,
+   "case_id": null,
+   "created_at": 1795510800.0,
+   "document_id": null,
+   "error": null,
+   "failure": null,
+   "filename": "akte.pdf",
+   "finished_at": null,
+   "id": "00000000000040008000000000000001",
+   "noticed": null,
+   "ocr_pages": null,
+   "pages": null,
+   "progress": null,
+   "status": "queued",
+   "warnings": []
+  },
+  "media_type": "application/json",
+  "status": 202
+ },
+ "used_as_source": {
+  "body": {
+   "id": "00000000-0000-4000-8000-000000000006",
+   "source": true
+  },
+  "media_type": "application/json",
+  "status": 200
+ }
+}

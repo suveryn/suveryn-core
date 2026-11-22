@@ -4,7 +4,7 @@ import { afterDeletion, MAX_DOCUMENTS, questionDocuments } from "./questionDocum
 
 const doc = (id: string, day: number, over: Partial<StoredDocument> = {}): StoredDocument => ({
   id, filename: `${id}.pdf`, pages: 1, ocr_pages: 0, status: "ok", warnings: [],
-  created_at: `2026-10-${String(day).padStart(2, "0")}T10:00:00Z`, origin: "uploaded", source: true, ...over,
+  created_at: `2026-10-${String(day).padStart(2, "0")}T10:00:00Z`, origin: "uploaded", uploaded_by: null, source: true, provenance: null, ...over,
 });
 
 describe("the documents a question reads", () => {

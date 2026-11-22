@@ -446,7 +446,7 @@ describe("sūveryn's own output (docs/design/chat-ui.md §6)", () => {
   it("origin: uploads are sources, sūveryn's output is made, a noticed upload waits for a person", () => {
     const m = TABLES_FOR_TESTS.en;
     const noticed = { ref: "A-3f9c2e1b", kind: "answer" as const, line: "…" };
-    expect(originText({ origin: "uploaded", source: true }, m)).toEqual({ word: "Source", detail: "uploaded" });
+    expect(originText({ origin: "uploaded", source: true, provenance: null }, m)).toEqual({ word: "Source", detail: "uploaded" });
     expect(originText({ origin: "playbook", source: false, provenance: { version: "1.0" } }, m)).toEqual({ word: "Made", detail: "playbook v1.0" });
     expect(originKind({ origin: "uploaded", source: false, provenance: { noticed } })).toBe("pending");
     expect(originText({ origin: "uploaded", source: true, provenance: { noticed, confirmed: { by: "a", at: "" } } }, m))

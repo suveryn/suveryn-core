@@ -12,19 +12,16 @@ from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
 from suveryn_harness import Citation, LlamaServerClient, LLMSettings, SourceRef
+from suveryn_rag.service import Job
 from suveryn_rag.store import Scope
 
 DOC = str(uuid.uuid4())
 UNSUPPORTED = {"kind": "refused", "code": "upload.unsupported", "params": {}}  # a file left out of a .zip, and why
 
 
-class FakeJob:
-    def __init__(self, filename, owner="local-dev", case_id=None):
-        self.id, self.filename, self.status, self.document_id = uuid.uuid4().hex, filename, "queued", None
-        self.owner, self.case_id = owner, case_id
-
-    def public(self):
-        return {"id": self.id, "filename": self.filename, "status": self.status, "document_id": self.document_id}
+def FakeJob(filename, owner="local-dev", case_id=None):  # noqa: N802 - it was a class, and reads as one
+    """A job of the rag's own, so that what the gateway answers for it is what it answers on an appliance."""
+    return Job(id=uuid.uuid4().hex, filename=filename, owner=owner, case_id=case_id)
 
 
 class FakeDocuments:
@@ -75,7 +72,7 @@ class FakeDocuments:
                  "warnings": [], "created_at": datetime(2026, 10, 9, tzinfo=UTC), "origin": origin,
                  "uploaded_by": self.uploaders.get(d, "local-dev"),
                  "source": origin == "uploaded" and (d not in self.noticed or d in self.confirmed),
-                 "provenance": ({"noticed": self.noticed[d], **({"confirmed": {"by": self.confirmed[d]}} if d in self.confirmed else {})}
+                 "provenance": ({"noticed": self.noticed[d], **({"confirmed": {"by": self.confirmed[d], "at": "2026-10-09T10:00:00+00:00"}} if d in self.confirmed else {})}
                                 if d in self.noticed else None)}
                 for d, (s, origin) in self.docs.items() if s == scope]
 
@@ -505,3 +502,22 @@ def test_an_upload_is_refused_while_the_disk_is_nearly_full(monkeypatch):
         assert r.status_code == 507 and "nearly full" in r.json()["detail"] and docs.uploads == []
         monkeypatch.setattr(status, "_disk", lambda: (60 * 1024**3, 155 * 1024**3))  # room again
         assert c.post("/v1/documents", files={"file": ("deed.pdf", io.BytesIO(b"%PDF-1.7 fictional"), "application/pdf")}).status_code == 202
+
+
+def test_a_stored_warning_is_listed_as_kept_and_one_in_an_older_shape_as_something_that_went_wrong():
+    """The list of documents is described (suveryn-tracker#248): a warning is a message of the registry. One kept
+    before warnings were codes must not make the whole list unreadable."""
+    from datetime import datetime
+
+    from suveryn_api_gateway.routes.documents import StoredDocument, _listed
+
+    kept = {"kind": "warning", "code": "document.text_recovered", "params": {"page": 3}}
+    no_page = {"kind": "warning", "code": "document.text_recovered", "params": {"page": None}}
+    row = {"id": uuid.UUID(DOC), "filename": "akte.pdf", "pages": 5, "ocr_pages": 0, "status": "needs_review", "created_at": datetime(2026, 10, 9, tzinfo=UTC),
+           "origin": "uploaded", "uploaded_by": None, "source": True, "provenance": None,
+           "warnings": [kept, no_page, "page 3: text recovered", {"page": 3, "text": "recovered"}, None]}
+    listed = _listed(row)
+    internal = {"kind": "internal", "code": "system.internal", "params": {}}
+    assert listed["warnings"] == [kept, no_page, internal, internal, internal]
+    assert StoredDocument.model_validate(listed).model_dump()["warnings"] == listed["warnings"]  # and it is what the description says
+

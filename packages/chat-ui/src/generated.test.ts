@@ -16,6 +16,8 @@ const NOT_CALLED: Record<string, string> = {
   getUserPicture: "a picture is loaded by the page itself, as an image's address: the generated one (ui/avatar.tsx)",
   deleteUserPicture: "no screen removes someone else's picture yet",
   addRunDocuments: "no screen sends a document for a request the run has already had answered yet",
+  createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
+  getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
  *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first

@@ -111,3 +111,44 @@ class Checked:
         described = {(method.upper(), path, int(status)) for path, by_method in DESCRIBED["paths"].items()
                      for method, op in by_method.items() if op["tags"] == [self.area] for status in op["responses"]}
         return described - self.seen
+
+
+def same_every_run(known: dict[str, str] | None = None, moments: tuple[str, ...] = ()):
+    """A ``tidy`` for ``Kept``: this run's ids, moments and clock readings, wherever they are in an answer, made
+    the same every run. An id (a UUID, written with or without its dashes) becomes a fixed one, in the order the ids
+    are first seen (``known``: ones that keep a value of their own); a member named ``at`` or ending in ``_at``, or
+    one of ``moments``, becomes one moment, as text or as a number, whichever it was."""
+    import re
+
+    ids = dict(known or {})
+    an_id = re.compile(r"^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$")
+
+    def fixed(value: str) -> str:
+        if not an_id.match(value):
+            return value
+        new = ids.setdefault(value.replace("-", ""), f"00000000-0000-4000-8000-{len(ids) + 1:012x}")
+        return new if "-" in value else new.replace("-", "")
+
+    def same(body):
+        if isinstance(body, list):
+            return [same(item) for item in body]
+        if not isinstance(body, dict):
+            return fixed(body) if isinstance(body, str) else body
+        out = {}
+        for key, value in body.items():
+            if (key == "at" or key.endswith("_at") or key in moments) and isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                out[fixed(key)] = "2026-11-23T09:00:00Z" if isinstance(value, str) else 1795510800.0
+            else:
+                out[fixed(key)] = same(value)
+        return out
+
+    def tidy(body) -> None:  # in place, as ``Kept`` asks
+        new = same(body)
+        if isinstance(body, dict):
+            body.clear()
+            body.update(new)
+        else:
+            body[:] = new
+
+    tidy.ids = ids
+    return tidy

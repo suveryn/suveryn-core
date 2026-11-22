@@ -121,7 +121,7 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
 }) {
   const m = useT();
   const STATUS_LABEL: Record<Attachment["status"], string> = {
-    uploading: m.uploading, queued: m.waiting, processing: m.reading, ready: "",
+    uploading: m.uploading, receiving: m.uploading, queued: m.waiting, processing: m.reading, ready: "",
     needs_review: m.readyCheckNeeded, failed: m.couldntBeRead, noticed: m.originPending, cancelled: "",
   };
   if (a.status === "noticed" && a.noticed) {

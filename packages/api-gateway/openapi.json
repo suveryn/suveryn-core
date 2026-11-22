@@ -440,6 +440,23 @@
     "title": "AdminUsageReport",
     "type": "object"
    },
+   "AllDocuments": {
+    "description": "Every document the caller may see, newest first, each with where it is.",
+    "properties": {
+     "documents": {
+      "items": {
+       "$ref": "#/components/schemas/PlacedDocument"
+      },
+      "title": "Documents",
+      "type": "array"
+     }
+    },
+    "required": [
+     "documents"
+    ],
+    "title": "AllDocuments",
+    "type": "object"
+   },
    "AnswerContent": {
     "additionalProperties": true,
     "description": "What rebuilds the Word file (the chat UI's own data): the question, the answer as written, its\nsources and checks, and the file names of the sources as they were.",
@@ -524,6 +541,36 @@
      "step_id"
     ],
     "title": "AnswerIn",
+    "type": "object"
+   },
+   "ArchiveUpload": {
+    "description": "What an uploaded .zip became: an upload per document in it, and the files left out.",
+    "properties": {
+     "archive": {
+      "title": "Archive",
+      "type": "string"
+     },
+     "jobs": {
+      "items": {
+       "$ref": "#/components/schemas/Upload"
+      },
+      "title": "Jobs",
+      "type": "array"
+     },
+     "skipped": {
+      "items": {
+       "$ref": "#/components/schemas/Skipped"
+      },
+      "title": "Skipped",
+      "type": "array"
+     }
+    },
+    "required": [
+     "archive",
+     "jobs",
+     "skipped"
+    ],
+    "title": "ArchiveUpload",
     "type": "object"
    },
    "AuthStatus": {
@@ -1080,6 +1127,25 @@
      "file"
     ],
     "title": "Body_create_upload",
+    "type": "object"
+   },
+   "By": {
+    "description": "Who did something to a document, and when.",
+    "properties": {
+     "at": {
+      "title": "At",
+      "type": "string"
+     },
+     "by": {
+      "title": "By",
+      "type": "string"
+     }
+    },
+    "required": [
+     "by",
+     "at"
+    ],
+    "title": "By",
     "type": "object"
    },
    "Calculation": {
@@ -2552,6 +2618,67 @@
     "title": "Disk",
     "type": "object"
    },
+   "DocumentContent": {
+    "description": "What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``).",
+    "properties": {
+     "content": {
+      "additionalProperties": true,
+      "title": "Content",
+      "type": "object"
+     },
+     "filename": {
+      "title": "Filename",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "origin": {
+      "enum": [
+       "uploaded",
+       "generated",
+       "playbook",
+       "answer"
+      ],
+      "title": "Origin",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "filename",
+     "origin",
+     "content"
+    ],
+    "title": "DocumentContent",
+    "type": "object"
+   },
+   "Documents": {
+    "description": "A place's documents, newest first, and the caller's uploads there still being read or failed.",
+    "properties": {
+     "documents": {
+      "items": {
+       "$ref": "#/components/schemas/StoredDocument"
+      },
+      "title": "Documents",
+      "type": "array"
+     },
+     "jobs": {
+      "items": {
+       "$ref": "#/components/schemas/Upload"
+      },
+      "title": "Jobs",
+      "type": "array"
+     }
+    },
+    "required": [
+     "documents",
+     "jobs"
+    ],
+    "title": "Documents",
+    "type": "object"
+   },
    "DocumentsStatus": {
     "description": "State of document handling: the rag service's own three (its ``state``; the rag is an optional package, so\nits states are repeated here), and \"unavailable\" where there is none.",
     "properties": {
@@ -3278,6 +3405,34 @@
     "title": "NewUser",
     "type": "object"
    },
+   "Noticed": {
+    "description": "sūveryn's own export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file.",
+    "properties": {
+     "kind": {
+      "enum": [
+       "answer",
+       "playbook"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "line": {
+      "title": "Line",
+      "type": "string"
+     },
+     "ref": {
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "ref",
+     "kind",
+     "line"
+    ],
+    "title": "Noticed",
+    "type": "object"
+   },
    "Now": {
     "properties": {
      "now_ms": {
@@ -3385,6 +3540,107 @@
      "pinned"
     ],
     "title": "PinIn",
+    "type": "object"
+   },
+   "PlacedDocument": {
+    "properties": {
+     "case_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Case Id"
+     },
+     "created_at": {
+      "title": "Created At",
+      "type": "string"
+     },
+     "filename": {
+      "title": "Filename",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "ocr_pages": {
+      "title": "Ocr Pages",
+      "type": "integer"
+     },
+     "origin": {
+      "enum": [
+       "uploaded",
+       "generated",
+       "playbook",
+       "answer"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "pages": {
+      "title": "Pages",
+      "type": "integer"
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "source": {
+      "title": "Source",
+      "type": "boolean"
+     },
+     "status": {
+      "enum": [
+       "ok",
+       "needs_review"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "uploaded_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Uploaded By"
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/Message"
+      },
+      "title": "Warnings",
+      "type": "array"
+     }
+    },
+    "required": [
+     "id",
+     "filename",
+     "pages",
+     "ocr_pages",
+     "status",
+     "warnings",
+     "created_at",
+     "origin",
+     "uploaded_by",
+     "source",
+     "provenance",
+     "case_id"
+    ],
+    "title": "PlacedDocument",
     "type": "object"
    },
    "PlaybookOut": {
@@ -3629,6 +3885,142 @@
      "detail"
     ],
     "title": "ProblemDetails",
+    "type": "object"
+   },
+   "Progress": {
+    "description": "How far reading has got: the step, and its pages done and in all when the step counts pages.",
+    "properties": {
+     "done": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Done"
+     },
+     "step": {
+      "enum": [
+       "read",
+       "ocr",
+       "layout",
+       "store"
+      ],
+      "title": "Step",
+      "type": "string"
+     },
+     "total": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total"
+     }
+    },
+    "required": [
+     "step",
+     "done",
+     "total"
+    ],
+    "title": "Progress",
+    "type": "object"
+   },
+   "Provenance": {
+    "description": "More about where a document came from: only what is known of it is sent, so no member is always there (the\ndescription's test names them, ``SOMETIMES``). A playbook's result: the playbook, its version and the run. A saved\nanswer: its conversation and message. An upload that carries sūveryn's own mark: what was noticed, and who chose\nto use it as a source anyway. A result whose run was cancelled: withdrawn, by whom and why.",
+    "properties": {
+     "confirmed": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/By"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "conversation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conversation"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     },
+     "noticed": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Noticed"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "playbook": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playbook"
+     },
+     "run": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Run"
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     },
+     "withdrawn": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Withdrawn"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "title": "Provenance",
     "type": "object"
    },
    "Rates-Input": {
@@ -4607,6 +4999,30 @@
     "title": "SaveAnswerIn",
     "type": "object"
    },
+   "SavedAnswerDocument": {
+    "description": "The document an answer was saved as; ``created`` false: it was saved before, and this is that document.",
+    "properties": {
+     "created": {
+      "title": "Created",
+      "type": "boolean"
+     },
+     "filename": {
+      "title": "Filename",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "filename",
+     "created"
+    ],
+    "title": "SavedAnswerDocument",
+    "type": "object"
+   },
    "SavedCitation": {
     "additionalProperties": true,
     "description": "A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out.",
@@ -4945,6 +5361,24 @@
     "title": "ShareIn",
     "type": "object"
    },
+   "Skipped": {
+    "description": "A file of an archive that was left out, and why.",
+    "properties": {
+     "failure": {
+      "$ref": "#/components/schemas/Message"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "failure"
+    ],
+    "title": "Skipped",
+    "type": "object"
+   },
    "SourceRef": {
     "description": "Where a cited passage comes from: a stored document, and a position inside it.",
     "properties": {
@@ -5181,6 +5615,96 @@
     "title": "StoreStatus",
     "type": "object"
    },
+   "StoredDocument": {
+    "description": "A stored document, without its text.",
+    "properties": {
+     "created_at": {
+      "title": "Created At",
+      "type": "string"
+     },
+     "filename": {
+      "title": "Filename",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "ocr_pages": {
+      "title": "Ocr Pages",
+      "type": "integer"
+     },
+     "origin": {
+      "enum": [
+       "uploaded",
+       "generated",
+       "playbook",
+       "answer"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "pages": {
+      "title": "Pages",
+      "type": "integer"
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "source": {
+      "title": "Source",
+      "type": "boolean"
+     },
+     "status": {
+      "enum": [
+       "ok",
+       "needs_review"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "uploaded_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Uploaded By"
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/Message"
+      },
+      "title": "Warnings",
+      "type": "array"
+     }
+    },
+    "required": [
+     "id",
+     "filename",
+     "pages",
+     "ocr_pages",
+     "status",
+     "warnings",
+     "created_at",
+     "origin",
+     "uploaded_by",
+     "source",
+     "provenance"
+    ],
+    "title": "StoredDocument",
+    "type": "object"
+   },
    "SupportSpan": {
     "description": "What the source card marks for one citation marker (suveryn-tracker#25; ``marking.support_spans``).\n\n``marker`` is the marker's 0-based occurrence among the answer's valid markers, as ``CitationIssue``\ncounts them; ``n`` its number. ``ranges`` are the sentences of ``citations[n - 1].text`` the claim\nrests on, and ``facts`` what to mark strongly: the claim's facts and names, however the passage writes\nthem. Both are [start, end) offsets in UTF-16 code units, as the browser counts a string.",
     "properties": {
@@ -5324,6 +5848,174 @@
      "meta"
     ],
     "title": "Turn",
+    "type": "object"
+   },
+   "Upload": {
+    "description": "One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text.",
+    "properties": {
+     "already_present": {
+      "title": "Already Present",
+      "type": "boolean"
+     },
+     "archive": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Archive"
+     },
+     "case_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Case Id"
+     },
+     "created_at": {
+      "title": "Created At",
+      "type": "number"
+     },
+     "document_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Document Id"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "failure": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Message"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "filename": {
+      "title": "Filename",
+      "type": "string"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "noticed": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Noticed"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "ocr_pages": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ocr Pages"
+     },
+     "pages": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pages"
+     },
+     "progress": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Progress"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "status": {
+      "enum": [
+       "receiving",
+       "queued",
+       "processing",
+       "ready",
+       "needs_review",
+       "failed",
+       "cancelled"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/Message"
+      },
+      "title": "Warnings",
+      "type": "array"
+     }
+    },
+    "required": [
+     "id",
+     "filename",
+     "case_id",
+     "status",
+     "document_id",
+     "error",
+     "failure",
+     "pages",
+     "ocr_pages",
+     "warnings",
+     "created_at",
+     "finished_at",
+     "noticed",
+     "progress",
+     "already_present",
+     "archive"
+    ],
+    "title": "Upload",
     "type": "object"
    },
    "Usage": {
@@ -5479,6 +6171,24 @@
     "title": "UsageTotals",
     "type": "object"
    },
+   "UsedAsSource": {
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "source": {
+      "title": "Source",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "id",
+     "source"
+    ],
+    "title": "UsedAsSource",
+    "type": "object"
+   },
    "UserUsage": {
     "properties": {
      "cost": {
@@ -5599,6 +6309,29 @@
      "type"
     ],
     "title": "ValidationError",
+    "type": "object"
+   },
+   "Withdrawn": {
+    "properties": {
+     "at": {
+      "title": "At",
+      "type": "string"
+     },
+     "by": {
+      "title": "By",
+      "type": "string"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "by",
+     "at",
+     "reason"
+    ],
+    "title": "Withdrawn",
     "type": "object"
    }
   }
@@ -8731,31 +9464,84 @@
     },
     "responses": {
      "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SavedAnswerDocument"
+        }
+       }
+      },
       "description": "This answer was saved before: that document"
      },
      "201": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/SavedAnswerDocument"
+        }
        }
       },
       "description": "Successful Response"
      },
-     "403": {
-      "description": "Not a contributor, or the case is closed"
-     },
-     "404": {
-      "description": "No such case here"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Save Answer As Document",
@@ -12247,20 +13033,72 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/Documents"
+        }
        }
       },
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List Documents",
@@ -12303,35 +13141,130 @@
      "202": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/Upload"
+          },
+          {
+           "$ref": "#/components/schemas/ArchiveUpload"
+          }
+         ],
+         "title": "Response Create Upload"
+        }
        }
       },
       "description": "Successful Response"
      },
-     "411": {
-      "description": "No Content-Length"
-     },
-     "413": {
-      "description": "File too large"
-     },
-     "415": {
-      "description": "Not a PDF, Word, Excel, Markdown, CSV or ZIP file"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "411": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Length Required"
+     },
+     "413": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Request Entity Too Large"
+     },
+     "415": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unsupported Media Type"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "Unavailable"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      },
      "507": {
-      "description": "The disk is nearly full"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Insufficient Storage"
      }
     },
     "summary": "Create Upload",
@@ -12348,10 +13281,52 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/AllDocuments"
+        }
        }
       },
       "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List All Documents",
@@ -12379,21 +13354,75 @@
      "204": {
       "description": "Successful Response"
      },
-     "404": {
-      "description": "Unknown job"
-     },
-     "409": {
-      "description": "Already read: it is a document, delete that instead"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Cancel Upload",
@@ -12419,20 +13448,72 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/Upload"
+        }
        }
       },
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Upload",
@@ -12493,18 +13574,65 @@
      "204": {
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "Saved conversations can't be reached: nothing was deleted"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Delete Document",
@@ -12548,23 +13676,72 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/DocumentContent"
+        }
        }
       },
       "description": "Successful Response"
      },
-     "404": {
-      "description": "Not here, or nothing to rebuild"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Document Content",
@@ -12619,15 +13796,65 @@
       },
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List Document Conversations",
@@ -12670,22 +13897,98 @@
     "responses": {
      "200": {
       "content": {
-       "application/pdf": {}
-      },
-      "description": "Successful Response"
-     },
-     "404": {
-      "description": "Not here, or not an upload"
-     },
-     "422": {
-      "content": {
-       "application/json": {
+       "application/octet-stream": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/pdf": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "text/plain": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "The file, as uploaded"
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Document Original",
@@ -12729,23 +14032,72 @@
      "200": {
       "content": {
        "application/json": {
-        "schema": {}
+        "schema": {
+         "$ref": "#/components/schemas/UsedAsSource"
+        }
        }
       },
       "description": "Successful Response"
      },
-     "404": {
-      "description": "Not here, or nothing was noticed"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Use Document As Source",

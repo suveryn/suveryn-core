@@ -989,6 +989,69 @@ export interface CaseUpdate {
   type?: string | null;
 }
 
+export type SavedCitationSource = { [key: string]: unknown } | null;
+
+/**
+ * A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out.
+ */
+export interface SavedCitation {
+  source?: SavedCitationSource;
+  /** @maxLength 200000 */
+  text: string;
+  [key: string]: unknown;
+ }
+
+export type AnswerContentFilenames = {[key: string]: string};
+
+/**
+ * What rebuilds the Word file (the chat UI's own data): the question, the answer as written, its
+ * sources and checks, and the file names of the sources as they were.
+ */
+export interface AnswerContent {
+  /** @maxLength 200000 */
+  answer: string;
+  /** @maxItems 200 */
+  citations?: SavedCitation[];
+  filenames?: AnswerContentFilenames;
+  /** @maxLength 20000 */
+  question: string;
+  [key: string]: unknown;
+ }
+
+/**
+ * Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/chat-ui.md §5).
+ */
+export interface SaveAnswerIn {
+  content: AnswerContent;
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  conversation_id: string;
+  /**
+     * @minLength 6
+     * @maxLength 200
+     * @pattern ^[^/\\\x00-\x1f]+\.docx$
+     */
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  message_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 200000
+     */
+  text: string;
+}
+
+/**
+ * The document an answer was saved as; ``created`` false: it was saved before, and this is that document.
+ */
+export interface SavedAnswerDocument {
+  created: boolean;
+  filename: string;
+  id: string;
+}
+
 export type CaseEventDetail = { [key: string]: unknown };
 
 /**
@@ -1560,6 +1623,239 @@ export interface ShareIn {
   shared: boolean;
 }
 
+export type StoredDocumentOrigin = typeof StoredDocumentOrigin[keyof typeof StoredDocumentOrigin];
+
+
+export const StoredDocumentOrigin = {
+  uploaded: 'uploaded',
+  generated: 'generated',
+  playbook: 'playbook',
+  answer: 'answer',
+} as const;
+
+/**
+ * Who did something to a document, and when.
+ */
+export interface By {
+  at: string;
+  by: string;
+}
+
+export type NoticedKind = typeof NoticedKind[keyof typeof NoticedKind];
+
+
+export const NoticedKind = {
+  answer: 'answer',
+  playbook: 'playbook',
+} as const;
+
+/**
+ * sūveryn's own export mark found in an upload (docs/design/chat-ui.md §6): the line as it stands in the file.
+ */
+export interface Noticed {
+  kind: NoticedKind;
+  line: string;
+  ref: string;
+}
+
+export interface Withdrawn {
+  at: string;
+  by: string;
+  reason: string;
+}
+
+/**
+ * More about where a document came from: only what is known of it is sent, so no member is always there (the
+ * description's test names them, ``SOMETIMES``). A playbook's result: the playbook, its version and the run. A saved
+ * answer: its conversation and message. An upload that carries sūveryn's own mark: what was noticed, and who chose
+ * to use it as a source anyway. A result whose run was cancelled: withdrawn, by whom and why.
+ */
+export interface Provenance {
+  confirmed?: By | null;
+  conversation?: string | null;
+  message?: string | null;
+  noticed?: Noticed | null;
+  playbook?: string | null;
+  run?: string | null;
+  version?: string | null;
+  withdrawn?: Withdrawn | null;
+}
+
+export type StoredDocumentStatus = typeof StoredDocumentStatus[keyof typeof StoredDocumentStatus];
+
+
+export const StoredDocumentStatus = {
+  ok: 'ok',
+  needs_review: 'needs_review',
+} as const;
+
+/**
+ * A stored document, without its text.
+ */
+export interface StoredDocument {
+  created_at: string;
+  filename: string;
+  id: string;
+  ocr_pages: number;
+  origin: StoredDocumentOrigin;
+  pages: number;
+  provenance: Provenance | null;
+  source: boolean;
+  status: StoredDocumentStatus;
+  uploaded_by: string | null;
+  warnings: Message[];
+}
+
+export type ProgressStep = typeof ProgressStep[keyof typeof ProgressStep];
+
+
+export const ProgressStep = {
+  read: 'read',
+  ocr: 'ocr',
+  layout: 'layout',
+  store: 'store',
+} as const;
+
+/**
+ * How far reading has got: the step, and its pages done and in all when the step counts pages.
+ */
+export interface Progress {
+  done: number | null;
+  step: ProgressStep;
+  total: number | null;
+}
+
+export type UploadStatus = typeof UploadStatus[keyof typeof UploadStatus];
+
+
+export const UploadStatus = {
+  receiving: 'receiving',
+  queued: 'queued',
+  processing: 'processing',
+  ready: 'ready',
+  needs_review: 'needs_review',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text.
+ */
+export interface Upload {
+  already_present: boolean;
+  archive: string | null;
+  case_id: string | null;
+  created_at: number;
+  document_id: string | null;
+  error: string | null;
+  failure: Message | null;
+  filename: string;
+  finished_at: number | null;
+  id: string;
+  noticed: Noticed | null;
+  ocr_pages: number | null;
+  pages: number | null;
+  progress: Progress | null;
+  status: UploadStatus;
+  warnings: Message[];
+}
+
+/**
+ * A place's documents, newest first, and the caller's uploads there still being read or failed.
+ */
+export interface Documents {
+  documents: StoredDocument[];
+  jobs: Upload[];
+}
+
+export interface BodyCreateUpload {
+  file: Blob | File;
+}
+
+/**
+ * A file of an archive that was left out, and why.
+ */
+export interface Skipped {
+  failure: Message;
+  name: string;
+}
+
+/**
+ * What an uploaded .zip became: an upload per document in it, and the files left out.
+ */
+export interface ArchiveUpload {
+  archive: string;
+  jobs: Upload[];
+  skipped: Skipped[];
+}
+
+export type PlacedDocumentOrigin = typeof PlacedDocumentOrigin[keyof typeof PlacedDocumentOrigin];
+
+
+export const PlacedDocumentOrigin = {
+  uploaded: 'uploaded',
+  generated: 'generated',
+  playbook: 'playbook',
+  answer: 'answer',
+} as const;
+
+export type PlacedDocumentStatus = typeof PlacedDocumentStatus[keyof typeof PlacedDocumentStatus];
+
+
+export const PlacedDocumentStatus = {
+  ok: 'ok',
+  needs_review: 'needs_review',
+} as const;
+
+export interface PlacedDocument {
+  case_id: string | null;
+  created_at: string;
+  filename: string;
+  id: string;
+  ocr_pages: number;
+  origin: PlacedDocumentOrigin;
+  pages: number;
+  provenance: Provenance | null;
+  source: boolean;
+  status: PlacedDocumentStatus;
+  uploaded_by: string | null;
+  warnings: Message[];
+}
+
+/**
+ * Every document the caller may see, newest first, each with where it is.
+ */
+export interface AllDocuments {
+  documents: PlacedDocument[];
+}
+
+export type DocumentContentContent = { [key: string]: unknown };
+
+export type DocumentContentOrigin = typeof DocumentContentOrigin[keyof typeof DocumentContentOrigin];
+
+
+export const DocumentContentOrigin = {
+  uploaded: 'uploaded',
+  generated: 'generated',
+  playbook: 'playbook',
+  answer: 'answer',
+} as const;
+
+/**
+ * What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``).
+ */
+export interface DocumentContent {
+  content: DocumentContentContent;
+  filename: string;
+  id: string;
+  origin: DocumentContentOrigin;
+}
+
+export interface UsedAsSource {
+  id: string;
+  source: boolean;
+}
+
 /**
  * The caller's picture, by its ETag: what a page puts behind the picture's address so a new one is fetched.
  */
@@ -1662,6 +1958,43 @@ export type ListCasesParams = {
 export type ListConversationsParams = {
   case?: string | null;
   all?: boolean;
+};
+
+export type ListDocumentsParams = {
+  case?: string | null;
+};
+
+export type CreateUploadParams = {
+  case?: string | null;
+};
+
+export type DeleteDocumentParams = {
+  conversations?: DeleteDocumentConversations;
+  case?: string | null;
+};
+
+export type DeleteDocumentConversations = typeof DeleteDocumentConversations[keyof typeof DeleteDocumentConversations];
+
+
+export const DeleteDocumentConversations = {
+  clean: 'clean',
+  delete: 'delete',
+} as const;
+
+export type GetDocumentContentParams = {
+  case?: string | null;
+};
+
+export type ListDocumentConversationsParams = {
+  case?: string | null;
+};
+
+export type GetDocumentOriginalParams = {
+  case?: string | null;
+};
+
+export type UseDocumentAsSourceParams = {
+  case?: string | null;
 };
 
 export type ListAllActiveRuns200 = {[key: string]: RunSummary};
@@ -4103,6 +4436,84 @@ export const closeCase = async (caseId: string, options?: Parameters<typeof gate
 
 
 
+export type saveAnswerAsDocumentResponse200 = {
+  data: SavedAnswerDocument
+  status: 200
+}
+
+export type saveAnswerAsDocumentResponse201 = {
+  data: SavedAnswerDocument
+  status: 201
+}
+
+export type saveAnswerAsDocumentResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type saveAnswerAsDocumentResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type saveAnswerAsDocumentResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type saveAnswerAsDocumentResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type saveAnswerAsDocumentResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type saveAnswerAsDocumentResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type saveAnswerAsDocumentResponseSuccess = (saveAnswerAsDocumentResponse200 | saveAnswerAsDocumentResponse201) & {
+  headers: Headers;
+};
+export type saveAnswerAsDocumentResponseError = (saveAnswerAsDocumentResponse401 | saveAnswerAsDocumentResponse403 | saveAnswerAsDocumentResponse404 | saveAnswerAsDocumentResponse422 | saveAnswerAsDocumentResponse500 | saveAnswerAsDocumentResponse503) & {
+  headers: Headers;
+};
+
+export type saveAnswerAsDocumentResponse = (saveAnswerAsDocumentResponseSuccess | saveAnswerAsDocumentResponseError)
+
+export const getSaveAnswerAsDocumentUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/documents`
+}
+
+/**
+ * Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a
+ * contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
+ * deleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).
+ * Saving the same message again gives the document already saved. Logged as ``answer_saved``.
+ * @summary Save Answer As Document
+ */
+export const saveAnswerAsDocument = async (caseId: string,
+    saveAnswerIn: SaveAnswerIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<saveAnswerAsDocumentResponse> => {
+
+  return gatewayFetch<saveAnswerAsDocumentResponse>(getSaveAnswerAsDocumentUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(saveAnswerIn)
+  }
+);}
+
+
+
 export type listCaseEventsResponse200 = {
   data: CaseEvent[]
   status: 200
@@ -6499,6 +6910,831 @@ export const setConversationShared = async (conversationId: string,
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(shareIn)
+  }
+);}
+
+
+
+export type listDocumentsResponse200 = {
+  data: Documents
+  status: 200
+}
+
+export type listDocumentsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listDocumentsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listDocumentsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listDocumentsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listDocumentsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listDocumentsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listDocumentsResponseSuccess = (listDocumentsResponse200) & {
+  headers: Headers;
+};
+export type listDocumentsResponseError = (listDocumentsResponse401 | listDocumentsResponse403 | listDocumentsResponse404 | listDocumentsResponse422 | listDocumentsResponse500 | listDocumentsResponse503) & {
+  headers: Headers;
+};
+
+export type listDocumentsResponse = (listDocumentsResponseSuccess | listDocumentsResponseError)
+
+export const getListDocumentsUrl = (params?: ListDocumentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents?${stringifiedParams}` : `/v1/documents`
+}
+
+/**
+ * The stored documents (newest first) in the caller's personal space, or in the case ``case``,
+ * and the caller's uploads there still being processed or failed.
+ * @summary List Documents
+ */
+export const listDocuments = async (params?: ListDocumentsParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<listDocumentsResponse> => {
+
+  return gatewayFetch<listDocumentsResponse>(getListDocumentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type createUploadResponse202 = {
+  data: Upload | ArchiveUpload
+  status: 202
+}
+
+export type createUploadResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type createUploadResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type createUploadResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type createUploadResponse411 = {
+  data: ProblemDetails
+  status: 411
+}
+
+export type createUploadResponse413 = {
+  data: ProblemDetails
+  status: 413
+}
+
+export type createUploadResponse415 = {
+  data: ProblemDetails
+  status: 415
+}
+
+export type createUploadResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type createUploadResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type createUploadResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type createUploadResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type createUploadResponse507 = {
+  data: ProblemDetails
+  status: 507
+}
+
+export type createUploadResponseSuccess = (createUploadResponse202) & {
+  headers: Headers;
+};
+export type createUploadResponseError = (createUploadResponse401 | createUploadResponse403 | createUploadResponse404 | createUploadResponse411 | createUploadResponse413 | createUploadResponse415 | createUploadResponse422 | createUploadResponse429 | createUploadResponse500 | createUploadResponse503 | createUploadResponse507) & {
+  headers: Headers;
+};
+
+export type createUploadResponse = (createUploadResponseSuccess | createUploadResponseError)
+
+export const getCreateUploadUrl = (params?: CreateUploadParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents?${stringifiedParams}` : `/v1/documents`
+}
+
+/**
+ * Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
+ * Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
+ * Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is ``ready`` (or
+ * ``needs_review``), then use its ``document_id`` in chat requests.
+ *
+ * A .zip archive adds each of those files inside it as a document of its own: the answer is then
+ * ``{"archive": name, "jobs": [job, …], "skipped": [{"name", "failure"}, …]}``, a job per document and
+ * the entries left out, each with why as a message of the registry (``failure``: another kind of file, an
+ * archive inside it, encrypted, too large, empty, not what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty. An archive is
+ * one upload against the queue limits, however many documents it holds.
+ * @summary Create Upload
+ */
+export const createUpload = async (bodyCreateUpload: BodyCreateUpload,
+    params?: CreateUploadParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<createUploadResponse> => {
+    const formData = new FormData();
+formData.append(`file`, bodyCreateUpload.file);
+
+  return gatewayFetch<createUploadResponse>(getCreateUploadUrl(params),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+export type listAllDocumentsResponse200 = {
+  data: AllDocuments
+  status: 200
+}
+
+export type listAllDocumentsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listAllDocumentsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listAllDocumentsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listAllDocumentsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listAllDocumentsResponseSuccess = (listAllDocumentsResponse200) & {
+  headers: Headers;
+};
+export type listAllDocumentsResponseError = (listAllDocumentsResponse401 | listAllDocumentsResponse403 | listAllDocumentsResponse500 | listAllDocumentsResponse503) & {
+  headers: Headers;
+};
+
+export type listAllDocumentsResponse = (listAllDocumentsResponseSuccess | listAllDocumentsResponseError)
+
+export const getListAllDocumentsUrl = () => {
+
+
+
+
+  return `/v1/documents/all`
+}
+
+/**
+ * Every document the caller may see, newest first, with its ``case_id`` (null: their personal
+ * space): the sidebar's "Documents" (docs/design/chat-ui.md). No jobs: those are per place.
+ * @summary List All Documents
+ */
+export const listAllDocuments = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listAllDocumentsResponse> => {
+
+  return gatewayFetch<listAllDocumentsResponse>(getListAllDocumentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type cancelUploadResponse204 = {
+  data: void
+  status: 204
+}
+
+export type cancelUploadResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type cancelUploadResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type cancelUploadResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type cancelUploadResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type cancelUploadResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type cancelUploadResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type cancelUploadResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type cancelUploadResponseSuccess = (cancelUploadResponse204) & {
+  headers: Headers;
+};
+export type cancelUploadResponseError = (cancelUploadResponse401 | cancelUploadResponse403 | cancelUploadResponse404 | cancelUploadResponse409 | cancelUploadResponse422 | cancelUploadResponse500 | cancelUploadResponse503) & {
+  headers: Headers;
+};
+
+export type cancelUploadResponse = (cancelUploadResponseSuccess | cancelUploadResponseError)
+
+export const getCancelUploadUrl = (jobId: string,) => {
+
+
+
+
+  return `/v1/documents/jobs/${jobId}`
+}
+
+/**
+ * Cancel one of the caller's uploads (docs/design/chat-ui.md §5, the attachment card's ×): one still
+ * waiting is never read; one being read is stopped, its reader with it, before it is stored. One
+ * already being stored finishes. Noted in the case's access log.
+ * @summary Cancel Upload
+ */
+export const cancelUpload = async (jobId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<cancelUploadResponse> => {
+
+  return gatewayFetch<cancelUploadResponse>(getCancelUploadUrl(jobId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type getUploadResponse200 = {
+  data: Upload
+  status: 200
+}
+
+export type getUploadResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getUploadResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getUploadResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getUploadResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getUploadResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getUploadResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getUploadResponseSuccess = (getUploadResponse200) & {
+  headers: Headers;
+};
+export type getUploadResponseError = (getUploadResponse401 | getUploadResponse403 | getUploadResponse404 | getUploadResponse422 | getUploadResponse500 | getUploadResponse503) & {
+  headers: Headers;
+};
+
+export type getUploadResponse = (getUploadResponseSuccess | getUploadResponseError)
+
+export const getGetUploadUrl = (jobId: string,) => {
+
+
+
+
+  return `/v1/documents/jobs/${jobId}`
+}
+
+/**
+ * State of one of the caller's uploads: queued, processing, ready, needs_review, failed or cancelled;
+ * while processing, how far reading has got (``progress``: step, pages done, pages); when failed, why
+ * (``error``, in English, for developers, and ``failure``: a code of the registry's ``document`` area with its numbers,
+ * which the interface words in its language).
+ * @summary Get Upload
+ */
+export const getUpload = async (jobId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getUploadResponse> => {
+
+  return gatewayFetch<getUploadResponse>(getGetUploadUrl(jobId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type deleteDocumentResponse202 = {
+  data: void
+  status: 202
+}
+
+export type deleteDocumentResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteDocumentResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type deleteDocumentResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type deleteDocumentResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type deleteDocumentResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type deleteDocumentResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type deleteDocumentResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type deleteDocumentResponseSuccess = (deleteDocumentResponse202 | deleteDocumentResponse204) & {
+  headers: Headers;
+};
+export type deleteDocumentResponseError = (deleteDocumentResponse401 | deleteDocumentResponse403 | deleteDocumentResponse404 | deleteDocumentResponse422 | deleteDocumentResponse500 | deleteDocumentResponse503) & {
+  headers: Headers;
+};
+
+export type deleteDocumentResponse = (deleteDocumentResponseSuccess | deleteDocumentResponseError)
+
+export const getDeleteDocumentUrl = (documentId: string,
+    params?: DeleteDocumentParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents/${documentId}?${stringifiedParams}` : `/v1/documents/${documentId}`
+}
+
+/**
+ * Delete a document and its passages: one of the caller's own, or one in the case ``case``
+ * (its manager's right). See ``Store.delete_document`` for what deletion does and doesn't guarantee.
+ *
+ * Saved conversations that cite it (suveryn-tracker#12): with ``conversations=clean`` (the default)
+ * its passages are taken out of them; with ``conversations=delete`` those conversations are deleted.
+ * @summary Delete Document
+ */
+export const deleteDocument = async (documentId: string,
+    params?: DeleteDocumentParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<deleteDocumentResponse> => {
+
+  return gatewayFetch<deleteDocumentResponse>(getDeleteDocumentUrl(documentId,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export type getDocumentContentResponse200 = {
+  data: DocumentContent
+  status: 200
+}
+
+export type getDocumentContentResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getDocumentContentResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getDocumentContentResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getDocumentContentResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getDocumentContentResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getDocumentContentResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getDocumentContentResponseSuccess = (getDocumentContentResponse200) & {
+  headers: Headers;
+};
+export type getDocumentContentResponseError = (getDocumentContentResponse401 | getDocumentContentResponse403 | getDocumentContentResponse404 | getDocumentContentResponse422 | getDocumentContentResponse500 | getDocumentContentResponse503) & {
+  headers: Headers;
+};
+
+export type getDocumentContentResponse = (getDocumentContentResponseSuccess | getDocumentContentResponseError)
+
+export const getGetDocumentContentUrl = (documentId: string,
+    params?: GetDocumentContentParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents/${documentId}/content?${stringifiedParams}` : `/v1/documents/${documentId}/content`
+}
+
+/**
+ * What rebuilds a document sūveryn made (a saved answer's Word file, built in the browser): for
+ * whoever may read it.
+ * @summary Get Document Content
+ */
+export const getDocumentContent = async (documentId: string,
+    params?: GetDocumentContentParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<getDocumentContentResponse> => {
+
+  return gatewayFetch<getDocumentContentResponse>(getGetDocumentContentUrl(documentId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listDocumentConversationsResponse200 = {
+  data: ConversationSummary[]
+  status: 200
+}
+
+export type listDocumentConversationsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listDocumentConversationsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listDocumentConversationsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listDocumentConversationsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listDocumentConversationsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listDocumentConversationsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listDocumentConversationsResponseSuccess = (listDocumentConversationsResponse200) & {
+  headers: Headers;
+};
+export type listDocumentConversationsResponseError = (listDocumentConversationsResponse401 | listDocumentConversationsResponse403 | listDocumentConversationsResponse404 | listDocumentConversationsResponse422 | listDocumentConversationsResponse500 | listDocumentConversationsResponse503) & {
+  headers: Headers;
+};
+
+export type listDocumentConversationsResponse = (listDocumentConversationsResponseSuccess | listDocumentConversationsResponseError)
+
+export const getListDocumentConversationsUrl = (documentId: string,
+    params?: ListDocumentConversationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents/${documentId}/conversations?${stringifiedParams}` : `/v1/documents/${documentId}/conversations`
+}
+
+/**
+ * The saved conversations that cite or attach this document (asked before deleting it): the
+ * caller's own, or in the case ``case`` (its manager, who may delete there) everyone's.
+ * @summary List Document Conversations
+ */
+export const listDocumentConversations = async (documentId: string,
+    params?: ListDocumentConversationsParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<listDocumentConversationsResponse> => {
+
+  return gatewayFetch<listDocumentConversationsResponse>(getListDocumentConversationsUrl(documentId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type getDocumentOriginalResponse200ApplicationOctetStream = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200ApplicationPdf = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentWordprocessingmlDocument = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200TextPlain = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getDocumentOriginalResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getDocumentOriginalResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getDocumentOriginalResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getDocumentOriginalResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getDocumentOriginalResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getDocumentOriginalResponseSuccess = (getDocumentOriginalResponse200ApplicationOctetStream | getDocumentOriginalResponse200ApplicationPdf | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentWordprocessingmlDocument | getDocumentOriginalResponse200TextPlain) & {
+  headers: Headers;
+};
+export type getDocumentOriginalResponseError = (getDocumentOriginalResponse401 | getDocumentOriginalResponse403 | getDocumentOriginalResponse404 | getDocumentOriginalResponse422 | getDocumentOriginalResponse500 | getDocumentOriginalResponse503) & {
+  headers: Headers;
+};
+
+export type getDocumentOriginalResponse = (getDocumentOriginalResponseSuccess | getDocumentOriginalResponseError)
+
+export const getGetDocumentOriginalUrl = (documentId: string,
+    params?: GetDocumentOriginalParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents/${documentId}/original?${stringifiedParams}` : `/v1/documents/${documentId}/original`
+}
+
+/**
+ * The file a document was read from, as uploaded (board G11, "Open document at p. 3"): for whoever may read
+ * its passages, and noted in the case's access log. A PDF opens in the browser (the page follows as
+ * ``#page=3``), Markdown and CSV show as plain text, Word and Excel are downloaded. Text sūveryn stored
+ * itself (a saved answer, a playbook's summary) has none (404).
+ * @summary Get Document Original
+ */
+export const getDocumentOriginal = async (documentId: string,
+    params?: GetDocumentOriginalParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<getDocumentOriginalResponse> => {
+
+  return gatewayFetch<getDocumentOriginalResponse>(getGetDocumentOriginalUrl(documentId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type useDocumentAsSourceResponse200 = {
+  data: UsedAsSource
+  status: 200
+}
+
+export type useDocumentAsSourceResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type useDocumentAsSourceResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type useDocumentAsSourceResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type useDocumentAsSourceResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type useDocumentAsSourceResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type useDocumentAsSourceResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type useDocumentAsSourceResponseSuccess = (useDocumentAsSourceResponse200) & {
+  headers: Headers;
+};
+export type useDocumentAsSourceResponseError = (useDocumentAsSourceResponse401 | useDocumentAsSourceResponse403 | useDocumentAsSourceResponse404 | useDocumentAsSourceResponse422 | useDocumentAsSourceResponse500 | useDocumentAsSourceResponse503) & {
+  headers: Headers;
+};
+
+export type useDocumentAsSourceResponse = (useDocumentAsSourceResponseSuccess | useDocumentAsSourceResponseError)
+
+export const getUseDocumentAsSourceUrl = (documentId: string,
+    params?: UseDocumentAsSourceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/documents/${documentId}/source?${stringifiedParams}` : `/v1/documents/${documentId}/source`
+}
+
+/**
+ * Use an upload that carries sūveryn's own export mark as a source anyway (docs/design/chat-ui.md
+ * §6): the person decides, the system only said what it
+ * noticed. The uploader's right in their personal space, a contributor's in a case (as uploading);
+ * in a case the decision goes to its access log. Idempotent.
+ * @summary Use Document As Source
+ */
+export const useDocumentAsSource = async (documentId: string,
+    params?: UseDocumentAsSourceParams, options?: Parameters<typeof gatewayFetch>[1]): Promise<useDocumentAsSourceResponse> => {
+
+  return gatewayFetch<useDocumentAsSourceResponse>(getUseDocumentAsSourceUrl(documentId,params),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 
