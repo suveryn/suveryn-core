@@ -8,32 +8,33 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, PlaybookInfo, Run, RunSummary } from "../api";
 import en from "../i18n/en";
+import { aCitation, aFact, aPlaybook, aStep, someWords } from "../test/run";
 import nl from "../i18n/nl";
 import { RunPanel, RunSourcePanel, RunThread, computedHow, factCounts, reviewGroups, runChipText, runStatusWord, statusLabel, stepLabel, waitsFor, lastRunLine } from "./RunConversation";
 
-const PLAYBOOK: PlaybookInfo = {
+const PLAYBOOK: PlaybookInfo = aPlaybook({
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.1", name: "Deed intake", covered: true,
   facts: ["price", "epc"], steps: [
-    { id: "agreement", kind: "request", needs: [], facts: [] }, { id: "read", kind: "read", needs: ["agreement"], facts: ["price", "epc"] },
-    { id: "missing", kind: "ask", needs: ["read"], facts: ["price", "epc"] }, { id: "confirm", kind: "checkpoint", needs: ["missing"], facts: [] },
-    { id: "summary", kind: "produce", needs: ["confirm"], facts: [] }],
-  text: { en: { title: "Deed intake", summary: "", labels: { price: "Price", epc: "EPC", buyer: "Buyer" }, questions: { agreement: "Upload the agreement." } } },
-};
+    aStep({ id: "agreement", kind: "request", needs: [], facts: [] }), aStep({ id: "read", kind: "read", needs: ["agreement"], facts: ["price", "epc"] }),
+    aStep({ id: "missing", kind: "ask", needs: ["read"], facts: ["price", "epc"] }), aStep({ id: "confirm", kind: "checkpoint", needs: ["missing"], facts: [] }),
+    aStep({ id: "summary", kind: "produce", needs: ["confirm"], facts: [] })],
+  text: { en: someWords({ title: "Deed intake", summary: "", labels: { price: "Price", epc: "EPC", buyer: "Buyer" }, questions: { agreement: "Upload the agreement." } }) },
+});
 const SUMMARY: RunSummary = {
   id: "r1", case_id: "c1", playbook_id: PLAYBOOK.id, playbook_version: "1.1", status: "waiting", documents: ["d1"], started_by: "ines",
   started_at: "2026-10-30T09:58:00Z", finished_at: null, confirmed_by: null, confirmed_at: null, model: null, failure: null,
   result_document_id: null, out_of_date: false, step: "confirm", language: "en", paused_by: null, paused_at: null, ended_by: null,
-  ended_reason: null, starter: "u-ines", conversation_id: "conv-1",
+  ended_reason: null, starter: "u-ines", conversation_id: "conv-1", title: {}, step_kind: null,
 };
 const RUN: Run = {
-  ...SUMMARY, playbook: PLAYBOOK, instruction_like_sources: [], steps: {},
+  ...SUMMARY, playbook: PLAYBOOK, instruction_like_sources: [], steps: {}, facts_seq: 1, requested: {}, checks: {},
   facts: [
-    { id: "price", value: "EUR 415.000,00", citations: [{ n: 1, document_id: "d1", filename: "akte.pdf", page: 2, location: null, text: "De prijs bedraagt EUR 412.500,00.",
-                                                         ranges: [[0, 33]], facts: [[18, 21]] }],  // as the server marks it
-      issues: ["EUR 415.000,00"], found: true, confirmed: null, source: "document" },
-    { id: "buyer", value: "Jan De Smet", citations: [], issues: [], found: false, confirmed: null, source: "person", by: "ines", was: null,
-      at: "2026-10-30T10:06:00Z" },
-    { id: "epc", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" },
+    aFact({ id: "price", value: "EUR 415.000,00", citations: [aCitation({ n: 1, document_id: "d1", filename: "akte.pdf", page: 2, location: null, text: "De prijs bedraagt EUR 412.500,00.",
+                                                         ranges: [[0, 33]], facts: [[18, 21]] })],  // as the server marks it
+      issues: ["EUR 415.000,00"], found: true, confirmed: null, source: "document" }),
+    aFact({ id: "buyer", value: "Jan De Smet", citations: [], issues: [], found: false, confirmed: null, source: "person", by: "ines", was: null,
+      at: "2026-10-30T10:06:00Z" }),
+    aFact({ id: "epc", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" }),
   ],
   turns: [
     { seq: 1, role: "playbook", step_id: "agreement", by: PLAYBOOK.id, at: SUMMARY.started_at, text: "", meta: { kind: "request" } },
@@ -158,19 +159,19 @@ describe("lists (format 3)", () => {
   const FORMATION: PlaybookInfo = {
     ...PLAYBOOK, id: "playbook/be-notary/company-formation", slug: "company-formation", facts: ["company_name", "founders", "conditions"],
     lists: { founders: ["name", "shares"], conditions: [] },
-    text: { en: { title: "Company formation", summary: "", labels: { company_name: "Company name", founders: "Founder(s)", "founders.name": "Name",
-                                                                       "founders.shares": "Shares", conditions: "Conditions" } } },
+    text: { en: someWords({ title: "Company formation", summary: "", labels: { company_name: "Company name", founders: "Founder(s)", "founders.name": "Name",
+                                                                       "founders.shares": "Shares", conditions: "Conditions" } }) },
   };
   const fwords = { ...FORMATION.text!.en, facts_title: "" };
   const run: Run = {
     ...RUN, playbook_id: FORMATION.id, turns: [RUN.turns[4]],
     facts: [
-      { id: "company_name", value: "Suveryn Labs BV", citations: [], issues: [], found: true, confirmed: null, source: "document" },
-      { id: "founders", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" },   // the read's "none", later superseded by entries
-      { id: "founders[1].name", value: "Filip Tack", citations: [], issues: [], found: true, confirmed: null, source: "document" },
-      { id: "founders[1].shares", value: "650", citations: [{ n: 1, document_id: "d1", filename: "ontwerp.pdf", page: 1, location: null, text: "600 aandelen" }],
-        issues: ["650"], found: true, confirmed: null, source: "document" },
-      { id: "conditions", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" },
+      aFact({ id: "company_name", value: "Suveryn Labs BV", citations: [], issues: [], found: true, confirmed: null, source: "document" }),
+      aFact({ id: "founders", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" }),   // the read's "none", later superseded by entries
+      aFact({ id: "founders[1].name", value: "Filip Tack", citations: [], issues: [], found: true, confirmed: null, source: "document" }),
+      aFact({ id: "founders[1].shares", value: "650", citations: [aCitation({ n: 1, document_id: "d1", filename: "ontwerp.pdf", page: 1, location: null, text: "600 aandelen" })],
+        issues: ["650"], found: true, confirmed: null, source: "document" }),
+      aFact({ id: "conditions", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" }),
     ],
   };
 
@@ -195,9 +196,9 @@ describe("lists (format 3)", () => {
                 a_founder: { status: "holds", rule: "count(founders) >= 1", left: "1", right: "1", missing: [] },
                 plan_before_deed: { status: "open", rule: "plan_date <= deed_date", left: "", right: "", missing: ["founders[2].name"] } },
     };
-    const playbook: PlaybookInfo = { ...FORMATION, steps: [...FORMATION.steps!, { id: "shares_add_up", kind: "check", needs: [], facts: [] },
-                                              { id: "a_founder", kind: "check", needs: [], facts: [] }, { id: "plan_before_deed", kind: "check", needs: [], facts: [] }],
-                       text: { en: { ...FORMATION.text!.en, checks: { shares_add_up: "The founders' shares add up to the shares issued" } } } };
+    const playbook: PlaybookInfo = { ...FORMATION, steps: [...FORMATION.steps!, aStep({ id: "shares_add_up", kind: "check", needs: [], facts: [] }),
+                                              aStep({ id: "a_founder", kind: "check", needs: [], facts: [] }), aStep({ id: "plan_before_deed", kind: "check", needs: [], facts: [] })],
+                       text: { en: someWords({ ...FORMATION.text!.en, checks: { shares_add_up: "The founders' shares add up to the shares issued" } }) } };
     const html = renderToStaticMarkup(
       <RunThread run={checked} kase={KASE} playbook={playbook} words={{ ...fwords, checks: playbook.text!.en.checks }} me="u-ines" canAnswer nameOf={names} panel={null}
                  onChanged={noop} onPanel={noop} onDocumentsChanged={noop} />);
@@ -216,8 +217,8 @@ describe("lists (format 3)", () => {
 
   it("offers a choice's options as buttons when the playbook asks, and says why a step was skipped", () => {
     const playbook: PlaybookInfo = { ...FORMATION, facts: [...FORMATION.facts, "contribution_kind"], choices: { contribution_kind: ["cash", "in_kind"] },
-      text: { en: { ...FORMATION.text!.en, labels: { ...FORMATION.text!.en.labels, contribution_kind: "Contribution", "contribution_kind.cash": "In cash", "contribution_kind.in_kind": "In kind" },
-                    steps: { bank: "Bank certificate" } } } };
+      text: { en: someWords({ ...FORMATION.text!.en, labels: { ...FORMATION.text!.en.labels, contribution_kind: "Contribution", "contribution_kind.cash": "In cash", "contribution_kind.in_kind": "In kind" },
+                    steps: { bank: "Bank certificate" } }) } };
     const words = { ...playbook.text!.en, facts_title: "" };
     const asking: Run = { ...run, step: "kind_known", turns: [
       { seq: 1, role: "playbook", step_id: "kind_known", by: FORMATION.id, at: SUMMARY.started_at, text: "0 of 1 facts found.", meta: { kind: "ask", facts: ["contribution_kind"], found: 0, total: 1 } },
@@ -235,8 +236,8 @@ describe("lists (format 3)", () => {
   });
 
   it("offers 'There is none' only at a request the playbook can do without", () => {
-    const steps = [{ id: "agreement", kind: "request" as const, needs: [], facts: [] },
-                   { id: "title_deed", kind: "request" as const, needs: ["agreement"], facts: [], allow_none: true }];
+    const steps = [aStep({ id: "agreement", kind: "request" as const, needs: [], facts: [] }),
+                   aStep({ id: "title_deed", kind: "request" as const, needs: ["agreement"], facts: [], allow_none: true })];
     const playbook: PlaybookInfo = { ...PLAYBOOK, steps };
     const at = (step: string): Run => ({ ...RUN, step, steps: {}, facts: [], turns: [
       { seq: 1, role: "playbook", step_id: step, by: PLAYBOOK.id, at: SUMMARY.started_at, text: "", meta: { kind: "request" } }] });
@@ -275,7 +276,7 @@ describe("lists (format 3)", () => {
   });
 
   it("shows a list as one block in the panel, its entries' other fields dimmed, Add at its end (board P03)", () => {
-    const two: Run = { ...run, facts: [...run.facts, { id: "founders[2].name", value: "Ines Wouters", citations: [], issues: [], found: true, confirmed: null, source: "document" }] };
+    const two: Run = { ...run, facts: [...run.facts, aFact({ id: "founders[2].name", value: "Ines Wouters", citations: [], issues: [], found: true, confirmed: null, source: "document" })] };
     const html = renderToStaticMarkup(<RunPanel run={two} words={fwords} view={{ kind: "list" }} lists={FORMATION.lists} kase={KASE} canAnswer
                                                 onView={noop} onClose={noop} />);
     expect(html).toContain("data-fact=\"founders\"");
@@ -295,9 +296,9 @@ describe("lists (format 3)", () => {
 describe("a date sūveryn worked out (board P01)", () => {
   const computed = { written: "binnen vier maanden na de ondertekening", from: "agreement_date", base: "2026-10-12", date: "2027-02-12",
                      amount: 4, unit: "month" as const, direction: "after" as const };
-  const run: Run = { ...RUN, facts: [{ id: "deed_deadline", value: "12 februari 2027", issues: [], found: true, confirmed: null, source: "document",
-    needs: "computed", computed, citations: [{ n: 1, document_id: "d1", filename: "akte.pdf", page: 4, location: null,
-      text: "De akte wordt verleden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de voorwaarde." }] }] };
+  const run: Run = { ...RUN, facts: [aFact({ id: "deed_deadline", value: "12 februari 2027", issues: [], found: true, confirmed: null, source: "document",
+    needs: "computed", computed, citations: [aCitation({ n: 1, document_id: "d1", filename: "akte.pdf", page: 4, location: null,
+      text: "De akte wordt verleden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de voorwaarde." })] })] };
   const dwords = { ...words, labels: { deed_deadline: "Deed by" } };
 
   it("is under Check with how it was worked out, the term in ink and its context dimmed", () => {

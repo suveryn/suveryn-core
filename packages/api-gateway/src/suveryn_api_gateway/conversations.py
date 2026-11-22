@@ -259,7 +259,7 @@ def redact(turns: list[dict], gone: Callable[[str], bool]) -> bool:
     return changed
 
 
-class Turn(BaseModel):
+class Turn(Answer):
     """One line of a thread, as ``turns`` holds it."""
 
     seq: int

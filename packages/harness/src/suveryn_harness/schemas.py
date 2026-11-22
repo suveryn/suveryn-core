@@ -18,6 +18,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 Role = Literal["system", "user", "assistant"]
 
+
+class Answer(BaseModel):
+    """What the gateway answers, for a model of a strictly described area: a member with a default is always
+    sent, and is described as always there, so generated code doesn't call it optional (pydantic's switch for
+    exactly that). Without it only the members without a default are. Here, so that the shapes this package owns
+    and the gateway sends (a run's facts) say it too; the gateway's models take it from ``description.Answer``."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
 # All the messages of one request together, in characters (about 37,000 tokens): what a conversation
 # may bring along, before the documents' passages are added (up to ``WHOLE_DOCUMENT_CHARS``, 48,000).
 # Checked before any search or model call, so an oversized request costs nothing (audit of

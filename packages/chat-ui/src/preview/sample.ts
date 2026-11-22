@@ -8,6 +8,7 @@ import type {
   Account, AccountEvent, Case, CaseEvent, CaseOverview, ConversationSummary, Health, Me, Member, ModelInfo, PlaybookInfo, PlaybookStep,
   Job, Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
 } from "../api";
+import { aCitation, aFact, aPlaybook, aStep, someWords } from "../test/run";
 import type { AssistantTurn } from "../types";
 
 const MIN = 60 * 1000;
@@ -246,8 +247,8 @@ const DEED_LABELS = {
 };
 const DEED_FACTS = ["sellers", "buyers", "property", "cadastral", "price", "deposit", "agreement_date", "deed_deadline", "conditions",
                     "title", "epc", "soil", "occupancy"];
-const step = (id: string, kind: PlaybookStep["kind"], needs: string[] = [], facts: string[] = []): PlaybookStep => ({ id, kind, needs, facts });
-const DEED_INTAKE: PlaybookInfo = {
+const step = (id: string, kind: PlaybookStep["kind"], needs: string[] = [], facts: string[] = []): PlaybookStep => aStep({ id, kind, needs, facts });
+const DEED_INTAKE: PlaybookInfo = aPlaybook({
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.4", name: "Deed intake", covered: true,
   facts: DEED_FACTS, case_types: ["sale"], active: true,
   lists: { sellers: ["name", "address", "register"], buyers: ["name", "address", "register"], conditions: ["condition", "term"] },
@@ -255,19 +256,19 @@ const DEED_INTAKE: PlaybookInfo = {
   steps: [step("agreement", "request"), step("read", "read", ["agreement"], DEED_FACTS), step("missing", "ask", ["read"], DEED_FACTS),
           step("deposit_within_price", "check", ["missing"]), step("deed_after_agreement", "check", ["missing"]),
           step("confirm", "checkpoint", ["missing"]), step("summary", "produce", ["confirm"])],
-  text: { nl: { title: "Akte-intake", summary: "Leest de feiten voor de akte uit de documenten", facts_title: "Gegevens voor de akte", labels: DEED_LABELS,
+  text: { nl: someWords({ title: "Akte-intake", summary: "Leest de feiten voor de akte uit de documenten", facts_title: "Gegevens voor de akte", labels: DEED_LABELS,
                 questions: { agreement: "Laad de ondertekende verkoopovereenkomst op en wat de partijen bezorgden (de vorige akte, de attesten). Ga daarna verder.",
                              missing: "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet." },
                 checks: { deposit_within_price: "Het voorschot of de waarborg ligt binnen de prijs",
-                          deed_after_agreement: "De uiterste datum van de akte valt na de ondertekening van het compromis" } } },
-};
+                          deed_after_agreement: "De uiterste datum van de akte valt na de ondertekening van het compromis" } }) },
+});
 const cite = (n: number, document_id: string, filename: string, page: number, text: string, strong: string[]) =>
-  ({ n, document_id, filename, page, location: null, text, ...marks(text, strong) });
+  aCitation({ n, document_id, filename, page, text, ...marks(text, strong) });
 /** A fact's passage, with the words the server marks strongly in it (as ``harness.facts.marked`` marks these samples). */
 const COMPROMIS = (page: number, text: string, ...strong: string[]) => cite(1, "d-compromis-124", "Compromis_DeSmet.pdf", page, text, strong);
 const TITEL = (page: number, text: string, ...strong: string[]) => cite(2, "d-titel-124", "Eigendomstitel_1998.pdf", page, text, strong);
-const fact = (id: string, value: string, citations: RunFact["citations"], extra: Partial<RunFact> = {}): RunFact => ({
-  id, value, citations, issues: [], found: !!value, confirmed: null, source: value ? "document" : "none", ...extra,
+const fact = (id: string, value: string, citations: RunFact["citations"], extra: Partial<RunFact> = {}): RunFact => aFact({
+  id, value, citations, found: !!value, source: value ? "document" : "none", ...extra,
 });
 const RUN_START = ago(70 * MIN);
 const RUN_SUMMARY: RunSummary = {
@@ -277,7 +278,7 @@ const RUN_SUMMARY: RunSummary = {
   starter: "u-mieke", conversation_id: "conv-run", title: { nl: "Akte-intake", en: "Deed intake", fr: "Intake de l'acte" },
 };
 export const RUN: Run = {
-  ...RUN_SUMMARY, instruction_like_sources: [], steps: {}, playbook: DEED_INTAKE,
+  ...RUN_SUMMARY, instruction_like_sources: [], steps: {}, playbook: DEED_INTAKE, facts_seq: 1, requested: {},
   checks: { deposit_within_price: { status: "holds", rule: "deposit <= price", left: "€ 38.500", right: "€ 385.000", missing: [] },
             deed_after_agreement: { status: "holds", rule: "agreement_date < deed_deadline", left: "12 oktober 2026", right: "12 februari 2027", missing: [] } },
   facts: [
@@ -413,7 +414,7 @@ export const RUN_STOPPED = runIn({ status: "stopped", ended_by: "filip@kantoor.b
                                     turns: [...RUN.turns, event(6, "stopped", "filip@kantoor.be", 20)] });
 export const RUN_CANCELLED = runIn({ status: "cancelled", ended_by: "filip@kantoor.be", finished_at: later(20), ended_reason: "verkeerde compromis",
                                       turns: [...RUN.turns, event(6, "cancelled", "filip@kantoor.be", 20, { reason: "verkeerde compromis" })] });
-export const RUN_FAILED = runIn({ status: "failed", step: "read", failure: { kind: "unavailable", code: "model.unavailable" }, turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
+export const RUN_FAILED = runIn({ status: "failed", step: "read", failure: { kind: "unavailable", code: "model.unavailable", params: {} }, turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
 /** No run in the case yet: starting one (board P04, 1). */
 export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}], ["GET", /^\/v1\/cases\/c124\/playbooks\/runs$/, []],
                                 ["GET", /^\/v1\/conversations\?case=c124/, CASE_CONVERSATIONS.filter((c) => c.case_id === "c124" && !c.run_id)]];

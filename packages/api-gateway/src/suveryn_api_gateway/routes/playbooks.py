@@ -33,6 +33,7 @@ from suveryn_playbooks import PLAYBOOKS, Playbook, Step, by_slug, find, for_case
 
 from ..cases import Case
 from ..playbook_runtime import Runtime
+from ..problems import refusals
 from ..playbooks import (
     ActiveIn,
     AnswerIn,
@@ -152,7 +153,7 @@ def _named(run):
 
 # ------------------------------------------------------------------------------ which playbooks
 
-@router.get("/v1/cases/{case_id}/playbooks", response_model=list[PlaybookOut])
+@router.get("/v1/cases/{case_id}/playbooks", response_model=list[PlaybookOut], responses=refusals(404, 422))
 async def list_case_playbooks(case_id: str, request: Request):
     """The playbooks that fit this case's type and are switched on, each with whether it is covered
     by the appliance's support agreement (``covered`` false: it runs, with a warning; never a block)."""
@@ -161,7 +162,7 @@ async def list_case_playbooks(case_id: str, request: Request):
     return [_out(p, inactive) for p in for_case_type(case.type) if p.id not in inactive]
 
 
-@router.get("/v1/admin/playbooks", response_model=list[PlaybookOut])
+@router.get("/v1/admin/playbooks", response_model=list[PlaybookOut], responses=refusals())
 async def list_office_playbooks(request: Request):
     """Every installed playbook with its case types and whether it is switched on (an administrator's
     list; docs/design/admin.md)."""
@@ -170,7 +171,7 @@ async def list_office_playbooks(request: Request):
     return [_out(p, inactive) for p in PLAYBOOKS]
 
 
-@router.put("/v1/admin/playbooks/{playbook}", response_model=PlaybookOut, responses={404: {"description": "No such playbook"}})
+@router.put("/v1/admin/playbooks/{playbook}", response_model=PlaybookOut, responses=refusals(404, 422))
 async def set_playbook_active(playbook: str, body: ActiveIn, request: Request):
     """Switch a playbook on or off for the whole office: off, it leaves every case's menu and can't
     be started; runs already made stay."""
@@ -185,7 +186,7 @@ async def set_playbook_active(playbook: str, body: ActiveIn, request: Request):
 
 # ------------------------------------------------------------------------------ runs
 
-@router.get("/v1/playbooks/runs/active", response_model=dict[str, RunSummary])
+@router.get("/v1/playbooks/runs/active", response_model=dict[str, RunSummary], responses=refusals())
 async def list_all_active_runs(request: Request):
     """The live run per case the caller may read, keyed by case id: the chip on the case lists."""
     case_ids = await readable_case_ids(request)
@@ -195,14 +196,14 @@ async def list_all_active_runs(request: Request):
     return {k: _named(v) for k, v in live.items()}
 
 
-@router.get("/v1/cases/{case_id}/playbooks/runs", response_model=list[RunSummary])
+@router.get("/v1/cases/{case_id}/playbooks/runs", response_model=list[RunSummary], responses=refusals(404, 422))
 async def list_case_runs(case_id: str, request: Request):
     """The case's runs, newest first (a reader's right)."""
     case = await case_for(request, case_id, "read")
     return [_named(r) for r in await run_in_threadpool(runs_or_503(request).list, uuid.UUID(case.id))]
 
 
-@router.get("/v1/cases/{case_id}/playbooks/runs/{run_id}", response_model=Run)
+@router.get("/v1/cases/{case_id}/playbooks/runs/{run_id}", response_model=Run, responses=refusals(404, 422))
 async def get_run(case_id: str, run_id: str, request: Request):
     """One run: where it is, its thread, its facts as read and as confirmed with the passages they came from."""
     case = await case_for(request, case_id, "read")
@@ -212,11 +213,7 @@ async def get_run(case_id: str, run_id: str, request: Request):
     return _named(run)
 
 
-@router.post("/v1/cases/{case_id}/playbooks/{playbook}/runs", response_model=Run, status_code=202, responses={
-    403: {"description": "Not a contributor, or the case is closed"},
-    404: {"description": "No such case, playbook or document"},
-    409: {"description": "A run of this playbook is already going in this case"},
-})
+@router.post("/v1/cases/{case_id}/playbooks/{playbook}/runs", response_model=Run, status_code=202, responses=refusals(404, 409, 422, 429))
 async def start_run(case_id: str, playbook: str, body: StartIn, request: Request):
     """Start a run (a contributor's right, in an open case) and walk it to its first wait: a
     request for documents, or straight into reading when the case has them and the routine starts
@@ -368,9 +365,7 @@ def _waiting_on(run: Run, pb: Playbook, step_id: str, kinds: tuple[str, ...]) ->
     return step
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/answer", response_model=Run, responses={
-    409: {"description": "The run isn't waiting on that step"},
-})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/answer", response_model=Run, responses=refusals(404, 409, 422, 429))
 async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request):
     """A contributor answers the step the run waits on. An ``ask``: ``facts`` with a value per fact
     (empty: still unknown; the checkpoint can fill it). A ``request``: the documents are in the case
@@ -398,10 +393,7 @@ async def answer_run(case_id: str, run_id: str, body: AnswerIn, request: Request
     return await _walk(request, run, pb, case)
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/say", response_model=Run, responses={
-    409: {"description": "The run isn't waiting on a person"},
-    503: {"description": "The model isn't available to read an answer in words"},
-})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/say", response_model=Run, responses=refusals(404, 409, 422, 429))
 async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     """A contributor writes in the run's conversation (a playbook is a conversation, decision, 30 October
     2026); the turn is written first, then what it means for the step the run waits on:
@@ -477,10 +469,7 @@ async def say_in_run(case_id: str, run_id: str, body: SayIn, request: Request):
     return await _walk(request, run, pb, case)
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/documents", response_model=Run, responses={
-    404: {"description": "Unknown document, or no such request in this playbook"},
-    409: {"description": "The run can't take a document now, or the request doesn't apply"},
-})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/documents", response_model=Run, responses=refusals(404, 409, 422, 429))
 async def add_run_documents(case_id: str, run_id: str, body: LateIn, request: Request):
     """Documents that came after their request was answered: the bank certificate a week after the plan (decision of
     10 November 2026). They are recorded as that request's, the reads aimed at it are read again, and the checkpoint
@@ -519,9 +508,7 @@ async def add_run_documents(case_id: str, run_id: str, body: LateIn, request: Re
     return await _walk(request, run, pb, case)
 
 
-@router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts/{fact_id}", response_model=Run, responses={
-    409: {"description": "The run isn't waiting at its checkpoint"},
-})
+@router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts/{fact_id}", response_model=Run, responses=refusals(404, 409, 422))
 async def set_run_fact(case_id: str, run_id: str, fact_id: str, body: FactIn, request: Request):
     """A value from a playbook's card at the checkpoint (handover of 31 October 2026): *Adjust* or *Fill
     in*. A new version from this person, as a correction in words is; changed, the playbook says so in
@@ -582,9 +569,7 @@ async def _mapped(request: Request, labels: dict[str, str], current: dict[str, s
     return mapped
 
 
-@router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts", response_model=Run, responses={
-    409: {"description": "The run isn't waiting at its checkpoint, or its facts changed since ``seen``"},
-})
+@router.put("/v1/cases/{case_id}/playbooks/runs/{run_id}/facts", response_model=Run, responses=refusals(404, 409, 422, 429))
 async def confirm_run_facts(case_id: str, run_id: str, body: ConfirmIn, request: Request):
     """The checkpoint (a contributor's right; the case manager's when the step says ``by: manager``): every
     fact's confirmed value, a correction or empty, and entries added to a list. The run then walks on: the
@@ -619,7 +604,7 @@ def _may_end(request: Request, case: Case, run: Run) -> None:
         raise Problem("run.starter_or_manager_only", "Only the person who started this run or the case manager can end it.")
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/pause", response_model=Run, responses={409: {"description": "Not waiting"}})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/pause", response_model=Run, responses=refusals(404, 409, 422))
 async def pause_run(case_id: str, run_id: str, request: Request):
     """Keep everything and wait (anyone who contributes to the case). A run that is reading can't be
     paused mid-call; pause it when it waits."""
@@ -631,7 +616,7 @@ async def pause_run(case_id: str, run_id: str, request: Request):
     return await run_in_threadpool(store.get, uuid.UUID(run.id), uuid.UUID(case.id))
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/resume", response_model=Run, responses={409: {"description": "Not paused"}})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/resume", response_model=Run, responses=refusals(404, 409, 422, 429))
 async def resume_run(case_id: str, run_id: str, request: Request):
     case, store, run, pb = await _live_run(request, case_id, run_id, "contribute")
     if not await run_in_threadpool(store.resume, uuid.UUID(run.id)):
@@ -642,8 +627,7 @@ async def resume_run(case_id: str, run_id: str, request: Request):
     return await _walk(request, fresh, pb, case)
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/stop", response_model=Run, responses={
-    403: {"description": "Not the starter or the manager"}, 409: {"description": "Already ended"}})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/stop", response_model=Run, responses=refusals(404, 409, 422))
 async def stop_run(case_id: str, run_id: str, request: Request):
     """End early, keeping what was achieved: confirmed facts stay the case's; proposed ones go;
     a product made so far stays as a document. A new run asks again: the confirmed facts aren't offered to it yet."""
@@ -659,8 +643,7 @@ async def stop_run(case_id: str, run_id: str, request: Request):
     return await run_in_threadpool(store.get, rid, uuid.UUID(case.id))
 
 
-@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/cancel", response_model=Run, responses={
-    403: {"description": "Not the starter or the manager"}, 409: {"description": "Already ended"}})
+@router.post("/v1/cases/{case_id}/playbooks/runs/{run_id}/cancel", response_model=Run, responses=refusals(404, 409, 422))
 async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request):
     """The run should not have happened: every fact it established, confirmed or not, is superseded
     (kept in the record, no longer the case's), its product is marked withdrawn (never deleted), and

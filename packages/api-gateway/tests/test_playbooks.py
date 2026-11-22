@@ -508,7 +508,7 @@ def test_a_run_reading_when_the_gateway_stopped_is_failed_at_the_next_start(runs
     assert runs.interrupt(30 * 60) == 0  # the sweep: not stale yet
     assert runs.interrupt(0) == 1        # start-up: every reading run is dead
     got = runs.get(uuid.UUID(run.id), cid)
-    assert got.status == "failed" and got.failure == {"kind": "unavailable", "code": "run.interrupted", "params": {}} and got.finished_at is not None
+    assert got.status == "failed" and got.failure.model_dump() == {"kind": "unavailable", "code": "run.interrupted", "params": {}} and got.finished_at is not None
     assert runs.interrupt(0) == 0
     runs.delete_case(cid)
 
@@ -1171,3 +1171,182 @@ def test_a_run_says_why_it_failed_as_a_code_of_the_registry_with_its_kind():
     assert _failure(None) is None
     # a run that failed before failures were codes stored a bare word: it failed, and the page says so by its kind
     assert _failure("model_unavailable") == {"kind": "internal", "code": "system.internal", "params": {}}
+
+
+@needs_db
+def test_every_answer_of_playbooks_is_what_the_description_says(office, runs):
+    """The chat UI's code for playbooks is generated from the description (suveryn-tracker#247): each answer the
+    operations give, the refusals too, is checked against it and kept for the chat UI's tests. A run is kept where it
+    waits for a person, never while the model reads: that moment isn't the same every run."""
+    import re
+
+    from described import Checked
+    from suveryn_api_gateway.ratelimit import RateLimits
+    from test_cases import CARLA
+
+    c, kc, _, docs, _ = office
+    check, admin = Checked(c, "playbooks"), admin_headers(kc)
+    cid, alice, bob = a_case_with_a_contributor(c, kc, "contributor")
+    carla = as_user(kc, CARLA)
+    c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
+    WHEN, GONE, LATE = "2026-11-23T09:00:00Z", "00000000-0000-4000-8000-00000000dead", "22222222-2222-2222-2222-222222222222"
+    ids: dict[str, str] = {DOC: "11111111-1111-1111-1111-111111111111", LATE: LATE, GONE: GONE}
+    an_id = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+    def fixed(value: str) -> str:  # this run's ids, in the order they are first seen
+        return ids.setdefault(value, f"00000000-0000-4000-8000-{len(ids):012x}") if an_id.match(value) else value
+
+    def same(body):  # this run's ids, moments and counters, wherever they are in an answer
+        if isinstance(body, list):
+            return [same(item) for item in body]
+        if not isinstance(body, dict):
+            return fixed(body) if isinstance(body, str) else body
+        out = {}
+        for key, value in body.items():
+            if (key == "at" or key.endswith("_at")) and isinstance(value, str):
+                out[fixed(key)] = WHEN
+            elif key == "facts_seq":
+                out[key] = 1  # the database's counter over every run's facts
+            elif key == "turns" and isinstance(value, list):
+                out[key] = [{**same(t), "seq": i} for i, t in enumerate(value)]
+            else:
+                out[fixed(key)] = same(value)
+        return out
+
+    def tidy(body):  # in place, as ``Kept`` asks
+        new = same(body)
+        body.clear() if isinstance(body, dict) else body.__delitem__(slice(None))
+        body.update(new) if isinstance(body, dict) else body.extend(new)
+
+    every = "/v1/cases/{case_id}/playbooks"
+    office_list, one, active, runs_, run, start = "/v1/admin/playbooks", "/v1/admin/playbooks/{playbook}", "/v1/playbooks/runs/active", \
+        every + "/runs", every + "/runs/{run_id}", every + "/{playbook}/runs"
+    in_case = lambda rest="", case=cid: f"/v1/cases/{case}/playbooks{rest}"  # noqa: E731
+    acts = [("POST", "/answer", {"json": {"step_id": "agreement"}}), ("POST", "/say", {"json": {"text": "x"}}),
+            ("POST", "/documents", {"json": {"step_id": "title_deed", "documents": [DOC]}}), ("PUT", "/facts", {"json": {"facts": [{"id": "price", "confirmed": "1"}]}}),
+            ("PUT", "/facts/{fact_id}", {"json": {"value": "1"}}), ("POST", "/pause", {}), ("POST", "/resume", {}), ("POST", "/stop", {}),
+            ("POST", "/cancel", {"json": {}})]
+    of_case = [("GET", every, "", {}), ("GET", runs_, "/runs", {}), ("GET", run, f"/runs/{GONE}", {}), ("POST", start, "/deed-intake/runs", {"json": {}}),
+               *[(m, run + rest, f"/runs/{GONE}{rest}".replace("{fact_id}", "price"), sent) for m, rest, sent in acts]]
+    for method, path, at, sent in [("GET", office_list, None, {}), ("PUT", one, "/v1/admin/playbooks/deed-intake", {"json": {"active": True}}), ("GET", active, None, {})]:
+        assert check(method, path, 401, at, **sent).json()["code"] == "auth.signed_out"
+    for method, path, rest, sent in of_case:
+        assert check(method, path, 401, in_case(rest), **sent).json()["code"] == "auth.signed_out"
+        assert check(method, path, 422, in_case(rest, "not-an-id"), headers=alice, **sent).json()["code"] == "request.invalid"
+        assert check(method, path, 404, in_case(rest, GONE), headers=alice, **sent).json()["code"] == "case.not_found"
+        if "{run_id}" in path:  # a run that doesn't exist, and what isn't a run id at all
+            r = check(method, path, 404, in_case(rest), "no_such_run" if method == "GET" else None, headers=alice, **sent)
+            assert r.json()["code"] == "request.not_found"
+            assert check(method, path, 422, in_case(rest.replace(GONE, "not-an-id")), headers=alice, **sent).json()["code"] == "request.invalid"
+
+    # the administrator's list, and a playbook switched off and on
+    assert check("GET", office_list, 403, headers=alice).json()["code"] == "request.forbidden"
+    assert len(check("GET", office_list, 200, headers=admin).json()) == 3
+    assert check("PUT", one, 403, "/v1/admin/playbooks/deed-intake", json={"active": False}, headers=alice).json()["code"] == "request.forbidden"
+    assert check("PUT", one, 404, "/v1/admin/playbooks/nope", json={"active": False}, headers=admin).json()["code"] == "request.not_found"
+    assert "errors" in check("PUT", one, 422, "/v1/admin/playbooks/deed-intake", json={}, headers=admin).json()
+    assert check("PUT", one, 200, "/v1/admin/playbooks/deed-intake", json={"active": False}, headers=admin).json()["active"] is False
+    assert check("GET", every, 200, in_case(), headers=alice).json() == []
+    assert check("POST", start, 404, in_case("/deed-intake/runs"), json={}, headers=alice).json()["code"] == "request.not_found"
+    check("PUT", one, 200, "/v1/admin/playbooks/deed-intake", json={"active": True}, headers=admin)
+    assert [p["slug"] for p in check("GET", every, 200, in_case(), "fitting", headers=bob).json()] == ["deed-intake"]
+
+    # a run starts and waits for the agreement
+    assert check("POST", start, 403, in_case("/deed-intake/runs"), json={}, headers=carla).json()["code"] == "case.not_allowed"
+    assert "errors" in check("POST", start, 422, in_case("/deed-intake/runs"), json={"language": "Dutch"}, headers=alice).json()
+    started = check("POST", start, 202, in_case("/deed-intake/runs"), "started", tidy=tidy, json={"language": "nl"}, headers=alice).json()
+    rid = started["id"]
+    of_run = lambda rest="": in_case(f"/runs/{rid}{rest}")  # noqa: E731
+    r = check("POST", start, 409, in_case("/deed-intake/runs"), "already_going", tidy=tidy, json={}, headers=alice)
+    assert (r.json()["code"], r.json()["params"]["run"]) == ("run.already_going", rid)
+    assert check("GET", active, 200, keep="active", tidy=tidy, headers=bob).json()[cid]["step_kind"] == "request"
+    assert [x["id"] for x in check("GET", runs_, 200, in_case("/runs"), "runs", tidy=tidy, headers=bob).json()] == [rid]
+    assert check("POST", run + "/pause", 403, of_run("/pause"), headers=carla).json()["code"] == "case.not_allowed"
+    assert check("POST", run + "/pause", 200, of_run("/pause"), headers=bob).json()["paused_by"] == "bob.test"
+    for method, rest, sent in [("POST", "/pause", {}), ("POST", "/answer", {"json": {"step_id": "agreement"}}), ("POST", "/say", {"json": {"text": "x"}})]:
+        r = check(method, run + rest, 409, of_run(rest), "is_paused" if rest == "/pause" else None, headers=alice, **sent)
+        assert r.json()["code"] == "run.paused"
+    assert check("POST", run + "/resume", 403, of_run("/resume"), headers=carla).json()["code"] == "case.not_allowed"
+    assert check("POST", run + "/resume", 200, of_run("/resume"), headers=alice).json()["status"] == "waiting"
+    assert check("POST", run + "/resume", 409, of_run("/resume"), headers=alice).json()["code"].startswith("run.")
+
+    # the requests are answered, in words with the document and by saying there is none
+    assert check("POST", run + "/answer", 403, of_run("/answer"), json={"step_id": "agreement"}, headers=carla).json()["code"] == "case.not_allowed"
+    assert check("POST", run + "/answer", 422, of_run("/answer"), json={"step_id": "agreement", "none": True}, headers=alice).json()["code"] == "request.invalid"
+    r = check("POST", run + "/answer", 409, of_run("/answer"), "moved_on", json={"step_id": "read"}, headers=alice)
+    assert r.json()["code"] == "run.moved_on"
+    assert check("POST", run + "/say", 403, of_run("/say"), json={"text": "x"}, headers=carla).json()["code"] == "case.not_allowed"
+    assert "errors" in check("POST", run + "/say", 422, of_run("/say"), json={"documents": "all"}, headers=alice).json()
+    assert check("POST", run + "/say", 404, of_run("/say"), json={"documents": [DOC]}, headers=alice).json()["code"].endswith("not_found")  # not in the case yet
+    docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    said = check("POST", run + "/say", 200, of_run("/say"), json={"text": "Hier is het compromis.", "documents": [DOC]}, headers=alice).json()
+    assert (said["status"], said["step"]) == ("waiting", "title_deed")
+    for step in ("title_deed", "certificates"):
+        check("POST", run + "/answer", 200, of_run("/answer"), json={"step_id": step, "none": True}, headers=alice)
+    wait_for(c, of_run(), alice, "waiting")
+    asking = check("GET", run, 200, of_run(), "asking", tidy=tidy, headers=bob).json()
+    assert asking["step"] == "missing" and {f["id"]: f for f in asking["facts"]}["price"]["value"] == "EUR 412.500,00"
+
+    # the ask is answered; at the checkpoint a value is adjusted, and confirmed from the screen that saw it
+    r = check("POST", run + "/answer", 200, of_run("/answer"), json={"step_id": "missing", "facts": {"cadastral": "Gent 5e afd., sectie B, nr. 123"}}, headers=alice)
+    assert r.json()["step"] == "confirm" and r.json()["checks"]["a_seller"]["status"] == "holds"
+    seen_before = r.json()["facts_seq"]
+    assert check("PUT", run + "/facts/{fact_id}", 403, of_run("/facts/price"), json={"value": "1"}, headers=carla).json()["code"] == "case.not_allowed"
+    assert "errors" in check("PUT", run + "/facts/{fact_id}", 422, of_run("/facts/price"), json={"value": ""}, headers=bob).json()
+    assert check("PUT", run + "/facts/{fact_id}", 404, of_run("/facts/nope"), json={"value": "1"}, headers=bob).json()["code"].endswith("not_found")
+    adjusted = check("PUT", run + "/facts/{fact_id}", 200, of_run("/facts/price"), json={"value": "EUR 415.000,00"}, headers=bob).json()
+    assert {f["id"]: f for f in adjusted["facts"]}["price"]["by"] == "bob.test"
+    as_shown = [{"id": f["id"], "confirmed": f["value"]} for f in adjusted["facts"]]
+    assert check("PUT", run + "/facts", 403, of_run("/facts"), json={"facts": as_shown}, headers=carla).json()["code"] == "case.not_allowed"
+    assert check("PUT", run + "/facts", 422, of_run("/facts"), json={"facts": [{"id": "x", "confirmed": ""}]}, headers=alice).json()["code"] == "request.invalid"
+    r = check("PUT", run + "/facts", 409, of_run("/facts"), "facts_changed", json={"facts": as_shown, "seen": seen_before}, headers=alice)
+    assert r.json()["code"] == "run.facts_changed"
+    done = check("PUT", run + "/facts", 200, of_run("/facts"), "done", tidy=tidy, json={"facts": as_shown, "seen": adjusted["facts_seq"]}, headers=alice).json()
+    assert done["status"] == "done" and done["result_document_id"] and done["confirmed_by"] == "notaris.test"
+
+    # a document that comes later reopens the run at its checkpoint
+    late = {"step_id": "title_deed", "documents": [LATE]}
+    assert check("POST", run + "/documents", 403, of_run("/documents"), json=late, headers=carla).json()["code"] == "case.not_allowed"
+    assert "errors" in check("POST", run + "/documents", 422, of_run("/documents"), json={"step_id": "title_deed"}, headers=alice).json()
+    assert check("POST", run + "/documents", 404, of_run("/documents"), json=late, headers=alice).json()["code"].endswith("not_found")  # not in the case
+    docs.docs[LATE] = (Scope.case(uuid.UUID(cid)), "uploaded")
+    assert check("POST", run + "/documents", 200, of_run("/documents"), json=late, headers=alice).json()["out_of_date"] is True
+    wait_for(c, of_run(), alice, "waiting")
+    reopened = check("GET", run, 200, of_run(), headers=alice).json()
+    assert reopened["step"] == "confirm" and reopened["turns"][-2]["meta"]["kind"] == "late_documents"
+
+    # it is stopped by who started it or manages the case; ended, nothing more is done in it
+    assert check("POST", run + "/stop", 403, of_run("/stop"), "starter_or_manager_only", headers=bob).json()["code"] == "run.starter_or_manager_only"
+    assert check("POST", run + "/cancel", 403, of_run("/cancel"), json={}, headers=bob).json()["code"] == "run.starter_or_manager_only"
+    assert "errors" in check("POST", run + "/cancel", 422, of_run("/cancel"), json={"reason": "x" * 501}, headers=alice).json()
+    assert check("POST", run + "/stop", 200, of_run("/stop"), headers=alice).json()["ended_by"] == "notaris.test"
+    for method, rest, sent in acts:
+        r = check(method, run + rest, 409, of_run(rest).replace("{fact_id}", "price"), "ended" if rest == "/stop" else None, headers=alice, **sent)
+        assert r.json()["code"] == "run.ended", (rest, r.json()["code"])
+    again = check("POST", start, 202, in_case("/deed-intake/runs"), json={}, headers=alice).json()["id"]
+    r = check("POST", run + "/cancel", 200, in_case(f"/runs/{again}/cancel"), "cancelled", tidy=tidy, json={"reason": "wrong file"}, headers=alice)
+    assert (r.json()["status"], r.json()["ended_reason"]) == ("cancelled", "wrong file")
+
+    # the office's limit on asking the model holds for starting a run (an office of its own, with a limit of one)
+    kc2, cases2 = FakeKeycloak(), FakeCases()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc2.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=TABLE))
+    limited = create_app(llm, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases2,
+                         runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory(), rate_limits=RateLimits(chat=1))
+    with TestClient(limited) as c2:
+        check2, alice2 = Checked(c2, "playbooks"), as_user(kc2, ALICE)
+        check2.kept = check.kept
+        first, second = (c2.post("/v1/cases", json={**NEW, "reference": f"2026/{i}"}, headers=alice2).json()["id"] for i in (1, 2))
+        check2("POST", start, 202, in_case("/deed-intake/runs", first), json={}, headers=alice2)
+        r = check2("POST", start, 429, in_case("/deed-intake/runs", second), "too_many", headers=alice2, json={})
+        assert r.json()["kind"] == "refused"
+        check.seen |= check2.seen
+    check.kept.check()
+    # not seen here, each for a reason: what nobody planned for (500); sign-in, the runs' store or the model down
+    # (503: test_auth.py and the tests above); the same limit where an answer makes the model read again, and the
+    # limit on runs reading at once (429: test_only_so_many_runs_read_at_once); sign-in turned off for another
+    # machine, for what anyone signed in may ask (403)
+    for method, path, status in check.not_seen():
+        assert status in (500, 503) or (status == 429 and path != start) or (status == 403 and (method, path) in {
+            ("GET", active), ("GET", every), ("GET", runs_), ("GET", run)}), (method, path, status)
+    assert {s for _, _, s in check.seen} == {200, 202, 401, 403, 404, 409, 422, 429}

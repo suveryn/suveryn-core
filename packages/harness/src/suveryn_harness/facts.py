@@ -25,12 +25,12 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from suveryn_playbooks import Playbook, entry, read_schema
 from suveryn_playbooks.paths import MAX_ENTRIES, root
 
 
-from .schemas import ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
+from .schemas import Answer, ChatMessage, ChatRequest, ChatResponse, Citation, PassageContext
 from .language import any_of, words
 from .marking import _utf16, cited_style, marks
 from .identifiers import valid
@@ -48,7 +48,7 @@ class Unreadable(Exception):
     """The model's answer wasn't the JSON object asked for, also when asked a second time."""
 
 
-class FactCitation(BaseModel):
+class FactCitation(Answer):
     """A passage a fact was read from: enough to show it later, also after the document is deleted."""
 
     n: int
@@ -65,14 +65,14 @@ class FactCitation(BaseModel):
     facts: list[tuple[int, int]] = Field(default_factory=list)
 
 
-class FactAlternative(BaseModel):
+class FactAlternative(Answer):
     """A later document's reading that differs from what a person confirmed (or answered): shown beside it until a
     person chooses at the checkpoint; the confirmed value stands meanwhile (decision of 10 November 2026)."""
     value: str
     citations: list[FactCitation] = Field(default_factory=list)
 
 
-class RunFact(BaseModel):
+class RunFact(Answer):
     id: str
     value: str = ""                      # as the model read it, copied from the documents
     citations: list[FactCitation] = Field(default_factory=list)

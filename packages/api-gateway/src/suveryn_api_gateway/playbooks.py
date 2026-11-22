@@ -52,10 +52,12 @@ from pydantic import BaseModel, Field
 from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
 from suveryn_harness.language import load
 from suveryn_harness.messages import message, stored
-from suveryn_playbooks import LANGUAGES, Playbook, covered, from_record, to_record
+from suveryn_playbooks import LANGUAGES, Playbook, StepKind, covered, from_record, to_record
 
 from .conversations import SCHEMA as CONVERSATIONS_SCHEMA
 from .conversations import Turn, TurnStore
+from .description import Answer
+from .problems import Message
 
 log = logging.getLogger("suveryn.gateway")
 
@@ -135,7 +137,7 @@ MAX_RUNS_LISTED = 100
 MAX_ANSWER = 4000
 
 
-class StepState(BaseModel):
+class StepState(Answer):
     status: StepStatus = "pending"
     by: str | None = None
     at: datetime | None = None
@@ -145,7 +147,7 @@ class StepState(BaseModel):
     in_part: list[str] = Field(default_factory=list)
 
 
-class RunSummary(BaseModel):
+class RunSummary(Answer):
     id: str
     case_id: str
     playbook_id: str
@@ -158,7 +160,7 @@ class RunSummary(BaseModel):
     confirmed_by: str | None = None
     confirmed_at: datetime | None = None
     model: str | None = None
-    failure: dict | None = None  # why it failed: {kind, code, params}, a code of the registry (docs/design/messages.md)
+    failure: Message | None = None  # why it failed: a code of the registry (docs/design/messages.md), read back by ``stored``
     result_document_id: str | None = None
     out_of_date: bool = False
     step: str | None = None              # the step the run is on (None: not started, or ended)
@@ -169,11 +171,11 @@ class RunSummary(BaseModel):
     ended_reason: str | None = None      # the reason given for a cancel
     starter: str | None = None           # the starter's Keycloak id (rights)
     title: dict[str, str] = Field(default_factory=dict)  # the playbook's title per language, for a chip anywhere (filled by the routes)
-    step_kind: str | None = None         # the kind of the step the run is on (request, read, ask, checkpoint), for the chip's words
+    step_kind: StepKind | None = None    # the kind of the step the run is on (request, read, ask, checkpoint), for the chip's words
     conversation_id: str = ""            # the run's conversation: its thread, in the case's list of conversations
 
 
-class CheckOut(BaseModel):
+class CheckOut(Answer):
     """One check step's result as last computed (``suveryn_harness.checks``): the rule holds, fails (both
     sides as computed, for the notary) or is open (values it needs are missing or can't be read)."""
 
@@ -265,7 +267,7 @@ class SayIn(BaseModel):
     case_documents: bool = False  # at a ``request``: the quick reply "Use the documents in the case", no words needed
 
 
-class PlaybookWords(BaseModel):
+class PlaybookWords(Answer):
     """A playbook's words in one language (``suveryn_playbooks.Wording``)."""
 
     title: str
@@ -277,16 +279,16 @@ class PlaybookWords(BaseModel):
     facts_title: str = ""   # the facts panel's heading ("Facts for the deed"); empty: the UI's generic one
 
 
-class StepOut(BaseModel):
+class StepOut(Answer):
     id: str
-    kind: str
+    kind: StepKind
     needs: list[str]
     facts: list[str] = Field(default_factory=list)
-    by: str = "anyone_in_case"   # checkpoint: who may pass it (anyone_in_case, manager), so the UI can say who confirms
+    by: Literal["anyone_in_case", "manager"] = "anyone_in_case"   # checkpoint: who may pass it, so the UI can say who confirms
     allow_none: bool = False     # request: a person may answer that there is no such document (the UI offers it)
 
 
-class PlaybookOut(BaseModel):
+class PlaybookOut(Answer):
     """One playbook that fits a case (``GET /v1/cases/{id}/playbooks``), or one of all of them for the
     administrator (``GET /v1/admin/playbooks``, with ``active``)."""
 

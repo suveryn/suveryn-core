@@ -81,7 +81,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"backups", "cases", "clock", "conversations", "models", "settings", "status", "usage", "users"}
+STRICT = {"backups", "cases", "clock", "conversations", "models", "playbooks", "settings", "status", "usage", "users"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
@@ -175,7 +175,9 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
 # A shape of a strict area that is still "any object", named with what describes it later: a step of #159 of its own.
 LATER = {"CaseEvent.detail": "what each line of the access log records (its actions and their details), for every area that writes one",
          "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): with the answer stream and the playbooks",
-         "SavedTurn": "the same, as the chat UI saves it"}
+         "SavedTurn": "the same, as the chat UI saves it",
+         "Turn.meta": "what a turn of a run's thread holds (its kind and facts, turn_kinds.json): with the thread's events",
+         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms): with the same step"}
 
 
 def test_a_strict_operation_leaves_nothing_undescribed():

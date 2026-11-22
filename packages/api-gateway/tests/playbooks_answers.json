@@ -1,0 +1,3958 @@
+{
+ "active": {
+  "body": {
+   "00000000-0000-4000-8000-000000000004": {
+    "case_id": "00000000-0000-4000-8000-000000000004",
+    "confirmed_at": null,
+    "confirmed_by": null,
+    "conversation_id": "00000000-0000-4000-8000-000000000005",
+    "documents": [],
+    "ended_by": null,
+    "ended_reason": null,
+    "failure": null,
+    "finished_at": null,
+    "id": "00000000-0000-4000-8000-000000000003",
+    "language": "nl",
+    "model": null,
+    "out_of_date": false,
+    "paused_at": null,
+    "paused_by": null,
+    "playbook_id": "playbook/be-notary/deed-intake",
+    "playbook_version": "1.7",
+    "result_document_id": null,
+    "started_at": "2026-11-23T09:00:00Z",
+    "started_by": "notaris.test",
+    "starter": "alice-sub",
+    "status": "waiting",
+    "step": "agreement",
+    "step_kind": "request",
+    "title": {
+     "en": "Deed intake",
+     "fr": "Analyse de l'acte",
+     "nl": "Akte-intake"
+    }
+   }
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "already_going": {
+  "body": {
+   "code": "run.already_going",
+   "detail": "This playbook is already going in this case.",
+   "kind": "refused",
+   "params": {
+    "run": "00000000-0000-4000-8000-000000000003"
+   },
+   "status": 409,
+   "title": "A run of this playbook is live in this case: `run`.",
+   "type": "urn:suveryn:problem:run.already_going"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "asking": {
+  "body": {
+   "case_id": "00000000-0000-4000-8000-000000000004",
+   "checks": {},
+   "confirmed_at": null,
+   "confirmed_by": null,
+   "conversation_id": "00000000-0000-4000-8000-000000000005",
+   "documents": [
+    "11111111-1111-1111-1111-111111111111"
+   ],
+   "ended_by": null,
+   "ended_reason": null,
+   "facts": [
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "property",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Woning, Kerkstraat 12, 9000 Gent",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "cadastral",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [
+        [
+         26,
+         36
+        ]
+       ],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [
+        [
+         0,
+         37
+        ]
+       ],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "price",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "EUR 412.500,00",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "deposit",
+     "issues": [
+      "41.250,00"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "EUR 41.250,00 aan de notaris",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "agreement_date",
+     "issues": [
+      "3 oktober 2026"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "3 oktober 2026",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "deed_deadline",
+     "issues": [
+      "15 januari 2027"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "15 januari 2027",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "occupancy",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Vrij van gebruik",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "sellers[1].name",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Jan Peeters",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "sellers[1].address",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "sellers[1].register",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "sellers[2].name",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Marie Claes",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "sellers[2].address",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "sellers[2].register",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "buyers[1].name",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Tom Janssens",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "buyers[1].address",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "buyers[1].register",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "conditions[1].condition",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Financiering",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": null,
+     "found": true,
+     "id": "conditions[1].term",
+     "issues": [
+      "2 november 2026"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "2 november 2026",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "title",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "epc",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": null,
+     "found": false,
+     "id": "soil",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    }
+   ],
+   "facts_seq": 1,
+   "failure": null,
+   "finished_at": null,
+   "id": "00000000-0000-4000-8000-000000000003",
+   "instruction_like_sources": [],
+   "language": "nl",
+   "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+   "out_of_date": false,
+   "paused_at": null,
+   "paused_by": null,
+   "playbook": {
+    "active": true,
+    "case_types": [
+     "sale"
+    ],
+    "choices": {},
+    "covered": true,
+    "facts": [
+     "sellers",
+     "buyers",
+     "property",
+     "cadastral",
+     "price",
+     "deposit",
+     "agreement_date",
+     "deed_deadline",
+     "conditions",
+     "title",
+     "epc",
+     "soil",
+     "occupancy"
+    ],
+    "id": "playbook/be-notary/deed-intake",
+    "kinds": {
+     "agreement_date": "date",
+     "buyers": "text",
+     "buyers.address": "text",
+     "buyers.name": "text",
+     "buyers.register": "text",
+     "cadastral": "text",
+     "conditions": "text",
+     "conditions.condition": "text",
+     "conditions.term": "date",
+     "deed_deadline": "date",
+     "deposit": "amount",
+     "epc": "text",
+     "occupancy": "text",
+     "price": "amount",
+     "property": "text",
+     "sellers": "text",
+     "sellers.address": "text",
+     "sellers.name": "text",
+     "sellers.register": "text",
+     "soil": "text",
+     "title": "text"
+    },
+    "lists": {
+     "buyers": [
+      "name",
+      "address",
+      "register"
+     ],
+     "conditions": [
+      "condition",
+      "term"
+     ],
+     "sellers": [
+      "name",
+      "address",
+      "register"
+     ]
+    },
+    "name": "Deed intake",
+    "pack": "pack/be-notary",
+    "slug": "deed-intake",
+    "steps": [
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "agreement",
+      "kind": "request",
+      "needs": []
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "title_deed",
+      "kind": "request",
+      "needs": [
+       "agreement"
+      ]
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "certificates",
+      "kind": "request",
+      "needs": [
+       "title_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "occupancy"
+      ],
+      "id": "agreement_read",
+      "kind": "read",
+      "needs": [
+       "certificates"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "title"
+      ],
+      "id": "title_read",
+      "kind": "read",
+      "needs": [
+       "agreement_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "epc",
+       "soil"
+      ],
+      "id": "certificates_read",
+      "kind": "read",
+      "needs": [
+       "title_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "title",
+       "epc",
+       "soil",
+       "occupancy"
+      ],
+      "id": "missing",
+      "kind": "ask",
+      "needs": [
+       "certificates_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_seller",
+      "kind": "check",
+      "needs": [
+       "missing"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_buyer",
+      "kind": "check",
+      "needs": [
+       "a_seller"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deposit_within_price",
+      "kind": "check",
+      "needs": [
+       "a_buyer"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deed_after_agreement",
+      "kind": "check",
+      "needs": [
+       "deposit_within_price"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "conditions_before_deed",
+      "kind": "check",
+      "needs": [
+       "deed_after_agreement"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "confirm",
+      "kind": "checkpoint",
+      "needs": [
+       "conditions_before_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "summary",
+      "kind": "produce",
+      "needs": [
+       "confirm"
+      ]
+     }
+    ],
+    "text": {
+     "en": {
+      "checks": {
+       "a_buyer": "There is at least one buyer",
+       "a_seller": "There is at least one seller",
+       "conditions_before_deed": "Every suspensive condition's term falls before the deed's deadline",
+       "deed_after_agreement": "The deed's deadline falls after the agreement was signed",
+       "deposit_within_price": "The advance or guarantee is within the price"
+      },
+      "facts_title": "Facts for the deed",
+      "labels": {
+       "agreement_date": "Agreement signed on",
+       "buyers": "Buyer(s)",
+       "buyers.address": "Address",
+       "buyers.name": "Name",
+       "buyers.register": "Register number",
+       "cadastral": "Cadastral data",
+       "conditions": "Suspensive conditions",
+       "conditions.condition": "Condition",
+       "conditions.term": "To be met by",
+       "deed_deadline": "Deed to be signed by",
+       "deposit": "Advance or guarantee",
+       "epc": "Energy certificate",
+       "occupancy": "Occupancy at delivery",
+       "price": "Price",
+       "property": "Property",
+       "sellers": "Seller(s)",
+       "sellers.address": "Address",
+       "sellers.name": "Name",
+       "sellers.register": "Register number",
+       "soil": "Soil certificate",
+       "title": "Title"
+      },
+      "questions": {
+       "agreement": "Upload the signed sale agreement. Then continue.",
+       "certificates": "Upload the certificates: the energy performance certificate and the soil certificate. If they are not at hand, say there are none.",
+       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
+       "title_deed": "Upload the seller's title deed, the earlier deed by which the seller acquired the property. If it is not at hand, say there is none."
+      },
+      "steps": {
+       "agreement": "Sale agreement",
+       "agreement_read": "Reading the agreement",
+       "certificates": "Certificates",
+       "certificates_read": "Reading the certificates",
+       "title_deed": "Title deed",
+       "title_read": "Reading the title"
+      },
+      "summary": "Reads the facts for the deed from the documents",
+      "title": "Deed intake"
+     },
+     "fr": {
+      "checks": {
+       "a_buyer": "Il y a au moins un acquéreur",
+       "a_seller": "Il y a au moins un vendeur",
+       "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte",
+       "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
+       "deposit_within_price": "L'acompte ou la garantie reste dans le prix"
+      },
+      "facts_title": "Données pour l'acte",
+      "labels": {
+       "agreement_date": "Compromis signé le",
+       "buyers": "Acquéreur(s)",
+       "buyers.address": "Adresse",
+       "buyers.name": "Nom",
+       "buyers.register": "Numéro de registre national ou d'entreprise",
+       "cadastral": "Données cadastrales",
+       "conditions": "Conditions suspensives",
+       "conditions.condition": "Condition",
+       "conditions.term": "À réaliser pour le",
+       "deed_deadline": "Acte à passer pour le",
+       "deposit": "Acompte ou garantie",
+       "epc": "Certificat PEB",
+       "occupancy": "Occupation à la délivrance",
+       "price": "Prix",
+       "property": "Bien",
+       "sellers": "Vendeur(s)",
+       "sellers.address": "Adresse",
+       "sellers.name": "Nom",
+       "sellers.register": "Numéro de registre national ou d'entreprise",
+       "soil": "Attestation du sol",
+       "title": "Titre de propriété"
+      },
+      "questions": {
+       "agreement": "Chargez le compromis signé. Puis continuez.",
+       "certificates": "Chargez les certificats : le certificat de performance énergétique et l'attestation du sol. Si vous ne les avez pas sous la main, dites qu'il n'y en a pas.",
+       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+       "title_deed": "Chargez le titre de propriété du vendeur : l'acte antérieur par lequel le vendeur a acquis le bien. Si vous ne l'avez pas sous la main, dites qu'il n'y en a pas."
+      },
+      "steps": {
+       "agreement": "Compromis de vente",
+       "agreement_read": "Lecture du compromis",
+       "certificates": "Certificats",
+       "certificates_read": "Lecture des certificats",
+       "title_deed": "Titre de propriété",
+       "title_read": "Lecture du titre"
+      },
+      "summary": "Lit dans les documents les faits nécessaires à l'acte",
+      "title": "Analyse de l'acte"
+     },
+     "nl": {
+      "checks": {
+       "a_buyer": "Er is minstens één koper",
+       "a_seller": "Er is minstens één verkoper",
+       "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte",
+       "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
+       "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs"
+      },
+      "facts_title": "Gegevens voor de akte",
+      "labels": {
+       "agreement_date": "Compromis getekend op",
+       "buyers": "Koper(s)",
+       "buyers.address": "Adres",
+       "buyers.name": "Naam",
+       "buyers.register": "Rijksregister- of ondernemingsnummer",
+       "cadastral": "Kadastrale gegevens",
+       "conditions": "Opschortende voorwaarden",
+       "conditions.condition": "Voorwaarde",
+       "conditions.term": "Te vervullen tegen",
+       "deed_deadline": "Akte te verlijden tegen",
+       "deposit": "Voorschot of waarborg",
+       "epc": "Energieprestatiecertificaat",
+       "occupancy": "Bewoning bij levering",
+       "price": "Prijs",
+       "property": "Goed",
+       "sellers": "Verkoper(s)",
+       "sellers.address": "Adres",
+       "sellers.name": "Naam",
+       "sellers.register": "Rijksregister- of ondernemingsnummer",
+       "soil": "Bodemattest",
+       "title": "Eigendomstitel"
+      },
+      "questions": {
+       "agreement": "Laad de ondertekende verkoopovereenkomst op. Ga daarna verder.",
+       "certificates": "Laad de attesten op: het energieprestatiecertificaat en het bodemattest. Hebt u die niet bij de hand, zeg dan dat er geen zijn.",
+       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+       "title_deed": "Laad de eigendomstitel van de verkoper op: de vorige akte waarmee de verkoper het goed verkreeg. Hebt u die niet bij de hand, zeg dan dat er geen is."
+      },
+      "steps": {
+       "agreement": "Verkoopovereenkomst",
+       "agreement_read": "Lezen van de overeenkomst",
+       "certificates": "Attesten",
+       "certificates_read": "Lezen van de attesten",
+       "title_deed": "Eigendomstitel",
+       "title_read": "Lezen van de eigendomstitel"
+      },
+      "summary": "Leest de feiten voor de akte uit de documenten",
+      "title": "Akte-intake"
+     }
+    },
+    "version": "1.7"
+   },
+   "playbook_id": "playbook/be-notary/deed-intake",
+   "playbook_version": "1.7",
+   "requested": {
+    "agreement": [
+     "11111111-1111-1111-1111-111111111111"
+    ]
+   },
+   "result_document_id": null,
+   "started_at": "2026-11-23T09:00:00Z",
+   "started_by": "notaris.test",
+   "starter": "alice-sub",
+   "status": "waiting",
+   "step": "missing",
+   "step_kind": "ask",
+   "steps": {
+    "a_buyer": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "a_seller": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "agreement": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "agreement_read": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "certificates": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": "notaris.test",
+     "in_part": [],
+     "status": "skipped"
+    },
+    "certificates_read": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "conditions_before_deed": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "confirm": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "deed_after_agreement": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "deposit_within_price": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "missing": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "active"
+    },
+    "summary": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "title_deed": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": "notaris.test",
+     "in_part": [],
+     "status": "skipped"
+    },
+    "title_read": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    }
+   },
+   "title": {
+    "en": "Deed intake",
+    "fr": "Analyse de l'acte",
+    "nl": "Akte-intake"
+   },
+   "turns": [
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 0,
+     "step_id": "agreement",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "bob.test",
+     "meta": {
+      "kind": "paused"
+     },
+     "role": "playbook",
+     "seq": 1,
+     "step_id": null,
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "kind": "resumed"
+     },
+     "role": "playbook",
+     "seq": 2,
+     "step_id": null,
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "attachments": [
+       {
+        "documentId": "11111111-1111-1111-1111-111111111111",
+        "filename": "akte.pdf"
+       }
+      ]
+     },
+     "role": "user",
+     "seq": 3,
+     "step_id": "agreement",
+     "text": "Hier is het compromis."
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 4,
+     "step_id": "title_deed",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "none": true
+     },
+     "role": "user",
+     "seq": 5,
+     "step_id": "title_deed",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 6,
+     "step_id": "certificates",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "none": true
+     },
+     "role": "user",
+     "seq": 7,
+     "step_id": "certificates",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "facts": [
+       "cadastral",
+       "title",
+       "epc",
+       "soil"
+      ],
+      "found": 9,
+      "kind": "ask",
+      "total": 13
+     },
+     "role": "playbook",
+     "seq": 8,
+     "step_id": "missing",
+     "text": ""
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "cancelled": {
+  "body": {
+   "case_id": "00000000-0000-4000-8000-000000000004",
+   "checks": {},
+   "confirmed_at": null,
+   "confirmed_by": null,
+   "conversation_id": "00000000-0000-4000-8000-000000000008",
+   "documents": [],
+   "ended_by": "notaris.test",
+   "ended_reason": "wrong file",
+   "facts": [],
+   "facts_seq": 1,
+   "failure": null,
+   "finished_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-000000000007",
+   "instruction_like_sources": [],
+   "language": "en",
+   "model": null,
+   "out_of_date": false,
+   "paused_at": null,
+   "paused_by": null,
+   "playbook": {
+    "active": true,
+    "case_types": [
+     "sale"
+    ],
+    "choices": {},
+    "covered": true,
+    "facts": [
+     "sellers",
+     "buyers",
+     "property",
+     "cadastral",
+     "price",
+     "deposit",
+     "agreement_date",
+     "deed_deadline",
+     "conditions",
+     "title",
+     "epc",
+     "soil",
+     "occupancy"
+    ],
+    "id": "playbook/be-notary/deed-intake",
+    "kinds": {
+     "agreement_date": "date",
+     "buyers": "text",
+     "buyers.address": "text",
+     "buyers.name": "text",
+     "buyers.register": "text",
+     "cadastral": "text",
+     "conditions": "text",
+     "conditions.condition": "text",
+     "conditions.term": "date",
+     "deed_deadline": "date",
+     "deposit": "amount",
+     "epc": "text",
+     "occupancy": "text",
+     "price": "amount",
+     "property": "text",
+     "sellers": "text",
+     "sellers.address": "text",
+     "sellers.name": "text",
+     "sellers.register": "text",
+     "soil": "text",
+     "title": "text"
+    },
+    "lists": {
+     "buyers": [
+      "name",
+      "address",
+      "register"
+     ],
+     "conditions": [
+      "condition",
+      "term"
+     ],
+     "sellers": [
+      "name",
+      "address",
+      "register"
+     ]
+    },
+    "name": "Deed intake",
+    "pack": "pack/be-notary",
+    "slug": "deed-intake",
+    "steps": [
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "agreement",
+      "kind": "request",
+      "needs": []
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "title_deed",
+      "kind": "request",
+      "needs": [
+       "agreement"
+      ]
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "certificates",
+      "kind": "request",
+      "needs": [
+       "title_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "occupancy"
+      ],
+      "id": "agreement_read",
+      "kind": "read",
+      "needs": [
+       "certificates"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "title"
+      ],
+      "id": "title_read",
+      "kind": "read",
+      "needs": [
+       "agreement_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "epc",
+       "soil"
+      ],
+      "id": "certificates_read",
+      "kind": "read",
+      "needs": [
+       "title_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "title",
+       "epc",
+       "soil",
+       "occupancy"
+      ],
+      "id": "missing",
+      "kind": "ask",
+      "needs": [
+       "certificates_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_seller",
+      "kind": "check",
+      "needs": [
+       "missing"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_buyer",
+      "kind": "check",
+      "needs": [
+       "a_seller"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deposit_within_price",
+      "kind": "check",
+      "needs": [
+       "a_buyer"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deed_after_agreement",
+      "kind": "check",
+      "needs": [
+       "deposit_within_price"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "conditions_before_deed",
+      "kind": "check",
+      "needs": [
+       "deed_after_agreement"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "confirm",
+      "kind": "checkpoint",
+      "needs": [
+       "conditions_before_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "summary",
+      "kind": "produce",
+      "needs": [
+       "confirm"
+      ]
+     }
+    ],
+    "text": {
+     "en": {
+      "checks": {
+       "a_buyer": "There is at least one buyer",
+       "a_seller": "There is at least one seller",
+       "conditions_before_deed": "Every suspensive condition's term falls before the deed's deadline",
+       "deed_after_agreement": "The deed's deadline falls after the agreement was signed",
+       "deposit_within_price": "The advance or guarantee is within the price"
+      },
+      "facts_title": "Facts for the deed",
+      "labels": {
+       "agreement_date": "Agreement signed on",
+       "buyers": "Buyer(s)",
+       "buyers.address": "Address",
+       "buyers.name": "Name",
+       "buyers.register": "Register number",
+       "cadastral": "Cadastral data",
+       "conditions": "Suspensive conditions",
+       "conditions.condition": "Condition",
+       "conditions.term": "To be met by",
+       "deed_deadline": "Deed to be signed by",
+       "deposit": "Advance or guarantee",
+       "epc": "Energy certificate",
+       "occupancy": "Occupancy at delivery",
+       "price": "Price",
+       "property": "Property",
+       "sellers": "Seller(s)",
+       "sellers.address": "Address",
+       "sellers.name": "Name",
+       "sellers.register": "Register number",
+       "soil": "Soil certificate",
+       "title": "Title"
+      },
+      "questions": {
+       "agreement": "Upload the signed sale agreement. Then continue.",
+       "certificates": "Upload the certificates: the energy performance certificate and the soil certificate. If they are not at hand, say there are none.",
+       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
+       "title_deed": "Upload the seller's title deed, the earlier deed by which the seller acquired the property. If it is not at hand, say there is none."
+      },
+      "steps": {
+       "agreement": "Sale agreement",
+       "agreement_read": "Reading the agreement",
+       "certificates": "Certificates",
+       "certificates_read": "Reading the certificates",
+       "title_deed": "Title deed",
+       "title_read": "Reading the title"
+      },
+      "summary": "Reads the facts for the deed from the documents",
+      "title": "Deed intake"
+     },
+     "fr": {
+      "checks": {
+       "a_buyer": "Il y a au moins un acquéreur",
+       "a_seller": "Il y a au moins un vendeur",
+       "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte",
+       "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
+       "deposit_within_price": "L'acompte ou la garantie reste dans le prix"
+      },
+      "facts_title": "Données pour l'acte",
+      "labels": {
+       "agreement_date": "Compromis signé le",
+       "buyers": "Acquéreur(s)",
+       "buyers.address": "Adresse",
+       "buyers.name": "Nom",
+       "buyers.register": "Numéro de registre national ou d'entreprise",
+       "cadastral": "Données cadastrales",
+       "conditions": "Conditions suspensives",
+       "conditions.condition": "Condition",
+       "conditions.term": "À réaliser pour le",
+       "deed_deadline": "Acte à passer pour le",
+       "deposit": "Acompte ou garantie",
+       "epc": "Certificat PEB",
+       "occupancy": "Occupation à la délivrance",
+       "price": "Prix",
+       "property": "Bien",
+       "sellers": "Vendeur(s)",
+       "sellers.address": "Adresse",
+       "sellers.name": "Nom",
+       "sellers.register": "Numéro de registre national ou d'entreprise",
+       "soil": "Attestation du sol",
+       "title": "Titre de propriété"
+      },
+      "questions": {
+       "agreement": "Chargez le compromis signé. Puis continuez.",
+       "certificates": "Chargez les certificats : le certificat de performance énergétique et l'attestation du sol. Si vous ne les avez pas sous la main, dites qu'il n'y en a pas.",
+       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+       "title_deed": "Chargez le titre de propriété du vendeur : l'acte antérieur par lequel le vendeur a acquis le bien. Si vous ne l'avez pas sous la main, dites qu'il n'y en a pas."
+      },
+      "steps": {
+       "agreement": "Compromis de vente",
+       "agreement_read": "Lecture du compromis",
+       "certificates": "Certificats",
+       "certificates_read": "Lecture des certificats",
+       "title_deed": "Titre de propriété",
+       "title_read": "Lecture du titre"
+      },
+      "summary": "Lit dans les documents les faits nécessaires à l'acte",
+      "title": "Analyse de l'acte"
+     },
+     "nl": {
+      "checks": {
+       "a_buyer": "Er is minstens één koper",
+       "a_seller": "Er is minstens één verkoper",
+       "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte",
+       "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
+       "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs"
+      },
+      "facts_title": "Gegevens voor de akte",
+      "labels": {
+       "agreement_date": "Compromis getekend op",
+       "buyers": "Koper(s)",
+       "buyers.address": "Adres",
+       "buyers.name": "Naam",
+       "buyers.register": "Rijksregister- of ondernemingsnummer",
+       "cadastral": "Kadastrale gegevens",
+       "conditions": "Opschortende voorwaarden",
+       "conditions.condition": "Voorwaarde",
+       "conditions.term": "Te vervullen tegen",
+       "deed_deadline": "Akte te verlijden tegen",
+       "deposit": "Voorschot of waarborg",
+       "epc": "Energieprestatiecertificaat",
+       "occupancy": "Bewoning bij levering",
+       "price": "Prijs",
+       "property": "Goed",
+       "sellers": "Verkoper(s)",
+       "sellers.address": "Adres",
+       "sellers.name": "Naam",
+       "sellers.register": "Rijksregister- of ondernemingsnummer",
+       "soil": "Bodemattest",
+       "title": "Eigendomstitel"
+      },
+      "questions": {
+       "agreement": "Laad de ondertekende verkoopovereenkomst op. Ga daarna verder.",
+       "certificates": "Laad de attesten op: het energieprestatiecertificaat en het bodemattest. Hebt u die niet bij de hand, zeg dan dat er geen zijn.",
+       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+       "title_deed": "Laad de eigendomstitel van de verkoper op: de vorige akte waarmee de verkoper het goed verkreeg. Hebt u die niet bij de hand, zeg dan dat er geen is."
+      },
+      "steps": {
+       "agreement": "Verkoopovereenkomst",
+       "agreement_read": "Lezen van de overeenkomst",
+       "certificates": "Attesten",
+       "certificates_read": "Lezen van de attesten",
+       "title_deed": "Eigendomstitel",
+       "title_read": "Lezen van de eigendomstitel"
+      },
+      "summary": "Leest de feiten voor de akte uit de documenten",
+      "title": "Akte-intake"
+     }
+    },
+    "version": "1.7"
+   },
+   "playbook_id": "playbook/be-notary/deed-intake",
+   "playbook_version": "1.7",
+   "requested": {},
+   "result_document_id": null,
+   "started_at": "2026-11-23T09:00:00Z",
+   "started_by": "notaris.test",
+   "starter": "alice-sub",
+   "status": "cancelled",
+   "step": "agreement",
+   "step_kind": null,
+   "steps": {
+    "a_buyer": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "a_seller": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "agreement": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "active"
+    },
+    "agreement_read": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "certificates": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "certificates_read": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "conditions_before_deed": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "confirm": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "deed_after_agreement": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "deposit_within_price": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "missing": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "summary": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "title_deed": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "title_read": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    }
+   },
+   "title": {},
+   "turns": [
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 0,
+     "step_id": "agreement",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "kind": "cancelled",
+      "reason": "wrong file"
+     },
+     "role": "playbook",
+     "seq": 1,
+     "step_id": null,
+     "text": ""
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "done": {
+  "body": {
+   "case_id": "00000000-0000-4000-8000-000000000004",
+   "checks": {
+    "a_buyer": {
+     "left": "1",
+     "missing": [],
+     "right": "1",
+     "rule": "count(buyers) >= 1",
+     "status": "holds"
+    },
+    "a_seller": {
+     "left": "2",
+     "missing": [],
+     "right": "1",
+     "rule": "count(sellers) >= 1",
+     "status": "holds"
+    },
+    "conditions_before_deed": {
+     "left": "2026-11-02",
+     "missing": [],
+     "right": "2027-01-15",
+     "rule": "latest(conditions.term) <= deed_deadline",
+     "status": "holds"
+    },
+    "deed_after_agreement": {
+     "left": "2026-10-03",
+     "missing": [],
+     "right": "2027-01-15",
+     "rule": "agreement_date < deed_deadline",
+     "status": "holds"
+    },
+    "deposit_within_price": {
+     "left": "41250",
+     "missing": [],
+     "right": "415000",
+     "rule": "deposit <= price",
+     "status": "holds"
+    }
+   },
+   "confirmed_at": "2026-11-23T09:00:00Z",
+   "confirmed_by": "notaris.test",
+   "conversation_id": "00000000-0000-4000-8000-000000000005",
+   "documents": [
+    "11111111-1111-1111-1111-111111111111"
+   ],
+   "ended_by": null,
+   "ended_reason": null,
+   "facts": [
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "Woning, Kerkstraat 12, 9000 Gent",
+     "found": true,
+     "id": "property",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Woning, Kerkstraat 12, 9000 Gent",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "citations": [],
+     "computed": null,
+     "confirmed": "Gent 5e afd., sectie B, nr. 123",
+     "found": false,
+     "id": "cadastral",
+     "issues": [],
+     "needs": null,
+     "source": "person",
+     "value": "Gent 5e afd., sectie B, nr. 123",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": "2026-11-23T09:00:00Z",
+     "by": "bob.test",
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [
+        [
+         0,
+         37
+        ]
+       ],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "EUR 415.000,00",
+     "found": true,
+     "id": "price",
+     "issues": [],
+     "needs": null,
+     "source": "person",
+     "value": "EUR 415.000,00",
+     "was": "EUR 412.500,00"
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "EUR 41.250,00 aan de notaris",
+     "found": true,
+     "id": "deposit",
+     "issues": [
+      "41.250,00"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "EUR 41.250,00 aan de notaris",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "3 oktober 2026",
+     "found": true,
+     "id": "agreement_date",
+     "issues": [
+      "3 oktober 2026"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "3 oktober 2026",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "15 januari 2027",
+     "found": true,
+     "id": "deed_deadline",
+     "issues": [
+      "15 januari 2027"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "15 januari 2027",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "Vrij van gebruik",
+     "found": true,
+     "id": "occupancy",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Vrij van gebruik",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "Jan Peeters",
+     "found": true,
+     "id": "sellers[1].name",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Jan Peeters",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "sellers[1].address",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "sellers[1].register",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "Marie Claes",
+     "found": true,
+     "id": "sellers[2].name",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Marie Claes",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "sellers[2].address",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "sellers[2].register",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "Tom Janssens",
+     "found": true,
+     "id": "buyers[1].name",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Tom Janssens",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "buyers[1].address",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "buyers[1].register",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "Financiering",
+     "found": true,
+     "id": "conditions[1].condition",
+     "issues": [],
+     "needs": null,
+     "source": "document",
+     "value": "Financiering",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [
+      {
+       "context": null,
+       "decimals": null,
+       "document_id": "11111111-1111-1111-1111-111111111111",
+       "facts": [],
+       "filename": "akte.pdf",
+       "location": "p. 2 · Artikel 2",
+       "n": 1,
+       "page": 2,
+       "ranges": [],
+       "text": "De koopprijs bedraagt EUR 412.500,00."
+      }
+     ],
+     "computed": null,
+     "confirmed": "2 november 2026",
+     "found": true,
+     "id": "conditions[1].term",
+     "issues": [
+      "2 november 2026"
+     ],
+     "needs": null,
+     "source": "document",
+     "value": "2 november 2026",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "title",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "epc",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    },
+    {
+     "alternative": null,
+     "at": null,
+     "by": null,
+     "citations": [],
+     "computed": null,
+     "confirmed": "",
+     "found": false,
+     "id": "soil",
+     "issues": [],
+     "needs": null,
+     "source": "none",
+     "value": "",
+     "was": null
+    }
+   ],
+   "facts_seq": 1,
+   "failure": null,
+   "finished_at": "2026-11-23T09:00:00Z",
+   "id": "00000000-0000-4000-8000-000000000003",
+   "instruction_like_sources": [],
+   "language": "nl",
+   "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+   "out_of_date": false,
+   "paused_at": null,
+   "paused_by": null,
+   "playbook": {
+    "active": true,
+    "case_types": [
+     "sale"
+    ],
+    "choices": {},
+    "covered": true,
+    "facts": [
+     "sellers",
+     "buyers",
+     "property",
+     "cadastral",
+     "price",
+     "deposit",
+     "agreement_date",
+     "deed_deadline",
+     "conditions",
+     "title",
+     "epc",
+     "soil",
+     "occupancy"
+    ],
+    "id": "playbook/be-notary/deed-intake",
+    "kinds": {
+     "agreement_date": "date",
+     "buyers": "text",
+     "buyers.address": "text",
+     "buyers.name": "text",
+     "buyers.register": "text",
+     "cadastral": "text",
+     "conditions": "text",
+     "conditions.condition": "text",
+     "conditions.term": "date",
+     "deed_deadline": "date",
+     "deposit": "amount",
+     "epc": "text",
+     "occupancy": "text",
+     "price": "amount",
+     "property": "text",
+     "sellers": "text",
+     "sellers.address": "text",
+     "sellers.name": "text",
+     "sellers.register": "text",
+     "soil": "text",
+     "title": "text"
+    },
+    "lists": {
+     "buyers": [
+      "name",
+      "address",
+      "register"
+     ],
+     "conditions": [
+      "condition",
+      "term"
+     ],
+     "sellers": [
+      "name",
+      "address",
+      "register"
+     ]
+    },
+    "name": "Deed intake",
+    "pack": "pack/be-notary",
+    "slug": "deed-intake",
+    "steps": [
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "agreement",
+      "kind": "request",
+      "needs": []
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "title_deed",
+      "kind": "request",
+      "needs": [
+       "agreement"
+      ]
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "certificates",
+      "kind": "request",
+      "needs": [
+       "title_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "occupancy"
+      ],
+      "id": "agreement_read",
+      "kind": "read",
+      "needs": [
+       "certificates"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "title"
+      ],
+      "id": "title_read",
+      "kind": "read",
+      "needs": [
+       "agreement_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "epc",
+       "soil"
+      ],
+      "id": "certificates_read",
+      "kind": "read",
+      "needs": [
+       "title_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "title",
+       "epc",
+       "soil",
+       "occupancy"
+      ],
+      "id": "missing",
+      "kind": "ask",
+      "needs": [
+       "certificates_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_seller",
+      "kind": "check",
+      "needs": [
+       "missing"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_buyer",
+      "kind": "check",
+      "needs": [
+       "a_seller"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deposit_within_price",
+      "kind": "check",
+      "needs": [
+       "a_buyer"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deed_after_agreement",
+      "kind": "check",
+      "needs": [
+       "deposit_within_price"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "conditions_before_deed",
+      "kind": "check",
+      "needs": [
+       "deed_after_agreement"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "confirm",
+      "kind": "checkpoint",
+      "needs": [
+       "conditions_before_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "summary",
+      "kind": "produce",
+      "needs": [
+       "confirm"
+      ]
+     }
+    ],
+    "text": {
+     "en": {
+      "checks": {
+       "a_buyer": "There is at least one buyer",
+       "a_seller": "There is at least one seller",
+       "conditions_before_deed": "Every suspensive condition's term falls before the deed's deadline",
+       "deed_after_agreement": "The deed's deadline falls after the agreement was signed",
+       "deposit_within_price": "The advance or guarantee is within the price"
+      },
+      "facts_title": "Facts for the deed",
+      "labels": {
+       "agreement_date": "Agreement signed on",
+       "buyers": "Buyer(s)",
+       "buyers.address": "Address",
+       "buyers.name": "Name",
+       "buyers.register": "Register number",
+       "cadastral": "Cadastral data",
+       "conditions": "Suspensive conditions",
+       "conditions.condition": "Condition",
+       "conditions.term": "To be met by",
+       "deed_deadline": "Deed to be signed by",
+       "deposit": "Advance or guarantee",
+       "epc": "Energy certificate",
+       "occupancy": "Occupancy at delivery",
+       "price": "Price",
+       "property": "Property",
+       "sellers": "Seller(s)",
+       "sellers.address": "Address",
+       "sellers.name": "Name",
+       "sellers.register": "Register number",
+       "soil": "Soil certificate",
+       "title": "Title"
+      },
+      "questions": {
+       "agreement": "Upload the signed sale agreement. Then continue.",
+       "certificates": "Upload the certificates: the energy performance certificate and the soil certificate. If they are not at hand, say there are none.",
+       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
+       "title_deed": "Upload the seller's title deed, the earlier deed by which the seller acquired the property. If it is not at hand, say there is none."
+      },
+      "steps": {
+       "agreement": "Sale agreement",
+       "agreement_read": "Reading the agreement",
+       "certificates": "Certificates",
+       "certificates_read": "Reading the certificates",
+       "title_deed": "Title deed",
+       "title_read": "Reading the title"
+      },
+      "summary": "Reads the facts for the deed from the documents",
+      "title": "Deed intake"
+     },
+     "fr": {
+      "checks": {
+       "a_buyer": "Il y a au moins un acquéreur",
+       "a_seller": "Il y a au moins un vendeur",
+       "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte",
+       "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
+       "deposit_within_price": "L'acompte ou la garantie reste dans le prix"
+      },
+      "facts_title": "Données pour l'acte",
+      "labels": {
+       "agreement_date": "Compromis signé le",
+       "buyers": "Acquéreur(s)",
+       "buyers.address": "Adresse",
+       "buyers.name": "Nom",
+       "buyers.register": "Numéro de registre national ou d'entreprise",
+       "cadastral": "Données cadastrales",
+       "conditions": "Conditions suspensives",
+       "conditions.condition": "Condition",
+       "conditions.term": "À réaliser pour le",
+       "deed_deadline": "Acte à passer pour le",
+       "deposit": "Acompte ou garantie",
+       "epc": "Certificat PEB",
+       "occupancy": "Occupation à la délivrance",
+       "price": "Prix",
+       "property": "Bien",
+       "sellers": "Vendeur(s)",
+       "sellers.address": "Adresse",
+       "sellers.name": "Nom",
+       "sellers.register": "Numéro de registre national ou d'entreprise",
+       "soil": "Attestation du sol",
+       "title": "Titre de propriété"
+      },
+      "questions": {
+       "agreement": "Chargez le compromis signé. Puis continuez.",
+       "certificates": "Chargez les certificats : le certificat de performance énergétique et l'attestation du sol. Si vous ne les avez pas sous la main, dites qu'il n'y en a pas.",
+       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+       "title_deed": "Chargez le titre de propriété du vendeur : l'acte antérieur par lequel le vendeur a acquis le bien. Si vous ne l'avez pas sous la main, dites qu'il n'y en a pas."
+      },
+      "steps": {
+       "agreement": "Compromis de vente",
+       "agreement_read": "Lecture du compromis",
+       "certificates": "Certificats",
+       "certificates_read": "Lecture des certificats",
+       "title_deed": "Titre de propriété",
+       "title_read": "Lecture du titre"
+      },
+      "summary": "Lit dans les documents les faits nécessaires à l'acte",
+      "title": "Analyse de l'acte"
+     },
+     "nl": {
+      "checks": {
+       "a_buyer": "Er is minstens één koper",
+       "a_seller": "Er is minstens één verkoper",
+       "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte",
+       "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
+       "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs"
+      },
+      "facts_title": "Gegevens voor de akte",
+      "labels": {
+       "agreement_date": "Compromis getekend op",
+       "buyers": "Koper(s)",
+       "buyers.address": "Adres",
+       "buyers.name": "Naam",
+       "buyers.register": "Rijksregister- of ondernemingsnummer",
+       "cadastral": "Kadastrale gegevens",
+       "conditions": "Opschortende voorwaarden",
+       "conditions.condition": "Voorwaarde",
+       "conditions.term": "Te vervullen tegen",
+       "deed_deadline": "Akte te verlijden tegen",
+       "deposit": "Voorschot of waarborg",
+       "epc": "Energieprestatiecertificaat",
+       "occupancy": "Bewoning bij levering",
+       "price": "Prijs",
+       "property": "Goed",
+       "sellers": "Verkoper(s)",
+       "sellers.address": "Adres",
+       "sellers.name": "Naam",
+       "sellers.register": "Rijksregister- of ondernemingsnummer",
+       "soil": "Bodemattest",
+       "title": "Eigendomstitel"
+      },
+      "questions": {
+       "agreement": "Laad de ondertekende verkoopovereenkomst op. Ga daarna verder.",
+       "certificates": "Laad de attesten op: het energieprestatiecertificaat en het bodemattest. Hebt u die niet bij de hand, zeg dan dat er geen zijn.",
+       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+       "title_deed": "Laad de eigendomstitel van de verkoper op: de vorige akte waarmee de verkoper het goed verkreeg. Hebt u die niet bij de hand, zeg dan dat er geen is."
+      },
+      "steps": {
+       "agreement": "Verkoopovereenkomst",
+       "agreement_read": "Lezen van de overeenkomst",
+       "certificates": "Attesten",
+       "certificates_read": "Lezen van de attesten",
+       "title_deed": "Eigendomstitel",
+       "title_read": "Lezen van de eigendomstitel"
+      },
+      "summary": "Leest de feiten voor de akte uit de documenten",
+      "title": "Akte-intake"
+     }
+    },
+    "version": "1.7"
+   },
+   "playbook_id": "playbook/be-notary/deed-intake",
+   "playbook_version": "1.7",
+   "requested": {
+    "agreement": [
+     "11111111-1111-1111-1111-111111111111"
+    ]
+   },
+   "result_document_id": "00000000-0000-4000-8000-000000000006",
+   "started_at": "2026-11-23T09:00:00Z",
+   "started_by": "notaris.test",
+   "starter": "alice-sub",
+   "status": "done",
+   "step": null,
+   "step_kind": null,
+   "steps": {
+    "a_buyer": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "a_seller": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "agreement": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "agreement_read": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "certificates": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": "notaris.test",
+     "in_part": [],
+     "status": "skipped"
+    },
+    "certificates_read": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "conditions_before_deed": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "confirm": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": "notaris.test",
+     "in_part": [],
+     "status": "done"
+    },
+    "deed_after_agreement": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "deposit_within_price": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "missing": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": "notaris.test",
+     "in_part": [],
+     "status": "done"
+    },
+    "summary": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    },
+    "title_deed": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": "notaris.test",
+     "in_part": [],
+     "status": "skipped"
+    },
+    "title_read": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "done"
+    }
+   },
+   "title": {},
+   "turns": [
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 0,
+     "step_id": "agreement",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "bob.test",
+     "meta": {
+      "kind": "paused"
+     },
+     "role": "playbook",
+     "seq": 1,
+     "step_id": null,
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "kind": "resumed"
+     },
+     "role": "playbook",
+     "seq": 2,
+     "step_id": null,
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "attachments": [
+       {
+        "documentId": "11111111-1111-1111-1111-111111111111",
+        "filename": "akte.pdf"
+       }
+      ]
+     },
+     "role": "user",
+     "seq": 3,
+     "step_id": "agreement",
+     "text": "Hier is het compromis."
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 4,
+     "step_id": "title_deed",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "none": true
+     },
+     "role": "user",
+     "seq": 5,
+     "step_id": "title_deed",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 6,
+     "step_id": "certificates",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "none": true
+     },
+     "role": "user",
+     "seq": 7,
+     "step_id": "certificates",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "facts": [
+       "cadastral",
+       "title",
+       "epc",
+       "soil"
+      ],
+      "found": 9,
+      "kind": "ask",
+      "total": 13
+     },
+     "role": "playbook",
+     "seq": 8,
+     "step_id": "missing",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "answers": {
+       "cadastral": "Gent 5e afd., sectie B, nr. 123"
+      }
+     },
+     "role": "user",
+     "seq": 9,
+     "step_id": "missing",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "differ": 0,
+      "failing": 0,
+      "found": 10,
+      "issues": 4,
+      "kind": "checkpoint",
+      "total": 13
+     },
+     "role": "playbook",
+     "seq": 10,
+     "step_id": "confirm",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "fact": "price",
+      "kind": "changed",
+      "value": "EUR 415.000,00"
+     },
+     "role": "playbook",
+     "seq": 11,
+     "step_id": "confirm",
+     "text": ""
+    },
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "notaris.test",
+     "meta": {
+      "kind": "confirmed"
+     },
+     "role": "playbook",
+     "seq": 12,
+     "step_id": null,
+     "text": ""
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "ended": {
+  "body": {
+   "code": "run.ended",
+   "detail": "This run has already ended.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The run has ended (done, stopped, cancelled or failed).",
+   "type": "urn:suveryn:problem:run.ended"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "facts_changed": {
+  "body": {
+   "code": "run.facts_changed",
+   "detail": "the run's facts changed since the state this confirmation saw; nothing was confirmed",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "A fact of the run changed since the state this confirmation saw; nothing was confirmed.",
+   "type": "urn:suveryn:problem:run.facts_changed"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "fitting": {
+  "body": [
+   {
+    "active": true,
+    "case_types": [
+     "sale"
+    ],
+    "choices": {},
+    "covered": true,
+    "facts": [
+     "sellers",
+     "buyers",
+     "property",
+     "cadastral",
+     "price",
+     "deposit",
+     "agreement_date",
+     "deed_deadline",
+     "conditions",
+     "title",
+     "epc",
+     "soil",
+     "occupancy"
+    ],
+    "id": "playbook/be-notary/deed-intake",
+    "kinds": {
+     "agreement_date": "date",
+     "buyers": "text",
+     "buyers.address": "text",
+     "buyers.name": "text",
+     "buyers.register": "text",
+     "cadastral": "text",
+     "conditions": "text",
+     "conditions.condition": "text",
+     "conditions.term": "date",
+     "deed_deadline": "date",
+     "deposit": "amount",
+     "epc": "text",
+     "occupancy": "text",
+     "price": "amount",
+     "property": "text",
+     "sellers": "text",
+     "sellers.address": "text",
+     "sellers.name": "text",
+     "sellers.register": "text",
+     "soil": "text",
+     "title": "text"
+    },
+    "lists": {
+     "buyers": [
+      "name",
+      "address",
+      "register"
+     ],
+     "conditions": [
+      "condition",
+      "term"
+     ],
+     "sellers": [
+      "name",
+      "address",
+      "register"
+     ]
+    },
+    "name": "Deed intake",
+    "pack": "pack/be-notary",
+    "slug": "deed-intake",
+    "steps": [
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "agreement",
+      "kind": "request",
+      "needs": []
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "title_deed",
+      "kind": "request",
+      "needs": [
+       "agreement"
+      ]
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "certificates",
+      "kind": "request",
+      "needs": [
+       "title_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "occupancy"
+      ],
+      "id": "agreement_read",
+      "kind": "read",
+      "needs": [
+       "certificates"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "title"
+      ],
+      "id": "title_read",
+      "kind": "read",
+      "needs": [
+       "agreement_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "epc",
+       "soil"
+      ],
+      "id": "certificates_read",
+      "kind": "read",
+      "needs": [
+       "title_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "title",
+       "epc",
+       "soil",
+       "occupancy"
+      ],
+      "id": "missing",
+      "kind": "ask",
+      "needs": [
+       "certificates_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_seller",
+      "kind": "check",
+      "needs": [
+       "missing"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_buyer",
+      "kind": "check",
+      "needs": [
+       "a_seller"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deposit_within_price",
+      "kind": "check",
+      "needs": [
+       "a_buyer"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deed_after_agreement",
+      "kind": "check",
+      "needs": [
+       "deposit_within_price"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "conditions_before_deed",
+      "kind": "check",
+      "needs": [
+       "deed_after_agreement"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "confirm",
+      "kind": "checkpoint",
+      "needs": [
+       "conditions_before_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "summary",
+      "kind": "produce",
+      "needs": [
+       "confirm"
+      ]
+     }
+    ],
+    "text": {
+     "en": {
+      "checks": {
+       "a_buyer": "There is at least one buyer",
+       "a_seller": "There is at least one seller",
+       "conditions_before_deed": "Every suspensive condition's term falls before the deed's deadline",
+       "deed_after_agreement": "The deed's deadline falls after the agreement was signed",
+       "deposit_within_price": "The advance or guarantee is within the price"
+      },
+      "facts_title": "Facts for the deed",
+      "labels": {
+       "agreement_date": "Agreement signed on",
+       "buyers": "Buyer(s)",
+       "buyers.address": "Address",
+       "buyers.name": "Name",
+       "buyers.register": "Register number",
+       "cadastral": "Cadastral data",
+       "conditions": "Suspensive conditions",
+       "conditions.condition": "Condition",
+       "conditions.term": "To be met by",
+       "deed_deadline": "Deed to be signed by",
+       "deposit": "Advance or guarantee",
+       "epc": "Energy certificate",
+       "occupancy": "Occupancy at delivery",
+       "price": "Price",
+       "property": "Property",
+       "sellers": "Seller(s)",
+       "sellers.address": "Address",
+       "sellers.name": "Name",
+       "sellers.register": "Register number",
+       "soil": "Soil certificate",
+       "title": "Title"
+      },
+      "questions": {
+       "agreement": "Upload the signed sale agreement. Then continue.",
+       "certificates": "Upload the certificates: the energy performance certificate and the soil certificate. If they are not at hand, say there are none.",
+       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
+       "title_deed": "Upload the seller's title deed, the earlier deed by which the seller acquired the property. If it is not at hand, say there is none."
+      },
+      "steps": {
+       "agreement": "Sale agreement",
+       "agreement_read": "Reading the agreement",
+       "certificates": "Certificates",
+       "certificates_read": "Reading the certificates",
+       "title_deed": "Title deed",
+       "title_read": "Reading the title"
+      },
+      "summary": "Reads the facts for the deed from the documents",
+      "title": "Deed intake"
+     },
+     "fr": {
+      "checks": {
+       "a_buyer": "Il y a au moins un acquéreur",
+       "a_seller": "Il y a au moins un vendeur",
+       "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte",
+       "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
+       "deposit_within_price": "L'acompte ou la garantie reste dans le prix"
+      },
+      "facts_title": "Données pour l'acte",
+      "labels": {
+       "agreement_date": "Compromis signé le",
+       "buyers": "Acquéreur(s)",
+       "buyers.address": "Adresse",
+       "buyers.name": "Nom",
+       "buyers.register": "Numéro de registre national ou d'entreprise",
+       "cadastral": "Données cadastrales",
+       "conditions": "Conditions suspensives",
+       "conditions.condition": "Condition",
+       "conditions.term": "À réaliser pour le",
+       "deed_deadline": "Acte à passer pour le",
+       "deposit": "Acompte ou garantie",
+       "epc": "Certificat PEB",
+       "occupancy": "Occupation à la délivrance",
+       "price": "Prix",
+       "property": "Bien",
+       "sellers": "Vendeur(s)",
+       "sellers.address": "Adresse",
+       "sellers.name": "Nom",
+       "sellers.register": "Numéro de registre national ou d'entreprise",
+       "soil": "Attestation du sol",
+       "title": "Titre de propriété"
+      },
+      "questions": {
+       "agreement": "Chargez le compromis signé. Puis continuez.",
+       "certificates": "Chargez les certificats : le certificat de performance énergétique et l'attestation du sol. Si vous ne les avez pas sous la main, dites qu'il n'y en a pas.",
+       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+       "title_deed": "Chargez le titre de propriété du vendeur : l'acte antérieur par lequel le vendeur a acquis le bien. Si vous ne l'avez pas sous la main, dites qu'il n'y en a pas."
+      },
+      "steps": {
+       "agreement": "Compromis de vente",
+       "agreement_read": "Lecture du compromis",
+       "certificates": "Certificats",
+       "certificates_read": "Lecture des certificats",
+       "title_deed": "Titre de propriété",
+       "title_read": "Lecture du titre"
+      },
+      "summary": "Lit dans les documents les faits nécessaires à l'acte",
+      "title": "Analyse de l'acte"
+     },
+     "nl": {
+      "checks": {
+       "a_buyer": "Er is minstens één koper",
+       "a_seller": "Er is minstens één verkoper",
+       "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte",
+       "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
+       "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs"
+      },
+      "facts_title": "Gegevens voor de akte",
+      "labels": {
+       "agreement_date": "Compromis getekend op",
+       "buyers": "Koper(s)",
+       "buyers.address": "Adres",
+       "buyers.name": "Naam",
+       "buyers.register": "Rijksregister- of ondernemingsnummer",
+       "cadastral": "Kadastrale gegevens",
+       "conditions": "Opschortende voorwaarden",
+       "conditions.condition": "Voorwaarde",
+       "conditions.term": "Te vervullen tegen",
+       "deed_deadline": "Akte te verlijden tegen",
+       "deposit": "Voorschot of waarborg",
+       "epc": "Energieprestatiecertificaat",
+       "occupancy": "Bewoning bij levering",
+       "price": "Prijs",
+       "property": "Goed",
+       "sellers": "Verkoper(s)",
+       "sellers.address": "Adres",
+       "sellers.name": "Naam",
+       "sellers.register": "Rijksregister- of ondernemingsnummer",
+       "soil": "Bodemattest",
+       "title": "Eigendomstitel"
+      },
+      "questions": {
+       "agreement": "Laad de ondertekende verkoopovereenkomst op. Ga daarna verder.",
+       "certificates": "Laad de attesten op: het energieprestatiecertificaat en het bodemattest. Hebt u die niet bij de hand, zeg dan dat er geen zijn.",
+       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+       "title_deed": "Laad de eigendomstitel van de verkoper op: de vorige akte waarmee de verkoper het goed verkreeg. Hebt u die niet bij de hand, zeg dan dat er geen is."
+      },
+      "steps": {
+       "agreement": "Verkoopovereenkomst",
+       "agreement_read": "Lezen van de overeenkomst",
+       "certificates": "Attesten",
+       "certificates_read": "Lezen van de attesten",
+       "title_deed": "Eigendomstitel",
+       "title_read": "Lezen van de eigendomstitel"
+      },
+      "summary": "Leest de feiten voor de akte uit de documenten",
+      "title": "Akte-intake"
+     }
+    },
+    "version": "1.7"
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "is_paused": {
+  "body": {
+   "code": "run.paused",
+   "detail": "The run is paused.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The run is paused; it takes nothing until it is resumed.",
+   "type": "urn:suveryn:problem:run.paused"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "moved_on": {
+  "body": {
+   "code": "run.moved_on",
+   "detail": "The run isn't waiting on this step.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "The run isn't where this request takes it to be (another step, reading, not paused): the caller's view is out of date.",
+   "type": "urn:suveryn:problem:run.moved_on"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
+ "no_such_run": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "Unknown run.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
+ "runs": {
+  "body": [
+   {
+    "case_id": "00000000-0000-4000-8000-000000000004",
+    "confirmed_at": null,
+    "confirmed_by": null,
+    "conversation_id": "00000000-0000-4000-8000-000000000005",
+    "documents": [],
+    "ended_by": null,
+    "ended_reason": null,
+    "failure": null,
+    "finished_at": null,
+    "id": "00000000-0000-4000-8000-000000000003",
+    "language": "nl",
+    "model": null,
+    "out_of_date": false,
+    "paused_at": null,
+    "paused_by": null,
+    "playbook_id": "playbook/be-notary/deed-intake",
+    "playbook_version": "1.7",
+    "result_document_id": null,
+    "started_at": "2026-11-23T09:00:00Z",
+    "started_by": "notaris.test",
+    "starter": "alice-sub",
+    "status": "waiting",
+    "step": "agreement",
+    "step_kind": "request",
+    "title": {
+     "en": "Deed intake",
+     "fr": "Analyse de l'acte",
+     "nl": "Akte-intake"
+    }
+   }
+  ],
+  "media_type": "application/json",
+  "status": 200
+ },
+ "started": {
+  "body": {
+   "case_id": "00000000-0000-4000-8000-000000000004",
+   "checks": {},
+   "confirmed_at": null,
+   "confirmed_by": null,
+   "conversation_id": "00000000-0000-4000-8000-000000000005",
+   "documents": [],
+   "ended_by": null,
+   "ended_reason": null,
+   "facts": [],
+   "facts_seq": 1,
+   "failure": null,
+   "finished_at": null,
+   "id": "00000000-0000-4000-8000-000000000003",
+   "instruction_like_sources": [],
+   "language": "nl",
+   "model": null,
+   "out_of_date": false,
+   "paused_at": null,
+   "paused_by": null,
+   "playbook": {
+    "active": true,
+    "case_types": [
+     "sale"
+    ],
+    "choices": {},
+    "covered": true,
+    "facts": [
+     "sellers",
+     "buyers",
+     "property",
+     "cadastral",
+     "price",
+     "deposit",
+     "agreement_date",
+     "deed_deadline",
+     "conditions",
+     "title",
+     "epc",
+     "soil",
+     "occupancy"
+    ],
+    "id": "playbook/be-notary/deed-intake",
+    "kinds": {
+     "agreement_date": "date",
+     "buyers": "text",
+     "buyers.address": "text",
+     "buyers.name": "text",
+     "buyers.register": "text",
+     "cadastral": "text",
+     "conditions": "text",
+     "conditions.condition": "text",
+     "conditions.term": "date",
+     "deed_deadline": "date",
+     "deposit": "amount",
+     "epc": "text",
+     "occupancy": "text",
+     "price": "amount",
+     "property": "text",
+     "sellers": "text",
+     "sellers.address": "text",
+     "sellers.name": "text",
+     "sellers.register": "text",
+     "soil": "text",
+     "title": "text"
+    },
+    "lists": {
+     "buyers": [
+      "name",
+      "address",
+      "register"
+     ],
+     "conditions": [
+      "condition",
+      "term"
+     ],
+     "sellers": [
+      "name",
+      "address",
+      "register"
+     ]
+    },
+    "name": "Deed intake",
+    "pack": "pack/be-notary",
+    "slug": "deed-intake",
+    "steps": [
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "agreement",
+      "kind": "request",
+      "needs": []
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "title_deed",
+      "kind": "request",
+      "needs": [
+       "agreement"
+      ]
+     },
+     {
+      "allow_none": true,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "certificates",
+      "kind": "request",
+      "needs": [
+       "title_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "occupancy"
+      ],
+      "id": "agreement_read",
+      "kind": "read",
+      "needs": [
+       "certificates"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "title"
+      ],
+      "id": "title_read",
+      "kind": "read",
+      "needs": [
+       "agreement_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "epc",
+       "soil"
+      ],
+      "id": "certificates_read",
+      "kind": "read",
+      "needs": [
+       "title_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [
+       "sellers",
+       "buyers",
+       "property",
+       "cadastral",
+       "price",
+       "deposit",
+       "agreement_date",
+       "deed_deadline",
+       "conditions",
+       "title",
+       "epc",
+       "soil",
+       "occupancy"
+      ],
+      "id": "missing",
+      "kind": "ask",
+      "needs": [
+       "certificates_read"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_seller",
+      "kind": "check",
+      "needs": [
+       "missing"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "a_buyer",
+      "kind": "check",
+      "needs": [
+       "a_seller"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deposit_within_price",
+      "kind": "check",
+      "needs": [
+       "a_buyer"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "deed_after_agreement",
+      "kind": "check",
+      "needs": [
+       "deposit_within_price"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "conditions_before_deed",
+      "kind": "check",
+      "needs": [
+       "deed_after_agreement"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "confirm",
+      "kind": "checkpoint",
+      "needs": [
+       "conditions_before_deed"
+      ]
+     },
+     {
+      "allow_none": false,
+      "by": "anyone_in_case",
+      "facts": [],
+      "id": "summary",
+      "kind": "produce",
+      "needs": [
+       "confirm"
+      ]
+     }
+    ],
+    "text": {
+     "en": {
+      "checks": {
+       "a_buyer": "There is at least one buyer",
+       "a_seller": "There is at least one seller",
+       "conditions_before_deed": "Every suspensive condition's term falls before the deed's deadline",
+       "deed_after_agreement": "The deed's deadline falls after the agreement was signed",
+       "deposit_within_price": "The advance or guarantee is within the price"
+      },
+      "facts_title": "Facts for the deed",
+      "labels": {
+       "agreement_date": "Agreement signed on",
+       "buyers": "Buyer(s)",
+       "buyers.address": "Address",
+       "buyers.name": "Name",
+       "buyers.register": "Register number",
+       "cadastral": "Cadastral data",
+       "conditions": "Suspensive conditions",
+       "conditions.condition": "Condition",
+       "conditions.term": "To be met by",
+       "deed_deadline": "Deed to be signed by",
+       "deposit": "Advance or guarantee",
+       "epc": "Energy certificate",
+       "occupancy": "Occupancy at delivery",
+       "price": "Price",
+       "property": "Property",
+       "sellers": "Seller(s)",
+       "sellers.address": "Address",
+       "sellers.name": "Name",
+       "sellers.register": "Register number",
+       "soil": "Soil certificate",
+       "title": "Title"
+      },
+      "questions": {
+       "agreement": "Upload the signed sale agreement. Then continue.",
+       "certificates": "Upload the certificates: the energy performance certificate and the soil certificate. If they are not at hand, say there are none.",
+       "missing": "The documents don't mention {label}. What is it? Leave empty if you don't know yet.",
+       "title_deed": "Upload the seller's title deed, the earlier deed by which the seller acquired the property. If it is not at hand, say there is none."
+      },
+      "steps": {
+       "agreement": "Sale agreement",
+       "agreement_read": "Reading the agreement",
+       "certificates": "Certificates",
+       "certificates_read": "Reading the certificates",
+       "title_deed": "Title deed",
+       "title_read": "Reading the title"
+      },
+      "summary": "Reads the facts for the deed from the documents",
+      "title": "Deed intake"
+     },
+     "fr": {
+      "checks": {
+       "a_buyer": "Il y a au moins un acquéreur",
+       "a_seller": "Il y a au moins un vendeur",
+       "conditions_before_deed": "Chaque condition suspensive doit être réalisée avant la date limite de l'acte",
+       "deed_after_agreement": "La date limite de l'acte est postérieure à la signature du compromis",
+       "deposit_within_price": "L'acompte ou la garantie reste dans le prix"
+      },
+      "facts_title": "Données pour l'acte",
+      "labels": {
+       "agreement_date": "Compromis signé le",
+       "buyers": "Acquéreur(s)",
+       "buyers.address": "Adresse",
+       "buyers.name": "Nom",
+       "buyers.register": "Numéro de registre national ou d'entreprise",
+       "cadastral": "Données cadastrales",
+       "conditions": "Conditions suspensives",
+       "conditions.condition": "Condition",
+       "conditions.term": "À réaliser pour le",
+       "deed_deadline": "Acte à passer pour le",
+       "deposit": "Acompte ou garantie",
+       "epc": "Certificat PEB",
+       "occupancy": "Occupation à la délivrance",
+       "price": "Prix",
+       "property": "Bien",
+       "sellers": "Vendeur(s)",
+       "sellers.address": "Adresse",
+       "sellers.name": "Nom",
+       "sellers.register": "Numéro de registre national ou d'entreprise",
+       "soil": "Attestation du sol",
+       "title": "Titre de propriété"
+      },
+      "questions": {
+       "agreement": "Chargez le compromis signé. Puis continuez.",
+       "certificates": "Chargez les certificats : le certificat de performance énergétique et l'attestation du sol. Si vous ne les avez pas sous la main, dites qu'il n'y en a pas.",
+       "missing": "Les documents ne mentionnent pas {label}. De quoi s'agit-il ? Laissez vide si vous ne le savez pas encore.",
+       "title_deed": "Chargez le titre de propriété du vendeur : l'acte antérieur par lequel le vendeur a acquis le bien. Si vous ne l'avez pas sous la main, dites qu'il n'y en a pas."
+      },
+      "steps": {
+       "agreement": "Compromis de vente",
+       "agreement_read": "Lecture du compromis",
+       "certificates": "Certificats",
+       "certificates_read": "Lecture des certificats",
+       "title_deed": "Titre de propriété",
+       "title_read": "Lecture du titre"
+      },
+      "summary": "Lit dans les documents les faits nécessaires à l'acte",
+      "title": "Analyse de l'acte"
+     },
+     "nl": {
+      "checks": {
+       "a_buyer": "Er is minstens één koper",
+       "a_seller": "Er is minstens één verkoper",
+       "conditions_before_deed": "Elke opschortende voorwaarde moet vervuld zijn vóór de uiterste datum van de akte",
+       "deed_after_agreement": "De uiterste datum van de akte valt na de ondertekening van het compromis",
+       "deposit_within_price": "Het voorschot of de waarborg ligt binnen de prijs"
+      },
+      "facts_title": "Gegevens voor de akte",
+      "labels": {
+       "agreement_date": "Compromis getekend op",
+       "buyers": "Koper(s)",
+       "buyers.address": "Adres",
+       "buyers.name": "Naam",
+       "buyers.register": "Rijksregister- of ondernemingsnummer",
+       "cadastral": "Kadastrale gegevens",
+       "conditions": "Opschortende voorwaarden",
+       "conditions.condition": "Voorwaarde",
+       "conditions.term": "Te vervullen tegen",
+       "deed_deadline": "Akte te verlijden tegen",
+       "deposit": "Voorschot of waarborg",
+       "epc": "Energieprestatiecertificaat",
+       "occupancy": "Bewoning bij levering",
+       "price": "Prijs",
+       "property": "Goed",
+       "sellers": "Verkoper(s)",
+       "sellers.address": "Adres",
+       "sellers.name": "Naam",
+       "sellers.register": "Rijksregister- of ondernemingsnummer",
+       "soil": "Bodemattest",
+       "title": "Eigendomstitel"
+      },
+      "questions": {
+       "agreement": "Laad de ondertekende verkoopovereenkomst op. Ga daarna verder.",
+       "certificates": "Laad de attesten op: het energieprestatiecertificaat en het bodemattest. Hebt u die niet bij de hand, zeg dan dat er geen zijn.",
+       "missing": "De documenten vermelden {label} niet. Wat is het? Laat leeg als u het nog niet weet.",
+       "title_deed": "Laad de eigendomstitel van de verkoper op: de vorige akte waarmee de verkoper het goed verkreeg. Hebt u die niet bij de hand, zeg dan dat er geen is."
+      },
+      "steps": {
+       "agreement": "Verkoopovereenkomst",
+       "agreement_read": "Lezen van de overeenkomst",
+       "certificates": "Attesten",
+       "certificates_read": "Lezen van de attesten",
+       "title_deed": "Eigendomstitel",
+       "title_read": "Lezen van de eigendomstitel"
+      },
+      "summary": "Leest de feiten voor de akte uit de documenten",
+      "title": "Akte-intake"
+     }
+    },
+    "version": "1.7"
+   },
+   "playbook_id": "playbook/be-notary/deed-intake",
+   "playbook_version": "1.7",
+   "requested": {},
+   "result_document_id": null,
+   "started_at": "2026-11-23T09:00:00Z",
+   "started_by": "notaris.test",
+   "starter": "alice-sub",
+   "status": "waiting",
+   "step": "agreement",
+   "step_kind": null,
+   "steps": {
+    "a_buyer": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "a_seller": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "agreement": {
+     "at": "2026-11-23T09:00:00Z",
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "active"
+    },
+    "agreement_read": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "certificates": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "certificates_read": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "conditions_before_deed": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "confirm": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "deed_after_agreement": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "deposit_within_price": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "missing": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "summary": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "title_deed": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    },
+    "title_read": {
+     "at": null,
+     "because": null,
+     "by": null,
+     "in_part": [],
+     "status": "pending"
+    }
+   },
+   "title": {},
+   "turns": [
+    {
+     "at": "2026-11-23T09:00:00Z",
+     "by": "playbook/be-notary/deed-intake",
+     "meta": {
+      "kind": "request"
+     },
+     "role": "playbook",
+     "seq": 0,
+     "step_id": "agreement",
+     "text": ""
+    }
+   ]
+  },
+  "media_type": "application/json",
+  "status": 202
+ },
+ "starter_or_manager_only": {
+  "body": {
+   "code": "run.starter_or_manager_only",
+   "detail": "Only the person who started this run or the case manager can end it.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "Only the person who started the run, or the case manager, stops or cancels it.",
+   "type": "urn:suveryn:problem:run.starter_or_manager_only"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "too_many": {
+  "body": {
+   "code": "request.too_many",
+   "detail": "Too many requests. Try again in 60 seconds.",
+   "kind": "refused",
+   "params": {
+    "seconds": 60
+   },
+   "status": 429,
+   "title": "Too many requests from this person; `seconds` until the next is taken.",
+   "type": "urn:suveryn:problem:request.too_many"
+  },
+  "media_type": "application/problem+json",
+  "status": 429
+ }
+}

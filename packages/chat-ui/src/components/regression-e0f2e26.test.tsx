@@ -4,17 +4,18 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, CaseEvent, PlaybookInfo, Run } from "../api";
+import { aPlaybook, aStep, someWords } from "../test/run";
 import en from "../i18n/en";
 import nl from "../i18n/nl";
 import { eventParts } from "./CaseMembers";
 import { failureWords } from "./Messages";
 import { RunThread } from "./RunConversation";
 
-const PLAYBOOK = {
+const PLAYBOOK: PlaybookInfo = aPlaybook({
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.1", name: "Deed intake", covered: true,
-  facts: ["soil"], steps: [{ id: "agreement", kind: "request", needs: [], facts: [] }, { id: "missing", kind: "ask", needs: ["agreement"], facts: ["soil"] }],
-  text: { en: { title: "Deed intake", summary: "", labels: { soil: "Soil certificate" } } },
-} as PlaybookInfo;
+  facts: ["soil"], steps: [aStep({ id: "agreement", kind: "request", needs: [], facts: [] }), aStep({ id: "missing", kind: "ask", needs: ["agreement"], facts: ["soil"] })],
+  text: { en: someWords({ title: "Deed intake", summary: "", labels: { soil: "Soil certificate" } }) },
+});
 const BASE = {
   id: "r1", case_id: "c1", playbook_id: PLAYBOOK.id, playbook_version: "1.1", status: "waiting", documents: [], started_by: "alice",
   started_at: "2026-10-31T23:26:00Z", finished_at: null, confirmed_by: null, confirmed_at: null, model: null, error: null,
