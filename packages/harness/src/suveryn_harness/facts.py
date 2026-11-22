@@ -48,6 +48,11 @@ class Unreadable(Exception):
     """The model's answer wasn't the JSON object asked for, also when asked a second time."""
 
 
+# Why a person has to look at a value: it gives no date, amount or number as such, an amount is approximate, a number's
+# check digits don't match, or sūveryn worked the value out from another fact. The one list of these (``RunFact.needs``).
+Needs = Literal["not_a_date", "not_an_amount", "not_a_number", "approximate", "invalid_number", "computed"]
+
+
 class FactCitation(Answer):
     """A passage a fact was read from: enough to show it later, also after the document is deleted."""
 
@@ -86,7 +91,7 @@ class RunFact(Answer):
     # A date, an amount or a number the value doesn't give as one ("uiterlijk vier maanden na de ondertekening"): a
     # person works it out and checks it (``not_a_date``, ``not_an_amount``, ``not_a_number``; decision, 1 November
     # 2026: *Kijk na* by meaning); an amount the document gives as approximate ("ongeveer € 450.000": ``approximate``).
-    needs: str | None = None
+    needs: Needs | None = None
     # A value worked out from another fact (``terms``; board P01): ``needs`` is "computed", ``value`` as worked out, and
     # this how. A term: {"written": the term as the agreement writes it, "from": the fact counted from, "base", "date"
     # (ISO), "amount", "unit" (day, week, month, year, workday), "direction" (after, before), and for working days

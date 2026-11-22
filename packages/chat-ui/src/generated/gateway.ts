@@ -1227,6 +1227,18 @@ export interface FactAlternative {
   value: string;
 }
 
+export type RunFactNeeds = typeof RunFactNeeds[keyof typeof RunFactNeeds] | null;
+
+
+export const RunFactNeeds = {
+  not_a_date: 'not_a_date',
+  not_an_amount: 'not_an_amount',
+  not_a_number: 'not_a_number',
+  approximate: 'approximate',
+  invalid_number: 'invalid_number',
+  computed: 'computed',
+} as const;
+
 export type RunFactSource = typeof RunFactSource[keyof typeof RunFactSource];
 
 
@@ -1248,7 +1260,7 @@ export interface RunFact {
   found: boolean;
   id: string;
   issues: string[];
-  needs: string | null;
+  needs: RunFactNeeds;
   source: RunFactSource;
   value: string;
   was: string | null;

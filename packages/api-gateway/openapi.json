@@ -4252,6 +4252,14 @@
      "needs": {
       "anyOf": [
        {
+        "enum": [
+         "not_a_date",
+         "not_an_amount",
+         "not_a_number",
+         "approximate",
+         "invalid_number",
+         "computed"
+        ],
         "type": "string"
        },
        {
