@@ -2073,7 +2073,10 @@
     },
     "required": [
      "status",
-     "rule"
+     "rule",
+     "left",
+     "right",
+     "missing"
     ],
     "title": "CheckOut",
     "type": "object"
@@ -2610,7 +2613,8 @@
      }
     },
     "required": [
-     "value"
+     "value",
+     "citations"
     ],
     "title": "FactAlternative",
     "type": "object"
@@ -2721,7 +2725,13 @@
      "n",
      "document_id",
      "filename",
-     "text"
+     "page",
+     "location",
+     "text",
+     "context",
+     "decimals",
+     "ranges",
+     "facts"
     ],
     "title": "FactCitation",
     "type": "object"
@@ -3472,7 +3482,14 @@
      "version",
      "name",
      "covered",
-     "facts"
+     "facts",
+     "lists",
+     "kinds",
+     "choices",
+     "case_types",
+     "text",
+     "active",
+     "steps"
     ],
     "title": "PlaybookOut",
     "type": "object"
@@ -3525,7 +3542,11 @@
     "required": [
      "title",
      "summary",
-     "labels"
+     "labels",
+     "questions",
+     "checks",
+     "steps",
+     "facts_title"
     ],
     "title": "PlaybookWords",
     "type": "object"
@@ -3918,14 +3939,12 @@
      "failure": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/Message"
        },
        {
         "type": "null"
        }
-      ],
-      "title": "Failure"
+      ]
      },
      "finished_at": {
       "anyOf": [
@@ -4073,6 +4092,14 @@
      "step_kind": {
       "anyOf": [
        {
+        "enum": [
+         "request",
+         "read",
+         "ask",
+         "checkpoint",
+         "produce",
+         "check"
+        ],
         "type": "string"
        },
        {
@@ -4112,7 +4139,31 @@
      "documents",
      "started_by",
      "started_at",
-     "playbook"
+     "finished_at",
+     "confirmed_by",
+     "confirmed_at",
+     "model",
+     "failure",
+     "result_document_id",
+     "out_of_date",
+     "step",
+     "language",
+     "paused_by",
+     "paused_at",
+     "ended_by",
+     "ended_reason",
+     "starter",
+     "title",
+     "step_kind",
+     "conversation_id",
+     "facts",
+     "facts_seq",
+     "requested",
+     "checks",
+     "playbook",
+     "instruction_like_sources",
+     "steps",
+     "turns"
     ],
     "title": "Run",
     "type": "object"
@@ -4201,6 +4252,14 @@
      "needs": {
       "anyOf": [
        {
+        "enum": [
+         "not_a_date",
+         "not_an_amount",
+         "not_a_number",
+         "approximate",
+         "invalid_number",
+         "computed"
+        ],
         "type": "string"
        },
        {
@@ -4237,7 +4296,19 @@
      }
     },
     "required": [
-     "id"
+     "id",
+     "value",
+     "citations",
+     "issues",
+     "found",
+     "confirmed",
+     "source",
+     "by",
+     "was",
+     "at",
+     "needs",
+     "computed",
+     "alternative"
     ],
     "title": "RunFact",
     "type": "object"
@@ -4308,14 +4379,12 @@
      "failure": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/Message"
        },
        {
         "type": "null"
        }
-      ],
-      "title": "Failure"
+      ]
      },
      "finished_at": {
       "anyOf": [
@@ -4443,6 +4512,14 @@
      "step_kind": {
       "anyOf": [
        {
+        "enum": [
+         "request",
+         "read",
+         "ask",
+         "checkpoint",
+         "produce",
+         "check"
+        ],
         "type": "string"
        },
        {
@@ -4467,7 +4544,24 @@
      "status",
      "documents",
      "started_by",
-     "started_at"
+     "started_at",
+     "finished_at",
+     "confirmed_by",
+     "confirmed_at",
+     "model",
+     "failure",
+     "result_document_id",
+     "out_of_date",
+     "step",
+     "language",
+     "paused_by",
+     "paused_at",
+     "ended_by",
+     "ended_reason",
+     "starter",
+     "title",
+     "step_kind",
+     "conversation_id"
     ],
     "title": "RunSummary",
     "type": "object"
@@ -4942,6 +5036,10 @@
      },
      "by": {
       "default": "anyone_in_case",
+      "enum": [
+       "anyone_in_case",
+       "manager"
+      ],
       "title": "By",
       "type": "string"
      },
@@ -4957,6 +5055,14 @@
       "type": "string"
      },
      "kind": {
+      "enum": [
+       "request",
+       "read",
+       "ask",
+       "checkpoint",
+       "produce",
+       "check"
+      ],
       "title": "Kind",
       "type": "string"
      },
@@ -4971,7 +5077,10 @@
     "required": [
      "id",
      "kind",
-     "needs"
+     "needs",
+     "facts",
+     "by",
+     "allow_none"
     ],
     "title": "StepOut",
     "type": "object"
@@ -5031,6 +5140,13 @@
       "type": "string"
      }
     },
+    "required": [
+     "status",
+     "by",
+     "at",
+     "because",
+     "in_part"
+    ],
     "title": "StepState",
     "type": "object"
    },
@@ -5201,9 +5317,11 @@
     "required": [
      "seq",
      "role",
+     "step_id",
      "by",
      "at",
-     "text"
+     "text",
+     "meta"
     ],
     "title": "Turn",
     "type": "object"
@@ -6462,6 +6580,46 @@
        }
       },
       "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List Office Playbooks",
@@ -6506,18 +6664,65 @@
       },
       "description": "Successful Response"
      },
-     "404": {
-      "description": "No such playbook"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Set Playbook Active",
@@ -9307,15 +9512,65 @@
       },
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List Case Playbooks",
@@ -9354,15 +9609,65 @@
       },
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List Case Runs",
@@ -9406,15 +9711,65 @@
       },
       "description": "Successful Response"
      },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Get Run",
@@ -9468,18 +9823,85 @@
       },
       "description": "Successful Response"
      },
-     "409": {
-      "description": "The run isn't waiting on that step"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Answer Run",
@@ -9533,21 +9955,75 @@
       },
       "description": "Successful Response"
      },
-     "403": {
-      "description": "Not the starter or the manager"
-     },
-     "409": {
-      "description": "Already ended"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Cancel Run",
@@ -9601,21 +10077,85 @@
       },
       "description": "Successful Response"
      },
-     "404": {
-      "description": "Unknown document, or no such request in this playbook"
-     },
-     "409": {
-      "description": "The run can't take a document now, or the request doesn't apply"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Add Run Documents",
@@ -9669,18 +10209,85 @@
       },
       "description": "Successful Response"
      },
-     "409": {
-      "description": "The run isn't waiting at its checkpoint, or its facts changed since ``seen``"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Confirm Run Facts",
@@ -9743,18 +10350,75 @@
       },
       "description": "Successful Response"
      },
-     "409": {
-      "description": "The run isn't waiting at its checkpoint"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Set Run Fact",
@@ -9798,18 +10462,75 @@
       },
       "description": "Successful Response"
      },
-     "409": {
-      "description": "Not waiting"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Pause Run",
@@ -9852,18 +10573,85 @@
       },
       "description": "Successful Response"
      },
-     "409": {
-      "description": "Not paused"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Resume Run",
@@ -9917,21 +10705,85 @@
       },
       "description": "Successful Response"
      },
-     "409": {
-      "description": "The run isn't waiting on a person"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
      },
      "503": {
-      "description": "The model isn't available to read an answer in words"
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Say In Run",
@@ -9975,21 +10827,75 @@
       },
       "description": "Successful Response"
      },
-     "403": {
-      "description": "Not the starter or the manager"
-     },
-     "409": {
-      "description": "Already ended"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Stop Run",
@@ -10043,24 +10949,85 @@
       },
       "description": "Successful Response"
      },
-     "403": {
-      "description": "Not a contributor, or the case is closed"
-     },
-     "404": {
-      "description": "No such case, playbook or document"
-     },
-     "409": {
-      "description": "A run of this playbook is already going in this case"
-     },
-     "422": {
+     "401": {
       "content": {
-       "application/json": {
+       "application/problem+json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ProblemDetails"
         }
        }
       },
-      "description": "Validation Error"
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "Start Run",
@@ -12017,6 +12984,46 @@
        }
       },
       "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
      }
     },
     "summary": "List All Active Runs",

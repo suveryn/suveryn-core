@@ -509,6 +509,92 @@ export interface SetAnswer {
   pending: boolean;
 }
 
+export type PlaybookOutChoices = {[key: string]: string[]};
+
+export type PlaybookOutKinds = {[key: string]: string};
+
+export type PlaybookOutLists = {[key: string]: string[]};
+
+export type PlaybookWordsChecks = {[key: string]: string};
+
+export type PlaybookWordsLabels = {[key: string]: string};
+
+export type PlaybookWordsQuestions = {[key: string]: string};
+
+export type PlaybookWordsSteps = {[key: string]: string};
+
+/**
+ * A playbook's words in one language (``suveryn_playbooks.Wording``).
+ */
+export interface PlaybookWords {
+  checks: PlaybookWordsChecks;
+  facts_title: string;
+  labels: PlaybookWordsLabels;
+  questions: PlaybookWordsQuestions;
+  steps: PlaybookWordsSteps;
+  summary: string;
+  title: string;
+}
+
+export type PlaybookOutText = {[key: string]: PlaybookWords};
+
+export type StepOutBy = typeof StepOutBy[keyof typeof StepOutBy];
+
+
+export const StepOutBy = {
+  anyone_in_case: 'anyone_in_case',
+  manager: 'manager',
+} as const;
+
+export type StepOutKind = typeof StepOutKind[keyof typeof StepOutKind];
+
+
+export const StepOutKind = {
+  request: 'request',
+  read: 'read',
+  ask: 'ask',
+  checkpoint: 'checkpoint',
+  produce: 'produce',
+  check: 'check',
+} as const;
+
+export interface StepOut {
+  allow_none: boolean;
+  by: StepOutBy;
+  facts: string[];
+  id: string;
+  kind: StepOutKind;
+  needs: string[];
+}
+
+/**
+ * One playbook that fits a case (``GET /v1/cases/{id}/playbooks``), or one of all of them for the
+ * administrator (``GET /v1/admin/playbooks``, with ``active``).
+ */
+export interface PlaybookOut {
+  active: boolean;
+  case_types: string[];
+  choices: PlaybookOutChoices;
+  covered: boolean;
+  facts: string[];
+  id: string;
+  kinds: PlaybookOutKinds;
+  lists: PlaybookOutLists;
+  name: string;
+  pack: string;
+  slug: string;
+  steps: StepOut[];
+  text: PlaybookOutText;
+  version: string;
+}
+
+/**
+ * Body of ``PUT /v1/admin/playbooks/{slug}``.
+ */
+export interface ActiveIn {
+  active: boolean;
+}
+
 export type CheckId = typeof CheckId[keyof typeof CheckId];
 
 
@@ -960,6 +1046,394 @@ export interface CasePinIn {
   pinned: boolean;
 }
 
+export type RunSummaryStatus = typeof RunSummaryStatus[keyof typeof RunSummaryStatus];
+
+
+export const RunSummaryStatus = {
+  reading: 'reading',
+  waiting: 'waiting',
+  paused: 'paused',
+  done: 'done',
+  stopped: 'stopped',
+  cancelled: 'cancelled',
+  failed: 'failed',
+} as const;
+
+export type RunSummaryStepKind = typeof RunSummaryStepKind[keyof typeof RunSummaryStepKind] | null;
+
+
+export const RunSummaryStepKind = {
+  request: 'request',
+  read: 'read',
+  ask: 'ask',
+  checkpoint: 'checkpoint',
+  produce: 'produce',
+  check: 'check',
+} as const;
+
+export type RunSummaryTitle = {[key: string]: string};
+
+export interface RunSummary {
+  case_id: string;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+  conversation_id: string;
+  documents: string[];
+  ended_by: string | null;
+  ended_reason: string | null;
+  failure: Message | null;
+  finished_at: string | null;
+  id: string;
+  language: string;
+  model: string | null;
+  out_of_date: boolean;
+  paused_at: string | null;
+  paused_by: string | null;
+  playbook_id: string;
+  playbook_version: string;
+  result_document_id: string | null;
+  started_at: string;
+  started_by: string;
+  starter: string | null;
+  status: RunSummaryStatus;
+  step: string | null;
+  step_kind: RunSummaryStepKind;
+  title: RunSummaryTitle;
+}
+
+export type CheckOutStatus = typeof CheckOutStatus[keyof typeof CheckOutStatus];
+
+
+export const CheckOutStatus = {
+  holds: 'holds',
+  fails: 'fails',
+  open: 'open',
+} as const;
+
+/**
+ * One check step's result as last computed (``suveryn_harness.checks``): the rule holds, fails (both
+ * sides as computed, for the notary) or is open (values it needs are missing or can't be read).
+ */
+export interface CheckOut {
+  left: string;
+  missing: string[];
+  right: string;
+  rule: string;
+  status: CheckOutStatus;
+}
+
+export type RunChecks = {[key: string]: CheckOut};
+
+export type RunRequested = {[key: string]: string[]};
+
+export type RunStatus = typeof RunStatus[keyof typeof RunStatus];
+
+
+export const RunStatus = {
+  reading: 'reading',
+  waiting: 'waiting',
+  paused: 'paused',
+  done: 'done',
+  stopped: 'stopped',
+  cancelled: 'cancelled',
+  failed: 'failed',
+} as const;
+
+export type RunStepKind = typeof RunStepKind[keyof typeof RunStepKind] | null;
+
+
+export const RunStepKind = {
+  request: 'request',
+  read: 'read',
+  ask: 'ask',
+  checkpoint: 'checkpoint',
+  produce: 'produce',
+  check: 'check',
+} as const;
+
+export type StepStateStatus = typeof StepStateStatus[keyof typeof StepStateStatus];
+
+
+export const StepStateStatus = {
+  pending: 'pending',
+  active: 'active',
+  done: 'done',
+  skipped: 'skipped',
+} as const;
+
+export interface StepState {
+  at: string | null;
+  because: string | null;
+  by: string | null;
+  in_part: string[];
+  status: StepStateStatus;
+}
+
+export type RunSteps = {[key: string]: StepState};
+
+export type RunTitle = {[key: string]: string};
+
+/**
+ * The text around a cited passage on the same page (board G11): ``text`` holds the passage itself at
+ * ``[start, end)``, with a few sentences before and after it, for the source panel to dim around it.
+ */
+export interface PassageContext {
+  /** @minimum 0 */
+  end: number;
+  /** @minimum 0 */
+  start: number;
+  text: string;
+}
+
+export type FactCitationDecimals = typeof FactCitationDecimals[keyof typeof FactCitationDecimals] | null;
+
+
+export const FactCitationDecimals = {
+  comma: 'comma',
+  point: 'point',
+  mixed: 'mixed',
+} as const;
+
+/**
+ * A passage a fact was read from: enough to show it later, also after the document is deleted.
+ */
+export interface FactCitation {
+  context: PassageContext | null;
+  decimals: FactCitationDecimals;
+  document_id: string;
+  /**
+     * @items.minItems 2
+     * @items.maxItems 2
+     */
+  facts: [number, number][];
+  filename: string;
+  location: string | null;
+  n: number;
+  page: number | null;
+  /**
+     * @items.minItems 2
+     * @items.maxItems 2
+     */
+  ranges: [number, number][];
+  text: string;
+}
+
+/**
+ * A later document's reading that differs from what a person confirmed (or answered): shown beside it until a
+ * person chooses at the checkpoint; the confirmed value stands meanwhile (decision of 10 November 2026).
+ */
+export interface FactAlternative {
+  citations: FactCitation[];
+  value: string;
+}
+
+export type RunFactNeeds = typeof RunFactNeeds[keyof typeof RunFactNeeds] | null;
+
+
+export const RunFactNeeds = {
+  not_a_date: 'not_a_date',
+  not_an_amount: 'not_an_amount',
+  not_a_number: 'not_a_number',
+  approximate: 'approximate',
+  invalid_number: 'invalid_number',
+  computed: 'computed',
+} as const;
+
+export type RunFactSource = typeof RunFactSource[keyof typeof RunFactSource];
+
+
+export const RunFactSource = {
+  document: 'document',
+  person: 'person',
+  none: 'none',
+} as const;
+
+export type RunFactComputed = { [key: string]: unknown } | null;
+
+export interface RunFact {
+  alternative: FactAlternative | null;
+  at: string | null;
+  by: string | null;
+  citations: FactCitation[];
+  computed: RunFactComputed;
+  confirmed: string | null;
+  found: boolean;
+  id: string;
+  issues: string[];
+  needs: RunFactNeeds;
+  source: RunFactSource;
+  value: string;
+  was: string | null;
+}
+
+export type TurnRole = typeof TurnRole[keyof typeof TurnRole];
+
+
+export const TurnRole = {
+  user: 'user',
+  assistant: 'assistant',
+  playbook: 'playbook',
+} as const;
+
+export type TurnMeta = { [key: string]: unknown };
+
+/**
+ * One line of a thread, as ``turns`` holds it.
+ */
+export interface Turn {
+  at: string;
+  by: string;
+  meta: TurnMeta;
+  role: TurnRole;
+  seq: number;
+  step_id: string | null;
+  text: string;
+}
+
+export interface Run {
+  case_id: string;
+  checks: RunChecks;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+  conversation_id: string;
+  documents: string[];
+  ended_by: string | null;
+  ended_reason: string | null;
+  facts: RunFact[];
+  facts_seq: number;
+  failure: Message | null;
+  finished_at: string | null;
+  id: string;
+  instruction_like_sources: number[];
+  language: string;
+  model: string | null;
+  out_of_date: boolean;
+  paused_at: string | null;
+  paused_by: string | null;
+  playbook: PlaybookOut;
+  playbook_id: string;
+  playbook_version: string;
+  requested: RunRequested;
+  result_document_id: string | null;
+  started_at: string;
+  started_by: string;
+  starter: string | null;
+  status: RunStatus;
+  step: string | null;
+  step_kind: RunStepKind;
+  steps: RunSteps;
+  title: RunTitle;
+  turns: Turn[];
+}
+
+export type AnswerInFacts = {[key: string]: string} | null;
+
+/**
+ * Body of ``POST …/runs/{run}/answer``: a person's answer to the step the run is waiting on.
+ * For an ``ask``: ``facts`` (a value per fact asked; empty: not known yet). For a ``request``:
+ * nothing (the documents are in the case; the runtime counts them) or ``none: true`` (there is no
+ * such document, when the step allows it). ``text`` is what the person wrote, if anything: the thread keeps the
+ * values given (``answers``) and the screen words them in each reader's language.
+ */
+export interface AnswerIn {
+  /** @maxItems 50 */
+  documents?: string[];
+  facts?: AnswerInFacts;
+  none?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  step_id: string;
+  /** @maxLength 4000 */
+  text?: string;
+}
+
+export interface CancelIn {
+  /** @maxLength 500 */
+  reason?: string;
+}
+
+/**
+ * Body of ``POST …/runs/{run}/documents``: documents that came after their request was answered (decision of
+ * 10 November 2026). ``step_id`` names the request they belong to (a named one: the bank certificate);
+ * ``documents`` are ids in the case; ``text`` is what the person wrote with them, if anything.
+ */
+export interface LateIn {
+  /**
+     * @minItems 1
+     * @maxItems 50
+     */
+  documents: string[];
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  step_id: string;
+  /** @maxLength 4000 */
+  text?: string;
+}
+
+export interface ConfirmedFact {
+  /** @maxLength 2000 */
+  confirmed: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  id: string;
+}
+
+/**
+ * Body of ``PUT …/runs/{run}/facts``: every fact's confirmed value (a correction, the value as
+ * read, or empty). The summary is written in the run's language, the thread's.
+ */
+export interface ConfirmIn {
+  /**
+     * @minItems 1
+     * @maxItems 1000
+     */
+  facts: ConfirmedFact[];
+  seen?: number | null;
+}
+
+/**
+ * Body of ``PUT …/runs/{run}/facts/{fact}``: a value from a playbook's card, *Adjust* or *Fill in*
+ * (the value unchanged: the person checked it).
+ */
+export interface FactIn {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  value: string;
+}
+
+/**
+ * Body of ``POST …/runs/{run}/say``: what a person writes in the run's conversation (the founder, 30
+ * October 2026: a playbook is a conversation). At a ``request``: the documents just added
+ * (``documents``, ids in the case). At an ``ask``: an answer in words, mapped to the facts asked, or
+ * ``unknown`` (the quick reply "Not known yet"). At the checkpoint: a correction in words.
+ */
+export interface SayIn {
+  case_documents?: boolean;
+  /** @maxItems 50 */
+  documents?: string[];
+  /** @maxLength 4000 */
+  text?: string;
+  unknown?: boolean;
+}
+
+/**
+ * Body of ``POST /v1/cases/{id}/playbooks/{playbook}/runs``: which documents to read (none: all
+ * the case's uploaded documents, at the time the read step runs) and the thread's language.
+ */
+export interface StartIn {
+  /** @maxItems 50 */
+  document_ids?: string[];
+  language?: string | null;
+}
+
 export interface Now {
   now_ms: number;
 }
@@ -1189,6 +1663,8 @@ export type ListConversationsParams = {
   case?: string | null;
   all?: boolean;
 };
+
+export type ListAllActiveRuns200 = {[key: string]: RunSummary};
 
 export type GetMyUsageParams = {
   start?: string | null;
@@ -1952,6 +2428,137 @@ export const getClockRequest = async (rid: string, options?: Parameters<typeof g
     method: 'GET'
 
 
+  }
+);}
+
+
+
+export type listOfficePlaybooksResponse200 = {
+  data: PlaybookOut[]
+  status: 200
+}
+
+export type listOfficePlaybooksResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listOfficePlaybooksResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listOfficePlaybooksResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listOfficePlaybooksResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listOfficePlaybooksResponseSuccess = (listOfficePlaybooksResponse200) & {
+  headers: Headers;
+};
+export type listOfficePlaybooksResponseError = (listOfficePlaybooksResponse401 | listOfficePlaybooksResponse403 | listOfficePlaybooksResponse500 | listOfficePlaybooksResponse503) & {
+  headers: Headers;
+};
+
+export type listOfficePlaybooksResponse = (listOfficePlaybooksResponseSuccess | listOfficePlaybooksResponseError)
+
+export const getListOfficePlaybooksUrl = () => {
+
+
+
+
+  return `/v1/admin/playbooks`
+}
+
+/**
+ * Every installed playbook with its case types and whether it is switched on (an administrator's
+ * list; docs/design/admin.md).
+ * @summary List Office Playbooks
+ */
+export const listOfficePlaybooks = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listOfficePlaybooksResponse> => {
+
+  return gatewayFetch<listOfficePlaybooksResponse>(getListOfficePlaybooksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type setPlaybookActiveResponse200 = {
+  data: PlaybookOut
+  status: 200
+}
+
+export type setPlaybookActiveResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setPlaybookActiveResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setPlaybookActiveResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setPlaybookActiveResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setPlaybookActiveResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setPlaybookActiveResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setPlaybookActiveResponseSuccess = (setPlaybookActiveResponse200) & {
+  headers: Headers;
+};
+export type setPlaybookActiveResponseError = (setPlaybookActiveResponse401 | setPlaybookActiveResponse403 | setPlaybookActiveResponse404 | setPlaybookActiveResponse422 | setPlaybookActiveResponse500 | setPlaybookActiveResponse503) & {
+  headers: Headers;
+};
+
+export type setPlaybookActiveResponse = (setPlaybookActiveResponseSuccess | setPlaybookActiveResponseError)
+
+export const getSetPlaybookActiveUrl = (playbook: string,) => {
+
+
+
+
+  return `/v1/admin/playbooks/${playbook}`
+}
+
+/**
+ * Switch a playbook on or off for the whole office: off, it leaves every case's menu and can't
+ * be started; runs already made stay.
+ * @summary Set Playbook Active
+ */
+export const setPlaybookActive = async (playbook: string,
+    activeIn: ActiveIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setPlaybookActiveResponse> => {
+
+  return gatewayFetch<setPlaybookActiveResponse>(getSetPlaybookActiveUrl(playbook),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(activeIn)
   }
 );}
 
@@ -4001,6 +4608,1042 @@ export const setCasePinned = async (caseId: string,
 
 
 
+export type listCasePlaybooksResponse200 = {
+  data: PlaybookOut[]
+  status: 200
+}
+
+export type listCasePlaybooksResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCasePlaybooksResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCasePlaybooksResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listCasePlaybooksResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listCasePlaybooksResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCasePlaybooksResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCasePlaybooksResponseSuccess = (listCasePlaybooksResponse200) & {
+  headers: Headers;
+};
+export type listCasePlaybooksResponseError = (listCasePlaybooksResponse401 | listCasePlaybooksResponse403 | listCasePlaybooksResponse404 | listCasePlaybooksResponse422 | listCasePlaybooksResponse500 | listCasePlaybooksResponse503) & {
+  headers: Headers;
+};
+
+export type listCasePlaybooksResponse = (listCasePlaybooksResponseSuccess | listCasePlaybooksResponseError)
+
+export const getListCasePlaybooksUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks`
+}
+
+/**
+ * The playbooks that fit this case's type and are switched on, each with whether it is covered
+ * by the appliance's support agreement (``covered`` false: it runs, with a warning; never a block).
+ * @summary List Case Playbooks
+ */
+export const listCasePlaybooks = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<listCasePlaybooksResponse> => {
+
+  return gatewayFetch<listCasePlaybooksResponse>(getListCasePlaybooksUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listCaseRunsResponse200 = {
+  data: RunSummary[]
+  status: 200
+}
+
+export type listCaseRunsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listCaseRunsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listCaseRunsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type listCaseRunsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type listCaseRunsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listCaseRunsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listCaseRunsResponseSuccess = (listCaseRunsResponse200) & {
+  headers: Headers;
+};
+export type listCaseRunsResponseError = (listCaseRunsResponse401 | listCaseRunsResponse403 | listCaseRunsResponse404 | listCaseRunsResponse422 | listCaseRunsResponse500 | listCaseRunsResponse503) & {
+  headers: Headers;
+};
+
+export type listCaseRunsResponse = (listCaseRunsResponseSuccess | listCaseRunsResponseError)
+
+export const getListCaseRunsUrl = (caseId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs`
+}
+
+/**
+ * The case's runs, newest first (a reader's right).
+ * @summary List Case Runs
+ */
+export const listCaseRuns = async (caseId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<listCaseRunsResponse> => {
+
+  return gatewayFetch<listCaseRunsResponse>(getListCaseRunsUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type getRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type getRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type getRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type getRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type getRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type getRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type getRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type getRunResponseSuccess = (getRunResponse200) & {
+  headers: Headers;
+};
+export type getRunResponseError = (getRunResponse401 | getRunResponse403 | getRunResponse404 | getRunResponse422 | getRunResponse500 | getRunResponse503) & {
+  headers: Headers;
+};
+
+export type getRunResponse = (getRunResponseSuccess | getRunResponseError)
+
+export const getGetRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}`
+}
+
+/**
+ * One run: where it is, its thread, its facts as read and as confirmed with the passages they came from.
+ * @summary Get Run
+ */
+export const getRun = async (caseId: string,
+    runId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<getRunResponse> => {
+
+  return gatewayFetch<getRunResponse>(getGetRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type answerRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type answerRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type answerRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type answerRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type answerRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type answerRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type answerRunResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type answerRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type answerRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type answerRunResponseSuccess = (answerRunResponse200) & {
+  headers: Headers;
+};
+export type answerRunResponseError = (answerRunResponse401 | answerRunResponse403 | answerRunResponse404 | answerRunResponse409 | answerRunResponse422 | answerRunResponse429 | answerRunResponse500 | answerRunResponse503) & {
+  headers: Headers;
+};
+
+export type answerRunResponse = (answerRunResponseSuccess | answerRunResponseError)
+
+export const getAnswerRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/answer`
+}
+
+/**
+ * A contributor answers the step the run waits on. An ``ask``: ``facts`` with a value per fact
+ * (empty: still unknown; the checkpoint can fill it). A ``request``: the documents are in the case
+ * now, or ``none`` when the step allows that. The answer is written in the thread and the run walks on.
+ * @summary Answer Run
+ */
+export const answerRun = async (caseId: string,
+    runId: string,
+    answerIn: AnswerIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<answerRunResponse> => {
+
+  return gatewayFetch<answerRunResponse>(getAnswerRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(answerIn)
+  }
+);}
+
+
+
+export type cancelRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type cancelRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type cancelRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type cancelRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type cancelRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type cancelRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type cancelRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type cancelRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type cancelRunResponseSuccess = (cancelRunResponse200) & {
+  headers: Headers;
+};
+export type cancelRunResponseError = (cancelRunResponse401 | cancelRunResponse403 | cancelRunResponse404 | cancelRunResponse409 | cancelRunResponse422 | cancelRunResponse500 | cancelRunResponse503) & {
+  headers: Headers;
+};
+
+export type cancelRunResponse = (cancelRunResponseSuccess | cancelRunResponseError)
+
+export const getCancelRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/cancel`
+}
+
+/**
+ * The run should not have happened: every fact it established, confirmed or not, is superseded
+ * (kept in the record, no longer the case's), its product is marked withdrawn (never deleted), and
+ * the case shows no result from it.
+ * @summary Cancel Run
+ */
+export const cancelRun = async (caseId: string,
+    runId: string,
+    cancelIn: CancelIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<cancelRunResponse> => {
+
+  return gatewayFetch<cancelRunResponse>(getCancelRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(cancelIn)
+  }
+);}
+
+
+
+export type addRunDocumentsResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type addRunDocumentsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type addRunDocumentsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type addRunDocumentsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type addRunDocumentsResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type addRunDocumentsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type addRunDocumentsResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type addRunDocumentsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type addRunDocumentsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type addRunDocumentsResponseSuccess = (addRunDocumentsResponse200) & {
+  headers: Headers;
+};
+export type addRunDocumentsResponseError = (addRunDocumentsResponse401 | addRunDocumentsResponse403 | addRunDocumentsResponse404 | addRunDocumentsResponse409 | addRunDocumentsResponse422 | addRunDocumentsResponse429 | addRunDocumentsResponse500 | addRunDocumentsResponse503) & {
+  headers: Headers;
+};
+
+export type addRunDocumentsResponse = (addRunDocumentsResponseSuccess | addRunDocumentsResponseError)
+
+export const getAddRunDocumentsUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/documents`
+}
+
+/**
+ * Documents that came after their request was answered: the bank certificate a week after the plan (decision of
+ * 10 November 2026). They are recorded as that request's, the reads aimed at it are read again, and the checkpoint
+ * follows again; a confirmed run is reopened, its summary out of date until confirmed again. A reading that differs
+ * from a confirmed value waits beside it for a person to choose. While the request itself is the step the run waits
+ * on, it is answered as usual (``/say``, ``/answer``).
+ * @summary Add Run Documents
+ */
+export const addRunDocuments = async (caseId: string,
+    runId: string,
+    lateIn: LateIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<addRunDocumentsResponse> => {
+
+  return gatewayFetch<addRunDocumentsResponse>(getAddRunDocumentsUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(lateIn)
+  }
+);}
+
+
+
+export type confirmRunFactsResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type confirmRunFactsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type confirmRunFactsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type confirmRunFactsResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type confirmRunFactsResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type confirmRunFactsResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type confirmRunFactsResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type confirmRunFactsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type confirmRunFactsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type confirmRunFactsResponseSuccess = (confirmRunFactsResponse200) & {
+  headers: Headers;
+};
+export type confirmRunFactsResponseError = (confirmRunFactsResponse401 | confirmRunFactsResponse403 | confirmRunFactsResponse404 | confirmRunFactsResponse409 | confirmRunFactsResponse422 | confirmRunFactsResponse429 | confirmRunFactsResponse500 | confirmRunFactsResponse503) & {
+  headers: Headers;
+};
+
+export type confirmRunFactsResponse = (confirmRunFactsResponseSuccess | confirmRunFactsResponseError)
+
+export const getConfirmRunFactsUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/facts`
+}
+
+/**
+ * The checkpoint (a contributor's right; the case manager's when the step says ``by: manager``): every
+ * fact's confirmed value, a correction or empty, and entries added to a list. The run then walks on: the
+ * summary is stored in the case as a document with origin ``playbook``.
+ * @summary Confirm Run Facts
+ */
+export const confirmRunFacts = async (caseId: string,
+    runId: string,
+    confirmIn: ConfirmIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<confirmRunFactsResponse> => {
+
+  return gatewayFetch<confirmRunFactsResponse>(getConfirmRunFactsUrl(caseId,runId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(confirmIn)
+  }
+);}
+
+
+
+export type setRunFactResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type setRunFactResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type setRunFactResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type setRunFactResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type setRunFactResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type setRunFactResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type setRunFactResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type setRunFactResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type setRunFactResponseSuccess = (setRunFactResponse200) & {
+  headers: Headers;
+};
+export type setRunFactResponseError = (setRunFactResponse401 | setRunFactResponse403 | setRunFactResponse404 | setRunFactResponse409 | setRunFactResponse422 | setRunFactResponse500 | setRunFactResponse503) & {
+  headers: Headers;
+};
+
+export type setRunFactResponse = (setRunFactResponseSuccess | setRunFactResponseError)
+
+export const getSetRunFactUrl = (caseId: string,
+    runId: string,
+    factId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/facts/${factId}`
+}
+
+/**
+ * A value from a playbook's card at the checkpoint (handover of 31 October 2026): *Adjust* or *Fill
+ * in*. A new version from this person, as a correction in words is; changed, the playbook says so in
+ * the thread. The same value as before says the person checked it: a version from them, no turn. The
+ * run stays at the checkpoint; confirming is a separate act.
+ * @summary Set Run Fact
+ */
+export const setRunFact = async (caseId: string,
+    runId: string,
+    factId: string,
+    factIn: FactIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<setRunFactResponse> => {
+
+  return gatewayFetch<setRunFactResponse>(getSetRunFactUrl(caseId,runId,factId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(factIn)
+  }
+);}
+
+
+
+export type pauseRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type pauseRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type pauseRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type pauseRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type pauseRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type pauseRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type pauseRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type pauseRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type pauseRunResponseSuccess = (pauseRunResponse200) & {
+  headers: Headers;
+};
+export type pauseRunResponseError = (pauseRunResponse401 | pauseRunResponse403 | pauseRunResponse404 | pauseRunResponse409 | pauseRunResponse422 | pauseRunResponse500 | pauseRunResponse503) & {
+  headers: Headers;
+};
+
+export type pauseRunResponse = (pauseRunResponseSuccess | pauseRunResponseError)
+
+export const getPauseRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/pause`
+}
+
+/**
+ * Keep everything and wait (anyone who contributes to the case). A run that is reading can't be
+ * paused mid-call; pause it when it waits.
+ * @summary Pause Run
+ */
+export const pauseRun = async (caseId: string,
+    runId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<pauseRunResponse> => {
+
+  return gatewayFetch<pauseRunResponse>(getPauseRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type resumeRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type resumeRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type resumeRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type resumeRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type resumeRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type resumeRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type resumeRunResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type resumeRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type resumeRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type resumeRunResponseSuccess = (resumeRunResponse200) & {
+  headers: Headers;
+};
+export type resumeRunResponseError = (resumeRunResponse401 | resumeRunResponse403 | resumeRunResponse404 | resumeRunResponse409 | resumeRunResponse422 | resumeRunResponse429 | resumeRunResponse500 | resumeRunResponse503) & {
+  headers: Headers;
+};
+
+export type resumeRunResponse = (resumeRunResponseSuccess | resumeRunResponseError)
+
+export const getResumeRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/resume`
+}
+
+/**
+ * @summary Resume Run
+ */
+export const resumeRun = async (caseId: string,
+    runId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<resumeRunResponse> => {
+
+  return gatewayFetch<resumeRunResponse>(getResumeRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type sayInRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type sayInRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type sayInRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type sayInRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type sayInRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type sayInRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type sayInRunResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type sayInRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type sayInRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type sayInRunResponseSuccess = (sayInRunResponse200) & {
+  headers: Headers;
+};
+export type sayInRunResponseError = (sayInRunResponse401 | sayInRunResponse403 | sayInRunResponse404 | sayInRunResponse409 | sayInRunResponse422 | sayInRunResponse429 | sayInRunResponse500 | sayInRunResponse503) & {
+  headers: Headers;
+};
+
+export type sayInRunResponse = (sayInRunResponseSuccess | sayInRunResponseError)
+
+export const getSayInRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/say`
+}
+
+/**
+ * A contributor writes in the run's conversation (a playbook is a conversation, decision, 30 October
+ * 2026); the turn is written first, then what it means for the step the run waits on:
+ *
+ * - a ``request``: the documents just added to the case come with it (``documents``), and the run
+ *   walks on once the case has what the step needs;
+ * - an ``ask``: the answer in words is mapped to the facts asked by one model call
+ *   (``suveryn_harness.facts.map_answer``), each value placed a proposed fact from this person;
+ *   ``unknown`` (the quick reply) leaves them unknown. When nothing can be placed, the playbook says so
+ *   and asks again in words (decision, 31 October 2026);
+ * - the ``checkpoint``: a correction in words, mapped the same way over every fact, each a new
+ *   version from this person; the playbook says what changed. Confirming stays a separate act.
+ * @summary Say In Run
+ */
+export const sayInRun = async (caseId: string,
+    runId: string,
+    sayIn: SayIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<sayInRunResponse> => {
+
+  return gatewayFetch<sayInRunResponse>(getSayInRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(sayIn)
+  }
+);}
+
+
+
+export type stopRunResponse200 = {
+  data: Run
+  status: 200
+}
+
+export type stopRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type stopRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type stopRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type stopRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type stopRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type stopRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type stopRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type stopRunResponseSuccess = (stopRunResponse200) & {
+  headers: Headers;
+};
+export type stopRunResponseError = (stopRunResponse401 | stopRunResponse403 | stopRunResponse404 | stopRunResponse409 | stopRunResponse422 | stopRunResponse500 | stopRunResponse503) & {
+  headers: Headers;
+};
+
+export type stopRunResponse = (stopRunResponseSuccess | stopRunResponseError)
+
+export const getStopRunUrl = (caseId: string,
+    runId: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/runs/${runId}/stop`
+}
+
+/**
+ * End early, keeping what was achieved: confirmed facts stay the case's; proposed ones go;
+ * a product made so far stays as a document. A new run asks again: the confirmed facts aren't offered to it yet.
+ * @summary Stop Run
+ */
+export const stopRun = async (caseId: string,
+    runId: string, options?: Parameters<typeof gatewayFetch>[1]): Promise<stopRunResponse> => {
+
+  return gatewayFetch<stopRunResponse>(getStopRunUrl(caseId,runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export type startRunResponse202 = {
+  data: Run
+  status: 202
+}
+
+export type startRunResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type startRunResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type startRunResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type startRunResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type startRunResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type startRunResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type startRunResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type startRunResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type startRunResponseSuccess = (startRunResponse202) & {
+  headers: Headers;
+};
+export type startRunResponseError = (startRunResponse401 | startRunResponse403 | startRunResponse404 | startRunResponse409 | startRunResponse422 | startRunResponse429 | startRunResponse500 | startRunResponse503) & {
+  headers: Headers;
+};
+
+export type startRunResponse = (startRunResponseSuccess | startRunResponseError)
+
+export const getStartRunUrl = (caseId: string,
+    playbook: string,) => {
+
+
+
+
+  return `/v1/cases/${caseId}/playbooks/${playbook}/runs`
+}
+
+/**
+ * Start a run (a contributor's right, in an open case) and walk it to its first wait: a
+ * request for documents, or straight into reading when the case has them and the routine starts
+ * there. ``document_ids`` narrows what the read step reads (none: every uploaded document, at the
+ * time it reads). Answers with the run; poll it, or answer what it asks.
+ * @summary Start Run
+ */
+export const startRun = async (caseId: string,
+    playbook: string,
+    startIn: StartIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<startRunResponse> => {
+
+  return gatewayFetch<startRunResponse>(getStartRunUrl(caseId,playbook),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(startIn)
+  }
+);}
+
+
+
 export type reopenCaseResponse200 = {
   data: Case
   status: 200
@@ -5043,6 +6686,65 @@ export const getListModelsUrl = () => {
 export const listModels = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listModelsResponse> => {
 
   return gatewayFetch<listModelsResponse>(getListModelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listAllActiveRunsResponse200 = {
+  data: ListAllActiveRuns200
+  status: 200
+}
+
+export type listAllActiveRunsResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type listAllActiveRunsResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type listAllActiveRunsResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type listAllActiveRunsResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type listAllActiveRunsResponseSuccess = (listAllActiveRunsResponse200) & {
+  headers: Headers;
+};
+export type listAllActiveRunsResponseError = (listAllActiveRunsResponse401 | listAllActiveRunsResponse403 | listAllActiveRunsResponse500 | listAllActiveRunsResponse503) & {
+  headers: Headers;
+};
+
+export type listAllActiveRunsResponse = (listAllActiveRunsResponseSuccess | listAllActiveRunsResponseError)
+
+export const getListAllActiveRunsUrl = () => {
+
+
+
+
+  return `/v1/playbooks/runs/active`
+}
+
+/**
+ * The live run per case the caller may read, keyed by case id: the chip on the case lists.
+ * @summary List All Active Runs
+ */
+export const listAllActiveRuns = async ( options?: Parameters<typeof gatewayFetch>[1]): Promise<listAllActiveRunsResponse> => {
+
+  return gatewayFetch<listAllActiveRunsResponse>(getListAllActiveRunsUrl(),
   {
     ...options,
     method: 'GET'

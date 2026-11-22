@@ -2,7 +2,7 @@
 
 FastAPI builds a description of the gateway from its routes and their models (OpenAPI): what can be asked and what
 comes back. The chat UI's code that calls the server is generated from it, one area at a time, so that a name is
-typed once (#159: #236 to #241, #244 and #246; ``packages/chat-ui/src/generated``). The description
+typed once (#159: #236 to #241, #244, #246 and #247; ``packages/chat-ui/src/generated``). The description
 names every operation and its group; a moved area's operations also describe every refusal
 (``problems.refusals``). Elsewhere some answers, the states kept as text and the events aren't described yet (#159
 lists them).
@@ -31,17 +31,14 @@ import sys
 from pathlib import Path
 
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, ConfigDict
+from suveryn_harness import schemas
 
 FILE = Path(__file__).resolve().parents[2] / "openapi.json"
 
 
-class Answer(BaseModel):
-    """What an operation answers, for a model of a strictly described area: a member with a default is always
-    sent, and is described as always there, so generated code doesn't call it optional (pydantic's switch for
-    exactly that). Without it only the members without a default are."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+# What an operation answers, for a model of a strictly described area: every member always sent, and described so.
+# One base for the gateway's models and the harness's that the gateway sends (``suveryn_harness.schemas.Answer``).
+Answer = schemas.Answer
 
 
 def operation_id(route: APIRoute) -> str:

@@ -557,191 +557,47 @@ export const searchUsers = (q: string) => answered(gateway.listUsers({ q }));
 
 // ---------------------------------------------------------------- playbooks (suveryn-tracker#51, docs/design/playbooks.md)
 
-/** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. */
-/** covered: certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block). */
-/** case_types and active: the administration's list; an inactive playbook leaves every case's menu (docs/design/chat-ui.md). */
-export type PlaybookStep = { id: string; kind: "request" | "read" | "ask" | "checkpoint" | "produce" | "check"; needs: string[]; facts: string[];
-                             /** checkpoint: who may pass it: anyone who contributes to the case, or its manager (the notary) only. */
-                             by?: "anyone_in_case" | "manager";
-                             /** request: a person may answer that there is no such document. */
-                             allow_none?: boolean };
-export type PlaybookInfo = { id: string; slug: string; pack: string; version: string; name: string; covered: boolean; facts: string[];
-                             case_types?: string[]; active?: boolean;
-                             /** Format 3: per list fact, its entries' field ids ([] for a list of plain values), so the view can offer an entry to add. */
-                             lists?: Record<string, string[]>;
-                             /** Per fact and field (`founders.shares`): text, amount, date, number or choice. */
-                             kinds?: Record<string, string>;
-                             /** Per choice fact, its options, so the view can offer them when the playbook asks. */
-                             choices?: Record<string, string[]>;
-                             /** Per language: its title, one line on what it does, its fact labels and the routine's questions (the playbook carries them). */
-                             text?: Record<string, { title: string; summary: string; labels: Record<string, string>; questions?: Record<string, string>;
-                                                     checks?: Record<string, string>; steps?: Record<string, string>;
-                                                     /** The facts panel's heading ("Facts for the deed"); empty: the UI's generic one. */
-                                                     facts_title?: string }>;
-                             /** The routine (docs/design/playbooks.md, "The routine"): so the view can name the step a run is on. */
-                             steps?: PlaybookStep[] };
-/** A passage a fact was read from, kept with the run (so it can be shown after the document is deleted). */
-type FactCitation = { n: number; document_id: string; filename: string; page: number | null; location: string | null; text: string;
-                             context?: PassageContext | null;
-                             // what the source panel marks, from the server: the fact's sentences, and the fact in them
-                             ranges?: [number, number][]; facts?: [number, number][] };
-type RunCheck = { status: "holds" | "fails" | "open"; rule: string; left: string; right: string; missing: string[] };
-export type RunFact = {
-  id: string;
-  value: string;              // as read: the model's, from the documents, or a person's answer to the playbook's question ("" when neither)
-  citations: FactCitation[];
-  issues: string[];           // figures, dates or names the check couldn't find in the cited passages
-  found: boolean;             // false: the documents don't contain it
-  confirmed: string | null;   // what the person confirmed at the checkpoint, once they have
-  source?: "document" | "person" | "none";  // where ``value`` came from
-  by?: string | null;         // for a person's value: who gave it, in the conversation
-  was?: string | null;        // for a correction of a value read from the documents: the value as read
-  at?: string | null;         // for a person's value: when it was given
-  needs?: "not_a_date" | "not_an_amount" | "not_a_number" | "approximate" | "invalid_number" | "computed" | null;  // the value gives no date or amount as such: a person works it out; computed: sūveryn did, from a term
-  /** A term worked out from the date it counts from (board P01): the term as written, the fact counted from, and how. */
-  computed?: Computed | null;
-  /** A document added later reads this fact differently from what is confirmed: shown beside it, a person chooses. */
-  alternative?: { value: string; citations: FactCitation[] } | null;
-};
-/** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount from a share. */
+/** A playbook that fits a case: its identity (id, pack, version) and whether this appliance may run it. `covered`:
+ *  certified and in the appliance's manifest; false shows a warning, and the playbook still runs (never a block).
+ *  `case_types` and `active`: the administration's list; an inactive playbook leaves every case's menu
+ *  (docs/design/chat-ui.md). `lists`: per list fact, its entries' field ids ([] for a list of plain values), so the
+ *  view can offer an entry to add. `kinds`: per fact and field (`founders.shares`): text, amount, date, number or
+ *  choice. `choices`: per choice fact, its options. `text`: per language its title, one line on what it does, its fact
+ *  labels and the routine's questions (the playbook carries them). `steps`: the routine (docs/design/playbooks.md,
+ *  "The routine"), so the view can name the step a run is on. */
+export type PlaybookInfo = gateway.PlaybookOut;
+/** A step of the routine. `by`: who may pass a checkpoint, anyone who contributes to the case or its manager (the
+ *  notary) only; `allow_none`: at a request, a person may answer that there is no such document. */
+export type PlaybookStep = gateway.StepOut;
+/** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount from a share.
+ *  The screens' own type until the gateway describes it (suveryn-tracker#159). */
 export type TermComputed = { kind?: undefined; written: string; from: string; base: string; date: string; amount: number;
                              unit: "day" | "week" | "month" | "year" | "workday"; direction: "after" | "before";
                              /** working days: the pack's calendar, its name per language */
                              calendar?: Record<string, string> };
 export type ShareComputed = { kind: "share"; written: string; from: string; percent: string; of: string; amount: string };
 export type Computed = TermComputed | ShareComputed;
-/** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped, cancelled, failed:
- *  docs/design/playbooks.md, "A running playbook is visible". */
-export type RunStatus = "reading" | "waiting" | "paused" | "done" | "stopped" | "cancelled" | "failed";
-type StepState = { status: "pending" | "active" | "done" | "skipped"; by: string | null; at: string | null };
+/** A fact of a run. `value`: as read, the model's from the documents or a person's answer to the playbook's question
+ *  ("" when neither); `issues`: figures, dates or names the check couldn't find in the cited passages; `found` false:
+ *  the documents don't contain it; `confirmed`: what the person confirmed at the checkpoint, once they have; `source`:
+ *  where `value` came from; `by`, `at`: for a person's value, who gave it and when; `was`: for a correction of a value
+ *  read from the documents, the value as read; `needs`: the value gives no date or amount as such, so a person works
+ *  it out (`computed`: sūveryn did, from a term; board P01); `alternative`: a document added later reads this fact
+ *  differently from what is confirmed, shown beside it, and a person chooses. */
+export type RunFact = Omit<gateway.RunFact, "computed"> & { computed: Computed | null };
+/** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped,
+ *  cancelled, failed: docs/design/playbooks.md, "A running playbook is visible". */
+export type RunStatus = gateway.RunSummary["status"];
 /** One line of the run's thread (the ``turns`` table): the playbook's question or a person's answer. */
-export type RunTurn = { seq: number; role: "user" | "assistant" | "playbook"; step_id: string | null; by: string; at: string; text: string;
-                     meta: Record<string, unknown> };
-export type RunSummary = {
-  id: string; case_id: string; playbook_id: string; playbook_version: string; status: RunStatus; documents: string[];
-  started_by: string; started_at: string; finished_at: string | null; confirmed_by: string | null; confirmed_at: string | null;
-  model: string | null; failure: Message | null; result_document_id: string | null; out_of_date: boolean;  // failure: why it failed, a code of the registry
-  step: string | null;          // the step the run is on (null: not started, or ended)
-  language: string;             // the thread's language
-  paused_by: string | null; paused_at: string | null; ended_by: string | null; ended_reason: string | null;
-  starter?: string | null;      // the starter's id: who may stop or cancel, with the case manager
-  title?: Record<string, string>;   // the playbook's title per language (the server fills it), for a chip anywhere
-  step_kind?: "request" | "read" | "ask" | "checkpoint" | "produce" | null;  // the kind of the step the run is on
-  conversation_id?: string;     // the run's conversation, in the case's list of conversations
-};
-export type Run = RunSummary & {
-  /** The playbook the run started under, from its own record (a run keeps its manifest). */
-  playbook: PlaybookInfo;
-  /** Per named request (step id), the documents that answered it. */
-  requested?: Record<string, string[]>;
-  /** Per check step (step id), its result on the values as they stand: the rule holds, fails (both sides as computed) or is open. */
-  checks?: Record<string, RunCheck>;
-  facts: RunFact[]; instruction_like_sources: number[]; steps: Record<string, StepState>; turns: RunTurn[];
-  /** Which state of the facts this is; sent back when confirming (`confirmRun`'s `seen`). */
-  facts_seq?: number };
-
-export async function casePlaybooks(caseId: string): Promise<PlaybookInfo[]> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Administrators: every installed playbook, with whether it is switched on. */
-export async function listAdminPlaybooks(): Promise<PlaybookInfo[]> {
-  const r = await fetch("/v1/admin/playbooks");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Administrators: switch a playbook on or off for the whole office. */
-export async function setPlaybookActive(slug: string, active: boolean): Promise<PlaybookInfo> {
-  const r = await fetch(`/v1/admin/playbooks/${encodeURIComponent(slug)}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function getRun(caseId: string, runId: string): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** The live run per case the caller may read (reading, waiting or paused), keyed by case id: the chip on the case lists. */
-/** The case's runs, newest first (a reader's right): the playbook menu's "Last" line (board P04, 9). */
-export async function caseRuns(caseId: string): Promise<RunSummary[]> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function activeRuns(): Promise<Record<string, RunSummary>> {
-  const r = await fetch("/v1/playbooks/runs/active");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Starts a run (a contributor's right) in the thread's language and walks it to its first wait; 409 while one is live. */
-export async function startRun(caseId: string, slug: string, language: string, documentIds: string[] = []): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/${encodeURIComponent(slug)}/runs`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document_ids: documentIds, language }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Answers the step the run waits on: an ask's facts (a value per fact; empty: still unknown), or a request (the documents are in,
- *  or ``none`` when the step allows it). The answer goes into the thread and the run walks on. */
-export async function answerRun(caseId: string, runId: string, stepId: string,
-                                answer: { text?: string; facts?: Record<string, string>; none?: boolean } = {}): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/answer`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ step_id: stepId, ...answer }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Writes in the run's conversation (a playbook is a conversation): the documents just added, an answer in words (mapped to the facts
- *  asked), ``unknown`` (the quick reply), or a correction at the checkpoint. The run walks on as far as it can. */
-export async function sayInRun(caseId: string, runId: string,
-                               said: { text?: string; documents?: string[]; unknown?: boolean; case_documents?: boolean }): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/say`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(said),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** A value from a playbook's card at the checkpoint (Adjust, Fill in); the same value says the person checked it. */
-export async function setRunFact(caseId: string, runId: string, factId: string, value: string): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/facts/${encodeURIComponent(factId)}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Pause (keeps everything), resume, stop (keeps confirmed facts, drops proposed ones) or cancel (reverts confirmed facts, withdraws the
- *  product). Pause and resume: anyone who contributes; stop and cancel: the starter or the case manager. */
-export async function runAction(caseId: string, runId: string, action: "pause" | "resume" | "stop" | "cancel", reason = ""): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/${action}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: action === "cancel" ? JSON.stringify({ reason }) : undefined,
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. `seen` is
- *  the state of the facts on this screen (`Run.facts_seq`): when a colleague changed one since, the server refuses
- *  (409, `run.facts_changed`) and writes nothing, so an old screen can't put a value back (suveryn-tracker#135). */
-export async function confirmRun(caseId: string, runId: string, facts: { id: string; confirmed: string }[], seen?: number): Promise<Run> {
-  const r = await fetch(`/v1/cases/${encodeURIComponent(caseId)}/playbooks/runs/${encodeURIComponent(runId)}/facts`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ facts, seen }),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+export type RunTurn = gateway.Turn;
+/** A run in a list. `failure`: why it failed, a code of the registry; `step`: the step it is on (null: not started, or
+ *  ended); `language`: the thread's; `starter`: the starter's id, who may stop or cancel with the case manager;
+ *  `title`: the playbook's title per language, for a chip anywhere; `conversation_id`: the run's conversation. */
+export type RunSummary = gateway.RunSummary;
+/** A run with its thread. `playbook`: the playbook it started under, from its own record (a run keeps its manifest);
+ *  `requested`: per named request (step id), the documents that answered it; `checks`: per check step, its result on
+ *  the values as they stand; `facts_seq`: which state of the facts this is, sent back when confirming. */
+export type Run = Omit<gateway.Run, "facts"> & { facts: RunFact[] };
 
 // ---------------------------------------------------------------- avatars (docs/design/avatars.md)
 
@@ -809,3 +665,45 @@ export const shareConversation = (id: string, shared: boolean) => answered(gatew
 export const deleteConversation = (id: string) => removed(gateway.deleteConversation(encodeURIComponent(id)));
 /** Deletes every saved conversation of the signed-in user (the sign-out choice "Delete history"). */
 export const deleteAllConversations = async (): Promise<void> => { await answered(gateway.deleteMyConversations()); };
+
+/** The playbooks (suveryn-tracker#247). The ones that fit a case. */
+export const casePlaybooks = (caseId: string) => answered(gateway.listCasePlaybooks(encodeURIComponent(caseId)));
+/** Administrators: every installed playbook, with whether it is switched on. */
+export const listAdminPlaybooks = () => answered(gateway.listOfficePlaybooks());
+/** Administrators: switch a playbook on or off for the whole office. */
+export const setPlaybookActive = (slug: string, active: boolean) => answered(gateway.setPlaybookActive(encodeURIComponent(slug), { active }));
+/** A run as the gateway answers it, with how a value was worked out in the screens' own type (`Computed`). */
+const aRun = (call: Promise<Answer & { data: gateway.Run | gateway.ProblemDetails }>) => answered(call) as Promise<Run>;
+export const getRun = (caseId: string, runId: string) => aRun(gateway.getRun(encodeURIComponent(caseId), encodeURIComponent(runId)));
+/** The case's runs, newest first (a reader's right): the playbook menu's "Last" line (board P04, 9). */
+export const caseRuns = (caseId: string) => answered(gateway.listCaseRuns(encodeURIComponent(caseId)));
+/** The live run per case the caller may read (reading, waiting or paused), keyed by case id: the chip on the case lists. */
+export const activeRuns = () => answered(gateway.listAllActiveRuns());
+/** Starts a run (a contributor's right) in the thread's language and walks it to its first wait; 409 while one is live. */
+export const startRun = (caseId: string, slug: string, language: string, documentIds: string[] = []) =>
+  aRun(gateway.startRun(encodeURIComponent(caseId), encodeURIComponent(slug), { document_ids: documentIds, language }));
+/** Answers the step the run waits on: an ask's facts (a value per fact; empty: still unknown), or a request (the
+ *  documents are in, or ``none`` when the step allows it). The answer goes into the thread and the run walks on. */
+export const answerRun = (caseId: string, runId: string, stepId: string, answer: Omit<gateway.AnswerIn, "step_id"> = {}) =>
+  aRun(gateway.answerRun(encodeURIComponent(caseId), encodeURIComponent(runId), { step_id: stepId, ...answer }));
+/** Writes in the run's conversation (a playbook is a conversation): the documents just added, an answer in words
+ *  (mapped to the facts asked), ``unknown`` (the quick reply), or a correction at the checkpoint. The run walks on as
+ *  far as it can. */
+export const sayInRun = (caseId: string, runId: string, said: gateway.SayIn) =>
+  aRun(gateway.sayInRun(encodeURIComponent(caseId), encodeURIComponent(runId), said));
+/** A value from a playbook's card at the checkpoint (Adjust, Fill in); the same value says the person checked it. */
+export const setRunFact = (caseId: string, runId: string, factId: string, value: string) =>
+  aRun(gateway.setRunFact(encodeURIComponent(caseId), encodeURIComponent(runId), encodeURIComponent(factId), { value }));
+/** Pause (keeps everything), resume, stop (keeps confirmed facts, drops proposed ones) or cancel (reverts confirmed
+ *  facts, withdraws the product). Pause and resume: anyone who contributes; stop and cancel: the starter or the case
+ *  manager. */
+export const runAction = (caseId: string, runId: string, action: "pause" | "resume" | "stop" | "cancel", reason = "") => {
+  const run = encodeURIComponent(runId);
+  return aRun(action === "pause" ? gateway.pauseRun(encodeURIComponent(caseId), run) : action === "resume" ? gateway.resumeRun(encodeURIComponent(caseId), run)
+    : action === "stop" ? gateway.stopRun(encodeURIComponent(caseId), run) : gateway.cancelRun(encodeURIComponent(caseId), run, { reason }));
+};
+/** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. `seen` is the
+ *  state of the facts on this screen (`Run.facts_seq`): when a colleague changed one since, the server refuses (409,
+ *  `run.facts_changed`) and writes nothing, so an old screen can't put a value back (suveryn-tracker#135). */
+export const confirmRun = (caseId: string, runId: string, facts: gateway.ConfirmedFact[], seen?: number) =>
+  aRun(gateway.confirmRunFacts(encodeURIComponent(caseId), encodeURIComponent(runId), { facts, seen }));

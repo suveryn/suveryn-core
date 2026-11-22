@@ -4,29 +4,30 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Case, PlaybookInfo, Run, RunFact } from "../api";
+import { aCitation, aFact, aPlaybook, aStep, someWords } from "../test/run";
 import en from "../i18n/en";
 import nl from "../i18n/nl";
 import type { AssistantTurn } from "../types";
 import { AnswerNotes } from "./Messages";
 import { RunThread, reviewGroups } from "./RunConversation";
 
-const PLAYBOOK = {
+const PLAYBOOK: PlaybookInfo = aPlaybook({
   id: "playbook/be-notary/deed-intake", slug: "deed-intake", pack: "pack/be-notary", version: "1.1", name: "Deed intake", covered: true,
-  facts: ["deadline", "soil"], steps: [{ id: "confirm", kind: "checkpoint", needs: [], facts: [] }],
-  text: { en: { title: "Deed intake", summary: "", labels: { deadline: "Deed deadline", soil: "Soil certificate" } } },
-} as PlaybookInfo;
+  facts: ["deadline", "soil"], steps: [aStep({ id: "confirm", kind: "checkpoint", needs: [], facts: [] })],
+  text: { en: someWords({ title: "Deed intake", summary: "", labels: { deadline: "Deed deadline", soil: "Soil certificate" } }) },
+});
 const at = "2026-11-01T10:00:00Z";
-const DEADLINE: RunFact = {
+const DEADLINE: RunFact = aFact({
   id: "deadline", value: "uiterlijk vier maanden na de opschortende voorwaarde", found: true, confirmed: null, source: "document", issues: [],
-  needs: "not_a_date", citations: [{ n: 1, document_id: "d1", filename: "compromis.pdf", page: 3, location: null,
-                                      text: "De akte wordt verleden uiterlijk vier maanden na de vervulling van de opschortende voorwaarde." }],
-};
+  needs: "not_a_date", citations: [aCitation({ n: 1, document_id: "d1", filename: "compromis.pdf", page: 3, location: null,
+                                      text: "De akte wordt verleden uiterlijk vier maanden na de vervulling van de opschortende voorwaarde." })],
+});
 const RUN = {
   id: "r1", case_id: "c1", playbook_id: PLAYBOOK.id, playbook_version: "1.1", status: "waiting", documents: ["d1"], started_by: "alice",
   started_at: at, finished_at: null, confirmed_by: null, confirmed_at: null, model: null, error: null, result_document_id: null,
   out_of_date: false, language: "en", paused_by: null, paused_at: null, ended_by: null, ended_reason: null, starter: "u-alice",
   conversation_id: "conv", instruction_like_sources: [], steps: {}, step: "confirm",
-  facts: [DEADLINE, { id: "soil", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" }],
+  facts: [DEADLINE, aFact({ id: "soil", value: "", citations: [], issues: [], found: false, confirmed: null, source: "none" })],
   turns: [
     { seq: 1, role: "playbook", step_id: "confirm", by: PLAYBOOK.id, at, text: "", meta: { kind: "checkpoint", found: 1, total: 2, issues: 0 } },
     { seq: 2, role: "user", step_id: "confirm", by: "alice", at, text: "Soil certificate: not known yet.", meta: {} },
