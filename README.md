@@ -61,7 +61,7 @@ Related repositories: [suveryn-docs](https://github.com/suveryn/suveryn-docs) (i
 
 `documents.status` is `ready`, `starting`, `failed` or `unavailable` (no database or `rag` not installed); it doesn't affect the status code. `auth.status` is `unavailable` while Keycloak doesn't answer or can't sign anyone in (its database down); both are asked again at most every 15 s.
 
-Every `/v1/...` request needs a signed-in user, and every `/v1/admin/...` request an administrator (403 before the body is read): the session cookie from `/auth/login`, or `Authorization: Bearer <Keycloak access token>`. Without one the answer is 401.
+Every `/v1/...` request needs a signed-in user, and every `/v1/admin/...` request an administrator (403 before the body is read): the session cookie from `/auth/login` (a Keycloak access token as `Authorization: Bearer` only where `SUVERYN_AUTH_BEARER=on`, as in the end-to-end stack). Without one the answer is 401.
 
 `GET /v1/models` lists the installed models: `[{"id": "qwen3.8-27b", "loaded": true, "default": true, "thinks": true}, …]`; `thinks` says the model family can reason before it answers (Qwen3; the chat shows a brain on the model chip).
 

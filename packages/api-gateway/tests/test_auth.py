@@ -11,6 +11,7 @@ import hashlib
 import json
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
@@ -35,7 +36,8 @@ from suveryn_harness import LlamaServerClient, LLMSettings
 
 ISSUER = "http://keycloak.test/realms/suveryn"
 PUBLIC = "http://testserver"
-SETTINGS = AuthSettings(issuer=ISSUER, client_id="suveryn-chat", client_secret="s3cret", public_url=PUBLIC)
+# Bearer tokens on, as in the end-to-end stack: most tests call the API with one. Off is tested below.
+SETTINGS = AuthSettings(issuer=ISSUER, client_id="suveryn-chat", client_secret="s3cret", public_url=PUBLIC, bearer=True)
 REALM = Path(__file__).parents[1] / "keycloak" / "suveryn-realm.json"
 
 
@@ -252,10 +254,33 @@ def test_forged_and_wrong_tokens_are_refused(client, kc):
     unsigned = b64(json.dumps({"alg": "none", "kid": "k1"}).encode()) + "." + b64(json.dumps(claims).encode()) + "."
     assert bearer(client, unsigned) == 401                                            # alg none
     assert bearer(client, kc.sign({**claims, "azp": "other-client"})) == 401          # another client's token
+    # another client's token that names the gateway as an audience (a Keycloak audience mapper): still that client's
+    assert bearer(client, kc.sign({**claims, "azp": "other-client", "aud": ["suveryn-chat", "account"]})) == 401
     assert bearer(client, kc.sign({**claims, "iss": "http://evil/realms/suveryn"})) == 401
     assert bearer(client, kc.sign({**claims, "exp": now - 3600})) == 401              # expired
     assert bearer(client, kc.sign(claims, kid="unknown")) == 401
     assert bearer(client, "not-a-token") == 401
+
+
+def test_bearer_tokens_are_refused_unless_switched_on(kc, monkeypatch, caplog):
+    """An appliance accepts no bearer token: only the end-to-end stack turns them on (suveryn-tracker#142)."""
+    from suveryn_api_gateway.app import ADMIN_ROLE
+    off = replace(SETTINGS, bearer=False)
+    auth = Authenticator(off, OIDCProvider(off, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(llm_transport))
+    with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=auth)) as c:
+        token = kc.tokens()["access_token"]
+        with caplog.at_level("INFO", logger="suveryn.gateway"):
+            assert bearer(c, token) == 401
+        assert "bearer token refused: bearer tokens are not accepted" in caplog.text and token not in caplog.text
+        admin = kc.tokens(over={"realm_access": {"roles": [ADMIN_ROLE]}})["access_token"]
+        assert c.get("/v1/admin/users", headers={"Authorization": f"Bearer {admin}"}).status_code == 401
+        sign_in(c, kc)
+        assert c.get("/v1/documents").status_code == 200                              # the session still works
+    monkeypatch.delenv("SUVERYN_AUTH_BEARER", raising=False)
+    assert AuthSettings.from_env().bearer is False
+    monkeypatch.setenv("SUVERYN_AUTH_BEARER", "on")
+    assert AuthSettings.from_env().bearer is True
 
 
 def test_changes_need_the_uis_own_origin(client, kc):
@@ -314,6 +339,17 @@ def test_sign_in_can_be_off_only_on_loopback(monkeypatch):
     check_auth_settings("127.0.0.1")
     with pytest.raises(SystemExit):
         check_auth_settings("0.0.0.0")
+
+
+def test_the_gateway_warns_at_start_when_bearer_tokens_are_on(monkeypatch, capsys):
+    """Bearer tokens on is for the end-to-end stack; on anything else it must be seen, not silent (#142 review)."""
+    monkeypatch.delenv("SUVERYN_AUTH", raising=False)
+    monkeypatch.delenv("SUVERYN_AUTH_BEARER", raising=False)
+    check_auth_settings("127.0.0.1")
+    assert "SUVERYN_AUTH_BEARER" not in capsys.readouterr().out
+    monkeypatch.setenv("SUVERYN_AUTH_BEARER", "on")
+    check_auth_settings("127.0.0.1")
+    assert "warning: SUVERYN_AUTH_BEARER=on" in capsys.readouterr().out
 
 
 def test_the_gateway_refuses_to_start_as_several_workers(monkeypatch):
