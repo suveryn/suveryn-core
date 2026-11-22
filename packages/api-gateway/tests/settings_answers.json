@@ -1,0 +1,63 @@
+{
+ "as_provisioned": {
+  "body": {
+   "conversations_keep": "manual",
+   "default_access": "members",
+   "keep": "6m",
+   "office_name": "",
+   "two_step": false,
+   "updated_at": null,
+   "updated_by": ""
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "not_an_administrator": {
+  "body": {
+   "code": "request.forbidden",
+   "detail": "Only administrators can see this.",
+   "kind": "refused",
+   "params": {},
+   "status": 403,
+   "title": "The caller may not do this.",
+   "type": "urn:suveryn:problem:request.forbidden"
+  },
+  "media_type": "application/problem+json",
+  "status": 403
+ },
+ "nothing_to_change": {
+  "body": {
+   "code": "request.invalid",
+   "detail": "Say what to change: default_access, keep, conversations_keep, two_step or office_name.",
+   "kind": "refused",
+   "params": {},
+   "status": 422,
+   "title": "The request's body or parameters aren't valid.",
+   "type": "urn:suveryn:problem:request.invalid"
+  },
+  "media_type": "application/problem+json",
+  "status": 422
+ },
+ "preview": {
+  "body": {
+   "cases_closed": 0,
+   "cases_opened": 1,
+   "conversations_deleted": 0
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
+ "saved": {
+  "body": {
+   "conversations_keep": "manual",
+   "default_access": "office",
+   "keep": "1y",
+   "office_name": "Notariaat Test",
+   "two_step": false,
+   "updated_at": "2026-11-22T09:00:00Z",
+   "updated_by": "Test Notaris"
+  },
+  "media_type": "application/json",
+  "status": 200
+ }
+}

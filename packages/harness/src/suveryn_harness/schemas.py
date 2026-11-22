@@ -14,7 +14,7 @@ misspelled names it had read correctly
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Role = Literal["system", "user", "assistant"]
 
@@ -122,6 +122,9 @@ class Usage(BaseModel):
 
 class ModelInfo(BaseModel):
     """An installed model, as listed by ``GET /v1/models``."""
+
+    # a member with a default is always sent: the gateway's description says so (its description.py, ``Answer``)
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: str                 # what to send as ``ChatRequest.model``
     loaded: bool            # in GPU memory now; otherwise the first answer waits for it to load

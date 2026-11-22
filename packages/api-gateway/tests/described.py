@@ -80,3 +80,28 @@ class Kept:
         assert self.file.exists() and self.file.read_text(encoding="utf-8") == text, (
             f"{self.file.name} isn't what the gateway answers today: SUVERYN_WRITE_ANSWERS=1 uv run pytest "
             "packages/api-gateway/tests, and commit the file with the change")
+
+
+class Checked:
+    """The answers of one area's test, each checked against the description as it is given, and kept by name where
+    the chat UI's tests need it."""
+
+    def __init__(self, client, area: str):
+        self.client, self.area, self.kept, self.seen = client, area, Kept(area), set()
+
+    def __call__(self, method: str, path: str, expected: int, at: str | None = None, keep: str | None = None,
+                 same_every_run: dict | None = None, **request):
+        """``path`` as the description writes it; ``at``: the address asked, where it differs (an id, a query)."""
+        r = self.client.request(method, at or path, **request)
+        assert r.status_code == expected, f"{method} {at or path}: {r.status_code} {r.text}"
+        answer_is_described(r, method, path)
+        self.seen.add((method, path, expected))
+        if keep:
+            self.kept.keep(keep, r, **(same_every_run or {}))
+        return r
+
+    def not_seen(self) -> set[tuple[str, str, int]]:
+        """Every status the description gives the area's operations that this test didn't see answered."""
+        described = {(method.upper(), path, int(status)) for path, by_method in DESCRIBED["paths"].items()
+                     for method, op in by_method.items() if op["tags"] == [self.area] for status in op["responses"]}
+        return described - self.seen

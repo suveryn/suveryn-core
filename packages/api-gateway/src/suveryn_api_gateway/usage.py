@@ -27,11 +27,13 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from suveryn_harness import UsageRecord
 
 from .db import PgStore
+from .description import Answer
 
 # The published price of a comparable large cloud model (USD per million tokens, October 2026).
 DEFAULT_RATES = (Decimal(3), Decimal(15), "USD")
@@ -92,7 +94,7 @@ class UsageSettings:
                    timezone=os.environ.get("SUVERYN_TIMEZONE", cls.timezone), keep_months=keep)
 
 
-class UsageTotals(BaseModel):
+class UsageTotals(Answer):
     requests: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
@@ -103,7 +105,7 @@ class UsageBucket(UsageTotals):
     start: datetime
 
 
-class Rates(BaseModel):
+class Rates(Answer):
     """Notional cost per million tokens, as on a comparable cloud API (admin-editable)."""
 
     input_per_million: Decimal = Field(ge=0, le=10_000, decimal_places=4)
@@ -113,7 +115,7 @@ class Rates(BaseModel):
     updated_by: str | None = None
 
 
-class UserUsage(BaseModel):
+class UserUsage(Answer):
     user_id: str
     username: str | None
     name: str | None
@@ -121,12 +123,12 @@ class UserUsage(BaseModel):
     cost: Decimal | None = None
 
 
-class UsageReport(BaseModel):
+class UsageReport(Answer):
     """Usage between ``start`` and ``end``: totals, a series in ``step`` buckets (local time), per kind."""
 
     start: datetime
     end: datetime
-    step: str  # "5 minutes", "1 hour", "1 day", "7 days" or "30 days"
+    step: Literal["5 minutes", "1 hour", "1 day", "7 days", "30 days"]  # ``step_for``
     totals: UsageTotals
     series: list[UsageBucket]
     by_kind: dict[str, UsageTotals]

@@ -91,3 +91,33 @@ def test_stream_says_when_the_chosen_model_has_to_load_first():
         first = stream_events(c, {**CHAT, "model": MISTRAL})[0]
         assert first == ("status", {"step": "loading_model", "passages": None, "complete": None, "model": MISTRAL})
         assert stream_events(c, {**CHAT, "model": QWEN})[0][1]["step"] == "writing"  # already loaded
+
+
+def test_every_answer_of_models_is_what_the_description_says():
+    """The chat UI's code for the models is generated from the description (suveryn-tracker#237)."""
+    import httpx
+    from described import Checked
+    from suveryn_api_gateway.auth import OIDCProvider
+    from test_auth import SETTINGS, FakeKeycloak
+    from test_usage import BOB, as_user
+
+    kc = FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+
+    def app(transport):
+        return create_app(LlamaServerClient(LLMSettings(base_url="http://llm", default_model=QWEN), transport=transport),
+                          load_documents=False, auth=auth)
+
+    with TestClient(app(backend(True, []))) as c:
+        check = Checked(c, "models")
+        assert check("GET", "/v1/models", 401, keep="signed_out").json()["code"] == "auth.signed_out"
+        assert [m["id"] for m in check("GET", "/v1/models", 200, keep="installed", headers=as_user(kc, BOB)).json()] == [MISTRAL, QWEN]
+
+        def away(request):
+            raise httpx.ConnectError("refused")
+        with TestClient(app(httpx.MockTransport(away))) as down:
+            check.client = down
+            assert check("GET", "/v1/models", 503, keep="unavailable", headers=as_user(kc, BOB)).json()["code"] == "model.unavailable"
+        check.kept.check()
+        # not seen: what nobody planned for, and sign-in turned off for another machine
+        assert check.not_seen() == {("GET", "/v1/models", 500), ("GET", "/v1/models", 403)}

@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from .. import clock as clock_module
+from ..description import Answer
 from ..problems import Message, refusals
 from .common import admin_or_403, principal
 
@@ -17,7 +18,7 @@ router = APIRouter(tags=["clock"])  # the group its operations are in, in the de
 YEAR_MS = 366 * 24 * 3600 * 1000
 
 
-class Now(BaseModel):
+class Now(Answer):
     now_ms: int  # the appliance's clock, in milliseconds since 1970 (UTC)
 
 
@@ -28,7 +29,7 @@ class Measured(BaseModel):
     rtt_ms: int = Field(ge=0, le=60_000)
 
 
-class SetAnswer(BaseModel):
+class SetAnswer(Answer):
     id: str
     pending: bool = False
     ok: bool | None = None

@@ -4,7 +4,7 @@ import json
 import time
 
 import pytest
-from described import DESCRIBED, Kept, answer_is_described
+from described import Checked
 from test_auth import sign_in
 from test_usage import ALICE, BOB, as_user, setup  # noqa: F401 - the fixture
 
@@ -162,16 +162,7 @@ def test_every_answer_of_the_clock_is_what_the_description_says(setup, appliance
     clock's operations give, the refusals too, is checked against it."""
     c, kc, _ = setup
     user, admin, body = as_user(kc, BOB), as_user(kc, ALICE, admin=True), {"offset_ms": -95_000, "rtt_ms": 40}
-    seen, kept, RID = set(), Kept("clock"), "0123456789abcdef"
-
-    def check(method, path, expected, at=None, keep=None, same_every_run=None, **request):
-        r = c.request(method, at or path, **request)
-        assert r.status_code == expected, f"{method} {at or path}: {r.status_code} {r.text}"
-        answer_is_described(r, method, path)
-        seen.add((method, path, expected))
-        if keep:
-            kept.keep(keep, r, **(same_every_run or {}))
-        return r
+    check, RID = Checked(c, "clock"), "0123456789abcdef"
 
     for method, path, at, sent in (("GET", "/v1/clock", None, {}), ("POST", "/v1/clock", None, {"json": body}),
                                    ("POST", "/v1/admin/clock", None, {"json": body}),
@@ -212,15 +203,13 @@ def test_every_answer_of_the_clock_is_what_the_description_says(setup, appliance
     monkeypatch.setattr(clock, "result_of", broken)
     unplanned = check("GET", "/v1/admin/clock/{rid}", 500, f"/v1/admin/clock/{RID}", "unplanned", {"ref": "7F3K-92QD"}, headers=admin)
     assert unplanned.json()["code"] == "system.internal" and "document" not in unplanned.text
-    kept.check()
+    check.kept.check()
 
     # every status the description gives the clock's operations was seen here, but: what nobody planned for, seen on
     # one; sign-in or the database down, and sign-in turned off for another machine, which no operation decides for
     # itself (test_auth.py, test_problems.py); and the 422 FastAPI gives every operation with a parameter, which an
     # id in the address, any text, never gets
-    described = {(method.upper(), path, int(status)) for path, by_method in DESCRIBED["paths"].items()
-                 for method, op in by_method.items() if op["tags"] == ["clock"] for status in op["responses"]}
-    assert described - seen == {
+    assert check.not_seen() == {
         ("GET", "/v1/clock", 500), ("POST", "/v1/clock", 500), ("POST", "/v1/admin/clock", 500),
         ("GET", "/v1/clock", 403), ("GET", "/v1/clock", 503), ("POST", "/v1/clock", 503), ("GET", "/v1/admin/clock/{rid}", 503),
         ("GET", "/v1/admin/clock/{rid}", 422)}

@@ -9,6 +9,7 @@ import { lang, t } from "./i18n";
 import { messageText, problemOf, type Message } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
+import * as gateway from "./generated/gateway";
 import { createClockRequest, getClockRequest, type Measured, type SetAnswer } from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
@@ -119,16 +120,9 @@ export type StreamStatus = {
   complete: boolean | null;
   model: string | null;
 };
-/** An installed model (GET /v1/models); only one is in GPU memory at a time. */
-// thinks: the model can think before it answers, so *Thorough* is possible (docs/design/chat-ui.md §5)
-export type ModelInfo = { id: string; loaded: boolean; default: boolean; thinks?: boolean };
-
-/** The models installed on this appliance, with which one is loaded and which is the default. */
-export async function listModels(): Promise<ModelInfo[]> {
-  const r = await fetch("/v1/models");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+/** An installed model; only one is in GPU memory at a time. `thinks`: the model can think before it answers, so
+ *  *Thorough* is possible (docs/design/chat-ui.md §5). */
+export type { ModelInfo } from "./generated/gateway";
 
 /**
  * Sign-in. The gateway runs the OIDC login with Keycloak and keeps the tokens; the browser only
@@ -649,9 +643,7 @@ export async function keepCase(id: string, change: { keep?: boolean; extend?: bo
 export type AdminCase = Case & { manager_username: string; manager_name: string; members: number };
 // conversations_keep: how long saved conversations are kept after their last change, in cases too (the data lifecycle, suveryn-tracker#31)
 // two_step: every account must set up two-step sign-in (off by default; decision, 29 October 2026)
-export type CaseSettings = { default_access: "office" | "members"; keep: KeepPeriod; conversations_keep: KeepPeriod; two_step: boolean;
-  office_name?: string;
-  updated_at: string | null; updated_by: string };
+export type CaseSettings = gateway.SettingsOut;
 
 export async function listAdminCases(): Promise<AdminCase[]> {
   const r = await fetch("/v1/admin/cases");
@@ -659,30 +651,8 @@ export async function listAdminCases(): Promise<AdminCase[]> {
   return r.json();
 }
 
-export async function getCaseSettings(): Promise<CaseSettings> {
-  const r = await fetch("/v1/admin/cases/settings");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
 /** What saving these settings would do now, for the confirmation in Administration › Settings: counts only. */
-export type SettingsPreview = { cases_opened: number; cases_closed: number; conversations_deleted: number };
-
-export async function previewCaseSettings(q: { default_access?: "office" | "members"; apply_to?: "new" | "all"; conversations_keep?: KeepPeriod }): Promise<SettingsPreview> {
-  const params = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined) as [string, string][]);
-  const r = await fetch(`/v1/admin/cases/settings/preview?${params}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
-export async function setCaseSettings(changes: Partial<Pick<CaseSettings, "default_access" | "keep" | "conversations_keep" | "two_step" | "office_name">> & { apply_to?: "new" | "all" }): Promise<CaseSettings> {
-  const r = await fetch("/v1/admin/cases/settings", {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+export type SettingsPreview = gateway.SettingsPreview;
 
 /** Deletes a case with its documents and conversations (its manager only). */
 export async function deleteCase(id: string): Promise<void> {
@@ -690,39 +660,12 @@ export async function deleteCase(id: string): Promise<void> {
   if (!r.ok && r.status !== 404) throw await responseError(r);
 }
 
-/** Token counts (suveryn-tracker#7): counts only, never text. */
-export type UsageTotals = { requests: number; prompt_tokens: number; completion_tokens: number; total_tokens: number };
-export type UsageReport = {
-  start: string; end: string;
-  step: "5 minutes" | "1 hour" | "1 day" | "7 days" | "30 days";
-  totals: UsageTotals;
-  series: (UsageTotals & { start: string })[];
-  by_kind: Record<string, UsageTotals>;
-  /** The range reaches before the raw usage kept (24 months): before this, only the office's monthly totals. */
-  totals_only_before?: string | null;
-};
-export type Rates = { input_per_million: string; output_per_million: string; currency: string; updated_at?: string | null; updated_by?: string | null };
-type UserUsage = { user_id: string; username: string | null; name: string | null; totals: UsageTotals; cost: string | null };
-export type OfficeUsageReport = UsageReport & { per_user: UserUsage[]; rates: Rates; cost: string };
-
-// Without an end, the server ends the range at its own "now": the browser's clock may run behind
-// the server's, and a range ending at the browser's "now" would miss the latest answers.
-const range = (start: Date, end?: Date) =>
-  `start=${encodeURIComponent(start.toISOString())}${end ? `&end=${encodeURIComponent(end.toISOString())}` : ""}`;
-
-/** The signed-in user's own token usage between two moments. */
-export async function getMyUsage(start: Date, end?: Date): Promise<UsageReport> {
-  const r = await fetch(`/v1/usage?${range(start, end)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-/** Administrators: the office's usage, per user, with the notional cloud cost. */
-export async function getOfficeUsage(start: Date, end?: Date): Promise<OfficeUsageReport> {
-  const r = await fetch(`/v1/admin/usage?${range(start, end)}`);
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
+/** Token counts (suveryn-tracker#7): counts only, never text. `totals_only_before`: the range reaches before the raw
+ *  usage kept (24 months): before this, only the office's monthly totals. */
+export type UsageTotals = gateway.UsageTotals;
+export type UsageReport = gateway.UsageReport;
+export type Rates = gateway.RatesOutput;
+export type OfficeUsageReport = gateway.AdminUsageReport;
 
 /** The appliance's backups (suveryn-tracker#33), as its backup service recorded them. */
 export interface BackupStatus {
@@ -812,6 +755,33 @@ export async function answered<A extends Answer>(call: Promise<A>): Promise<Extr
   throw new HttpError(httpErrorText(status, body), status, problemOf(status, body));
 }
 
+/** A query as a screen gives it to a generated call: a value is left out, never `null`, which Orval would write
+ *  into the address as the word. */
+type Asked<Query> = { [Name in keyof Query]?: NonNullable<Query[Name]> };
+
+/** The models installed on this appliance, with which one is loaded and which is the default. */
+export const listModels = () => answered(gateway.listModels());
+
+// Without an end, the server ends the range at its own "now": the browser's clock may run behind
+// the server's, and a range ending at the browser's "now" would miss the latest answers.
+const range = (start: Date, end?: Date) => ({ start: start.toISOString(), ...(end ? { end: end.toISOString() } : {}) });
+
+/** The signed-in user's own token usage between two moments. */
+export const getMyUsage = (start: Date, end?: Date) => answered(gateway.getMyUsage(range(start, end)));
+
+/** Administrators: the office's usage, per user, with the notional cloud cost. */
+export const getOfficeUsage = (start: Date, end?: Date) => answered(gateway.getOfficeUsage(range(start, end)));
+
+/** Administrators: the rates the notional cost uses, and changing them. */
+export const getRates = () => answered(gateway.getUsageRates());
+export const setRates = (rates: gateway.RatesInput) => answered(gateway.setUsageRates(rates));
+
+/** Administrators: the office's settings as they apply now, what a change would do, and the change. */
+export const getCaseSettings = () => answered(gateway.getOfficeSettings());
+export const previewCaseSettings = (q: Asked<gateway.PreviewOfficeSettingsParams>) => answered(gateway.previewOfficeSettings(q));
+/** ``apply_to``: when the access opens to the office, the existing cases too ("all") or only new ones ("new"). */
+export const setCaseSettings = (changes: gateway.SettingsIn) => answered(gateway.updateOfficeSettings(changes));
+
 /** Administrators: set the appliance's clock to this PC's time, by the difference just measured (lib/clock.ts). */
 export const setApplianceClock = (measured: Measured): Promise<SetAnswer> => answered(createClockRequest(measured));
 
@@ -870,20 +840,6 @@ export async function testRecoveryKey(keyFile: string): Promise<void> {
   if (!r.ok) throw await responseError(r);
 }
 
-/** Administrators: change the rates the notional cost uses. */
-export async function getRates(): Promise<Rates> {
-  const r = await fetch("/v1/admin/usage/rates");
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
-
-export async function setRates(rates: Pick<Rates, "input_per_million" | "output_per_million" | "currency">): Promise<Rates> {
-  const r = await fetch("/v1/admin/usage/rates", {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rates),
-  });
-  if (!r.ok) throw await responseError(r);
-  return r.json();
-}
 
 // ---------------------------------------------------------------- playbooks (suveryn-tracker#51, docs/design/playbooks.md)
 
