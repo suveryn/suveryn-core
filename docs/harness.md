@@ -181,7 +181,14 @@ tested:
   also write in lower case, and not a contract's defined term ("de Koper", "the Buyer": a capitalised word
   that follows an article). A name spelled one letter off is flagged only against such names, so a
   translated or inflected word is no misspelling (suveryn-tracker#108: on real contracts most name flags
-  were defined terms).
+  were defined terms). When a name is in another passage the model was given, it had the name and cited the
+  wrong one (suveryn-tracker#109: 46 of 47 flagged names on real documents), so an answer with no figure in no
+  passage is asked for once more, told per name which passage holds it; the second answer is kept when it has
+  fewer citation issues, no figure in no passage, and still states every misplaced name as a word, else the first,
+  with its flags (`asked_again`; the log says which reason and whether the second was kept). A rule can't see
+  whether the second answer left out another fact, and like the figures' retry it is written without thinking.
+  A playbook's read is not asked again for this either. Not yet measured on real documents (suveryn-tracker#109,
+  #143).
 - **What to mark in each cited passage** ([`marking.py`](../packages/harness/src/suveryn_harness/marking.py),
   suveryn-tracker#25). Per marker, the sentences of its passage the claim rests on, and the claim's facts in
   them however the passage writes them ("12" for "twelve", "12/03/2021" for "12 March 2021"). It reads the
