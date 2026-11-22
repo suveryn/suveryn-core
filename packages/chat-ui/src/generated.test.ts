@@ -26,8 +26,8 @@ describe("calling generated code", () => {
 
   it("an operation that is generated has no hand-written call left", () => {
     // every address the generated code calls, with a part of it as a pattern: `/v1/admin/clock/${rid}`
-    const addresses = [...generated.matchAll(/return `(\/v1\/[^`?]*)`/g)].map((m) => m[1].replace(/\/\$\{\w+\}.*$/, ""));
-    expect(addresses).toContain("/v1/clock");
+    const addresses = [...generated.matchAll(/return `(\/[^`?]*)`/g)].map((m) => m[1].replace(/\/\$\{\w+\}.*$/, ""));
+    expect(addresses).toEqual(expect.arrayContaining(["/v1/clock", "/health"]));
     for (const [file, text] of written) {
       for (const address of new Set(addresses)) {
         expect(text.includes(`"${address}`) || text.includes(`\`${address}`), `${file} still names ${address}`).toBe(false);

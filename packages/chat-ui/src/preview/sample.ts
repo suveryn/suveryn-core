@@ -22,10 +22,11 @@ const ME: Me = { username: "test@kantoor.be", name: "Test Beheerder", sub: "u-te
 
 const HEALTH: Health = {
   status: "ok",
-  backend: { reachable: true, status: "ok", model: "Qwen3.8-27B" },
+  backend: { reachable: true, status: "ok", model: "Qwen3.8-27B", url: null, detail: null },
   documents: { status: "ready", detail: null },
   auth: { status: "ready", detail: null },
   history: { status: "ready", detail: null },
+  usage: { status: "ready", detail: null },
   cases: { status: "ready", detail: null },
   directory: { status: "ready", detail: null },
 };

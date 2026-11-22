@@ -62,9 +62,12 @@ class Kept:
     def __init__(self, name: str):
         self.file, self.answers = Path(__file__).parent / f"{name}_answers.json", {}
 
-    def keep(self, name: str, response, **same_every_run) -> None:
-        """``same_every_run``: members whose value differs from run to run (an id, a moment), and the value kept."""
+    def keep(self, name: str, response, tidy=None, **same_every_run) -> None:
+        """``same_every_run``: members whose value differs from run to run (an id, a moment), and the value kept.
+        ``tidy``: a function that does the same deeper in the body."""
         body = response.json() if response.content else None
+        if tidy:
+            tidy(body)
         for member, value in same_every_run.items():
             holder = body["params"] if member == "ref" else body
             assert member in holder, f"{name}: no {member} in the answer"
@@ -90,14 +93,14 @@ class Checked:
         self.client, self.area, self.kept, self.seen = client, area, Kept(area), set()
 
     def __call__(self, method: str, path: str, expected: int, at: str | None = None, keep: str | None = None,
-                 same_every_run: dict | None = None, **request):
+                 same_every_run: dict | None = None, tidy=None, **request):
         """``path`` as the description writes it; ``at``: the address asked, where it differs (an id, a query)."""
         r = self.client.request(method, at or path, **request)
         assert r.status_code == expected, f"{method} {at or path}: {r.status_code} {r.text}"
         answer_is_described(r, method, path)
         self.seen.add((method, path, expected))
         if keep:
-            self.kept.keep(keep, r, **(same_every_run or {}))
+            self.kept.keep(keep, r, tidy, **(same_every_run or {}))
         return r
 
     def not_seen(self) -> set[tuple[str, str, int]]:

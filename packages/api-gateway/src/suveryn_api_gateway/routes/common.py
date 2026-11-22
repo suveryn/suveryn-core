@@ -7,15 +7,16 @@ import os
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from fastapi import FastAPI, Request
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
 
 from ..auth import Authenticator
 from ..cases import Case, CaseSettings, CaseStore, Principal, may
 from ..conversations import ConversationStore
+from ..description import Answer
 from ..directory import DirectoryUnavailable, Person
 from ..usage import UsageStore
 
@@ -63,11 +64,11 @@ ADMIN_ROLE = "suveryn-admin"  # Keycloak realm role for the administration page 
 LOCAL_OWNER = "local-dev"  # owner of documents when sign-in is off (SUVERYN_AUTH=off, loopback only)
 
 
-class StoreStatus(BaseModel):
+class StoreStatus(Answer):
     """State of a database-backed feature (saved conversations, token usage): "ready", "failed"
     (database unreachable) or "unavailable" (no database configured)."""
 
-    status: str
+    status: Literal["ready", "failed", "unavailable"]
     detail: str | None = None
 
 

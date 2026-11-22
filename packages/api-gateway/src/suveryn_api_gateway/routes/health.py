@@ -1,12 +1,14 @@
 """``GET /health`` (public: states only, never addresses or error texts) and ``GET /v1/models``."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Request
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from suveryn_harness import BackendError, LlamaServerClient, ModelInfo
 
+from ..description import Answer
 from ..problems import refusals
 from .common import StoreStatus, signin_status
 
@@ -15,34 +17,35 @@ models_routes = APIRouter(tags=["models"])  # the installed models: a group of t
 routers = (router, models_routes)
 
 
-class BackendStatus(BaseModel):
+class BackendStatus(Answer):
     """State of the model server as seen from the gateway."""
 
     reachable: bool
-    status: str  # "ok", "loading", "error" or "unreachable"
+    status: Literal["ok", "loading", "error", "unreachable"]  # the harness's ``BackendHealth``
     url: str | None = None  # not reported: /health is public (the server log has it)
     model: str | None = None
     detail: str | None = None
 
 
-class DocumentsStatus(BaseModel):
-    """State of document handling: "ready", "starting", "failed" or "unavailable"."""
+class DocumentsStatus(Answer):
+    """State of document handling: "unavailable" where there is none."""
 
-    status: str
+    status: Literal["ready", "starting", "failed", "unavailable"]
     detail: str | None = None
 
 
-class AuthStatus(BaseModel):
-    """State of sign-in: "ready", "unavailable" (Keycloak unreachable), "not_configured" or "disabled"."""
+class AuthStatus(Answer):
+    """State of sign-in: "unavailable" (Keycloak unreachable, or it can't sign anyone in), "not_configured" or
+    "disabled" (development only)."""
 
-    status: str
+    status: Literal["ready", "unavailable", "not_configured", "disabled"]
     detail: str | None = None
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(Answer):
     """Body of ``GET /health``."""
 
-    status: str  # "ok" or "degraded" (model server not ready)
+    status: Literal["ok", "degraded"]  # degraded: the model server isn't ready
     backend: BackendStatus
     documents: DocumentsStatus
     auth: AuthStatus
@@ -53,7 +56,7 @@ class HealthResponse(BaseModel):
 
 
 @router.get("/health", response_model=HealthResponse,
-            responses={503: {"model": HealthResponse, "description": "Model backend not ready"}})
+            responses={**refusals(signed_in=False), 503: {"model": HealthResponse, "description": "Model backend not ready"}})
 async def get_health(request: Request):
     """Report whether the model server is ready (and which model it serves) and whether documents work.
 

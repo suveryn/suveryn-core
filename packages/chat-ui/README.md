@@ -144,15 +144,15 @@ Every step is saved on the appliance when Continue is pressed (a reload resumes 
 
 ## The gateway's code (generated)
 
-The code that calls the gateway is being moved from hand-written (`src/api.ts`) to generated from the gateway's own description, one area at a time (suveryn-tracker#159). Moved so far: the clock (#236), usage, the models and the office's settings (#237).
+The code that calls the gateway is being moved from hand-written (`src/api.ts`) to generated from the gateway's own description, one area at a time (suveryn-tracker#159). Moved so far: the clock (#236), usage, the models and the office's settings (#237), health and Status (#238).
 
 - [`src/generated`](src/generated) is written by `npm run generate` and never edited: for each operation of a moved area a function named after it (`getClock`, `createClockRequest`), with the types of what it is sent and what it answers, refusals included. `npm test` first fails when it isn't what the description gives today ([`scripts/generate.mjs`](scripts/generate.mjs)).
 - The generator is Orval, pinned to one version in `package.json` (a development tool: nothing of it is bundled; the decision and what was looked at are in [architecture.md](../../docs/architecture.md), *Decisions*). [`orval.config.ts`](orval.config.ts) generates the groups the gateway describes strictly; the list is `STRICT` in the gateway's [`tests/test_description.py`](../api-gateway/tests/test_description.py). To change Orval's version: change it in `package.json`, `npm install`, `npm run generate`, and read the difference in `src/generated`.
 - Generated code reaches the gateway through the one hand-written `fetch` in [`src/lib/gateway.ts`](src/lib/gateway.ts), which hands on the answer as it came. A screen calls a generated function through `answered` in `src/api.ts`, which turns a refusal into what the hand-written calls throw: the sign-in screen for a session that ended, otherwise an `HttpError` with the gateway's code and its words; an answer that isn't the gateway's is a failure too. The hourly clock report (`src/lib/clock.ts`) reads a refusal itself instead: a session that ended there must not bring up the sign-in screen.
 - Orval puts an id into an address as it is given: the caller encodes it (`encodeURIComponent`), as `applianceClockAnswer` does.
 - A value left out of a query is `undefined`, never `null`: Orval writes `null` into the address as the word.
-- `src/api.ts` keeps the names the screens use (`getMyUsage`, `CaseSettings`) and gives them the generated call or type, so a moved area changes no screen.
-- Tests answer the generated code with what the gateway really answered ([`src/test/gateway.ts`](src/test/gateway.ts)): its own tests keep those answers as a file, `packages/api-gateway/tests/<area>_answers.json`, and fail when it is out of date. `src/api.clock.test.ts` and `src/api.office.test.ts` are the examples to follow.
+- `src/api.ts` keeps the names the screens use (`getMyUsage`, `CaseSettings`) and gives them the generated call or type, so a moved area changes no screen. Once every area has moved, the screens are renamed to the gateway's names in one change (the founder's decision of 22 November 2026).
+- Tests answer the generated code with what the gateway really answered ([`src/test/gateway.ts`](src/test/gateway.ts)): its own tests keep those answers as a file, `packages/api-gateway/tests/<area>_answers.json`, and fail when it is out of date. `src/api.clock.test.ts`, `src/api.office.test.ts` and `src/api.status.test.ts` are the examples to follow.
 
 ## Token usage
 

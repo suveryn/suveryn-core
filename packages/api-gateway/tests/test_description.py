@@ -81,8 +81,13 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"clock", "models", "settings", "usage"}
+STRICT = {"clock", "models", "settings", "status", "usage"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
+
+
+# An answer with a failing status that is the answer asked for, not a refusal: /health says its state with 503
+# while the model server isn't ready, and its body is the same as with 200. Named here on purpose.
+STATES = {("GET", "/health", 503)}
 
 
 def strict_operations() -> list[tuple[str, str, dict]]:
@@ -94,14 +99,18 @@ def test_a_strict_operation_describes_every_refusal_in_the_one_shape():
 
     assert strict_operations()
     for method, path, op in operations():
-        refusals = {int(status): r for status, r in op["responses"].items() if int(status) >= 400}
+        refusals = {int(status): r for status, r in op["responses"].items()
+                    if int(status) >= 400 and (method, path, int(status)) not in STATES}
         ours = [s for s, r in refusals.items() if r.get("content", {}).get(problems.MEDIA_TYPE, {}).get("schema") == PROBLEM]
         if op["tags"][0] not in STRICT:
             assert not ours, f"{method} {path} describes its refusals: add its group to STRICT"
             continue
         assert sorted(ours) == sorted(refusals), f"{method} {path}: a refusal in another shape or media type"
         assert all(list(r["content"]) == [problems.MEDIA_TYPE] for r in refusals.values()), f"{method} {path}"
-        assert set(problems.EVERY_OPERATION) <= set(refusals), f"{method} {path}: {sorted(refusals)}"
+        # sign-in guards /v1 and nothing else: outside it only what nobody planned for can take the answer's place
+        every = problems.EVERY_OPERATION if path.startswith("/v1/") else (500,)
+        assert set(every) <= set(refusals), f"{method} {path}: {sorted(refusals)}"
+    assert all(op["tags"][0] in STRICT for m, p, op in operations() if (m, p) in {(m, p) for m, p, _ in STATES})
 
 
 def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_raises_and_no_other():
