@@ -34,14 +34,23 @@ router = APIRouter(tags=["documents"])  # the group its operations are in, in th
 BINARY = {"schema": {"type": "string", "format": "binary"}}
 
 # What document handling says, listed here for the description: suveryn-rag is an optional package (the GPU machine
-# only), so the gateway can't take its lists from it. Each names where the rag keeps its own.
-UploadStatus = Literal["receiving", "queued", "processing", "ready", "needs_review", "failed", "cancelled"]  # service.Job.status
+# only; routes/common.py), so the gateway can't take its lists from it. Each names the rag's own, and a test holds
+# the two together (tests/test_documents.py).
+UploadStatus = Literal["receiving", "queued", "processing", "ready", "needs_review", "failed", "cancelled"]  # service.JobStatus
 ReadingStep = Literal["read", "ocr", "layout", "store"]                                                       # reading.Step
-DocumentStatus = Literal["ok", "needs_review"]                                                                # store.py, documents.status
-Origin = Literal["uploaded", "generated", "playbook", "answer"]                                               # store.py, documents.origin
+DocumentStatus = Literal["ok", "needs_review"]                                                                # store.STATUSES
+Origin = Literal["uploaded", "generated", "playbook", "answer"]                                               # store.ORIGINS
 # The files an upload can be, as its original is sent back (formats.CONTENT_TYPE; anything else as bytes).
 ORIGINALS = ("application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "application/octet-stream")
+
+
+class ReadingWarning(Message):
+    """What a reading noticed (``suveryn_rag.integrity``): a warning of the registry with its page, and the detail,
+    in English, for developers."""
+
+    model_config = Answer.model_config
+    detail: str = ""
 
 
 class Noticed(Answer):
@@ -61,7 +70,8 @@ class Progress(Answer):
 
 
 class Upload(Answer):
-    """One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text."""
+    """One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text, but
+    the line sūveryn's own mark stands on when one was noticed."""
 
     id: str
     filename: str
@@ -72,7 +82,7 @@ class Upload(Answer):
     failure: Message | None       # why it failed, a code of the registry with its numbers: the interface words it
     pages: int | None
     ocr_pages: int | None
-    warnings: list[Message]       # what the reading noticed, each a warning of the registry with its page
+    warnings: list[ReadingWarning]
     created_at: float
     finished_at: float | None
     noticed: Noticed | None       # the file carries sūveryn's export mark: not a source until someone says so
@@ -135,7 +145,7 @@ class StoredDocument(Answer):
     pages: int
     ocr_pages: int
     status: DocumentStatus
-    warnings: list[Message]
+    warnings: list[ReadingWarning]
     created_at: str
     origin: Origin                # only uploaded documents are sources for answers (suveryn-tracker#10)
     uploaded_by: str | None
@@ -215,7 +225,8 @@ async def create_upload(request: Request, file: UploadFile = File(...), case: st
     await touch_case(request, scope)
     for job in (result.jobs if archive else [result]):
         await log_access(request, scope.case_id, "uploaded", {"job": job.id})
-    return result.public()
+    said = result.public()
+    return dict(said, jobs=[_upload(j) for j in said["jobs"]]) if archive else _upload(said)
 
 
 @router.get("/v1/documents/jobs/{job_id}", response_model=Upload, responses=refusals(404, 422))
@@ -227,7 +238,7 @@ async def get_upload(job_id: str, request: Request):
     job = docs_or_503(request).job(job_id, owner_of(request))
     if job is None:
         raise Problem("request.not_found", "Unknown job.")
-    return job.public()
+    return _upload(job.public())
 
 
 @router.delete("/v1/documents/jobs/{job_id}", status_code=204, responses=refusals(404, 409, 422))
@@ -249,14 +260,19 @@ async def cancel_upload(job_id: str, request: Request):
 
 
 def _warning(kept) -> dict:
-    """A warning as it was kept with its document. One that isn't a message as the description has it (a row from
-    before warnings were codes) is read back by the registry (``stored``): it says that something went wrong and no
-    more, and never makes the list of documents unreadable."""
+    """A warning as it was kept with its document. One that isn't a warning as the description has it (a document
+    read before 12 November 2026, when warnings became codes of the registry) is read back by the registry
+    (``stored``): it says that something went wrong and no more, and never makes a list unreadable."""
     try:
-        Message.model_validate(kept)
+        ReadingWarning.model_validate(kept)
     except ValidationError:
         return stored(kept) or stored("?")
     return kept
+
+
+def _upload(said: dict) -> dict:
+    """An upload as document handling says it; the warnings of a file stored before come from its document."""
+    return dict(said, warnings=[_warning(w) for w in said["warnings"]])
 
 
 def _listed(document: dict, **more) -> dict:
@@ -281,7 +297,7 @@ async def list_documents(request: Request, case: str | None = None):
     docs, owner = docs_or_503(request), owner_of(request)
     scope = await scope_of(request, case, "read")
     stored = await run_in_threadpool(docs.documents, scope)
-    return {"documents": [_listed(d) for d in stored], "jobs": [j.public() for j in docs.pending_jobs(owner, scope)]}
+    return {"documents": [_listed(d) for d in stored], "jobs": [_upload(j.public()) for j in docs.pending_jobs(owner, scope)]}
 
 
 @router.delete("/v1/documents/{document_id}", status_code=204, response_class=Response, responses={

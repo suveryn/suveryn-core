@@ -9,7 +9,7 @@ import { cardNote, checkPages, hasNotes, noteDetails, readingNotes, rowNotes, to
 import { documentStatus } from "./overviews";
 
 /** A warning as the server stores and sends it: a code of the registry's document area, with its page. */
-const w = (what: string, page: number | null): Warning => ({ kind: "warning", code: `document.${what}`, params: page === null ? {} : { page } });
+const w = (what: string, page: number | null): Warning => ({ kind: "warning", code: `document.${what}`, params: page === null ? {} : { page }, detail: "" });
 
 describe("a document's reading notes", () => {
   it("puts text addressed to an AI and recovered body text on To check, never a recovered header alone", () => {

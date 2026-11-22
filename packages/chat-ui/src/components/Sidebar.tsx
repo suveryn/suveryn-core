@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
-import type { Case, ConversationSummary, Me, StoredDocument } from "../api";
+import type { Case, ConversationSummary, Me, PlacedDocument } from "../api";
 import { LANGS, LANGUAGE_NAMES, lang, setLang, useT, type Lang } from "../i18n";
 import { compact } from "../lib/usage";
 import { Lockup } from "./Brand";
@@ -37,7 +37,7 @@ import { ActionMenu, Avatar, Button, Expander, IconButton, type MenuEntry } from
 const RECENT = 8;  // conversations under Recent
 export type SideView = "conversations" | "cases" | "documents" | "search";
 export type CaseAction = "open" | "pin" | "unpin" | "members" | "log" | "close";
-export type AllDocument = StoredDocument & { case_id: string | null };
+export type AllDocument = PlacedDocument;
 
 type Props = {
   user: Me;

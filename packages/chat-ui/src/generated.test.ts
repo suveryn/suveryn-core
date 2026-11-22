@@ -35,11 +35,20 @@ describe("calling generated code", () => {
     const withPart = [...generated.matchAll(/export const get(\w+)Url = \((\w+): string/g)]
       .map((m) => m[1][0].toLowerCase() + m[1].slice(1));
     expect(withPart).toContain("getClockRequest");
-    for (const name of withPart) {
-      // called as `gateway.<name>(`: the screens' own names for calls may be the same words (src/api.ts)
-      const uses = written.flatMap(([file, text]) => [...text.matchAll(new RegExp(`\\bgateway\\.${name}\\(([^)]*)`, "g"))].map((m) => [file, m[1]] as const));
+    // every generated call, with or without a part: `export const listCases = async (`
+    const every = [...generated.matchAll(/export const (\w+) = async \(/g)].map((m) => m[1]);
+    expect(every).toEqual(expect.arrayContaining([...withPart, "createUpload", "listCases"]));
+    expect(Object.keys(NOT_CALLED).filter((name) => !every.includes(name)), "named in NOT_CALLED, and not generated").toEqual([]);
+    for (const name of every) {
+      // called as `gateway.<name>(`: the screens' own names for calls may be the same words (src/api.ts); or by its
+      // own name, in a file that imports it from the generated code by that name (src/lib/clock.ts)
+      const uses = written.flatMap(([file, text]) => {
+        const byName = new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from "[./]+generated/gateway"`).test(text);
+        return [...text.matchAll(new RegExp(`${byName ? "(?<![.\\w])" : "\\bgateway\\."}${name}\\(([^)]*)`, "g"))].map((m) => [file, m[1]] as const);
+      });
       if (name in NOT_CALLED) { expect(uses, `${name} is called now: take it out of NOT_CALLED`).toEqual([]); continue; }
       expect(uses.length, `${name} is generated and nothing calls it`).toBeGreaterThan(0);
+      if (!withPart.includes(name)) continue;
       for (const [file, argument] of uses) expect(argument, `${file}: ${name}(${argument}…`).toMatch(/^encodeURIComponent\(/);
     }
   });

@@ -511,13 +511,33 @@ def test_a_stored_warning_is_listed_as_kept_and_one_in_an_older_shape_as_somethi
 
     from suveryn_api_gateway.routes.documents import StoredDocument, _listed
 
-    kept = {"kind": "warning", "code": "document.text_recovered", "params": {"page": 3}}
-    no_page = {"kind": "warning", "code": "document.text_recovered", "params": {"page": None}}
+    from suveryn_rag.integrity import IntegrityWarning
+
+    kept = IntegrityWarning(3, "document.text_recovered", "40 characters recovered").message()  # as the rag stores one
+    no_page = IntegrityWarning(None, "document.text_recovered", "recovered").message()
+    assert kept == {"kind": "warning", "code": "document.text_recovered", "params": {"page": 3}, "detail": "40 characters recovered"}
     row = {"id": uuid.UUID(DOC), "filename": "akte.pdf", "pages": 5, "ocr_pages": 0, "status": "needs_review", "created_at": datetime(2026, 10, 9, tzinfo=UTC),
            "origin": "uploaded", "uploaded_by": None, "source": True, "provenance": None,
            "warnings": [kept, no_page, "page 3: text recovered", {"page": 3, "text": "recovered"}, None]}
     listed = _listed(row)
     internal = {"kind": "internal", "code": "system.internal", "params": {}}
     assert listed["warnings"] == [kept, no_page, internal, internal, internal]
-    assert StoredDocument.model_validate(listed).model_dump()["warnings"] == listed["warnings"]  # and it is what the description says
+    # and what is sent is what was kept, its detail too
+    assert StoredDocument.model_validate(listed).model_dump()["warnings"] == [kept, no_page, *[{**internal, "detail": ""}] * 3]
+
+
+def test_the_lists_the_gateway_describes_are_document_handlings_own():
+    """suveryn-rag is an optional package, so the gateway lists its states for the description itself
+    (routes/documents.py). An answer is checked against those lists before it is sent: a state the rag gains and the
+    gateway doesn't know would fail every answer that carries it."""
+    from typing import get_args
+
+    from suveryn_api_gateway.routes import documents as described
+    from suveryn_rag import formats, reading, service, store
+
+    assert get_args(described.UploadStatus) == get_args(service.JobStatus)
+    assert get_args(described.ReadingStep) == get_args(reading.Step)
+    assert get_args(described.DocumentStatus) == store.STATUSES and get_args(described.Origin) == store.ORIGINS
+    sent_as = {kind.split(";")[0] for kind in formats.CONTENT_TYPE.values()} | {"application/octet-stream"}  # anything else, as bytes
+    assert set(described.ORIGINALS) == sent_as
 

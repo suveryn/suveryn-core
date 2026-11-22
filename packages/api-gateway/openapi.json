@@ -3620,7 +3620,7 @@
      },
      "warnings": {
       "items": {
-       "$ref": "#/components/schemas/Message"
+       "$ref": "#/components/schemas/ReadingWarning"
       },
       "title": "Warnings",
       "type": "array"
@@ -4142,6 +4142,58 @@
      "updated_by"
     ],
     "title": "Rates",
+    "type": "object"
+   },
+   "ReadingWarning": {
+    "description": "What a reading noticed (``suveryn_rag.integrity``): a warning of the registry with its page, and the detail,\nin English, for developers.",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "refused",
+       "unavailable",
+       "internal",
+       "warning"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "kind",
+     "code",
+     "params",
+     "detail"
+    ],
+    "title": "ReadingWarning",
     "type": "object"
    },
    "RenameIn": {
@@ -5683,7 +5735,7 @@
      },
      "warnings": {
       "items": {
-       "$ref": "#/components/schemas/Message"
+       "$ref": "#/components/schemas/ReadingWarning"
       },
       "title": "Warnings",
       "type": "array"
@@ -5851,7 +5903,7 @@
     "type": "object"
    },
    "Upload": {
-    "description": "One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text.",
+    "description": "One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text, but\nthe line sūveryn's own mark stands on when one was noticed.",
     "properties": {
      "already_present": {
       "title": "Already Present",
@@ -5991,7 +6043,7 @@
      },
      "warnings": {
       "items": {
-       "$ref": "#/components/schemas/Message"
+       "$ref": "#/components/schemas/ReadingWarning"
       },
       "title": "Warnings",
       "type": "array"

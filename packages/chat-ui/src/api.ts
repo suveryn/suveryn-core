@@ -59,8 +59,9 @@ export type WireMessage = { role: "user" | "assistant" | "system"; content: stri
 export type JobStatus = gateway.Upload["status"];
 /** How far reading has got (suveryn_rag.reading.Progress): text recognition page by page, the layout, storing. */
 export type JobProgress = gateway.Progress;
-/** What a reading noticed: a warning of the registry's document area with its page (`params.page`; none for a file without pages). */
-export type Warning = Message;
+/** What a reading noticed: a warning of the registry's document area with its page (`params.page`; none for a file
+ *  without pages), and its detail, in English, for developers. */
+export type Warning = gateway.ReadingWarning;
 /** An upload on its way to being a document. `failure`: why it failed, a code of the registry's document area with
  *  its numbers, worded here; `noticed`: the file carries sūveryn's own export mark, so it is no source until someone
  *  says so. */
@@ -77,6 +78,8 @@ export type Noticed = gateway.Noticed;
  *  (docs/design/chat-ui.md §6), only what is known of it: a playbook's result, or an upload that looked like sūveryn's
  *  own output and who chose to use it anyway. */
 export type StoredDocument = gateway.StoredDocument;
+/** A document with where it is (`case_id` null: the personal space). */
+export type PlacedDocument = gateway.PlacedDocument;
 /** What the appliance says of its own health: states only (it is public). The same body whether the model server is ready or not. */
 export type Health = gateway.HealthResponse;
 // admin: may open the administration page; office_wide: a new case is open to the whole office by

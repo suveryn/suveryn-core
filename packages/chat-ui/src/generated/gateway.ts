@@ -1689,6 +1689,29 @@ export const StoredDocumentStatus = {
   needs_review: 'needs_review',
 } as const;
 
+export type ReadingWarningKind = typeof ReadingWarningKind[keyof typeof ReadingWarningKind];
+
+
+export const ReadingWarningKind = {
+  refused: 'refused',
+  unavailable: 'unavailable',
+  internal: 'internal',
+  warning: 'warning',
+} as const;
+
+export type ReadingWarningParams = {[key: string]: string | number | null};
+
+/**
+ * What a reading noticed (``suveryn_rag.integrity``): a warning of the registry with its page, and the detail,
+ * in English, for developers.
+ */
+export interface ReadingWarning {
+  code: string;
+  detail: string;
+  kind: ReadingWarningKind;
+  params: ReadingWarningParams;
+}
+
 /**
  * A stored document, without its text.
  */
@@ -1703,7 +1726,7 @@ export interface StoredDocument {
   source: boolean;
   status: StoredDocumentStatus;
   uploaded_by: string | null;
-  warnings: Message[];
+  warnings: ReadingWarning[];
 }
 
 export type ProgressStep = typeof ProgressStep[keyof typeof ProgressStep];
@@ -1739,7 +1762,8 @@ export const UploadStatus = {
 } as const;
 
 /**
- * One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text.
+ * One uploaded document on its way into the store (``suveryn_rag.service.Job.public``): no document text, but
+ * the line sūveryn's own mark stands on when one was noticed.
  */
 export interface Upload {
   already_present: boolean;
@@ -1757,7 +1781,7 @@ export interface Upload {
   pages: number | null;
   progress: Progress | null;
   status: UploadStatus;
-  warnings: Message[];
+  warnings: ReadingWarning[];
 }
 
 /**
@@ -1819,7 +1843,7 @@ export interface PlacedDocument {
   source: boolean;
   status: PlacedDocumentStatus;
   uploaded_by: string | null;
-  warnings: Message[];
+  warnings: ReadingWarning[];
 }
 
 /**
