@@ -37,9 +37,55 @@
  },
  "all_deleted": {
   "body": {
-   "deleted": 1
+   "deleted": 3
   },
   "media_type": "application/json",
+  "status": 200
+ },
+ "asked": {
+  "body": [
+   {
+    "data": {
+     "complete": null,
+     "model": null,
+     "passages": null,
+     "step": "writing"
+    },
+    "event": "status"
+   },
+   {
+    "data": {
+     "text": "De koopprijs is EUR 412.500,00 [1]."
+    },
+    "event": "delta"
+   },
+   {
+    "data": {
+     "answer": "De koopprijs is EUR 412.500,00 [1].",
+     "asked_again": false,
+     "calculations": [],
+     "citation_issues": [],
+     "citations": [],
+     "complete": null,
+     "finish_reason": "stop",
+     "id": "chat-00000000000040008000000000000001",
+     "instruction_like_sources": [],
+     "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+     "narrowed_to": null,
+     "reasoning": "",
+     "support_spans": [],
+     "thinking_cut": false,
+     "thought_seconds": null,
+     "unverified_figures": [],
+     "usage": {
+      "completion_tokens": 0,
+      "prompt_tokens": 0
+     }
+    },
+    "event": "done"
+   }
+  ],
+  "media_type": "text/event-stream",
   "status": 200
  },
  "confidential_case": {
@@ -157,6 +203,19 @@
   "media_type": "application/problem+json",
   "status": 403
  },
+ "nothing_to_ask_again": {
+  "body": {
+   "code": "request.conflict",
+   "detail": "There is no answer to ask again.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "It can't be done in the state things are in now; the caller's view may be out of date.",
+   "type": "urn:suveryn:problem:request.conflict"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
+ },
  "one": {
   "body": {
    "case_id": null,
@@ -258,5 +317,33 @@
   },
   "media_type": "application/problem+json",
   "status": 413
+ },
+ "too_long_to_ask_in": {
+  "body": {
+   "code": "conversation.too_long",
+   "detail": "The conversation is too long to add to.",
+   "kind": "refused",
+   "params": {},
+   "status": 413,
+   "title": "The conversation is too long to save.",
+   "type": "urn:suveryn:problem:conversation.too_long"
+  },
+  "media_type": "application/problem+json",
+  "status": 413
+ },
+ "too_many_questions": {
+  "body": {
+   "code": "request.too_many",
+   "detail": "Too many requests. Try again in 60 seconds.",
+   "kind": "refused",
+   "params": {
+    "seconds": 60
+   },
+   "status": 429,
+   "title": "Too many requests from this person; `seconds` until the next is taken.",
+   "type": "urn:suveryn:problem:request.too_many"
+  },
+  "media_type": "application/problem+json",
+  "status": 429
  }
 }

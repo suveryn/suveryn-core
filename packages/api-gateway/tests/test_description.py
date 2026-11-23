@@ -98,6 +98,7 @@ BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): [("conversation.too_lo
           ("PUT", "/v1/conversations/{conversation_id}/pin"): [("conversation.too_long", None, "app.py")],
           ("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
           ("POST", "/v1/chat"): [("request.too_many", None, "app.py")],  # the limit on asking, per person
+          ("POST", "/v1/conversations/{conversation_id}/questions"): [("request.too_many", None, "app.py")],
           ("GET", "/auth/me"): [("auth.unavailable", None, "app.py")]}  # the sign-in service can't be asked (``AuthUnavailable``)
 # An upload is refused by document handling itself (suveryn-rag, ``UploadRejected``: not a file it reads, empty, too
 # large, too many waiting): codes of the registry said outside the gateway, read here from where they are raised.

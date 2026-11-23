@@ -1,13 +1,18 @@
 """Saved conversations (``conversations.py``): each user's own chat history, in their personal
 space or in a case. Without a database: 503, and the UI keeps the conversation in memory only."""
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
 from fastapi.concurrency import run_in_threadpool
 
+from suveryn_harness import ChatMessage, ChatRequest, ChatService, conversation_history
+
 from ..conversations import (
+    MAX_TURN_TEXT,
+    MAX_TURNS,
     Conversation,
     ConversationIn,
     ConversationSummary,
@@ -15,12 +20,19 @@ from ..conversations import (
     MoveIn,
     PinIn,
     RenameIn,
+    QuestionIn,
     ShareIn,
+    answered_turn,
+    asked_turn,
     cited_documents,
+    history_pairs,
+    title_of,
 )
 from ..problems import refusals
+from .chat import Heard, StoredWhenEnded, _stream, checked
 from .common import Scope, case_for, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
+log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["conversations"])  # the group its operations are in, in the description (description.py)
 
 
@@ -127,6 +139,65 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
     await log_access(request, uuid.UUID(case.id), "conversation_moved_in", {"conversation": str(cid)})
     return moved
 
+
+# The conversations an answer is being written in, in this process: a second question waits for it (409).
+ANSWERING: set[uuid.UUID] = set()
+
+
+@router.post("/v1/conversations/{conversation_id}/questions", responses={200: {"content": {"text/event-stream": {}}},
+                                                                        **refusals(404, 409, 413, 422, 429)})
+async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: Request):
+    """Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is
+    started, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is
+    written, whatever happens to it: written out, failed, or stopped when the connection closes
+    (suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server
+    stored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one
+    past the office's keep period: 404;
+    while an answer is being written in it, or *Regenerate* with no answer to take out: 409."""
+    store, cid = history_or_503(request), _conversation_id(conversation_id)
+    place = await run_in_threadpool(store.place, cid)
+    if place is not None and (place[0] != owner_of(request) or place[2]):
+        raise Problem("request.not_found", "Unknown conversation.")
+    case = str(place[1]) if place is not None and place[1] is not None else (body.case_id if place is None else None)
+    asked = ChatRequest(messages=[ChatMessage(role="user", content=body.text)], stream=True, document_ids=body.document_ids,
+                        case_id=case, model=body.model, thinking=body.thinking)
+    if cid in ANSWERING:
+        raise Problem("request.conflict", "An answer is being written in this conversation.")
+    owner = await checked(asked, request)
+    if place is None:
+        if body.again:
+            raise Problem("request.conflict", "There is no answer to ask again.")
+        if not await run_in_threadpool(store.start, cid, owner, title_of(body.text), uuid.UUID(case) if case else None):
+            raise Problem("request.conflict", "The conversation was started meanwhile.")
+    elif body.again and not await run_in_threadpool(store.drop_last_answer, cid):
+        raise Problem("request.conflict", "There is no answer to ask again.")
+    turns = await run_in_threadpool(store.turns_of, cid)
+    if len(turns) + 2 > MAX_TURNS:
+        raise Problem("conversation.too_long", "The conversation is too long to add to.")
+    if cid in ANSWERING:
+        raise Problem("request.conflict", "An answer is being written in this conversation.")
+    ANSWERING.add(cid)
+    try:
+        req = asked.model_copy(update={"messages": [*conversation_history(history_pairs(turns), body.text), *asked.messages]})
+        await run_in_threadpool(store.add, cid, "user", who(request)[0], body.text[:MAX_TURN_TEXT], asked_turn(body),
+                                {*body.document_ids, *body.about, *body.attached})
+    except BaseException:
+        ANSWERING.discard(cid)
+        raise
+    heard = Heard()
+
+    async def ended() -> None:
+        try:
+            text, meta = answered_turn(heard.text, heard.reasoning, heard.sources, heard.done, heard.failure)
+            await run_in_threadpool(store.add, cid, "assistant", "assistant", text[:MAX_TURN_TEXT], meta, cited_documents([meta]))
+        except Exception as e:  # noqa: BLE001 - the question stays, answered by nothing; never the turn's text in the log
+            log.error("an answer couldn't be stored: %s", type(e).__name__)
+        finally:
+            ANSWERING.discard(cid)
+
+    chat_service: ChatService = request.app.state.chat
+    return StoredWhenEnded(_stream(chat_service, req, owner, heard), ended, media_type="text/event-stream",
+                           headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @router.put("/v1/conversations/{conversation_id}", status_code=204, responses=refusals(404, 413, 422))
 async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):

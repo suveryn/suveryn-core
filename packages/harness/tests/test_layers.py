@@ -10,7 +10,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "suveryn_harness"
 LAYERS = [
     {"language", "messages", "released"},                                      # each language's words; the registry of codes and its released list
     {"values", "identifiers", "schemas", "config", "audit", "usage", "guard", "thinking"},  # reading, shapes, settings
-    {"calc", "terms", "grounding", "llm"},                                     # computing, terms, the prompt, the model client
+    {"calc", "terms", "grounding", "llm", "history"},                          # computing, terms, the prompt, the model client, a conversation's history
     {"marking"},                                                               # where a claim's support is in its passage
     {"support", "checks"},                                                     # does the source say it; a playbook's checks
     {"facts"},                                                                 # a playbook's facts, read and checked

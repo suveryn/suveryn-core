@@ -1773,7 +1773,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     """The chat UI's code for conversations is generated from the description (suveryn-tracker#246): each answer
     the operations give, the refusals too, is checked against it and kept for the chat UI's tests. Here and not
     in test_conversations.py: sharing, moving and a pin need the cases."""
-    from described import Checked
+    from described import Checked, same_every_run
     from suveryn_api_gateway.conversations import MAX_BODY_BYTES
 
     c, kc, _, _, _ = office
@@ -1856,8 +1856,41 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
     r = check("POST", one + "/share", 409, f"{every}/{BOBS}/share", "confidential_case", json={"shared": True}, headers=bob)
     assert r.json()["code"] == "case.strictly_confidential"
+    # a question asked in a conversation the server keeps (suveryn-tracker#251): the question and its answer are stored
+    asking, NEW_ONE = one + "/questions", "00000000-0000-4000-8000-0000000000a4"
+    question = {"text": "Wat is de koopprijs?"}
+    assert check("POST", asking, 401, f"{every}/{GONE}/questions", json=question).json()["code"] == "auth.signed_out"
+    assert check("POST", asking, 422, f"{every}/not-an-id/questions", json=question, headers=alice).json()["code"] == "request.invalid"
+    assert "errors" in check("POST", asking, 422, f"{every}/{NEW_ONE}/questions", json={"text": ""}, headers=alice).json()
+    assert check("POST", asking, 404, f"{every}/{BOBS}/questions", json=question, headers=alice).json()["code"] == "request.not_found"
+    r = check("POST", asking, 409, f"{every}/{NEW_ONE}/questions", "nothing_to_ask_again", json={**question, "again": True}, headers=alice)
+    assert r.json()["code"] == "request.conflict"
+    assert check("POST", asking, 403, f"{every}/{NEW_ONE}/questions", json={**question, "case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
+    asked = check("POST", asking, 200, f"{every}/{NEW_ONE}/questions", "asked", tidy=same_every_run(), json=question, headers=alice)
+    assert asked.headers["content-type"].startswith("text/event-stream")
+    assert check.kept.answers["asked"]["body"][-1]["event"] == "done"
+    assert [t["role"] for t in check("GET", one, 200, f"{every}/{NEW_ONE}", headers=alice).json()["turns"]] == ["user", "assistant"]
+    FULL = "00000000-0000-4000-8000-0000000000a5"
+    check("PUT", one, 204, f"{every}/{FULL}", json={**saved, "turns": [{"role": "user", "text": "?"}] * 499}, headers=alice)
+    r = check("POST", asking, 413, f"{every}/{FULL}/questions", "too_long_to_ask_in", json=question, headers=alice)
+    assert r.json()["code"] == "conversation.too_long"  # one turn short of the limit: no room for a question and its answer
+    # asking shares the limit on asking, per person (an office of its own, with a limit of one)
+    from suveryn_api_gateway.ratelimit import RateLimits
+
+    kc2 = FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc2.handler)))
+    limited = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([])), load_documents=False,
+                         auth=auth, conversations=FakeConversations(), rate_limits=RateLimits(chat=1))
+    with TestClient(limited) as c2:
+        check2, alice2 = Checked(c2, "conversations"), as_user(kc2, ALICE)
+        check2.kept = check.kept
+        check2("POST", asking, 200, f"{every}/{NEW_ONE}/questions", json=question, headers=alice2)
+        r = check2("POST", asking, 429, f"{every}/{NEW_ONE}/questions", "too_many_questions", json=question, headers=alice2)
+        assert r.json()["code"] == "request.too_many"
+        check.seen |= check2.seen
+
     check("DELETE", one, 204, f"{every}/{BOBS}", headers=bob)
-    assert check("DELETE", every, 200, keep="all_deleted", headers=alice).json() == {"deleted": 1}
+    assert check("DELETE", every, 200, keep="all_deleted", headers=alice).json() == {"deleted": 3}
     check.kept.check()
     # not seen here, each for a reason: what nobody planned for (500); sign-in or the conversations' store down
     # (503: test_auth.py, test_conversations.py); and sign-in turned off for another machine, for what anyone
@@ -1865,7 +1898,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     for method, path, status in check.not_seen():
         assert status in (500, 503) or (status == 403 and (path == every or (method, path) in {
             ("DELETE", one), ("GET", one), ("PATCH", one), ("PUT", one), ("PUT", one + "/pin")})), (method, path, status)
-    assert {s for _, _, s in check.seen} == {200, 204, 401, 403, 404, 409, 413, 422}
+    assert {s for _, _, s in check.seen} == {200, 204, 401, 403, 404, 409, 413, 422, 429}
 
 
 def test_every_answer_of_documents_is_what_the_description_says(office, monkeypatch):

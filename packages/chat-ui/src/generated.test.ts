@@ -19,6 +19,7 @@ const NOT_CALLED: Record<string, string> = {
   createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
   askQuestion: "the screens ask for an answer as a stream, read as it comes (api.ts, streamChat): at the generated address, with the generated body and events",
   getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
+  askInConversation: "the server stores a conversation's turns as it answers: the screens move to it in a later step (suveryn-tracker#251)",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
  *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first

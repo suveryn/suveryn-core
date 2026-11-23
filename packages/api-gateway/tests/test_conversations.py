@@ -150,6 +150,37 @@ class FakeConversations:
                           "shared": old["shared"] if old else False}
         return True
 
+    # A conversation the server writes turn by turn (suveryn-tracker#251), as ``ConversationStore`` does.
+    def place(self, cid):
+        r = self.rows.get(cid)
+        return (r["owner"], r["case_id"], bool(r.get("run"))) if r else None
+
+    def start(self, cid, owner, title, case_id):
+        if cid in self.rows:
+            return False
+        now = datetime.now(UTC)
+        self.rows[cid] = {"id": str(cid), "owner": owner, "title": title, "renamed": False, "pinned": False, "turns": [],
+                          "created_at": now, "updated_at": now, "case_id": case_id, "shared": False}
+        return True
+
+    def turns_of(self, cid):
+        from suveryn_api_gateway.conversations import Turn
+
+        return [Turn(seq=i, role=t["role"], by=t.get("by", "x"), at=t.get("at", datetime.now(UTC)), text=t.get("text", ""),
+                     meta={k: v for k, v in t.items() if k not in ("role", "text", "by", "at")})
+                for i, t in enumerate(self.rows[cid]["turns"], start=1)]
+
+    def add(self, cid, role, by, text, meta, documents):
+        self.rows[cid]["turns"].append({"role": role, "text": text, "by": by, **meta})
+        self.rows[cid]["updated_at"] = datetime.now(UTC)
+
+    def drop_last_answer(self, cid):
+        turns = self.rows[cid]["turns"]
+        if [t["role"] for t in turns[-2:]] != ["user", "assistant"]:
+            return False
+        del turns[-2:]
+        return True
+
     def using_document(self, owner, document_id, case_id=None):
         rows = sorted((r for r in self.rows.values() if (r["case_id"] == case_id if case_id is not None else r["owner"] == owner)),
                       key=lambda r: r["updated_at"], reverse=True)
