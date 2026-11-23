@@ -37,18 +37,23 @@ and when. The chat UI still saves its own conversation whole (``save``): the row
 with it, a changed turn rewritten in place, new ones appended, ones it dropped (a retried question)
 deleted. A playbook's thread is appended by the server (``TurnStore.append``) and never saved whole.
 
-**The server stores each turn as it answers** (suveryn-tracker#251, the founder's decision of 23 November 2026), the
-way chat products do: a question asked in a conversation (``POST /v1/conversations/{id}/questions``) is stored, the
-model reads what was stored before it (``history_pairs``, ``suveryn_harness.conversation_history``), and the answer
-is stored as it was written, however it ends (``answered_turn``): written out with its checks, failed (no words, the
-code), or stopped (the words so far, unchecked). So an answer a colleague opens is the one the model wrote, and the
-browser can't hand the model an answer it never gave. Such a turn says ``kind`` (question, answer) in ``meta``, and
-names documents by id only (``narrowed_to`` too), so a deleted one leaves no name; its shape is ``AskedTurn`` and
-``AnsweredTurn``. A document deleted while an answer is written is taken out of it as it is stored. The screens move
-to it, and the chat UI's whole saves go, in the steps after this one. Looked at: OpenAI's Conversations and Responses
-APIs (items stored by the server, a response chained to the one before) and its older Assistants threads, which do
-the same; this follows them in what matters (the server keeps what was said, the client sends only what is new) with
-the routes and codes this gateway already has, since none of them is a standard to follow by the letter.
+**The server stores each turn as it answers** (suveryn-tracker#251): a question asked in a conversation
+(``POST /v1/conversations/{id}/questions``) is stored, the model reads what was stored on the way to it
+(``path_to``, ``history_pairs``, ``suveryn_harness.conversation_history``), and the answer is stored as it was
+written, however it ends (``answered_turn``): written out with its checks, failed (no words, the code), or stopped
+(the words so far, unchecked). So an answer a colleague opens is the one the model wrote, and the browser can't hand
+the model an answer it never gave. Such a turn says ``kind`` (question, answer) in ``meta`` (``AskedTurn``,
+``AnsweredTurn``) and names documents by id only (``narrowed_to`` too), so a deleted one leaves no name; a document
+deleted while an answer is written is taken out of it as it is stored.
+
+**A conversation is a tree**, as in Claude and ChatGPT: each turn the server writes names the turn it follows
+(``parent``), so *Regenerate* gives a question another answer beside the earlier ones, which stay, and a question can
+follow any answer, the one the person has in front of them. A turn without a ``parent`` (the chat UI's own saves)
+follows the one before it. Looked at: Claude's and ChatGPT's conversations, and OpenAI's Responses and Conversations
+APIs (a response names the one before it, ``previous_response_id``), which keep a conversation this way; a flat list
+with versions of the last answer only (built first, and set aside in review) can't carry on from an earlier version.
+The routes and codes are this gateway's own, since none of these is a standard to follow by the letter. The screens
+move to it, and the chat UI's whole saves go, in the steps after this one.
 
 **A playbook run is a conversation** (decision, 30 October 2026; docs/design/playbooks.md, "The chat UI"):
 starting one makes a conversation in the case (``run_id`` set), titled with the playbook, its
@@ -214,10 +219,15 @@ class ConversationIn(BaseModel):
 
 class QuestionIn(BaseModel):
     """Body of ``POST /v1/conversations/{id}/questions``: a new question in a conversation the server keeps
-    (suveryn-tracker#251). Only the question: what the model reads of the conversation before it comes from the turns
-    the server stored, and the answer is stored as it is written."""
+    (suveryn-tracker#251), or one asked again. Only the question: what the model reads of the conversation before it
+    comes from the turns the server stored, and the answer is stored as it is written.
 
-    text: str = Field(min_length=1, max_length=100_000)
+    A conversation is a tree, as in Claude and ChatGPT (suveryn-tracker#251): every turn the
+    server writes names the turn it follows (``parent``). A question follows an answer, ``after`` (needed once the
+    conversation has one); asked again (``again``, the question's ``seq``: *Regenerate*), it gets another answer beside the earlier
+    ones, which stay, so a question can have several answers and what follows each of them."""
+
+    text: str | None = Field(default=None, min_length=1, max_length=100_000)
     # What the answer is grounded in (as ``ChatRequest.document_ids``): empty, a plain, unsourced answer.
     document_ids: list[str] = Field(default_factory=list, max_length=50)
     # What the question shows with it, by id: the documents chosen with *Ask about*, and the ones attached to it.
@@ -227,15 +237,27 @@ class QuestionIn(BaseModel):
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
     thinking: bool = False
-    # *Regenerate*: the last question asked once more, in place of its answer (``text`` must be that question).
-    again: bool = False
+    # The answer the question follows (its ``seq``): the one the person has in front of them. None only for the
+    # conversation's first question.
+    after: int | None = Field(default=None, ge=1)
+    # *Regenerate*: the question (its ``seq``) to answer once more, with what it was asked with; nothing else is sent.
+    again: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _a_question_or_one_again(self) -> "QuestionIn":
+        if self.again is None and self.text is None:
+            raise ValueError("a question: its text, or the question to ask again")
+        if self.again is not None and self.model_fields_set - {"again"}:
+            raise ValueError("a question asked again is asked as it was: nothing but again")
+        return self
 
 
 class AskedTurn(Answer):
-    """What a question's row keeps beside its text (``meta``), as the server writes it: the documents it was about,
-    by id only, so a deleted one leaves no name behind; how it was asked."""
+    """What a question's row keeps beside its text (``meta``), as the server writes it: the turn it follows, the
+    documents it was about, by id only, so a deleted one leaves no name behind; how it was asked."""
 
     kind: Literal["question"] = "question"
+    parent: int | None  # the answer it follows (``seq``); None: the first question
     document_ids: list[str]
     about: list[str]
     attached: list[str]
@@ -244,11 +266,13 @@ class AskedTurn(Answer):
 
 
 class AnsweredTurn(Answer):
-    """What an answer's row keeps beside its text (``meta``), as the server writes it once the stream ended: how it
-    ended (``outcome``), and for an answer written out everything the answer said beside its words (``ChatResponse``
-    but its id, words and token counts; a test holds the two together), the document it was narrowed to by id."""
+    """What an answer's row keeps beside its text (``meta``), as the server writes it once the stream ended: the
+    question it answers (``parent``), how it ended (``outcome``), and for an answer written out everything the answer
+    said beside its words (``ChatResponse`` but its id, words and token counts; a test holds the two together), the
+    document it was narrowed to by id."""
 
     kind: Literal["answer"] = "answer"
+    parent: int | None = None  # the question it answers (``seq``)
     outcome: Literal["done", "stopped", "failed"]
     model: str | None = None
     citations: list[Citation] = Field(default_factory=list)
@@ -273,15 +297,16 @@ def title_of(question: str) -> str:
     return first if len(first) <= 80 else first[:79].rstrip() + "\u2026"
 
 
-def asked_turn(body: QuestionIn) -> dict:
-    return AskedTurn(document_ids=body.document_ids, about=body.about, attached=body.attached, model=body.model,
+def asked_turn(body: QuestionIn, parent: int | None) -> dict:
+    return AskedTurn(parent=parent, document_ids=body.document_ids, about=body.about, attached=body.attached, model=body.model,
                      thinking=body.thinking).model_dump(mode="json")
 
 
-def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | None, failure: dict | None) -> tuple[str, dict]:
+def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | None, failure: dict | None,
+                  parent: int | None = None) -> tuple[str, dict]:
     """An answer's row (text, ``meta``) once its stream ended: written out (``done``, the whole answer with its
     checks), failed (no words, as the stream's contract says, and the code it failed with), or stopped (the words so
-    far and their passages, unchecked: stopped by the person, or the connection went)."""
+    far and their passages, unchecked: stopped by the person, or the connection went). ``parent``: its question."""
     if done is not None:
         whole = done.model_dump(exclude={"id", "answer", "usage"})
         if whole.get("narrowed_to") is not None:
@@ -290,25 +315,44 @@ def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | No
             # passage it can't be told, and nothing is kept.
             read = {c["source"]["document_id"] for c in whole["citations"] if c.get("source")}
             whole["narrowed_to"] = read.pop() if len(read) == 1 else None
-        turn = AnsweredTurn(outcome="done", **whole)
-        return done.answer, turn.model_dump(mode="json")
+        return done.answer, AnsweredTurn(parent=parent, outcome="done", **whole).model_dump(mode="json")
     if failure is not None:
-        return "", AnsweredTurn(outcome="failed", failure=Message(**failure)).model_dump(mode="json")
-    return text, AnsweredTurn(outcome="stopped", citations=sources, reasoning=reasoning).model_dump(mode="json")
+        return "", AnsweredTurn(parent=parent, outcome="failed", failure=Message(**failure)).model_dump(mode="json")
+    return text, AnsweredTurn(parent=parent, outcome="stopped", citations=sources, reasoning=reasoning).model_dump(mode="json")
 
 
-def history_pairs(turns: list["Turn"]) -> list[tuple[str, str | None]]:
-    """(question, its completed answer or None) for each question of a conversation, for the model's history
+def parent_of(turns: list["Turn"], i: int) -> int | None:
+    """The ``seq`` of the turn ``turns[i]`` follows: the one it names (``parent``), or, for a turn without one (the chat
+    UI's own saves, a run's thread), the turn before it."""
+    if "parent" in turns[i].meta:
+        return turns[i].meta["parent"]
+    return turns[i - 1].seq if i > 0 else None
+
+
+def path_to(turns: list["Turn"], seq: int | None) -> list["Turn"]:
+    """The turns from the conversation's first to the one ``seq`` names, each the one the next follows: what was said
+    on the way to it, in that branch of the tree. Empty for None or a ``seq`` that isn't there."""
+    at = {t.seq: i for i, t in enumerate(turns)}
+    path: list[Turn] = []
+    while seq is not None and seq in at and len(path) <= len(turns):  # bounded: a loop in stored parents ends
+        path.append(turns[at[seq]])
+        seq = parent_of(turns, at[seq])
+    return path[::-1]
+
+
+def history_pairs(path: list["Turn"]) -> list[tuple[str, str | None]]:
+    """(question, its completed answer or None) for each question on a path (``path_to``), for the model's history
     (``suveryn_harness.conversation_history``). Completed: the server says ``outcome`` done; a turn the chat UI saved
     itself says ``status`` done."""
     pairs = []
-    for i, turn in enumerate(turns):
+    for i, turn in enumerate(path):
         if turn.role != "user":
             continue
-        after = turns[i + 1] if i + 1 < len(turns) else None
+        after = path[i + 1] if i + 1 < len(path) else None
         done = after is not None and after.role == "assistant" and "done" in (after.meta.get("outcome"), after.meta.get("status"))
         pairs.append((turn.text, after.text if done else None))
     return pairs
+
 
 class ConversationSummary(Answer):
     """One entry of ``GET /v1/conversations``."""
@@ -661,19 +705,6 @@ class ConversationStore(TurnStore):
                 self._execute("UPDATE conversations SET documents = ARRAY(SELECT DISTINCT unnest(documents || %s::text[]) ORDER BY 1)"
                               " WHERE id = %s", (sorted(documents), conversation_id))
         return turn
-
-    def drop_last_answer(self, conversation_id: uuid.UUID) -> bool:
-        """Take the last question and its answer out (*Regenerate*): False, and nothing taken, unless the
-        conversation ends with a question and its answer."""
-        with self.transaction():
-            self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,))
-            last = self._execute("SELECT seq, role FROM turns WHERE conversation_id = %s ORDER BY seq DESC LIMIT 2",
-                                 (conversation_id,)).fetchall()
-            if [r[1] for r in last] != ["assistant", "user"]:
-                return False
-            self._execute("DELETE FROM turns WHERE conversation_id = %s AND seq >= %s", (conversation_id, last[1][0]))
-            self._execute("UPDATE conversations SET messages = messages - 2, updated_at = now() WHERE id = %s", (conversation_id,))
-        return True
 
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:
         """Delete one of the owner's conversations (a playbook run's goes with its case: not here)."""

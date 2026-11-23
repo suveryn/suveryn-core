@@ -206,7 +206,7 @@
  "nothing_to_ask_again": {
   "body": {
    "code": "request.conflict",
-   "detail": "There is no answer to ask again.",
+   "detail": "The conversation has no such turn.",
    "kind": "refused",
    "params": {},
    "status": 409,
