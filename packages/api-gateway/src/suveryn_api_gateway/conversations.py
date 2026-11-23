@@ -43,8 +43,12 @@ model reads what was stored before it (``history_pairs``, ``suveryn_harness.conv
 is stored as it was written, however it ends (``answered_turn``): written out with its checks, failed (no words, the
 code), or stopped (the words so far, unchecked). So an answer a colleague opens is the one the model wrote, and the
 browser can't hand the model an answer it never gave. Such a turn says ``kind`` (question, answer) in ``meta``, and
-names documents by id only (``narrowed_to`` too), so a deleted one leaves no name. The screens move to it, and the
-chat UI's whole saves go, in the steps after this one.
+names documents by id only (``narrowed_to`` too), so a deleted one leaves no name; its shape is ``AskedTurn`` and
+``AnsweredTurn``. A document deleted while an answer is written is taken out of it as it is stored. The screens move
+to it, and the chat UI's whole saves go, in the steps after this one. Looked at: OpenAI's Conversations and Responses
+APIs (items stored by the server, a response chained to the one before) and its older Assistants threads, which do
+the same; this follows them in what matters (the server keeps what was said, the client sends only what is new) with
+the routes and codes this gateway already has, since none of them is a standard to follow by the letter.
 
 **A playbook run is a conversation** (decision, 30 October 2026; docs/design/playbooks.md, "The chat UI"):
 starting one makes a conversation in the case (``run_id`` set), titled with the playbook, its
@@ -66,13 +70,19 @@ import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from suveryn_harness.schemas import Calculation, Citation, CitationIssue, SupportSpan
 
 from .cases import KEEP_PERIODS
 from .db import PgStore
 from .description import Answer
+from .problems import Message
+
+# A document's id, as a question names the documents it shows with it.
+DocumentId = Annotated[str, Field(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")]
 
 log = logging.getLogger("suveryn.gateway")
 
@@ -185,14 +195,50 @@ class QuestionIn(BaseModel):
     # What the answer is grounded in (as ``ChatRequest.document_ids``): empty, a plain, unsourced answer.
     document_ids: list[str] = Field(default_factory=list, max_length=50)
     # What the question shows with it, by id: the documents chosen with *Ask about*, and the ones attached to it.
-    about: list[str] = Field(default_factory=list, max_length=50)
-    attached: list[str] = Field(default_factory=list, max_length=50)
+    about: list[DocumentId] = Field(default_factory=list, max_length=50)
+    attached: list[DocumentId] = Field(default_factory=list, max_length=50)
     # The case a new conversation is in (None: the personal space); a conversation stays where it was started.
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
     thinking: bool = False
-    # Ask the last question again (*Regenerate*): its answer and the question are taken out first.
+    # *Regenerate*: the last question asked once more, in place of its answer (``text`` must be that question).
     again: bool = False
+
+
+class AskedTurn(Answer):
+    """What a question's row keeps beside its text (``meta``), as the server writes it: the documents it was about,
+    by id only, so a deleted one leaves no name behind; how it was asked."""
+
+    kind: Literal["question"] = "question"
+    document_ids: list[str]
+    about: list[str]
+    attached: list[str]
+    model: str | None
+    thinking: bool
+
+
+class AnsweredTurn(Answer):
+    """What an answer's row keeps beside its text (``meta``), as the server writes it once the stream ended: how it
+    ended (``outcome``), and for an answer written out everything the answer said beside its words (``ChatResponse``
+    but its id, words and token counts; a test holds the two together), the document it was narrowed to by id."""
+
+    kind: Literal["answer"] = "answer"
+    outcome: Literal["done", "stopped", "failed"]
+    model: str | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    calculations: list[Calculation] = Field(default_factory=list)
+    unverified_figures: list[str] = Field(default_factory=list)
+    citation_issues: list[CitationIssue] = Field(default_factory=list)
+    support_spans: list[SupportSpan] = Field(default_factory=list)
+    instruction_like_sources: list[int] = Field(default_factory=list)
+    finish_reason: str | None = None
+    reasoning: str = ""
+    thought_seconds: float | None = None
+    thinking_cut: bool = False
+    narrowed_to: str | None = None  # a document's id, never its name
+    complete: bool | None = None
+    asked_again: bool = False
+    failure: Message | None = None  # why it failed: a code of the registry
 
 
 def title_of(question: str) -> str:
@@ -202,28 +248,27 @@ def title_of(question: str) -> str:
 
 
 def asked_turn(body: QuestionIn) -> dict:
-    """What a question's row keeps beside its text (``meta``): the documents it was about, by id only, so a deleted
-    one leaves no name behind; how it was asked."""
-    return {"kind": "question", "document_ids": body.document_ids, "about": body.about, "attached": body.attached,
-            "model": body.model, "thinking": body.thinking}
+    return AskedTurn(document_ids=body.document_ids, about=body.about, attached=body.attached, model=body.model,
+                     thinking=body.thinking).model_dump(mode="json")
 
 
 def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | None, failure: dict | None) -> tuple[str, dict]:
-    """An answer's row as the server stores it once its stream ended (text, ``meta``): written out (``done``, the
-    whole answer with its checks), failed (no text, as the stream's contract says, and the code it failed with), or
-    stopped (the words so far and their passages, unchecked: stopped by the person, or the connection went)."""
+    """An answer's row (text, ``meta``) once its stream ended: written out (``done``, the whole answer with its
+    checks), failed (no words, as the stream's contract says, and the code it failed with), or stopped (the words so
+    far and their passages, unchecked: stopped by the person, or the connection went)."""
     if done is not None:
-        whole = done.model_dump(mode="json", exclude={"id", "answer", "usage"})
+        whole = done.model_dump(exclude={"id", "answer", "usage"})
         if whole.get("narrowed_to") is not None:
             # The one document the question named, kept by its id, never by the file name the answer carries: only
-            # that document was read, so its passages say which (a name would stay when it is deleted).
-            read = {(c.get("source") or {}).get("document_id") for c in whole["citations"]} - {None}
+            # that document was read, so its passages say which (a name would stay when it is deleted). Without a
+            # passage it can't be told, and nothing is kept.
+            read = {c["source"]["document_id"] for c in whole["citations"] if c.get("source")}
             whole["narrowed_to"] = read.pop() if len(read) == 1 else None
-        return done.answer, {"kind": "answer", "outcome": "done", **whole}
+        turn = AnsweredTurn(outcome="done", **whole)
+        return done.answer, turn.model_dump(mode="json")
     if failure is not None:
-        return "", {"kind": "answer", "outcome": "failed", "failure": failure}
-    return text, {"kind": "answer", "outcome": "stopped", "citations": [c.model_dump(mode="json") for c in sources],
-                  "reasoning": reasoning}
+        return "", AnsweredTurn(outcome="failed", failure=Message(**failure)).model_dump(mode="json")
+    return text, AnsweredTurn(outcome="stopped", citations=sources, reasoning=reasoning).model_dump(mode="json")
 
 
 def history_pairs(turns: list["Turn"]) -> list[tuple[str, str | None]]:

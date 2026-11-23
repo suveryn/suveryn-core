@@ -4065,6 +4065,7 @@
     "properties": {
      "about": {
       "items": {
+       "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
        "type": "string"
       },
       "maxItems": 50,
@@ -4078,6 +4079,7 @@
      },
      "attached": {
       "items": {
+       "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
        "type": "string"
       },
       "maxItems": 50,
@@ -13490,7 +13492,7 @@
   },
   "/v1/conversations/{conversation_id}/questions": {
    "post": {
-    "description": "Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is\nstarted, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is\nwritten, whatever happens to it: written out, failed, or stopped when the connection closes\n(suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server\nstored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one\npast the office's keep period: 404;\nwhile an answer is being written in it, or *Regenerate* with no answer to take out: 409.",
+    "description": "Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is\nstarted, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is\nwritten, whatever happens to it: written out, failed, or stopped when the connection closes\n(suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server\nstored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one\npast the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an\nanswer is being written in it, or *Regenerate* that isn't the last question asked again: 409.",
     "operationId": "ask_in_conversation",
     "parameters": [
      {

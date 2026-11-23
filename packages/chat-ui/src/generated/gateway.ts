@@ -1932,10 +1932,16 @@ export interface PinIn {
  * the server stored, and the answer is stored as it is written.
  */
 export interface QuestionIn {
-  /** @maxItems 50 */
+  /**
+     * @maxItems 50
+     * @items.pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+     */
   about?: string[];
   again?: boolean;
-  /** @maxItems 50 */
+  /**
+     * @maxItems 50
+     * @items.pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+     */
   attached?: string[];
   case_id?: string | null;
   /** @maxItems 50 */
@@ -7493,8 +7499,8 @@ export const getAskInConversationUrl = (conversationId: string,) => {
  * written, whatever happens to it: written out, failed, or stopped when the connection closes
  * (suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server
  * stored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one
- * past the office's keep period: 404;
- * while an answer is being written in it, or *Regenerate* with no answer to take out: 409.
+ * past the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an
+ * answer is being written in it, or *Regenerate* that isn't the last question asked again: 409.
  * @summary Ask In Conversation
  */
 export const askInConversation = async (conversationId: string,

@@ -23,9 +23,9 @@ def conversation_history(pairs: Iterable[tuple[str, str | None]], question: str 
     """The messages before a new question, from ``pairs`` in order: (a question, its completed answer, or None when
     it has none: failed, stopped, or not written). With the new ``question`` they stay within ``MAX_TOTAL_CHARS``."""
     out: list[tuple[str, str]] = []
-    for question, answer in pairs:
+    for asked, answer in pairs:
         if answer is not None:
-            out += [("user", question), ("assistant", answer)]
+            out += [("user", asked), ("assistant", answer)]
     kept = out[-MAX_HISTORY:]  # an even number: still starts with a question
     chars = sum(len(text) for _, text in kept)
     room = min(HISTORY_CHARS, MAX_TOTAL_CHARS - len(question))

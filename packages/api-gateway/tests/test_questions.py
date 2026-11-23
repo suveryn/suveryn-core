@@ -42,9 +42,11 @@ def test_the_oldest_pairs_go_first_and_the_new_question_has_room():
     assert len(conversation_history(many)) == MAX_HISTORY and conversation_history(many)[0].content == "q10"
     long = [("q" * 1000, "a" * 20_000)] * 4  # 84,000 characters: more than the history may take
     assert sum(len(m.content) for m in conversation_history(long)) <= HISTORY_CHARS
-    question = "x" * 100_000  # the longest question: what is left of the request's total
-    kept = conversation_history(long, question)
-    assert sum(len(m.content) for m in kept) + len(question) <= MAX_TOTAL_CHARS and [m.role for m in kept][:1] == ["user"]
+    question = "x" * 100_000  # the longest question: what is left of the request's total, 50,000
+    pairs = [("q", "a" * 29_999)] * 3  # 30,000 a pair: two fit the history's own 60,000, one fits beside the question
+    assert len(conversation_history(pairs)) == 4
+    kept = conversation_history(pairs, question)
+    assert len(kept) == 2 and sum(len(m.content) for m in kept) + len(question) <= MAX_TOTAL_CHARS
 
 
 def turn(seq, role, text, **meta):
@@ -76,10 +78,19 @@ def test_an_answer_written_out_keeps_its_checks_and_not_the_file_name_it_was_nar
     assert answered_turn("", "", [], two, None)[1]["narrowed_to"] is None  # can't tell which: no name either
 
 
+def test_what_an_answer_keeps_is_everything_the_answer_says_beside_its_words():
+    """``AnsweredTurn`` holds an answer written out as ``ChatResponse`` gives it: a member added to the one and not the
+    other would be lost when it is stored."""
+    from suveryn_api_gateway.conversations import AnsweredTurn
+
+    kept = set(ChatResponse.model_fields) - {"id", "answer", "usage"}
+    assert set(AnsweredTurn.model_fields) == kept | {"kind", "outcome", "failure"}
+
+
 def test_a_failed_answer_keeps_no_words_and_a_stopped_one_keeps_what_was_written():
     failure = {"kind": "unavailable", "code": "model.unavailable", "params": {}}
-    assert answered_turn("Half an ans", "", [cited(DOC)], None, failure) == (
-        "", {"kind": "answer", "outcome": "failed", "failure": failure})
+    text, meta = answered_turn("Half an ans", "", [cited(DOC)], None, failure)
+    assert (text, meta["outcome"], meta["failure"], meta["citations"]) == ("", "failed", failure, [])
     text, meta = answered_turn("Half an ans", "thought", [cited(DOC)], None, None)
     assert text == "Half an ans" and meta["outcome"] == "stopped" and meta["reasoning"] == "thought"
     assert meta["citations"][0]["source"]["document_id"] == DOC
@@ -275,3 +286,91 @@ def test_an_answer_stopped_by_closing_the_connection_keeps_what_was_written(stor
         assert role == "assistant" and meta["outcome"] == "stopped" and text and uuid.UUID(cid) not in routes.ANSWERING
     finally:
         store.delete(uuid.UUID(cid), store.place(uuid.UUID(cid))[0] if store.place(uuid.UUID(cid)) else "")
+
+
+@needs_db
+def test_two_regenerates_at_once_take_out_one_answer_only(store):
+    """Review of #251, finding 1: a double click on *Regenerate* sent two requests; both passed the check before
+    either was noted, and each took out "the last" question, an earlier one too."""
+    import anyio
+
+    application = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text="A")),
+                             load_documents=False, auth=Authenticator.disabled(), conversations=store)
+    cid = str(uuid.uuid4())
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(application), base_url="http://test") as c:
+            for q in ("q1", "q2"):
+                assert (await c.post(f"/v1/conversations/{cid}/questions", json={"text": q})).status_code == 200
+            statuses: list[int] = []
+
+            async def again():
+                statuses.append((await c.post(f"/v1/conversations/{cid}/questions", json={"text": "q2", "again": True})).status_code)
+            async with anyio.create_task_group() as g:
+                g.start_soon(again)
+                g.start_soon(again)
+            return sorted(statuses)
+
+    try:
+        with TestClient(application) as c:
+            assert c.portal.call(go) == [200, 409]
+        assert [(role, text) for role, text, _ in stored(store, cid)] == [("user", "q1"), ("assistant", "A"), ("user", "q2"), ("assistant", "A")]
+    finally:
+        store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))
+
+
+@needs_db
+def test_regenerate_asks_the_last_question_again_and_nothing_else(store):
+    c, kc = app(store, llm_transport([]))
+    alice, cid = as_user(kc, ALICE), str(uuid.uuid4())
+    with c:
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?"}, headers=alice) as r:
+            events(r)
+        r = c.post(f"/v1/conversations/{cid}/questions", json={"text": "Iets anders", "again": True}, headers=alice)
+        assert r.status_code == 409 and r.json()["code"] == "request.conflict"
+    assert [text for _, text, _ in stored(store, cid)][0] == "Wat is de koopprijs?" and len(stored(store, cid)) == 2
+
+
+@needs_db
+def test_a_document_deleted_while_the_answer_is_written_leaves_no_passage_in_it(store):
+    """Review of #251, finding 2: the answer is stored when it ends; a document deleted meanwhile had already been
+    cleaned out of the conversation, before its passages were in it."""
+    from test_documents import DOC as DEED, FakeDocuments
+
+    docs = FakeDocuments(owner=ALICE)
+    found = docs.retrieve
+
+    def read_then_deleted(*args, **kwargs):
+        passages = found(*args, **kwargs)
+        del docs.docs[DEED]  # deleted by a colleague while the model writes
+        return passages
+    docs.retrieve = read_then_deleted
+    kc = FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    cid = str(uuid.uuid4())
+    with TestClient(create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=store)) as c, c.stream(
+            "POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?", "document_ids": [DEED]},
+            headers=as_user(kc, ALICE)) as r:
+        assert [name for name, _ in events(r)][-1] == "done"
+    (_, _, _), (_, _, meta) = stored(store, cid)
+    assert meta["outcome"] == "done" and "412.500" not in json.dumps(meta["citations"]) and meta["citations"][0]["removed"] is True
+
+
+@needs_db
+def test_a_question_shows_only_documents_the_caller_may_see(store):
+    from test_documents import DOC as DEED, FakeDocuments
+
+    kc = FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    cid = str(uuid.uuid4())
+    with TestClient(create_app(llm, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth, conversations=store)) as c:
+        bob = as_user(kc, BOB)
+        r = c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "about": [DEED]}, headers=bob)  # Alice's
+        assert r.status_code == 404 and r.json()["code"] == "answer.document_not_found"
+        assert c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "attached": ["x" * 10_000]}, headers=bob).status_code == 422
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "?", "attached": [DEED]}, headers=as_user(kc, ALICE)) as r:
+            assert r.status_code == 200
+            events(r)
+    assert store.place(uuid.UUID(cid))[0] == ALICE and stored(store, cid)[0][2]["attached"] == [DEED]
