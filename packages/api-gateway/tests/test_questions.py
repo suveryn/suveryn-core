@@ -457,3 +457,62 @@ def test_a_question_shows_only_documents_the_caller_may_see(store):
             assert r.status_code == 200
             events(r)
     assert store.place(uuid.UUID(cid))[0] == ALICE and stored(store, cid)[0][2]["attached"] == [DEED]
+
+
+# Saving an answer the server stored to its case (step 2).
+
+def test_a_saved_answers_file_name_and_search_text_are_the_chat_uis():
+    """As the chat UI's ``answerFileName`` and ``searchText`` make them for an answer it saves itself."""
+    from suveryn_api_gateway.conversations import file_name, search_text
+
+    assert file_name("Wat is: de prijs?/..  ", 4) == "Wat is de prijs.docx"
+    assert file_name("???", 4) == "4.docx" and file_name("a" * 90, 4) == "a" * 80 + ".docx"
+    assert search_text("Wat is de prijs?", "De prijs is € 1 [1]. Ook [2] , zo [12];") == "Wat is de prijs?\n\nDe prijs is € 1. Ook, zo;"
+
+
+def test_a_saved_answer_keeps_every_check_the_stored_answer_has():
+    """What is copied into the saved answer's content is what the stored answer says beside its words: a check added
+    to the one and not the other would be lost from the Word file."""
+    from suveryn_api_gateway.conversations import AnsweredTurn, SavedAnswer
+
+    checks = set(AnsweredTurn.model_fields) - {"kind", "parent", "outcome", "failure", "finish_reason", "reasoning", "thought_seconds",
+                                                 "thinking_cut", "narrowed_to", "complete", "asked_again"}
+    assert checks <= set(SavedAnswer.model_fields), checks - set(SavedAnswer.model_fields)
+
+
+@needs_db
+def test_an_answer_saved_to_its_case_is_the_one_the_server_stored(store):
+    """The browser names the answer; the server copies it with its question, so what is saved is what the model
+    wrote. Only an answer written out; the conversation's owner only."""
+    from test_cases import NEW, FakeCases
+    from test_documents import FakeDocuments
+
+    docs, kc = FakeDocuments(owner=ALICE), FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    with TestClient(create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=store, cases=FakeCases())) as c:
+        alice = as_user(kc, ALICE)
+        case = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+
+        def asked() -> tuple[str, int, int]:
+            cid = str(uuid.uuid4())
+            with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?", "case_id": case},
+                          headers=alice) as r:
+                events(r)
+            question, answer = (t.seq for t in store.turns_of(uuid.UUID(cid)))
+            return cid, question, answer
+        cid, question, answer = asked()
+        r = c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice)
+        assert r.status_code == 201 and r.json()["filename"] == "Wat is de koopprijs.docx"
+        _, origin, content = docs.contents[r.json()["id"]]
+        assert (origin, content["question"], content["answer"], content["turn"]) == (
+            "answer", "Wat is de koopprijs?", "De koopprijs is EUR 412.500,00 [1].", answer)
+        assert docs.stored_provenance == {"conversation": cid, "message": f"{cid}/{answer}"}
+        assert c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice).status_code == 200  # once
+        assert c.post(f"/v1/conversations/{cid}/turns/{question}/document", headers=alice).status_code == 404
+        assert c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=as_user(kc, BOB)).status_code == 404
+        stopped, _, answer = asked()
+        store._execute("UPDATE turns SET meta = meta || '{\"outcome\": \"stopped\"}' WHERE conversation_id = %s AND seq = %s",
+                       (uuid.UUID(stopped), answer))
+        r = c.post(f"/v1/conversations/{stopped}/turns/{answer}/document", headers=alice)
+        assert r.status_code == 409 and r.json()["code"] == "request.conflict"  # a stopped answer isn't saved

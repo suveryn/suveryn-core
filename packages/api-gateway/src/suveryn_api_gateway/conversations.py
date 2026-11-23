@@ -70,6 +70,7 @@ Review notes:
 import json
 import logging
 import os
+import re
 import uuid
 
 from collections.abc import Callable, Iterator
@@ -289,6 +290,45 @@ class AnsweredTurn(Answer):
     complete: bool | None = None
     asked_again: bool = False
     failure: Message | None = None  # why it failed: a code of the registry
+
+
+class SavedAnswer(Answer):
+    """What an answer saved to its case keeps as its document's ``content`` (what rebuilds its Word file), as the
+    server writes it from the answer it stored (suveryn-tracker#251, step 2): the question and the answer as written,
+    its passages and checks, and its sources' file names as they were. ``citations`` and ``filenames`` are where a
+    document's deletion takes its passages and name out (the rag's ``store.without``)."""
+
+    question: str
+    answer: str
+    answered_at: datetime            # when the answer was written
+    model: str | None
+    citations: list[Citation]
+    calculations: list[Calculation]
+    unverified_figures: list[str]
+    citation_issues: list[CitationIssue]
+    support_spans: list[SupportSpan]
+    instruction_like_sources: list[int]
+    filenames: dict[str, str]        # a cited document's id: its file name when the answer was saved
+    conversation_id: str
+    turn: int                        # the answer's ``seq`` in its conversation: the file's mark refers to it
+    case_ref: str                    # the case's reference, as the file's mark shows it
+
+
+MARKER = re.compile(r"\[(\d{1,2})\]")
+
+
+def search_text(question: str, answer: str) -> str:
+    """What search finds of a saved answer: the question and the answer, without its markers (as the chat UI's
+    ``stripMarkers``)."""
+    return f"{question}\n\n{re.sub(r'[ \t]+([.,;:])', r'\1', MARKER.sub('', answer))}".strip()
+
+
+def file_name(question: str, seq: int) -> str:
+    """A saved answer's Word file name: its question, on one line, without characters a file name can't hold, at most
+    80 characters (as the chat UI's ``answerFileName``); the answer's ``seq`` when nothing of it is left."""
+    name = re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", question)).strip()
+    name = re.sub(r"[. ]+$", "", name)
+    return f"{name[:80].rstrip() if len(name) > 80 else name or seq}.docx"
 
 
 def title_of(question: str) -> str:

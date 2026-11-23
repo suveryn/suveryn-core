@@ -296,6 +296,19 @@
   "media_type": "application/json",
   "status": 200
  },
+ "no_such_answer": {
+  "body": {
+   "code": "request.not_found",
+   "detail": "No such answer in this conversation.",
+   "kind": "refused",
+   "params": {},
+   "status": 404,
+   "title": "What was asked for doesn't exist, or the caller may not see it.",
+   "type": "urn:suveryn:problem:request.not_found"
+  },
+  "media_type": "application/problem+json",
+  "status": 404
+ },
  "no_such_document": {
   "body": {
    "code": "request.not_found",
@@ -308,6 +321,19 @@
   },
   "media_type": "application/problem+json",
   "status": 404
+ },
+ "not_in_a_case": {
+  "body": {
+   "code": "request.conflict",
+   "detail": "The conversation isn't in a case.",
+   "kind": "refused",
+   "params": {},
+   "status": 409,
+   "title": "It can't be done in the state things are in now; the caller's view may be out of date.",
+   "type": "urn:suveryn:problem:request.conflict"
+  },
+  "media_type": "application/problem+json",
+  "status": 409
  },
  "not_read": {
   "body": {
@@ -365,6 +391,15 @@
   },
   "media_type": "application/json",
   "status": 200
+ },
+ "saved_from_turn": {
+  "body": {
+   "created": true,
+   "filename": "What is the price.docx",
+   "id": "00000000-0000-4000-8000-000000000008"
+  },
+  "media_type": "application/json",
+  "status": 201
  },
  "too_large": {
   "body": {

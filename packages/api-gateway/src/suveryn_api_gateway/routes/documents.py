@@ -13,12 +13,15 @@ from suveryn_harness.messages import Problem, stored
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_serializer
 
-from ..conversations import ConversationSummary
+from ..conversations import ConversationSummary, SavedAnswer, file_name, search_text
 from ..description import Answer
 from ..problems import Message, refusals
 from .status import disk_low
 from .common import (
+    Scope,
+    case_for,
     docs_or_503,
+    history_or_503,
     flush_soon,
     history_or_none,
     log_access,
@@ -450,6 +453,57 @@ async def save_answer_as_document(case_id: str, body: SaveAnswerIn, request: Req
     await touch_case(request, scope)
     await log_access(request, scope.case_id, "answer_saved", {"document": document_id})
     return {"id": document_id, "filename": body.filename, "created": True}
+
+
+@router.post("/v1/conversations/{conversation_id}/turns/{seq}/document", status_code=201, response_model=SavedAnswerDocument,
+             responses={200: {"model": SavedAnswerDocument, "description": "This answer was saved before: that document"},
+                        **refusals(404, 409, 422)})
+async def save_turn_as_document(conversation_id: str, seq: int, request: Request, response: Response):
+    """Save an answer the server stored (suveryn-tracker#251, step 2) to its conversation's case, as a document with
+    origin ``answer`` (docs/design/chat-ui.md §5): the browser names the answer, and the server copies it as it was
+    written, with its question, passages, checks and its sources' file names. A contributor's right in an open case;
+    the conversation's owner only (404 otherwise, or for no such answer); 409 for an answer that wasn't written out,
+    or a conversation that isn't in a case. Saving it again gives the document already saved. Logged as
+    ``answer_saved``."""
+    store, docs = history_or_503(request), docs_or_503(request)
+    try:
+        cid = uuid.UUID(conversation_id)
+    except ValueError:
+        raise Problem("request.invalid", "Not a conversation id.") from None
+    place = await run_in_threadpool(store.place, cid)
+    if place is None or place[0] != owner_of(request) or place[2]:
+        raise Problem("request.not_found", "Unknown conversation.")
+    turns = {t.seq: t for t in await run_in_threadpool(store.turns_of, cid)}
+    answer = turns.get(seq)
+    if answer is None or answer.role != "assistant" or answer.meta.get("kind") != "answer":
+        raise Problem("request.not_found", "No such answer in this conversation.")
+    question = turns.get(answer.meta.get("parent"))
+    if answer.meta.get("outcome") != "done" or question is None:
+        raise Problem("request.conflict", "Only an answer written out is saved.")
+    if place[1] is None:
+        raise Problem("request.conflict", "The conversation isn't in a case.")
+    case = await case_for(request, str(place[1]), "contribute")
+    scope = Scope.case(uuid.UUID(case.id))
+    message = f"{cid}/{seq}"
+    found = await run_in_threadpool(docs.saved_answer, scope, message)
+    if found:
+        response.status_code = 200
+        return {"id": found[0], "filename": found[1], "created": False}
+    meta = answer.meta
+    cited = {c["source"]["document_id"] for c in meta.get("citations", []) if c.get("source") and not c.get("removed")}
+    names = {str(d["id"]): d["filename"] for d in await run_in_threadpool(docs.documents, scope) if str(d["id"]) in cited}
+    content = SavedAnswer(question=question.text, answer=answer.text, answered_at=answer.at, model=meta.get("model"),
+                          citations=meta.get("citations", []), calculations=meta.get("calculations", []),
+                          unverified_figures=meta.get("unverified_figures", []), citation_issues=meta.get("citation_issues", []),
+                          support_spans=meta.get("support_spans", []), instruction_like_sources=meta.get("instruction_like_sources", []),
+                          filenames=names, conversation_id=str(cid), turn=seq, case_ref=case.reference)
+    filename = file_name(question.text, seq)
+    document_id = await run_in_threadpool(docs.store_text, filename, search_text(question.text, answer.text), scope, "answer",
+                                          {"conversation": str(cid), "message": message}, content.model_dump(mode="json"),
+                                          owner_of(request))
+    await touch_case(request, scope)
+    await log_access(request, scope.case_id, "answer_saved", {"document": document_id})
+    return {"id": document_id, "filename": filename, "created": True}
 
 
 @router.get("/v1/documents/{document_id}/original", response_class=Response, responses={
