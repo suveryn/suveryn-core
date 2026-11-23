@@ -43,7 +43,9 @@ model reads what was stored before it (``history_pairs``, ``suveryn_harness.conv
 is stored as it was written, however it ends (``answered_turn``): written out with its checks, failed (no words, the
 code), or stopped (the words so far, unchecked). So an answer a colleague opens is the one the model wrote, and the
 browser can't hand the model an answer it never gave. Such a turn says ``kind`` (question, answer) in ``meta``, and
-names documents by id only (``narrowed_to`` too), so a deleted one leaves no name; its shape is ``AskedTurn`` and
+names documents by id only (``narrowed_to`` too), so a deleted one leaves no name; *Regenerate* adds a version of an
+answer after the earlier ones, which stay (``versions``; a question says which it went on from, ``follows``, the
+founder's decision of 23 November 2026, as Claude and ChatGPT do); its shape is ``AskedTurn`` and
 ``AnsweredTurn``. A document deleted while an answer is written is taken out of it as it is stored. The screens move
 to it, and the chat UI's whole saves go, in the steps after this one. Looked at: OpenAI's Conversations and Responses
 APIs (items stored by the server, a response chained to the one before) and its older Assistants threads, which do
@@ -227,8 +229,18 @@ class QuestionIn(BaseModel):
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
     thinking: bool = False
-    # *Regenerate*: the last question asked once more, in place of its answer (``text`` must be that question).
+    # *Regenerate*: the last question asked once more (``text`` must be that question): a new version of its answer,
+    # beside the earlier ones, which stay (the founder's decision of 23 November 2026, as Claude and ChatGPT do).
     again: bool = False
+    # Which version of the last question's answer the new question goes on from (its ``seq``), when the person
+    # switched to an earlier one: what the model reads. None: the newest.
+    follows: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _again_follows_nothing(self) -> "QuestionIn":
+        if self.again and self.follows is not None:
+            raise ValueError("a question asked again goes on from what its first asking did: no follows")
+        return self
 
 
 class AskedTurn(Answer):
@@ -241,6 +253,7 @@ class AskedTurn(Answer):
     attached: list[str]
     model: str | None
     thinking: bool
+    follows: int | None = None  # the version of the answer before it that it went on from (``QuestionIn.follows``)
 
 
 class AnsweredTurn(Answer):
@@ -275,7 +288,7 @@ def title_of(question: str) -> str:
 
 def asked_turn(body: QuestionIn) -> dict:
     return AskedTurn(document_ids=body.document_ids, about=body.about, attached=body.attached, model=body.model,
-                     thinking=body.thinking).model_dump(mode="json")
+                     thinking=body.thinking, follows=body.follows).model_dump(mode="json")
 
 
 def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | None, failure: dict | None) -> tuple[str, dict]:
@@ -297,17 +310,30 @@ def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | No
     return text, AnsweredTurn(outcome="stopped", citations=sources, reasoning=reasoning).model_dump(mode="json")
 
 
-def history_pairs(turns: list["Turn"]) -> list[tuple[str, str | None]]:
+def versions(turns: list["Turn"]) -> list[tuple["Turn", list["Turn"]]]:
+    """Each question of a conversation with the versions of its answer, oldest first: the answers that follow it
+    before the next question (*Regenerate* adds one; the founder's decision of 23 November 2026)."""
+    out: list[tuple[Turn, list[Turn]]] = []
+    for turn in turns:
+        if turn.role == "user":
+            out.append((turn, []))
+        elif turn.role == "assistant" and out:
+            out[-1][1].append(turn)
+    return out
+
+
+def history_pairs(turns: list["Turn"], follows: int | None = None) -> list[tuple[str, str | None]]:
     """(question, its completed answer or None) for each question of a conversation, for the model's history
-    (``suveryn_harness.conversation_history``). Completed: the server says ``outcome`` done; a turn the chat UI saved
-    itself says ``status`` done."""
+    (``suveryn_harness.conversation_history``). Of several versions of an answer, the one the next question went on
+    from (its ``follows``; ``follows`` here for the last, the question being asked), else the newest. Completed: the
+    server says ``outcome`` done; a turn the chat UI saved itself says ``status`` done."""
+    asked = versions(turns)
     pairs = []
-    for i, turn in enumerate(turns):
-        if turn.role != "user":
-            continue
-        after = turns[i + 1] if i + 1 < len(turns) else None
-        done = after is not None and after.role == "assistant" and "done" in (after.meta.get("outcome"), after.meta.get("status"))
-        pairs.append((turn.text, after.text if done else None))
+    for i, (question, answers) in enumerate(asked):
+        went_on = asked[i + 1][0].meta.get("follows") if i + 1 < len(asked) else follows
+        chosen = next((a for a in answers if a.seq == went_on), answers[-1] if answers else None)
+        done = chosen is not None and "done" in (chosen.meta.get("outcome"), chosen.meta.get("status"))
+        pairs.append((question.text, chosen.text if done else None))
     return pairs
 
 class ConversationSummary(Answer):
@@ -661,19 +687,6 @@ class ConversationStore(TurnStore):
                 self._execute("UPDATE conversations SET documents = ARRAY(SELECT DISTINCT unnest(documents || %s::text[]) ORDER BY 1)"
                               " WHERE id = %s", (sorted(documents), conversation_id))
         return turn
-
-    def drop_last_answer(self, conversation_id: uuid.UUID) -> bool:
-        """Take the last question and its answer out (*Regenerate*): False, and nothing taken, unless the
-        conversation ends with a question and its answer."""
-        with self.transaction():
-            self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,))
-            last = self._execute("SELECT seq, role FROM turns WHERE conversation_id = %s ORDER BY seq DESC LIMIT 2",
-                                 (conversation_id,)).fetchall()
-            if [r[1] for r in last] != ["assistant", "user"]:
-                return False
-            self._execute("DELETE FROM turns WHERE conversation_id = %s AND seq >= %s", (conversation_id, last[1][0]))
-            self._execute("UPDATE conversations SET messages = messages - 2, updated_at = now() WHERE id = %s", (conversation_id,))
-        return True
 
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:
         """Delete one of the owner's conversations (a playbook run's goes with its case: not here)."""

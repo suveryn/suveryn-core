@@ -53,6 +53,15 @@ def turn(seq, role, text, **meta):
     return Turn(seq=seq, role=role, by="x", at="2026-11-23T10:00:00Z", text=text, meta=meta)
 
 
+def test_of_several_versions_of_an_answer_the_model_reads_the_one_gone_on_from_or_the_newest():
+    turns = [turn(1, "user", "q1"), turn(2, "assistant", "a1", outcome="done"), turn(3, "assistant", "a1b", outcome="done"),
+             turn(4, "user", "q2", follows=2), turn(5, "assistant", "a2", outcome="done"), turn(6, "assistant", "", outcome="failed"),
+             turn(7, "user", "q3"), turn(8, "assistant", "a3", outcome="done"), turn(9, "assistant", "a3b", outcome="done")]
+    assert history_pairs(turns) == [("q1", "a1"), ("q2", None), ("q3", "a3b")]  # q2 went on from its failed newest
+    assert history_pairs(turns, follows=8)[-1] == ("q3", "a3")
+    assert history_pairs(turns, follows=99)[-1] == ("q3", "a3b")  # not one of its versions: the newest
+
+
 def test_the_pairs_are_read_from_the_servers_turns_and_from_turns_the_chat_ui_saved():
     turns = [turn(1, "user", "q1"), turn(2, "assistant", "a1", kind="answer", outcome="done"),
              turn(3, "user", "q2"), turn(4, "assistant", "", kind="answer", outcome="failed"),
@@ -196,18 +205,54 @@ def test_a_conversation_the_chat_ui_saved_goes_on_on_the_server(store):
     assert len(store.turns_of(cid)) == 4
 
 
+def numbered(captured: list[dict]) -> httpx.MockTransport:
+    """A model that answers "Antwoord 1", "Antwoord 2"… in turn, keeping what each request sent."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"data": [{"id": "m.gguf"}]})
+        if request.url.path != "/v1/chat/completions":
+            return httpx.Response(404)
+        captured.append(json.loads(request.content))
+        text = f"Antwoord {len(captured)}"
+        sse = "".join(f"data: {json.dumps(c)}\n\n" for c in [{"choices": [{"delta": {"content": text}, "finish_reason": None}]},
+                                                                {"choices": [{"delta": {}, "finish_reason": "stop"}]}])
+        return httpx.Response(200, text=sse + "data: [DONE]\n\n", headers={"content-type": "text/event-stream"})
+    return httpx.MockTransport(handler)
+
+
 @needs_db
-def test_asking_again_replaces_the_last_answer_and_needs_one(store):
-    c, kc = app(store, llm_transport([], text="Tweede antwoord"))
+def test_asking_again_keeps_the_earlier_answer_and_the_next_question_goes_on_from_the_one_chosen(store):
+    """Regenerate adds a version of the answer and the earlier one stays (the founder's decision of 23 November 2026,
+    as Claude and ChatGPT do). A new question goes on from the version the person had in front of them."""
+    captured: list[dict] = []
+    c, kc = app(store, numbered(captured))
     alice, cid = as_user(kc, ALICE), str(uuid.uuid4())
+
+    def ask(**body):
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json=body, headers=alice) as r:
+            assert r.status_code == 200, r.read()
+            events(r)
+
+    def read_before(i: int) -> list[str]:  # the answers the model read before request i's question
+        return [m["content"] for m in captured[i]["messages"] if m["role"] == "assistant"]
     with c:
         assert c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "again": True}, headers=alice).status_code == 409
-        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?"}, headers=alice) as r:
-            events(r)
-        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?", "again": True}, headers=alice) as r:
-            events(r)
-        assert [(role, text) for role, text, _ in stored(store, cid)] == [("user", "Wat is de koopprijs?"), ("assistant", "Tweede antwoord")]
-        assert c.get(f"/v1/conversations/{cid}", headers=alice).json()["messages"] == 2
+        ask(text="Wat is de koopprijs?")
+        ask(text="Wat is de koopprijs?", again=True)
+        assert [(role, text) for role, text, _ in stored(store, cid)] == [
+            ("user", "Wat is de koopprijs?"), ("assistant", "Antwoord 1"), ("assistant", "Antwoord 2")]
+        assert read_before(1) == []  # asked again, the model reads what it read the first time
+        first = store.turns_of(uuid.UUID(cid))[1].seq
+        r = c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "follows": 999}, headers=alice)
+        assert r.status_code == 409 and r.json()["code"] == "request.conflict"
+        assert c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "again": True, "follows": first}, headers=alice).status_code == 422
+        ask(text="En de datum?", follows=first)  # the person switched back to the first answer
+        assert read_before(2) == ["Antwoord 1"] and stored(store, cid)[3][2]["follows"] == first
+        ask(text="En de datum?", again=True)  # asked again: still on from the first answer
+        assert read_before(3) == ["Antwoord 1"]
+        ask(text="Wie koopt?")
+        assert read_before(4)[-1] == "Antwoord 4"  # the newest version of the answer before
+        assert c.get(f"/v1/conversations/{cid}", headers=alice).json()["messages"] == 8
 
 
 @needs_db
@@ -289,9 +334,9 @@ def test_an_answer_stopped_by_closing_the_connection_keeps_what_was_written(stor
 
 
 @needs_db
-def test_two_regenerates_at_once_take_out_one_answer_only(store):
+def test_two_regenerates_at_once_make_one_version(store):
     """Review of #251, finding 1: a double click on *Regenerate* sent two requests; both passed the check before
-    either was noted, and each took out "the last" question, an earlier one too."""
+    either was noted (then each took out "the last" question, an earlier one too). The second is refused."""
     import anyio
 
     application = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text="A")),
@@ -314,7 +359,8 @@ def test_two_regenerates_at_once_take_out_one_answer_only(store):
     try:
         with TestClient(application) as c:
             assert c.portal.call(go) == [200, 409]
-        assert [(role, text) for role, text, _ in stored(store, cid)] == [("user", "q1"), ("assistant", "A"), ("user", "q2"), ("assistant", "A")]
+        assert [(role, text) for role, text, _ in stored(store, cid)] == [
+            ("user", "q1"), ("assistant", "A"), ("user", "q2"), ("assistant", "A"), ("assistant", "A")]
     finally:
         store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))
 

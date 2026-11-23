@@ -2149,6 +2149,7 @@ export interface QuestionIn {
   case_id?: string | null;
   /** @maxItems 50 */
   document_ids?: string[];
+  follows?: number | null;
   model?: string | null;
   /**
      * @minLength 1
@@ -7703,7 +7704,8 @@ export const getAskInConversationUrl = (conversationId: string,) => {
  * (suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server
  * stored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one
  * past the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an
- * answer is being written in it, or *Regenerate* that isn't the last question asked again: 409.
+ * answer is being written in it, *Regenerate* that isn't the last question asked again, or ``follows`` that isn't a
+ * version of the last answer: 409. *Regenerate* adds a version of the answer; the earlier ones stay.
  * @summary Ask In Conversation
  */
 export const askInConversation = async (conversationId: string,

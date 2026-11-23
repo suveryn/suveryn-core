@@ -27,6 +27,7 @@ from ..conversations import (
     cited_documents,
     history_pairs,
     redact,
+    versions,
     title_of,
 )
 from ..problems import refusals
@@ -154,7 +155,8 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
     (suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server
     stored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one
     past the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an
-    answer is being written in it, or *Regenerate* that isn't the last question asked again: 409."""
+    answer is being written in it, *Regenerate* that isn't the last question asked again, or ``follows`` that isn't a
+    version of the last answer: 409. *Regenerate* adds a version of the answer; the earlier ones stay."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
     # Taken before anything is awaited, so two requests at once (a double click on *Regenerate*, two tabs) can't both
     # pass: the second is refused, never left to take out a second question (review of #251, finding 1).
@@ -213,21 +215,30 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
         if not await run_in_threadpool(store.start, cid, owner, title_of(body.text), uuid.UUID(case) if case else None):
             raise Problem("request.conflict", "The conversation was started meanwhile.")
     turns = await run_in_threadpool(store.turns_of, cid)
+    last = versions(turns)[-1] if turns and versions(turns) else None
     if body.again:
-        # *Regenerate*: the last question once more, in place of its answer, as the chat UI has always done (its
-        # earlier answer isn't kept). Only that question: anything else is a new question, not a regeneration.
-        if len(turns) < 2 or (turns[-2].role, turns[-1].role) != ("user", "assistant") or turns[-2].text != body.text[:MAX_TURN_TEXT]:
+        # *Regenerate*: the last question once more, a new version of its answer beside the earlier ones, which stay
+        # (the founder's decision of 23 November 2026, as Claude and ChatGPT do). Only that question, once answered:
+        # anything else is a new question. The model reads what it read the first time: the turns before it.
+        if last is None or not last[1] or last[0].text != body.text[:MAX_TURN_TEXT]:
             raise Problem("request.conflict", "There is no answer to ask again.")
-        if not await run_in_threadpool(store.drop_last_answer, cid):
-            raise Problem("request.conflict", "There is no answer to ask again.")
-        turns = turns[:-2]
-    if len(turns) + 2 > MAX_TURNS:
-        raise Problem("conversation.too_long", "The conversation is too long to add to.")
+        before = turns[:turns.index(last[0])]
+        if len(turns) + 1 > MAX_TURNS:
+            raise Problem("conversation.too_long", "The conversation is too long to add to.")
+        follows = last[0].meta.get("follows")
+    else:
+        if body.follows is not None and (last is None or body.follows not in {a.seq for a in last[1]}):
+            raise Problem("request.conflict", "That isn't a version of the last answer.")
+        before, follows = turns, body.follows
+        if len(turns) + 2 > MAX_TURNS:
+            raise Problem("conversation.too_long", "The conversation is too long to add to.")
     # Validated whole, so a request too long to send is refused here, never sent (``ChatRequest``'s own limits).
     req = ChatRequest.model_validate({**asked.model_dump(), "messages": [
-        *(m.model_dump() for m in conversation_history(history_pairs(turns), body.text)), *(m.model_dump() for m in asked.messages)]})
-    await run_in_threadpool(store.add, cid, "user", who(request)[0], body.text[:MAX_TURN_TEXT], asked_turn(body),
-                            {*body.document_ids, *shown})
+        *(m.model_dump() for m in conversation_history(history_pairs(before, follows), body.text)),
+        *(m.model_dump() for m in asked.messages)]})
+    if not body.again:
+        await run_in_threadpool(store.add, cid, "user", who(request)[0], body.text[:MAX_TURN_TEXT], asked_turn(body),
+                                {*body.document_ids, *shown})
     return req, owner, scope
 
 

@@ -174,13 +174,6 @@ class FakeConversations:
         self.rows[cid]["turns"].append({"role": role, "text": text, "by": by, **meta})
         self.rows[cid]["updated_at"] = datetime.now(UTC)
 
-    def drop_last_answer(self, cid):
-        turns = self.rows[cid]["turns"]
-        if [t["role"] for t in turns[-2:]] != ["user", "assistant"]:
-            return False
-        del turns[-2:]
-        return True
-
     def using_document(self, owner, document_id, case_id=None):
         rows = sorted((r for r in self.rows.values() if (r["case_id"] == case_id if case_id is not None else r["owner"] == owner)),
                       key=lambda r: r["updated_at"], reverse=True)

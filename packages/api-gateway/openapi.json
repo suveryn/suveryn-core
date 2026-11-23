@@ -4375,6 +4375,18 @@
       "title": "Document Ids",
       "type": "array"
      },
+     "follows": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Follows"
+     },
      "model": {
       "anyOf": [
        {
@@ -14161,7 +14173,7 @@
   },
   "/v1/conversations/{conversation_id}/questions": {
    "post": {
-    "description": "Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is\nstarted, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is\nwritten, whatever happens to it: written out, failed, or stopped when the connection closes\n(suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server\nstored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one\npast the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an\nanswer is being written in it, or *Regenerate* that isn't the last question asked again: 409.",
+    "description": "Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is\nstarted, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is\nwritten, whatever happens to it: written out, failed, or stopped when the connection closes\n(suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server\nstored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one\npast the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an\nanswer is being written in it, *Regenerate* that isn't the last question asked again, or ``follows`` that isn't a\nversion of the last answer: 409. *Regenerate* adds a version of the answer; the earlier ones stay.",
     "operationId": "ask_in_conversation",
     "parameters": [
      {
