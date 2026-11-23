@@ -1185,6 +1185,9 @@ def test_store_members_handover_and_the_log(store):
     assert events[0].detail.model_dump() == {"documents": ["x"]}
     s._execute("UPDATE case_events SET at = now() - interval '181 days' WHERE case_id = %s AND action = 'created'", (cid,))
     assert [e.action for e in s.events(cid)] == ["asked", "opened"]  # purged after 180 days
+    # a line a newer version wrote, after going back to this one: left out, said in the server's log, the rest is read
+    s.log(cid, alice, "a_future_action", {"user": bob})
+    assert [e.action for e in s.events(cid)] == ["asked", "opened"]
     assert s.delete(cid) and s.events(cid) == []  # the log goes with the case
 
 

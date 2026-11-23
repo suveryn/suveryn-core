@@ -48,17 +48,20 @@ Fail closed: the default access, when the appliance hasn't chosen one, is member
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Literal, get_args
 
 import psycopg
 from pydantic import BaseModel, Field, ValidationError, model_serializer
 
 from .db import PgStore
 from .description import Answer
+
+log = logging.getLogger("suveryn.gateway")
 
 Access = Literal["default", "restricted"]
 State = Literal["open", "closed"]
@@ -375,6 +378,9 @@ CaseAction = Literal[
     "conversation_shared", "conversation_unshared", "conversation_moved_in",
     "playbook_started", "playbook_answered", "playbook_paused", "playbook_resumed", "playbook_confirmed", "playbook_stopped",
     "playbook_cancelled"]
+
+
+CASE_ACTIONS = frozenset(get_args(CaseAction))
 
 
 class EventDetail(BaseModel):
@@ -806,7 +812,10 @@ class CaseStore(PgStore):
                              ' LEFT JOIN case_members m ON m.case_id = e.case_id AND m."user" = e."user"'
                              ' LEFT JOIN departed_accounts d ON d.sub = e."user"'
                              " WHERE e.case_id = %s ORDER BY e.at DESC, e.id DESC LIMIT %s", (case_id, limit)).fetchall()
-        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=EventDetail.kept(r[4]), name=r[5]) for r in rows]
+        known = [r for r in rows if r[3] in CASE_ACTIONS]
+        if len(known) < len(rows):  # written by a newer version, after going back to this one: said here, not a failed log
+            log.warning("access log: %d line(s) of an action this version doesn't know left out", len(rows) - len(known))
+        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=EventDetail.kept(r[4]), name=r[5]) for r in known]
 
     def purge_events(self) -> int:
         """Delete access-log lines older than the retention; how many."""

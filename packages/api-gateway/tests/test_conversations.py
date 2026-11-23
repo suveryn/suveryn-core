@@ -862,3 +862,27 @@ def test_deletions_during_the_wait_share_one_flush(monkeypatch, caplog):
         j = asyncio.run(five_deletions())
     assert flushed == ["postgresql://appliance/suveryn"] and j.flushes == 1
     assert sum("journal flushed after a deletion" in r.getMessage() for r in caplog.records) == 1
+
+
+def test_a_deleted_documents_passages_and_name_are_taken_out_of_what_the_chat_ui_saved():
+    """A saved conversation and a saved answer are the chat UI's own data; the gateway reads in them only the documents
+    they name, to take a deleted one's passages and file name out (``redact``; the rag's ``without`` for a saved
+    answer). Tested on the same saved turns as the chat UI's own clean-up (saved_turns_to_clean.json), so the places
+    the gateway looks are the chat UI's."""
+    import copy
+    import json
+    from pathlib import Path
+
+    from suveryn_api_gateway.conversations import ConversationIn, redact
+    from suveryn_rag.store import without
+
+    case = json.loads((Path(__file__).parent / "saved_turns_to_clean.json").read_text(encoding="utf-8"))
+    turns = copy.deepcopy(case["turns"])
+    ConversationIn(title="x", turns=turns)  # what the chat UI saves is taken
+    assert redact(turns, lambda d: d == case["deleted"]) is True
+    answer = without(case["answer"], case["deleted"])
+    for cleaned in (json.dumps(turns, ensure_ascii=False), json.dumps(answer, ensure_ascii=False)):
+        assert not [g for g in case["gone"] if g in cleaned], cleaned
+    everything = json.dumps([turns, answer], ensure_ascii=False)
+    assert all(s in everything for s in case["stays"])
+    assert redact(turns, lambda d: d == case["deleted"]) is False  # once is enough

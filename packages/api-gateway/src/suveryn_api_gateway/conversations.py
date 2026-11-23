@@ -143,9 +143,11 @@ class ConversationSettings:
 
 class SavedTurn(BaseModel):
     """One turn as the UI saves it: its shape is the chat UI's own (the founder's decision of 23 November 2026,
-    suveryn-tracker#250). Checked: the role, the text's length, and the documents it names, which the gateway reads
-    itself (``_references``): a deleted document's passages and names are taken out of every saved turn (``redact``),
-    so a reference must be one the gateway finds."""
+    suveryn-tracker#250). Checked: the role, the text's length, and the form of the document references at the three
+    places the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked
+    about), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the
+    places a saved turn names a document is held by a test both sides share (tests/saved_turns_to_clean.json;
+    the chat UI's src/lib/cleaning.test.ts)."""
 
     model_config = ConfigDict(extra="allow")
     role: Literal["user", "assistant"]

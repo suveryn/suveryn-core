@@ -553,7 +553,7 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd, inline = f
 function PersonTurn({ turn, nameOf, words }: { turn: RunTurn; nameOf: (u: string) => string; words: PlaybookWords }) {
   const m = useT();
   const said = personTurnText(turn, m, words);
-  const attachments = (turn.meta.attachments as { documentId: string; filename: string }[] | undefined) ?? [];
+  const attachments = turn.meta.attachments ?? [];
   return (
     <div className="turn-user">
       {attachments.length > 0 && (
