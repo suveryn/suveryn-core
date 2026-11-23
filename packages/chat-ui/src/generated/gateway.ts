@@ -1023,13 +1023,20 @@ export interface CaseUpdate {
   type?: string | null;
 }
 
-export type SavedCitationSource = { [key: string]: unknown } | null;
+/**
+ * Where a source of a saved answer is, as the chat UI keeps it: the gateway reads only the document it names.
+ */
+export interface SavedSource {
+  /** @maxLength 100 */
+  document_id: string;
+  [key: string]: unknown;
+ }
 
 /**
  * A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out.
  */
 export interface SavedCitation {
-  source?: SavedCitationSource;
+  source?: SavedSource | null;
   /** @maxLength 200000 */
   text: string;
   [key: string]: unknown;
@@ -1086,15 +1093,92 @@ export interface SavedAnswerDocument {
   id: string;
 }
 
-export type CaseEventDetail = { [key: string]: unknown };
+export type CaseEventAction = typeof CaseEventAction[keyof typeof CaseEventAction];
+
+
+export const CaseEventAction = {
+  created: 'created',
+  opened: 'opened',
+  changed: 'changed',
+  access_changed: 'access_changed',
+  confidential_on: 'confidential_on',
+  confidential_off: 'confidential_off',
+  closed: 'closed',
+  reopened: 'reopened',
+  keep_changed: 'keep_changed',
+  member_added: 'member_added',
+  role_changed: 'role_changed',
+  member_removed: 'member_removed',
+  handed_over: 'handed_over',
+  uploaded: 'uploaded',
+  upload_cancelled: 'upload_cancelled',
+  document_opened: 'document_opened',
+  document_deleted: 'document_deleted',
+  source_confirmed: 'source_confirmed',
+  answer_saved: 'answer_saved',
+  asked: 'asked',
+  conversation_shared: 'conversation_shared',
+  conversation_unshared: 'conversation_unshared',
+  conversation_moved_in: 'conversation_moved_in',
+  playbook_started: 'playbook_started',
+  playbook_answered: 'playbook_answered',
+  playbook_paused: 'playbook_paused',
+  playbook_resumed: 'playbook_resumed',
+  playbook_confirmed: 'playbook_confirmed',
+  playbook_stopped: 'playbook_stopped',
+  playbook_cancelled: 'playbook_cancelled',
+} as const;
+
+export type EventDetailAccess = typeof EventDetailAccess[keyof typeof EventDetailAccess] | null;
+
+
+export const EventDetailAccess = {
+  default: 'default',
+  restricted: 'restricted',
+} as const;
+
+export type EventDetailRole = typeof EventDetailRole[keyof typeof EventDetailRole] | null;
+
+
+export const EventDetailRole = {
+  reader: 'reader',
+  contributor: 'contributor',
+  manager: 'manager',
+} as const;
+
+/**
+ * What a line of the access log names besides who did it and when: ids, roles, counts and dates, never text. Each
+ * action says its own few (the case's access, a member and their role, a document, a run…): only those are kept and
+ * sent, so no member is always there (the description's test names them, ``SOMETIMES``).
+ */
+export interface EventDetail {
+  access?: EventDetailAccess;
+  account_deleted?: boolean | null;
+  conversation?: string | null;
+  document?: string | null;
+  documents?: string[] | null;
+  fields?: string[] | null;
+  job?: string | null;
+  keep?: boolean | null;
+  keep_until?: string | null;
+  manager?: string | null;
+  playbook?: string | null;
+  ref?: string | null;
+  role?: EventDetailRole;
+  run?: string | null;
+  step?: string | null;
+  unshared?: number | null;
+  user?: string | null;
+  version?: string | null;
+}
 
 /**
  * One line of a case's access log: who, when, what (never document text).
  */
 export interface CaseEvent {
-  action: string;
+  action: CaseEventAction;
   at: string;
-  detail: CaseEventDetail;
+  detail: EventDetail;
   id: number;
   name: string;
   user: string;
@@ -1324,6 +1408,57 @@ export interface FactAlternative {
   value: string;
 }
 
+export type TermComputedDirection = typeof TermComputedDirection[keyof typeof TermComputedDirection];
+
+
+export const TermComputedDirection = {
+  after: 'after',
+  before: 'before',
+} as const;
+
+export type TermComputedUnit = typeof TermComputedUnit[keyof typeof TermComputedUnit];
+
+
+export const TermComputedUnit = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+  year: 'year',
+  workday: 'workday',
+} as const;
+
+export type TermComputedCalendar = {[key: string]: string} | null;
+
+/**
+ * A date worked out from a term (``terms.work_out``): counted from ``base`` (ISO), ``amount`` ``unit`` ``direction``,
+ * giving ``date`` (ISO); for working days, ``calendar``, the pack's calendar by its name per language. ``kind`` is
+ * "term" (a value worked out before kinds were said has none: read as a term).
+ */
+export interface TermComputed {
+  amount: number;
+  base: string;
+  calendar: TermComputedCalendar;
+  date: string;
+  direction: TermComputedDirection;
+  from: string;
+  kind: 'term';
+  unit: TermComputedUnit;
+  written: string;
+}
+
+/**
+ * An amount worked out as a share of another (``terms.work_out_share``): ``percent`` of ``of``, giving ``amount``
+ * (decimal strings).
+ */
+export interface ShareComputed {
+  amount: string;
+  from: string;
+  kind: 'share';
+  of: string;
+  percent: string;
+  written: string;
+}
+
 export type RunFactNeeds = typeof RunFactNeeds[keyof typeof RunFactNeeds] | null;
 
 
@@ -1345,14 +1480,12 @@ export const RunFactSource = {
   none: 'none',
 } as const;
 
-export type RunFactComputed = { [key: string]: unknown } | null;
-
 export interface RunFact {
   alternative: FactAlternative | null;
   at: string | null;
   by: string | null;
   citations: FactCitation[];
-  computed: RunFactComputed;
+  computed: TermComputed | ShareComputed | null;
   confirmed: string | null;
   found: boolean;
   id: string;
@@ -1363,25 +1496,90 @@ export interface RunFact {
   was: string | null;
 }
 
-export type TurnRole = typeof TurnRole[keyof typeof TurnRole];
+/**
+ * A document that came with a person's turn: its id in the case, and its name.
+ */
+export interface Attached {
+  documentId: string;
+  filename: string;
+}
+
+export type TurnMetaKind = typeof TurnMetaKind[keyof typeof TurnMetaKind] | null;
 
 
-export const TurnRole = {
+export const TurnMetaKind = {
+  request: 'request',
+  skipped_step: 'skipped_step',
+  ask: 'ask',
+  read_in_part: 'read_in_part',
+  checkpoint: 'checkpoint',
+  late_documents: 'late_documents',
+  unplaced: 'unplaced',
+  already_unknown: 'already_unknown',
+  changed: 'changed',
+  confirmed: 'confirmed',
+  paused: 'paused',
+  resumed: 'resumed',
+  stopped: 'stopped',
+  cancelled: 'cancelled',
+} as const;
+
+export type TurnMetaAnswers = {[key: string]: string} | null;
+
+/**
+ * What a turn of a run's thread means. A playbook's turn is its meaning only (``kind`` and its facts, never a
+ * sentence: the screen words it in each reader's language; the decision of 12 November 2026). A person's turn says
+ * what came with their words. Only what the turn says is kept and sent, so no member is always there (the
+ * description's test names them, ``SOMETIMES``).
+ *
+ * A playbook's: ``request``, ``ask`` (``facts`` asked, ``found`` of ``total``), ``checkpoint`` (``found``, ``total``,
+ * ``issues``, ``failing``, ``differ``), ``skipped_step`` (``step``, ``fact``, ``value``, ``when``), ``read_in_part``
+ * (``step``, ``documents``), ``late_documents`` (``step``, ``documents``, ``reads``, ``reopened``), ``unplaced`` and
+ * ``already_unknown`` (``facts``), ``changed`` (``fact``, ``value``), ``confirmed``, ``paused``, ``resumed``,
+ * ``stopped``, ``cancelled`` (``reason``). A person's: ``answers`` (a value per fact), ``attachments``, ``none``,
+ * ``unknown``, ``case_documents``, ``late``.
+ */
+export interface TurnMeta {
+  answers?: TurnMetaAnswers;
+  attachments?: Attached[] | null;
+  case_documents?: boolean | null;
+  differ?: number | null;
+  documents?: string[] | null;
+  fact?: string | null;
+  facts?: string[] | null;
+  failing?: number | null;
+  found?: number | null;
+  issues?: number | null;
+  kind?: TurnMetaKind;
+  late?: boolean | null;
+  none?: boolean | null;
+  reads?: string[] | null;
+  reason?: string | null;
+  reopened?: boolean | null;
+  step?: string | null;
+  total?: number | null;
+  unknown?: boolean | null;
+  value?: string | null;
+  when?: string | null;
+}
+
+export type RunTurnRole = typeof RunTurnRole[keyof typeof RunTurnRole];
+
+
+export const RunTurnRole = {
   user: 'user',
   assistant: 'assistant',
   playbook: 'playbook',
 } as const;
 
-export type TurnMeta = { [key: string]: unknown };
-
 /**
- * One line of a thread, as ``turns`` holds it.
+ * One line of a run's thread: a person's words, or the playbook's turn, which is its meaning only.
  */
-export interface Turn {
+export interface RunTurn {
   at: string;
   by: string;
   meta: TurnMeta;
-  role: TurnRole;
+  role: RunTurnRole;
   seq: number;
   step_id: string | null;
   text: string;
@@ -1420,7 +1618,7 @@ export interface Run {
   step_kind: RunStepKind;
   steps: RunSteps;
   title: RunTitle;
-  turns: Turn[];
+  turns: RunTurn[];
 }
 
 export type AnswerInFacts = {[key: string]: string} | null;
@@ -1885,7 +2083,10 @@ export const SavedTurnRole = {
 } as const;
 
 /**
- * One turn as the UI saves it. Only the role is checked; the other fields are the UI's own.
+ * One turn as the UI saves it: its shape is the chat UI's own (the founder's decision of 23 November 2026,
+ * suveryn-tracker#250). Checked: the role, the text's length, and the documents it names, which the gateway reads
+ * itself (``_references``): a deleted document's passages and names are taken out of every saved turn (``redact``),
+ * so a reference must be one the gateway finds.
  */
 export interface SavedTurn {
   role: SavedTurnRole;

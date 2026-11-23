@@ -387,12 +387,19 @@ async def list_document_conversations(document_id: str, request: Request, case: 
 MAX_CONTENT_BYTES = 2_000_000  # an answer, its sources' passages and its checks; a long one is ~100 kB
 
 
+class SavedSource(BaseModel):
+    """Where a source of a saved answer is, as the chat UI keeps it: the gateway reads only the document it names."""
+
+    model_config = ConfigDict(extra="allow")
+    document_id: str = Field(max_length=100)
+
+
 class SavedCitation(BaseModel):
     """A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out."""
 
     model_config = ConfigDict(extra="allow")
     text: str = Field(max_length=200_000)
-    source: dict | None = None
+    source: SavedSource | None = None
 
 
 class AnswerContent(BaseModel):

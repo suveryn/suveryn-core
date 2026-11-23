@@ -142,11 +142,35 @@ class ConversationSettings:
 
 
 class SavedTurn(BaseModel):
-    """One turn as the UI saves it. Only the role is checked; the other fields are the UI's own."""
+    """One turn as the UI saves it: its shape is the chat UI's own (the founder's decision of 23 November 2026,
+    suveryn-tracker#250). Checked: the role, the text's length, and the documents it names, which the gateway reads
+    itself (``_references``): a deleted document's passages and names are taken out of every saved turn (``redact``),
+    so a reference must be one the gateway finds."""
 
     model_config = ConfigDict(extra="allow")
     role: Literal["user", "assistant"]
     text: str = Field(default="", max_length=200_000)
+
+    @model_validator(mode="after")
+    def _references_are_readable(self) -> "SavedTurn":
+        said = self.model_extra or {}
+        citations = said.get("citations")
+        if citations is not None:
+            if not isinstance(citations, list) or not all(isinstance(c, dict) for c in citations):
+                raise ValueError("citations: a list of passages")
+            for c in citations:
+                source = c.get("source")
+                if source is not None and not (isinstance(source, dict) and isinstance(source.get("document_id"), str)):
+                    raise ValueError("a passage's source names its document (document_id), or is null")
+        for name in ("attachments", "about"):
+            named = said.get(name)
+            if named is None:
+                continue
+            if not isinstance(named, list) or not all(isinstance(a, dict) for a in named):
+                raise ValueError(f"{name}: a list of documents")
+            if any("documentId" in a and not isinstance(a["documentId"], str) for a in named):
+                raise ValueError(f"{name}: a document's id (documentId) is text")
+        return self
 
     @model_validator(mode="before")
     @classmethod

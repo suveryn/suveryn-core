@@ -25,7 +25,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, TypeAdapter, ValidationError
 from suveryn_playbooks import Playbook, entry, read_schema
 from suveryn_playbooks.paths import MAX_ENTRIES, root
 
@@ -51,6 +51,55 @@ class Unreadable(Exception):
 # Why a person has to look at a value: it gives no date, amount or number as such, an amount is approximate, a number's
 # check digits don't match, or sūveryn worked the value out from another fact. The one list of these (``RunFact.needs``).
 Needs = Literal["not_a_date", "not_an_amount", "not_a_number", "approximate", "invalid_number", "computed"]
+
+
+class _WorkedOut(Answer):
+    """How a value was worked out from another fact (``terms``; board P01): ``written``, the value as the documents
+    write it; ``from``, the fact it was worked out from."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True, serialize_by_alias=True, validate_by_name=True,
+                              validate_by_alias=True)
+    written: str
+    from_: str = Field(alias="from")
+
+
+class TermComputed(_WorkedOut):
+    """A date worked out from a term (``terms.work_out``): counted from ``base`` (ISO), ``amount`` ``unit`` ``direction``,
+    giving ``date`` (ISO); for working days, ``calendar``, the pack's calendar by its name per language. ``kind`` is
+    "term" (a value worked out before kinds were said has none: read as a term)."""
+
+    kind: Literal["term"] = "term"
+    base: str
+    date: str
+    amount: int
+    unit: Literal["day", "week", "month", "year", "workday"]
+    direction: Literal["after", "before"]
+    calendar: dict[str, str] | None = None
+
+
+class ShareComputed(_WorkedOut):
+    """An amount worked out as a share of another (``terms.work_out_share``): ``percent`` of ``of``, giving ``amount``
+    (decimal strings)."""
+
+    kind: Literal["share"]
+    percent: str
+    of: str
+    amount: str
+
+
+Computed = TermComputed | ShareComputed
+_COMPUTED: TypeAdapter[Computed] = TypeAdapter(Computed)
+
+
+def computed_or_none(kept: object) -> Computed | None:
+    """How a value was worked out, as it was kept with it. One kept in a shape this doesn't read says nothing more:
+    the value itself stands, and a person checks it as any (never a run that can't be opened)."""
+    if kept is None or isinstance(kept, (TermComputed, ShareComputed)):
+        return kept
+    try:
+        return _COMPUTED.validate_python(kept)
+    except ValidationError:
+        return None
 
 
 class FactCitation(Answer):
@@ -93,11 +142,8 @@ class RunFact(Answer):
     # 2026: *Kijk na* by meaning); an amount the document gives as approximate ("ongeveer € 450.000": ``approximate``).
     needs: Needs | None = None
     # A value worked out from another fact (``terms``; board P01): ``needs`` is "computed", ``value`` as worked out, and
-    # this how. A term: {"written": the term as the agreement writes it, "from": the fact counted from, "base", "date"
-    # (ISO), "amount", "unit" (day, week, month, year, workday), "direction" (after, before), and for working days
-    # "calendar" (its name per language)}. A share: {"written", "from": the amount it is a share of, "kind": "share",
-    # "percent", "of", "amount" (decimal strings)}.
-    computed: dict | None = None
+    # this how: a date from a term, or an amount as a share of another.
+    computed: Computed | None = None
     # A document added later reads this fact differently from what is confirmed: both are shown, a person chooses.
     alternative: FactAlternative | None = None
 
@@ -171,7 +217,8 @@ def work_out_terms(playbook: Playbook, facts: list[RunFact]) -> list[RunFact]:
                 done, source = work_out_share(f.value, base.value), spec.share_of
         if done is not None:
             value, how = done
-            f = f.model_copy(update={"value": value, "needs": "computed", "computed": {"written": f.value, "from": source, **how}})
+            f = f.model_copy(update={"value": value, "needs": "computed",
+                                     "computed": _COMPUTED.validate_python({"written": f.value, "from": source, **how})})
         out.append(f)
     return out
 
@@ -303,7 +350,7 @@ def marked(fact: RunFact) -> RunFact:
     claim): of the term as the agreement writes it for a worked-out value, else what a person confirmed, else the
     value as read. Worked out when a run is shown, not stored: a correction changes what is marked, and the marking
     is always the reader's of the day (decision of 10 November 2026: the browser reads no numbers of its own)."""
-    claim = (fact.computed or {}).get("written") or fact.confirmed or fact.value
+    claim = (fact.computed.written if fact.computed else None) or fact.confirmed or fact.value
     if not claim or not fact.citations:
         return fact
     cited = []

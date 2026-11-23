@@ -573,6 +573,25 @@
     "title": "ArchiveUpload",
     "type": "object"
    },
+   "Attached": {
+    "description": "A document that came with a person's turn: its id in the case, and its name.",
+    "properties": {
+     "documentId": {
+      "title": "Documentid",
+      "type": "string"
+     },
+     "filename": {
+      "title": "Filename",
+      "type": "string"
+     }
+    },
+    "required": [
+     "documentId",
+     "filename"
+    ],
+    "title": "Attached",
+    "type": "object"
+   },
    "AuthStatus": {
     "description": "State of sign-in: \"unavailable\" (Keycloak unreachable, or it can't sign anyone in), \"not_configured\" or\n\"disabled\" (development only).",
     "properties": {
@@ -1381,6 +1400,38 @@
     "description": "One line of a case's access log: who, when, what (never document text).",
     "properties": {
      "action": {
+      "enum": [
+       "created",
+       "opened",
+       "changed",
+       "access_changed",
+       "confidential_on",
+       "confidential_off",
+       "closed",
+       "reopened",
+       "keep_changed",
+       "member_added",
+       "role_changed",
+       "member_removed",
+       "handed_over",
+       "uploaded",
+       "upload_cancelled",
+       "document_opened",
+       "document_deleted",
+       "source_confirmed",
+       "answer_saved",
+       "asked",
+       "conversation_shared",
+       "conversation_unshared",
+       "conversation_moved_in",
+       "playbook_started",
+       "playbook_answered",
+       "playbook_paused",
+       "playbook_resumed",
+       "playbook_confirmed",
+       "playbook_stopped",
+       "playbook_cancelled"
+      ],
       "title": "Action",
       "type": "string"
      },
@@ -1390,9 +1441,7 @@
       "type": "string"
      },
      "detail": {
-      "additionalProperties": true,
-      "title": "Detail",
-      "type": "object"
+      "$ref": "#/components/schemas/EventDetail"
      },
      "id": {
       "title": "Id",
@@ -2745,6 +2794,226 @@
      "enabled"
     ],
     "title": "EnabledIn",
+    "type": "object"
+   },
+   "EventDetail": {
+    "description": "What a line of the access log names besides who did it and when: ids, roles, counts and dates, never text. Each\naction says its own few (the case's access, a member and their role, a document, a run…): only those are kept and\nsent, so no member is always there (the description's test names them, ``SOMETIMES``).",
+    "properties": {
+     "access": {
+      "anyOf": [
+       {
+        "enum": [
+         "default",
+         "restricted"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Access"
+     },
+     "account_deleted": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Account Deleted"
+     },
+     "conversation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conversation"
+     },
+     "document": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Document"
+     },
+     "documents": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Documents"
+     },
+     "fields": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Fields"
+     },
+     "job": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Job"
+     },
+     "keep": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Keep"
+     },
+     "keep_until": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Keep Until"
+     },
+     "manager": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Manager"
+     },
+     "playbook": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playbook"
+     },
+     "ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ref"
+     },
+     "role": {
+      "anyOf": [
+       {
+        "enum": [
+         "reader",
+         "contributor",
+         "manager"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Role"
+     },
+     "run": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Run"
+     },
+     "step": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step"
+     },
+     "unshared": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Unshared"
+     },
+     "user": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "User"
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     }
+    },
+    "title": "EventDetail",
     "type": "object"
    },
    "FactAlternative": {
@@ -4605,7 +4874,7 @@
      },
      "turns": {
       "items": {
-       "$ref": "#/components/schemas/Turn"
+       "$ref": "#/components/schemas/RunTurn"
       },
       "title": "Turns",
       "type": "array"
@@ -4694,8 +4963,10 @@
      "computed": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/TermComputed"
+       },
+       {
+        "$ref": "#/components/schemas/ShareComputed"
        },
        {
         "type": "null"
@@ -5047,6 +5318,62 @@
     "title": "RunSummary",
     "type": "object"
    },
+   "RunTurn": {
+    "description": "One line of a run's thread: a person's words, or the playbook's turn, which is its meaning only.",
+    "properties": {
+     "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+     },
+     "by": {
+      "title": "By",
+      "type": "string"
+     },
+     "meta": {
+      "$ref": "#/components/schemas/TurnMeta"
+     },
+     "role": {
+      "enum": [
+       "user",
+       "assistant",
+       "playbook"
+      ],
+      "title": "Role",
+      "type": "string"
+     },
+     "seq": {
+      "title": "Seq",
+      "type": "integer"
+     },
+     "step_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step Id"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     }
+    },
+    "required": [
+     "seq",
+     "role",
+     "step_id",
+     "by",
+     "at",
+     "text",
+     "meta"
+    ],
+    "title": "RunTurn",
+    "type": "object"
+   },
    "SaveAnswerIn": {
     "description": "Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/chat-ui.md §5).",
     "properties": {
@@ -5119,14 +5446,12 @@
      "source": {
       "anyOf": [
        {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/SavedSource"
        },
        {
         "type": "null"
        }
-      ],
-      "title": "Source"
+      ]
      },
      "text": {
       "maxLength": 200000,
@@ -5140,9 +5465,25 @@
     "title": "SavedCitation",
     "type": "object"
    },
+   "SavedSource": {
+    "additionalProperties": true,
+    "description": "Where a source of a saved answer is, as the chat UI keeps it: the gateway reads only the document it names.",
+    "properties": {
+     "document_id": {
+      "maxLength": 100,
+      "title": "Document Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "document_id"
+    ],
+    "title": "SavedSource",
+    "type": "object"
+   },
    "SavedTurn": {
     "additionalProperties": true,
-    "description": "One turn as the UI saves it. Only the role is checked; the other fields are the UI's own.",
+    "description": "One turn as the UI saves it: its shape is the chat UI's own (the founder's decision of 23 November 2026,\nsuveryn-tracker#250). Checked: the role, the text's length, and the documents it names, which the gateway reads\nitself (``_references``): a deleted document's passages and names are taken out of every saved turn (``redact``),\nso a reference must be one the gateway finds.",
     "properties": {
      "role": {
       "enum": [
@@ -5434,6 +5775,46 @@
      "conversations_deleted"
     ],
     "title": "SettingsPreview",
+    "type": "object"
+   },
+   "ShareComputed": {
+    "description": "An amount worked out as a share of another (``terms.work_out_share``): ``percent`` of ``of``, giving ``amount``\n(decimal strings).",
+    "properties": {
+     "amount": {
+      "title": "Amount",
+      "type": "string"
+     },
+     "from": {
+      "title": "From",
+      "type": "string"
+     },
+     "kind": {
+      "const": "share",
+      "title": "Kind",
+      "type": "string"
+     },
+     "of": {
+      "title": "Of",
+      "type": "string"
+     },
+     "percent": {
+      "title": "Percent",
+      "type": "string"
+     },
+     "written": {
+      "title": "Written",
+      "type": "string"
+     }
+    },
+    "required": [
+     "written",
+     "from",
+     "kind",
+     "percent",
+     "of",
+     "amount"
+    ],
+    "title": "ShareComputed",
     "type": "object"
    },
    "ShareIn": {
@@ -6066,37 +6447,151 @@
     "title": "Temporary",
     "type": "object"
    },
-   "Turn": {
-    "description": "One line of a thread, as ``turns`` holds it.",
+   "TermComputed": {
+    "description": "A date worked out from a term (``terms.work_out``): counted from ``base`` (ISO), ``amount`` ``unit`` ``direction``,\ngiving ``date`` (ISO); for working days, ``calendar``, the pack's calendar by its name per language. ``kind`` is\n\"term\" (a value worked out before kinds were said has none: read as a term).",
     "properties": {
-     "at": {
-      "format": "date-time",
-      "title": "At",
-      "type": "string"
-     },
-     "by": {
-      "title": "By",
-      "type": "string"
-     },
-     "meta": {
-      "additionalProperties": true,
-      "title": "Meta",
-      "type": "object"
-     },
-     "role": {
-      "enum": [
-       "user",
-       "assistant",
-       "playbook"
-      ],
-      "title": "Role",
-      "type": "string"
-     },
-     "seq": {
-      "title": "Seq",
+     "amount": {
+      "title": "Amount",
       "type": "integer"
      },
-     "step_id": {
+     "base": {
+      "title": "Base",
+      "type": "string"
+     },
+     "calendar": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Calendar"
+     },
+     "date": {
+      "title": "Date",
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "after",
+       "before"
+      ],
+      "title": "Direction",
+      "type": "string"
+     },
+     "from": {
+      "title": "From",
+      "type": "string"
+     },
+     "kind": {
+      "const": "term",
+      "default": "term",
+      "title": "Kind",
+      "type": "string"
+     },
+     "unit": {
+      "enum": [
+       "day",
+       "week",
+       "month",
+       "year",
+       "workday"
+      ],
+      "title": "Unit",
+      "type": "string"
+     },
+     "written": {
+      "title": "Written",
+      "type": "string"
+     }
+    },
+    "required": [
+     "written",
+     "from",
+     "kind",
+     "base",
+     "date",
+     "amount",
+     "unit",
+     "direction",
+     "calendar"
+    ],
+    "title": "TermComputed",
+    "type": "object"
+   },
+   "TurnMeta": {
+    "description": "What a turn of a run's thread means. A playbook's turn is its meaning only (``kind`` and its facts, never a\nsentence: the screen words it in each reader's language; the decision of 12 November 2026). A person's turn says\nwhat came with their words. Only what the turn says is kept and sent, so no member is always there (the\ndescription's test names them, ``SOMETIMES``).\n\nA playbook's: ``request``, ``ask`` (``facts`` asked, ``found`` of ``total``), ``checkpoint`` (``found``, ``total``,\n``issues``, ``failing``, ``differ``), ``skipped_step`` (``step``, ``fact``, ``value``, ``when``), ``read_in_part``\n(``step``, ``documents``), ``late_documents`` (``step``, ``documents``, ``reads``, ``reopened``), ``unplaced`` and\n``already_unknown`` (``facts``), ``changed`` (``fact``, ``value``), ``confirmed``, ``paused``, ``resumed``,\n``stopped``, ``cancelled`` (``reason``). A person's: ``answers`` (a value per fact), ``attachments``, ``none``,\n``unknown``, ``case_documents``, ``late``.",
+    "properties": {
+     "answers": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Answers"
+     },
+     "attachments": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/Attached"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Attachments"
+     },
+     "case_documents": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Case Documents"
+     },
+     "differ": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Differ"
+     },
+     "documents": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Documents"
+     },
+     "fact": {
       "anyOf": [
        {
         "type": "string"
@@ -6105,23 +6600,197 @@
         "type": "null"
        }
       ],
-      "title": "Step Id"
+      "title": "Fact"
      },
-     "text": {
-      "title": "Text",
-      "type": "string"
+     "facts": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Facts"
+     },
+     "failing": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Failing"
+     },
+     "found": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Found"
+     },
+     "issues": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Issues"
+     },
+     "kind": {
+      "anyOf": [
+       {
+        "enum": [
+         "request",
+         "skipped_step",
+         "ask",
+         "read_in_part",
+         "checkpoint",
+         "late_documents",
+         "unplaced",
+         "already_unknown",
+         "changed",
+         "confirmed",
+         "paused",
+         "resumed",
+         "stopped",
+         "cancelled"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Kind"
+     },
+     "late": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Late"
+     },
+     "none": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "None"
+     },
+     "reads": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reads"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "reopened": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reopened"
+     },
+     "step": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step"
+     },
+     "total": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total"
+     },
+     "unknown": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Unknown"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "when": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "When"
      }
     },
-    "required": [
-     "seq",
-     "role",
-     "step_id",
-     "by",
-     "at",
-     "text",
-     "meta"
-    ],
-    "title": "Turn",
+    "title": "TurnMeta",
     "type": "object"
    },
    "Upload": {

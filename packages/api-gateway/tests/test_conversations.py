@@ -260,6 +260,15 @@ def test_bad_requests(setup):
     assert c.put(url, json={"title": "", "turns": TURNS}, headers=alice).status_code == 422
     assert c.put(url, json={"title": "x", "turns": []}, headers=alice).status_code == 422
     assert c.put(url, json={"title": "x", "turns": [{"role": "system", "text": "x"}]}, headers=alice).status_code == 422
+    # the turns are the chat UI's own; what the gateway reads in them itself, the documents they name, must be readable
+    # (suveryn-tracker#250): a deleted document's passages are taken out of every saved turn that names it
+    answer = {"role": "assistant", "text": "€ 345.000 [1]"}
+    for unreadable in ({"citations": "all"}, {"citations": [{"text": "x", "source": {"document_id": 7}}]},
+                       {"citations": [{"text": "x", "source": "akte.pdf"}]}, {"attachments": [{"documentId": 7}]}, {"about": "akte.pdf"}):
+        assert c.put(url, json={"title": "x", "turns": [{**answer, **unreadable}]}, headers=alice).status_code == 422, unreadable
+    named = {**answer, "citations": [{"text": "x", "source": {"document_id": DOC, "page": 2}}, {"text": "y", "source": None}],
+             "attachments": [{"key": "k", "filename": "akte.pdf"}], "about": [{"documentId": DOC, "filename": "akte.pdf"}]}
+    assert c.put(url, json={"title": "x", "turns": [named]}, headers=alice).status_code == 204  # and anything else of its own
     huge = {"title": "x", "turns": [{"role": "user", "text": "a" * 150_000}] * 15}  # over 2 MB
     r = c.put(url, json=huge, headers=alice)
     assert r.status_code == 413 and r.json()["code"] == "conversation.too_long"

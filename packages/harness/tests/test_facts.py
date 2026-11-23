@@ -418,11 +418,12 @@ def test_a_term_is_worked_out_from_the_date_it_counts_from_and_says_how():
     facts = {f.id: f for f in read_facts(DEED_INTAKE, response(answer, passages), {DOC: "compromis.pdf"})}
     deadline = facts["deed_deadline"]
     assert (deadline.value, deadline.needs) == ("12 februari 2027", "computed")
-    assert deadline.computed == {"written": "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", "from": "agreement_date",
-                                 "base": "2026-10-12", "amount": 4, "unit": "month", "direction": "after", "date": "2027-02-12"}
+    assert deadline.computed.model_dump() == {"written": "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", "from": "agreement_date",
+                                 "base": "2026-10-12", "amount": 4, "unit": "month", "direction": "after", "date": "2027-02-12",
+                                 "kind": "term", "calendar": None}  # a term says it is one, and that it counts no working days
     assert deadline.citations[0].page == 4  # the passage with the term stays its source
     term = facts["conditions[1].term"]
-    assert (term.value, term.needs, term.computed["unit"]) == ("23 november 2026", "computed", "week")
+    assert (term.value, term.needs, term.computed.unit) == ("23 november 2026", "computed", "week")
     assert facts["agreement_date"].needs is None and facts["agreement_date"].computed is None
 
 
@@ -442,7 +443,7 @@ def test_working_days_are_counted_on_the_packs_calendar_and_only_on_it():
     working = {**ANSWER, "deed_deadline": leaf("binnen vijftien werkdagen na de ondertekening", 3)}
     deadline = {f.id: f for f in read_facts(DEED_INTAKE, response(working, passages), {})}["deed_deadline"]
     assert (deadline.value, deadline.needs) == ("23 oktober 2026", "computed")
-    assert deadline.computed["unit"] == "workday" and deadline.computed["calendar"]["nl"] == "maandag tot vrijdag, Belgische feestdagen"
+    assert deadline.computed.unit == "workday" and deadline.computed.calendar["nl"] == "maandag tot vrijdag, Belgische feestdagen"
     elsewhere = replace(DEED_INTAKE, calendar=None)
     assert {f.id: f for f in read_facts(elsewhere, response(working, passages), {})}["deed_deadline"].needs == "not_a_date"
 
@@ -466,7 +467,7 @@ def test_an_amount_written_as_a_share_is_worked_out_from_the_amount_it_is_a_shar
     answer = {**ANSWER, "deposit": leaf("tien procent van de koopprijs", 2)}
     deposit = {f.id: f for f in read_facts(DEED_INTAKE, response(answer, PASSAGES), {})}["deposit"]
     assert (deposit.value, deposit.needs) == ("EUR 41.250,00", "computed")
-    assert deposit.computed == {"written": "tien procent van de koopprijs", "from": "price", "kind": "share", "percent": "10",
+    assert deposit.computed.model_dump() == {"written": "tien procent van de koopprijs", "from": "price", "kind": "share", "percent": "10",
                                 "of": "412500.00", "amount": "41250.00"}
     vague = {**ANSWER, "deposit": leaf("10% of 5% naargelang de financiering", 2)}
     assert {f.id: f for f in read_facts(DEED_INTAKE, response(vague, PASSAGES), {})}["deposit"].needs == "not_an_amount"
@@ -546,7 +547,8 @@ def test_a_facts_passages_are_marked_by_the_server():
     c = marked(RunFact(id="price", value="€ 100.000", confirmed="De koper betaalt de kosten", citations=[cite])).citations[0]
     assert [cut(a, z) for a, z in c.ranges] == ["De koper betaalt de kosten."]
     c = marked(RunFact(id="deadline", value="12 februari 2027", needs="computed", citations=[cite],
-                       computed={"written": "de koopprijs bedraagt eenhonderdduizend euro"})).citations[0]
+                       computed={"written": "de koopprijs bedraagt eenhonderdduizend euro", "from": "agreement_date", "base": "2026-10-12", "date": "2027-02-12",
+                                 "amount": 4, "unit": "month", "direction": "after"})).citations[0]
     assert [cut(a, z) for a, z in c.ranges] == ["De koopprijs bedraagt eenhonderdduizend euro (€ 100.000,00)."]
     # nothing cited, nothing marked; a value in no sentence marks none
     assert marked(RunFact(id="epc", value="B", source="person")).citations == []

@@ -295,7 +295,7 @@ describe("lists (format 3)", () => {
 
 describe("a date sūveryn worked out (board P01)", () => {
   const computed = { written: "binnen vier maanden na de ondertekening", from: "agreement_date", base: "2026-10-12", date: "2027-02-12",
-                     amount: 4, unit: "month" as const, direction: "after" as const };
+                     amount: 4, unit: "month" as const, direction: "after" as const, kind: "term" as const, calendar: null };
   const run: Run = { ...RUN, facts: [aFact({ id: "deed_deadline", value: "12 februari 2027", issues: [], found: true, confirmed: null, source: "document",
     needs: "computed", computed, citations: [aCitation({ n: 1, document_id: "d1", filename: "akte.pdf", page: 4, location: null,
       text: "De akte wordt verleden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de voorwaarde." })] })] };

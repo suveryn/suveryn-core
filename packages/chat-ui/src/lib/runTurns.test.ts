@@ -10,7 +10,7 @@ import { listedTitle } from "./conversations";
 import { setLang } from "../i18n/languages";
 import { EVENTS, eventText, personTurnText, playbookTurnText, type TurnMeta } from "./runTurns";
 
-const KINDS: string[] = JSON.parse(readFileSync(
+const KINDS: NonNullable<TurnMeta["kind"]>[] = JSON.parse(readFileSync(
   new URL("../../../api-gateway/src/suveryn_api_gateway/turn_kinds.json", import.meta.url), "utf8")).kinds;
 const WORDS = { title: "Akte-intake", summary: "", labels: { price: "Prijs", kind: "Inbreng", "kind.cash": "In geld" },
                 questions: { agreement: "Laad de verkoopovereenkomst op." }, steps: { agreement: "Verkoopovereenkomst", reports: "Verslagen" } };
