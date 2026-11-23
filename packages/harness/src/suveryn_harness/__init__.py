@@ -7,6 +7,7 @@ facts read from its table). No storage, rights or screens: those are the gateway
 
 from .config import LLMSettings
 from .grounding import GROUNDED_INSTRUCTIONS, cited_numbers, grounded_messages
+from .history import conversation_history
 from .llm import BackendError, BackendHealth, BackendState, LlamaServerClient, StreamChunk
 from .schemas import (
     Calculation,
@@ -76,5 +77,6 @@ __all__ = [
     "UsageRecord",
     "UsageRecorder",
     "cited_numbers",
+    "conversation_history",
     "grounded_messages",
 ]

@@ -37,6 +37,19 @@ and when. The chat UI still saves its own conversation whole (``save``): the row
 with it, a changed turn rewritten in place, new ones appended, ones it dropped (a retried question)
 deleted. A playbook's thread is appended by the server (``TurnStore.append``) and never saved whole.
 
+**The server stores each turn as it answers** (suveryn-tracker#251, the founder's decision of 23 November 2026), the
+way chat products do: a question asked in a conversation (``POST /v1/conversations/{id}/questions``) is stored, the
+model reads what was stored before it (``history_pairs``, ``suveryn_harness.conversation_history``), and the answer
+is stored as it was written, however it ends (``answered_turn``): written out with its checks, failed (no words, the
+code), or stopped (the words so far, unchecked). So an answer a colleague opens is the one the model wrote, and the
+browser can't hand the model an answer it never gave. Such a turn says ``kind`` (question, answer) in ``meta``, and
+names documents by id only (``narrowed_to`` too), so a deleted one leaves no name; its shape is ``AskedTurn`` and
+``AnsweredTurn``. A document deleted while an answer is written is taken out of it as it is stored. The screens move
+to it, and the chat UI's whole saves go, in the steps after this one. Looked at: OpenAI's Conversations and Responses
+APIs (items stored by the server, a response chained to the one before) and its older Assistants threads, which do
+the same; this follows them in what matters (the server keeps what was said, the client sends only what is new) with
+the routes and codes this gateway already has, since none of them is a standard to follow by the letter.
+
 **A playbook run is a conversation** (decision, 30 October 2026; docs/design/playbooks.md, "The chat UI"):
 starting one makes a conversation in the case (``run_id`` set), titled with the playbook, its
 starter its owner, shared with the case from the start, so it is listed, opened and pinned like any
@@ -57,13 +70,19 @@ import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from suveryn_harness.schemas import Calculation, Citation, CitationIssue, SupportSpan
 
 from .cases import KEEP_PERIODS
 from .db import PgStore
 from .description import Answer
+from .problems import Message
+
+# A document's id, as a question names the documents it shows with it.
+DocumentId = Annotated[str, Field(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")]
 
 log = logging.getLogger("suveryn.gateway")
 
@@ -191,6 +210,105 @@ class ConversationIn(BaseModel):
     turns: list[SavedTurn] = Field(min_length=1, max_length=MAX_TURNS)
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")  # None: the personal space
 
+
+
+class QuestionIn(BaseModel):
+    """Body of ``POST /v1/conversations/{id}/questions``: a new question in a conversation the server keeps
+    (suveryn-tracker#251). Only the question: what the model reads of the conversation before it comes from the turns
+    the server stored, and the answer is stored as it is written."""
+
+    text: str = Field(min_length=1, max_length=100_000)
+    # What the answer is grounded in (as ``ChatRequest.document_ids``): empty, a plain, unsourced answer.
+    document_ids: list[str] = Field(default_factory=list, max_length=50)
+    # What the question shows with it, by id: the documents chosen with *Ask about*, and the ones attached to it.
+    about: list[DocumentId] = Field(default_factory=list, max_length=50)
+    attached: list[DocumentId] = Field(default_factory=list, max_length=50)
+    # The case a new conversation is in (None: the personal space); a conversation stays where it was started.
+    case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
+    model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
+    thinking: bool = False
+    # *Regenerate*: the last question asked once more, in place of its answer (``text`` must be that question).
+    again: bool = False
+
+
+class AskedTurn(Answer):
+    """What a question's row keeps beside its text (``meta``), as the server writes it: the documents it was about,
+    by id only, so a deleted one leaves no name behind; how it was asked."""
+
+    kind: Literal["question"] = "question"
+    document_ids: list[str]
+    about: list[str]
+    attached: list[str]
+    model: str | None
+    thinking: bool
+
+
+class AnsweredTurn(Answer):
+    """What an answer's row keeps beside its text (``meta``), as the server writes it once the stream ended: how it
+    ended (``outcome``), and for an answer written out everything the answer said beside its words (``ChatResponse``
+    but its id, words and token counts; a test holds the two together), the document it was narrowed to by id."""
+
+    kind: Literal["answer"] = "answer"
+    outcome: Literal["done", "stopped", "failed"]
+    model: str | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    calculations: list[Calculation] = Field(default_factory=list)
+    unverified_figures: list[str] = Field(default_factory=list)
+    citation_issues: list[CitationIssue] = Field(default_factory=list)
+    support_spans: list[SupportSpan] = Field(default_factory=list)
+    instruction_like_sources: list[int] = Field(default_factory=list)
+    finish_reason: str | None = None
+    reasoning: str = ""
+    thought_seconds: float | None = None
+    thinking_cut: bool = False
+    narrowed_to: str | None = None  # a document's id, never its name
+    complete: bool | None = None
+    asked_again: bool = False
+    failure: Message | None = None  # why it failed: a code of the registry
+
+
+def title_of(question: str) -> str:
+    """A new conversation's title: its first question, on one line, at most 80 characters."""
+    first = " ".join(question.split())
+    return first if len(first) <= 80 else first[:79].rstrip() + "\u2026"
+
+
+def asked_turn(body: QuestionIn) -> dict:
+    return AskedTurn(document_ids=body.document_ids, about=body.about, attached=body.attached, model=body.model,
+                     thinking=body.thinking).model_dump(mode="json")
+
+
+def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | None, failure: dict | None) -> tuple[str, dict]:
+    """An answer's row (text, ``meta``) once its stream ended: written out (``done``, the whole answer with its
+    checks), failed (no words, as the stream's contract says, and the code it failed with), or stopped (the words so
+    far and their passages, unchecked: stopped by the person, or the connection went)."""
+    if done is not None:
+        whole = done.model_dump(exclude={"id", "answer", "usage"})
+        if whole.get("narrowed_to") is not None:
+            # The one document the question named, kept by its id, never by the file name the answer carries: only
+            # that document was read, so its passages say which (a name would stay when it is deleted). Without a
+            # passage it can't be told, and nothing is kept.
+            read = {c["source"]["document_id"] for c in whole["citations"] if c.get("source")}
+            whole["narrowed_to"] = read.pop() if len(read) == 1 else None
+        turn = AnsweredTurn(outcome="done", **whole)
+        return done.answer, turn.model_dump(mode="json")
+    if failure is not None:
+        return "", AnsweredTurn(outcome="failed", failure=Message(**failure)).model_dump(mode="json")
+    return text, AnsweredTurn(outcome="stopped", citations=sources, reasoning=reasoning).model_dump(mode="json")
+
+
+def history_pairs(turns: list["Turn"]) -> list[tuple[str, str | None]]:
+    """(question, its completed answer or None) for each question of a conversation, for the model's history
+    (``suveryn_harness.conversation_history``). Completed: the server says ``outcome`` done; a turn the chat UI saved
+    itself says ``status`` done."""
+    pairs = []
+    for i, turn in enumerate(turns):
+        if turn.role != "user":
+            continue
+        after = turns[i + 1] if i + 1 < len(turns) else None
+        done = after is not None and after.role == "assistant" and "done" in (after.meta.get("outcome"), after.meta.get("status"))
+        pairs.append((turn.text, after.text if done else None))
+    return pairs
 
 class ConversationSummary(Answer):
     """One entry of ``GET /v1/conversations``."""
@@ -518,6 +636,43 @@ class ConversationStore(TurnStore):
                 return False
             self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,))
             self._write_turns(conversation_id, turns, by or owner)
+        return True
+
+    def place(self, conversation_id: uuid.UUID) -> tuple[str, uuid.UUID | None, bool] | None:
+        """(owner, case, whether it can't be asked in: a playbook run's, or past the office's keep period) of a
+        conversation; None if there is none."""
+        fresh, params = self._fresh()
+        r = self._execute(f"SELECT owner, case_id, run_id IS NOT NULL OR NOT {fresh} FROM conversations WHERE id = %s",
+                          (*params, conversation_id)).fetchone()
+        return (r[0], r[1], r[2]) if r else None
+
+    def start(self, conversation_id: uuid.UUID, owner: str, title: str, case_id: uuid.UUID | None) -> bool:
+        """A new conversation, empty; False if the id is taken already (by anyone)."""
+        return self._execute("INSERT INTO conversations (id, owner, title, case_id) VALUES (%s, %s, %s, %s)"
+                             " ON CONFLICT (id) DO NOTHING RETURNING id",
+                             (conversation_id, owner, title[:MAX_TITLE], case_id)).fetchone() is not None
+
+    def add(self, conversation_id: uuid.UUID, role: str, by: str, text: str, meta: dict, documents: set[str]) -> Turn:
+        """A turn the server wrote, at the end of a conversation (suveryn-tracker#251), and the documents it names
+        added to the conversation's (``documents``: what a document's deletion looks for)."""
+        with self.transaction():
+            turn = self.append(conversation_id, role, by, text, meta=meta)
+            if documents:
+                self._execute("UPDATE conversations SET documents = ARRAY(SELECT DISTINCT unnest(documents || %s::text[]) ORDER BY 1)"
+                              " WHERE id = %s", (sorted(documents), conversation_id))
+        return turn
+
+    def drop_last_answer(self, conversation_id: uuid.UUID) -> bool:
+        """Take the last question and its answer out (*Regenerate*): False, and nothing taken, unless the
+        conversation ends with a question and its answer."""
+        with self.transaction():
+            self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,))
+            last = self._execute("SELECT seq, role FROM turns WHERE conversation_id = %s ORDER BY seq DESC LIMIT 2",
+                                 (conversation_id,)).fetchall()
+            if [r[1] for r in last] != ["assistant", "user"]:
+                return False
+            self._execute("DELETE FROM turns WHERE conversation_id = %s AND seq >= %s", (conversation_id, last[1][0]))
+            self._execute("UPDATE conversations SET messages = messages - 2, updated_at = now() WHERE id = %s", (conversation_id,))
         return True
 
     def delete(self, conversation_id: uuid.UUID, owner: str) -> bool:

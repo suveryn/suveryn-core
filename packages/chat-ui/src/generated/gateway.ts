@@ -2130,6 +2130,35 @@ export interface PinIn {
 }
 
 /**
+ * Body of ``POST /v1/conversations/{id}/questions``: a new question in a conversation the server keeps
+ * (suveryn-tracker#251). Only the question: what the model reads of the conversation before it comes from the turns
+ * the server stored, and the answer is stored as it is written.
+ */
+export interface QuestionIn {
+  /**
+     * @maxItems 50
+     * @items.pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+     */
+  about?: string[];
+  again?: boolean;
+  /**
+     * @maxItems 50
+     * @items.pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+     */
+  attached?: string[];
+  case_id?: string | null;
+  /** @maxItems 50 */
+  document_ids?: string[];
+  model?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 100000
+     */
+  text: string;
+  thinking?: boolean;
+}
+
+/**
  * Body of ``POST /v1/conversations/{id}/share``.
  */
 export interface ShareIn {
@@ -2515,6 +2544,26 @@ export type AskQuestion200Two = {
 export type ListConversationsParams = {
   case?: string | null;
   all?: boolean;
+};
+
+export type AskInConversation200 = {
+  data: string;
+  event: 'status';
+} | {
+  data: string;
+  event: 'sources';
+} | {
+  data: string;
+  event: 'thinking';
+} | {
+  data: string;
+  event: 'delta';
+} | {
+  data: string;
+  event: 'done';
+} | {
+  data: string;
+  event: 'error';
 };
 
 export type ListDocumentsParams = {
@@ -7575,6 +7624,97 @@ export const setConversationPinned = async (conversationId: string,
     method: 'PUT',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(pinIn)
+  }
+);}
+
+
+
+export type askInConversationResponse200 = {
+  data: AskInConversation200
+  status: 200
+}
+
+export type askInConversationResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type askInConversationResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type askInConversationResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type askInConversationResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type askInConversationResponse413 = {
+  data: ProblemDetails
+  status: 413
+}
+
+export type askInConversationResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type askInConversationResponse429 = {
+  data: ProblemDetails
+  status: 429
+}
+
+export type askInConversationResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type askInConversationResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type askInConversationResponseSuccess = (askInConversationResponse200) & {
+  headers: Headers;
+};
+export type askInConversationResponseError = (askInConversationResponse401 | askInConversationResponse403 | askInConversationResponse404 | askInConversationResponse409 | askInConversationResponse413 | askInConversationResponse422 | askInConversationResponse429 | askInConversationResponse500 | askInConversationResponse503) & {
+  headers: Headers;
+};
+
+export type askInConversationResponse = (askInConversationResponseSuccess | askInConversationResponseError)
+
+export const getAskInConversationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}/questions`
+}
+
+/**
+ * Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is
+ * started, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is
+ * written, whatever happens to it: written out, failed, or stopped when the connection closes
+ * (suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server
+ * stored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one
+ * past the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an
+ * answer is being written in it, or *Regenerate* that isn't the last question asked again: 409.
+ * @summary Ask In Conversation
+ */
+export const askInConversation = async (conversationId: string,
+    questionIn: QuestionIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<askInConversationResponse> => {
+
+  return gatewayFetch<askInConversationResponse>(getAskInConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(questionIn)
   }
 );}
 

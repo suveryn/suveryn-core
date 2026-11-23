@@ -1,13 +1,18 @@
 """Saved conversations (``conversations.py``): each user's own chat history, in their personal
 space or in a case. Without a database: 503, and the UI keeps the conversation in memory only."""
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Request, Response
-from suveryn_harness.messages import Problem
+from suveryn_harness.messages import Problem, unplanned
 from fastapi.concurrency import run_in_threadpool
 
+from suveryn_harness import ChatMessage, ChatRequest, ChatService, conversation_history
+
 from ..conversations import (
+    MAX_TURN_TEXT,
+    MAX_TURNS,
     Conversation,
     ConversationIn,
     ConversationSummary,
@@ -15,12 +20,20 @@ from ..conversations import (
     MoveIn,
     PinIn,
     RenameIn,
+    QuestionIn,
     ShareIn,
+    answered_turn,
+    asked_turn,
     cited_documents,
+    history_pairs,
+    redact,
+    title_of,
 )
 from ..problems import refusals
-from .common import Scope, case_for, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
+from .chat import Heard, StoredWhenEnded, _stream, checked
+from .common import Scope, case_for, docs_or_503, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
+log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["conversations"])  # the group its operations are in, in the description (description.py)
 
 
@@ -126,6 +139,105 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
         raise Problem("conversation.in_case", "This conversation is already in a case.")
     await log_access(request, uuid.UUID(case.id), "conversation_moved_in", {"conversation": str(cid)})
     return moved
+
+
+# The conversations an answer is being written in, in this process: a second question waits for it (409).
+ANSWERING: set[uuid.UUID] = set()
+
+
+@router.post("/v1/conversations/{conversation_id}/questions", responses={200: {"content": {"text/event-stream": {}}},
+                                                                        **refusals(404, 409, 413, 422, 429)})
+async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: Request):
+    """Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is
+    started, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is
+    written, whatever happens to it: written out, failed, or stopped when the connection closes
+    (suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server
+    stored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one
+    past the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an
+    answer is being written in it, or *Regenerate* that isn't the last question asked again: 409."""
+    store, cid = history_or_503(request), _conversation_id(conversation_id)
+    # Taken before anything is awaited, so two requests at once (a double click on *Regenerate*, two tabs) can't both
+    # pass: the second is refused, never left to take out a second question (review of #251, finding 1).
+    if cid in ANSWERING:
+        raise Problem("request.conflict", "An answer is being written in this conversation.")
+    ANSWERING.add(cid)
+    try:
+        req, owner, scope = await _asked(store, cid, body, request)
+    except BaseException:
+        ANSWERING.discard(cid)
+        raise
+    heard = Heard()
+
+    async def ended() -> None:
+        try:
+            text, meta = answered_turn(heard.text, heard.reasoning, heard.sources, heard.done, heard.failure)
+            # A document deleted while the answer was written: its passages never stay (as a save's, audit of
+            # 21 October 2026, finding 3; review of #251, finding 2). Taken out before the answer is stored, and once
+            # more after, for one deleted in between.
+            cited = cited_documents([meta])
+            if (gone := await run_in_threadpool(_gone, request, cited, scope)) is not None:
+                redact([meta], gone)
+            await run_in_threadpool(store.add, cid, "assistant", "assistant", text[:MAX_TURN_TEXT], meta, cited)
+            if (later := await run_in_threadpool(_gone, request, cited, scope)) is not None:
+                for d in sorted(cited):
+                    if later(d) and (gone is None or not gone(d)):
+                        await run_in_threadpool(store.remove_document, owner, uuid.UUID(d), False, None)
+        except Exception as e:  # noqa: BLE001 - the question stays, unanswered; the log has a reference, never the text
+            ref, where = unplanned(e)
+            log.error("an answer couldn't be stored: internal %s: %s at %s", ref, type(e).__name__, where)
+        finally:
+            ANSWERING.discard(cid)
+
+    chat_service: ChatService = request.app.state.chat
+    return StoredWhenEnded(_stream(chat_service, req, owner, heard), ended, media_type="text/event-stream",
+                           headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> tuple[ChatRequest, str, Scope]:
+    """Everything a question in a conversation is checked for, then the question stored: the request the model gets
+    (what it reads of the conversation, from the stored turns, and the question), the caller, the scope."""
+    place = await run_in_threadpool(store.place, cid)
+    if place is not None and (place[0] != owner_of(request) or place[2]):
+        raise Problem("request.not_found", "Unknown conversation.")
+    case = (str(place[1]) if place[1] is not None else None) if place is not None else body.case_id
+    asked = ChatRequest(messages=[ChatMessage(role="user", content=body.text)], stream=True, document_ids=body.document_ids,
+                        case_id=case, model=body.model, thinking=body.thinking)
+    owner = await checked(asked, request)
+    scope = Scope.case(uuid.UUID(case)) if case else Scope.personal(owner)
+    shown = sorted({*body.about, *body.attached})
+    if shown and not await run_in_threadpool(docs_or_503(request).in_scope, shown, scope):
+        raise Problem("answer.document_not_found", "Unknown document.")  # what a question shows is the caller's to see
+    if place is None:
+        if body.again:
+            raise Problem("request.conflict", "There is no answer to ask again.")
+        if not await run_in_threadpool(store.start, cid, owner, title_of(body.text), uuid.UUID(case) if case else None):
+            raise Problem("request.conflict", "The conversation was started meanwhile.")
+    turns = await run_in_threadpool(store.turns_of, cid)
+    if body.again:
+        # *Regenerate*: the last question once more, in place of its answer, as the chat UI has always done (its
+        # earlier answer isn't kept). Only that question: anything else is a new question, not a regeneration.
+        if len(turns) < 2 or (turns[-2].role, turns[-1].role) != ("user", "assistant") or turns[-2].text != body.text[:MAX_TURN_TEXT]:
+            raise Problem("request.conflict", "There is no answer to ask again.")
+        if not await run_in_threadpool(store.drop_last_answer, cid):
+            raise Problem("request.conflict", "There is no answer to ask again.")
+        turns = turns[:-2]
+    if len(turns) + 2 > MAX_TURNS:
+        raise Problem("conversation.too_long", "The conversation is too long to add to.")
+    # Validated whole, so a request too long to send is refused here, never sent (``ChatRequest``'s own limits).
+    req = ChatRequest.model_validate({**asked.model_dump(), "messages": [
+        *(m.model_dump() for m in conversation_history(history_pairs(turns), body.text)), *(m.model_dump() for m in asked.messages)]})
+    await run_in_threadpool(store.add, cid, "user", who(request)[0], body.text[:MAX_TURN_TEXT], asked_turn(body),
+                            {*body.document_ids, *shown})
+    return req, owner, scope
+
+
+def _gone(request: Request, cited: set[str], scope: Scope):
+    """Which of these documents no longer exist in ``scope``; None if that can't be known."""
+    docs = request.app.state.documents
+    if not cited or docs is None or docs.state != "ready":
+        return None
+    existing = docs.existing(sorted(cited), scope)
+    return lambda d: d not in existing
 
 
 @router.put("/v1/conversations/{conversation_id}", status_code=204, responses=refusals(404, 413, 422))

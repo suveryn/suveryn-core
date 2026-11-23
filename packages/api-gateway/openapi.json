@@ -4329,6 +4329,82 @@
     "title": "Provenance",
     "type": "object"
    },
+   "QuestionIn": {
+    "description": "Body of ``POST /v1/conversations/{id}/questions``: a new question in a conversation the server keeps\n(suveryn-tracker#251). Only the question: what the model reads of the conversation before it comes from the turns\nthe server stored, and the answer is stored as it is written.",
+    "properties": {
+     "about": {
+      "items": {
+       "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "About",
+      "type": "array"
+     },
+     "again": {
+      "default": false,
+      "title": "Again",
+      "type": "boolean"
+     },
+     "attached": {
+      "items": {
+       "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Attached",
+      "type": "array"
+     },
+     "case_id": {
+      "anyOf": [
+       {
+        "pattern": "^[0-9a-fA-F-]{36}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Case Id"
+     },
+     "document_ids": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Document Ids",
+      "type": "array"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "pattern": "^[\\w.:-]{1,120}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     },
+     "text": {
+      "maxLength": 100000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+     },
+     "thinking": {
+      "default": false,
+      "title": "Thinking",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "QuestionIn",
+    "type": "object"
+   },
    "Rates-Input": {
     "description": "Notional cost per million tokens, as on a comparable cloud API (admin-editable).",
     "properties": {
@@ -14078,6 +14154,267 @@
      }
     },
     "summary": "Set Conversation Pinned",
+    "tags": [
+     "conversations"
+    ]
+   }
+  },
+  "/v1/conversations/{conversation_id}/questions": {
+   "post": {
+    "description": "Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is\nstarted, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is\nwritten, whatever happens to it: written out, failed, or stopped when the connection closes\n(suveryn-tracker#251). What the model reads of the conversation before the question is the turns the server\nstored. Answers as ``POST /v1/chat`` streams (its events). Someone else's conversation, a playbook run's, or one\npast the office's keep period: 404; a document to show with it that isn't the caller's to see: 404; while an\nanswer is being written in it, or *Regenerate* that isn't the last question asked again: 409.",
+    "operationId": "ask_in_conversation",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/QuestionIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "text/event-stream": {
+        "itemSchema": {
+         "oneOf": [
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamStatus"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "status",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "status event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamSources"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "sources",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "sources event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamThinking"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "thinking",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "thinking event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamDelta"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "delta",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "delta event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/ChatResponse"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "done",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "done event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
+              "$ref": "#/components/schemas/StreamError"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "error",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "error event",
+           "type": "object"
+          }
+         ],
+         "title": "One event of the answer stream"
+        }
+       }
+      },
+      "description": "The answer, as events: zero or more `status`, for a grounded answer one `sources`, with `thinking` true and a model that can think zero or more `thinking`, zero or more `delta`, then one `done` (the whole answer) or one `error`. Closing the connection stops the answer: the model stops writing. The question and the answer are stored, however it ends."
+     },
+     "401": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "413": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Request Entity Too Large"
+     },
+     "422": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "500": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "503": {
+      "content": {
+       "application/problem+json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProblemDetails"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     }
+    },
+    "summary": "Ask In Conversation",
     "tags": [
      "conversations"
     ]
