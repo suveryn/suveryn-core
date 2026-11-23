@@ -62,7 +62,7 @@ def turn(seq, role, text, **meta):
 
 
 def test_the_model_reads_the_branch_of_the_tree_on_the_way_to_the_question():
-    """A conversation is a tree (the founder's decision of 23 November 2026, as Claude and ChatGPT): each turn names
+    """A conversation is a tree (suveryn-tracker#251, as in Claude and ChatGPT): each turn names
     the one it follows. Two answers to q1; q2 followed the first, q3 the second; then a turn the chat UI saved."""
     turns = [turn(1, "user", "q1", parent=None), turn(2, "assistant", "a1", parent=1, outcome="done"),
              turn(3, "assistant", "a1b", parent=1, outcome="done"),
@@ -173,7 +173,10 @@ def test_a_question_and_its_answer_are_stored_by_the_server_and_read_back_to_the
         assert (q_role, q_text, q_meta["kind"], q_meta["document_ids"]) == ("user", "Wat is  de\nkoopprijs?", "question", [])
         assert (a_role, a_text, a_meta["kind"], a_meta["outcome"]) == ("assistant", "€ 345.000", "answer", "done")
         # The next question: what the model reads before it is what the server stored, not what the browser says.
-        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?"}, headers=alice) as r:
+        answer = store.turns_of(uuid.UUID(cid))[1].seq
+        r = c.post(f"/v1/conversations/{cid}/questions", json={"text": "En de datum?"}, headers=alice)
+        assert r.status_code == 409 and r.json()["code"] == "request.conflict"  # which answer it follows: said
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?", "after": answer}, headers=alice) as r:
             events(r)
         sent = [m for m in captured[-1]["messages"] if m["role"] != "system"]
         assert [m["role"] for m in sent] == ["user", "assistant", "user"]
@@ -216,7 +219,7 @@ def test_a_conversation_the_chat_ui_saved_goes_on_on_the_server(store):
     store.save(cid, ALICE, ConversationIn(title="Prijs", turns=[
         {"role": "user", "text": "Wat is de koopprijs?", "attachments": []},
         {"role": "assistant", "text": "€ 345.000", "status": "done", "citations": []}]))
-    with c, c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?"}, headers=as_user(kc, ALICE)) as r:
+    with c, c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?", "after": 2}, headers=as_user(kc, ALICE)) as r:
         events(r)
     assert [m["content"] for m in captured[-1]["messages"] if m["role"] == "assistant"] == ["€ 345.000"]
     assert len(store.turns_of(cid)) == 4
@@ -239,7 +242,7 @@ def numbered(captured: list[dict]) -> httpx.MockTransport:
 
 @needs_db
 def test_regenerate_keeps_the_earlier_answers_and_a_question_goes_on_from_the_one_chosen(store):
-    """A conversation is a tree, as in Claude and ChatGPT (the founder's decision of 23 November 2026): *Regenerate*
+    """A conversation is a tree, as in Claude and ChatGPT (suveryn-tracker#251): *Regenerate*
     gives a question another answer, the earlier ones stay, and a question follows the answer the person has in front
     of them, anywhere in the conversation; the model reads that branch."""
     captured: list[dict] = []
@@ -265,7 +268,7 @@ def test_regenerate_keeps_the_earlier_answers_and_a_question_goes_on_from_the_on
         assert [m["parent"] for _, _, m in stored(store, cid)] == [None, q1, q1] and read_before(1) == []
         ask(text="En de datum?", after=seq("Antwoord 1"))  # the person switched back to the first answer
         assert read_before(2) == ["Antwoord 1"]
-        ask(text="Wie koopt?")  # without after: the newest turn, Antwoord 3
+        ask(text="Wie koopt?", after=seq("Antwoord 3"))
         assert read_before(3) == ["Antwoord 1", "Antwoord 3"]
         ask(again=seq("En de datum?"))  # another answer to it, on the same branch
         assert read_before(4) == ["Antwoord 1"]
@@ -389,8 +392,9 @@ def test_two_regenerates_at_once_make_one_version(store):
 
     async def go():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(application), base_url="http://test") as c:
-            for q in ("q1", "q2"):
-                assert (await c.post(f"/v1/conversations/{cid}/questions", json={"text": q})).status_code == 200
+            assert (await c.post(f"/v1/conversations/{cid}/questions", json={"text": "q1"})).status_code == 200
+            a1 = store.turns_of(uuid.UUID(cid))[1].seq
+            assert (await c.post(f"/v1/conversations/{cid}/questions", json={"text": "q2", "after": a1})).status_code == 200
             statuses: list[int] = []
             q2 = next(t.seq for t in store.turns_of(uuid.UUID(cid)) if t.text == "q2")
 

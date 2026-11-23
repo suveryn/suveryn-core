@@ -222,9 +222,9 @@ class QuestionIn(BaseModel):
     (suveryn-tracker#251), or one asked again. Only the question: what the model reads of the conversation before it
     comes from the turns the server stored, and the answer is stored as it is written.
 
-    A conversation is a tree, as in Claude and ChatGPT (the founder's decision of 23 November 2026): every turn the
-    server writes names the turn it follows (``parent``). A question follows an answer, ``after`` (the newest turn
-    without); asked again (``again``, the question's ``seq``: *Regenerate*), it gets another answer beside the earlier
+    A conversation is a tree, as in Claude and ChatGPT (suveryn-tracker#251): every turn the
+    server writes names the turn it follows (``parent``). A question follows an answer, ``after`` (needed once the
+    conversation has one); asked again (``again``, the question's ``seq``: *Regenerate*), it gets another answer beside the earlier
     ones, which stay, so a question can have several answers and what follows each of them."""
 
     text: str | None = Field(default=None, min_length=1, max_length=100_000)
@@ -237,7 +237,8 @@ class QuestionIn(BaseModel):
     case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     model: str | None = Field(default=None, pattern=r"^[\w.:-]{1,120}$")
     thinking: bool = False
-    # The answer the question follows (its ``seq``): the one the person has in front of them. None: the newest turn.
+    # The answer the question follows (its ``seq``): the one the person has in front of them. None only for the
+    # conversation's first question.
     after: int | None = Field(default=None, ge=1)
     # *Regenerate*: the question (its ``seq``) to answer once more, with what it was asked with; nothing else is sent.
     again: int | None = Field(default=None, ge=1)

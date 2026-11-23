@@ -2134,9 +2134,9 @@ export interface PinIn {
  * (suveryn-tracker#251), or one asked again. Only the question: what the model reads of the conversation before it
  * comes from the turns the server stored, and the answer is stored as it is written.
  *
- * A conversation is a tree, as in Claude and ChatGPT (the founder's decision of 23 November 2026): every turn the
- * server writes names the turn it follows (``parent``). A question follows an answer, ``after`` (the newest turn
- * without); asked again (``again``, the question's ``seq``: *Regenerate*), it gets another answer beside the earlier
+ * A conversation is a tree, as in Claude and ChatGPT (suveryn-tracker#251): every turn the
+ * server writes names the turn it follows (``parent``). A question follows an answer, ``after`` (needed once the
+ * conversation has one); asked again (``again``, the question's ``seq``: *Regenerate*), it gets another answer beside the earlier
  * ones, which stay, so a question can have several answers and what follows each of them.
  */
 export interface QuestionIn {
@@ -7702,12 +7702,12 @@ export const getAskInConversationUrl = (conversationId: string,) => {
  * Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is
  * started, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is
  * written, whatever happens to it: written out, failed, or stopped when the connection closes
- * (suveryn-tracker#251). A question follows an answer (``after``; the newest turn without), and the model reads the
+ * (suveryn-tracker#251). A question follows an answer (``after``, once there is one), and the model reads the
  * stored turns on the way to it; ``again`` (*Regenerate*) gives a stored question another answer, beside the earlier
  * ones, which stay: a conversation is a tree, as in Claude and ChatGPT. Answers as ``POST /v1/chat`` streams (its
  * events). Someone else's conversation, a playbook run's, or one past the office's keep period: 404; a document to
- * show with it that isn't the caller's to see: 404; while an answer is being written in it, or an ``after`` or
- * ``again`` that isn't an answer or a question of it: 409.
+ * show with it that isn't the caller's to see: 404; while an answer is being written in it, a question without the
+ * answer it follows, or an ``after`` or ``again`` that isn't an answer or a question of it: 409.
  * @summary Ask In Conversation
  */
 export const askInConversation = async (conversationId: string,

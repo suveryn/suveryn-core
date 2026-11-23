@@ -153,12 +153,12 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
     """Ask a question in one of the caller's conversations, under an id the client chose (a UUID): a new one is
     started, in ``case_id``'s case or the personal space. The server stores the question, and the answer as it is
     written, whatever happens to it: written out, failed, or stopped when the connection closes
-    (suveryn-tracker#251). A question follows an answer (``after``; the newest turn without), and the model reads the
+    (suveryn-tracker#251). A question follows an answer (``after``, once there is one), and the model reads the
     stored turns on the way to it; ``again`` (*Regenerate*) gives a stored question another answer, beside the earlier
     ones, which stay: a conversation is a tree, as in Claude and ChatGPT. Answers as ``POST /v1/chat`` streams (its
     events). Someone else's conversation, a playbook run's, or one past the office's keep period: 404; a document to
-    show with it that isn't the caller's to see: 404; while an answer is being written in it, or an ``after`` or
-    ``again`` that isn't an answer or a question of it: 409."""
+    show with it that isn't the caller's to see: 404; while an answer is being written in it, a question without the
+    answer it follows, or an ``after`` or ``again`` that isn't an answer or a question of it: 409."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
     # Taken before anything is awaited, so two requests at once (a double click on *Regenerate*, two tabs) can't both
     # pass: the second is refused, never left to take out a second question (review of #251, finding 1).
@@ -208,6 +208,8 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
         # refused before anything is made: a new conversation has nothing to follow or ask again (review, finding 2)
         raise Problem("request.conflict", "The conversation has no such turn.")
     turns = await run_in_threadpool(store.turns_of, cid) if place is not None else []
+    if len(turns) + (1 if body.again is not None else 2) > MAX_TURNS:
+        raise Problem("conversation.too_long", "The conversation is too long to add to.")
     by_seq = {t.seq: t for t in turns}
     if body.again is not None:
         # *Regenerate*: the question asked once more as it was asked, documents and all (review, finding 1), so the
@@ -219,8 +221,10 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
                             attached=first.meta.get("attached", []), model=first.meta.get("model"),
                             thinking=first.meta.get("thinking", False))
     else:
-        if body.after is not None and (body.after not in by_seq or by_seq[body.after].role != "assistant"):
-            raise Problem("request.conflict", "There is no such answer to follow.")
+        # In a tree "the newest turn" may be on a branch the person isn't looking at: a question in a conversation says
+        # which answer it follows, as Claude's and ChatGPT's do (review of the tree, finding A).
+        if turns and (body.after is None or body.after not in by_seq or by_seq[body.after].role != "assistant"):
+            raise Problem("request.conflict", "Say which answer the question follows.")
         source = body
     case = (str(place[1]) if place[1] is not None else None) if place is not None else body.case_id
     asked = ChatRequest(messages=[ChatMessage(role="user", content=source.text)], stream=True, document_ids=source.document_ids,
@@ -230,14 +234,12 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
     shown = sorted({*source.about, *source.attached})
     if shown and not await run_in_threadpool(docs_or_503(request).in_scope, shown, scope):
         raise Problem("answer.document_not_found", "Unknown document.")  # what a question shows is the caller's to see
-    if len(turns) + (1 if body.again is not None else 2) > MAX_TURNS:
-        raise Problem("conversation.too_long", "The conversation is too long to add to.")
     if place is None and not await run_in_threadpool(store.start, cid, owner, title_of(source.text), uuid.UUID(case) if case else None):
         raise Problem("request.conflict", "The conversation was started meanwhile.")
     if body.again is not None:
         before = path_to(turns, parent_of(turns, turns.index(by_seq[body.again])))
     else:
-        after = body.after if body.after is not None else (turns[-1].seq if turns else None)  # the newest turn
+        after = body.after  # None: the conversation's first question
         before = path_to(turns, after)
     # Validated whole, so a request too long to send is refused here, never sent (``ChatRequest``'s own limits).
     req = ChatRequest.model_validate({**asked.model_dump(), "messages": [
