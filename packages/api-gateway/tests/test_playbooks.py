@@ -551,7 +551,7 @@ def test_store_deletes_runs_with_the_case(runs):
     runs.say(run, "playbook", DEED_INTAKE.id, "", "agreement", {"kind": "request"}, once=True)  # the same turn again: once
     runs.say(run, "playbook", DEED_INTAKE.id, "", "agreement", {"kind": "unplaced"}, once=True)  # another meaning: kept
     runs.write_facts(cid, rid, "read", [dict(fact_id="price", kind="amount", value="1", status="proposed", source={"kind": "none"}, by="x")])
-    assert [t.meta["kind"] for t in runs.get(rid, cid).turns] == ["request", "unplaced"] and len(runs.fact_rows(rid)) == 1
+    assert [t.meta.kind for t in runs.get(rid, cid).turns] == ["request", "unplaced"] and len(runs.fact_rows(rid)) == 1
     assert runs.delete_case(cid) == 1 and runs.list(cid) == []
     assert runs.turns_of(conv) == [] and runs.fact_rows(rid) == []  # the conversation, its turns and the facts went with the case
     assert runs._execute("SELECT count(*) FROM conversations WHERE id = %s", (conv,)).fetchone()[0] == 0
@@ -1350,3 +1350,51 @@ def test_every_answer_of_playbooks_is_what_the_description_says(office, runs):
         assert status in (500, 503) or (status == 429 and path != start) or (status == 403 and (method, path) in {
             ("GET", active), ("GET", every), ("GET", runs_), ("GET", run)}), (method, path, status)
     assert {s for _, _, s in check.seen} == {200, 202, 401, 403, 404, 409, 422, 429}
+
+
+def test_every_turn_a_run_writes_is_described():
+    """What a turn of a run's thread means is described (suveryn-tracker#250): every member the gateway writes into one
+    is one ``TurnMeta`` has. Read from the code: the turns the playbook says (a dict with a ``kind``) and the ones a
+    person's words come with (``meta``)."""
+    import ast
+    import pathlib
+
+    from suveryn_api_gateway.playbooks import TURN_KINDS, TurnMeta
+
+    package = pathlib.Path(__import__("suveryn_api_gateway").__file__).parent
+    written = set()
+    for module in (package / "playbook_runtime.py", package / "playbooks.py", package / "routes" / "playbooks.py"):
+        for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Dict):
+                keys = {k.value for k in node.keys if isinstance(k, ast.Constant)}
+                kind = next((v.value for k, v in zip(node.keys, node.values) if isinstance(k, ast.Constant) and k.value == "kind"
+                             and isinstance(v, ast.Constant)), None)
+                if kind in TURN_KINDS:
+                    written |= keys
+            if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "say" or isinstance(node, ast.Call) and len(node.args) == 7 and \
+                    isinstance(node.args[0], ast.Attribute) and node.args[0].attr == "say":
+                for part in ast.walk(node):
+                    if isinstance(part, ast.Dict):
+                        written |= {k.value for k in part.keys if isinstance(k, ast.Constant)}
+            if isinstance(node, ast.Subscript) and getattr(node.value, "id", "") == "meta" and isinstance(node.slice, ast.Constant):
+                written.add(node.slice.value)
+    assert {"kind", "facts", "found", "answers", "attachments", "late", "unknown", "case_documents"} <= written
+    attached = {"documentId", "filename"}  # an attachment's own members, in a list under ``attachments``
+    assert written - attached <= set(TurnMeta.model_fields), sorted(written - attached - set(TurnMeta.model_fields))
+
+
+def test_a_turn_or_a_worked_out_value_kept_in_another_shape_is_still_read():
+    """A run whose thread or facts were kept in a shape from before is opened all the same: what doesn't fit is left
+    out, the turn and the value stand."""
+    from suveryn_api_gateway.playbooks import TurnMeta
+    from suveryn_harness.facts import ShareComputed, TermComputed, computed_or_none
+
+    assert TurnMeta.kept({"kind": "ask", "facts": ["price"], "found": 3, "total": 4}).model_dump() == {"kind": "ask", "facts": ["price"], "found": 3, "total": 4}
+    assert TurnMeta.kept({"kind": "a kind of before", "found": "three", "step": "read"}).model_dump() == {"step": "read"}
+    assert TurnMeta.kept(None).model_dump() == {}
+    term = {"written": "binnen vier maanden", "from": "agreement_date", "base": "2026-10-03", "date": "2027-02-03", "amount": 4,
+            "unit": "month", "direction": "after"}
+    assert isinstance(computed_or_none(term), TermComputed) and computed_or_none(term).model_dump()["from"] == "agreement_date"
+    share = {"written": "tien procent", "from": "price", "kind": "share", "percent": "10", "of": "412500.00", "amount": "41250.00"}
+    assert isinstance(computed_or_none(share), ShareComputed)
+    assert computed_or_none({"written": "binnen vier maanden"}) is None and computed_or_none(None) is None

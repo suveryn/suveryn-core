@@ -5,6 +5,8 @@ the naming convention."""
 import json
 
 from suveryn_api_gateway import description
+from suveryn_api_gateway.cases import EventDetail
+from suveryn_api_gateway.playbooks import TurnMeta
 
 # The groups (the convention's thirteen). A new group is added here on purpose, in the change that adds it.
 GROUPS = {"auth", "answers", "models", "cases", "settings", "playbooks", "documents", "conversations", "users", "usage",
@@ -191,14 +193,16 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
 
-# A shape of a strict area that is still "any object", named with what it is: describing them is suveryn-tracker#250.
-LATER = {"CaseEvent.detail": "what each line of the access log records (its actions and their details), for every area that writes one",
-         "Conversation.turns": "what a turn holds (an answer's citations and calculations, a playbook's turns): in a conversation the chat UI saved",
-         "SavedTurn": "the same, as the chat UI saves it",
-         "Turn.meta": "what a turn of a run's thread holds (its kind and facts, turn_kinds.json): written by the server",
-         "RunFact.computed": "how a value was worked out (a term, a share: suveryn_harness.terms)",
-         "AnswerContent": "what rebuilds a saved answer's file, the chat UI's own data (an answer, its sources and checks)",
-         "SavedCitation": "the same", "SavedCitation.source": "the same", "DocumentContent.content": "the same, as it is read back"}
+# What the chat UI makes and the gateway keeps for it as it is: a conversation's turns and what rebuilds a saved answer's
+# file. The chat UI's own data, its shape the chat UI's own (for now: the server will store each turn as it
+# answers, suveryn-tracker#251): the gateway reads in them only the documents they name, to take a deleted document's passages
+# out of them, and checks the form of those references (conversations.py ``SavedTurn``, routes/documents.py
+# ``SavedCitation``; the places held to the chat UI's shapes by tests/saved_turns_to_clean.json).
+CHAT_UIS_OWN = {"Conversation.turns": "a saved conversation's turns, as the chat UI saved them",
+         "SavedTurn": "the same, as the chat UI saves them",
+         "AnswerContent": "what rebuilds a saved answer's file: the question, the answer, its sources and checks",
+         "SavedCitation": "a source of a saved answer, as the chat UI keeps it", "SavedSource": "where that source is, as the chat UI keeps it",
+         "DocumentContent.content": "what rebuilds a saved answer's file, as it is read back"}
 
 
 # What is "any object" by its nature, and stays so.
@@ -244,7 +248,7 @@ def test_a_strict_operation_leaves_nothing_undescribed():
         parts = [op.get("requestBody", {}), *op["responses"].values()]
         schemas_used = [shape(c) for part in parts for c in part.get("content", {}).values()]
         schemas_used += [p["schema"] for p in op.get("parameters", [])]
-        left = set(loose(schemas_used, frozenset(), f"{method} {path}")) - set(LATER) - set(ANY)
+        left = set(loose(schemas_used, frozenset(), f"{method} {path}")) - set(CHAT_UIS_OWN) - set(ANY)
         assert not left, f"{method} {path}: {sorted(left)}"
         for status, r in op["responses"].items():
             # nothing to read: done (204), accepted and answered elsewhere later (202), or unchanged (304)
@@ -254,7 +258,10 @@ def test_a_strict_operation_leaves_nothing_undescribed():
 # A member an answer doesn't always carry, by the schema's name: named here on purpose.
 SOMETIMES = {("ProblemDetails", "errors"),  # with request.invalid only
              # where a document came from: only what is known of it (routes/documents.py, ``Provenance``)
-             *(("Provenance", member) for member in ("playbook", "version", "run", "conversation", "message", "noticed", "confirmed", "withdrawn"))}
+             *(("Provenance", member) for member in ("playbook", "version", "run", "conversation", "message", "noticed", "confirmed", "withdrawn")),
+             # what a line of the access log names, and what a turn of a run's thread means: only what each says
+             # (cases.py ``EventDetail``, playbooks.py ``TurnMeta``)
+             *(("EventDetail", member) for member in EventDetail.model_fields), *(("TurnMeta", member) for member in TurnMeta.model_fields)}
 
 
 def test_a_strict_operation_describes_every_member_of_an_answer_as_always_there():

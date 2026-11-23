@@ -10,10 +10,7 @@ import type { RunTurn } from "../api";
 import { factLabel, optionLabel, type PlaybookWords } from "./playbooks";
 
 /** A playbook turn's meaning (`meta`), as the server writes it. */
-export type TurnMeta = {
-  kind?: string; step?: string; facts?: string[]; found?: number; total?: number; fact?: string; value?: string;
-  documents?: string[]; reads?: string[]; reason?: string;
-};
+export type TurnMeta = RunTurn["meta"];
 
 /** The kinds a run's line in the middle shows (who did what, when), not the playbook speaking. */
 export const EVENTS = new Set(["paused", "resumed", "stopped", "cancelled", "confirmed"]);
@@ -21,7 +18,7 @@ export const EVENTS = new Set(["paused", "resumed", "stopped", "cancelled", "con
 /** What the playbook says in a turn, in the reader's language; the checkpoint's line when no review shows under it. */
 export function playbookTurnText(meta: TurnMeta, m: Messages, words: PlaybookWords): string {
   const label = (id: string) => factLabel(words, id);
-  const step = (id: string | undefined) => words.steps?.[id ?? ""] ?? id ?? "";
+  const step = (id: string | null | undefined) => words.steps?.[id ?? ""] ?? id ?? "";
   switch (meta.kind) {
     case "request": return words.questions?.[meta.step ?? ""] ?? "";
     case "ask": return m.runAskTurn({ found: meta.found ?? 0, total: meta.total ?? 0, list: (meta.facts ?? []).map(label).join(", ") });
@@ -52,7 +49,7 @@ export function eventText(meta: TurnMeta, who: string, at: string, m: Messages):
 /** A person's turn: what they wrote, or else what their button or form said, in the reader's language. */
 export function personTurnText(turn: Pick<RunTurn, "text" | "meta">, m: Messages, words: PlaybookWords): string {
   if (turn.text) return turn.text;
-  const meta = turn.meta as { answers?: Record<string, string>; none?: boolean; case_documents?: boolean; unknown?: boolean };
+  const { meta } = turn;
   if (meta.none) return m.runNoDocument;
   if (meta.case_documents) return m.runUseCaseDocuments;
   if (meta.unknown) return m.answerPlaceholder;

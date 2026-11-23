@@ -4,8 +4,8 @@ FastAPI builds a description of the gateway from its routes and their models (Op
 comes back. The chat UI's code that calls the server is generated from it, so that a name is typed once (#159,
 moved one area at a time: #236 to #241, #244 and #246 to #249; ``packages/chat-ui/src/generated``). The description
 names every operation and its group, and every operation describes what it answers and every refusal
-(``problems.refusals``). A few shapes inside an answer are still "any object": what a turn holds, the details of a
-line of the access log (the description's test names them, ``LATER``).
+(``problems.refusals``). What the chat UI makes and the gateway keeps for it as it is (a saved conversation's turns,
+a saved answer) stays the chat UI's own data (the description's test names it, ``CHAT_UIS_OWN``; #250).
 
 The description is kept as a file in the repository, ``packages/api-gateway/openapi.json``, so it can be read and
 reviewed without a running gateway, and so a generator needs no server, database or model:

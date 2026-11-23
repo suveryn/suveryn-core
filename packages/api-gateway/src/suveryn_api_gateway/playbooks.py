@@ -48,8 +48,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
-from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, marked
+from pydantic import BaseModel, Field, ValidationError, model_serializer
+from suveryn_harness.facts import MAX_VALUE, FactAlternative, FactCitation, RunFact, computed_or_none, marked
 from suveryn_harness.language import load
 from suveryn_harness.messages import message, stored
 from suveryn_playbooks import LANGUAGES, Playbook, StepKind, covered, from_record, to_record
@@ -186,6 +186,90 @@ class CheckOut(Answer):
     missing: list[str] = Field(default_factory=list)
 
 
+# The kinds of a playbook's own turn (turn_kinds.json; the server writes no other, ``RunStore.say``).
+TurnKind = Literal[tuple(json.loads((Path(__file__).parent / "turn_kinds.json").read_text(encoding="utf-8"))["kinds"])]
+
+
+class Attached(Answer):
+    """A document that came with a person's turn: its id in the case, and its name."""
+
+    documentId: str  # noqa: N815 - the chat UI's own name for it, as a saved conversation's attachments have it
+    filename: str
+
+
+class TurnMeta(BaseModel):
+    """What a turn of a run's thread means. A playbook's turn is its meaning only (``kind`` and its facts, never a
+    sentence: the screen words it in each reader's language; the decision of 12 November 2026). A person's turn says
+    what came with their words. Only what the turn says is kept and sent, so no member is always there (the
+    description's test names them, ``SOMETIMES``).
+
+    A playbook's: ``request``, ``ask`` (``facts`` asked, ``found`` of ``total``), ``checkpoint`` (``found``, ``total``,
+    ``issues``, ``failing``, ``differ``), ``skipped_step`` (``step``, ``fact``, ``value``, ``when``), ``read_in_part``
+    (``step``, ``documents``), ``late_documents`` (``step``, ``documents``, ``reads``, ``reopened``), ``unplaced`` and
+    ``already_unknown`` (``facts``), ``changed`` (``fact``, ``value``), ``confirmed``, ``paused``, ``resumed``,
+    ``stopped``, ``cancelled`` (``reason``). A person's: ``answers`` (a value per fact), ``attachments``, ``none``,
+    ``unknown``, ``case_documents``, ``late``."""
+
+    kind: TurnKind | None = None
+    facts: list[str] | None = None
+    found: int | None = None
+    total: int | None = None
+    issues: int | None = None
+    failing: int | None = None
+    differ: int | None = None
+    step: str | None = None
+    fact: str | None = None
+    value: str | None = None
+    when: str | None = None
+    documents: list[str] | None = None
+    reads: list[str] | None = None
+    reopened: bool | None = None
+    reason: str | None = None
+    answers: dict[str, str] | None = None
+    attachments: list[Attached] | None = None
+    none: bool | None = None
+    unknown: bool | None = None
+    case_documents: bool | None = None
+    late: bool | None = None
+
+    @model_serializer(mode="wrap")
+    def _what_was_said(self, handler):
+        return {k: v for k, v in handler(self).items() if k in self.model_fields_set}
+
+    @classmethod
+    def kept(cls, meta: object) -> "TurnMeta":
+        """A turn's meaning as it was kept: each member that is what this says it is, and nothing else (a member kept in
+        another shape, as a thread from before the decision of 12 November 2026 may have, is left out, never the turn)."""
+        kept = meta if isinstance(meta, dict) else {}
+        try:
+            return cls.model_validate(kept)
+        except ValidationError:
+            good = {}
+            for k, v in kept.items():
+                try:
+                    cls.model_validate({k: v})
+                except ValidationError:
+                    continue
+                good[k] = v
+            return cls.model_validate(good)
+
+
+class RunTurn(Answer):
+    """One line of a run's thread: a person's words, or the playbook's turn, which is its meaning only."""
+
+    seq: int
+    role: Literal["user", "assistant", "playbook"]
+    step_id: str | None
+    by: str                       # the username, the playbook id for its own turns
+    at: datetime
+    text: str
+    meta: TurnMeta
+
+    @classmethod
+    def of(cls, turn: Turn) -> "RunTurn":
+        return cls(seq=turn.seq, role=turn.role, step_id=turn.step_id, by=turn.by, at=turn.at, text=turn.text, meta=TurnMeta.kept(turn.meta))
+
+
 class StaleFacts(Exception):
     """A confirmation made on values that have changed since the person saw them (suveryn-tracker#135)."""
 
@@ -203,7 +287,7 @@ class Run(RunSummary):
     playbook: PlaybookOut
     instruction_like_sources: list[int] = Field(default_factory=list)
     steps: dict[str, StepState] = Field(default_factory=dict)
-    turns: list[Turn] = Field(default_factory=list)
+    turns: list[RunTurn] = Field(default_factory=list)
 
 
 class StartIn(BaseModel):
@@ -446,7 +530,7 @@ class RunStore(TurnStore):
         suspicious, steps, manifest, requested, checks = r[self._N], r[self._N + 1], r[self._N + 2], r[self._N + 3], r[self._N + 4]
         return Run(**summary.model_dump(), facts=self.facts_for_run(run_id), facts_seq=self.facts_seq(run_id),
                    instruction_like_sources=suspicious,
-                   steps={k: StepState(**v) for k, v in steps.items()}, turns=self.turns_of(uuid.UUID(summary.conversation_id)),
+                   steps={k: StepState(**v) for k, v in steps.items()}, turns=[RunTurn.of(t) for t in self.turns_of(uuid.UUID(summary.conversation_id))],
                    playbook=playbook_out(from_record(manifest), self.inactive()), requested=requested or {},
                    checks={k: CheckOut(**v) for k, v in (checks or {}).items()})
 
@@ -647,7 +731,7 @@ class RunStore(TurnStore):
                                source="person" if answer else ("document" if found else "none"),
                                by=answer["by"] if answer else None, at=answer["at"] if answer else None,
                                needs=(read or {}).get("source", {}).get("needs") if found and not answer else None,
-                               computed=(read or {}).get("source", {}).get("computed") if found and not answer else None,
+                               computed=computed_or_none((read or {}).get("source", {}).get("computed")) if found and not answer else None,
                                was=read["value"] if answer and found and read else None,
                                alternative=FactAlternative(value=slot["alternative"]["value"], citations=[
                                    FactCitation(**c) for c in slot["alternative"]["source"].get("citations", [])])

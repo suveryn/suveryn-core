@@ -283,7 +283,7 @@ class Runtime:
                 continue
             now = current.get(f.id)
             source = ({"kind": "document", "citations": [c.model_dump(exclude={"ranges", "facts"}) for c in f.citations],
-                       **({"needs": f.needs} if f.needs else {}), **({"computed": f.computed} if f.computed else {})}
+                       **({"needs": f.needs} if f.needs else {}), **({"computed": f.computed.model_dump()} if f.computed else {})}
                       if f.found else {"kind": "none"})
             if now is None:
                 rows.append(dict(fact_id=f.id, kind=playbook.leaf_kind(f.id), value=f.value if f.found else "",

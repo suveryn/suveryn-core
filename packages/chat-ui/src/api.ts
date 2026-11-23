@@ -13,8 +13,8 @@ import * as gateway from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
 /** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
- *  have it. What a turn holds isn't described yet (suveryn-tracker#250); until then
- *  the screens read a turn's passages, calculations and marks through these. */
+ *  have it. A saved turn is the chat UI's own data (for now: the server will store each turn, suveryn-tracker#251):
+ *  the screens read its passages, calculations and marks through these. */
 type Kept<Shape, Lacking extends keyof Shape> = Omit<Shape, Lacking> & Partial<Pick<Shape, Lacking>>;
 type SourceRef = Kept<gateway.SourceRef, "decimals">;
 /** A passage an answer was written from. ``removed``: its document was deleted, so the passage was taken out of the
@@ -285,8 +285,8 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
-/** A conversation with its turns. What a turn holds is the screens' own type until the gateway describes it
- *  (suveryn-tracker#250). */
+/** A conversation with its turns. A turn is the chat UI's own data, its type the chat UI's (`Turn`; for now: the
+ *  server will store each turn, suveryn-tracker#251): the gateway keeps it as it is. */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
@@ -473,14 +473,9 @@ export type PlaybookInfo = gateway.PlaybookOut;
 /** A step of the routine. `by`: who may pass a checkpoint, anyone who contributes to the case or its manager (the
  *  notary) only; `allow_none`: at a request, a person may answer that there is no such document. */
 export type PlaybookStep = gateway.StepOut;
-/** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount from a share.
- *  The screens' own type until the gateway describes it (suveryn-tracker#250). */
-export type TermComputed = { kind?: undefined; written: string; from: string; base: string; date: string; amount: number;
-                             unit: "day" | "week" | "month" | "year" | "workday"; direction: "after" | "before";
-                             /** working days: the pack's calendar, its name per language */
-                             calendar?: Record<string, string> };
-export type ShareComputed = { kind: "share"; written: string; from: string; percent: string; of: string; amount: string };
-export type Computed = TermComputed | ShareComputed;
+/** A value sūveryn worked out from another fact (suveryn_harness.terms): a date from a term, or an amount as a share
+ *  of another. A term's `calendar`: for working days, the pack's calendar, its name per language. */
+export type Computed = gateway.TermComputed | gateway.ShareComputed;
 /** A fact of a run. `value`: as read, the model's from the documents or a person's answer to the playbook's question
  *  ("" when neither); `issues`: figures, dates or names the check couldn't find in the cited passages; `found` false:
  *  the documents don't contain it; `confirmed`: what the person confirmed at the checkpoint, once they have; `source`:
@@ -488,12 +483,13 @@ export type Computed = TermComputed | ShareComputed;
  *  read from the documents, the value as read; `needs`: the value gives no date or amount as such, so a person works
  *  it out (`computed`: sūveryn did, from a term; board P01); `alternative`: a document added later reads this fact
  *  differently from what is confirmed, shown beside it, and a person chooses. */
-export type RunFact = Omit<gateway.RunFact, "computed"> & { computed: Computed | null };
+export type RunFact = gateway.RunFact;
 /** reading: the model is at work. waiting: for a person (a request, an ask, the checkpoint). paused, done, stopped,
  *  cancelled, failed: docs/design/playbooks.md, "A running playbook is visible". */
 export type RunStatus = gateway.RunSummary["status"];
-/** One line of the run's thread (the ``turns`` table): the playbook's question or a person's answer. */
-export type RunTurn = gateway.Turn;
+/** One line of the run's thread (the ``turns`` table): the playbook's turn, which is its meaning only (`meta`: its
+ *  kind and facts, worded here in the reader's language), or a person's words and what came with them. */
+export type RunTurn = gateway.RunTurn;
 /** A run in a list. `failure`: why it failed, a code of the registry; `step`: the step it is on (null: not started, or
  *  ended); `language`: the thread's; `starter`: the starter's id, who may stop or cancel with the case manager;
  *  `title`: the playbook's title per language, for a chip anywhere; `conversation_id`: the run's conversation. */
@@ -501,7 +497,7 @@ export type RunSummary = gateway.RunSummary;
 /** A run with its thread. `playbook`: the playbook it started under, from its own record (a run keeps its manifest);
  *  `requested`: per named request (step id), the documents that answered it; `checks`: per check step, its result on
  *  the values as they stand; `facts_seq`: which state of the facts this is, sent back when confirming. */
-export type Run = Omit<gateway.Run, "facts"> & { facts: RunFact[] };
+export type Run = gateway.Run;
 
 // ---------------------------------------------------------------- avatars (docs/design/avatars.md)
 
@@ -576,41 +572,39 @@ export const casePlaybooks = (caseId: string) => answered(gateway.listCasePlaybo
 export const listAdminPlaybooks = () => answered(gateway.listOfficePlaybooks());
 /** Administrators: switch a playbook on or off for the whole office. */
 export const setPlaybookActive = (slug: string, active: boolean) => answered(gateway.setPlaybookActive(encodeURIComponent(slug), { active }));
-/** A run as the gateway answers it, with how a value was worked out in the screens' own type (`Computed`). */
-const aRun = (call: Promise<Answer & { data: gateway.Run | gateway.ProblemDetails }>) => answered(call) as Promise<Run>;
-export const getRun = (caseId: string, runId: string) => aRun(gateway.getRun(encodeURIComponent(caseId), encodeURIComponent(runId)));
+export const getRun = (caseId: string, runId: string) => answered(gateway.getRun(encodeURIComponent(caseId), encodeURIComponent(runId)));
 /** The case's runs, newest first (a reader's right): the playbook menu's "Last" line (board P04, 9). */
 export const caseRuns = (caseId: string) => answered(gateway.listCaseRuns(encodeURIComponent(caseId)));
 /** The live run per case the caller may read (reading, waiting or paused), keyed by case id: the chip on the case lists. */
 export const activeRuns = () => answered(gateway.listAllActiveRuns());
 /** Starts a run (a contributor's right) in the thread's language and walks it to its first wait; 409 while one is live. */
 export const startRun = (caseId: string, slug: string, language: string, documentIds: string[] = []) =>
-  aRun(gateway.startRun(encodeURIComponent(caseId), encodeURIComponent(slug), { document_ids: documentIds, language }));
+  answered(gateway.startRun(encodeURIComponent(caseId), encodeURIComponent(slug), { document_ids: documentIds, language }));
 /** Answers the step the run waits on: an ask's facts (a value per fact; empty: still unknown), or a request (the
  *  documents are in, or ``none`` when the step allows it). The answer goes into the thread and the run walks on. */
 export const answerRun = (caseId: string, runId: string, stepId: string, answer: Omit<gateway.AnswerIn, "step_id"> = {}) =>
-  aRun(gateway.answerRun(encodeURIComponent(caseId), encodeURIComponent(runId), { step_id: stepId, ...answer }));
+  answered(gateway.answerRun(encodeURIComponent(caseId), encodeURIComponent(runId), { step_id: stepId, ...answer }));
 /** Writes in the run's conversation (a playbook is a conversation): the documents just added, an answer in words
  *  (mapped to the facts asked), ``unknown`` (the quick reply), or a correction at the checkpoint. The run walks on as
  *  far as it can. */
 export const sayInRun = (caseId: string, runId: string, said: gateway.SayIn) =>
-  aRun(gateway.sayInRun(encodeURIComponent(caseId), encodeURIComponent(runId), said));
+  answered(gateway.sayInRun(encodeURIComponent(caseId), encodeURIComponent(runId), said));
 /** A value from a playbook's card at the checkpoint (Adjust, Fill in); the same value says the person checked it. */
 export const setRunFact = (caseId: string, runId: string, factId: string, value: string) =>
-  aRun(gateway.setRunFact(encodeURIComponent(caseId), encodeURIComponent(runId), encodeURIComponent(factId), { value }));
+  answered(gateway.setRunFact(encodeURIComponent(caseId), encodeURIComponent(runId), encodeURIComponent(factId), { value }));
 /** Pause (keeps everything), resume, stop (keeps confirmed facts, drops proposed ones) or cancel (reverts confirmed
  *  facts, withdraws the product). Pause and resume: anyone who contributes; stop and cancel: the starter or the case
  *  manager. */
 export const runAction = (caseId: string, runId: string, action: "pause" | "resume" | "stop" | "cancel", reason = "") => {
   const run = encodeURIComponent(runId);
-  return aRun(action === "pause" ? gateway.pauseRun(encodeURIComponent(caseId), run) : action === "resume" ? gateway.resumeRun(encodeURIComponent(caseId), run)
+  return answered(action === "pause" ? gateway.pauseRun(encodeURIComponent(caseId), run) : action === "resume" ? gateway.resumeRun(encodeURIComponent(caseId), run)
     : action === "stop" ? gateway.stopRun(encodeURIComponent(caseId), run) : gateway.cancelRun(encodeURIComponent(caseId), run, { reason }));
 };
 /** The checkpoint: every fact's confirmed value; the summary is then stored in the case as a document. `seen` is the
  *  state of the facts on this screen (`Run.facts_seq`): when a colleague changed one since, the server refuses (409,
  *  `run.facts_changed`) and writes nothing, so an old screen can't put a value back (suveryn-tracker#135). */
 export const confirmRun = (caseId: string, runId: string, facts: gateway.ConfirmedFact[], seen?: number) =>
-  aRun(gateway.confirmRunFacts(encodeURIComponent(caseId), encodeURIComponent(runId), { facts, seen }));
+  answered(gateway.confirmRunFacts(encodeURIComponent(caseId), encodeURIComponent(runId), { facts, seen }));
 
 /** The documents (suveryn-tracker#248). The documents in the personal space, or in a case, and the uploads there
  *  still being read or failed. */
@@ -634,8 +628,8 @@ export const confirmAsSource = async (documentId: string, caseId?: string | null
   await answered(gateway.useDocumentAsSource(encodeURIComponent(documentId), inCase(caseId)));
 };
 /** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source. Saving the
- *  same answer again gives the document already saved (`created` false). What it holds (`content`) is the screens'
- *  own type until the gateway describes it (suveryn-tracker#250). */
+ *  same answer again gives the document already saved (`created` false). What it holds (`content`) is the chat UI's
+ *  own data (`SavedAnswer`; for now: the server will store each turn, suveryn-tracker#251). */
 export const saveAnswerToCase = (caseId: string, body: Omit<gateway.SaveAnswerIn, "content"> & { content: SavedAnswer }) =>
   answered(gateway.saveAnswerAsDocument(encodeURIComponent(caseId), body));
 /** What rebuilds a document sūveryn made (a saved answer's Word file). */

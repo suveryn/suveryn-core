@@ -260,6 +260,15 @@ def test_bad_requests(setup):
     assert c.put(url, json={"title": "", "turns": TURNS}, headers=alice).status_code == 422
     assert c.put(url, json={"title": "x", "turns": []}, headers=alice).status_code == 422
     assert c.put(url, json={"title": "x", "turns": [{"role": "system", "text": "x"}]}, headers=alice).status_code == 422
+    # the turns are the chat UI's own; what the gateway reads in them itself, the documents they name, must be readable
+    # (suveryn-tracker#250): a deleted document's passages are taken out of every saved turn that names it
+    answer = {"role": "assistant", "text": "€ 345.000 [1]"}
+    for unreadable in ({"citations": "all"}, {"citations": [{"text": "x", "source": {"document_id": 7}}]},
+                       {"citations": [{"text": "x", "source": "akte.pdf"}]}, {"attachments": [{"documentId": 7}]}, {"about": "akte.pdf"}):
+        assert c.put(url, json={"title": "x", "turns": [{**answer, **unreadable}]}, headers=alice).status_code == 422, unreadable
+    named = {**answer, "citations": [{"text": "x", "source": {"document_id": DOC, "page": 2}}, {"text": "y", "source": None}],
+             "attachments": [{"key": "k", "filename": "akte.pdf"}], "about": [{"documentId": DOC, "filename": "akte.pdf"}]}
+    assert c.put(url, json={"title": "x", "turns": [named]}, headers=alice).status_code == 204  # and anything else of its own
     huge = {"title": "x", "turns": [{"role": "user", "text": "a" * 150_000}] * 15}  # over 2 MB
     r = c.put(url, json=huge, headers=alice)
     assert r.status_code == 413 and r.json()["code"] == "conversation.too_long"
@@ -853,3 +862,27 @@ def test_deletions_during_the_wait_share_one_flush(monkeypatch, caplog):
         j = asyncio.run(five_deletions())
     assert flushed == ["postgresql://appliance/suveryn"] and j.flushes == 1
     assert sum("journal flushed after a deletion" in r.getMessage() for r in caplog.records) == 1
+
+
+def test_a_deleted_documents_passages_and_name_are_taken_out_of_what_the_chat_ui_saved():
+    """A saved conversation and a saved answer are the chat UI's own data; the gateway reads in them only the documents
+    they name, to take a deleted one's passages and file name out (``redact``; the rag's ``without`` for a saved
+    answer). Tested on the same saved turns as the chat UI's own clean-up (saved_turns_to_clean.json), so the places
+    the gateway looks are the chat UI's."""
+    import copy
+    import json
+    from pathlib import Path
+
+    from suveryn_api_gateway.conversations import ConversationIn, redact
+    from suveryn_rag.store import without
+
+    case = json.loads((Path(__file__).parent / "saved_turns_to_clean.json").read_text(encoding="utf-8"))
+    turns = copy.deepcopy(case["turns"])
+    ConversationIn(title="x", turns=turns)  # what the chat UI saves is taken
+    assert redact(turns, lambda d: d == case["deleted"]) is True
+    answer = without(case["answer"], case["deleted"])
+    for cleaned in (json.dumps(turns, ensure_ascii=False), json.dumps(answer, ensure_ascii=False)):
+        assert not [g for g in case["gone"] if g in cleaned], cleaned
+    everything = json.dumps([turns, answer], ensure_ascii=False)
+    assert all(s in everything for s in case["stays"])
+    assert redact(turns, lambda d: d == case["deleted"]) is False  # once is enough

@@ -35,7 +35,7 @@ import { dayLabel } from "../lib/conversations";
 import { checkJob } from "../lib/uploads";
 import { messageText, type Message } from "../lib/messages";
 import { exportRef } from "../lib/marks";
-import { EVENTS, eventText, personTurnText, playbookTurnText, type TurnMeta } from "../lib/runTurns";
+import { EVENTS, eventText, personTurnText, playbookTurnText } from "../lib/runTurns";
 import {
   ActionMenu, Button, Card, Dialog, IconBadge, IconButton, InlineNotice, SourceRef, TextArea, TextButton, useFilePicker, type MenuEntry,
 } from "../ui";
@@ -304,7 +304,7 @@ function PlaybookTurn({ turn, title, showSpeaker, words, review, quickReply, non
 }) {
   const m = useT();
   const [sending, setSending] = useState(false);
-  const meta = { step: turn.step_id ?? undefined, ...(turn.meta as TurnMeta) };  // a request's step is the turn's
+  const meta = { step: turn.step_id ?? undefined, ...turn.meta };  // a request's step is the turn's
   // the meaning in the reader's words (lib/runTurns.ts); a turn stored before 12 November keeps its text
   const text = meta.kind === "checkpoint" && review ? null : meta.kind ? playbookTurnText(meta, m, words) : turn.text;
   return (
@@ -553,7 +553,7 @@ function AddEntryCard({ list, fields, count, words, canAnswer, onAdd, inline = f
 function PersonTurn({ turn, nameOf, words }: { turn: RunTurn; nameOf: (u: string) => string; words: PlaybookWords }) {
   const m = useT();
   const said = personTurnText(turn, m, words);
-  const attachments = (turn.meta.attachments as { documentId: string; filename: string }[] | undefined) ?? [];
+  const attachments = turn.meta.attachments ?? [];
   return (
     <div className="turn-user">
       {attachments.length > 0 && (
@@ -574,7 +574,7 @@ function EventLine({ turn, nameOf }: { turn: RunTurn; nameOf: (u: string) => str
   const kind = turn.meta.kind as string;
   const icon = kind === "confirmed" ? <Check size={13} /> : kind === "paused" ? <Pause size={13} />
     : kind === "resumed" ? <Play size={13} /> : kind === "stopped" ? <Square size={13} /> : <CircleX size={13} />;
-  const text = eventText(turn.meta as TurnMeta, who, at, m);
+  const text = eventText(turn.meta, who, at, m);
   return <p className="run-line" data-kind={kind}><span aria-hidden>{icon}</span> {text}</p>;
 }
 

@@ -247,14 +247,17 @@ export function MembersDialog({ open, kase, canManage, canHandOver, officeWide, 
  *  language puts it, and the words around it. */
 export function eventParts<T extends object>(e: CaseEvent, m: ReturnType<typeof useT>, who: T | string, nameOf: (user: string) => string = () => "",
                                              playbookTitle: (id: string) => string = () => ""): (string | T)[] {
-  const d = e.detail as Record<string, string | string[]>;
+  const d = e.detail;
   switch (e.action) {
     case "created": return m.eventCreated.parts({ who });
     case "opened": return m.eventOpened.parts({ who });
-    case "documents": return m.eventDocuments.parts({ who });
     case "uploaded": return m.eventUploaded.parts({ who });
     case "asked": return m.eventAsked.parts({ who, n: Array.isArray(d.documents) ? d.documents.length : 0 });
+    case "upload_cancelled": return m.eventUploadCancelled.parts({ who });
+    case "document_opened": return m.eventDocumentOpened.parts({ who });
     case "document_deleted": return m.eventDocumentDeleted.parts({ who });
+    case "confidential_on": return m.eventConfidentialOn.parts({ who });
+    case "confidential_off": return m.eventConfidentialOff.parts({ who });
     case "source_confirmed": return m.eventSourceConfirmed.parts({ who });
     case "answer_saved": return m.eventAnswerSaved.parts({ who });
     case "conversation_moved_in": return m.eventConversationMovedIn.parts({ who });

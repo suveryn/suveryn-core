@@ -1,0 +1,24 @@
+{
+ "_about": "A saved conversation and a saved answer as the chat UI keeps them, and a document of theirs deleted: what must be gone from them after the clean-up, and what stays. Fictional. Read by both sides' tests (api-gateway/tests/test_conversations.py; chat-ui/src/lib/cleaning.test.ts), so the gateway's clean-up and the chat UI's own are tested on the same shapes (suveryn-tracker#250).",
+ "deleted": "11111111-1111-4111-8111-111111111111",
+ "turns": [
+  {"id": "u1", "role": "user", "text": "Wat is de koopprijs?",
+   "attachments": [{"key": "a1", "filename": "Compromis_Peeters.pdf", "status": "ready", "documentId": "11111111-1111-4111-8111-111111111111"},
+                   {"key": "a2", "filename": "Bodemattest.pdf", "status": "ready", "documentId": "22222222-2222-4222-8222-222222222222"}],
+   "about": [{"documentId": "11111111-1111-4111-8111-111111111111", "filename": "Compromis_Peeters.pdf"}]},
+  {"id": "a1", "role": "assistant", "text": "De koopprijs is € 345.000 [1]; het bodemattest is blanco [2].", "status": "done", "grounded": true,
+   "citations": [
+    {"text": "De koopprijs bedraagt € 345.000.", "source": {"document_id": "11111111-1111-4111-8111-111111111111", "page": 3, "location": "p. 3 · Artikel 2 - Prijs"},
+     "context": {"text": "Artikel 2. De koopprijs bedraagt € 345.000. Te betalen bij de akte.", "start": 11, "end": 44}},
+    {"text": "Het bodemattest is blanco.", "source": {"document_id": "22222222-2222-4222-8222-222222222222", "page": 1, "location": "p. 1"}}]}
+ ],
+ "answer": {
+  "question": "Wat is de koopprijs?", "answer": "De koopprijs is € 345.000 [1].", "answeredOn": "2026-11-23", "turnId": "a1", "caseRef": "2026/0417",
+  "citations": [{"text": "De koopprijs bedraagt € 345.000.", "source": {"document_id": "11111111-1111-4111-8111-111111111111", "page": 3, "location": "p. 3 · Artikel 2 - Prijs"}},
+                {"text": "Het bodemattest is blanco.", "source": {"document_id": "22222222-2222-4222-8222-222222222222", "page": 1, "location": "p. 1"}}],
+  "filenames": {"11111111-1111-4111-8111-111111111111": "Compromis_Peeters.pdf", "22222222-2222-4222-8222-222222222222": "Bodemattest.pdf"},
+  "calculations": [], "unverifiedFigures": [], "citationIssues": [], "instructionLikeSources": []
+ },
+ "gone": ["De koopprijs bedraagt", "Artikel 2", "Te betalen bij de akte", "Compromis_Peeters.pdf"],
+ "stays": ["Het bodemattest is blanco.", "Bodemattest.pdf", "De koopprijs is € 345.000", "Wat is de koopprijs?"]
+}

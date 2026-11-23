@@ -48,17 +48,20 @@ Fail closed: the default access, when the appliance hasn't chosen one, is member
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Literal, get_args
 
 import psycopg
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_serializer
 
 from .db import PgStore
 from .description import Answer
+
+log = logging.getLogger("suveryn.gateway")
 
 Access = Literal["default", "restricted"]
 State = Literal["open", "closed"]
@@ -366,14 +369,74 @@ class KeepIn(BaseModel):
     extend: bool = False
 
 
+# What a line of the access log says was done: every action the gateway writes, and has ever written (git's history of
+# routes/ and cases.py, read on 23 November 2026). A test holds the list to the code, and the chat UI words each one.
+CaseAction = Literal[
+    "created", "opened", "changed", "access_changed", "confidential_on", "confidential_off", "closed", "reopened", "keep_changed",
+    "member_added", "role_changed", "member_removed", "handed_over",
+    "uploaded", "upload_cancelled", "document_opened", "document_deleted", "source_confirmed", "answer_saved", "asked",
+    "conversation_shared", "conversation_unshared", "conversation_moved_in",
+    "playbook_started", "playbook_answered", "playbook_paused", "playbook_resumed", "playbook_confirmed", "playbook_stopped",
+    "playbook_cancelled"]
+
+
+CASE_ACTIONS = frozenset(get_args(CaseAction))
+
+
+class EventDetail(BaseModel):
+    """What a line of the access log names besides who did it and when: ids, roles, counts and dates, never text. Each
+    action says its own few (the case's access, a member and their role, a document, a run…): only those are kept and
+    sent, so no member is always there (the description's test names them, ``SOMETIMES``)."""
+
+    access: Literal["default", "restricted"] | None = None   # access_changed: the case's access now
+    unshared: int | None = None                               # confidential_on: how many shared conversations stopped being
+    fields: list[str] | None = None                           # changed: which of the case's fields
+    keep: bool | None = None                                  # keep_changed: kept for good
+    keep_until: str | None = None                             # closed, keep_changed: when it is deleted (ISO; None: kept)
+    user: str | None = None                                   # member_added, role_changed, member_removed: whom
+    role: Literal["reader", "contributor", "manager"] | None = None
+    account_deleted: bool | None = None                       # member_removed: because their account was deleted
+    manager: str | None = None                                # handed_over: to whom
+    job: str | None = None                                    # uploaded, upload_cancelled: the upload
+    document: str | None = None                               # document_opened, document_deleted, source_confirmed, answer_saved
+    ref: str | None = None                                    # source_confirmed: the mark that was noticed
+    documents: list[str] | None = None                        # asked, playbook_started: the documents asked about or to read
+    conversation: str | None = None                           # conversation_shared, conversation_unshared, conversation_moved_in
+    playbook: str | None = None                               # playbook_*: the playbook, its version, the run, the step answered
+    version: str | None = None
+    run: str | None = None
+    step: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _what_was_said(self, handler):
+        return {k: v for k, v in handler(self).items() if k in self.model_fields_set}
+
+    @classmethod
+    def kept(cls, detail: object) -> "EventDetail":
+        """A line's detail as it was kept: each member that is what this says it is, and nothing else (a member kept in
+        another shape, or that this doesn't know, is left out, never the line)."""
+        kept = detail if isinstance(detail, dict) else {}
+        try:
+            return cls.model_validate(kept)
+        except ValidationError:
+            good = {}
+            for k, v in kept.items():
+                try:
+                    cls.model_validate({k: v})
+                except ValidationError:
+                    continue
+                good[k] = v
+            return cls.model_validate(good)
+
+
 class CaseEvent(Answer):
     """One line of a case's access log: who, when, what (never document text)."""
 
     id: int
     user: str
     at: datetime
-    action: str
-    detail: dict
+    action: CaseAction
+    detail: EventDetail
     name: str = ""  # who, as the case knows them or, for a deleted account, as it was called
 
 
@@ -749,7 +812,10 @@ class CaseStore(PgStore):
                              ' LEFT JOIN case_members m ON m.case_id = e.case_id AND m."user" = e."user"'
                              ' LEFT JOIN departed_accounts d ON d.sub = e."user"'
                              " WHERE e.case_id = %s ORDER BY e.at DESC, e.id DESC LIMIT %s", (case_id, limit)).fetchall()
-        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=r[4], name=r[5]) for r in rows]
+        known = [r for r in rows if r[3] in CASE_ACTIONS]
+        if len(known) < len(rows):  # written by a newer version, after going back to this one: said here, not a failed log
+            log.warning("access log: %d line(s) of an action this version doesn't know left out", len(rows) - len(known))
+        return [CaseEvent(id=r[0], user=r[1], at=r[2], action=r[3], detail=EventDetail.kept(r[4]), name=r[5]) for r in known]
 
     def purge_events(self) -> int:
         """Delete access-log lines older than the retention; how many."""

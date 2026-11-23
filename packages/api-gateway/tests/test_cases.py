@@ -1182,9 +1182,12 @@ def test_store_members_handover_and_the_log(store):
     last = s.last_activity([cid, other])
     assert last[cid][1] == carla and last[other][1] == bob
     s.delete(other)
-    assert events[0].detail == {"documents": ["x"]}
+    assert events[0].detail.model_dump() == {"documents": ["x"]}
     s._execute("UPDATE case_events SET at = now() - interval '181 days' WHERE case_id = %s AND action = 'created'", (cid,))
     assert [e.action for e in s.events(cid)] == ["asked", "opened"]  # purged after 180 days
+    # a line a newer version wrote, after going back to this one: left out, said in the server's log, the rest is read
+    s.log(cid, alice, "a_future_action", {"user": bob})
+    assert [e.action for e in s.events(cid)] == ["asked", "opened"]
     assert s.delete(cid) and s.events(cid) == []  # the log goes with the case
 
 
@@ -2081,3 +2084,49 @@ def test_the_keep_periods_are_one_list():
 
     assert get_args(KeepPeriod) == tuple(KEEP_PERIODS)
 
+
+
+def test_every_line_the_gateway_writes_in_an_access_log_is_described():
+    """The access log's actions and details are described (suveryn-tracker#250): each action the gateway writes is one
+    ``CaseAction`` names, and each detail one ``EventDetail`` has. Read from the code, so a new line can't be missed."""
+    import ast
+    import pathlib
+    from typing import get_args
+
+    from suveryn_api_gateway.cases import CaseAction, EventDetail
+
+    package = pathlib.Path(__import__("suveryn_api_gateway").__file__).parent
+    actions, details, calls = set(), set(), 0
+
+    def words(node) -> set[str]:  # an action as written: a word, or one of two (``"a" if … else "b"``)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return {node.value}
+        if isinstance(node, ast.IfExp):
+            return words(node.body) | words(node.orelse)
+        raise AssertionError(f"an action that isn't written as a word: {ast.unparse(node)}")
+
+    for module in [*package.glob("*.py"), *(package / "routes").glob("*.py")]:
+        for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            name = node.func.id if isinstance(node.func, ast.Name) else node.func.attr if isinstance(node.func, ast.Attribute) else ""
+            if name == "log_access" and len(node.args) >= 3 or name == "log" and module.name == "cases.py" and len(node.args) == 4:
+                calls += 1
+                actions |= words(node.args[2])
+                for part in ast.walk(node.args[3]) if len(node.args) > 3 else []:
+                    if isinstance(part, ast.Dict):
+                        details |= {k.value for k in part.keys if isinstance(k, ast.Constant)}
+    assert calls > 25 and actions and details
+    assert actions <= set(get_args(CaseAction)), sorted(actions - set(get_args(CaseAction)))
+    assert details <= set(EventDetail.model_fields), sorted(details - set(EventDetail.model_fields))
+
+
+def test_a_line_kept_in_another_shape_is_still_read():
+    """A line of the access log is read back with what is known of its detail: one member kept in another shape is
+    left out, never the line, and only what the line said is sent."""
+    from suveryn_api_gateway.cases import EventDetail
+
+    assert EventDetail.kept({"user": "bob-sub", "role": "reader"}).model_dump() == {"user": "bob-sub", "role": "reader"}
+    assert EventDetail.kept({"user": "bob-sub", "role": "owner", "colour": "blue"}).model_dump() == {"user": "bob-sub"}
+    assert EventDetail.kept({"keep_until": None}).model_dump() == {"keep_until": None}  # said: kept until deleted by hand
+    assert EventDetail.kept(None).model_dump() == {} and EventDetail.kept("closed").model_dump() == {}

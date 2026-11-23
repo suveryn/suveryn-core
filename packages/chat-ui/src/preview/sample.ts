@@ -297,7 +297,7 @@ export const RUN: Run = {
                                                                 "De akte zal verleden worden uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst, en in elk geval na de vervulling van de opschortende voorwaarde.",
                                                                 "De kosten van de akte zijn ten laste van de kopers.") }],
          { needs: "computed", computed: { written: "uiterlijk binnen vier maanden na de ondertekening van deze overeenkomst", from: "agreement_date",
-                                          base: "2026-10-12", date: "2027-02-12", amount: 4, unit: "month", direction: "after" } }),
+                                          base: "2026-10-12", date: "2027-02-12", amount: 4, unit: "month", direction: "after", kind: "term", calendar: null } }),
     fact("conditions[1].condition", "Hypothecair krediet, binnen vier weken na ondertekening", [COMPROMIS(5, "Onder de opschortende voorwaarde van het verkrijgen van een hypothecair krediet binnen vier weken na ondertekening.", "vier")]),
     fact("title", "Akte van 3 maart 1998, notaris Verhaeghe", [TITEL(3, "Verleden voor notaris Verhaeghe op 3 maart 1998.", "3 maart 1998")]),
     fact("epc", "20260915-0002, label C", [], { source: "person", by: "mieke@kantoor.be", at: ago(64 * MIN), found: false }),
@@ -408,7 +408,7 @@ function runIn(change: Partial<Run>): Route[] {
   ];
 }
 const later = (min: number) => ago((63 - min) * MIN);
-const event = (seq: number, kind: string, by: string, min: number, meta: Record<string, unknown> = {}): Run["turns"][number] =>
+const event = (seq: number, kind: Run["turns"][number]["meta"]["kind"], by: string, min: number, meta: Run["turns"][number]["meta"] = {}): Run["turns"][number] =>
   ({ seq, role: "playbook", step_id: "confirm", by, at: later(min), text: "", meta: { kind, ...meta } });
 export const RUN_READING = runIn({ status: "reading", step: "read", turns: RUN.turns.slice(0, 2), facts: [], checks: {} });
 export const RUN_PAUSED = runIn({ status: "paused", paused_by: "filip@kantoor.be", paused_at: later(15),
