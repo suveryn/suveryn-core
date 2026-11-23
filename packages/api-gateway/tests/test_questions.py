@@ -15,7 +15,15 @@ import pytest
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
-from suveryn_api_gateway.conversations import ConversationIn, ConversationSettings, ConversationStore, Turn, answered_turn, history_pairs
+from suveryn_api_gateway.conversations import (
+    ConversationIn,
+    ConversationSettings,
+    ConversationStore,
+    Turn,
+    answered_turn,
+    history_pairs,
+    path_to,
+)
 from suveryn_api_gateway.routes import conversations as routes
 from suveryn_harness import ChatResponse, Citation, LlamaServerClient, LLMSettings, SourceRef, conversation_history
 from suveryn_harness.history import HISTORY_CHARS, MAX_HISTORY
@@ -53,13 +61,21 @@ def turn(seq, role, text, **meta):
     return Turn(seq=seq, role=role, by="x", at="2026-11-23T10:00:00Z", text=text, meta=meta)
 
 
-def test_of_several_versions_of_an_answer_the_model_reads_the_one_gone_on_from_or_the_newest():
-    turns = [turn(1, "user", "q1"), turn(2, "assistant", "a1", outcome="done"), turn(3, "assistant", "a1b", outcome="done"),
-             turn(4, "user", "q2", follows=2), turn(5, "assistant", "a2", outcome="done"), turn(6, "assistant", "", outcome="failed"),
-             turn(7, "user", "q3"), turn(8, "assistant", "a3", outcome="done"), turn(9, "assistant", "a3b", outcome="done")]
-    assert history_pairs(turns) == [("q1", "a1"), ("q2", None), ("q3", "a3b")]  # q2 went on from its failed newest
-    assert history_pairs(turns, follows=8)[-1] == ("q3", "a3")
-    assert history_pairs(turns, follows=99)[-1] == ("q3", "a3b")  # not one of its versions: the newest
+def test_the_model_reads_the_branch_of_the_tree_on_the_way_to_the_question():
+    """A conversation is a tree (the founder's decision of 23 November 2026, as Claude and ChatGPT): each turn names
+    the one it follows. Two answers to q1; q2 followed the first, q3 the second; then a turn the chat UI saved."""
+    turns = [turn(1, "user", "q1", parent=None), turn(2, "assistant", "a1", parent=1, outcome="done"),
+             turn(3, "assistant", "a1b", parent=1, outcome="done"),
+             turn(4, "user", "q2", parent=2), turn(5, "assistant", "a2", parent=4, outcome="done"),
+             turn(6, "user", "q3", parent=3), turn(7, "assistant", "", parent=6, outcome="failed"),
+             turn(8, "user", "q4 saved by the chat UI"), turn(9, "assistant", "a4", status="done")]  # no parent: the turn before
+    assert [t.seq for t in path_to(turns, 5)] == [1, 2, 4, 5]
+    assert history_pairs(path_to(turns, 5)) == [("q1", "a1"), ("q2", "a2")]
+    assert history_pairs(path_to(turns, 7)) == [("q1", "a1b"), ("q3", None)]
+    assert [t.seq for t in path_to(turns, 9)] == [1, 3, 6, 7, 8, 9]
+    assert path_to(turns, None) == [] and path_to(turns, 99) == []
+    looped = [turn(1, "user", "q", parent=2), turn(2, "assistant", "a", parent=1, outcome="done")]
+    assert len(path_to(looped, 2)) <= 3  # a loop in what was stored ends
 
 
 def test_the_pairs_are_read_from_the_servers_turns_and_from_turns_the_chat_ui_saved():
@@ -69,6 +85,7 @@ def test_the_pairs_are_read_from_the_servers_turns_and_from_turns_the_chat_ui_sa
              turn(7, "user", "q4"), turn(8, "assistant", "a4 so far", kind="answer", outcome="stopped"),
              turn(9, "user", "q5")]
     assert history_pairs(turns) == [("q1", "a1"), ("q2", None), ("q3", "a3"), ("q4", None), ("q5", None)]
+    assert history_pairs(path_to(turns, 9)) == history_pairs(turns)  # without parents: each follows the one before
 
 
 # What an answer's row keeps.
@@ -93,7 +110,7 @@ def test_what_an_answer_keeps_is_everything_the_answer_says_beside_its_words():
     from suveryn_api_gateway.conversations import AnsweredTurn
 
     kept = set(ChatResponse.model_fields) - {"id", "answer", "usage"}
-    assert set(AnsweredTurn.model_fields) == kept | {"kind", "outcome", "failure"}
+    assert set(AnsweredTurn.model_fields) == kept | {"kind", "parent", "outcome", "failure"}
 
 
 def test_a_failed_answer_keeps_no_words_and_a_stopped_one_keeps_what_was_written():
@@ -221,38 +238,65 @@ def numbered(captured: list[dict]) -> httpx.MockTransport:
 
 
 @needs_db
-def test_asking_again_keeps_the_earlier_answer_and_the_next_question_goes_on_from_the_one_chosen(store):
-    """Regenerate adds a version of the answer and the earlier one stays (the founder's decision of 23 November 2026,
-    as Claude and ChatGPT do). A new question goes on from the version the person had in front of them."""
+def test_regenerate_keeps_the_earlier_answers_and_a_question_goes_on_from_the_one_chosen(store):
+    """A conversation is a tree, as in Claude and ChatGPT (the founder's decision of 23 November 2026): *Regenerate*
+    gives a question another answer, the earlier ones stay, and a question follows the answer the person has in front
+    of them, anywhere in the conversation; the model reads that branch."""
     captured: list[dict] = []
     c, kc = app(store, numbered(captured))
     alice, cid = as_user(kc, ALICE), str(uuid.uuid4())
 
-    def ask(**body):
+    def ask(**body) -> list[tuple[str, dict]]:
         with c.stream("POST", f"/v1/conversations/{cid}/questions", json=body, headers=alice) as r:
             assert r.status_code == 200, r.read()
-            events(r)
+            return events(r)
 
     def read_before(i: int) -> list[str]:  # the answers the model read before request i's question
         return [m["content"] for m in captured[i]["messages"] if m["role"] == "assistant"]
+
+    def seq(text: str) -> int:
+        return next(t.seq for t in store.turns_of(uuid.UUID(cid)) if t.text == text)
     with c:
-        assert c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "again": True}, headers=alice).status_code == 409
-        ask(text="Wat is de koopprijs?")
-        ask(text="Wat is de koopprijs?", again=True)
+        ask(text="Wat is de koopprijs?", thinking=False)
+        q1 = seq("Wat is de koopprijs?")
+        ask(again=q1)
         assert [(role, text) for role, text, _ in stored(store, cid)] == [
             ("user", "Wat is de koopprijs?"), ("assistant", "Antwoord 1"), ("assistant", "Antwoord 2")]
-        assert read_before(1) == []  # asked again, the model reads what it read the first time
-        first = store.turns_of(uuid.UUID(cid))[1].seq
-        r = c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "follows": 999}, headers=alice)
-        assert r.status_code == 409 and r.json()["code"] == "request.conflict"
-        assert c.post(f"/v1/conversations/{cid}/questions", json={"text": "?", "again": True, "follows": first}, headers=alice).status_code == 422
-        ask(text="En de datum?", follows=first)  # the person switched back to the first answer
-        assert read_before(2) == ["Antwoord 1"] and stored(store, cid)[3][2]["follows"] == first
-        ask(text="En de datum?", again=True)  # asked again: still on from the first answer
-        assert read_before(3) == ["Antwoord 1"]
-        ask(text="Wie koopt?")
-        assert read_before(4)[-1] == "Antwoord 4"  # the newest version of the answer before
-        assert c.get(f"/v1/conversations/{cid}", headers=alice).json()["messages"] == 8
+        assert [m["parent"] for _, _, m in stored(store, cid)] == [None, q1, q1] and read_before(1) == []
+        ask(text="En de datum?", after=seq("Antwoord 1"))  # the person switched back to the first answer
+        assert read_before(2) == ["Antwoord 1"]
+        ask(text="Wie koopt?")  # without after: the newest turn, Antwoord 3
+        assert read_before(3) == ["Antwoord 1", "Antwoord 3"]
+        ask(again=seq("En de datum?"))  # another answer to it, on the same branch
+        assert read_before(4) == ["Antwoord 1"]
+        ask(text="Wie verkoopt?", after=seq("Antwoord 2"))  # carrying on from the second answer, after all that
+        assert read_before(5) == ["Antwoord 2"]
+        assert c.get(f"/v1/conversations/{cid}", headers=alice).json()["messages"] == 10
+
+
+@needs_db
+def test_regenerate_asks_a_stored_question_as_it_was_asked_and_nothing_else(store):
+    """Review, finding 1: asked again, a question is asked with its own documents and settings, which its stored row
+    says, never new ones from the browser. Finding 2: a refused request leaves nothing behind."""
+    captured: list[dict] = []
+    c, kc = app(store, numbered(captured))
+    alice, cid = as_user(kc, ALICE), str(uuid.uuid4())
+    with c:
+        for body in ({"again": 1}, {"text": "?", "after": 1}):  # a new conversation has nothing to follow or ask again
+            r = c.post(f"/v1/conversations/{cid}/questions", json=body, headers=alice)
+            assert r.status_code == 409 and r.json()["code"] == "request.conflict"
+        assert c.get(f"/v1/conversations/{cid}", headers=alice).status_code == 404  # nothing was started
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?", "thinking": True}, headers=alice) as r:
+            events(r)
+        first, answer = (t.seq for t in store.turns_of(uuid.UUID(cid)))
+        assert c.post(f"/v1/conversations/{cid}/questions", json={"again": first, "thinking": False}, headers=alice).status_code == 422
+        assert c.post(f"/v1/conversations/{cid}/questions", json={}, headers=alice).status_code == 422
+        for body in ({"again": answer}, {"again": 99}, {"text": "?", "after": first}, {"text": "?", "after": 99}):
+            assert c.post(f"/v1/conversations/{cid}/questions", json=body, headers=alice).status_code == 409, body
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"again": first}, headers=alice) as r:
+            events(r)
+    assert captured[0].get("chat_template_kwargs") == captured[1].get("chat_template_kwargs") == {"enable_thinking": True}  # Thorough both times
+    assert [role for role, _, _ in stored(store, cid)] == ["user", "assistant", "assistant"]
 
 
 @needs_db
@@ -348,9 +392,10 @@ def test_two_regenerates_at_once_make_one_version(store):
             for q in ("q1", "q2"):
                 assert (await c.post(f"/v1/conversations/{cid}/questions", json={"text": q})).status_code == 200
             statuses: list[int] = []
+            q2 = next(t.seq for t in store.turns_of(uuid.UUID(cid)) if t.text == "q2")
 
             async def again():
-                statuses.append((await c.post(f"/v1/conversations/{cid}/questions", json={"text": "q2", "again": True})).status_code)
+                statuses.append((await c.post(f"/v1/conversations/{cid}/questions", json={"again": q2})).status_code)
             async with anyio.create_task_group() as g:
                 g.start_soon(again)
                 g.start_soon(again)
@@ -363,18 +408,6 @@ def test_two_regenerates_at_once_make_one_version(store):
             ("user", "q1"), ("assistant", "A"), ("user", "q2"), ("assistant", "A"), ("assistant", "A")]
     finally:
         store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))
-
-
-@needs_db
-def test_regenerate_asks_the_last_question_again_and_nothing_else(store):
-    c, kc = app(store, llm_transport([]))
-    alice, cid = as_user(kc, ALICE), str(uuid.uuid4())
-    with c:
-        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?"}, headers=alice) as r:
-            events(r)
-        r = c.post(f"/v1/conversations/{cid}/questions", json={"text": "Iets anders", "again": True}, headers=alice)
-        assert r.status_code == 409 and r.json()["code"] == "request.conflict"
-    assert [text for _, text, _ in stored(store, cid)][0] == "Wat is de koopprijs?" and len(stored(store, cid)) == 2
 
 
 @needs_db

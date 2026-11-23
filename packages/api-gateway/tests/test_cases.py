@@ -1866,7 +1866,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     assert check("POST", asking, 422, f"{every}/not-an-id/questions", json=question, headers=alice).json()["code"] == "request.invalid"
     assert "errors" in check("POST", asking, 422, f"{every}/{NEW_ONE}/questions", json={"text": ""}, headers=alice).json()
     assert check("POST", asking, 404, f"{every}/{BOBS}/questions", json=question, headers=alice).json()["code"] == "request.not_found"
-    r = check("POST", asking, 409, f"{every}/{NEW_ONE}/questions", "nothing_to_ask_again", json={**question, "again": True}, headers=alice)
+    r = check("POST", asking, 409, f"{every}/{NEW_ONE}/questions", "nothing_to_ask_again", json={"again": 1}, headers=alice)
     assert r.json()["code"] == "request.conflict"
     assert check("POST", asking, 403, f"{every}/{NEW_ONE}/questions", json={**question, "case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
     asked = check("POST", asking, 200, f"{every}/{NEW_ONE}/questions", "asked", tidy=same_every_run(), json=question, headers=alice)

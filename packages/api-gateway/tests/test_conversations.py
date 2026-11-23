@@ -173,6 +173,7 @@ class FakeConversations:
     def add(self, cid, role, by, text, meta, documents):
         self.rows[cid]["turns"].append({"role": role, "text": text, "by": by, **meta})
         self.rows[cid]["updated_at"] = datetime.now(UTC)
+        return self.turns_of(cid)[-1]
 
     def using_document(self, owner, document_id, case_id=None):
         rows = sorted((r for r in self.rows.values() if (r["case_id"] == case_id if case_id is not None else r["owner"] == owner)),
