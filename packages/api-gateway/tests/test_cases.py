@@ -2035,8 +2035,9 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
     copied = check("POST", turn, 201, at_turn(ASKED, 2), "saved_from_turn", tidy=tidy, headers=bob).json()
     assert copied["created"] is True and copied["filename"] == "What is the price.docx"
     assert check("POST", turn, 200, at_turn(ASKED, 2), headers=bob).json() == {**copied, "created": False}
-    stored = check("GET", content, 200, of(content, copied["id"], f"?case={cid}"), headers=carla).json()["content"]
-    assert (stored["question"], stored["answer"], stored["turn"]) == ("What is the price?", "De koopprijs is EUR 412.500,00 [1].", 2)
+    stored = check("GET", content, 200, of(content, copied["id"], f"?case={cid}"), "content_from_turn",
+                   tidy=same_every_run(moments=("answeredOn",)), headers=carla).json()["content"]
+    assert (stored["question"], stored["answer"], stored["turnId"]) == ("What is the price?", "De koopprijs is EUR 412.500,00 [1].", f"{ASKED}/2")
 
     # deleted, with the conversations that cite it cleaned; accepted when that cleaning is still to be done
     assert "errors" in check("DELETE", one, 422, of(one, DOC, "?conversations=keep"), headers=alice).json()

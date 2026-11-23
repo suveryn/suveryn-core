@@ -5,6 +5,7 @@ Available when ``suveryn-rag`` is installed and a database is configured; otherw
 import json
 import logging
 import uuid
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import quote
 
@@ -187,7 +188,8 @@ class SavedAnswerDocument(Answer):
 
 
 class DocumentContent(Answer):
-    """What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``)."""
+    """What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the
+    same shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251)."""
 
     id: str
     filename: str
@@ -423,7 +425,9 @@ class SaveAnswerIn(BaseModel):
     text: str = Field(min_length=1, max_length=200_000)  # what search finds: the question and the answer
     content: AnswerContent
     conversation_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
-    message_id: str = Field(min_length=1, max_length=100)
+    # The chat UI's own id for the answer: never "<conversation>/<seq>", which names an answer the server copied
+    # (save_turn_as_document), so a saved answer sent whole can't pass for one the server copied (#251, review).
+    message_id: str = Field(min_length=1, max_length=100, pattern=r"^[^/]+$")
 
     @field_validator("content")
     @classmethod
@@ -490,16 +494,17 @@ async def save_turn_as_document(conversation_id: str, seq: int, request: Request
         response.status_code = 200
         return {"id": found[0], "filename": found[1], "created": False}
     meta = answer.meta
-    cited = {c["source"]["document_id"] for c in meta.get("citations", []) if c.get("source") and not c.get("removed")}
+    citations = meta.get("citations", [])  # as stored: a deleted document's passage stays out, marked removed
+    cited = {c["source"]["document_id"] for c in citations if c.get("source") and not c.get("removed")}
     names = {str(d["id"]): d["filename"] for d in await run_in_threadpool(docs.documents, scope) if str(d["id"]) in cited}
-    content = SavedAnswer(question=question.text, answer=answer.text, answered_at=answer.at, model=meta.get("model"),
-                          citations=meta.get("citations", []), calculations=meta.get("calculations", []),
+    content = SavedAnswer(question=question.text, answer=answer.text, answered_on=datetime.now(UTC), model=meta.get("model"),
+                          citations=citations, calculations=meta.get("calculations", []),
                           unverified_figures=meta.get("unverified_figures", []), citation_issues=meta.get("citation_issues", []),
                           support_spans=meta.get("support_spans", []), instruction_like_sources=meta.get("instruction_like_sources", []),
-                          filenames=names, conversation_id=str(cid), turn=seq, case_ref=case.reference)
-    filename = file_name(question.text, seq)
+                          filenames=names, turn_id=message, case_ref=case.reference)
+    filename = file_name(question.text)
     document_id = await run_in_threadpool(docs.store_text, filename, search_text(question.text, answer.text), scope, "answer",
-                                          {"conversation": str(cid), "message": message}, content.model_dump(mode="json"),
+                                          {"conversation": str(cid), "message": message, "turn": seq}, content.model_dump(mode="json"),
                                           owner_of(request))
     await touch_case(request, scope)
     await log_access(request, scope.case_id, "answer_saved", {"document": document_id})

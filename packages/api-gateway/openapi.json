@@ -2691,7 +2691,7 @@
     "type": "object"
    },
    "DocumentContent": {
-    "description": "What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``).",
+    "description": "What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the\nsame shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251).",
     "properties": {
      "content": {
       "additionalProperties": true,
@@ -5494,6 +5494,7 @@
      "message_id": {
       "maxLength": 100,
       "minLength": 1,
+      "pattern": "^[^/]+$",
       "title": "Message Id",
       "type": "string"
      },

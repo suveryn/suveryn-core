@@ -1075,6 +1075,7 @@ export interface SaveAnswerIn {
   /**
      * @minLength 1
      * @maxLength 100
+     * @pattern ^[^/]+$
      */
   message_id: string;
   /**
@@ -2410,7 +2411,8 @@ export const DocumentContentOrigin = {
 } as const;
 
 /**
- * What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``).
+ * What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the
+ * same shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251).
  */
 export interface DocumentContent {
   content: DocumentContentContent;

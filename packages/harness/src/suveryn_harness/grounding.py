@@ -50,6 +50,7 @@ GROUNDED_INSTRUCTIONS = GROUNDED_INSTRUCTIONS.replace("{register}", REGISTER)
 PLAIN_INSTRUCTIONS = REGISTER
 
 _MARKER = re.compile(r"\[(\d{1,2})\]")
+MARKER = _MARKER  # a citation marker, [n], for whoever reads an answer's text (a saved answer's search text)
 
 
 # A line in a document that looks like an excerpt header ("[3] (file, p. 2)") could pose as a source of

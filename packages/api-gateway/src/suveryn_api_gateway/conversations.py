@@ -80,6 +80,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from suveryn_harness.grounding import MARKER
 from suveryn_harness.schemas import Calculation, Citation, CitationIssue, SupportSpan
 
 from .cases import KEEP_PERIODS
@@ -293,28 +294,26 @@ class AnsweredTurn(Answer):
 
 
 class SavedAnswer(Answer):
-    """What an answer saved to its case keeps as its document's ``content`` (what rebuilds its Word file), as the
-    server writes it from the answer it stored (suveryn-tracker#251, step 2): the question and the answer as written,
-    its passages and checks, and its sources' file names as they were. ``citations`` and ``filenames`` are where a
-    document's deletion takes its passages and name out (the rag's ``store.without``)."""
+    """What an answer saved to its case keeps as its document's ``content`` (what rebuilds its Word file), when the
+    server copies it from the answer it stored (suveryn-tracker#251, step 2): in the shape the chat UI has always
+    saved and reads (its ``SavedAnswer``, ``lib/saved.ts``), so every saved answer is read one way. The passages are
+    copied as stored, with ``removed`` where a deleted document was taken out; ``citations`` and ``filenames`` are
+    where a later deletion takes them out (the rag's ``store.without``)."""
 
+    model_config = ConfigDict(serialize_by_alias=True, validate_by_name=True)
     question: str
     answer: str
-    answered_at: datetime            # when the answer was written
+    answered_on: datetime = Field(alias="answeredOn")  # when it was saved, as the chat UI keeps it
     model: str | None
-    citations: list[Citation]
-    calculations: list[Calculation]
-    unverified_figures: list[str]
-    citation_issues: list[CitationIssue]
-    support_spans: list[SupportSpan]
-    instruction_like_sources: list[int]
-    filenames: dict[str, str]        # a cited document's id: its file name when the answer was saved
-    conversation_id: str
-    turn: int                        # the answer's ``seq`` in its conversation: the file's mark refers to it
-    case_ref: str                    # the case's reference, as the file's mark shows it
-
-
-MARKER = re.compile(r"\[(\d{1,2})\]")
+    citations: list[dict]
+    calculations: list[dict]
+    unverified_figures: list[str] = Field(alias="unverifiedFigures")
+    citation_issues: list[dict] = Field(alias="citationIssues")
+    support_spans: list[dict] = Field(alias="supportSpans")
+    instruction_like_sources: list[int] = Field(alias="instructionLikeSources")
+    filenames: dict[str, str]                      # a cited document's id: its file name when the answer was saved
+    turn_id: str = Field(alias="turnId")           # "<conversation>/<seq>": the file's mark refers to it
+    case_ref: str | None = Field(alias="caseRef")  # the case's reference, as the file's mark shows it
 
 
 def search_text(question: str, answer: str) -> str:
@@ -323,12 +322,13 @@ def search_text(question: str, answer: str) -> str:
     return f"{question}\n\n{re.sub(r'[ \t]+([.,;:])', r'\1', MARKER.sub('', answer))}".strip()
 
 
-def file_name(question: str, seq: int) -> str:
+def file_name(question: str) -> str:
     """A saved answer's Word file name: its question, on one line, without characters a file name can't hold, at most
-    80 characters (as the chat UI's ``answerFileName``); the answer's ``seq`` when nothing of it is left."""
+    80 characters, "answer" when nothing of it is left (as the chat UI's ``answerFileName``; copied until the chat UI
+    stops saving answers itself, suveryn-tracker#251 step 4)."""
     name = re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", question)).strip()
     name = re.sub(r"[. ]+$", "", name)
-    return f"{name[:80].rstrip() if len(name) > 80 else name or seq}.docx"
+    return f"{(name[:80].rstrip() if len(name) > 80 else name) or 'answer'}.docx"
 
 
 def title_of(question: str) -> str:

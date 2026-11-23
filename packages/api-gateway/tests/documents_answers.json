@@ -131,6 +131,30 @@
   "media_type": "application/json",
   "status": 200
  },
+ "content_from_turn": {
+  "body": {
+   "content": {
+    "answer": "De koopprijs is EUR 412.500,00 [1].",
+    "answeredOn": "2026-11-23T09:00:00Z",
+    "calculations": [],
+    "caseRef": "2026/0417",
+    "citationIssues": [],
+    "citations": [],
+    "filenames": {},
+    "instructionLikeSources": [],
+    "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+    "question": "What is the price?",
+    "supportSpans": [],
+    "turnId": "00000000-0000-4000-8000-0000000000a2/2",
+    "unverifiedFigures": []
+   },
+   "filename": "What is the price.docx",
+   "id": "00000000-0000-4000-8000-000000000001",
+   "origin": "answer"
+  },
+  "media_type": "application/json",
+  "status": 200
+ },
  "disk_full": {
   "body": {
    "code": "upload.disk_full",
