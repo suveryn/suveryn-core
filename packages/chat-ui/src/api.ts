@@ -13,7 +13,7 @@ import * as gateway from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
 /** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
- *  have it. A saved turn is the chat UI's own data (the founder's decision of 23 November 2026, suveryn-tracker#250):
+ *  have it. A saved turn is the chat UI's own data (for now: the server will store each turn, suveryn-tracker#251):
  *  the screens read its passages, calculations and marks through these. */
 type Kept<Shape, Lacking extends keyof Shape> = Omit<Shape, Lacking> & Partial<Pick<Shape, Lacking>>;
 type SourceRef = Kept<gateway.SourceRef, "decimals">;
@@ -285,8 +285,8 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
-/** A conversation with its turns. A turn is the chat UI's own data, its type the chat UI's (`Turn`; the founder's
- *  decision of 23 November 2026, suveryn-tracker#250): the gateway keeps it as it is. */
+/** A conversation with its turns. A turn is the chat UI's own data, its type the chat UI's (`Turn`; for now: the
+ *  server will store each turn, suveryn-tracker#251): the gateway keeps it as it is. */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
@@ -629,7 +629,7 @@ export const confirmAsSource = async (documentId: string, caseId?: string | null
 };
 /** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source. Saving the
  *  same answer again gives the document already saved (`created` false). What it holds (`content`) is the chat UI's
- *  own data (`SavedAnswer`; the founder's decision of 23 November 2026, suveryn-tracker#250). */
+ *  own data (`SavedAnswer`; for now: the server will store each turn, suveryn-tracker#251). */
 export const saveAnswerToCase = (caseId: string, body: Omit<gateway.SaveAnswerIn, "content"> & { content: SavedAnswer }) =>
   answered(gateway.saveAnswerAsDocument(encodeURIComponent(caseId), body));
 /** What rebuilds a document sūveryn made (a saved answer's Word file). */

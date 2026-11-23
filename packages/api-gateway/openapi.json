@@ -5483,7 +5483,7 @@
    },
    "SavedTurn": {
     "additionalProperties": true,
-    "description": "One turn as the UI saves it: its shape is the chat UI's own (the founder's decision of 23 November 2026,\nsuveryn-tracker#250). Checked: the role, the text's length, and the form of the document references at the three\nplaces the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked\nabout), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the\nplaces a saved turn names a document is held by a test both sides share (tests/saved_turns_to_clean.json;\nthe chat UI's src/lib/cleaning.test.ts).",
+    "description": "One turn as the UI saves it: its shape is the chat UI's own (for now: the server will store each turn\nas it answers, suveryn-tracker#251). Checked: the role, the text's length, and the form of the document references at the three\nplaces the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked\nabout), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the\nplaces a saved turn names a document is held by a test both sides share (tests/saved_turns_to_clean.json;\nthe chat UI's src/lib/cleaning.test.ts).",
     "properties": {
      "role": {
       "enum": [

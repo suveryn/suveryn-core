@@ -1,4 +1,4 @@
-/** A saved conversation is the chat UI's own data (the founder's decision of 23 November 2026, suveryn-tracker#250): the
+/** A saved conversation is the chat UI's own data (for now: the server will store each turn, suveryn-tracker#251): the
  *  gateway keeps it as it is and reads in it only the documents it names, to take a deleted one's passages and file
  *  name out. These tests hold the two together: every member of a saved turn says whether it names a document, and the
  *  chat UI's clean-up and the gateway's run on the same saved turns (packages/api-gateway/tests/saved_turns_to_clean.json). */

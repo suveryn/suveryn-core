@@ -194,8 +194,8 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
 
 
 # What the chat UI makes and the gateway keeps for it as it is: a conversation's turns and what rebuilds a saved answer's
-# file. The chat UI's own data, its shape the chat UI's own (the founder's decision of 23 November 2026,
-# suveryn-tracker#250): the gateway reads in them only the documents they name, to take a deleted document's passages
+# file. The chat UI's own data, its shape the chat UI's own (for now: the server will store each turn as it
+# answers, suveryn-tracker#251): the gateway reads in them only the documents they name, to take a deleted document's passages
 # out of them, and checks the form of those references (conversations.py ``SavedTurn``, routes/documents.py
 # ``SavedCitation``; the places held to the chat UI's shapes by tests/saved_turns_to_clean.json).
 CHAT_UIS_OWN = {"Conversation.turns": "a saved conversation's turns, as the chat UI saved them",
