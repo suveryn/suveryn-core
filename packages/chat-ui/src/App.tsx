@@ -65,12 +65,12 @@ import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
 import { answerStored, conversationTitle, listedTitle, newConversationId, withoutDocument } from "./lib/conversations";
-import { answeredAgain, asked as asked_, NO_CONVERSATION, shownOf, switchedTo, versionsOf, without,
+import { answeredAgain, asked as asked_, NO_CONVERSATION, regenerating, shownOf, switchedTo, versionsOf, without,
          type Conversation } from "./lib/versions";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
-import { answerPatch, askedAgain, canRegenerate, conversationDocuments, failureKind, questionFor, toFollow, withStored } from "./lib/ask";
+import { answerPatch, canRegenerate, conversationDocuments, failureKind, questionFor, toFollow, withStored } from "./lib/ask";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
 import { lang, locale, t, useLang, useT } from "./i18n";
@@ -699,11 +699,10 @@ function Chat({ me }: { me: Me }) {
   // and what followed it leaves the screen (one arrow away). Without saved conversations: the last failed one, as before.
   const regenerable = (i: number) => !locked && canRegenerate(turns, i, { busy, disabled: !!disabledReason, savedConversations: historyReady });
   const regenerate = (i: number) => {
-    const question = turns[i - 1] as UserTurn, asking = askedAgain(question, historyReady);
-    // a question the server stored: asked again as it was asked, one more version of its answers (#251). One it never
-    // stored (refused), or without saved conversations: the failed pair goes, and the question is asked anew, as before.
-    if (asking === undefined) setConversation((c) => without(c, new Set([question.id, turns[i].id])));
-    send(question.text, question.attachments, question.about ?? [], undefined, asking, asking === undefined ? undefined : question);
+    // another version of a stored question's answers, or a refused one asked anew (lib/versions.ts)
+    const question = turns[i - 1] as UserTurn, again = regenerating(conversation, turns, i, historyReady);
+    setConversation(again.conversation);
+    send(question.text, question.attachments, question.about ?? [], undefined, again.asking, again.question);
   };
   // An answer's versions (board 81): ‹ n / total ›; switching changes everything below it to that version's branch.
   const versionsAt = (i: number): AnswerVersions | null => {

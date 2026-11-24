@@ -3,7 +3,10 @@
 import { describe, expect, it } from "vitest";
 import { setLang } from "../i18n";
 import type { Turn } from "../types";
-import { answerStored, answerTo, fromSaved, readTurns } from "./conversations";
+import { answerStored, answerTo, savedConversation, readTurns } from "./conversations";
+import { shownOf } from "./versions";
+/** The branch a conversation read back shows. */
+const fromSaved = (...read: Parameters<typeof savedConversation>) => shownOf(savedConversation(...read));
 import { saveState } from "./documentActions";
 import { askedAgain, toFollow, withStored } from "./ask";
 import type { StoredDocument } from "../api";

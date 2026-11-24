@@ -8,8 +8,8 @@ import type { CaseAction } from "../components/Sidebar";
 import type { Turn } from "../types";
 import { restoreAbout } from "./askAbout";
 import type { Message } from "./messages";
-import { readTurns } from "./conversations";
-import { opened, shownOf } from "./versions";
+import { savedConversation } from "./conversations";
+import { shownOf } from "./versions";
 import { PIN_HINT_AFTER, pinnedConversations } from "./conversationActions";
 import { restoreThinking } from "./thinking";
 
@@ -54,7 +54,7 @@ export function pinHintDue(all: ConversationSummary[], id: string, pinned: boole
 /** A saved conversation opened: every turn and the branch shown (lib/versions.ts; the documents named as ``nameOf``
  *  knows them), what it was asking about (§10), and Fast or Thorough (§5). */
 export function reopened(saved: Turn[], thinkingByDefault: boolean, conversationId = "", nameOf?: (id: string) => string | undefined) {
-  const conversation = opened(readTurns(saved, conversationId, nameOf));
+  const conversation = savedConversation(saved, conversationId, nameOf);
   const turns = shownOf(conversation);
   return { conversation, turns, about: restoreAbout(turns), thinking: restoreThinking(turns, thinkingByDefault) };
 }

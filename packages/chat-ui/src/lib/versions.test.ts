@@ -2,8 +2,8 @@
  *  turn it follows, and the last one shown; the branch on screen is worked out from these. */
 import { describe, expect, it } from "vitest";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
-import { askedAgain, canRegenerate } from "./ask";
-import { answeredAgain, asked, NO_CONVERSATION, opened, shownOf, switchedTo, versionsOf, without } from "./versions";
+import { canRegenerate } from "./ask";
+import { answeredAgain, asked, NO_CONVERSATION, opened, regenerating, shownOf, switchedTo, versionsOf, without } from "./versions";
 
 const q = (seq: number, follows: string | null): UserTurn => ({ id: `q${seq}`, seq, follows, byServer: true, role: "user", text: `q${seq}`, attachments: [] });
 const a = (seq: number, follows: string, status: AssistantTurn["status"] = "done"): AssistantTurn =>
@@ -50,16 +50,22 @@ describe("a conversation the page keeps", () => {
     expect(ids(shownOf(without(again, new Set(["w"]))))).toEqual(["q1"]);
   });
 
-  it("Regenerate on a question the server refused: the failed pair goes and it is asked anew, never a version", () => {
+  it("Regenerate: a stored question gets another version; a refused one has its failed pair taken out, asked anew", () => {
+    const stored = opened(all);
+    expect(regenerating(stored, shownOf(stored), 1, true)).toEqual({ conversation: stored, asking: 1, question: all[0] });
     // review of the one list: hung under the refused question, it showed 2 of 2 the server never kept, and a
     // follow-up from the refusal was filed under the other answer
     const refused = { ...q(3, "a2"), seq: undefined, byServer: undefined }, failed = { ...a(4, "q3", "error"), seq: undefined };
     const c = asked(opened([q(1, null), a(2, "q1")]), refused, failed);
     const shown = shownOf(c);
     expect(canRegenerate(shown, 3, { busy: false, disabled: false, savedConversations: true })).toBe(true);
-    expect(askedAgain(refused, true)).toBeUndefined();  // nothing stored to ask again: App asks it anew
-    const anew = asked(without(c, new Set(["q3", "a4"])), { ...refused, id: "q5" }, writing("w"));
+    const r = regenerating(c, shown, 3, true);
+    expect([r.asking, r.question]).toEqual([undefined, undefined]);  // nothing stored to ask again: a new question
+    expect(ids(shownOf(r.conversation))).toEqual(["q1", "a2"]);
+    const anew = asked(r.conversation, { ...refused, id: "q5" }, writing("w"));
     expect(ids(shownOf(anew))).toEqual(["q1", "a2", "q5", "w"]);
     expect(versionsOf(anew, shownOf(anew), 3)).toBeNull();
+    // without saved conversations, the same: the failed answer goes, nothing is kept beside it
+    expect(regenerating(stored, shownOf(stored), 1, false).asking).toBeUndefined();
   });
 });

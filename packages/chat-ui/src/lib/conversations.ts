@@ -7,7 +7,7 @@ import type { ChatResponse } from "../api";
 import type { AssistantTurn, Turn } from "../types";
 import { answerPatch } from "./ask";
 import { messageText, type Message } from "./messages";
-import { opened, shownOf } from "./versions";
+import { opened, type Conversation } from "./versions";
 
 /** A random UUID (v4). Not crypto.randomUUID: that needs a secure context, and an appliance may be reached over plain http. */
 
@@ -97,7 +97,7 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
 
 /** Every turn of a conversation read back from the server, as the screen keeps it, each naming the turn it follows
  *  (``follows``). An answer saved mid-stream (it
- *  shouldn't be) shows as interrupted. The screen shows one branch of them (``fromSaved``), and switches between an
+ *  shouldn't be) shows as interrupted. The screen shows one branch of them (``savedConversation``), and switches between an
  *  answer's versions within them (lib/versions.ts). */
 export function readTurns(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
   const raw = stored as unknown as Stored[];
@@ -121,11 +121,10 @@ export function readTurns(stored: Turn[], conversationId = "", nameOf: (id: stri
     : i > 0 ? read[i - 1].id : null }) as Turn);
 }
 
-/** Turns read back from the server: the branch shown (the newest answer of each question, and what followed it), each
- *  as the screen keeps it (lib/versions.ts). */
-export function fromSaved(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
-  return shownOf(opened(readTurns(stored, conversationId, nameOf)));
-}
+/** A conversation read back from the server: every turn as the screen keeps it, and the newest answer of each
+ *  question shown, with what followed it (lib/versions.ts). */
+export const savedConversation = (stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Conversation =>
+  opened(readTurns(stored, conversationId, nameOf));
 
 /** "Today", "Yesterday", "8 Oct" or "8 Oct 2025" (in the current language): when a conversation last changed. */
 export function dayLabel(iso: string, now: Date = new Date()): string {

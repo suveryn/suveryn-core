@@ -6,6 +6,7 @@
  * out from these (``shownOf``): never kept beside them.
  */
 import type { AssistantTurn, Turn, UserTurn } from "../types";
+import { askedAgain } from "./ask";
 
 export type Conversation = { turns: Turn[]; leaf: string | null };
 export const NO_CONVERSATION: Conversation = { turns: [], leaf: null };
@@ -53,6 +54,16 @@ export function without(c: Conversation, ids: Set<string>): Conversation {
   let leaf = c.leaf;
   while (leaf && ids.has(leaf)) leaf = byId.get(leaf)?.follows ?? null;
   return { turns: c.turns.filter((t) => !ids.has(t.id)), leaf };
+}
+
+/** Regenerate on the answer shown at ``i``. A question the server stored is asked once more as it was asked
+ *  (``asking``, its number) and answered under itself (``question``): one more version of its answers. One it never
+ *  stored (refused), or without saved conversations: the failed pair goes and the question is asked anew, as a new
+ *  question, never a version the server doesn't keep (review of the one list). */
+export function regenerating(c: Conversation, shown: Turn[], i: number, savedConversations: boolean):
+  { conversation: Conversation; asking?: number; question?: UserTurn } {
+  const question = shown[i - 1] as UserTurn, asking = askedAgain(question, savedConversations);
+  return asking === undefined ? { conversation: without(c, new Set([question.id, shown[i].id])) } : { conversation: c, asking, question };
 }
 
 /** The versions of the answer shown at ``i``: its question's answers, oldest first, and which of them it is. Null

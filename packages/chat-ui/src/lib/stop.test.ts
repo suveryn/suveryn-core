@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { streamChat, type Citation } from "../api";
 import type { AssistantTurn, Turn } from "../types";
-import { fromSaved } from "./conversations";
+import { savedConversation } from "./conversations";
+import { shownOf } from "./versions";
+/** The branch a conversation read back shows. */
+const fromSaved = (...read: Parameters<typeof savedConversation>) => shownOf(savedConversation(...read));
 import { conversationHistory } from "./history";
 
 const citation: Citation = { text: "The price is EUR 300,000.", source: { document_id: "d1", page: 2, location: "p. 2" } };

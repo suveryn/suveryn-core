@@ -162,7 +162,7 @@ const around = (before: string, text: string, after: string) =>
 
 /** A sample conversation as the gateway gives it back: each turn as the server stored it as it answered
  *  (suveryn-tracker#251), numbered, each following the one before, so the previews read it as the screen does
- *  (lib/conversations.ts, ``fromSaved``). Written here in the screen's own shape, for reading. */
+ *  (lib/conversations.ts, ``savedConversation``). Written here in the screen's own shape, for reading. */
 const served = (c: SavedConversation): SavedConversation => ({
   ...c,
   turns: c.turns.map((t, i) => {
