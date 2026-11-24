@@ -1769,7 +1769,6 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     the operations give, the refusals too, is checked against it and kept for the chat UI's tests. Here and not
     in test_conversations.py: sharing, moving and a pin need the cases."""
     from described import Checked, same_every_run
-    from suveryn_api_gateway.conversations import MAX_BODY_BYTES
 
     c, kc, _, history, _ = office
     check, alice, bob, carla = Checked(c, "conversations"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
@@ -1808,9 +1807,6 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
 
     assert check("GET", every, 200, keep="none", headers=alice).json() == []
     kept(history, OWN, ALICE, turns)  # asked as the server keeps it (suveryn-tracker#251)
-    long = check("PUT", one + "/pin", 413, f"{every}/{OWN}/pin", "too_long", content=b" " * (MAX_BODY_BYTES + 1),
-                 headers={**alice, "Content-Type": "application/json"})
-    assert long.json()["code"] == "conversation.too_long"  # the size limit on every PUT under a conversation
     opened = check("GET", one, 200, f"{every}/{OWN}", "one", tidy=same, headers=alice).json()
     assert [t["text"] for t in opened["turns"]] == [t["text"] for t in turns] and opened["messages"] == 2
     assert check("PATCH", one, 200, f"{every}/{OWN}", "renamed", tidy=same, json={"title": "De koopprijs"}, headers=alice).json()["title"] == "De koopprijs"

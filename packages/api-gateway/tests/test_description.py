@@ -95,9 +95,8 @@ STATES = {("GET", "/health", 503)}
 # A refusal the route's own code never raises: the gateway gives it before the route is reached, by the request's size
 # or by how often a person asks, or it answers for sign-in when that can't say who is there (all app.py). Each as
 # that file says it: its code, its status where that isn't the code's own, and the file.
-# The size limit is on every PUT under a conversation (its pin); an upload must say its size, and keep to it.
-BEFORE = {("PUT", "/v1/conversations/{conversation_id}/pin"): [("conversation.too_long", None, "app.py")],
-          ("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
+# An upload must say its size, and keep to it.
+BEFORE = {("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
           ("POST", "/v1/chat"): [("request.too_many", None, "app.py")],  # the limit on asking, per person
           ("POST", "/v1/conversations/{conversation_id}/questions"): [("request.too_many", None, "app.py")],
           ("GET", "/auth/me"): [("auth.unavailable", None, "app.py")]}  # the sign-in service can't be asked (``AuthUnavailable``)
@@ -195,7 +194,7 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
 
 # What the gateway gives back as it keeps it: a conversation's turns, each its row and what the server wrote beside it
 # (``AskedTurn``, ``AnsweredTurn``, a playbook's own turns), and what rebuilds a saved answer's file
-# (``conversations.SavedAnswer``, a playbook's result).
+# (``conversations.SavedAnswer``).
 CHAT_UIS_OWN = {"Conversation.turns": "a conversation's turns, as the server keeps them",
          "DocumentContent.content": "what rebuilds a saved answer's file, as it is read back"}
 

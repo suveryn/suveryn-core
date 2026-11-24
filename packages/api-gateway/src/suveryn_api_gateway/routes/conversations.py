@@ -103,8 +103,8 @@ async def set_conversation_shared(conversation_id: str, body: ShareIn, request: 
 
 @router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses=refusals(404, 422))
 async def update_conversation(conversation_id: str, body: RenameIn, request: Request):
-    """Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
-    later saves, which otherwise name a conversation after its first question."""
+    """Rename one of the caller's conversations (docs/design/chat-ui.md §4), which is otherwise named after its first
+    question."""
     store = history_or_503(request)
     changed = await run_in_threadpool(store.rename, _conversation_id(conversation_id), owner_of(request), body.title)
     if changed is None:
@@ -112,7 +112,7 @@ async def update_conversation(conversation_id: str, body: RenameIn, request: Req
     return changed
 
 
-@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 413, 422))
+@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 422))
 async def set_conversation_pinned(conversation_id: str, body: PinIn, request: Request):
     """Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
     pin of its own: it follows its case. Personal, so not in any access log."""

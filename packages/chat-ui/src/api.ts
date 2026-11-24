@@ -552,7 +552,7 @@ export const listConversations = (caseId?: string | null) => answered(gateway.li
  *  most recently changed first: the sidebar's "Conversations" (docs/design/chat-ui.md). */
 export const listAllConversations = () => answered(gateway.listConversations({ all: true }));
 export const getConversation = (id: string) => answered(gateway.getConversation(encodeURIComponent(id))) as Promise<SavedConversation>;
-/** Renames one of the signed-in user's conversations; the title is kept over later saves (§4). */
+/** Renames one of the signed-in user's conversations, otherwise named after its first question (§4). */
 export const renameConversation = (id: string, title: string) => answered(gateway.updateConversation(encodeURIComponent(id), { title }));
 /** Pins one of the signed-in user's personal conversations in their sidebar, or unpins it (§3). */
 export const pinConversation = (id: string, pinned: boolean) => answered(gateway.setConversationPinned(encodeURIComponent(id), { pinned }));

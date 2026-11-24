@@ -309,7 +309,7 @@ A conversation in a case has:
 
 **Renaming, moving, sharing.**
 
-- `PATCH /v1/conversations/{id}` renames (the owner only), and the title is kept over later saves. `PUT /v1/conversations/{id}/pin` pins a personal conversation (409 for one in a case: it follows its case). `POST /v1/conversations/{id}/move` moves a personal conversation into an open case the owner contributes to or manages (403 for a reader or a closed case, 409 if already in one); it arrives unshared and unpinned, and the access log says `conversation_moved_in`. Its documents stay in the personal space, so its next questions read the case's documents, as the dialog says. Moving the open conversation takes the person to the case.
+- `PATCH /v1/conversations/{id}` renames (the owner only); the title stays as the conversation goes on. `PUT /v1/conversations/{id}/pin` pins a personal conversation (409 for one in a case: it follows its case). `POST /v1/conversations/{id}/move` moves a personal conversation into an open case the owner contributes to or manages (403 for a reader or a closed case, 409 if already in one); it arrives unshared and unpinned, and the access log says `conversation_moved_in`. Its documents stay in the personal space, so its next questions read the case's documents, as the dialog says. Moving the open conversation takes the person to the case.
 - A colleague's shared conversation opened from anywhere is read-only. Where the person can't ask at all (a shared conversation, a closed case, a reader, an administrator outside the case) the question box is read-only and has no placeholder. While the server is unreachable it stays editable.
 
 **The composer**:

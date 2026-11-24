@@ -413,7 +413,6 @@ const nl: Messages = {
   answerFailedPlain: "Het antwoord mislukte. Stel uw vraag opnieuw.",
   narrowedTo: m("Uw vraag noemt een document: alleen {file} werd gelezen."),
   thinkingCut: "Grondig dacht te lang na zonder antwoord; dit antwoord is daarom zonder nadenken geschreven. Stel de vraag smaller om het wel te laten doordenken.",
-  answerInterrupted: "Dit antwoord werd onderbroken.",
   answerTruncated: "Afgebroken: dit antwoord is onvolledig. Vraag naar de rest.",
   thoughtTooLong: "Het model dacht te lang na. Probeer Snel, of een kleinere vraag.",
   answerStopped: "Gestopt. Onvolledig en niet nagekeken.",

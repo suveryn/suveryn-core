@@ -89,7 +89,6 @@ DocumentId = Annotated[str, Field(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a
 
 log = logging.getLogger("suveryn.gateway")
 
-MAX_BODY_BYTES = 2 * 1024 * 1024  # one saved conversation, as JSON
 MAX_TURNS = 500
 MAX_TITLE = 200
 MAX_TURN_TEXT = 200_000  # one turn's text
@@ -104,7 +103,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     case_id     uuid,
     shared      boolean NOT NULL DEFAULT false,
     pinned_at   timestamptz,
-    renamed     boolean NOT NULL DEFAULT false,
     run_id      uuid UNIQUE,               -- a playbook run's conversation (playbook_runs.conversation_id)
     titles      jsonb,                     -- a run's: its title in every language, the pack's words; the UI shows the reader's
     -- Kept beside the turns on every change, so lists and look-ups don't open them: how many turns,
@@ -381,7 +379,7 @@ class PinIn(BaseModel):
 
 
 class RenameIn(BaseModel):
-    """Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, kept over later saves."""
+    """Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, instead of its first question."""
 
     title: str = Field(min_length=1, max_length=MAX_TITLE, pattern=r"^\S(.*\S)?$")
 
@@ -399,8 +397,8 @@ class ShareIn(BaseModel):
 
 
 class Conversation(ConversationSummary):
-    """Body of ``GET /v1/conversations/{id}``: each turn as the UI saved it, with ``seq``, ``by`` and
-    ``at`` (and a playbook's ``step_id``) from its row."""
+    """Body of ``GET /v1/conversations/{id}``: each turn as the server keeps it (what it wrote beside it, ``meta``),
+    with ``seq``, ``by`` and ``at`` (and a playbook's ``step_id``) from its row."""
 
     turns: list[dict]
 
@@ -597,8 +595,8 @@ class ConversationStore(TurnStore):
         return self._whole(r)
 
     def rename(self, conversation_id: uuid.UUID, owner: str, title: str) -> ConversationSummary | None:
-        """The owner's new title, kept over later saves. None if it isn't the owner's."""
-        r = self._execute(f"UPDATE conversations SET title = %s, renamed = true WHERE id = %s AND owner = %s"
+        """The owner's new title. None if it isn't the owner's."""
+        r = self._execute(f"UPDATE conversations SET title = %s WHERE id = %s AND owner = %s"
                           f" RETURNING {self.SUMMARY}", (title, conversation_id, owner)).fetchone()
         return self._summary(r) if r else None
 

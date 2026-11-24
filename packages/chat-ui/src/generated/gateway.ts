@@ -1972,8 +1972,8 @@ export type ConversationTitles = {[key: string]: string} | null;
 export type ConversationTurnsItem = { [key: string]: unknown };
 
 /**
- * Body of ``GET /v1/conversations/{id}``: each turn as the UI saved it, with ``seq``, ``by`` and
- * ``at`` (and a playbook's ``step_id``) from its row.
+ * Body of ``GET /v1/conversations/{id}``: each turn as the server keeps it (what it wrote beside it, ``meta``),
+ * with ``seq``, ``by`` and ``at`` (and a playbook's ``step_id``) from its row.
  */
 export interface Conversation {
   case_id: string | null;
@@ -1993,7 +1993,7 @@ export interface Conversation {
 }
 
 /**
- * Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, kept over later saves.
+ * Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, instead of its first question.
  */
 export interface RenameIn {
   /**
@@ -2320,8 +2320,8 @@ export const DocumentContentOrigin = {
 } as const;
 
 /**
- * What rebuilds a document sūveryn made: an answer as the server copied it from the one it stored
- * (``conversations.SavedAnswer``, #251), or a playbook's result.
+ * What rebuilds an answer saved to its case: the answer as the server copied it from the one it stored
+ * (``conversations.SavedAnswer``, #251).
  */
 export interface DocumentContent {
   content: DocumentContentContent;
@@ -7212,8 +7212,8 @@ export const getUpdateConversationUrl = (conversationId: string,) => {
 }
 
 /**
- * Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
- * later saves, which otherwise name a conversation after its first question.
+ * Rename one of the caller's conversations (docs/design/chat-ui.md §4), which is otherwise named after its first
+ * question.
  * @summary Update Conversation
  */
 export const updateConversation = async (conversationId: string,
@@ -7333,11 +7333,6 @@ export type setConversationPinnedResponse409 = {
   status: 409
 }
 
-export type setConversationPinnedResponse413 = {
-  data: ProblemDetails
-  status: 413
-}
-
 export type setConversationPinnedResponse422 = {
   data: ProblemDetails
   status: 422
@@ -7356,7 +7351,7 @@ export type setConversationPinnedResponse503 = {
 export type setConversationPinnedResponseSuccess = (setConversationPinnedResponse200) & {
   headers: Headers;
 };
-export type setConversationPinnedResponseError = (setConversationPinnedResponse401 | setConversationPinnedResponse403 | setConversationPinnedResponse404 | setConversationPinnedResponse409 | setConversationPinnedResponse413 | setConversationPinnedResponse422 | setConversationPinnedResponse500 | setConversationPinnedResponse503) & {
+export type setConversationPinnedResponseError = (setConversationPinnedResponse401 | setConversationPinnedResponse403 | setConversationPinnedResponse404 | setConversationPinnedResponse409 | setConversationPinnedResponse422 | setConversationPinnedResponse500 | setConversationPinnedResponse503) & {
   headers: Headers;
 };
 

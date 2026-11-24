@@ -72,7 +72,6 @@ from .avatars import MAX_UPLOAD_BYTES as AVATAR_MAX_BYTES
 from .avatars import AvatarStore
 from .cases import CaseSettings, CaseStore
 from .clock import Clock
-from .conversations import MAX_BODY_BYTES as MAX_CONVERSATION_BYTES
 from .conversations import ConversationSettings, ConversationStore
 from .directory import Directory, DirectorySettings, LocalDirectory
 from .accounts import Accounts, AccountsSettings, RightsRefused
@@ -442,10 +441,6 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
             length = request.headers.get("content-length")
             if length is None or not length.isdigit() or int(length) > AVATAR_MAX_BYTES:
                 return problems.answer("user.picture_too_large", "The picture is larger than 2 MB.", max_mb=AVATAR_MAX_BYTES // (1024 * 1024))
-        if request.method == "PUT" and request.url.path.startswith("/v1/conversations/"):
-            length = request.headers.get("content-length")
-            if length is None or not length.isdigit() or int(length) > MAX_CONVERSATION_BYTES:
-                return problems.answer("conversation.too_long", "This conversation is too long to save.")
         return await call_next(request)
 
     for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,

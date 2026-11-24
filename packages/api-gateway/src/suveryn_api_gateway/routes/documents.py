@@ -187,8 +187,8 @@ class SavedAnswerDocument(Answer):
 
 
 class DocumentContent(Answer):
-    """What rebuilds a document sūveryn made: an answer as the server copied it from the one it stored
-    (``conversations.SavedAnswer``, #251), or a playbook's result."""
+    """What rebuilds an answer saved to its case: the answer as the server copied it from the one it stored
+    (``conversations.SavedAnswer``, #251)."""
 
     id: str
     filename: str

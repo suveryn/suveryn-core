@@ -2316,7 +2316,7 @@
     "type": "object"
    },
    "Conversation": {
-    "description": "Body of ``GET /v1/conversations/{id}``: each turn as the UI saved it, with ``seq``, ``by`` and\n``at`` (and a playbook's ``step_id``) from its row.",
+    "description": "Body of ``GET /v1/conversations/{id}``: each turn as the server keeps it (what it wrote beside it, ``meta``),\nwith ``seq``, ``by`` and ``at`` (and a playbook's ``step_id``) from its row.",
     "properties": {
      "case_id": {
       "anyOf": [
@@ -2616,7 +2616,7 @@
     "type": "object"
    },
    "DocumentContent": {
-    "description": "What rebuilds a document sūveryn made: an answer as the server copied it from the one it stored\n(``conversations.SavedAnswer``, #251), or a playbook's result.",
+    "description": "What rebuilds an answer saved to its case: the answer as the server copied it from the one it stored\n(``conversations.SavedAnswer``, #251).",
     "properties": {
      "content": {
       "additionalProperties": true,
@@ -4527,7 +4527,7 @@
     "type": "object"
    },
    "RenameIn": {
-    "description": "Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, kept over later saves.",
+    "description": "Body of ``PATCH /v1/conversations/{id}``: a title the owner chose, instead of its first question.",
     "properties": {
      "title": {
       "maxLength": 200,
@@ -13471,7 +13471,7 @@
     ]
    },
    "patch": {
-    "description": "Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over\nlater saves, which otherwise name a conversation after its first question.",
+    "description": "Rename one of the caller's conversations (docs/design/chat-ui.md §4), which is otherwise named after its first\nquestion.",
     "operationId": "update_conversation",
     "parameters": [
      {
@@ -13760,16 +13760,6 @@
        }
       },
       "description": "Conflict"
-     },
-     "413": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Request Entity Too Large"
      },
      "422": {
       "content": {

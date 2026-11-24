@@ -323,19 +323,6 @@
   "media_type": "application/json",
   "status": 200
  },
- "too_long": {
-  "body": {
-   "code": "conversation.too_long",
-   "detail": "This conversation is too long to save.",
-   "kind": "refused",
-   "params": {},
-   "status": 413,
-   "title": "The conversation is too long to save.",
-   "type": "urn:suveryn:problem:conversation.too_long"
-  },
-  "media_type": "application/problem+json",
-  "status": 413
- },
  "too_long_to_ask_in": {
   "body": {
    "code": "conversation.too_long",

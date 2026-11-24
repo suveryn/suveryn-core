@@ -104,7 +104,7 @@ class FakeConversations:
         r = self.rows.get(cid)
         if not r or r["owner"] != owner:
             return None
-        r["title"], r["renamed"] = title, True
+        r["title"] = title
         return self._summary(r)
 
     def set_pinned(self, cid, owner, pinned):
@@ -143,7 +143,7 @@ class FakeConversations:
         if cid in self.rows:
             return False
         now = datetime.now(UTC)
-        self.rows[cid] = {"id": str(cid), "owner": owner, "title": title, "renamed": False, "pinned": False, "turns": [],
+        self.rows[cid] = {"id": str(cid), "owner": owner, "title": title, "pinned": False, "turns": [],
                           "created_at": now, "updated_at": now, "case_id": case_id, "shared": False}
         return True
 
@@ -554,14 +554,14 @@ def test_store_unshares_every_conversation_of_a_case(store):
 
 @needs_db
 def test_store_renames_pins_and_moves_a_personal_conversation(store):
-    """§3 and §4: the owner's title stays over later saves; a pin only for a personal conversation; moved into a
-    case, it isn't shared and has no pin of its own."""
+    """§3 and §4: the owner's title stays as the conversation goes on; a pin only for a personal conversation; moved
+    into a case, it isn't shared and has no pin of its own."""
     case, cid, in_case = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     kept(store, cid, ALICE, TURNS)
     kept(store, in_case, ALICE, TURNS, case_id=case)
     assert store.rename(cid, BOB, "Bob's") is None
     assert store.rename(cid, ALICE, "Sale, the price").title == "Sale, the price"
-    kept(store, cid, ALICE, TURNS)
+    store.append(cid, "user", ALICE, "En de kosten?")
     assert store.get(cid, ALICE).title == "Sale, the price"
     assert store.set_pinned(cid, BOB, True) is None and store.set_pinned(in_case, ALICE, True) is None
     assert store.set_pinned(cid, ALICE, True).pinned and store.summaries(ALICE)[0].pinned
@@ -570,7 +570,7 @@ def test_store_renames_pins_and_moves_a_personal_conversation(store):
     moved = store.move(cid, ALICE, case)
     assert moved.case_id == str(case) and not moved.pinned and not moved.shared
     assert store.summaries(ALICE) == [] and {s.id for s in store.summaries(ALICE, case)} == {str(cid), str(in_case)}
-    assert said(store.get(cid, ALICE).turns) == said(TURNS)
+    assert said(store.get(cid, ALICE).turns) == [*said(TURNS), ("user", "En de kosten?")]  # its turns came along
 
 
 @needs_db
