@@ -514,7 +514,7 @@
   },
   "conversation.too_long": {
    "kind": "refused",
-   "title": "The conversation is too long to save.",
+   "title": "The conversation is too long to ask in.",
    "status": 413,
    "since": "0.2.0"
   },

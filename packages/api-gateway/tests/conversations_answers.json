@@ -330,7 +330,7 @@
    "kind": "refused",
    "params": {},
    "status": 413,
-   "title": "The conversation is too long to save.",
+   "title": "The conversation is too long to ask in.",
    "type": "urn:suveryn:problem:conversation.too_long"
   },
   "media_type": "application/problem+json",
