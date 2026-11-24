@@ -65,7 +65,7 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
     return () => clearTimeout(t);
   }, [state]);
   return (
-    <Button variant="plain" className="copy-button" aria-label={m.copyWhat({ what })}
+    <Button variant="plain" className="copy-button" aria-label={m.copyWhat({ what })} title={m.copyWhat({ what })}
             onPress={async () => setState((await copyText(text)) ? "copied" : "failed")}>
       {state === "copied" ? <Check size={13} aria-hidden className="ui-icon-ok" /> : <Copy size={13} aria-hidden />}
       <span aria-live="polite">{state === "copied" ? m.copied : state === "failed" ? m.copyFailed : label}</span>
@@ -275,20 +275,19 @@ export function AnswerNotes({ turn }: { turn: Pick<AssistantTurn, "thinkingCut" 
 }
 
 /** An answer's versions (board 81, suveryn-tracker#251): ‹ n / total ›, first in its actions. The arrows are disabled
- *  at the ends (and while an answer is written), never hidden; the new number is said after a switch, not what
- *  changed below it. */
-export type AnswerVersions = { n: number; total: number; busy: boolean; onPrevious: () => void; onNext: () => void };
+ *  at the ends (and while an answer is written), never hidden. After a switch the page says the new number, not what
+ *  changed below it, and keeps the focus on an arrow (App.tsx). */
+export type AnswerVersions = { of: string; n: number; total: number; busy: boolean; onPrevious: () => void; onNext: () => void };
 
 function VersionSwitch({ versions, alone = false }: { versions: AnswerVersions; alone?: boolean }) {
   const m = useT();
   const { n, total, busy } = versions;
   return (
     <>
-      <span role="group" className="answer-versions" aria-label={m.answerVersion({ n, total })}>
+      <span role="group" className="answer-versions" aria-label={m.answerVersion({ n, total })} data-versions-of={versions.of}>
         <IconButton label={m.previousAnswer} isDisabled={busy || n <= 1} onPress={versions.onPrevious}><ChevronLeft size={16} aria-hidden /></IconButton>
         <span className="answer-versions-count" aria-hidden>{m.versionCount({ n, total })}</span>
         <IconButton label={m.nextAnswer} isDisabled={busy || n >= total} onPress={versions.onNext}><ChevronRight size={16} aria-hidden /></IconButton>
-        <span className="visually-hidden" aria-live="polite">{m.answerVersion({ n, total })}</span>
       </span>
       {!alone && <span className="answer-actions-divider" aria-hidden />}
     </>

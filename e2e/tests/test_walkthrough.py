@@ -65,8 +65,11 @@ def test_a_document_is_read_and_an_answer_cites_it(page, deed):
     expect(versions.get_by_role("button", name="Next answer")).to_be_disabled(timeout=60_000)
     expect(versions.get_by_role("button", name="Previous answer")).to_be_enabled(timeout=60_000)
     expect(main.get_by_text("En welke prijs noemt artikel 2?")).to_have_count(0)
-    versions.get_by_role("button", name="Previous answer").click()
-    expect(main.get_by_role("group", name="Answer 1 of 2")).to_be_visible()
+    # by keyboard: the arrow pressed is disabled at the end it reaches, so the focus goes to the other one
+    versions.get_by_role("button", name="Previous answer").focus()
+    page.keyboard.press("Enter")
+    first = main.get_by_role("group", name="Answer 1 of 2")
+    expect(first.get_by_role("button", name="Next answer")).to_be_focused()
     expect(main.get_by_text("En welke prijs noemt artikel 2?")).to_be_visible()
     # opened again, the conversation shows the newest version
     page.reload()

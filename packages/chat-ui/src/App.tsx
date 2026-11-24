@@ -64,7 +64,7 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { answerTo, conversationTitle, listedTitle, newConversationId, readTurns, withoutDocument } from "./lib/conversations";
+import { answerStored, conversationTitle, listedTitle, newConversationId, readTurns, withoutDocument } from "./lib/conversations";
 import { switchedTo, versionsOf, withShown } from "./lib/versions";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
@@ -186,6 +186,20 @@ function Chat({ me }: { me: Me }) {
   // and an answer's versions are switched within these (lib/versions.ts, board 81).
   const [tree, setTree] = useState<Turn[]>([]);
   useEffect(() => setTree((known) => withShown(known, turns)), [turns]);
+  // A change to turns that aren't only the server's answer to this page (a document read, deleted): to every turn
+  // known, shown or not, so a version switched to later shows it too (review of #251 step 3b).
+  const everyTurn = (change: (ts: Turn[]) => Turn[]) => { setTurns(change); setTree(change); };
+  // After a switch (board 81): the new number said once, and the focus kept on an arrow, the other one if the one
+  // pressed is now disabled at its end. The answer's actions may be drawn anew, so both are done from here.
+  const [versionSaid, setVersionSaid] = useState("");
+  const focusArrow = useRef<{ of: string; which: 0 | 1 } | null>(null);
+  useEffect(() => {
+    const want = focusArrow.current;
+    if (!want) return;
+    focusArrow.current = null;
+    const arrows = [...document.querySelectorAll<HTMLButtonElement>(`[data-versions-of="${CSS.escape(want.of)}"] button`)];
+    (arrows[want.which]?.disabled ? arrows[1 - want.which] : arrows[want.which])?.focus();
+  }, [turns]);
   const [pending, setPending] = useState<Attachment[]>([]); // attachments for the next message
   const uploads = useRef(new Map<string, AbortController>());  // uploads still being sent, by card
   const [busy, setBusy] = useState(false);
@@ -432,7 +446,7 @@ function Chat({ me }: { me: Me }) {
       const apply = (a: Attachment): Attachment => afterCheck(m, a, checked);
       // A job cancelled (here, or in another tab) leaves the composer.
       setPending((p) => p.map(apply).filter((a) => a.status !== "cancelled"));
-      setTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
+      everyTurn((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
       if (documentsChanged(checked)) refreshDocuments();
     }, 1500);
     return () => clearTimeout(t);
@@ -563,16 +577,12 @@ function Chat({ me }: { me: Me }) {
   const answerFollowed = async (ts: Turn[]): Promise<{ after?: number }> => {
     for (let next = toFollow(ts); next; next = "lookUp" in next ? toFollow(next.otherwise) : null) {
       if ("after" in next) return { after: next.after };
-      for (let tries = 0; tries < 5; tries++) {
-        try {
-          const found = answerTo((await getConversation(conversationId)).turns, next.lookUp);
-          if (found !== undefined) return { after: found };
-        } catch { /* not readable now: what was numbered before it */ }
-        await new Promise((r) => setTimeout(r, 300));
-      }
+      const found = await answerStored(readConversation, next.lookUp);
+      if (found) return { after: found.answer };
     }
     return {};
   };
+  const readConversation = async () => (await getConversation(conversationId)).turns;
 
   // ``asking``: Regenerate, the stored question (its seq) the server asks once more as it was asked (#251).
   const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[], asking?: number) => {
@@ -657,7 +667,8 @@ function Chat({ me }: { me: Me }) {
         checkNow();
       } else if (kind === "maybeDeleted" && (now = await documentsNow()) && (next = afterDeletion(docIds, chosen.size, now))) {
         // A colleague deleted one of the case's documents since this page read the list (lib/questionDocuments.ts).
-        if (next === "retry") retryWith = now;
+        // asked again (Regenerate), it is the stored question with its documents: no retry as a new question
+        if (next === "retry" && asking === undefined) retryWith = now;
         else update({ text: "", status: "error", error: m.messages["answer.document_not_found"], failure: { kind: "refused", code: "answer.document_not_found" } });
       } else {
         // Gateway contract: after an error, discard any partial answer.
@@ -675,12 +686,12 @@ function Chat({ me }: { me: Me }) {
       // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
       // found by its question, so it counts among the question's versions (board 81)
       const asked = numbered as { question: number; answer: number | null } | null;
-      if (asked && asked.answer === null) {
-        for (let tries = 0; tries < 5; tries++) {
-          await new Promise((r) => setTimeout(r, 300));
-          const found = await getConversation(conversationId).then((c) => answerTo(c.turns, asked.question, knownAnswers)).catch(() => undefined);
-          if (found !== undefined) { setTurns((ts) => withStored(ts, user.id, reply.id, { question: asked.question, answer: found })); break; }
-        }
+      const found = asked && asked.answer === null ? await answerStored(readConversation, asked.question, knownAnswers) : null;
+      if (found) {
+        setTurns((ts) => withStored(ts, user.id, reply.id, { question: asked!.question, answer: found.answer }));
+        // switched away from meanwhile, it isn't shown: it is known all the same, as the server stored it
+        const stored = readTurns(found.turns, conversationId, documentName).find((t) => t.seq === found.answer);
+        setTree((known) => (stored && !known.some((t) => t.seq === found.answer) ? withShown(known, [stored]) : known));
       }
     }
     if (retryWith) {
@@ -701,9 +712,12 @@ function Chat({ me }: { me: Me }) {
   // An answer's versions (board 81): ‹ n / total ›; switching changes everything below it to that version's branch.
   const versionsAt = (i: number): AnswerVersions | null => {
     const v = versionsOf(tree, turns, i);
-    return v && { n: v.n, total: v.total, busy,
-                  onPrevious: () => setTurns((ts) => switchedTo(tree, ts, i, v.versions[v.n - 2])),
-                  onNext: () => setTurns((ts) => switchedTo(tree, ts, i, v.versions[v.n])) };
+    const to = (n: number, which: 0 | 1) => () => {
+      setTurns((ts) => switchedTo(tree, ts, i, v!.versions[n - 1]));
+      setVersionSaid(m.answerVersion({ n, total: v!.total }));
+      focusArrow.current = { of: turns[i - 1].id, which };
+    };
+    return v && { of: turns[i - 1].id, n: v.n, total: v.total, busy, onPrevious: to(v.n - 1, 0), onNext: to(v.n + 1, 1) };
   };
 
   // The start screen: no case, nothing asked yet. First use: no conversations and no cases yet.
@@ -1110,9 +1124,10 @@ function Chat({ me }: { me: Me }) {
   const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[], where: string | null = caseId) => {
     await deleteDocument(d.id, conversations, where);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
-    const open = afterDelete({ documentId: d.id, turns, conversationId, conversations, deleted: using });
+    // every version known, not only the one shown: the server cleaned them all
+    const open = afterDelete({ documentId: d.id, turns: [...turns, ...tree], conversationId, conversations, deleted: using });
     if (open === "new") newChat();
-    else if (open === "clean") setTurns((ts) => withoutDocument(ts, d.id));  // as the server cleaned it
+    else if (open === "clean") everyTurn((ts) => withoutDocument(ts, d.id));
     setDeleting(null);
     refreshDocuments();
     refreshConversations();
@@ -1313,6 +1328,7 @@ function Chat({ me }: { me: Me }) {
                                 aboutChosen={(() => { const q = turns[i - 1]; return q?.role === "user" && !!q.about?.length; })()}
                                 save={saveControls(t)} />))
           )}
+          <p className="visually-hidden" aria-live="polite">{versionSaid}</p>
           <div ref={endRef} />
         </div>
         {/* board G19, state 6: a reader has no composer, only a note in its place */}

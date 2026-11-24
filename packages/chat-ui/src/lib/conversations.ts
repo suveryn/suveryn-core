@@ -58,6 +58,23 @@ export function answerTo(turns: unknown[], question: number, known: Set<number |
   return answers.at(-1)?.seq;
 }
 
+/** The number the server gave the answer to the question numbered ``question``, stopped (or cut off) before the stream
+ *  said it: it is stored as the connection closes, so the conversation is read again (``read``) a few times until it
+ *  is there. With the turns read, to know it whether shown or not. ``known``: as for ``answerTo``. Undefined if it
+ *  never comes, or the conversation can't be read. */
+export async function answerStored(read: () => Promise<unknown[]>, question: number, known: Set<number | undefined> = new Set(),
+                                   tries = 5, wait = 300): Promise<{ answer: number; turns: Turn[] } | undefined> {
+  for (let i = 0; i < tries; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, wait));
+    try {
+      const turns = await read();
+      const answer = answerTo(turns, question, known);
+      if (answer !== undefined) return { answer, turns: turns as Turn[] };
+    } catch { /* not readable now: try again */ }
+  }
+  return undefined;
+}
+
 /** A turn the server stored, as the screen shows it: a question with the documents it showed (by id: their names
  *  as the documents here know them, or taken out when deleted), an answer as it ended. ``conversationId``/``seq`` is
  *  its id: the mark of its Word file, and what a document saved from it names (its provenance's ``message``). */
@@ -93,15 +110,14 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
 }
 
 /** Every turn of a conversation read back from the server, as the screen keeps it, each naming the turn it follows
- *  (``parent``: the server's; for a turn the chat UI saved whole, the one before it). An answer saved mid-stream (it
+ *  (``parent``, the server's; a turn the chat UI saved whole has none, and no versions: step 4 of #251 removes them). An answer saved mid-stream (it
  *  shouldn't be) shows as interrupted. The screen shows one branch of them (``fromSaved``), and switches between an
  *  answer's versions within them (lib/versions.ts). */
 export function readTurns(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
   const raw = stored as unknown as Stored[];
   const bySeq = new Map(raw.map((s) => [s.seq, s]));
   return raw.map((saved, i) => {
-    const parent = "parent" in saved ? (saved.parent as number | null) ?? null
-      : saved.seq !== undefined && i > 0 && raw[i - 1].seq !== undefined ? raw[i - 1].seq! : saved.seq !== undefined && i === 0 ? null : undefined;
+    const parent = "parent" in saved ? (saved.parent as number | null) ?? null : undefined;
     const read = saved.kind === "question" || saved.kind === "answer"
       ? fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf)
       : saved as unknown as Turn;

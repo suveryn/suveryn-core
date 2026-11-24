@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setLang } from "../i18n";
 import type { Turn } from "../types";
-import { answerTo, fromSaved, shownBranch } from "./conversations";
+import { answerStored, answerTo, fromSaved, readTurns, shownBranch } from "./conversations";
 import { saveState } from "./documentActions";
 import { askedAgain, toFollow, withStored } from "./ask";
 import type { StoredDocument } from "../api";
@@ -82,6 +82,24 @@ describe("the answer to a question, by the question it answers (never by its pla
     expect(answerTo(turns, 3, new Set([5]))).toBe(4);  // a version this page knew isn't the one asked for just now
     expect(answerTo(turns, 3, new Set([4, 5]))).toBeUndefined();
     expect(answerTo([{ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }], 1)).toBe(2);
+  });
+
+  it("stopped before the stream said its number, it is read again until stored, or given up on", async () => {
+    const stored = [question(1, "q1", null), answer(2, "a1", 1)];
+    const reads = [() => Promise.reject(new Error("down")), () => Promise.resolve([question(1, "q1", null)]), () => Promise.resolve(stored)];
+    let n = 0;
+    const read = () => reads[Math.min(n++, reads.length - 1)]();
+    expect(await answerStored(read, 1, new Set(), 5, 0)).toEqual({ answer: 2, turns: stored });
+    expect(n).toBe(3);  // unreadable, not stored yet, there
+    expect(await answerStored(() => Promise.resolve(stored), 1, new Set([2]), 3, 0)).toBeUndefined();  // only known ones
+  });
+});
+
+describe("turns read back", () => {
+  it("follow the turn the server says, and turns saved whole follow none (no versions)", () => {
+    expect(readTurns([question(1, "q1", null), answer(2, "a1", 1)] as never).map((t) => t.parent)).toEqual([null, 1]);
+    expect(readTurns([{ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }] as never)
+      .map((t) => t.parent)).toEqual([undefined, undefined]);
   });
 });
 

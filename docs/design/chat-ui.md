@@ -390,8 +390,10 @@ conversation as a tree (each turn names the one it follows), as ChatGPT and Clau
 **An answer's versions** (board 81). *Regenerate*, last in every finished, stopped or failed answer's actions, asks
 the same question again; the new answer is shown at once and the earlier one is kept, with what followed it. An answer
 with more than one version starts its actions with ‹ *n / total* › and a thin divider: the arrows are disabled at the
-ends and while an answer is written (then the arrows stand alone, its other actions hidden), and the group is named
-"Answer *n* of *total*", said politely after a switch while the focus stays on the arrow. Switching changes everything
+ends, and every answer's arrows while one is written, since a switch would change the branch it is written in (the
+one being written shows its arrows alone, its other actions hidden), and the group is named
+"Answer *n* of *total*". After a switch the page says the new number (politely) and the focus stays on the arrow, or
+goes to the other one when the arrow pressed is disabled at its end. Switching changes everything
 below that answer to that version's branch, nothing above it; the next question follows the answer shown. A reopened
 conversation shows the newest answer of each question. A reader switches, but has no *Regenerate* and no *Save*.
 Narrow (below 768 px), the arrows, *Copy*, *Save* and *Regenerate* are 44 px icons, each named and with a tooltip
@@ -402,7 +404,7 @@ screen keeps every turn it knows (`lib/versions.ts`): those read back, and those
 
 - A stopped answer keeps what was written, with "Stopped. Incomplete and not checked." Its markers still open their passages, because a grounded answer's passages are sent before its first word (SSE `sources`). Checks run only on a finished answer, and Word export is offered for finished answers only. A stopped answer is saved, but not sent to the model as history.
 - Stopping stops the model: the gateway watches the connection from the start and closes its own to llama-server when it closes. Tokens used until then are still recorded. Esc stops wherever the focus is, except in an open menu or dialog, which it closes first; the focus then goes to the question box.
-- A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, with "Answer interrupted: the connection dropped." under its last word. Any other failure shows nothing of the attempt. Both offer *Regenerate*: the same question, with the same documents, as a new version.
+- A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, with "Answer interrupted: the connection dropped." under its last word. Any other failure shows nothing of the attempt. Both offer *Regenerate*: the same question, with the same documents; in a kept conversation it makes a new version, and without saved conversations it takes the failed answer's place.
 - An answer that stops at its length limit says so; a cut-off answer says it is incomplete. The server logs such a stop by counts only.
 - When the database or the sign-in service is down, the gateway's 503s carry a code (`system.database_unavailable`, `auth.unavailable`; [messages.md](messages.md)) so every message can say which part is down. The sign-in page says the database can't be reached, what to do if it stays so, and offers *Try again*. A sign-in service that answers with a server error doesn't sign people out; their session waits. Deleting a document while the saved conversations can't be read is refused in the app with a sentence, and on the server.
 - The question being typed is kept for the browser tab (`lib/draft.ts`, sessionStorage) until it is sent, emptied or the person signs out, so it survives signing in again after a restart.
