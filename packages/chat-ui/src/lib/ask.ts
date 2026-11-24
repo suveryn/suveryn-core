@@ -105,3 +105,16 @@ export function withStored(turns: Turn[], user: string, reply: string, stored: {
 export const askedAgain = (question: UserTurn, savedConversations: boolean): number | undefined =>
   savedConversations && question.byServer ? question.seq : undefined;
 
+/** What a new question in a saved conversation follows: the newest answer on screen the server numbered (``after``),
+ *  skipping what it refused, which it never stored. ``lookUp``: the newest numbered question whose answer this page
+ *  has no number for (stopped before it was stored: it is stored as the connection closes), to find by that question
+ *  (``answerTo``); ``otherwise``, the turns before it, if it isn't there. Null: nothing numbered, the first question. */
+export function toFollow(turns: Turn[]): { after: number } | { lookUp: number; otherwise: Turn[] } | null {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const seq = turns[i].seq;
+    if (seq === undefined) continue;
+    return turns[i].role === "assistant" ? { after: seq } : { lookUp: seq, otherwise: turns.slice(0, i) };
+  }
+  return null;
+}
+

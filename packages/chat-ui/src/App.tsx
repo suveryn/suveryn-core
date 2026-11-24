@@ -68,7 +68,7 @@ import { answerTo, conversationTitle, listedTitle, newConversationId, withoutDoc
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
-import { answerPatch, askedAgain, canRegenerate, conversationDocuments, failureKind, questionFor, withStored } from "./lib/ask";
+import { answerPatch, askedAgain, canRegenerate, conversationDocuments, failureKind, questionFor, toFollow, withStored } from "./lib/ask";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
 import { lang, locale, t, useLang, useT } from "./i18n";
@@ -556,16 +556,15 @@ function Chat({ me }: { me: Me }) {
   // number of each turn it stores as it answers (event ``stored``); an answer stopped before it was stored is stored as
   // the connection closes, and found by the question it answers, never guessed by its place (review of step 3a).
   const answerFollowed = async (ts: Turn[]): Promise<{ after?: number }> => {
-    const i = ts.map((t) => t.role).lastIndexOf("assistant");
-    if (i < 0) return {};
-    if (ts[i].seq !== undefined) return { after: ts[i].seq };
-    const question = ts[i - 1]?.seq;
-    for (let tries = 0; question !== undefined && tries < 5; tries++) {
-      try {
-        const found = answerTo((await getConversation(conversationId)).turns, question);
-        if (found !== undefined) return { after: found };
-      } catch { /* asked as it is: the server says what is missing */ }
-      await new Promise((r) => setTimeout(r, 300));
+    for (let next = toFollow(ts); next; next = "lookUp" in next ? toFollow(next.otherwise) : null) {
+      if ("after" in next) return { after: next.after };
+      for (let tries = 0; tries < 5; tries++) {
+        try {
+          const found = answerTo((await getConversation(conversationId)).turns, next.lookUp);
+          if (found !== undefined) return { after: found };
+        } catch { /* not readable now: what was numbered before it */ }
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
     return {};
   };

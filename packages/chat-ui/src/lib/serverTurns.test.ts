@@ -5,7 +5,7 @@ import { setLang } from "../i18n";
 import type { Turn } from "../types";
 import { answerTo, fromSaved, shownBranch } from "./conversations";
 import { saveState } from "./documentActions";
-import { askedAgain, withStored } from "./ask";
+import { askedAgain, toFollow, withStored } from "./ask";
 import type { StoredDocument } from "../api";
 
 const CID = "00000000-0000-4000-8000-0000000000a1";
@@ -101,3 +101,27 @@ describe("the numbers the server says as it answers", () => {
       .toEqual([7, undefined, undefined]);
   });
 });
+
+describe("what a new question follows", () => {
+  const turn = (id: string, role: "user" | "assistant", seq?: number) => (role === "user"
+    ? { id, role, text: id, attachments: [], ...(seq !== undefined ? { seq, byServer: true } : {}) }
+    : { id, role, text: id, citations: [], status: "done", grounded: false, ...(seq !== undefined ? { seq, byServer: true } : {}) }) as Turn;
+
+  it("the newest numbered answer, past a question the server refused (review of step 3a, N1)", () => {
+    // answered; then refused before anything was stored (another tab answering, a model gone): never numbered
+    const turns = [turn("q1", "user", 1), turn("a1", "assistant", 2), turn("q2", "user"), turn("a2", "assistant")];
+    expect(toFollow(turns)).toEqual({ after: 2 });
+    // and Regenerate on the refused question asks it as a new one, after that same answer
+    expect(askedAgain(turns[2] as never, true)).toBeUndefined();
+    expect(toFollow([...turns, turn("q3", "user"), turn("a3", "assistant")])).toEqual({ after: 2 });
+  });
+
+  it("a stopped answer, not numbered yet, is looked up by its question; before it, what was numbered", () => {
+    const turns = [turn("q1", "user", 1), turn("a1", "assistant", 2), turn("q2", "user", 3), turn("a2", "assistant")];
+    const next = toFollow(turns);
+    expect(next).toMatchObject({ lookUp: 3 });
+    expect(toFollow((next as { otherwise: Turn[] }).otherwise)).toEqual({ after: 2 });
+    expect(toFollow([turn("q1", "user"), turn("a1", "assistant")])).toBeNull();  // the first question
+  });
+});
+
