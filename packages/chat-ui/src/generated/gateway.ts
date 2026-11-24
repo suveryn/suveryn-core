@@ -2162,6 +2162,17 @@ export interface QuestionIn {
 }
 
 /**
+ * Event ``stored`` of an answer in a saved conversation: the numbers (``seq``) the server gave the question, first,
+ * then with the answer's too, once it is stored, before ``done`` or ``error``. What the next question follows
+ * (``after``), what *Regenerate* asks again (``again``) and what *Save to case* names: told, as chat APIs return the
+ * ids of the messages they store, never guessed from the conversation read back (review of #251, step 3a, finding 1).
+ */
+export interface StoredTurns {
+  answer: number | null;
+  question: number;
+}
+
+/**
  * Body of ``POST /v1/conversations/{id}/share``.
  */
 export interface ShareIn {
@@ -2551,6 +2562,9 @@ export type ListConversationsParams = {
 };
 
 export type AskInConversation200 = {
+  data: string;
+  event: 'stored';
+} | {
   data: string;
   event: 'status';
 } | {

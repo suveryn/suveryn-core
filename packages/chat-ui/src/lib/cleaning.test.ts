@@ -14,7 +14,7 @@ import { withoutDocument } from "./conversations";
  *  Adding a member to a saved turn or a saved answer fails the typecheck here until it says which. */
 type Names = "id" | "no" | "own" | "by name";
 const TURN: Record<keyof UserTurn | keyof AssistantTurn, Names> = {
-  id: "no", seq: "no", role: "no", text: "no", attachments: "id", about: "id",
+  id: "no", seq: "no", byServer: "no", role: "no", text: "no", attachments: "id", about: "id",
   citations: "id", calculations: "no", unverifiedFigures: "no", citationIssues: "no", supportSpans: "no", instructionLikeSources: "no",
   partial: "no", status: "no", step: "no", grounded: "no", error: "no", failure: "no", cutOff: "no", model: "no", thinking: "no", reasoning: "no",
   thoughtSeconds: "no", thinkingCut: "no", truncated: "no",

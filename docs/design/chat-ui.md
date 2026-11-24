@@ -380,8 +380,10 @@ bounce in turn; they stand still under `prefers-reduced-motion`.
 
 **Kept by the server** (suveryn-tracker#251). A question goes to `POST /v1/conversations/{id}/questions` with the answer
 it follows; the server stores the question and the answer as it is written, however it ends, and the model reads what
-the server stored. The screen saves nothing itself: once an answer has ended it reads back the numbers the server gave
-the question and its answer, which the next question, *Regenerate* and *Save to case* name. The server keeps a
+the server stored. The screen saves nothing itself: the answer's stream says the numbers the server gave the question
+and, once stored, the answer (event `stored`), which the next question, *Regenerate* and *Save to case* name; a
+refused question gets none. *Regenerate* and *Save to case* need a turn the server stored; on a question the screen
+saved whole before, *Regenerate* asks it as a new question. The server keeps a
 conversation as a tree (each turn names the one it follows), and a reopened conversation shows the newest answer of
 each question; the arrows between an answer's versions wait for their board. Without saved conversations (their store
 down) the question goes to `POST /v1/chat` with the history, and nothing is kept.

@@ -3,8 +3,9 @@
 import { describe, expect, it } from "vitest";
 import { setLang } from "../i18n";
 import type { Turn } from "../types";
-import { fromSaved, shownBranch } from "./conversations";
+import { answerTo, fromSaved, shownBranch } from "./conversations";
 import { saveState } from "./documentActions";
+import { askedAgain, withStored } from "./ask";
 import type { StoredDocument } from "../api";
 
 const CID = "00000000-0000-4000-8000-0000000000a1";
@@ -38,7 +39,7 @@ describe("a turn the server stored, as the screen shows it", () => {
   it("a question with the documents it showed, named as they are now, a deleted one taken out", () => {
     const [q] = fromSaved(stored(question(1, "Wat is de prijs?", null, { attached: [DEED], about: ["gone"] })), CID,
                           (id) => (id === DEED ? "akte.pdf" : undefined));
-    expect(q).toEqual({ id: `${CID}/1`, seq: 1, role: "user", text: "Wat is de prijs?",
+    expect(q).toEqual({ id: `${CID}/1`, seq: 1, byServer: true, role: "user", text: "Wat is de prijs?",
                         attachments: [{ key: DEED, status: "ready", documentId: DEED, filename: "akte.pdf" }],
                         about: [{ documentId: "gone", filename: "", removed: true }] });
   });
@@ -70,5 +71,33 @@ describe("an answer saved to its case before, found again", () => {
                                                                           savedHere: new Set(), documents });
     expect(state([document])).toEqual({ saved: { documentId: "doc-1", filename: "q.docx" }, undoable: false });
     expect(state([])).toEqual({ saved: null, undoable: false });
+  });
+});
+
+describe("the answer to a question, by the question it answers (never by its place)", () => {
+  it("the newest answer that follows it, or, saved whole, the turn after it", () => {
+    const turns = [question(1, "q1", null), answer(2, "a1", 1), question(3, "q2", 2), answer(4, "a2", 3), answer(5, "a2b", 3)];
+    expect([answerTo(turns, 1), answerTo(turns, 3), answerTo(turns, 9)]).toEqual([2, 5, undefined]);
+    expect(answerTo([question(1, "q1", null)], 1)).toBeUndefined();  // not stored yet
+    expect(answerTo([{ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }], 1)).toBe(2);
+  });
+});
+
+describe("the numbers the server says as it answers", () => {
+  const asked: Turn[] = [{ id: "u1", role: "user", text: "q", attachments: [] },
+                         { id: "a1", role: "assistant", text: "", citations: [], status: "streaming", grounded: false }];
+
+  it("go on the question first, then on its answer once stored; a refused question never gets one", () => {
+    const first = withStored(asked, "u1", "a1", { question: 7, answer: null });
+    expect(first.map((t) => [t.seq, t.byServer])).toEqual([[7, true], [undefined, undefined]]);
+    const both = withStored(first, "u1", "a1", { question: 7, answer: 8 });
+    expect(both.map((t) => [t.id, t.seq, t.byServer])).toEqual([["u1", 7, true], ["a1", 8, true]]);
+    expect(asked.map((t) => t.seq)).toEqual([undefined, undefined]);  // nothing said: nothing numbered
+  });
+
+  it("Regenerate asks the stored question again by its number, a question saved whole as a new one", () => {
+    const stored = { id: "u1", role: "user" as const, text: "q", attachments: [], seq: 7, byServer: true };
+    expect([askedAgain(stored, true), askedAgain(stored, false), askedAgain({ ...stored, byServer: undefined }, true)])
+      .toEqual([7, undefined, undefined]);
   });
 });

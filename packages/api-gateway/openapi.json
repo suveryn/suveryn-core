@@ -6299,6 +6299,32 @@
     "title": "StoredDocument",
     "type": "object"
    },
+   "StoredTurns": {
+    "description": "Event ``stored`` of an answer in a saved conversation: the numbers (``seq``) the server gave the question, first,\nthen with the answer's too, once it is stored, before ``done`` or ``error``. What the next question follows\n(``after``), what *Regenerate* asks again (``again``) and what *Save to case* names: told, as chat APIs return the\nids of the messages they store, never guessed from the conversation read back (review of #251, step 3a, finding 1).",
+    "properties": {
+     "answer": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Answer"
+     },
+     "question": {
+      "title": "Question",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "question",
+     "answer"
+    ],
+    "title": "StoredTurns",
+    "type": "object"
+   },
    "StreamDelta": {
     "description": "One streamed chunk of answer text (SSE event ``delta``).",
     "properties": {
@@ -14219,6 +14245,27 @@
             "data": {
              "contentMediaType": "application/json",
              "contentSchema": {
+              "$ref": "#/components/schemas/StoredTurns"
+             },
+             "type": "string"
+            },
+            "event": {
+             "const": "stored",
+             "type": "string"
+            }
+           },
+           "required": [
+            "event",
+            "data"
+           ],
+           "title": "stored event",
+           "type": "object"
+          },
+          {
+           "properties": {
+            "data": {
+             "contentMediaType": "application/json",
+             "contentSchema": {
               "$ref": "#/components/schemas/StreamStatus"
              },
              "type": "string"
@@ -14341,11 +14388,11 @@
            "type": "object"
           }
          ],
-         "title": "One event of the answer stream"
+         "title": "One event of an answer in a saved conversation"
         }
        }
       },
-      "description": "The answer, as events: zero or more `status`, for a grounded answer one `sources`, with `thinking` true and a model that can think zero or more `thinking`, zero or more `delta`, then one `done` (the whole answer) or one `error`. Closing the connection stops the answer: the model stops writing. The question and the answer are stored, however it ends."
+      "description": "The answer, as events: first one `stored` (the question's number), then zero or more `status`, for a grounded answer one `sources`, with `thinking` true and a model that can think zero or more `thinking`, zero or more `delta`, then one `done` (the whole answer) or one `error`. Closing the connection stops the answer: the model stops writing. Before `done` or `error`, one `stored` with the answer's number too. The question and the answer are stored, however it ends."
      },
      "401": {
       "content": {

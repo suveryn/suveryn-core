@@ -49,6 +49,15 @@ def test_a_document_is_read_and_an_answer_cites_it(page, deed):
     # the injection attempt is flagged on the answer, never followed
     expect(page.get_by_text(re.compile("text aimed at an AI")).first).to_be_visible()
     assert "GOEDGEKEURD" not in text and "EUR 1,00" not in text
+    # the server keeps the conversation (suveryn-tracker#251): a follow-up goes on from the answer shown, and the
+    # conversation opened again later is the one asked, both answers with their sources
+    ask(page, "En welke prijs noemt artikel 2?")
+    page.reload()
+    page.get_by_role("button", name="Conversations", exact=True).click()
+    page.get_by_role("row", name=re.compile("Wat is de koopprijs")).first.press("Enter")
+    main = page.locator("main")
+    expect(main.get_by_text("En welke prijs noemt artikel 2?")).to_be_visible()
+    expect(main.get_by_text(re.compile(r"^Sources:"))).to_have_count(2)
 
 
 def test_thorough_without_an_answer_is_asked_again(page, deed):

@@ -48,6 +48,15 @@ export function shownBranch<T extends Stored>(turns: T[]): T[] {
   return shown;
 }
 
+/** The newest stored answer to the question numbered ``question``: the one it follows (``parent``), or, for turns the
+ *  chat UI saved whole, the turn after it. */
+export function answerTo(turns: unknown[], question: number): number | undefined {
+  const stored = turns as Stored[];
+  const answers = stored.filter((t, i) => t.role === "assistant"
+    && ("parent" in t ? t.parent === question : stored[i - 1]?.seq === question));
+  return answers.at(-1)?.seq;
+}
+
 /** A turn the server stored, as the screen shows it: a question with the documents it showed (by id: their names
  *  as the documents here know them, or taken out when deleted), an answer as it ended. ``conversationId``/``seq`` is
  *  its id: the mark of its Word file, and what a document saved from it names (its provenance's ``message``). */
@@ -60,14 +69,14 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
   };
   if (turn.role === "user") {
     const about = ids("about").map(named);
-    return { id, seq: turn.seq, role: "user", text: turn.text ?? "",
+    return { id, seq: turn.seq, byServer: true, role: "user", text: turn.text ?? "",
              attachments: ids("attached").map((d) => ({ key: d, status: "ready" as const, ...named(d) })),
              ...(about.length ? { about } : {}) };
   }
   const done = { answer: turn.text ?? "", ...(turn as object) } as unknown as ChatResponse;
   const asked: Stored = question ?? { role: "user" };
   const answer: AssistantTurn = {
-    id, seq: turn.seq, role: "assistant", citations: [], grounded: ids("document_ids", asked).length > 0,
+    id, seq: turn.seq, byServer: true, role: "assistant", citations: [], grounded: ids("document_ids", asked).length > 0,
     ...answerPatch(done, { thought: "", partial: ids("about", asked).length > 0 && turn.complete === false }),
     ...(asked.thinking ? { thinking: true } : {}),
   } as AssistantTurn;

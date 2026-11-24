@@ -84,6 +84,9 @@ type AnswerEvents = { status: gateway.StreamStatus; sources: gateway.StreamSourc
                       done: gateway.ChatResponse; error: gateway.StreamError };
 const EVERY_EVENT: Record<keyof AnswerEvents, true> = { status: true, sources: true, thinking: true, delta: true, done: true, error: true };
 export const ANSWER_EVENTS = Object.keys(EVERY_EVENT);
+/** An answer in a saved conversation says the numbers the server gave its question and itself too (`stored`, #251). */
+type ConversationEvents = AnswerEvents & { stored: gateway.StoredTurns };
+export const CONVERSATION_EVENTS = ["stored", ...ANSWER_EVENTS];
 /** An installed model; only one is in GPU memory at a time. `thinks`: the model can think before it answers, so
  *  *Thorough* is possible (docs/design/chat-ui.md §5). */
 export type { ModelInfo } from "./generated/gateway";
@@ -248,6 +251,8 @@ export type AnswerHandlers = {
   onStatus?: (status: StreamStatus) => void;
   onSources?: (citations: Citation[]) => void;  // a grounded answer's passages, before its first word
   onThinking?: (text: string) => void;          // *Thorough*: the reasoning as it comes
+  /** In a saved conversation: the numbers the server gave the question, first, then the answer too, once stored. */
+  onStored?: (stored: gateway.StoredTurns) => void;
 };
 
 /**
@@ -266,9 +271,10 @@ async function readAnswer(r: Response, h: AnswerHandlers): Promise<ChatResponse>
   if (!r.ok || !r.body) throw await responseError(r);
   let done: ChatResponse | null = null;
   let failure: Message | null = null;
-  const said = <Name extends keyof AnswerEvents>(_: Name, data: string) => JSON.parse(data) as AnswerEvents[Name];
+  const said = <Name extends keyof ConversationEvents>(_: Name, data: string) => JSON.parse(data) as ConversationEvents[Name];
   const parser = createSSEParser(({ event, data }) => {
-    if (event === "status") h.onStatus?.(said(event, data));
+    if (event === "stored") h.onStored?.(said(event, data));
+    else if (event === "status") h.onStatus?.(said(event, data));
     else if (event === "sources") h.onSources?.(said(event, data).citations);
     else if (event === "thinking") h.onThinking?.(said(event, data).text);
     else if (event === "delta") h.onDelta(said(event, data).text);

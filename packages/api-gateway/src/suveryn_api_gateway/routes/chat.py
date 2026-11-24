@@ -33,6 +33,7 @@ from suveryn_harness import (
     Thinking,
 )
 
+from ..conversations import StoredTurns
 from ..problems import refusals
 from .common import (
     DocumentNotFound,
@@ -52,6 +53,8 @@ router = APIRouter(tags=["answers"])  # the group its operations are in, in the 
 # ``_stream`` writes them and says their order; the test that walks an answer fails on an event this list doesn't name.
 EVENTS: dict[str, type[BaseModel]] = {"status": StreamStatus, "sources": StreamSources, "thinking": StreamThinking, "delta": StreamDelta,
                                       "done": ChatResponse, "error": StreamError}
+# An answer in a saved conversation says the numbers the server gave its question and itself, too (suveryn-tracker#251).
+CONVERSATION_EVENTS: dict[str, type[BaseModel]] = {"stored": StoredTurns, **EVENTS}
 
 
 def events_described(description: dict) -> dict:
@@ -63,25 +66,28 @@ def events_described(description: dict) -> dict:
     from pydantic.json_schema import models_json_schema
 
     place = "#/components/schemas/{model}"
-    _, shapes = models_json_schema([(model, "serialization") for model in EVENTS.values()], ref_template=place)
+    _, shapes = models_json_schema([(model, "serialization") for model in CONVERSATION_EVENTS.values()], ref_template=place)
     known = description.setdefault("components", {}).setdefault("schemas", {})
     for name, shape in shapes.get("$defs", {}).items():
         known.setdefault(name, shape)
-    one = [{"type": "object", "title": f"{name} event", "required": ["event", "data"], "properties": {
-        "event": {"type": "string", "const": name},
-        "data": {"type": "string", "contentMediaType": "application/json", "contentSchema": {"$ref": place.format(model=model.__name__)}}}}
-        for name, model in EVENTS.items()]
+
+    def one(events: dict[str, type[BaseModel]]) -> list[dict]:
+        return [{"type": "object", "title": f"{name} event", "required": ["event", "data"], "properties": {
+            "event": {"type": "string", "const": name},
+            "data": {"type": "string", "contentMediaType": "application/json", "contentSchema": {"$ref": place.format(model=model.__name__)}}}}
+            for name, model in events.items()]
     events = ("zero or more `status`, for a grounded answer one `sources`, with `thinking` true and a model that can think zero or "
               "more `thinking`, zero or more `delta`, then one `done` (the whole answer) or one `error`. Closing the connection stops "
               "the answer: the model stops writing.")
-    stream = {"itemSchema": {"oneOf": one, "title": "One event of the answer stream"}}
     answered = description["paths"]["/v1/chat"]["post"]["responses"]["200"]
     answered["description"] = f"The answer. With stream=true, as events: {events}"
-    answered["content"]["text/event-stream"] = stream
-    # A question in a saved conversation is always streamed (suveryn-tracker#251): the same events, and only them.
+    answered["content"]["text/event-stream"] = {"itemSchema": {"oneOf": one(EVENTS), "title": "One event of the answer stream"}}
+    # A question in a saved conversation is always streamed (suveryn-tracker#251): the same events, and `stored`.
     asked = description["paths"]["/v1/conversations/{conversation_id}/questions"]["post"]["responses"]["200"]
-    asked["description"] = f"The answer, as events: {events} The question and the answer are stored, however it ends."
-    asked["content"] = {"text/event-stream": stream}
+    asked["description"] = (f"The answer, as events: first one `stored` (the question's number), then {events} Before `done` or `error`, "
+                            "one `stored` with the answer's number too. The question and the answer are stored, however it ends.")
+    asked["content"] = {"text/event-stream": {"itemSchema": {"oneOf": one(CONVERSATION_EVENTS),
+                                                             "title": "One event of an answer in a saved conversation"}}}
     return description
 
 

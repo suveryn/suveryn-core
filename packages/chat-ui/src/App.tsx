@@ -64,11 +64,11 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { conversationTitle, listedTitle, newConversationId, shownBranch, withoutDocument } from "./lib/conversations";
+import { answerTo, conversationTitle, listedTitle, newConversationId, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
-import { answerPatch, canRegenerate, conversationDocuments, failureKind, questionFor } from "./lib/ask";
+import { answerPatch, askedAgain, canRegenerate, conversationDocuments, failureKind, questionFor, withStored } from "./lib/ask";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
 import { lang, locale, t, useLang, useT } from "./i18n";
@@ -552,31 +552,22 @@ function Chat({ me }: { me: Me }) {
   };
 
   // ``fresh``: the case's documents just read again, for the one retry after a colleague deleted one.
-  // A question in a saved conversation follows the answer shown last (``after``, its seq; #251). Its seq comes when
-  // the server has stored it: read back from the conversation when this page doesn't know it yet.
+  // A question in a saved conversation follows the answer shown last (``after``, its seq; #251). The server says the
+  // number of each turn it stores as it answers (event ``stored``); an answer stopped before it was stored is stored as
+  // the connection closes, and found by the question it answers, never guessed by its place (review of step 3a).
   const answerFollowed = async (ts: Turn[]): Promise<{ after?: number }> => {
-    const last = [...ts].reverse().find((t) => t.role === "assistant");
-    if (!last) return {};
-    if (last.seq !== undefined) return { after: last.seq };
-    const shown = await shownTurns();
-    const known = [...shown].reverse().find((t) => t.role === "assistant");
-    return known?.seq !== undefined ? { after: known.seq } : {};
-  };
-  const shownTurns = async (): Promise<{ role: string; seq?: number }[]> => {
-    try { return shownBranch((await getConversation(conversationId)).turns as unknown as { role: string; seq?: number }[]); }
-    catch { return []; }
-  };
-  // Once an answer has ended: the numbers the server gave the question and its answer, read back (the stream doesn't
-  // say them: the answer is stored as it ends). ``again``: only the answer is new. Each becomes the turn's id too,
-  // as a reopened conversation names it: what a saved answer's mark and its document name.
-  const stored = async (question: string, answer: string, again: boolean) => {
-    const shown = await shownTurns();
-    refreshConversations();  // a new conversation is listed, a known one moves up
-    const [q, a] = [shown.at(-2), shown.at(-1)];
-    if (a?.role !== "assistant" || a.seq === undefined) return;
-    const named = (t: Turn): Turn => (t.id === answer ? { ...t, id: `${conversationId}/${a.seq}`, seq: a.seq } as Turn
-      : t.id === question && !again && q?.seq !== undefined ? { ...t, id: `${conversationId}/${q.seq}`, seq: q.seq } as Turn : t);
-    setTurns((ts) => ts.map(named));
+    const i = ts.map((t) => t.role).lastIndexOf("assistant");
+    if (i < 0) return {};
+    if (ts[i].seq !== undefined) return { after: ts[i].seq };
+    const question = ts[i - 1]?.seq;
+    for (let tries = 0; question !== undefined && tries < 5; tries++) {
+      try {
+        const found = answerTo((await getConversation(conversationId)).turns, question);
+        if (found !== undefined) return { after: found };
+      } catch { /* asked as it is: the server says what is missing */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return {};
   };
 
   // ``asking``: Regenerate, the stored question (its seq) the server asks once more as it was asked (#251).
@@ -623,6 +614,8 @@ function Chat({ me }: { me: Me }) {
         thought += piece;
         update({ reasoning: thought });
       },
+      // the numbers the server gave the question and, once stored, the answer: what follows, Regenerate and Save name
+      onStored: (numbers) => setTurns((ts) => withStored(ts, user.id, reply.id, numbers)),
     };
     try {
       // With saved conversations, the server keeps the conversation and stores each turn as it answers
@@ -663,7 +656,7 @@ function Chat({ me }: { me: Me }) {
       abort.current = null;
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
-    if (historyReady) await stored(user.id, reply.id, asking !== undefined);
+    if (historyReady) refreshConversations();  // a new conversation is listed, a known one moves up
     if (retryWith) {
       setTurns((ts) => ts.filter((t) => t.id !== user.id && t.id !== reply.id));
       await send(text, attachments, asked, retryWith);
@@ -676,7 +669,7 @@ function Chat({ me }: { me: Me }) {
     const question = turns[turns.length - 2] as UserTurn;
     setTurns((ts) => ts.slice(0, -2));
     // asked again as it was asked: by the server, from the question it stored (#251), or as before without it
-    send(question.text, question.attachments, question.about ?? [], undefined, historyReady ? question.seq : undefined);
+    send(question.text, question.attachments, question.about ?? [], undefined, askedAgain(question, historyReady));
   };
 
   // The start screen: no case, nothing asked yet. First use: no conversations and no cases yet.
@@ -743,7 +736,7 @@ function Chat({ me }: { me: Me }) {
     setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
   const saveControls = (t: AssistantTurn): SaveToCase | null => {
     const state = saveState(t, { inCase: !!caseId, contributes, closed, readOnly, savedHere, documents });
-    if (!currentCase || !caseId || !state || t.seq === undefined) return null;  // only an answer the server has stored
+    if (!currentCase || !caseId || !state || !t.byServer || t.seq === undefined) return null;  // only an answer the server stored
     return {
       caseRef: currentCase.reference, ...state,
       onSave: async () => {

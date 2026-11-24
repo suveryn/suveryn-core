@@ -24,6 +24,7 @@ from ..conversations import (
     RenameIn,
     QuestionIn,
     ShareIn,
+    StoredTurns,
     answered_turn,
     asked_turn,
     cited_documents,
@@ -34,7 +35,7 @@ from ..conversations import (
     title_of,
 )
 from ..problems import refusals
-from .chat import Heard, StoredWhenEnded, _stream, checked
+from .chat import Heard, StoredWhenEnded, _sse, _stream, checked
 from .common import Scope, case_for, docs_or_503, flush_soon, history_or_503, log_access, owner_of, readable_case_ids, scope_of, who
 
 log = logging.getLogger("suveryn.gateway")
@@ -179,13 +180,13 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
         raise
     heard, written = Heard(), []
 
-    async def store_answer() -> None:
+    async def store_answer() -> int | None:
         """The answer stored, once: as soon as the stream says how it ended (its last event, ``done`` or ``error``,
         goes out after it is stored, so the browser finds it when it reads the conversation back), or when the
         connection closed first (stopped). Shielded: a stop at that moment doesn't leave it half done."""
         if written:
-            return
-        written.append(True)
+            return written[0]
+        written.append(None)
         with anyio.CancelScope(shield=True):
             try:
                 text, meta = answered_turn(heard.text, heard.reasoning, heard.sources, heard.done, heard.failure, question)
@@ -195,7 +196,7 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
                 cited = cited_documents([meta])
                 if (gone := await run_in_threadpool(_gone, request, cited, scope)) is not None:
                     redact([meta], gone)
-                await run_in_threadpool(store.add, cid, "assistant", "assistant", text[:MAX_TURN_TEXT], meta, cited)
+                written[0] = (await run_in_threadpool(store.add, cid, "assistant", "assistant", text[:MAX_TURN_TEXT], meta, cited)).seq
                 if (later := await run_in_threadpool(_gone, request, cited, scope)) is not None:
                     for d in sorted(cited):
                         if later(d) and (gone is None or not gone(d)):
@@ -203,11 +204,13 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
             except Exception as e:  # noqa: BLE001 - the question stays, unanswered; the log has a reference, never the text
                 ref, where = unplanned(e)
                 log.error("an answer couldn't be stored: internal %s: %s at %s", ref, type(e).__name__, where)
+        return written[0]
 
     async def answered():
+        yield _sse("stored", StoredTurns(question=question, answer=None))
         async for event in _stream(chat_service, req, owner, heard):
-            if heard.done is not None or heard.failure is not None:
-                await store_answer()
+            if (heard.done is not None or heard.failure is not None) and not written:
+                yield _sse("stored", StoredTurns(question=question, answer=await store_answer()))
             yield event
 
     async def ended() -> None:

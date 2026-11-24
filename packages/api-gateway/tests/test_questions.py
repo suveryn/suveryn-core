@@ -166,7 +166,12 @@ def test_a_question_and_its_answer_are_stored_by_the_server_and_read_back_to_the
     with c:
         with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is  de\nkoopprijs?"}, headers=alice) as r:
             assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
-            assert [name for name, _ in events(r)][-1] == "done"
+            said = events(r)
+            assert [name for name, _ in said][-1] == "done"
+        # the numbers the server gave the question, first, and the answer, once stored, before done (review, step 3a)
+        stored_events = [data for name, data in said if name == "stored"]
+        assert said[0] == ("stored", {"question": 1, "answer": None}) and said[-2] == ("stored", {"question": 1, "answer": 2})
+        assert stored_events == [{"question": 1, "answer": None}, {"question": 1, "answer": 2}]
         got = c.get(f"/v1/conversations/{cid}", headers=alice).json()
         assert got["title"] == "Wat is de koopprijs?" and got["messages"] == 2 and got["case_id"] is None
         (q_role, q_text, q_meta), (a_role, a_text, a_meta) = stored(store, cid)
@@ -462,8 +467,8 @@ def test_a_question_shows_only_documents_the_caller_may_see(store):
 
 # Saving an answer the server stored to its case (step 2).
 
-def test_a_saved_answers_file_name_and_search_text_are_the_chat_uis():
-    """As the chat UI's ``answerFileName`` and ``searchText`` make them for an answer it saves itself."""
+def test_a_saved_answers_file_name_and_search_text():
+    """Named after its question, as a file name can hold it; found by its question and its words, without markers."""
     from suveryn_api_gateway.conversations import file_name, search_text
 
     assert file_name("Wat is: de prijs?/..  ") == "Wat is de prijs.docx"
@@ -606,3 +611,16 @@ def test_the_answer_is_stored_before_its_last_event_goes_out(store):
         assert when_done == [["user", "assistant"]]
     finally:
         store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))
+
+
+def test_an_answer_is_as_long_as_the_chat_asks_for_without_saved_conversations():
+    """One length for an answer, wherever it is asked: the gateway's for a saved conversation, the chat UI's for
+    ``POST /v1/chat`` (its api.ts ``ANSWER_TOKENS``). Two numbers in two languages: held together here."""
+    import re
+    from pathlib import Path
+
+    from suveryn_api_gateway.routes.conversations import ANSWER_TOKENS
+
+    api = Path(__file__).parents[2] / "chat-ui" / "src" / "api.ts"
+    assert re.search(r"const ANSWER_TOKENS = (\d+);", api.read_text(encoding="utf-8")).group(1) == str(ANSWER_TOKENS)
+

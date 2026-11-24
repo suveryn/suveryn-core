@@ -2,7 +2,8 @@
  *  sends, and what the gateway's real answers become for the screen. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import conversations from "../../api-gateway/tests/conversations_answers.json";
-import { askInConversation, deleteAllConversations, deleteConversation, getConversation, HttpError, listAllConversations, listConversations,
+import { readFileSync } from "node:fs";
+import { askInConversation, CONVERSATION_EVENTS, deleteAllConversations, deleteConversation, getConversation, HttpError, listAllConversations, listConversations,
   moveConversation, pinConversation, renameConversation, shareConversation } from "./api";
 import { messageText } from "./lib/messages";
 import { t } from "./i18n";
@@ -35,12 +36,21 @@ describe("the conversations", () => {
   it("asks in one, which the server keeps (#251), and opens it with its turns", async () => {
     const sent = gatewayAnswers(eventStream(conversations.asked.body as { event: string; data: unknown }[]), conversations.one);
     const words: string[] = [];
-    const done = await askInConversation(ID, { text: "Wat is de koopprijs?", after: 2 }, { onDelta: (w) => words.push(w) });
+    const numbers: unknown[] = [];
+    const done = await askInConversation(ID, { text: "Wat is de koopprijs?", after: 2 },
+                                         { onDelta: (w) => words.push(w), onStored: (n) => numbers.push(n) });
     expect([words.join(""), done.answer]).toEqual([done.answer, "De koopprijs is EUR 412.500,00 [1]."]);
+    expect(numbers).toEqual([{ question: 1, answer: null }, { question: 1, answer: 2 }]);  // as the server stored them
     const opened = await getConversation(ID);
     expect([opened.title, opened.turns.map((turn) => turn.role)]).toEqual(["Wat is de koopprijs?", ["user", "assistant"]]);
     expect(sent).toEqual([asked("POST", `/v1/conversations/${ID}/questions`, { text: "Wat is de koopprijs?", after: 2 }),
       asked("GET", `/v1/conversations/${ID}`)]);
+  });
+
+  it("an answer in a conversation has the events the gateway's description names (#251)", () => {
+    const described = JSON.parse(readFileSync(new URL("../../api-gateway/openapi.json", import.meta.url), "utf8"));
+    const one = described.paths["/v1/conversations/{conversation_id}/questions"].post.responses["200"].content["text/event-stream"].itemSchema.oneOf;
+    expect((one as { properties: { event: { const: string } } }[]).map((event) => event.properties.event.const)).toEqual(CONVERSATION_EVENTS);
   });
 
   it("renames, pins, shares and moves one", async () => {

@@ -9,7 +9,7 @@ import type {
   Job, Run, RunFact, RunSummary, SavedConversation, StoredDocument, UsersList,
 } from "../api";
 import { aCitation, aFact, aPlaybook, aStep, someWords } from "../test/run";
-import type { AssistantTurn } from "../types";
+import type { AssistantTurn, Turn } from "../types";
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -160,8 +160,29 @@ const marked = (turn: AssistantTurn, ...markers: [number, ...string[]][]): Assis
 const around = (before: string, text: string, after: string) =>
   ({ text: `${before} ${text} ${after}`, start: before.length + 1, end: before.length + 1 + text.length });
 
+/** A sample conversation as the gateway gives it back: each turn as the server stored it as it answered
+ *  (suveryn-tracker#251), numbered, each following the one before, so the previews read it as the screen does
+ *  (lib/conversations.ts, ``fromSaved``). Written here in the screen's own shape, for reading. */
+const served = (c: SavedConversation): SavedConversation => ({
+  ...c,
+  turns: c.turns.map((t, i) => {
+    const seq = i + 1, parent = i === 0 ? null : i;
+    if (t.role === "user") {
+      const next = c.turns[i + 1] as AssistantTurn | undefined;
+      const read = next?.grounded ? [...new Set(next.citations.map((x) => x.source?.document_id).filter((d): d is string => !!d))] : [];
+      return { seq, role: "user", text: t.text, kind: "question", parent, document_ids: read, about: (t.about ?? []).map((a) => a.documentId),
+               attached: t.attachments.flatMap((a) => (a.documentId ? [a.documentId] : [])), model: null, thinking: !!next?.thinking };
+    }
+    return { seq, role: "assistant", text: t.text, kind: "answer", parent, outcome: t.status === "done" ? "done" : t.status === "stopped" ? "stopped" : "failed",
+             model: t.model ?? null, citations: t.citations, calculations: t.calculations ?? [], unverified_figures: t.unverifiedFigures ?? [],
+             citation_issues: t.citationIssues ?? [], support_spans: t.supportSpans ?? [], instruction_like_sources: t.instructionLikeSources ?? [],
+             reasoning: t.reasoning ?? "", thought_seconds: t.thoughtSeconds ?? null, thinking_cut: !!t.thinkingCut, narrowed_to: null,
+             complete: t.partial ? false : null, asked_again: false, finish_reason: t.truncated ? "length" : "stop", failure: t.failure ?? null };
+  }) as unknown as Turn[],
+});
+
 /** The open conversation: a question about the case's documents, answered with two sources (board G02). */
-const SAVED: SavedConversation = {
+const SAVED: SavedConversation = served({
   ...CONVERSATION,
   turns: [
     { id: "t1", role: "user", text: "Welke opschortende voorwaarden staan er in het compromis, en tegen wanneer moet de financiering rond zijn?", attachments: [] },
@@ -181,17 +202,17 @@ const SAVED: SavedConversation = {
       ],
     }, [1], [2, "vier"]),
   ],
-};
+});
 
 /** A personal conversation without documents (board G03). */
-const SAVED_PERSONAL: SavedConversation = {
+const SAVED_PERSONAL: SavedConversation = served({
   ...PERSONAL_CONVERSATIONS[1],
   turns: [
     { id: "p1", role: "user", text: "Wat is een huurkoopformule, in grote lijnen?", attachments: [] },
     { id: "p2", role: "assistant", status: "done", grounded: false, model: "Qwen3.8-27B", citations: [],
       text: "Bij huurkoop betaalt de koper periodiek een bedrag dat deels als huur en deels als afbetaling op de prijs geldt. De eigendom gaat pas over bij de laatste betaling." },
   ],
-};
+});
 
 // ---------- administration ----------
 const check = (id: string, extra: Record<string, unknown> = {}) => ({
@@ -368,6 +389,9 @@ export const routes: Route[] = [
   ["GET", /^\/v1\/conversations\/conv-prijs$/, () => SAVED_ABOUT],
   ["GET", /^\/v1\/conversations\/conv-erf$/, () => SAVED_MIXED],
   ["GET", /^\/v1\/conversations\/conv-termijnen$/, () => SAVED_TABLE],
+  // Save to case names the answer the server stored (#251): the server answers with the document it made, named
+  // after the question
+  ["POST", /^\/v1\/conversations\/[^/]+\/turns\/\d+\/document$/, { id: "d-termijnen", filename: "Zet de bedragen en termijnen uit het compromis in een tabel.docx", created: true }],
   ["GET", /^\/v1\/conversations\/([^/?]+)$/, (m: RegExpMatchArray) => ({ ...(ALL_CONVERSATIONS.find((c) => c.id === m[1]) ?? CONVERSATION), turns: [] })],
   ["GET", /^\/v1\/documents\/all$/, { documents: ALL_DOCUMENTS }],
   ["GET", /^\/v1\/documents\?case=c123/, { documents: CASE_DOCUMENTS, jobs: [] }],
@@ -425,7 +449,7 @@ export const NO_RUN: Route[] = [["GET", /^\/v1\/playbooks\/runs\/active$/, {}], 
 export const AS_READER: Route[] = [["GET", /^\/v1\/cases\/c124$/, { ...CASE_124, my_role: "reader", manager: "u-mieke" }]];
 
 /** Asked about one chosen document (board G18): "Vraag over" under the question, "Op basis van" above the answer. */
-const SAVED_ABOUT: SavedConversation = {
+const SAVED_ABOUT: SavedConversation = served({
   ...CASE_CONVERSATIONS[0],
   turns: [
     { id: "a1", role: "user", text: "Wat is de verkoopprijs, en wanneer moet die betaald worden?", attachments: [],
@@ -439,10 +463,10 @@ const SAVED_ABOUT: SavedConversation = {
           source: { document_id: "d-compromis", page: 3, location: null } },
       ] }, [1, "385.000"], [2, "38.500"]),
   ],
-};
+});
 
 /** Nothing chosen, the answer from three documents (board G19, 4): "Op basis van 3 documenten" names them. */
-const SAVED_MIXED: SavedConversation = {
+const SAVED_MIXED: SavedConversation = served({
   ...conv("conv-erf", "Erfdienstbaarheden", 4 * HOUR, { case_id: "c123" }),
   turns: [
     { id: "e1", role: "user", text: "Welke erfdienstbaarheden rusten op het goed?", attachments: [] },
@@ -455,7 +479,7 @@ const SAVED_MIXED: SavedConversation = {
         { text: "Voor deze grond zijn geen gegevens over bodemverontreiniging beschikbaar.", source: { document_id: "d-bodem", page: 1, location: null } },
       ] }, [1, "drie"], [2]),
   ],
-};
+});
 /** Case 123 as a reader (board G19, 6): sees what each question read, asks nothing. */
 /** Case 109 (a marriage contract: no playbook fits it) or 118 (strictly confidential) as their manager (board 80). */
 const asManager = (id: string): Route[] => [["GET", new RegExp(`^/v1/cases/${id}$`), { ...CASES.find((c) => c.id === id)!, my_role: "manager", manager: "u-test" }],
@@ -474,12 +498,11 @@ export const RUN_DONE = runIn({ status: "done", step: null, finished_at: ago(30 
   facts: RUN.facts.map((f) => ({ ...f, confirmed: f.value })) });
 
 /** An answer with a table, saved to its case as a Word document (board G16). */
-const SAVED_TABLE: SavedConversation = {
+const SAVED_TABLE: SavedConversation = served({
   ...CASE_CONVERSATIONS[1],
   turns: [
     { id: "b1", role: "user", text: "Zet de bedragen en termijnen uit het compromis in een tabel.", attachments: [] },
     marked({ id: "b2", role: "assistant", status: "done", grounded: true, model: "Qwen3.8-27B",
-      saved: { documentId: "d-termijnen", filename: "Betalingen en termijnen.docx" },
       text: "Het compromis noemt vier bedragen met hun termijn.\n\n"
         + "| Wat | Bedrag | Termijn | Bron |\n|---|---:|---|---|\n"
         + "| Prijs | € 385.000 | Bij het verlijden van de akte | [1] |\n"
@@ -492,4 +515,4 @@ const SAVED_TABLE: SavedConversation = {
         { text: "Alle kosten, rechten en erelonen van de akte zijn ten laste van de koper.", source: { document_id: "d-compromis", page: 9, location: null } },
       ] }, [1], [2, "38.500"], [1], [3]),
   ],
-};
+});
