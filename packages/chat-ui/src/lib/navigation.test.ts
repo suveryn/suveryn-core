@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ConversationSummary, PlaybookInfo, Run } from "../api";
-import type { AssistantTurn, Turn, UserTurn } from "../types";
+import type { Turn } from "../types";
 import { PIN_HINT_AFTER } from "./conversationActions";
 import { asksBeforeSignOut, inAnotherPlace, liveRunInstead, memberName, needsCaseOpen, pinHintDue, reopened, runIsLive,
          runPlaybook } from "./navigation";
@@ -66,13 +66,14 @@ describe("conversations", () => {
   });
 
   it("reopened: with its Ask about choice, and Fast or Thorough", () => {
-    const question: UserTurn = { id: "u", role: "user", text: "Wat is de prijs?", attachments: [],
-                                 about: [{ documentId: "d1", filename: "akte.pdf" }] };
-    const answer: AssistantTurn = { id: "a", role: "assistant", text: "EUR 1.275.000,00", citations: [], status: "done", grounded: true, thinking: true };
-    const r = reopened([question, answer] as Turn[], false);
+    // as the server stored them (suveryn-tracker#251): the documents by id, named as this page knows them
+    const stored = [{ seq: 1, role: "user", text: "Wat is de prijs?", kind: "question", parent: null, document_ids: ["d1"], about: ["d1"],
+                      attached: [], model: null, thinking: true },
+                    { seq: 2, role: "assistant", text: "EUR 1.275.000,00", kind: "answer", parent: 1, outcome: "done", citations: [] }];
+    const r = reopened(stored as unknown as Turn[], false, "c", (id) => (id === "d1" ? "akte.pdf" : undefined));
     expect(r.about).toEqual([{ documentId: "d1", filename: "akte.pdf" }]);
     expect(r.thinking).toBe(true);
-    expect(r.turns.map((t) => t.id)).toEqual(["u", "a"]);
+    expect(r.turns.map((t) => t.id)).toEqual(["c/1", "c/2"]);
     expect(reopened([], false)).toMatchObject({ turns: [], about: [], thinking: false });
   });
 

@@ -8,10 +8,7 @@ import {
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
-import { conversationTitle, dayLabel, savedConversation, newConversationId, usesDocument } from "./conversations";
-import { shownOf } from "./versions";
-/** The branch a conversation read back shows. */
-const fromSaved = (...read: Parameters<typeof savedConversation>) => shownOf(savedConversation(...read));
+import { conversationTitle, dayLabel, newConversationId, usesDocument } from "./conversations";
 import { rangeFor, today } from "./usage";
 import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { httpErrorText, reviewPages } from "../api";
@@ -201,18 +198,6 @@ describe("saved conversations (suveryn-tracker#5)", () => {
     expect(conversationTitle(turns)).toBe("Wat is de koopprijs?");
     expect(conversationTitle([{ ...turns[0], text: "x".repeat(120) } as Turn])).toHaveLength(80);
     expect(conversationTitle([])).toBe("Conversation");
-  });
-  it("restores an answer saved while it streamed as interrupted", () => {
-    const back = fromSaved([turns[0], { ...turns[1], status: "streaming" } as Turn]);
-    expect(back[1]).toMatchObject({ status: "error", text: "", error: "This answer was interrupted." });
-  });
-  it("opens a conversation saved with the bare turns the API accepts (VM regression, finding 10)", () => {
-    const bare = [{ role: "user", text: "Vraag" }, { role: "assistant", text: "Antwoord" }] as unknown as Turn[];
-    const [q, a] = fromSaved(bare);
-    expect(q).toMatchObject({ role: "user", text: "Vraag", attachments: [] });
-    expect(a).toMatchObject({ role: "assistant", text: "Antwoord", citations: [], status: "done", grounded: false });
-    expect(q.id).toBeTruthy();
-    expect(q.id).not.toBe(a.id);
   });
   it("dates conversations in UK style", () => {
     const now = new Date(2026, 9, 10, 14, 0);

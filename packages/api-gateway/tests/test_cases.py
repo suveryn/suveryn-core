@@ -32,6 +32,7 @@ from suveryn_api_gateway.cases import (
 from suveryn_api_gateway.directory import Person
 from suveryn_harness import LlamaServerClient, LLMSettings
 from suveryn_rag.store import Original, Scope
+from conftest import kept
 from test_auth import SETTINGS, FakeKeycloak
 from test_conversations import FakeConversations, as_user
 from test_documents import DOC, FakeDocuments, llm_transport
@@ -491,34 +492,41 @@ def test_the_uploader_may_delete_their_own_noticed_upload_while_nobody_has_confi
     assert c.delete(f"/v1/documents/{again}?case={cid}", headers=bob).status_code == 204
 
 
-def saved(question="What is the price?", message="m-1", **over):
-    """An answer as the chat saves it to a case (docs/design/chat-ui.md §5)."""
-    return {"filename": "What is the price.docx", "text": f"{question}\n\nThe price is EUR 300,000.",
-            "content": {"question": question, "answer": "The price is EUR 300,000 [1].", "answeredOn": "2026-10-19T10:00:00Z",
-                        "citations": [{"text": "The price is EUR 300,000.", "source": {"document_id": DOC, "page": 2}}],
-                        "filenames": {DOC: "deed.pdf"}, "turnId": message},
-            "conversation_id": str(uuid.uuid4()), "message_id": message, **over}
+ANSWERED = [{"role": "user", "text": "What is the price?", "document_ids": [DOC], "about": [], "attached": [], "model": None,
+             "thinking": False},
+            {"role": "assistant", "text": "The price is EUR 300,000 [1].",
+             "citations": [{"text": "The price is EUR 300,000.", "source": {"document_id": DOC, "page": 2, "location": None}}]}]
+
+
+def answered_in(history, cid: str, owner: str) -> str:
+    """A question asked in the case and its answer, as the server keeps them (suveryn-tracker#251): the conversation's id;
+    the answer is turn 2."""
+    conv = str(uuid.uuid4())
+    assert kept(history, conv, owner, ANSWERED, case_id=cid)
+    return conv
 
 
 def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
     """Saving an answer is a contributor's right; it becomes a document with origin answer, never a source,
     logged; saving the same answer again gives the same document; the one who saved it may delete it
     (*Undo*), another contributor may not."""
-    c, kc, _, _, docs = office
+    c, kc, _, history, docs = office
     alice, bob, carla = as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
     c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=carla)) == (403, "case.not_allowed")  # a reader
-    r = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=bob)
-    assert r.status_code == 201 and r.json()["created"] is True and r.json()["filename"] == "What is the price.docx"
+    carlas = answered_in(history, cid, CARLA)  # asked before she became a reader
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{carlas}/turns/2/document", headers=carla)) == (403, "case.not_allowed")
+    bobs = answered_in(history, cid, BOB)
+    r = c.post(f"/v1/conversations/{bobs}/turns/2/document", headers=bob)
+    assert r.status_code == 201 and r.json()["created"] is True and r.json()["filename"].endswith(".docx")
     did = r.json()["id"]
-    again = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=bob)
-    assert again.status_code == 200 and again.json() == {"id": did, "filename": "What is the price.docx", "created": False}
+    again = c.post(f"/v1/conversations/{bobs}/turns/2/document", headers=bob)
+    assert again.status_code == 200 and again.json() == {"id": did, "filename": r.json()["filename"], "created": False}
     listed = {d["id"]: d for d in c.get(f"/v1/documents?case={cid}", headers=carla).json()["documents"]}
     assert listed[did]["origin"] == "answer" and listed[did]["source"] is False and listed[did]["uploaded_by"] == BOB
     assert "content" not in listed[did]  # not in the lists; read one at a time
-    assert docs.provenances[did]["message"] == "m-1"
+    assert docs.provenances[did]["message"] == f"{bobs}/2"
     got = c.get(f"/v1/documents/{did}/content?case={cid}", headers=carla)  # a reader may download it
     assert got.status_code == 200 and got.json()["content"]["answer"] == "The price is EUR 300,000 [1]."
     assert c.get(f"/v1/documents/{did}/content", headers=carla).status_code == 404  # not in her personal space
@@ -532,30 +540,20 @@ def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
     assert r.status_code == 200 and r.content == b"%PDF-1.7 test"
     assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "document_opened"
     assert c.get(f"/v1/documents/{did}/original", headers=carla).status_code == 404  # not in her personal space
-    other = c.post(f"/v1/cases/{cid}/documents", json=saved(message="m-2"), headers=alice).json()["id"]
+    other = c.post(f"/v1/conversations/{answered_in(history, cid, ALICE)}/turns/2/document", headers=alice).json()["id"]
     assert (lambda r: (r.status_code, r.json()["code"]))(c.delete(f"/v1/documents/{other}?case={cid}", headers=bob)) == (403, "case.not_allowed")  # Alice's
     assert c.delete(f"/v1/documents/{did}?case={cid}", headers=bob).status_code == 204    # his own: Undo
 
 
-@pytest.mark.parametrize("change, status", [
-    ({"filename": "../../etc/passwd.docx"}, 422), ({"filename": "answer.pdf"}, 422), ({"text": ""}, 422),
-    ({"conversation_id": "x"}, 422), ({"content": {"answer": "no question"}}, 422),
-])
-def test_a_saved_answer_is_checked(office, change, status):
-    c, kc, _, _, _ = office
-    alice = as_user(kc, ALICE)
-    cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
-    assert c.post(f"/v1/cases/{cid}/documents", json=saved(**change), headers=alice).status_code == status
-
-
 def test_a_closed_case_takes_no_saved_answer(office):
-    c, kc, cases, _, _ = office
+    c, kc, cases, history, _ = office
     alice = as_user(kc, ALICE)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+    conv = answered_in(history, cid, ALICE)
     cases.close_case(uuid.UUID(cid))
-    r = c.post(f"/v1/cases/{cid}/documents", json=saved(), headers=alice)
+    r = c.post(f"/v1/conversations/{conv}/turns/2/document", headers=alice)
     assert r.status_code == 403 and "closed" in r.json()["detail"]
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/cases/{uuid.uuid4()}/documents", json=saved(), headers=alice)) == (404, "case.not_found")
+    assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{uuid.uuid4()}/turns/2/document", headers=alice)) == (404, "request.not_found")
 
 
 def test_a_reader_pins_a_case_in_their_own_sidebar(office):
@@ -607,24 +605,17 @@ def test_ask_about_this_case_only_reads_the_cases_uploaded_documents(office):
 
 
 def test_conversations_are_listed_with_their_case(office):
-    c, kc, _, _, _ = office
+    c, kc, _, history, _ = office
     alice = as_user(kc, ALICE)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     personal, in_case = str(uuid.uuid4()), str(uuid.uuid4())
     turns = [{"role": "user", "text": "Vraag"}, {"role": "assistant", "text": "Antwoord"}]
-    assert c.put(f"/v1/conversations/{personal}", json={"title": "Los", "turns": turns}, headers=alice).status_code == 204
-    assert c.put(f"/v1/conversations/{in_case}", json={"title": "Dossier", "turns": turns, "case_id": cid},
-                 headers=alice).status_code == 204
+    assert kept(history, personal, ALICE, turns, "Los")
+    assert kept(history, in_case, ALICE, turns, "Dossier", case_id=cid)
     assert [x["id"] for x in c.get("/v1/conversations", headers=alice).json()] == [personal]
     listed = c.get(f"/v1/conversations?case={cid}", headers=alice).json()
     assert [x["id"] for x in listed] == [in_case] and listed[0]["case_id"] == cid
     assert c.get(f"/v1/conversations/{in_case}", headers=alice).json()["case_id"] == cid
-    # a conversation can't be saved into a case the caller may not see
-    assert c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "x", "turns": turns, "case_id": str(uuid.uuid4())},
-                 headers=alice).status_code == 404
-    # a later save doesn't move it
-    c.put(f"/v1/conversations/{in_case}", json={"title": "Dossier 2", "turns": turns}, headers=alice)
-    assert [x["id"] for x in c.get(f"/v1/conversations?case={cid}", headers=alice).json()] == [in_case]
 
 
 def test_the_cases_overview_has_members_and_the_last_activity(office):
@@ -649,13 +640,13 @@ def test_the_cases_overview_has_members_and_the_last_activity(office):
 def test_a_colleagues_shared_conversation_is_in_everyones_list_with_their_name(office):
     """§4: the Conversations overview lists the ones colleagues shared with a case the caller may read, with
     the colleague's name and the number of messages; unshared, it is theirs alone again."""
-    c, kc, _, _, _ = office
+    c, kc, _, history, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
     conv = str(uuid.uuid4())
     turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
-    c.put(f"/v1/conversations/{conv}", json={"title": "Bob's", "turns": turns, "case_id": cid}, headers=bob)
+    kept(history, conv, BOB, turns, "Bob's", case_id=cid)
     assert conv not in [x["id"] for x in c.get("/v1/conversations?all=true", headers=alice).json()]
     c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)
     listed = {x["id"]: x for x in c.get("/v1/conversations?all=true", headers=alice).json()}
@@ -664,16 +655,16 @@ def test_a_colleagues_shared_conversation_is_in_everyones_list_with_their_name(o
     assert own[conv]["owner_name"] == ""  # his own: no name needed
 
 
-def test_a_renamed_conversation_keeps_its_title_over_later_saves(office):
-    """§4: the owner's title stays; saving the conversation again doesn't rename it after its first question."""
-    c, kc, _, _, _ = office
+def test_a_renamed_conversation_keeps_its_title_as_it_goes_on(office):
+    """§4: the owner's title stays; a later question doesn't rename it after its first question."""
+    c, kc, _, history, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
     conv = str(uuid.uuid4())
     turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
-    c.put(f"/v1/conversations/{conv}", json={"title": "Question", "turns": turns}, headers=alice)
+    kept(history, conv, ALICE, turns, "Question")
     r = c.patch(f"/v1/conversations/{conv}", json={"title": "Sale, the price"}, headers=alice)
     assert r.status_code == 200 and r.json()["title"] == "Sale, the price"
-    c.put(f"/v1/conversations/{conv}", json={"title": "Question", "turns": turns * 2}, headers=alice)
+    history.add(uuid.UUID(conv), "user", ALICE, "Question", {"kind": "question", "parent": 2}, set())
     assert c.get(f"/v1/conversations/{conv}", headers=alice).json()["title"] == "Sale, the price"
     assert c.patch(f"/v1/conversations/{conv}", json={"title": "Bob's"}, headers=bob).status_code == 404
     assert c.patch(f"/v1/conversations/{conv}", json={"title": " "}, headers=alice).status_code == 422
@@ -681,13 +672,13 @@ def test_a_renamed_conversation_keeps_its_title_over_later_saves(office):
 
 def test_a_personal_conversation_is_pinned_and_one_in_a_case_follows_its_case(office):
     """§3: a personal conversation can be pinned by its owner; one in a case can't (pin the case instead)."""
-    c, kc, _, _, _ = office
+    c, kc, _, history, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     personal, in_case = str(uuid.uuid4()), str(uuid.uuid4())
     turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
-    c.put(f"/v1/conversations/{personal}", json={"title": "Own", "turns": turns}, headers=alice)
-    c.put(f"/v1/conversations/{in_case}", json={"title": "Case", "turns": turns, "case_id": cid}, headers=alice)
+    kept(history, personal, ALICE, turns, "Own")
+    kept(history, in_case, ALICE, turns, "Case", case_id=cid)
     r = c.put(f"/v1/conversations/{personal}/pin", json={"pinned": True}, headers=alice)
     assert r.status_code == 200 and r.json()["pinned"]
     assert c.get("/v1/conversations", headers=alice).json()[0]["pinned"]
@@ -699,14 +690,14 @@ def test_a_personal_conversation_is_pinned_and_one_in_a_case_follows_its_case(of
 def test_a_personal_conversation_moves_into_a_case_the_owner_contributes_to(office):
     """§4: moved, it isn't shared, loses its pin, follows the case and is in the case's access log; a reader,
     a closed case and a conversation already in a case are refused."""
-    c, kc, cases, _, _ = office
+    c, kc, cases, history, _ = office
     alice, bob, carla = as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
     c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
     turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
     conv, carlas = str(uuid.uuid4()), str(uuid.uuid4())
-    c.put(f"/v1/conversations/{conv}", json={"title": "Bob's", "turns": turns}, headers=bob)
+    kept(history, conv, BOB, turns, "Bob's")
     c.put(f"/v1/conversations/{conv}/pin", json={"pinned": True}, headers=bob)
     r = c.post(f"/v1/conversations/{conv}/move", json={"case_id": cid}, headers=bob)
     assert r.status_code == 200
@@ -714,16 +705,17 @@ def test_a_personal_conversation_moves_into_a_case_the_owner_contributes_to(offi
     assert moved["case_id"] == cid and not moved["shared"] and not moved["pinned"]
     assert c.get("/v1/conversations", headers=bob).json() == []  # no longer in his own space
     assert [x["id"] for x in c.get(f"/v1/conversations?case={cid}", headers=bob).json()] == [conv]
-    assert c.get(f"/v1/conversations/{conv}", headers=bob).json()["turns"] == turns  # its questions came along
+    assert [(t["role"], t["text"]) for t in c.get(f"/v1/conversations/{conv}", headers=bob).json()["turns"]] == [
+        (t["role"], t["text"]) for t in turns]  # its questions came along
     events = c.get(f"/v1/cases/{cid}/events", headers=alice).json()
     assert (events[0]["user"], events[0]["action"], events[0]["detail"]) == (BOB, "conversation_moved_in", {"conversation": conv})
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{conv}/move", json={"case_id": cid}, headers=bob)) == (409, "conversation.in_case")
     # a reader can't move one in
-    c.put(f"/v1/conversations/{carlas}", json={"title": "Carla's", "turns": turns}, headers=carla)
+    kept(history, carlas, CARLA, turns, "Carla's")
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{carlas}/move", json={"case_id": cid}, headers=carla)) == (403, "case.not_allowed")
     # nor anyone into a closed case, or into a case they can't see, or someone else's conversation
     other = str(uuid.uuid4())
-    c.put(f"/v1/conversations/{other}", json={"title": "Alice's", "turns": turns}, headers=alice)
+    kept(history, other, ALICE, turns, "Alice's")
     assert c.post(f"/v1/conversations/{other}/move", json={"case_id": cid}, headers=bob).status_code == 404
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{other}/move", json={"case_id": str(uuid.uuid4())}, headers=alice)) == (404, "case.not_found")
     cases.close_case(uuid.UUID(cid))
@@ -738,8 +730,8 @@ def test_deleting_a_case_deletes_its_documents_and_conversations(office):
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
     turns = [{"role": "user", "text": "Vraag"}, {"role": "assistant", "text": "Antwoord"}]
-    c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "Dossier", "turns": turns, "case_id": cid}, headers=alice)
-    c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "Los", "turns": turns}, headers=alice)
+    kept(history, uuid.uuid4(), ALICE, turns, "Dossier", case_id=cid)
+    kept(history, uuid.uuid4(), ALICE, turns, "Los")
     assert c.delete(f"/v1/cases/{cid}", headers=alice).status_code == 204
     assert set(docs.docs) == {DOC}  # the personal document stays
     assert [x["title"] for x in c.get("/v1/conversations", headers=alice).json()] == ["Los"]
@@ -756,7 +748,7 @@ def test_a_case_isnt_deleted_while_a_store_it_is_in_cant_be_reached(office):
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
     turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
-    c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "Case", "turns": turns, "case_id": cid}, headers=alice)
+    kept(history, uuid.uuid4(), ALICE, turns, "Case", case_id=cid)
 
     def unreachable():
         raise OSError("no database")
@@ -855,12 +847,12 @@ def test_the_sweep_deletes_a_case_whose_period_has_passed_with_everything_in_it(
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
     turns = [{"role": "user", "text": "Vraag"}, {"role": "assistant", "text": "Antwoord"}]
-    c.put(f"/v1/conversations/{uuid.uuid4()}", json={"title": "Dossier", "turns": turns, "case_id": cid}, headers=alice)
+    kept(history, uuid.uuid4(), ALICE, turns, "Dossier", case_id=cid)
     c.post(f"/v1/cases/{cid}/close", headers=alice)
-    kept = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=alice).json()["id"]
-    c.post(f"/v1/cases/{kept}/close", headers=alice)
-    c.post(f"/v1/cases/{kept}/keep", json={"keep": True}, headers=alice)
-    for x in (cid, kept):  # both past their period
+    keeps = c.post("/v1/cases", json={**NEW, "reference": "2026/0418"}, headers=alice).json()["id"]
+    c.post(f"/v1/cases/{keeps}/close", headers=alice)
+    c.post(f"/v1/cases/{keeps}/keep", json={"keep": True}, headers=alice)
+    for x in (cid, keeps):  # both past their period
         cases.cases[uuid.UUID(x)] = cases.cases[uuid.UUID(x)].model_copy(update={"keep_until": datetime.now(UTC) - timedelta(days=1)})
     assert cases.due_for_deletion() == [uuid.UUID(cid)]  # the kept one isn't
     import asyncio
@@ -868,7 +860,7 @@ def test_the_sweep_deletes_a_case_whose_period_has_passed_with_everything_in_it(
     assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=alice)) == (404, "case.not_found")
     assert in_case not in docs.docs and DOC in docs.docs
     assert not any(r["case_id"] == uuid.UUID(cid) for r in history.rows.values())
-    assert c.get(f"/v1/cases/{kept}", headers=alice).status_code == 200
+    assert c.get(f"/v1/cases/{keeps}", headers=alice).status_code == 200
     assert not asyncio.run(_delete_case_everywhere(c.app, uuid.uuid4()))
 
 
@@ -1248,7 +1240,7 @@ def test_a_conversation_shared_with_the_case_is_read_only_for_the_other_members(
     conv = str(uuid.uuid4())
     body = {"title": "Wat is de koopprijs?", "case_id": cid,
             "turns": [{"role": "user", "text": "Wat is de koopprijs?"}, {"role": "assistant", "text": "€ 345.000 [1]"}]}
-    assert c.put(f"/v1/conversations/{conv}", json=body, headers=alice).status_code == 204
+    assert kept(history, conv, ALICE, body["turns"], body["title"], case_id=cid)
     # private until shared: bob (a reader of the case) sees nothing, neither in the list nor by id
     assert c.get(f"/v1/conversations?case={cid}", headers=bob).json() == []
     assert c.get(f"/v1/conversations/{conv}", headers=bob).status_code == 404
@@ -1258,8 +1250,8 @@ def test_a_conversation_shared_with_the_case_is_read_only_for_the_other_members(
     listed = c.get(f"/v1/conversations?case={cid}", headers=bob).json()
     assert [(x["id"], x["owner"], x["shared"]) for x in listed] == [(conv, ALICE, True)]
     assert c.get(f"/v1/conversations/{conv}", headers=bob).json()["turns"][1]["text"] == "€ 345.000 [1]"
-    # read-only for bob: he can't save over it, share or unshare it, or delete it
-    assert c.put(f"/v1/conversations/{conv}", json={**body, "title": "mine now"}, headers=bob).status_code == 404
+    # read-only for bob: he can't ask in it, share or unshare it, or delete it
+    assert c.post(f"/v1/conversations/{conv}/questions", json={"text": "?", "after": 2}, headers=bob).status_code == 404
     assert c.post(f"/v1/conversations/{conv}/share", json={"shared": False}, headers=bob).status_code == 404
     assert c.delete(f"/v1/conversations/{conv}", headers=bob).status_code == 404
     assert c.get(f"/v1/conversations/{conv}", headers=alice).json()["title"] == "Wat is de koopprijs?"
@@ -1273,12 +1265,12 @@ def test_a_conversation_shared_with_the_case_is_read_only_for_the_other_members(
     assert actions[:2] == ["conversation_unshared", "conversation_shared"]
     # the sidebar's list: Alice's own, across her case and her personal space; Bob's shared one isn't hers
     mine = str(uuid.uuid4())
-    c.put(f"/v1/conversations/{mine}", json={"title": "Persoonlijk", "turns": body["turns"]}, headers=alice)
+    kept(history, mine, ALICE, body["turns"], "Persoonlijk")
     assert {x["id"] for x in c.get("/v1/conversations?all=true", headers=alice).json()} == {conv, mine}
     assert c.get("/v1/conversations?all=true", headers=bob).json() == []
     # a personal conversation can't be shared; nor can one in a closed case
     personal = str(uuid.uuid4())
-    c.put(f"/v1/conversations/{personal}", json={**body, "case_id": None}, headers=alice)
+    kept(history, personal, ALICE, body["turns"], body["title"])
     assert c.post(f"/v1/conversations/{personal}/share", json={"shared": True}, headers=alice).status_code == 404
     c.post(f"/v1/cases/{cid}/close", headers=alice)
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=alice)) == (403, "case.closed")
@@ -1295,7 +1287,7 @@ def test_deleting_a_cases_document_cleans_every_members_conversations(office):
     turns = [{"role": "user", "text": "?"}, {"role": "assistant", "text": "x [1]",
              "citations": [{"n": 1, "text": "De koopprijs bedraagt € 345.000.", "source": {"document_id": doc, "page": 3}}]}]
     bobs = str(uuid.uuid4())
-    c.put(f"/v1/conversations/{bobs}", json={"title": "Bob's", "case_id": cid, "turns": turns}, headers=bob)
+    kept(history, bobs, BOB, turns, "Bob's", case_id=cid)
     # the manager is asked which conversations cite it: bob's too, since it is the case's document
     assert [x["owner"] for x in c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=alice).json()] == [BOB]
     assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/documents/{doc}/conversations?case={cid}", headers=bob)) == (403, "case.not_allowed")  # a contributor can't delete
@@ -1437,13 +1429,13 @@ def test_a_strictly_confidential_case_is_for_its_members_with_no_sharing_and_shi
     """docs/design/chat-ui.md §11: the manager turns the label on; access becomes members only and
     can't be opened, shared conversations are unshared (their owners keep them), sharing is refused,
     the lists that span cases show no title, and the access log says so."""
-    c, kc, _, _, _ = office
+    c, kc, _, history, _ = office
     alice, bob = as_user(kc, ALICE), as_user(kc, BOB)
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
     conv = str(uuid.uuid4())
     turns = [{"role": "user", "text": "Question"}, {"role": "assistant", "text": "Answer"}]
-    c.put(f"/v1/conversations/{conv}", json={"title": "Bob's question", "turns": turns, "case_id": cid}, headers=bob)
+    kept(history, conv, BOB, turns, "Bob's question", case_id=cid)
     c.post(f"/v1/conversations/{conv}/share", json={"shared": True}, headers=bob)
 
     assert (lambda r: (r.status_code, r.json()["code"]))(c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=bob)) == (403, "case.not_allowed")  # the manager only
@@ -1779,7 +1771,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     from described import Checked, same_every_run
     from suveryn_api_gateway.conversations import MAX_BODY_BYTES
 
-    c, kc, _, _, _ = office
+    c, kc, _, history, _ = office
     check, alice, bob, carla = Checked(c, "conversations"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
     CASE, WHEN = "00000000-0000-4000-8000-0000000000c1", "2026-11-23T09:00:00Z"
     OWN, BOBS, CARLAS, GONE = (f"00000000-0000-4000-8000-0000000000{n}" for n in ("a1", "a2", "a3", "ad"))
@@ -1798,10 +1790,9 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
                 else:
                     same(value)
 
-    turns = [{"id": "t1", "role": "user", "text": "Wat is de koopprijs?"}, {"id": "t2", "role": "assistant", "text": "€ 345.000 [1]", "status": "done"}]
-    saved = {"title": "Wat is de koopprijs?", "turns": turns}
+    turns = [{"role": "user", "text": "Wat is de koopprijs?"}, {"role": "assistant", "text": "€ 345.000 [1]"}]
     every, one = "/v1/conversations", "/v1/conversations/{conversation_id}"
-    with_id = [("DELETE", one, "", {}), ("GET", one, "", {}), ("PATCH", one, "", {"json": {"title": "x"}}), ("PUT", one, "", {"json": saved}),
+    with_id = [("DELETE", one, "", {}), ("GET", one, "", {}), ("PATCH", one, "", {"json": {"title": "x"}}),
                ("POST", one + "/move", "/move", {"json": {"case_id": CASE}}), ("PUT", one + "/pin", "/pin", {"json": {"pinned": True}}),
                ("POST", one + "/share", "/share", {"json": {"shared": True}})]
     for method, path, at, sent in [("DELETE", every, None, {}), ("GET", every, None, {})]:
@@ -1811,18 +1802,15 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
         # what isn't a conversation id at all is refused before anything is looked up
         r = check(method, path, 422, f"{every}/not-an-id{rest}", "not_a_conversation_id" if method == "GET" else None, headers=alice, **sent)
         assert r.json()["code"] == "request.invalid"
-        if method != "PUT" or rest:  # one that doesn't exist, or isn't the caller's: the same answer (saving under a new id makes it)
-            r = check(method, path, 404, f"{every}/{GONE}{rest}", "no_such_conversation" if method == "GET" else None, headers=alice, **sent)
-            assert r.json()["code"] == "request.not_found"
+        # one that doesn't exist, or isn't the caller's: the same answer
+        r = check(method, path, 404, f"{every}/{GONE}{rest}", "no_such_conversation" if method == "GET" else None, headers=alice, **sent)
+        assert r.json()["code"] == "request.not_found"
 
     assert check("GET", every, 200, keep="none", headers=alice).json() == []
-    check("PUT", one, 204, f"{every}/{OWN}", "done", json=saved, headers=alice)
-    assert "errors" in check("PUT", one, 422, f"{every}/{OWN}", json={**saved, "title": ""}, headers=alice).json()
-    long = check("PUT", one, 413, f"{every}/{OWN}", "too_long", content=b" " * (MAX_BODY_BYTES + 1), headers={**alice, "Content-Type": "application/json"})
-    assert long.json()["code"] == "conversation.too_long"
-    long = check("PUT", one + "/pin", 413, f"{every}/{OWN}/pin", content=b" " * (MAX_BODY_BYTES + 1), headers={**alice, "Content-Type": "application/json"})
-    assert long.json()["code"] == "conversation.too_long"  # the same limit, on every PUT under a conversation
-    assert check("PUT", one, 404, f"{every}/{OWN}", json=saved, headers=bob).json()["code"] == "request.not_found"  # another's: never saved over
+    kept(history, OWN, ALICE, turns)  # asked as the server keeps it (suveryn-tracker#251)
+    long = check("PUT", one + "/pin", 413, f"{every}/{OWN}/pin", "too_long", content=b" " * (MAX_BODY_BYTES + 1),
+                 headers={**alice, "Content-Type": "application/json"})
+    assert long.json()["code"] == "conversation.too_long"  # the size limit on every PUT under a conversation
     opened = check("GET", one, 200, f"{every}/{OWN}", "one", tidy=same, headers=alice).json()
     assert [t["text"] for t in opened["turns"]] == [t["text"] for t in turns] and opened["messages"] == 2
     assert check("PATCH", one, 200, f"{every}/{OWN}", "renamed", tidy=same, json={"title": "De koopprijs"}, headers=alice).json()["title"] == "De koopprijs"
@@ -1835,8 +1823,8 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     ids[cid] = CASE
     c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
     c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
-    check("PUT", one, 204, f"{every}/{BOBS}", json={**saved, "title": "Bob's", "case_id": cid}, headers=bob)
-    check("PUT", one, 204, f"{every}/{CARLAS}", json={**saved, "title": "Carla's", "case_id": cid}, headers=carla)
+    kept(history, BOBS, BOB, turns, "Bob's", case_id=cid)
+    kept(history, CARLAS, CARLA, turns, "Carla's", case_id=cid)
     # in a case a conversation follows its case: no pin of its own
     assert check("PUT", one + "/pin", 409, f"{every}/{BOBS}/pin", "in_a_case", json={"pinned": True}, headers=bob).json()["code"] == "conversation.in_case"
     assert check("POST", one + "/share", 200, f"{every}/{BOBS}/share", "shared", tidy=same, json={"shared": True}, headers=bob).json()["shared"] is True
@@ -1853,7 +1841,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     moved = check("POST", one + "/move", 200, f"{every}/{OWN}/move", "moved", tidy=same, json={"case_id": cid}, headers=alice).json()
     assert moved["case_id"] == cid and moved["pinned"] is False
     assert check("POST", one + "/move", 409, f"{every}/{OWN}/move", json={"case_id": cid}, headers=alice).json()["code"] == "conversation.in_case"
-    check("PUT", one, 204, f"{every}/{GONE}", json=saved, headers=carla)  # her own, in her personal space
+    kept(history, GONE, CARLA, turns)  # her own, in her personal space
     assert check("POST", one + "/move", 403, f"{every}/{GONE}/move", json={"case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
     # in a strictly confidential case nothing is shared
     c.patch(f"/v1/cases/{cid}", json={"confidential": True}, headers=alice)
@@ -1874,7 +1862,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     assert check.kept.answers["asked"]["body"][-1]["event"] == "done"
     assert [t["role"] for t in check("GET", one, 200, f"{every}/{NEW_ONE}", headers=alice).json()["turns"]] == ["user", "assistant"]
     FULL = "00000000-0000-4000-8000-0000000000a5"
-    check("PUT", one, 204, f"{every}/{FULL}", json={**saved, "turns": [{"role": "user", "text": "?"}] * 499}, headers=alice)
+    kept(history, FULL, ALICE, [{"role": "user", "text": "?"}] * 499)
     r = check("POST", asking, 413, f"{every}/{FULL}/questions", "too_long_to_ask_in", json=question, headers=alice)
     assert r.json()["code"] == "conversation.too_long"  # one turn short of the limit: no room for a question and its answer
     # asking shares the limit on asking, per person (an office of its own, with a limit of one)
@@ -1892,7 +1880,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
         assert r.json()["code"] == "request.too_many"
         check.seen |= check2.seen
 
-    check("DELETE", one, 204, f"{every}/{BOBS}", headers=bob)
+    check("DELETE", one, 204, f"{every}/{BOBS}", "done", headers=bob)
     assert check("DELETE", every, 200, keep="all_deleted", headers=alice).json() == {"deleted": 3}
     check.kept.check()
     # not seen here, each for a reason: what nobody planned for (500); sign-in or the conversations' store down
@@ -1900,7 +1888,7 @@ def test_every_answer_of_conversations_is_what_the_description_says(office):
     # signed in may do with a conversation of their own (403)
     for method, path, status in check.not_seen():
         assert status in (500, 503) or (status == 403 and (path == every or (method, path) in {
-            ("DELETE", one), ("GET", one), ("PATCH", one), ("PUT", one), ("PUT", one + "/pin")})), (method, path, status)
+            ("DELETE", one), ("GET", one), ("PATCH", one), ("PUT", one + "/pin")})), (method, path, status)
     assert {s for _, _, s in check.seen} == {200, 204, 401, 403, 404, 409, 413, 422, 429}
 
 
@@ -1925,14 +1913,13 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
     c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
     pdf = lambda name="akte.pdf": {"files": {"file": (name, io.BytesIO(b"%PDF-1.7"), "application/pdf")}}  # noqa: E731
 
-    every, everywhere, upload, one, save = "/v1/documents", "/v1/documents/all", "/v1/documents/jobs/{job_id}", "/v1/documents/{document_id}", \
-        "/v1/cases/{case_id}/documents"
+    every, everywhere, upload, one = "/v1/documents", "/v1/documents/all", "/v1/documents/jobs/{job_id}", "/v1/documents/{document_id}"
     source, citing, original, content = one + "/source", one + "/conversations", one + "/original", one + "/content"
     of = lambda path, did, rest="": path.replace("{document_id}", did) + rest  # noqa: E731
     of_document = [("DELETE", one, {}), ("POST", source, {}), ("GET", citing, {}), ("GET", original, {}), ("GET", content, {})]
     for method, path, at, sent in [("GET", every, None, {}), ("POST", every, None, pdf()), ("GET", everywhere, None, {}),
                                    ("GET", upload, upload.replace("{job_id}", "x"), {}), ("DELETE", upload, upload.replace("{job_id}", "x"), {}),
-                                   ("POST", save, save.replace("{case_id}", cid), {"json": saved()}), *[(m, p, of(p, DOC), s) for m, p, s in of_document]]:
+                                   *[(m, p, of(p, DOC), s) for m, p, s in of_document]]:
         assert check(method, path, 401, at, **sent).json()["code"] == "auth.signed_out"
     for method, path, sent in of_document:
         # what isn't a document id at all; a document that isn't there (a case that isn't, where only its manager may ask)
@@ -2004,19 +1991,6 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
     assert check("GET", original, 200, of(original, DOC), headers=alice).content == b"%PDF-1.7 test"
     assert check("GET", original, 200, of(original, marked, f"?case={cid}"), headers=carla).headers["content-type"].startswith("text/plain")
 
-    # an answer saved to the case, once; what rebuilds its file
-    at_case = save.replace("{case_id}", cid)
-    assert check("POST", save, 422, save.replace("{case_id}", "not-an-id"), json=saved(), headers=alice).json()["code"] == "request.invalid"
-    assert check("POST", save, 404, save.replace("{case_id}", GONE), json=saved(), headers=alice).json()["code"] == "case.not_found"
-    assert check("POST", save, 403, at_case, json=saved(), headers=carla).json()["code"] == "case.not_allowed"
-    assert "errors" in check("POST", save, 422, at_case, json=saved(filename="answer.pdf"), headers=bob).json()
-    answer = saved(conversation_id="00000000-0000-4000-8000-0000000000a1")
-    made = check("POST", save, 201, at_case, "saved", tidy=tidy, json=answer, headers=bob).json()
-    assert made["created"] is True
-    assert check("POST", save, 200, at_case, "saved_before", tidy=tidy, json=answer, headers=bob).json() == {**made, "created": False}
-    rebuilt = check("GET", content, 200, of(content, made["id"], f"?case={cid}"), "content", tidy=tidy, headers=carla).json()
-    assert (rebuilt["origin"], rebuilt["content"]["question"]) == ("answer", "What is the price?")
-
     # an answer the server stored, saved by naming it (suveryn-tracker#251, step 2): the server copies it
     turn = "/v1/conversations/{conversation_id}/turns/{seq}/document"
     ASKED, MINE = "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"
@@ -2041,7 +2015,7 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
 
     # deleted, with the conversations that cite it cleaned; accepted when that cleaning is still to be done
     assert "errors" in check("DELETE", one, 422, of(one, DOC, "?conversations=keep"), headers=alice).json()
-    check("DELETE", one, 204, of(one, made["id"], f"?case={cid}"), headers=bob)  # his own saved answer: undone
+    check("DELETE", one, 204, of(one, copied["id"], f"?case={cid}"), headers=bob)  # his own saved answer: undone
 
     def later(*_, **__):
         raise RuntimeError("the conversations' store went away")

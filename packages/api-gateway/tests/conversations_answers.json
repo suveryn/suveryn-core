@@ -246,14 +246,18 @@
    "titles": null,
    "turns": [
     {
-     "id": "t1",
+     "by": "alice-sub",
+     "kind": "question",
+     "parent": null,
      "role": "user",
      "text": "Wat is de koopprijs?"
     },
     {
-     "id": "t2",
+     "by": "assistant",
+     "kind": "answer",
+     "outcome": "done",
+     "parent": 1,
      "role": "assistant",
-     "status": "done",
      "text": "€ 345.000 [1]"
     }
    ],

@@ -2,14 +2,13 @@
 
 A conversation is a row in ``conversations`` under the owner's Keycloak id, and its turns are rows in
 ``turns``, one each (questions, answers with their citations and calculations, attachment names):
-the words in ``text``, the rest of what the chat UI keeps in ``meta``. The gateway checks the shape
-loosely (``SavedTurn``) and bounds the size; it never reads the text.
+the words in ``text``, the rest of what the server wrote beside them in ``meta``. It never reads the text.
 
 Cases (suveryn-tracker#10): a conversation started in a case carries its ``case_id`` and is listed
 with that case; one without is in the owner's personal space. Either way it is private to whoever
 started it, unless its owner **shares** it with the case (decision 12, stage 4): a shared
 conversation is listed for and readable by everyone who may read the case, read-only for them
-(only the owner saves, shares, unshares or deletes it). The gateway checks the right in the case;
+(only the owner asks in it, shares, unshares or deletes it). The gateway checks the right in the case;
 the store only knows ``shared``.
 
 Retention: kept until the user deletes it (one conversation, or all of them when signing out), or
@@ -27,15 +26,12 @@ document is deleted, every passage of it is taken out of the owner's conversatio
 the citation is marked ``removed``; attachments of the document, and its place in a question's *Ask
 about* choice, lose their file name the same way.
 The answers themselves stay, and still state facts from the document, so the UI offers to delete
-those conversations together with the document (``using_document``). A save from a tab that still
-holds the passages is cleaned the same way before it is stored (``redact``), so they can't come back.
+those conversations together with the document (``using_document``).
 
 **Turns, one row each** (``turns``; docs/design/playbooks.md, "The thread"). A thread several people
 write in can't be one blob the browser writes whole: the last save wins and the others' lines are
 gone, and a blob says neither who wrote a line nor when. So every turn is a row, stamped with who
-and when. The chat UI still saves its own conversation whole (``save``): the rows are brought in line
-with it, a changed turn rewritten in place, new ones appended, ones it dropped (a retried question)
-deleted. A playbook's thread is appended by the server (``TurnStore.append``) and never saved whole.
+and when, appended by the server (``TurnStore.append``): nothing is saved whole.
 
 **The server stores each turn as it answers** (suveryn-tracker#251): a question asked in a conversation
 (``POST /v1/conversations/{id}/questions``) is stored, the model reads what was stored on the way to it
@@ -48,13 +44,12 @@ deleted while an answer is written is taken out of it as it is stored.
 
 **A conversation is a tree**, as in Claude and ChatGPT: each turn the server writes names the turn it follows
 (``parent``), so *Regenerate* gives a question another answer beside the earlier ones, which stay, and a question can
-follow any answer, the one the person has in front of them. A turn without a ``parent`` (the chat UI's own saves)
-follows the one before it. Looked at: Claude's and ChatGPT's conversations, and OpenAI's Responses and Conversations
+follow any answer, the one the person has in front of them. A playbook's thread names no ``parent``: each of its
+turns follows the one before it. Looked at: Claude's and ChatGPT's conversations, and OpenAI's Responses and Conversations
 APIs (a response names the one before it, ``previous_response_id``), which keep a conversation this way; a flat list
 with versions of the last answer only (built first, and set aside in review) can't carry on from an earlier version.
 The routes and codes are this gateway's own, since none of these is a standard to follow by the letter. The screens
-ask through it; the stream says the numbers the server gave the question and its answer (event ``stored``). The chat
-UI's whole saves (``save``) go in the next step.
+ask only through it; the stream says the numbers the server gave the question and its answer (event ``stored``).
 
 **A playbook run is a conversation** (decision, 30 October 2026; docs/design/playbooks.md, "The chat UI"):
 starting one makes a conversation in the case (``run_id`` set), titled with the playbook, its
@@ -97,7 +92,7 @@ log = logging.getLogger("suveryn.gateway")
 MAX_BODY_BYTES = 2 * 1024 * 1024  # one saved conversation, as JSON
 MAX_TURNS = 500
 MAX_TITLE = 200
-MAX_TURN_TEXT = 200_000  # one turn's text (``SavedTurn.text`` has the same bound)
+MAX_TURN_TEXT = 200_000  # one turn's text
 
 # Conversations and their turns, in one schema both stores create (idempotent DDL): the playbook store
 # writes turns too, and a turn's conversation must exist first.
@@ -166,57 +161,6 @@ class ConversationSettings:
         if keep not in KEEP_PERIODS:
             raise ValueError("SUVERYN_CONVERSATIONS_KEEP must be '6m', '1y', '5y' or 'manual'")
         return cls(database_url=os.environ.get("SUVERYN_DATABASE_URL", ""), keep=keep)
-
-
-class SavedTurn(BaseModel):
-    """One turn as the UI saves it: its shape is the chat UI's own (for now: the server will store each turn
-    as it answers, suveryn-tracker#251). Checked: the role, the text's length, and the form of the document references at the three
-    places the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked
-    about), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the
-    places a saved turn names a document is held by tests/saved_turns_to_clean.json."""
-
-    model_config = ConfigDict(extra="allow")
-    role: Literal["user", "assistant"]
-    text: str = Field(default="", max_length=200_000)
-
-    @model_validator(mode="after")
-    def _references_are_readable(self) -> "SavedTurn":
-        said = self.model_extra or {}
-        citations = said.get("citations")
-        if citations is not None:
-            if not isinstance(citations, list) or not all(isinstance(c, dict) for c in citations):
-                raise ValueError("citations: a list of passages")
-            for c in citations:
-                source = c.get("source")
-                if source is not None and not (isinstance(source, dict) and isinstance(source.get("document_id"), str)):
-                    raise ValueError("a passage's source names its document (document_id), or is null")
-        for name in ("attachments", "about"):
-            named = said.get(name)
-            if named is None:
-                continue
-            if not isinstance(named, list) or not all(isinstance(a, dict) for a in named):
-                raise ValueError(f"{name}: a list of documents")
-            if any("documentId" in a and not isinstance(a["documentId"], str) for a in named):
-                raise ValueError(f"{name}: a document's id (documentId) is text")
-        return self
-
-    @model_validator(mode="before")
-    @classmethod
-    def _content_as_text(cls, data):
-        """A turn as /v1/chat takes it (``role``, ``content``) is saved with its words as ``text``, the UI's field,
-        so it opens with them (round 4, finding 1: it opened empty)."""
-        if isinstance(data, dict) and "text" not in data and isinstance(data.get("content"), str):
-            return {**data, "text": data["content"]}
-        return data
-
-
-class ConversationIn(BaseModel):
-    """Body of ``PUT /v1/conversations/{id}``: the whole conversation, replacing what was stored."""
-
-    title: str = Field(min_length=1, max_length=MAX_TITLE)
-    turns: list[SavedTurn] = Field(min_length=1, max_length=MAX_TURNS)
-    case_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")  # None: the personal space
-
 
 
 class QuestionIn(BaseModel):
@@ -372,8 +316,8 @@ def answered_turn(text: str, reasoning: str, sources: list, done: BaseModel | No
 
 
 def parent_of(turns: list["Turn"], i: int) -> int | None:
-    """The ``seq`` of the turn ``turns[i]`` follows: the one it names (``parent``), or, for a turn without one (the chat
-    UI's own saves, a run's thread), the turn before it."""
+    """The ``seq`` of the turn ``turns[i]`` follows: the one it names (``parent``), or, for a turn without one (a
+    playbook's thread), the turn before it."""
     if "parent" in turns[i].meta:
         return turns[i].meta["parent"]
     return turns[i - 1].seq if i > 0 else None
@@ -392,14 +336,13 @@ def path_to(turns: list["Turn"], seq: int | None) -> list["Turn"]:
 
 def history_pairs(path: list["Turn"]) -> list[tuple[str, str | None]]:
     """(question, its completed answer or None) for each question on a path (``path_to``), for the model's history
-    (``suveryn_harness.conversation_history``). Completed: the server says ``outcome`` done; a turn the chat UI saved
-    itself says ``status`` done."""
+    (``suveryn_harness.conversation_history``). Completed: the server says ``outcome`` done."""
     pairs = []
     for i, turn in enumerate(path):
         if turn.role != "user":
             continue
         after = path[i + 1] if i + 1 < len(path) else None
-        done = after is not None and after.role == "assistant" and "done" in (after.meta.get("outcome"), after.meta.get("status"))
+        done = after is not None and after.role == "assistant" and after.meta.get("outcome") == "done"
         pairs.append((turn.text, after.text if done else None))
     return pairs
 
@@ -473,8 +416,8 @@ def _references(turns: list[dict]) -> Iterator[tuple[str, dict]]:
         for c in turn.get("citations") or []:
             if isinstance(c, dict) and isinstance(c.get("source"), dict) and isinstance(c["source"].get("document_id"), str):
                 yield c["source"]["document_id"], c
-        # attachments, and the documents a question was asked about (Ask about, docs/design/chat-ui.md §10)
-        for a in [*(turn.get("attachments") or []), *(turn.get("about") or [])]:
+        # the documents a playbook's turn was given (a question the server stores names its documents by id only)
+        for a in turn.get("attachments") or []:
             if isinstance(a, dict) and isinstance(a.get("documentId"), str):
                 yield a["documentId"], a
 
@@ -509,14 +452,14 @@ class Turn(Answer):
     meta: dict = Field(default_factory=dict)
 
     def as_saved(self) -> dict:
-        """The turn as the chat UI knows it: its own fields, then the row's."""
+        """The turn as it is read back: what the server wrote beside it (``meta``), then the row's."""
         return {**self.meta, "seq": self.seq, "role": self.role, "text": self.text, "by": self.by, "at": self.at.isoformat(),
                 **({"step_id": self.step_id} if self.step_id else {})}
 
 
 class TurnStore(PgStore):
     """The ``turns`` table, and the conversation rows they belong to. ``RunStore`` inherits it, so one
-    connection serves a run and its thread; ``ConversationStore`` too, for the chat UI's saves."""
+    connection serves a run and its thread; ``ConversationStore`` too, for a conversation's questions and answers."""
 
     schema = SCHEMA
     TURN = "seq, role, step_id, \"by\", at, text, meta"
@@ -561,23 +504,6 @@ class TurnStore(PgStore):
         self._execute("INSERT INTO conversations (id, owner, title, case_id, shared, run_id, titles) VALUES (%s, %s, %s, %s, true, %s, %s)",
                       (conversation_id, owner, title[:MAX_TITLE], case_id, run_id,
                        json.dumps({k: v[:MAX_TITLE] for k, v in titles.items()}) if titles else None))
-
-    def _write_turns(self, conversation_id: uuid.UUID, turns: list[dict], by: str) -> None:
-        """Bring the conversation's rows in line with ``turns`` (the chat UI's whole list), inside the
-        caller's transaction with the conversation's row locked: a turn that changed is rewritten in
-        place (keeping who and when), a new one appended, rows past the end deleted."""
-        have = {r[0]: (r[1], r[2], r[3]) for r in self._execute(
-            "SELECT seq, role, text, meta FROM turns WHERE conversation_id = %s", (conversation_id,)).fetchall()}
-        for seq, turn in enumerate(turns, start=1):
-            role, text = turn["role"], (turn.get("text") or "")[:MAX_TURN_TEXT]
-            meta = {k: v for k, v in turn.items() if k not in ROW_FIELDS}
-            if seq not in have:
-                self._execute("INSERT INTO turns (conversation_id, seq, role, \"by\", text, meta) VALUES (%s, %s, %s, %s, %s, %s)",
-                              (conversation_id, seq, role, by if role == "user" else "assistant", text, json.dumps(meta)))
-            elif have[seq] != (role, text, meta):
-                self._execute("UPDATE turns SET role = %s, text = %s, meta = %s WHERE conversation_id = %s AND seq = %s",
-                              (role, text, json.dumps(meta), conversation_id, seq))
-        self._execute("DELETE FROM turns WHERE conversation_id = %s AND seq > %s", (conversation_id, len(turns)))
 
 
 class ConversationStore(TurnStore):
@@ -703,34 +629,6 @@ class ConversationStore(TurnStore):
         r = self._execute(f"UPDATE conversations SET shared = %s WHERE id = %s AND owner = %s AND case_id IS NOT NULL AND run_id IS NULL"
                           f" RETURNING {self.SUMMARY}", (shared, conversation_id, owner)).fetchone()
         return self._summary(r) if r else None
-
-    def save(self, conversation_id: uuid.UUID, owner: str, body: ConversationIn,
-             gone: Callable[[str], bool] | None = None, by: str = "") -> bool:
-        """Create or replace the owner's conversation: its row, and its turns brought in line with the
-        body's. False if the id belongs to another owner, or to a playbook run (the server writes those).
-
-        ``gone`` says which cited documents no longer exist: their passages are taken out first.
-        ``by`` is the username a new question is written under.
-        """
-        turns = [t.model_dump() for t in body.turns]
-        if gone is not None:
-            redact(turns, gone)
-        documents = sorted(cited_documents(turns))
-        case_id = uuid.UUID(body.case_id) if body.case_id else None
-        with self.transaction():
-            # The case is set when the conversation is first saved and never moves with a later save.
-            row = self._execute(
-                "INSERT INTO conversations (id, owner, title, case_id, messages, documents) VALUES (%s, %s, %s, %s, %s, %s)"
-                # a title the owner chose (``rename``) is kept over the one the UI derives from the first question
-                " ON CONFLICT (id) DO UPDATE SET title = CASE WHEN conversations.renamed THEN conversations.title"
-                " ELSE EXCLUDED.title END, messages = EXCLUDED.messages, documents = EXCLUDED.documents, updated_at = now()"
-                " WHERE conversations.owner = EXCLUDED.owner AND conversations.run_id IS NULL RETURNING id",
-                (conversation_id, owner, body.title, case_id, len(turns), documents)).fetchone()
-            if row is None:
-                return False
-            self._execute("SELECT 1 FROM conversations WHERE id = %s FOR UPDATE", (conversation_id,))
-            self._write_turns(conversation_id, turns, by or owner)
-        return True
 
     def place(self, conversation_id: uuid.UUID) -> tuple[str, uuid.UUID | None, bool] | None:
         """(owner, case, whether it can't be asked in: a playbook run's, or past the office's keep period) of a

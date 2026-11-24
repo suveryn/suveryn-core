@@ -104,33 +104,6 @@
   "media_type": "application/json",
   "status": 200
  },
- "content": {
-  "body": {
-   "content": {
-    "answer": "The price is EUR 300,000 [1].",
-    "answeredOn": "2026-10-19T10:00:00Z",
-    "citations": [
-     {
-      "source": {
-       "document_id": "00000000-0000-4000-8000-000000000005",
-       "page": 2
-      },
-      "text": "The price is EUR 300,000."
-     }
-    ],
-    "filenames": {
-     "00000000-0000-4000-8000-000000000005": "deed.pdf"
-    },
-    "question": "What is the price?",
-    "turnId": "m-1"
-   },
-   "filename": "What is the price.docx",
-   "id": "00000000-0000-4000-8000-000000000007",
-   "origin": "answer"
-  },
-  "media_type": "application/json",
-  "status": 200
- },
  "content_from_turn": {
   "body": {
    "content": {
@@ -398,29 +371,11 @@
   "media_type": "application/json",
   "status": 200
  },
- "saved": {
-  "body": {
-   "created": true,
-   "filename": "What is the price.docx",
-   "id": "00000000-0000-4000-8000-000000000007"
-  },
-  "media_type": "application/json",
-  "status": 201
- },
- "saved_before": {
-  "body": {
-   "created": false,
-   "filename": "What is the price.docx",
-   "id": "00000000-0000-4000-8000-000000000007"
-  },
-  "media_type": "application/json",
-  "status": 200
- },
  "saved_from_turn": {
   "body": {
    "created": true,
    "filename": "What is the price.docx",
-   "id": "00000000-0000-4000-8000-000000000008"
+   "id": "00000000-0000-4000-8000-000000000007"
   },
   "media_type": "application/json",
   "status": 201

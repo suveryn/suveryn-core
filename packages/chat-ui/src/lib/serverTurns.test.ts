@@ -31,11 +31,6 @@ describe("a conversation the server keeps as a tree", () => {
       .map((t) => t.text)).toEqual(["q1", "a1", "q2", "a2b"]);
   });
 
-  it("goes on after turns the chat UI saved itself, which follow the one before", () => {
-    const turns = [{ seq: 1, role: "user", text: "q1" }, { seq: 2, role: "assistant", text: "a1", status: "done" },
-                   question(3, "q2", 2), answer(4, "a2", 3)];
-    expect(fromSaved(stored(...turns)).map((t) => t.seq)).toEqual([1, 2, 3, 4]);
-  });
 });
 
 describe("a turn the server stored, as the screen shows it", () => {
@@ -78,13 +73,12 @@ describe("an answer saved to its case before, found again", () => {
 });
 
 describe("the answer to a question, by the question it answers (never by its place)", () => {
-  it("the newest answer that follows it, or, saved whole, the turn after it", () => {
+  it("the newest answer that follows it", () => {
     const turns = [question(1, "q1", null), answer(2, "a1", 1), question(3, "q2", 2), answer(4, "a2", 3), answer(5, "a2b", 3)];
     expect([answerTo(turns, 1), answerTo(turns, 3), answerTo(turns, 9)]).toEqual([2, 5, undefined]);
     expect(answerTo([question(1, "q1", null)], 1)).toBeUndefined();  // not stored yet
     expect(answerTo(turns, 3, new Set([5]))).toBe(4);  // a version this page knew isn't the one asked for just now
     expect(answerTo(turns, 3, new Set([4, 5]))).toBeUndefined();
-    expect(answerTo([{ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }], 1)).toBe(2);
   });
 
   it("stopped before the stream said its number, it is read again until stored, or given up on", async () => {
@@ -99,11 +93,9 @@ describe("the answer to a question, by the question it answers (never by its pla
 });
 
 describe("turns read back", () => {
-  it("follow the turn the server says, by its id; turns saved whole follow the one before (no versions)", () => {
+  it("follow the turn the server says, by its id", () => {
     expect(readTurns(stored(question(1, "q1", null), answer(2, "a1", 1), answer(3, "a1b", 1)), CID).map((t) => t.follows))
       .toEqual([null, `${CID}/1`, `${CID}/1`]);
-    expect(readTurns(stored({ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }))
-      .map((t) => t.follows)).toEqual([null, "saved-0"]);
   });
 });
 

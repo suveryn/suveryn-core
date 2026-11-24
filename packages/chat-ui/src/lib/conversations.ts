@@ -29,18 +29,16 @@ export function conversationTitle(turns: Turn[]): string {
   return first.length > 80 ? `${first.slice(0, 79).trimEnd()}…` : first;
 }
 
-/** A turn as the gateway gives it back: the chat UI's own (saved whole before suveryn-tracker#251), or one the server
- *  stored as it answered (``kind``: question or answer, ``parent``: the turn it follows; the gateway's ``AskedTurn``,
- *  ``AnsweredTurn``), with its number (``seq``). */
+/** A turn as the gateway gives it back: one the server stored as it answered (suveryn-tracker#251; ``kind``: question
+ *  or answer, ``parent``: the turn it follows; the gateway's ``AskedTurn``, ``AnsweredTurn``), with its number
+ *  (``seq``). */
 type Stored = Record<string, unknown> & { role: string; text?: string; seq?: number };
 
-/** The newest stored answer to the question numbered ``question``: the one it follows (``parent``), or, for turns the
- *  chat UI saved whole, the turn after it. ``known``: answers this page already had, none of which is the one sought
- *  (a version asked for just now, not stored yet, is not an earlier one). */
+/** The newest stored answer to the question numbered ``question``: one that follows it (``parent``). ``known``: answers
+ *  this page already had, none of which is the one sought (a version asked for just now, not stored yet, is not an
+ *  earlier one). */
 export function answerTo(turns: unknown[], question: number, known: Set<number | undefined> = new Set()): number | undefined {
-  const stored = turns as Stored[];
-  const answers = stored.filter((t, i) => t.role === "assistant" && !known.has(t.seq)
-    && ("parent" in t ? t.parent === question : stored[i - 1]?.seq === question));
+  const answers = (turns as Stored[]).filter((t) => t.role === "assistant" && !known.has(t.seq) && t.parent === question);
   return answers.at(-1)?.seq;
 }
 
@@ -95,30 +93,15 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
   return answer;
 }
 
-/** Every turn of a conversation read back from the server, as the screen keeps it, each naming the turn it follows
- *  (``follows``). An answer saved mid-stream (it
- *  shouldn't be) shows as interrupted. The screen shows one branch of them (``savedConversation``), and switches between an
- *  answer's versions within them (lib/versions.ts). */
+/** Every turn of a conversation read back from the server, as the screen keeps it, each naming the turn it follows by
+ *  its id (``follows``). The screen shows one branch of them (``savedConversation``), and switches between an answer's
+ *  versions within them (lib/versions.ts). */
 export function readTurns(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
   const raw = stored as unknown as Stored[];
   const bySeq = new Map(raw.map((s) => [s.seq, s]));
-  const read = raw.map((saved, i) => {
-    const read = saved.kind === "question" || saved.kind === "answer"
-      ? fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf)
-      : saved as unknown as Turn;
-    // A turn saved without the UI's own fields (through the API) opens all the same:
-    // the lists default to empty, the id and status to something usable (VM regression of 29 October, finding 10).
-    const turn = { ...read, id: read.id || `saved-${i}`, text: read.text ?? "" } as Turn;
-    if (turn.role === "user") return { ...turn, attachments: Array.isArray(turn.attachments) ? turn.attachments : [] };
-    const answer = { ...turn, citations: Array.isArray(turn.citations) ? turn.citations : [], status: turn.status ?? "done",
-                     grounded: turn.grounded ?? false };
-    return answer.status === "streaming" ? { ...answer, text: "", status: "error", error: t().answerInterrupted } : answer;
-  });
-  // what each follows, by id: the server's ``parent``; a turn the chat UI saved whole follows the one before it, so
-  // has no versions (step 4 of #251 removes them)
+  const read = raw.map((saved) => fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf));
   const idOf = new Map(raw.map((s, i) => [s.seq, read[i].id]));
-  return read.map((turn, i) => ({ ...turn, follows: "parent" in raw[i] ? idOf.get(raw[i].parent as number) ?? null
-    : i > 0 ? read[i - 1].id : null }) as Turn);
+  return read.map((turn, i) => ({ ...turn, follows: idOf.get(raw[i].parent as number) ?? null }) as Turn);
 }
 
 /** A conversation read back from the server: every turn as the screen keeps it, and the newest answer of each

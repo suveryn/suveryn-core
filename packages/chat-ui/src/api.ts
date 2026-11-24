@@ -288,8 +288,8 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
-/** A conversation with its turns, as the gateway gives them back: ones the server stored as it answered (suveryn-tracker
- *  #251) and ones the chat UI saved whole before, both read into the chat UI's `Turn` (lib/conversations.ts, `savedConversation`). */
+/** A conversation with its turns, as the gateway gives them back: the ones the server stored as it answered
+ *  (suveryn-tracker#251), read into the chat UI's `Turn` (lib/conversations.ts, `savedConversation`). */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's

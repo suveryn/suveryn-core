@@ -1023,77 +1023,6 @@ export interface CaseUpdate {
   type?: string | null;
 }
 
-/**
- * Where a source of a saved answer is, as the chat UI keeps it: the gateway reads only the document it names.
- */
-export interface SavedSource {
-  /** @maxLength 100 */
-  document_id: string;
-  [key: string]: unknown;
- }
-
-/**
- * A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out.
- */
-export interface SavedCitation {
-  source?: SavedSource | null;
-  /** @maxLength 200000 */
-  text: string;
-  [key: string]: unknown;
- }
-
-export type AnswerContentFilenames = {[key: string]: string};
-
-/**
- * What rebuilds the Word file (the chat UI's own data): the question, the answer as written, its
- * sources and checks, and the file names of the sources as they were.
- */
-export interface AnswerContent {
-  /** @maxLength 200000 */
-  answer: string;
-  /** @maxItems 200 */
-  citations?: SavedCitation[];
-  filenames?: AnswerContentFilenames;
-  /** @maxLength 20000 */
-  question: string;
-  [key: string]: unknown;
- }
-
-/**
- * Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/chat-ui.md §5).
- */
-export interface SaveAnswerIn {
-  content: AnswerContent;
-  /** @pattern ^[0-9a-fA-F-]{36}$ */
-  conversation_id: string;
-  /**
-     * @minLength 6
-     * @maxLength 200
-     * @pattern ^[^/\\\x00-\x1f]+\.docx$
-     */
-  filename: string;
-  /**
-     * @minLength 1
-     * @maxLength 100
-     * @pattern ^[^/]+$
-     */
-  message_id: string;
-  /**
-     * @minLength 1
-     * @maxLength 200000
-     */
-  text: string;
-}
-
-/**
- * The document an answer was saved as; ``created`` false: it was saved before, and this is that document.
- */
-export interface SavedAnswerDocument {
-  created: boolean;
-  filename: string;
-  id: string;
-}
-
 export type CaseEventAction = typeof CaseEventAction[keyof typeof CaseEventAction];
 
 
@@ -2075,45 +2004,6 @@ export interface RenameIn {
   title: string;
 }
 
-export type SavedTurnRole = typeof SavedTurnRole[keyof typeof SavedTurnRole];
-
-
-export const SavedTurnRole = {
-  user: 'user',
-  assistant: 'assistant',
-} as const;
-
-/**
- * One turn as the UI saves it: its shape is the chat UI's own (for now: the server will store each turn
- * as it answers, suveryn-tracker#251). Checked: the role, the text's length, and the form of the document references at the three
- * places the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked
- * about), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the
- * places a saved turn names a document is held by tests/saved_turns_to_clean.json.
- */
-export interface SavedTurn {
-  role: SavedTurnRole;
-  /** @maxLength 200000 */
-  text?: string;
-  [key: string]: unknown;
- }
-
-/**
- * Body of ``PUT /v1/conversations/{id}``: the whole conversation, replacing what was stored.
- */
-export interface ConversationIn {
-  case_id?: string | null;
-  /**
-     * @minLength 1
-     * @maxLength 200
-     */
-  title: string;
-  /**
-     * @minItems 1
-     * @maxItems 500
-     */
-  turns: SavedTurn[];
-}
-
 /**
  * Body of ``POST /v1/conversations/{id}/move``: the case a personal conversation moves into.
  */
@@ -2176,6 +2066,15 @@ export interface StoredTurns {
  */
 export interface ShareIn {
   shared: boolean;
+}
+
+/**
+ * The document an answer was saved as; ``created`` false: it was saved before, and this is that document.
+ */
+export interface SavedAnswerDocument {
+  created: boolean;
+  filename: string;
+  id: string;
 }
 
 export type StoredDocumentOrigin = typeof StoredDocumentOrigin[keyof typeof StoredDocumentOrigin];
@@ -2421,8 +2320,8 @@ export const DocumentContentOrigin = {
 } as const;
 
 /**
- * What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the
- * same shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251).
+ * What rebuilds a document sūveryn made: an answer as the server copied it from the one it stored
+ * (``conversations.SavedAnswer``, #251), or a playbook's result.
  */
 export interface DocumentContent {
   content: DocumentContentContent;
@@ -5162,84 +5061,6 @@ export const closeCase = async (caseId: string, options?: Parameters<typeof gate
 
 
 
-export type saveAnswerAsDocumentResponse200 = {
-  data: SavedAnswerDocument
-  status: 200
-}
-
-export type saveAnswerAsDocumentResponse201 = {
-  data: SavedAnswerDocument
-  status: 201
-}
-
-export type saveAnswerAsDocumentResponse401 = {
-  data: ProblemDetails
-  status: 401
-}
-
-export type saveAnswerAsDocumentResponse403 = {
-  data: ProblemDetails
-  status: 403
-}
-
-export type saveAnswerAsDocumentResponse404 = {
-  data: ProblemDetails
-  status: 404
-}
-
-export type saveAnswerAsDocumentResponse422 = {
-  data: ProblemDetails
-  status: 422
-}
-
-export type saveAnswerAsDocumentResponse500 = {
-  data: ProblemDetails
-  status: 500
-}
-
-export type saveAnswerAsDocumentResponse503 = {
-  data: ProblemDetails
-  status: 503
-}
-
-export type saveAnswerAsDocumentResponseSuccess = (saveAnswerAsDocumentResponse200 | saveAnswerAsDocumentResponse201) & {
-  headers: Headers;
-};
-export type saveAnswerAsDocumentResponseError = (saveAnswerAsDocumentResponse401 | saveAnswerAsDocumentResponse403 | saveAnswerAsDocumentResponse404 | saveAnswerAsDocumentResponse422 | saveAnswerAsDocumentResponse500 | saveAnswerAsDocumentResponse503) & {
-  headers: Headers;
-};
-
-export type saveAnswerAsDocumentResponse = (saveAnswerAsDocumentResponseSuccess | saveAnswerAsDocumentResponseError)
-
-export const getSaveAnswerAsDocumentUrl = (caseId: string,) => {
-
-
-
-
-  return `/v1/cases/${caseId}/documents`
-}
-
-/**
- * Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a
- * contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
- * deleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).
- * Saving the same message again gives the document already saved. Logged as ``answer_saved``.
- * @summary Save Answer As Document
- */
-export const saveAnswerAsDocument = async (caseId: string,
-    saveAnswerIn: SaveAnswerIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<saveAnswerAsDocumentResponse> => {
-
-  return gatewayFetch<saveAnswerAsDocumentResponse>(getSaveAnswerAsDocumentUrl(caseId),
-  {
-    ...options,
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
-    body: JSON.stringify(saveAnswerIn)
-  }
-);}
-
-
-
 export type listCaseEventsResponse200 = {
   data: CaseEvent[]
   status: 200
@@ -7404,84 +7225,6 @@ export const updateConversation = async (conversationId: string,
     method: 'PATCH',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(renameIn)
-  }
-);}
-
-
-
-export type saveConversationResponse204 = {
-  data: void
-  status: 204
-}
-
-export type saveConversationResponse401 = {
-  data: ProblemDetails
-  status: 401
-}
-
-export type saveConversationResponse403 = {
-  data: ProblemDetails
-  status: 403
-}
-
-export type saveConversationResponse404 = {
-  data: ProblemDetails
-  status: 404
-}
-
-export type saveConversationResponse413 = {
-  data: ProblemDetails
-  status: 413
-}
-
-export type saveConversationResponse422 = {
-  data: ProblemDetails
-  status: 422
-}
-
-export type saveConversationResponse500 = {
-  data: ProblemDetails
-  status: 500
-}
-
-export type saveConversationResponse503 = {
-  data: ProblemDetails
-  status: 503
-}
-
-export type saveConversationResponseSuccess = (saveConversationResponse204) & {
-  headers: Headers;
-};
-export type saveConversationResponseError = (saveConversationResponse401 | saveConversationResponse403 | saveConversationResponse404 | saveConversationResponse413 | saveConversationResponse422 | saveConversationResponse500 | saveConversationResponse503) & {
-  headers: Headers;
-};
-
-export type saveConversationResponse = (saveConversationResponseSuccess | saveConversationResponseError)
-
-export const getSaveConversationUrl = (conversationId: string,) => {
-
-
-
-
-  return `/v1/conversations/${conversationId}`
-}
-
-/**
- * Save the whole conversation under an id the client chose (a UUID): its turns' rows are brought in
- * line with the body's. ``case_id`` puts a new conversation in that case (the caller must be able to
- * read it); a saved conversation stays where it was first saved. A playbook run's conversation is
- * written by the server, never saved over: 404.
- * @summary Save Conversation
- */
-export const saveConversation = async (conversationId: string,
-    conversationIn: ConversationIn, options?: Parameters<typeof gatewayFetch>[1]): Promise<saveConversationResponse> => {
-
-  return gatewayFetch<saveConversationResponse>(getSaveConversationUrl(conversationId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
-    body: JSON.stringify(conversationIn)
   }
 );}
 

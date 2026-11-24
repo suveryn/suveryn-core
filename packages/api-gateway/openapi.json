@@ -457,43 +457,6 @@
     "title": "AllDocuments",
     "type": "object"
    },
-   "AnswerContent": {
-    "additionalProperties": true,
-    "description": "What rebuilds the Word file (the chat UI's own data): the question, the answer as written, its\nsources and checks, and the file names of the sources as they were.",
-    "properties": {
-     "answer": {
-      "maxLength": 200000,
-      "title": "Answer",
-      "type": "string"
-     },
-     "citations": {
-      "items": {
-       "$ref": "#/components/schemas/SavedCitation"
-      },
-      "maxItems": 200,
-      "title": "Citations",
-      "type": "array"
-     },
-     "filenames": {
-      "additionalProperties": {
-       "type": "string"
-      },
-      "title": "Filenames",
-      "type": "object"
-     },
-     "question": {
-      "maxLength": 20000,
-      "title": "Question",
-      "type": "string"
-     }
-    },
-    "required": [
-     "question",
-     "answer"
-    ],
-    "title": "AnswerContent",
-    "type": "object"
-   },
    "AnswerIn": {
     "description": "Body of ``POST …/runs/{run}/answer``: a person's answer to the step the run is waiting on.\nFor an ``ask``: ``facts`` (a value per fact asked; empty: not known yet). For a ``request``:\nnothing (the documents are in the case; the runtime counts them) or ``none: true`` (there is no\nsuch document, when the step allows it). ``text`` is what the person wrote, if anything: the thread keeps the\nvalues given (``answers``) and the screen words them in each reader's language.",
     "properties": {
@@ -2474,44 +2437,6 @@
     "title": "Conversation",
     "type": "object"
    },
-   "ConversationIn": {
-    "description": "Body of ``PUT /v1/conversations/{id}``: the whole conversation, replacing what was stored.",
-    "properties": {
-     "case_id": {
-      "anyOf": [
-       {
-        "pattern": "^[0-9a-fA-F-]{36}$",
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Case Id"
-     },
-     "title": {
-      "maxLength": 200,
-      "minLength": 1,
-      "title": "Title",
-      "type": "string"
-     },
-     "turns": {
-      "items": {
-       "$ref": "#/components/schemas/SavedTurn"
-      },
-      "maxItems": 500,
-      "minItems": 1,
-      "title": "Turns",
-      "type": "array"
-     }
-    },
-    "required": [
-     "title",
-     "turns"
-    ],
-    "title": "ConversationIn",
-    "type": "object"
-   },
    "ConversationSummary": {
     "description": "One entry of ``GET /v1/conversations``.",
     "properties": {
@@ -2691,7 +2616,7 @@
     "type": "object"
    },
    "DocumentContent": {
-    "description": "What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the\nsame shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251).",
+    "description": "What rebuilds a document sūveryn made: an answer as the server copied it from the one it stored\n(``conversations.SavedAnswer``, #251), or a playbook's result.",
     "properties": {
      "content": {
       "additionalProperties": true,
@@ -5473,48 +5398,6 @@
     "title": "RunTurn",
     "type": "object"
    },
-   "SaveAnswerIn": {
-    "description": "Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/chat-ui.md §5).",
-    "properties": {
-     "content": {
-      "$ref": "#/components/schemas/AnswerContent"
-     },
-     "conversation_id": {
-      "pattern": "^[0-9a-fA-F-]{36}$",
-      "title": "Conversation Id",
-      "type": "string"
-     },
-     "filename": {
-      "maxLength": 200,
-      "minLength": 6,
-      "pattern": "^[^/\\\\\\x00-\\x1f]+\\.docx$",
-      "title": "Filename",
-      "type": "string"
-     },
-     "message_id": {
-      "maxLength": 100,
-      "minLength": 1,
-      "pattern": "^[^/]+$",
-      "title": "Message Id",
-      "type": "string"
-     },
-     "text": {
-      "maxLength": 200000,
-      "minLength": 1,
-      "title": "Text",
-      "type": "string"
-     }
-    },
-    "required": [
-     "filename",
-     "text",
-     "content",
-     "conversation_id",
-     "message_id"
-    ],
-    "title": "SaveAnswerIn",
-    "type": "object"
-   },
    "SavedAnswerDocument": {
     "description": "The document an answer was saved as; ``created`` false: it was saved before, and this is that document.",
     "properties": {
@@ -5537,73 +5420,6 @@
      "created"
     ],
     "title": "SavedAnswerDocument",
-    "type": "object"
-   },
-   "SavedCitation": {
-    "additionalProperties": true,
-    "description": "A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out.",
-    "properties": {
-     "source": {
-      "anyOf": [
-       {
-        "$ref": "#/components/schemas/SavedSource"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "text": {
-      "maxLength": 200000,
-      "title": "Text",
-      "type": "string"
-     }
-    },
-    "required": [
-     "text"
-    ],
-    "title": "SavedCitation",
-    "type": "object"
-   },
-   "SavedSource": {
-    "additionalProperties": true,
-    "description": "Where a source of a saved answer is, as the chat UI keeps it: the gateway reads only the document it names.",
-    "properties": {
-     "document_id": {
-      "maxLength": 100,
-      "title": "Document Id",
-      "type": "string"
-     }
-    },
-    "required": [
-     "document_id"
-    ],
-    "title": "SavedSource",
-    "type": "object"
-   },
-   "SavedTurn": {
-    "additionalProperties": true,
-    "description": "One turn as the UI saves it: its shape is the chat UI's own (for now: the server will store each turn\nas it answers, suveryn-tracker#251). Checked: the role, the text's length, and the form of the document references at the three\nplaces the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked\nabout), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the\nplaces a saved turn names a document is held by tests/saved_turns_to_clean.json.",
-    "properties": {
-     "role": {
-      "enum": [
-       "user",
-       "assistant"
-      ],
-      "title": "Role",
-      "type": "string"
-     },
-     "text": {
-      "default": "",
-      "maxLength": 200000,
-      "title": "Text",
-      "type": "string"
-     }
-    },
-    "required": [
-     "role"
-    ],
-    "title": "SavedTurn",
     "type": "object"
    },
    "SayIn": {
@@ -10559,119 +10375,6 @@
     ]
    }
   },
-  "/v1/cases/{case_id}/documents": {
-   "post": {
-    "description": "Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a\ncontributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,\ndeleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).\nSaving the same message again gives the document already saved. Logged as ``answer_saved``.",
-    "operationId": "save_answer_as_document",
-    "parameters": [
-     {
-      "in": "path",
-      "name": "case_id",
-      "required": true,
-      "schema": {
-       "title": "Case Id",
-       "type": "string"
-      }
-     }
-    ],
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/SaveAnswerIn"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/SavedAnswerDocument"
-        }
-       }
-      },
-      "description": "This answer was saved before: that document"
-     },
-     "201": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/SavedAnswerDocument"
-        }
-       }
-      },
-      "description": "Successful Response"
-     },
-     "401": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Unauthorized"
-     },
-     "403": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Forbidden"
-     },
-     "404": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Not Found"
-     },
-     "422": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Unprocessable Entity"
-     },
-     "500": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Internal Server Error"
-     },
-     "503": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Service Unavailable"
-     }
-    },
-    "summary": "Save Answer As Document",
-    "tags": [
-     "documents"
-    ]
-   }
-  },
   "/v1/cases/{case_id}/events": {
    "get": {
     "description": "The case's access log, newest first: who did what, when (decision 15). For its manager\nand the administrators; kept 180 days, as the sign-in events.",
@@ -13864,110 +13567,6 @@
      }
     },
     "summary": "Update Conversation",
-    "tags": [
-     "conversations"
-    ]
-   },
-   "put": {
-    "description": "Save the whole conversation under an id the client chose (a UUID): its turns' rows are brought in\nline with the body's. ``case_id`` puts a new conversation in that case (the caller must be able to\nread it); a saved conversation stays where it was first saved. A playbook run's conversation is\nwritten by the server, never saved over: 404.",
-    "operationId": "save_conversation",
-    "parameters": [
-     {
-      "in": "path",
-      "name": "conversation_id",
-      "required": true,
-      "schema": {
-       "title": "Conversation Id",
-       "type": "string"
-      }
-     }
-    ],
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/ConversationIn"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "204": {
-      "description": "Successful Response"
-     },
-     "401": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Unauthorized"
-     },
-     "403": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Forbidden"
-     },
-     "404": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Not Found"
-     },
-     "413": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Request Entity Too Large"
-     },
-     "422": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Unprocessable Entity"
-     },
-     "500": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Internal Server Error"
-     },
-     "503": {
-      "content": {
-       "application/problem+json": {
-        "schema": {
-         "$ref": "#/components/schemas/ProblemDetails"
-        }
-       }
-      },
-      "description": "Service Unavailable"
-     }
-    },
-    "summary": "Save Conversation",
     "tags": [
      "conversations"
     ]
