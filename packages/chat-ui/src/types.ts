@@ -31,13 +31,17 @@ export type Chosen = { documentId: string; filename: string; removed?: boolean }
 /** ``about``: in a case, the documents the question was asked about; absent: the whole case. */
 /** ``seq``: the turn's number in its conversation on the server, once stored (suveryn-tracker#251): what the next
  *  question follows. ``byServer``: a turn the server wrote as it answered (not one the chat UI saved whole before),
- *  which is what Regenerate asks again and Save to case names. */
-export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[]; seq?: number; byServer?: boolean };
+ *  which is what Regenerate asks again and Save to case names. ``parent``: the turn it follows (the server keeps a
+ *  conversation as a tree), once numbered. */
+export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[]; seq?: number; byServer?: boolean;
+                         parent?: number | null };
 
 export type AssistantTurn = {
   id: string;
   seq?: number;
   byServer?: boolean;
+  /** The turn it follows on the server (its question), once numbered: an answer's versions are its question's answers. */
+  parent?: number | null;
   role: "assistant";
   text: string;
   citations: Citation[];

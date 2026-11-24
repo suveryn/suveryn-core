@@ -861,7 +861,12 @@ const en = {
   offlineSend: "You can send once the server is back.",
   answerCutOff: "Answer interrupted: the connection dropped.",
   regenerate: "Regenerate",
-  regenerateWhat: "Ask the same question again",
+  regenerateWhat: "Ask the same question again; this answer is kept.",
+  // An answer's versions (board 81, suveryn-tracker#251): the switcher at the start of its actions
+  answerVersion: m("Answer {n} of {total}", "n", "total"),
+  previousAnswer: "Previous answer",
+  nextAnswer: "Next answer",
+  versionCount: m("{n} / {total}", "n", "total"),
   // reading progress, cancelling and why reading failed (the reader's codes: suveryn_rag.reading)
   cardRecognising: m("Recognising text · page {done, number} of {total, number}", "done", "total"),
   cardRecognisingStart: "Recognising text",

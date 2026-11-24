@@ -79,13 +79,18 @@ describe("an answer", () => {
     expect(failureKind(new HttpError("busy", 503), base)).toBe("error");
   });
 
-  it("can be asked again when the last answer failed after its question, and nothing is being written", () => {
-    const failed: Turn[] = [user([]), answer("error")];
-    expect(canRegenerate(failed, false, false)).toBe(true);
-    expect(canRegenerate(failed, true, false)).toBe(false);
-    expect(canRegenerate(failed, false, true)).toBe(false);
-    expect(canRegenerate([user([]), answer("done")], false, false)).toBe(false);
-    expect(canRegenerate([answer("error")], false, false)).toBe(false);
-    expect(canRegenerate([], false, false)).toBe(false);
+  it("Regenerate: any finished, stopped or failed answer to a question the server stored, nothing being written (board 81)", () => {
+    const free = { busy: false, disabled: false, savedConversations: true };
+    const stored = { ...user([]), seq: 1, byServer: true };
+    const conversation: Turn[] = [stored, answer("done"), { ...stored, seq: 3 }, answer("stopped"), { ...stored, seq: 5 }, answer("error")];
+    expect([1, 3, 5].map((i) => canRegenerate(conversation, i, free))).toEqual([true, true, true]);
+    expect(canRegenerate(conversation, 1, { ...free, busy: true })).toBe(false);
+    expect(canRegenerate(conversation, 1, { ...free, disabled: true })).toBe(false);
+    expect(canRegenerate([stored, answer("streaming")], 1, free)).toBe(false);
+    // without the server's question (saved conversations down): as before, the last answer, only when it failed
+    const failed: Turn[] = [user([]), answer("done"), user([]), answer("error")];
+    expect([1, 3].map((i) => canRegenerate(failed, i, { ...free, savedConversations: false }))).toEqual([false, true]);
+    expect([1, 3].map((i) => canRegenerate(failed, i, free))).toEqual([false, true]);
+    expect(canRegenerate([answer("error")], 0, free)).toBe(false);
   });
 });

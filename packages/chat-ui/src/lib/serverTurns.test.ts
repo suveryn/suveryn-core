@@ -39,7 +39,7 @@ describe("a turn the server stored, as the screen shows it", () => {
   it("a question with the documents it showed, named as they are now, a deleted one taken out", () => {
     const [q] = fromSaved(stored(question(1, "Wat is de prijs?", null, { attached: [DEED], about: ["gone"] })), CID,
                           (id) => (id === DEED ? "akte.pdf" : undefined));
-    expect(q).toEqual({ id: `${CID}/1`, seq: 1, byServer: true, role: "user", text: "Wat is de prijs?",
+    expect(q).toEqual({ id: `${CID}/1`, seq: 1, byServer: true, parent: null, role: "user", text: "Wat is de prijs?",
                         attachments: [{ key: DEED, status: "ready", documentId: DEED, filename: "akte.pdf" }],
                         about: [{ documentId: "gone", filename: "", removed: true }] });
   });
@@ -79,6 +79,8 @@ describe("the answer to a question, by the question it answers (never by its pla
     const turns = [question(1, "q1", null), answer(2, "a1", 1), question(3, "q2", 2), answer(4, "a2", 3), answer(5, "a2b", 3)];
     expect([answerTo(turns, 1), answerTo(turns, 3), answerTo(turns, 9)]).toEqual([2, 5, undefined]);
     expect(answerTo([question(1, "q1", null)], 1)).toBeUndefined();  // not stored yet
+    expect(answerTo(turns, 3, new Set([5]))).toBe(4);  // a version this page knew isn't the one asked for just now
+    expect(answerTo(turns, 3, new Set([4, 5]))).toBeUndefined();
     expect(answerTo([{ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }], 1)).toBe(2);
   });
 });

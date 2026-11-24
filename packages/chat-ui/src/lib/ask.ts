@@ -87,17 +87,25 @@ export function failureKind(e: unknown, o: { stopped: boolean; streamed: string;
 }
 
 /** Regenerate: offered when nothing is being written, asking is possible, and the last answer failed after its question. */
-export function canRegenerate(turns: Turn[], busy: boolean, disabled: boolean): boolean {
-  const last = turns[turns.length - 1];
-  return !busy && !disabled && last?.role === "assistant" && last.status === "error" && turns[turns.length - 2]?.role === "user";
+/** Whether the answer at ``i`` offers *Regenerate* (board 81): a finished, stopped or failed answer to a question the
+ *  server stored, which it asks again as it was asked, the answer kept as a version; without saved conversations, as
+ *  before, only the last answer and only when it failed. Never while an answer is written, where nothing can be asked,
+ *  or for someone who only reads. */
+export function canRegenerate(turns: Turn[], i: number, o: { busy: boolean; disabled: boolean; savedConversations: boolean }): boolean {
+  const answer = turns[i], question = turns[i - 1];
+  if (o.busy || o.disabled || answer?.role !== "assistant" || question?.role !== "user") return false;
+  if (!["done", "stopped", "error"].includes(answer.status)) return false;
+  if (o.savedConversations && question.byServer && question.seq !== undefined) return true;
+  return i === turns.length - 1 && answer.status === "error";
 }
 
 /** The numbers the server gave a question and, once stored, its answer (event ``stored``, suveryn-tracker#251), on the
  *  turns this page shows for them: what the next question follows, what Regenerate asks again, what Save to case names.
  *  Only turns the server stored this way get them: a refused question never does. */
-export function withStored(turns: Turn[], user: string, reply: string, stored: { question: number; answer: number | null }): Turn[] {
-  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question, byServer: true }
-    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer, byServer: true } : t) as Turn);
+export function withStored(turns: Turn[], user: string, reply: string, stored: { question: number; answer: number | null },
+                           after?: number | null): Turn[] {
+  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question, byServer: true, ...(after !== undefined ? { parent: after } : {}) }
+    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer, byServer: true, parent: stored.question } : t) as Turn);
 }
 
 /** Regenerate: the stored question (its number) the server asks once more as it was asked; none for a question the

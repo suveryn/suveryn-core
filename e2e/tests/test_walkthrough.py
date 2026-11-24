@@ -58,6 +58,21 @@ def test_a_document_is_read_and_an_answer_cites_it(page, deed):
     main = page.locator("main")
     expect(main.get_by_text("En welke prijs noemt artikel 2?")).to_be_visible()
     expect(main.get_by_text(re.compile(r"^Sources:"))).to_have_count(2)
+    # Regenerate on the first answer (board 81): a second version, shown at once without the follow-up it had; the
+    # first stays, and switching back to it brings its follow-up back
+    main.get_by_role("button", name="Regenerate").first.click()
+    versions = main.get_by_role("group", name="Answer 2 of 2")
+    expect(versions.get_by_role("button", name="Next answer")).to_be_disabled(timeout=60_000)
+    expect(versions.get_by_role("button", name="Previous answer")).to_be_enabled(timeout=60_000)
+    expect(main.get_by_text("En welke prijs noemt artikel 2?")).to_have_count(0)
+    versions.get_by_role("button", name="Previous answer").click()
+    expect(main.get_by_role("group", name="Answer 1 of 2")).to_be_visible()
+    expect(main.get_by_text("En welke prijs noemt artikel 2?")).to_be_visible()
+    # opened again, the conversation shows the newest version
+    page.reload()
+    page.get_by_role("button", name="Conversations", exact=True).click()
+    page.get_by_role("row", name=re.compile("Wat is de koopprijs")).first.press("Enter")
+    expect(page.locator("main").get_by_role("group", name="Answer 2 of 2")).to_be_visible()
 
 
 def test_thorough_without_an_answer_is_asked_again(page, deed):
