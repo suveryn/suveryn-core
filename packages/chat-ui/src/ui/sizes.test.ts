@@ -35,4 +35,9 @@ describe("control sizes (ui.css)", () => {
     expect(height(rule(".ui-select-button"))).toBe(32);
     expect(height(rule(".ui-segment"))).toBe(32); // its 1px top and bottom are the group's border
   });
+
+  it("icon buttons: 36px, 32px compact (beside small buttons), 28px small", () => {
+    expect([rule(".ui-icon-button").width, rule('.ui-icon-button[data-size="compact"]').width, rule('.ui-icon-button[data-size="small"]').width])
+      .toEqual(["36px", "32px", "28px"]);
+  });
 });

@@ -46,12 +46,13 @@ export function TextButton({ link, className, title, ...props }: Omit<ButtonProp
   return <AriaButton {...props} ref={ref} className={cx(link ? "ui-link-button" : "ui-text-button", className)} />;
 }
 
-/** A button with only an icon. `label` is its name for screen readers and its tooltip. */
+/** A button with only an icon. `label` is its name for screen readers and its tooltip. `size`: normal 36px, compact
+ *  32px (a row of small buttons: an answer's actions), small 28px (ui.css, "sizes"). */
 export function IconButton({ label, size = "normal", className, ...props }:
-  Omit<ButtonProps, "variant" | "size" | "title" | "aria-label"> & { label: string; size?: "normal" | "small" }) {
+  Omit<ButtonProps, "variant" | "size" | "title" | "aria-label"> & { label: string; size?: "normal" | "compact" | "small" }) {
   const ref = useTitle(label);
   return <AriaButton {...props} ref={ref} aria-label={label} className={cx("ui-icon-button", className)}
-                     data-size={size === "small" ? "small" : undefined} />;
+                     data-size={size === "normal" ? undefined : size} />;
 }
 
 /** Class names joined, the empty ones left out. */

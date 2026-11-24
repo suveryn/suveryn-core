@@ -50,8 +50,8 @@
  *   14.5px) and the buttons of dialogs;
  * - small, 32px: toolbars and compact forms (the usage pages, the chart's table button, the language
  *   menu, the period choice): fields and buttons with size="small".
- * Text buttons (Cancel, Sign out) sit in the text and icon buttons (36px, 28px small) in rows: neither
- * stands beside a field. src/ui/sizes.test.ts checks the heights add up.
+ * Text buttons (Cancel, Sign out) sit in the text and icon buttons in rows: 36px, 32px compact (beside small
+ * buttons: an answer's actions), 28px small. Neither stands beside a field. src/ui/sizes.test.ts checks the heights add up.
  */
 .ui-button[data-size="small"] { min-height: 32px; font-size: var(--text-body-sm); padding: var(--space-2) var(--space-3); }
 .ui-field[data-size="small"] { gap: var(--space-1); margin-bottom: 0; }
@@ -478,6 +478,7 @@
 .ui-text-button[data-hovered] { color: var(--text); }
 .ui-text-button[data-focus-visible] { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 .ui-text-button[data-disabled] { opacity: 0.5; cursor: default; }
+.ui-icon-button[data-size="compact"] { width: 32px; height: 32px; }
 .ui-icon-button[data-size="small"] { width: 28px; height: 28px; }
 .ui-icon-button[data-disabled] { opacity: 0.4; cursor: default; }
 

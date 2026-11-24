@@ -475,7 +475,7 @@ span.chip-run { cursor: default; }
 .answer-actions { margin: var(--space-2) 0 0 -8px; }
 /* an answer's versions (board 81): ‹ n / total ›, first in its actions, then a thin divider */
 .answer-versions { display: inline-flex; align-items: center; gap: 2px; }
-.answer-versions .ui-icon-button { width: 32px; height: 32px; color: var(--text); }
+.answer-versions .ui-icon-button { color: var(--text); }
 .answer-versions-count { font-size: var(--text-caption); font-variant-numeric: tabular-nums; color: var(--text-dim); padding-inline: var(--space-1); }
 .answer-actions-divider { width: 1px; height: 16px; margin-inline: var(--space-1); background: var(--line); }
 .answer-actions .copy-button { border-color: transparent; color: var(--text-dim); }
