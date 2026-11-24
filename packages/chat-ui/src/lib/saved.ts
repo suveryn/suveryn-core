@@ -2,15 +2,16 @@
  * An answer as a Word file, and saved to its case (docs/design/chat-ui.md §5).
  *
  * The Word file is built in the browser (lib/office.ts). Saving to a case stores what builds it (the
- * question, the answer as written, its sources with their file names, its checks), and the file is
- * built again from that on download: the same file, mark included. The server takes a deleted
+ * question, the answer as written, its sources with their file names, its checks): the server copies it from the
+ * answer it stored (suveryn-tracker#251; its file name and search text are the gateway's), and the file is built
+ * again from that on download: the same file, mark included. The server takes a deleted
  * document's passages out of a saved answer as it does from conversations (``without`` in the store).
  */
 import type { Watermark } from "./watermark";
 import type { Citation } from "../api";
 import { locale, type Messages } from "../i18n";
 import type { AssistantTurn } from "../types";
-import { citedNumbers, instructionLikeWarning, stripMarkers, toBlocks } from "./answer";
+import { citedNumbers, instructionLikeWarning, toBlocks } from "./answer";
 import { checkLines, type AnswerExport } from "./export";
 import { exportRef } from "./marks";
 
@@ -57,34 +58,6 @@ export function answerExport(turn: AssistantTurn, question: string, nameOf: (c: 
       + (watermark ? ` · ${m.strictlyConfidential}` : ""),
     watermark,
   };
-}
-
-/** The Word file's name: the question, on one line, without characters a file name can't hold. */
-export function answerFileName(question: string): string {
-  const name = question.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "");
-  return `${(name.length > 80 ? name.slice(0, 80).trimEnd() : name) || "answer"}.docx`;
-}
-
-/** What is stored when an answer is saved to its case. */
-export function savedAnswer(turn: AssistantTurn, question: string, filenames: Map<string, string>,
-                            caseRef: string | null, now: Date = new Date()): SavedAnswer {
-  const names: Record<string, string> = {};
-  for (const c of turn.citations) {
-    const id = c.source?.document_id;
-    if (id && filenames.has(id)) names[id] = filenames.get(id)!;
-  }
-  return {
-    question, answer: turn.text, answeredOn: now.toISOString(), model: turn.model, citations: turn.citations,
-    calculations: turn.calculations ?? [], unverifiedFigures: turn.unverifiedFigures ?? [],
-    citationIssues: turn.citationIssues ?? [], instructionLikeSources: turn.instructionLikeSources ?? [],
-    ...(turn.supportSpans ? { supportSpans: turn.supportSpans } : {}),
-    filenames: names, turnId: turn.id, caseRef,
-  };
-}
-
-/** What search finds of a saved answer: the question and the answer, without citation markers. */
-export function searchText(s: SavedAnswer): string {
-  return `${s.question}\n\n${stripMarkers(s.answer)}`.trim();
 }
 
 /** A saved answer as the turn it came from, to build its file again. */

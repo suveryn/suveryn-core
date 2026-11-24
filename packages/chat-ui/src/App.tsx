@@ -26,11 +26,11 @@ import {
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, uploadDocument,
+  cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, askInConversation, uploadDocument,
   getMe, ME_CHANGED, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
-  type WireMessage, type Citation, type ConversationSummary, listConversations, getConversation, saveConversation, deleteConversation,
+  type WireMessage, type AnswerHandlers, type Citation, type ConversationSummary, listConversations, getConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
-  listMembers, departedNames, shareConversation, confirmAsSource, saveAnswerToCase, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, caseRuns, listAdminPlaybooks, getBackups,
+  listMembers, departedNames, shareConversation, confirmAsSource, saveTurnAsDocument, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, caseRuns, listAdminPlaybooks, getBackups,
   HttpError,
 } from "./api";
 import { Lockup } from "./components/Brand";
@@ -49,7 +49,7 @@ import { factsCountText, RunPanel, RunSourcePanel, runStatusWord, RunThread, run
 import { Composer } from "./components/Composer";
 import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 import { AssistantMessage, SourcePanel, UserMessage, type OpenSource, type SaveToCase } from "./components/Messages";
-import { answerFileName, savedAnswer, savedWord, searchText } from "./lib/saved";
+import { savedWord } from "./lib/saved";
 import { afterDelete, citingCheck, deleteRefusal, saveState } from "./lib/documentActions";
 import { asksBeforeSignOut, inAnotherPlace, liveRunInstead, memberName, needsCaseOpen, pinHintDue, reopened, runIsLive,
          runPlaybook as playbookOfRun } from "./lib/navigation";
@@ -64,7 +64,7 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { conversationTitle, listedTitle, MAX_SAVED_TURNS, newConversationId, toSaved, withoutDocument } from "./lib/conversations";
+import { conversationTitle, listedTitle, newConversationId, shownBranch, withoutDocument } from "./lib/conversations";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
@@ -75,7 +75,7 @@ import { lang, locale, t, useLang, useT } from "./i18n";
 import { playbookWords } from "./lib/playbooks";
 import { databaseDown } from "./lib/health";
 import { ActionMenu, Button, Drawer, I18nProvider, IconButton, InlineNotice, NARROW, useMedia } from "./ui";
-import { staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
+import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "./types";
 import { choosable, pickMeta, stillThere } from "./lib/askAbout";
 import type { ConversationAction } from "./lib/conversationActions";
 import { watermark, WatermarkContext } from "./lib/watermark";
@@ -284,7 +284,6 @@ function Chat({ me }: { me: Me }) {
   // The person can't ask here at all: the question box is read-only, without Ask about.
   const locked = readOnly || closed || (!!currentCase && role === "reader") || administers;
   const readerHere = !!currentCase && role === "reader" && !closed && !readOnly && !administers;
-  const lastSaved = useRef(""); // the turns as last saved (or opened), so unchanged turns aren't saved again
   const abort = useRef<AbortController | null>(null);
   const stopped = useRef(false);  // the person pressed Stop: the abort keeps what was written
   const endRef = useRef<HTMLDivElement>(null);
@@ -417,19 +416,6 @@ function Chat({ me }: { me: Me }) {
     getMyUsage(today(new Date()).start).then((r) => setTokensToday(r.totals.total_tokens)).catch(() => setTokensToday(null));
   }, [busy]);
 
-  // Save the conversation whenever it changed and no answer is streaming.
-  useEffect(() => {
-    if (!historyReady || busy || turns.length === 0 || readOnly) return;  // someone else's shared conversation is never saved over
-    const saved = toSaved(turns);
-    const body = JSON.stringify(saved);
-    if (body === lastSaved.current) return;
-    lastSaved.current = body;
-    if (saved.length > MAX_SAVED_TURNS) { setProblem(m.saveFailed({ why: m.messages["conversation.too_long"] })); return; }  // the server refuses it
-    saveConversation(conversationId, conversationTitle(turns), saved, caseId)
-      .then(refreshConversations)
-      .catch((e: Error) => { lastSaved.current = ""; setProblem(m.saveFailed({ why: e.message })); });
-  }, [turns, busy, historyReady, conversationId, caseId, readOnly, refreshConversations]);
-
   // Poll uploads that are still being read, in the composer and in the conversation.
   useEffect(() => {
     const open = uploadsToCheck(pending, turns);
@@ -454,6 +440,8 @@ function Chat({ me }: { me: Me }) {
   // may name documents that are gone; asking about them would fail).
   const conversationDocs = useMemo(() => conversationDocuments(turns, documents, documentsReady), [turns, documents, documentsReady]);
   const filenames = useMemo(() => new Map(documents.map((d) => [d.id, d.filename])), [documents]);
+  // A document's name as this page knows it: in the place open, or anywhere the person may look; none when deleted.
+  const documentName = (id: string) => filenames.get(id) ?? allDocuments.find((d) => d.id === id)?.filename;
   const present = useMemo(() => new Set(documents.map((d) => d.id)), [documents]);  // a fact's source may since be deleted
 
   const disabledReason =
@@ -564,7 +552,35 @@ function Chat({ me }: { me: Me }) {
   };
 
   // ``fresh``: the case's documents just read again, for the one retry after a colleague deleted one.
-  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[]) => {
+  // A question in a saved conversation follows the answer shown last (``after``, its seq; #251). Its seq comes when
+  // the server has stored it: read back from the conversation when this page doesn't know it yet.
+  const answerFollowed = async (ts: Turn[]): Promise<{ after?: number }> => {
+    const last = [...ts].reverse().find((t) => t.role === "assistant");
+    if (!last) return {};
+    if (last.seq !== undefined) return { after: last.seq };
+    const shown = await shownTurns();
+    const known = [...shown].reverse().find((t) => t.role === "assistant");
+    return known?.seq !== undefined ? { after: known.seq } : {};
+  };
+  const shownTurns = async (): Promise<{ role: string; seq?: number }[]> => {
+    try { return shownBranch((await getConversation(conversationId)).turns as unknown as { role: string; seq?: number }[]); }
+    catch { return []; }
+  };
+  // Once an answer has ended: the numbers the server gave the question and its answer, read back (the stream doesn't
+  // say them: the answer is stored as it ends). ``again``: only the answer is new. Each becomes the turn's id too,
+  // as a reopened conversation names it: what a saved answer's mark and its document name.
+  const stored = async (question: string, answer: string, again: boolean) => {
+    const shown = await shownTurns();
+    refreshConversations();  // a new conversation is listed, a known one moves up
+    const [q, a] = [shown.at(-2), shown.at(-1)];
+    if (a?.role !== "assistant" || a.seq === undefined) return;
+    const named = (t: Turn): Turn => (t.id === answer ? { ...t, id: `${conversationId}/${a.seq}`, seq: a.seq } as Turn
+      : t.id === question && !again && q?.seq !== undefined ? { ...t, id: `${conversationId}/${q.seq}`, seq: q.seq } as Turn : t);
+    setTurns((ts) => ts.map(named));
+  };
+
+  // ``asking``: Regenerate, the stored question (its seq) the server asks once more as it was asked (#251).
+  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[], asking?: number) => {
     // What goes with it, what it asks about, and the documents it is answered from (lib/ask.ts).
     const { attachments, asked, chosen, documentIds } = questionFor({ pending, again, againAbout, about, inCase: !!caseId, conversationDocs,
                                                                      documents: caseId ? fresh ?? documents : null });
@@ -594,17 +610,32 @@ function Chat({ me }: { me: Me }) {
     let retryWith: StoredDocument[] | null = null;
     let now: StoredDocument[] | null = null;
     let next: ReturnType<typeof afterDeletion> = null;
-    try {
-      const done = await streamChat([...history, { role: "user", content: text }], [...docIds], (delta) => {
+    const said: AnswerHandlers = {
+      onDelta: (delta) => {
         streamed += delta;
         if (thinkFrom !== null && thinkSeconds === undefined) thinkSeconds = (Date.now() - thinkFrom) / 1000;
         update({ text: streamed, ...thoughtSoFar() });
-      }, abort.current.signal, chosenModel, (step) => { if (step.complete !== null) whole = step.complete; update({ step }); }, caseId, (c) => { sources = c; },
-      { on: thinking, onText: (piece) => {
+      },
+      onStatus: (step) => { if (step.complete !== null) whole = step.complete; update({ step }); },
+      onSources: (c) => { sources = c; },
+      onThinking: (piece) => {
         if (thinkFrom === null) thinkFrom = Date.now();
         thought += piece;
         update({ reasoning: thought });
-      } });
+      },
+    };
+    try {
+      // With saved conversations, the server keeps the conversation and stores each turn as it answers
+      // (suveryn-tracker#251): only the question goes, with the answer it follows. Without them (their store down),
+      // the history goes with it and nothing is kept.
+      const done = historyReady
+        ? await askInConversation(conversationId, asking !== undefined ? { again: asking } : {
+            text, document_ids: [...docIds], about: asked.map((c) => c.documentId),
+            attached: attachments.filter((a) => a.documentId && isReady(a)).map((a) => a.documentId!),
+            ...(caseId ? { case_id: caseId } : {}), ...(chosenModel ? { model: chosenModel } : {}), ...(thinking ? { thinking: true } : {}),
+            ...(await answerFollowed(turns)) }, said, abort.current.signal)
+        : await streamChat([...history, { role: "user", content: text }], [...docIds], said.onDelta, abort.current.signal, chosenModel,
+                           said.onStatus, caseId, said.onSources, { on: thinking, onText: said.onThinking! });
       update(answerPatch(done, { thought, thinkSeconds, partial: asked.length > 0 && whole === false }));
     } catch (e) {
       const kind = failureKind(e, { stopped: stopped.current, streamed, inCase: !!caseId, retried: !!fresh, cutOffMessage: m.streamCutOff });
@@ -632,6 +663,7 @@ function Chat({ me }: { me: Me }) {
       abort.current = null;
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
+    if (historyReady) await stored(user.id, reply.id, asking !== undefined);
     if (retryWith) {
       setTurns((ts) => ts.filter((t) => t.id !== user.id && t.id !== reply.id));
       await send(text, attachments, asked, retryWith);
@@ -643,7 +675,8 @@ function Chat({ me }: { me: Me }) {
   const regenerate = () => {
     const question = turns[turns.length - 2] as UserTurn;
     setTurns((ts) => ts.slice(0, -2));
-    send(question.text, question.attachments, question.about ?? []);
+    // asked again as it was asked: by the server, from the question it stored (#251), or as before without it
+    send(question.text, question.attachments, question.about ?? [], undefined, historyReady ? question.seq : undefined);
   };
 
   // The start screen: no case, nothing asked yet. First use: no conversations and no cases yet.
@@ -708,16 +741,15 @@ function Chat({ me }: { me: Me }) {
   // Save to case (docs/design/chat-ui.md §5): a finished answer in a case, for a contributor, the case open.
   const setTurn = (id: string, patch: Partial<AssistantTurn>) =>
     setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
-  const saveControls = (t: AssistantTurn, question: string): SaveToCase | null => {
+  const saveControls = (t: AssistantTurn): SaveToCase | null => {
     const state = saveState(t, { inCase: !!caseId, contributes, closed, readOnly, savedHere, documents });
-    if (!currentCase || !caseId || !state) return null;
+    if (!currentCase || !caseId || !state || t.seq === undefined) return null;  // only an answer the server has stored
     return {
       caseRef: currentCase.reference, ...state,
       onSave: async () => {
         try {
-          const content = savedAnswer(t, question, filenames, currentCase.reference);
-          const r = await saveAnswerToCase(caseId, { filename: answerFileName(question), text: searchText(content), content,
-                                                    conversation_id: conversationId, message_id: t.id });
+          // the server copies the answer it stored, as it was written (#251)
+          const r = await saveTurnAsDocument(conversationId, t.seq!);
           setTurn(t.id, { saved: { documentId: r.id, filename: r.filename } });
           setSavedHere((s) => new Set(s).add(t.id));
           refreshDocuments();
@@ -819,7 +851,6 @@ function Chat({ me }: { me: Me }) {
     setAbout([]);
     setAboutGone(false);
     setThinking(thinkingDefault());  // a new conversation starts with the person's default (§5)
-    lastSaved.current = "";
     setSavedHere(new Set());
   };
 
@@ -952,8 +983,8 @@ function Chat({ me }: { me: Me }) {
     try {
       const c = await getConversation(id);
       abort.current?.abort();
-      const opened = reopened(c.turns, thinkingDefault());  // with its Ask about choice (§10) and Fast or Thorough (§5)
-      lastSaved.current = opened.lastSaved;
+      // the branch shown, with its Ask about choice (§10) and Fast or Thorough (§5); the documents named as they are now
+      const opened = reopened(c.turns, thinkingDefault(), id, documentName);
       setConversationId(id);
       setSavedHere(new Set());
       setTurns(opened.turns);
@@ -1249,7 +1280,7 @@ function Chat({ me }: { me: Me }) {
                                 onRegenerate={regenerable && t.id === turns[turns.length - 1]?.id ? regenerate : null}
                                 question={turns[i - 1]?.role === "user" ? turns[i - 1].text : ""}
                                 aboutChosen={(() => { const q = turns[i - 1]; return q?.role === "user" && !!q.about?.length; })()}
-                                save={saveControls(t, turns[i - 1]?.role === "user" ? turns[i - 1].text : "")} />))
+                                save={saveControls(t)} />))
           )}
           <div ref={endRef} />
         </div>

@@ -69,7 +69,7 @@ export const PREVIEWS: Preview[] = [
   { id: "g09-offline", board: "G09", lang: "nl", title: "Server niet bereikbaar, met een gesprek open",
     // the page loads, then the server goes away: the next health check (every 10 seconds) shows the bar
     setup: () => offline("/health", 3000), render: app(...HUURKOOP, { wait: 11_000 }) },
-  { id: "g10-busy", board: "G10", lang: "nl", title: "Bezig met een antwoord", setup: () => hold("/v1/chat"),
+  { id: "g10-busy", board: "G10", lang: "nl", title: "Bezig met een antwoord", setup: () => { hold("/v1/chat"); hold(/^\/v1\/conversations\/[^/]+\/questions$/); },
     render: app({ type: "Wat is een huurkoopformule, in grote lijnen?", into: "Stel een vraag" }, { key: "Enter" }) },
   { id: "g11-source", board: "G11", lang: "nl", title: "Bronpaneel open",
     render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Bron 1: Compromis_Schipperskaai.pdf, pagina 7" }) },

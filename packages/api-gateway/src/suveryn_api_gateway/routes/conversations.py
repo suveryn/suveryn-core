@@ -4,6 +4,8 @@ space or in a case. Without a database: 503, and the UI keeps the conversation i
 import logging
 import uuid
 
+import anyio
+
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem, unplanned
 from fastapi.concurrency import run_in_threadpool
@@ -143,6 +145,11 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
     return moved
 
 
+# An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence at about 5,000
+# (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments); the chat UI asked for this
+# much with every question before the server kept the conversation (its api.ts, streamChat).
+ANSWER_TOKENS = 3000
+
 # The conversations an answer is being written in, in this process: a second question waits for it (409).
 ANSWERING: set[uuid.UUID] = set()
 
@@ -170,30 +177,47 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
     except BaseException:
         ANSWERING.discard(cid)
         raise
-    heard = Heard()
+    heard, written = Heard(), []
+
+    async def store_answer() -> None:
+        """The answer stored, once: as soon as the stream says how it ended (its last event, ``done`` or ``error``,
+        goes out after it is stored, so the browser finds it when it reads the conversation back), or when the
+        connection closed first (stopped). Shielded: a stop at that moment doesn't leave it half done."""
+        if written:
+            return
+        written.append(True)
+        with anyio.CancelScope(shield=True):
+            try:
+                text, meta = answered_turn(heard.text, heard.reasoning, heard.sources, heard.done, heard.failure, question)
+                # A document deleted while the answer was written: its passages never stay (as a save's, audit of
+                # 21 October 2026, finding 3; review of #251, finding 2). Taken out before the answer is stored, and
+                # once more after, for one deleted in between.
+                cited = cited_documents([meta])
+                if (gone := await run_in_threadpool(_gone, request, cited, scope)) is not None:
+                    redact([meta], gone)
+                await run_in_threadpool(store.add, cid, "assistant", "assistant", text[:MAX_TURN_TEXT], meta, cited)
+                if (later := await run_in_threadpool(_gone, request, cited, scope)) is not None:
+                    for d in sorted(cited):
+                        if later(d) and (gone is None or not gone(d)):
+                            await run_in_threadpool(store.remove_document, owner, uuid.UUID(d), False, None)
+            except Exception as e:  # noqa: BLE001 - the question stays, unanswered; the log has a reference, never the text
+                ref, where = unplanned(e)
+                log.error("an answer couldn't be stored: internal %s: %s at %s", ref, type(e).__name__, where)
+
+    async def answered():
+        async for event in _stream(chat_service, req, owner, heard):
+            if heard.done is not None or heard.failure is not None:
+                await store_answer()
+            yield event
 
     async def ended() -> None:
         try:
-            text, meta = answered_turn(heard.text, heard.reasoning, heard.sources, heard.done, heard.failure, question)
-            # A document deleted while the answer was written: its passages never stay (as a save's, audit of
-            # 21 October 2026, finding 3; review of #251, finding 2). Taken out before the answer is stored, and once
-            # more after, for one deleted in between.
-            cited = cited_documents([meta])
-            if (gone := await run_in_threadpool(_gone, request, cited, scope)) is not None:
-                redact([meta], gone)
-            await run_in_threadpool(store.add, cid, "assistant", "assistant", text[:MAX_TURN_TEXT], meta, cited)
-            if (later := await run_in_threadpool(_gone, request, cited, scope)) is not None:
-                for d in sorted(cited):
-                    if later(d) and (gone is None or not gone(d)):
-                        await run_in_threadpool(store.remove_document, owner, uuid.UUID(d), False, None)
-        except Exception as e:  # noqa: BLE001 - the question stays, unanswered; the log has a reference, never the text
-            ref, where = unplanned(e)
-            log.error("an answer couldn't be stored: internal %s: %s at %s", ref, type(e).__name__, where)
+            await store_answer()
         finally:
             ANSWERING.discard(cid)
 
     chat_service: ChatService = request.app.state.chat
-    return StoredWhenEnded(_stream(chat_service, req, owner, heard), ended, media_type="text/event-stream",
+    return StoredWhenEnded(answered(), ended, media_type="text/event-stream",
                            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -228,7 +252,7 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
         source = body
     case = (str(place[1]) if place[1] is not None else None) if place is not None else body.case_id
     asked = ChatRequest(messages=[ChatMessage(role="user", content=source.text)], stream=True, document_ids=source.document_ids,
-                        case_id=case, model=source.model, thinking=source.thinking)
+                        case_id=case, model=source.model, thinking=source.thinking, max_tokens=ANSWER_TOKENS)
     owner = await checked(asked, request)
     scope = Scope.case(uuid.UUID(case)) if case else Scope.personal(owner)
     shown = sorted({*source.about, *source.attached})

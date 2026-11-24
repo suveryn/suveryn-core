@@ -51,6 +51,11 @@ export function saveState(t: AssistantTurn, o: { inCase: boolean; contributes: b
   { saved: NonNullable<AssistantTurn["saved"]> | null; undoable: boolean } | null {
   if (!o.inCase || !o.contributes || o.closed || o.readOnly || t.status !== "done") return null;
   const here = o.savedHere.has(t.id);
-  const exists = !!t.saved && (here || o.documents.some((d) => d.id === t.saved!.documentId));
-  return { saved: exists ? t.saved! : null, undoable: here && exists };
+  // saved on this visit, or before: the document the server copied from this answer names it (its provenance's
+  // message is the answer's id, "<conversation>/<seq>"; #251)
+  const found = t.saved ? o.documents.find((d) => d.id === t.saved!.documentId)
+    : o.documents.find((d) => d.origin === "answer" && d.provenance?.message === t.id);
+  const saved = t.saved ?? (found ? { documentId: found.id, filename: found.filename } : undefined);
+  const exists = !!saved && (here || !!found);
+  return { saved: exists ? saved! : null, undoable: here && exists };
 }

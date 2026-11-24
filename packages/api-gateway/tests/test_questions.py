@@ -178,6 +178,7 @@ def test_a_question_and_its_answer_are_stored_by_the_server_and_read_back_to_the
         assert r.status_code == 409 and r.json()["code"] == "request.conflict"  # which answer it follows: said
         with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?", "after": answer}, headers=alice) as r:
             events(r)
+        assert captured[-1]["max_tokens"] == 3000  # as long an answer as the chat UI asked for (routes/conversations.py)
         sent = [m for m in captured[-1]["messages"] if m["role"] != "system"]
         assert [m["role"] for m in sent] == ["user", "assistant", "user"]
         assert sent[1]["content"] == "€ 345.000" and sent[2]["content"].endswith("En de datum?")
@@ -561,3 +562,47 @@ def test_an_answer_saved_to_its_case_keeps_its_passages_checks_and_a_deleted_sou
         r = c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice)
         content = docs.contents[r.json()["id"]][2]
         assert content["citations"][0]["removed"] is True and content["citations"][0]["text"] == "" and content["filenames"] == {}
+
+
+@needs_db
+def test_the_answer_is_stored_before_its_last_event_goes_out(store):
+    """The browser reads the conversation back once the answer has ended, for the numbers of the question and its
+    answer: the answer must be there by then, so it is stored before ``done`` is sent. (By hand, as the Stop test:
+    Starlette's test client reads the whole answer before it gives any of it.)"""
+    application = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([])),
+                             load_documents=False, auth=Authenticator.disabled(), conversations=store)
+    cid = str(uuid.uuid4())
+    path = f"/v1/conversations/{cid}/questions"
+    when_done: list[list[str]] = []
+
+    async def ask() -> None:
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": json.dumps({"text": "Wat is de koopprijs?"}).encode(), "more_body": False}
+            await anyio.sleep(30)
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            if message["type"] == "http.response.body" and b"event: done" in message.get("body", b""):
+                when_done.append([t.role for t in await run_in_threadpool(store.turns_of, uuid.UUID(cid))])
+
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.4"}, "http_version": "1.1",
+                 "method": "POST", "scheme": "http", "path": path, "raw_path": path.encode(), "query_string": b"",
+                 "root_path": "", "headers": [(b"content-type", b"application/json"), (b"host", b"test")],
+                 "client": ("127.0.0.1", 1), "server": ("test", 80)}
+        with anyio.fail_after(10):
+            await application(scope, receive, send)
+
+    import anyio
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        with TestClient(application) as c:
+            c.portal.call(ask)
+        assert when_done == [["user", "assistant"]]
+    finally:
+        store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))

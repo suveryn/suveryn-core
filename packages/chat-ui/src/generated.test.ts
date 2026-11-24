@@ -17,10 +17,11 @@ const NOT_CALLED: Record<string, string> = {
   deleteUserPicture: "no screen removes someone else's picture yet",
   addRunDocuments: "no screen sends a document for a request the run has already had answered yet",
   createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
-  askQuestion: "the screens ask for an answer as a stream, read as it comes (api.ts, streamChat): at the generated address, with the generated body and events",
+  askQuestion: "without saved conversations the screens ask for an answer as a stream, read as it comes (api.ts, streamChat): at the generated address, with the generated body and events",
   getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
-  askInConversation: "the server stores a conversation's turns as it answers: the screens move to it in a later step (suveryn-tracker#251)",
-  saveTurnAsDocument: "an answer the server stored is saved by naming it: the screens move to it in a later step (suveryn-tracker#251)",
+  askInConversation: "a question in a saved conversation is answered as a stream, read as it comes (api.ts, askInConversation): at the generated address, with the generated body and events",
+  saveConversation: "the server stores each turn as it answers: no screen saves a conversation whole any more; the route goes in a later step (suveryn-tracker#251)",
+  saveAnswerAsDocument: "an answer is saved to its case by naming the turn the server stored (saveTurnAsDocument); the route goes in a later step (suveryn-tracker#251)",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
  *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first

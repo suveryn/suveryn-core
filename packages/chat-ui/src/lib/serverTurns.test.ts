@@ -1,0 +1,74 @@
+/** A conversation the server keeps (suveryn-tracker#251): its turns read back as the screen shows them. The server
+ *  keeps it as a tree, as Claude and ChatGPT do (each turn names the turn it follows); the screen shows one branch. */
+import { describe, expect, it } from "vitest";
+import { setLang } from "../i18n";
+import type { Turn } from "../types";
+import { fromSaved, shownBranch } from "./conversations";
+import { saveState } from "./documentActions";
+import type { StoredDocument } from "../api";
+
+const CID = "00000000-0000-4000-8000-0000000000a1";
+const DEED = "11111111-1111-4111-8111-111111111111";
+const question = (seq: number, text: string, parent: number | null, more: object = {}) =>
+  ({ seq, role: "user", text, kind: "question", parent, document_ids: [], about: [], attached: [], model: null, thinking: false, ...more });
+const answer = (seq: number, text: string, parent: number, more: object = {}) =>
+  ({ seq, role: "assistant", text, kind: "answer", parent, outcome: "done", model: "Qwen3.8-27B", citations: [], calculations: [],
+     unverified_figures: [], citation_issues: [], support_spans: [], instruction_like_sources: [], reasoning: "", thought_seconds: null,
+     thinking_cut: false, narrowed_to: null, complete: null, asked_again: false, finish_reason: "stop", failure: null, ...more });
+const stored = (...turns: object[]) => turns as unknown as Turn[];
+
+describe("a conversation the server keeps as a tree", () => {
+  it("shows the newest answer of each question, and what followed that one", () => {
+    // q1 answered twice (Regenerate); q2 followed the first answer, q3 the second
+    const turns = [question(1, "q1", null), answer(2, "a1", 1), answer(3, "a1b", 1), question(4, "q2", 2), answer(5, "a2", 4),
+                   question(6, "q3", 3), answer(7, "a3", 6)];
+    expect(shownBranch(turns).map((t) => t.seq)).toEqual([1, 3, 6, 7]);
+    expect(shownBranch([question(1, "q1", null), answer(2, "a1", 1), question(3, "q2", 2), answer(4, "a2", 3), answer(5, "a2b", 3)])
+      .map((t) => t.text)).toEqual(["q1", "a1", "q2", "a2b"]);
+  });
+
+  it("goes on after turns the chat UI saved itself, which follow the one before", () => {
+    const turns = [{ seq: 1, role: "user", text: "q1" }, { seq: 2, role: "assistant", text: "a1", status: "done" },
+                   question(3, "q2", 2), answer(4, "a2", 3)];
+    expect(shownBranch(turns).map((t) => t.seq)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("a turn the server stored, as the screen shows it", () => {
+  it("a question with the documents it showed, named as they are now, a deleted one taken out", () => {
+    const [q] = fromSaved(stored(question(1, "Wat is de prijs?", null, { attached: [DEED], about: ["gone"] })), CID,
+                          (id) => (id === DEED ? "akte.pdf" : undefined));
+    expect(q).toEqual({ id: `${CID}/1`, seq: 1, role: "user", text: "Wat is de prijs?",
+                        attachments: [{ key: DEED, status: "ready", documentId: DEED, filename: "akte.pdf" }],
+                        about: [{ documentId: "gone", filename: "", removed: true }] });
+  });
+
+  it("an answer written out, with its checks, Thorough, and the document it was narrowed to by name", () => {
+    const [, a] = fromSaved(stored(question(1, "q", null, { document_ids: [DEED], thinking: true }),
+                                   answer(2, "€ 1 [1]", 1, { unverified_figures: ["€ 9"], narrowed_to: DEED, finish_reason: "length" })),
+                            CID, () => "akte.pdf");
+    expect(a).toMatchObject({ id: `${CID}/2`, seq: 2, role: "assistant", text: "€ 1 [1]", status: "done", grounded: true, thinking: true,
+                              unverifiedFigures: ["€ 9"], narrowedTo: "akte.pdf", truncated: true, model: "Qwen3.8-27B" });
+  });
+
+  it("an answer stopped keeps its words, unchecked; a failed one says why, in the reader's language", () => {
+    setLang("en", false);
+    const [, stopped, , failed] = fromSaved(stored(question(1, "q", null), answer(2, "De prijs is", 1, { outcome: "stopped" }),
+                                                   question(3, "q2", 2), answer(4, "", 3, { outcome: "failed",
+                                                     failure: { kind: "unavailable", code: "model.unavailable", params: {} } })), CID);
+    expect(stopped).toMatchObject({ text: "De prijs is", status: "stopped" });
+    expect(failed).toMatchObject({ text: "", status: "error", failure: { code: "model.unavailable" } });
+    expect((failed as { error: string }).error.length).toBeGreaterThan(10);
+  });
+});
+
+describe("an answer saved to its case before, found again", () => {
+  it("by the document the server copied from it, which names it", () => {
+    const [, a] = fromSaved(stored(question(1, "q", null), answer(2, "€ 1", 1)), CID);
+    const document = { id: "doc-1", filename: "q.docx", origin: "answer", provenance: { conversation: CID, message: `${CID}/2` } } as unknown as StoredDocument;
+    const state = (documents: StoredDocument[]) => saveState(a as never, { inCase: true, contributes: true, closed: false, readOnly: false,
+                                                                          savedHere: new Set(), documents });
+    expect(state([document])).toEqual({ saved: { documentId: "doc-1", filename: "q.docx" }, undoable: false });
+    expect(state([])).toEqual({ saved: null, undoable: false });
+  });
+});

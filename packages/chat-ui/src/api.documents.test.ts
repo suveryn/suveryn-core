@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import documents from "../../api-gateway/tests/documents_answers.json";
 import { cancelJob, confirmAsSource, deleteDocument, documentContent, documentConversations, getJob, HttpError, isArchiveUpload, listAllDocuments,
-  listDocuments, originalUrl, saveAnswerToCase, uploadDocument } from "./api";
+  listDocuments, originalUrl, saveTurnAsDocument, uploadDocument } from "./api";
 import type { SavedAnswer } from "./lib/saved";
 import { messageText } from "./lib/messages";
 import { RateLimited } from "./lib/turns";
@@ -82,15 +82,15 @@ describe("the documents", () => {
       ["DELETE", `/v1/documents/${DOC}?conversations=clean`]]);
   });
 
-  it("saves an answer to its case, once, and reads back what rebuilds its file", async () => {
-    const sent = gatewayAnswers(documents.saved, documents.saved_before, documents.content);
-    const content = documents.content.body.content as unknown as SavedAnswer;
-    const body = { filename: "What is the price.docx", text: "What is the price?", content, conversation_id: "00000000-0000-4000-8000-0000000000a1", message_id: "m-1" };
-    const saved = await saveAnswerToCase(CASE, body);
-    expect([saved.created, saved.filename, (await saveAnswerToCase(CASE, body)).created]).toEqual([true, "What is the price.docx", false]);
+  it("saves an answer the server stored to its case by naming it (#251), and reads back what rebuilds its file", async () => {
+    const CONVERSATION = "00000000-0000-4000-8000-0000000000a2";
+    const sent = gatewayAnswers(documents.saved_from_turn, documents.content_from_turn);
+    const saved = await saveTurnAsDocument(CONVERSATION, 2);
+    expect([saved.created, saved.filename]).toEqual([true, "What is the price.docx"]);
     const rebuilt = await documentContent(saved.id, CASE);
-    expect([rebuilt.origin, rebuilt.filename, rebuilt.content.question, rebuilt.content.answer]).toEqual(["answer", "What is the price.docx", "What is the price?", "The price is EUR 300,000 [1]."]);
-    expect(sent).toEqual([asked("POST", `/v1/cases/${CASE}/documents`, body), asked("POST", `/v1/cases/${CASE}/documents`, body),
+    const content = rebuilt.content as SavedAnswer;
+    expect([rebuilt.origin, content.question, content.turnId]).toEqual(["answer", "What is the price?", `${CONVERSATION}/2`]);
+    expect(sent).toEqual([asked("POST", `/v1/conversations/${CONVERSATION}/turns/2/document`),
       asked("GET", `/v1/documents/${saved.id}/content?case=${CASE}`)]);
   });
 

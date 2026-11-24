@@ -26,3 +26,11 @@ export function gatewayAnswers(...answers: (KeptAnswer | Response | Error)[]): S
   }));
   return sent;
 }
+
+/** A stream as the gateway sent it, event by event (`text/event-stream`), in pieces that don't end where an event does. */
+export function eventStream(events: { event: string; data: unknown }[]): Response {
+  const text = events.map((e) => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`).join("");
+  const pieces = text.match(/[\s\S]{1,37}/g) ?? [];
+  const body = new ReadableStream({ start(c) { for (const piece of pieces) c.enqueue(new TextEncoder().encode(piece)); c.close(); } });
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
