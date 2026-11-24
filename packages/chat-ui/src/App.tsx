@@ -701,7 +701,7 @@ function Chat({ me }: { me: Me }) {
   const regenerate = (i: number) => {
     // another version of a stored question's answers, or a refused one asked anew (lib/versions.ts)
     const question = turns[i - 1] as UserTurn, again = regenerating(conversation, turns, i, historyReady);
-    setConversation(again.conversation);
+    setConversation((c) => regenerating(c, turns, i, historyReady).conversation);  // from the latest turns known
     send(question.text, question.attachments, question.about ?? [], undefined, again.asking, again.question);
   };
   // An answer's versions (board 81): ‹ n / total ›; switching changes everything below it to that version's branch.
