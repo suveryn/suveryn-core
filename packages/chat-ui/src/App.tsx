@@ -64,12 +64,13 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { answerStored, conversationTitle, listedTitle, newConversationId, readTurns, withoutDocument } from "./lib/conversations";
-import { switchedTo, versionsOf, withShown } from "./lib/versions";
+import { answerStored, conversationTitle, listedTitle, newConversationId, withoutDocument } from "./lib/conversations";
+import { answeredAgain, asked as asked_, NO_CONVERSATION, regenerating, shownOf, switchedTo, versionsOf, without,
+         type Conversation } from "./lib/versions";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
-import { answerPatch, askedAgain, canRegenerate, conversationDocuments, failureKind, questionFor, toFollow, withStored } from "./lib/ask";
+import { answerPatch, canRegenerate, conversationDocuments, failureKind, questionFor, toFollow, withStored } from "./lib/ask";
 import { claimRedirect, clearRedirect } from "./lib/signin";
 import { REPORT_EVERY_MS, reportClock } from "./lib/clock";
 import { lang, locale, t, useLang, useT } from "./i18n";
@@ -181,14 +182,12 @@ function Chat({ me }: { me: Me }) {
   const [thinking, setThinking] = useState(thinkingDefault);  // *Thorough* for this conversation (§5)
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  // Every turn of the open conversation this page knows (the server keeps it as a tree): ``turns`` is the branch shown,
-  // and an answer's versions are switched within these (lib/versions.ts, board 81).
-  const [tree, setTree] = useState<Turn[]>([]);
-  useEffect(() => setTree((known) => withShown(known, turns)), [turns]);
-  // A change to turns that aren't only the server's answer to this page (a document read, deleted): to every turn
-  // known, shown or not, so a version switched to later shows it too (review of #251 step 3b).
-  const everyTurn = (change: (ts: Turn[]) => Turn[]) => { setTurns(change); setTree(change); };
+  // The open conversation: every turn this page knows (the server keeps it as a tree), and the last one shown;
+  // ``turns`` is the branch shown, worked out from them (lib/versions.ts, board 81).
+  const [conversation, setConversation] = useState<Conversation>(NO_CONVERSATION);
+  const turns = useMemo(() => shownOf(conversation), [conversation]);
+  // A change to turns by their id, shown or not (an answer as it is written, a document read or deleted).
+  const changeTurns = (change: (ts: Turn[]) => Turn[]) => setConversation((c) => ({ ...c, turns: change(c.turns) }));
   // After a switch (board 81): the new number said once, and the focus kept on an arrow, the other one if the one
   // pressed is now disabled at its end. The answer's actions may be drawn anew, so both are done from here.
   const [versionSaid, setVersionSaid] = useState("");
@@ -446,7 +445,7 @@ function Chat({ me }: { me: Me }) {
       const apply = (a: Attachment): Attachment => afterCheck(m, a, checked);
       // A job cancelled (here, or in another tab) leaves the composer.
       setPending((p) => p.map(apply).filter((a) => a.status !== "cancelled"));
-      everyTurn((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
+      changeTurns((ts) => ts.map((t) => (t.role === "user" ? { ...t, attachments: t.attachments.map(apply) } : t)));
       if (documentsChanged(checked)) refreshDocuments();
     }, 1500);
     return () => clearTimeout(t);
@@ -584,29 +583,29 @@ function Chat({ me }: { me: Me }) {
   };
   const readConversation = async () => (await getConversation(conversationId)).turns;
 
-  // ``asking``: Regenerate, the stored question (its seq) the server asks once more as it was asked (#251).
-  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[], asking?: number) => {
+  // ``question``: Regenerate, the question already shown, answered again; ``asking``: the server's number for it, which
+  // the server asks once more as it was asked (#251).
+  const send = async (text: string, again?: Attachment[], againAbout?: Chosen[], fresh?: StoredDocument[], asking?: number,
+                      question?: UserTurn) => {
     // What goes with it, what it asks about, and the documents it is answered from (lib/ask.ts).
     const { attachments, asked, chosen, documentIds } = questionFor({ pending, again, againAbout, about, inCase: !!caseId, conversationDocs,
                                                                      documents: caseId ? fresh ?? documents : null });
     const docIds = new Set(documentIds);
-    // asked again, it is the question the server stored: its number from the start, so its versions show at once (board 81)
-    const storedQuestion = asking === undefined ? undefined : tree.find((t) => t.seq === asking);
-    const user: UserTurn = { id: nextId(), role: "user", text, attachments, ...(asked.length ? { about: asked } : {}),
-                             ...(storedQuestion ? { seq: asking, parent: storedQuestion.parent ?? null, byServer: true } : {}) };
+    // asked again, it is the question already there: the new answer is one more version of its answers (board 81)
+    const user: UserTurn = question ?? { id: nextId(), role: "user", text, attachments, ...(asked.length ? { about: asked } : {}) };
     setAboutGone(false);
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0,
                                    ...(thinking ? { thinking: true } : {}) };
-    const history: WireMessage[] = conversationHistory(turns);
+    const history: WireMessage[] = conversationHistory(question ? turns.slice(0, turns.indexOf(question)) : turns);
 
     if (!again) setPending((p) => p.filter(staysInComposer));
-    setTurns((ts) => [...ts, user, reply]);
+    setConversation((c) => (question ? answeredAgain(c, question.id, reply) : asked_(c, user, reply)));
     setBusy(true);
     setProblem(null);
     abort.current = new AbortController();
     stopped.current = false;
     const update = (patch: Partial<AssistantTurn>) =>
-      setTurns((ts) => ts.map((t) => (t.id === reply.id ? ({ ...t, ...patch } as AssistantTurn) : t)));
+      changeTurns((ts) => ts.map((t) => (t.id === reply.id ? ({ ...t, ...patch } as AssistantTurn) : t)));
     let streamed = "";
     let sources: Citation[] = [];
     let whole: boolean | null = null;  // the last status: were the documents read in full?
@@ -619,9 +618,9 @@ function Chat({ me }: { me: Me }) {
     let now: StoredDocument[] | null = null;
     let next: ReturnType<typeof afterDeletion> = null;
     // what a new question follows: the answer shown last that the server numbered (#251)
-    const follows = historyReady && asking === undefined ? await answerFollowed(turns) : {};
+    const after = historyReady && asking === undefined ? await answerFollowed(turns) : {};
     let numbered: { question: number; answer: number | null } | null = null;  // what the server said it stored
-    const knownAnswers = new Set(tree.filter((t) => t.role === "assistant").map((t) => t.seq));  // the versions before this one
+    const knownAnswers = new Set(conversation.turns.filter((t) => t.role === "assistant").map((t) => t.seq));  // the versions before this one
     const said: AnswerHandlers = {
       onDelta: (delta) => {
         streamed += delta;
@@ -638,7 +637,7 @@ function Chat({ me }: { me: Me }) {
       // the numbers the server gave the question and, once stored, the answer: what follows, Regenerate and Save name
       onStored: (numbers) => {
         numbered = numbers;
-        setTurns((ts) => withStored(ts, user.id, reply.id, numbers, asking === undefined ? follows.after ?? null : undefined));
+        changeTurns((ts) => withStored(ts, user.id, reply.id, numbers));
       },
     };
     try {
@@ -650,7 +649,7 @@ function Chat({ me }: { me: Me }) {
             text, document_ids: [...docIds], about: asked.map((c) => c.documentId),
             attached: attachments.filter((a) => a.documentId && isReady(a)).map((a) => a.documentId!),
             ...(caseId ? { case_id: caseId } : {}), ...(chosenModel ? { model: chosenModel } : {}), ...(thinking ? { thinking: true } : {}),
-            ...follows }, said, abort.current.signal)
+            ...after }, said, abort.current.signal)
         : await streamChat([...history, { role: "user", content: text }], [...docIds], said.onDelta, abort.current.signal, chosenModel,
                            said.onStatus, caseId, said.onSources, { on: thinking, onText: said.onThinking! });
       update(answerPatch(done, { thought, thinkSeconds, partial: asked.length > 0 && whole === false }));
@@ -687,16 +686,12 @@ function Chat({ me }: { me: Me }) {
       // found by its question, so it counts among the question's versions (board 81)
       const asked = numbered as { question: number; answer: number | null } | null;
       const found = asked && asked.answer === null ? await answerStored(readConversation, asked.question, knownAnswers) : null;
-      if (found) {
-        setTurns((ts) => withStored(ts, user.id, reply.id, { question: asked!.question, answer: found.answer }));
-        // switched away from meanwhile, it isn't shown: it is known all the same, as the server stored it
-        const stored = readTurns(found.turns, conversationId, documentName).find((t) => t.seq === found.answer);
-        setTree((known) => (stored && !known.some((t) => t.seq === found.answer) ? withShown(known, [stored]) : known));
-      }
+      // shown or switched away from meanwhile: it is one of the turns known all the same
+      if (found) changeTurns((ts) => withStored(ts, user.id, reply.id, { question: asked!.question, answer: found.answer }));
     }
     if (retryWith) {
-      setTurns((ts) => ts.filter((t) => t.id !== user.id && t.id !== reply.id));
-      await send(text, attachments, asked, retryWith);
+      setConversation((c) => without(c, new Set(question ? [reply.id] : [user.id, reply.id])));
+      await send(text, attachments, asked, retryWith, undefined, question);
     }
   };
 
@@ -704,16 +699,16 @@ function Chat({ me }: { me: Me }) {
   // and what followed it leaves the screen (one arrow away). Without saved conversations: the last failed one, as before.
   const regenerable = (i: number) => !locked && canRegenerate(turns, i, { busy, disabled: !!disabledReason, savedConversations: historyReady });
   const regenerate = (i: number) => {
-    const question = turns[i - 1] as UserTurn;
-    setTurns((ts) => ts.slice(0, i - 1));
-    // asked again as it was asked: by the server, from the question it stored (#251), or as before without it
-    send(question.text, question.attachments, question.about ?? [], undefined, askedAgain(question, historyReady));
+    // another version of a stored question's answers, or a refused one asked anew (lib/versions.ts)
+    const question = turns[i - 1] as UserTurn, again = regenerating(conversation, turns, i, historyReady);
+    setConversation((c) => regenerating(c, turns, i, historyReady).conversation);  // from the latest turns known
+    send(question.text, question.attachments, question.about ?? [], undefined, again.asking, again.question);
   };
   // An answer's versions (board 81): ‹ n / total ›; switching changes everything below it to that version's branch.
   const versionsAt = (i: number): AnswerVersions | null => {
-    const v = versionsOf(tree, turns, i);
+    const v = versionsOf(conversation, turns, i);
     const to = (n: number, which: 0 | 1) => () => {
-      setTurns((ts) => switchedTo(tree, ts, i, v!.versions[n - 1]));
+      setConversation((c) => switchedTo(c, v!.versions[n - 1]));
       setVersionSaid(m.answerVersion({ n, total: v!.total }));
       focusArrow.current = { of: turns[i - 1].id, which };
     };
@@ -781,7 +776,7 @@ function Chat({ me }: { me: Me }) {
 
   // Save to case (docs/design/chat-ui.md §5): a finished answer in a case, for a contributor, the case open.
   const setTurn = (id: string, patch: Partial<AssistantTurn>) =>
-    setTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
+    changeTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
   const saveControls = (t: AssistantTurn): SaveToCase | null => {
     const state = saveState(t, { inCase: !!caseId, contributes, closed, readOnly, savedHere, documents });
     if (!currentCase || !caseId || !state || !t.byServer || t.seq === undefined) return null;  // only an answer the server stored
@@ -885,8 +880,7 @@ function Chat({ me }: { me: Me }) {
     setView("chat");
     setOpenRunId(null);
     abort.current?.abort();
-    setTurns([]);
-    setTree([]);
+    setConversation(NO_CONVERSATION);
     setPending([]);
     setProblem(null);
     setConversationId(newConversationId());
@@ -1029,8 +1023,7 @@ function Chat({ me }: { me: Me }) {
       const opened = reopened(c.turns, thinkingDefault(), id, documentName);
       setConversationId(id);
       setSavedHere(new Set());
-      setTree(readTurns(c.turns, id, documentName));
-      setTurns(opened.turns);
+      setConversation(opened.conversation);
       setAbout(opened.about);
       setThinking(opened.thinking);
       setAboutGone(false);
@@ -1125,9 +1118,9 @@ function Chat({ me }: { me: Me }) {
     await deleteDocument(d.id, conversations, where);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
     // every version known, not only the one shown: the server cleaned them all
-    const open = afterDelete({ documentId: d.id, turns: [...turns, ...tree], conversationId, conversations, deleted: using });
+    const open = afterDelete({ documentId: d.id, turns: conversation.turns, conversationId, conversations, deleted: using });
     if (open === "new") newChat();
-    else if (open === "clean") everyTurn((ts) => withoutDocument(ts, d.id));
+    else if (open === "clean") changeTurns((ts) => withoutDocument(ts, d.id));
     setDeleting(null);
     refreshDocuments();
     refreshConversations();

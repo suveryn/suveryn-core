@@ -285,9 +285,9 @@ function VersionSwitch({ versions, alone = false }: { versions: AnswerVersions; 
   return (
     <>
       <span role="group" className="answer-versions" aria-label={m.answerVersion({ n, total })} data-versions-of={versions.of}>
-        <IconButton label={m.previousAnswer} isDisabled={busy || n <= 1} onPress={versions.onPrevious}><ChevronLeft size={16} aria-hidden /></IconButton>
+        <IconButton size="compact" label={m.previousAnswer} isDisabled={busy || n <= 1} onPress={versions.onPrevious}><ChevronLeft size={16} aria-hidden /></IconButton>
         <span className="answer-versions-count" aria-hidden>{m.versionCount({ n, total })}</span>
-        <IconButton label={m.nextAnswer} isDisabled={busy || n >= total} onPress={versions.onNext}><ChevronRight size={16} aria-hidden /></IconButton>
+        <IconButton size="compact" label={m.nextAnswer} isDisabled={busy || n >= total} onPress={versions.onNext}><ChevronRight size={16} aria-hidden /></IconButton>
       </span>
       {!alone && <span className="answer-actions-divider" aria-hidden />}
     </>

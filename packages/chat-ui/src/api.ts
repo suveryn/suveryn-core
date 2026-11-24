@@ -317,7 +317,7 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
 /** A conversation with its turns, as the gateway gives them back: ones the server stored as it answered (suveryn-tracker
- *  #251) and ones the chat UI saved whole before, both read into the chat UI's `Turn` (lib/conversations.ts, `fromSaved`). */
+ *  #251) and ones the chat UI saved whole before, both read into the chat UI's `Turn` (lib/conversations.ts, `savedConversation`). */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's

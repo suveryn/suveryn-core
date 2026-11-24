@@ -398,7 +398,8 @@ below that answer to that version's branch, nothing above it; the next question 
 conversation shows the newest answer of each question. A reader switches, but has no *Regenerate* and no *Save*.
 Narrow (below 768 px), the arrows, *Copy*, *Save* and *Regenerate* are 44 px icons, each named and with a tooltip
 (*Word* keeps its label), and the row wraps. The
-screen keeps every turn it knows (`lib/versions.ts`): those read back, and those asked here once numbered.
+page keeps one list of every turn it knows, each naming the turn it follows, and the last turn shown, as ChatGPT's
+client keeps its tree; the branch on screen is worked out from these (`lib/versions.ts`).
 
 **Stopping, failing and asking again.**
 

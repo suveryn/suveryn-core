@@ -9,7 +9,10 @@ import { conversationHistory, HISTORY_CHARS } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
-import { conversationTitle, dayLabel, fromSaved, newConversationId, usesDocument, withoutDocument } from "./conversations";
+import { conversationTitle, dayLabel, savedConversation, newConversationId, usesDocument, withoutDocument } from "./conversations";
+import { shownOf } from "./versions";
+/** The branch a conversation read back shows. */
+const fromSaved = (...read: Parameters<typeof savedConversation>) => shownOf(savedConversation(...read));
 import { rangeFor, today } from "./usage";
 import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { httpErrorText, reviewPages } from "../api";
