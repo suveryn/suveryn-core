@@ -3,7 +3,10 @@
  * The server stores the turns as given, under the signed-in user; see the gateway's conversations.py.
  */
 import { lang, locale, t } from "../i18n";
-import type { Turn } from "../types";
+import type { ChatResponse } from "../api";
+import type { AssistantTurn, Turn } from "../types";
+import { answerPatch } from "./ask";
+import { messageText, type Message } from "./messages";
 
 /** A random UUID (v4). Not crypto.randomUUID: that needs a secure context, and an appliance may be reached over plain http. */
 
@@ -25,18 +28,77 @@ export function conversationTitle(turns: Turn[]): string {
   return first.length > 80 ? `${first.slice(0, 79).trimEnd()}…` : first;
 }
 
-/** The turns as saved: without what only matters while an answer streams or a file uploads. */
-export function toSaved(turns: Turn[]): Turn[] {
-  return turns.map((t) => {
-    if (t.role === "user") return { ...t, attachments: t.attachments.map(({ progress: _p, ...a }) => a) };
-    const { step: _s, ...rest } = t;
-    return rest;
+/** A turn as the gateway gives it back: the chat UI's own (saved whole before suveryn-tracker#251), or one the server
+ *  stored as it answered (``kind``: question or answer, ``parent``: the turn it follows; the gateway's ``AskedTurn``,
+ *  ``AnsweredTurn``), with its number (``seq``). */
+type Stored = Record<string, unknown> & { role: string; text?: string; seq?: number };
+
+/** The turns the screen shows of a conversation the server keeps as a tree (as Claude and ChatGPT keep one): from its
+ *  first turn, at each the newest that follows it. A turn without a ``parent`` (the chat UI's own saves) follows the
+ *  one before it. */
+export function shownBranch<T extends Stored>(turns: T[]): T[] {
+  const key = (i: number): number | string => turns[i].seq ?? `#${i}`;  // a turn the API took without a number: its place
+  const after = new Map<number | string | null, number[]>();
+  turns.forEach((turn, i) => {
+    const parent = "parent" in turn ? (turn.parent as number | null) ?? null : i > 0 ? key(i - 1) : null;
+    after.set(parent, [...(after.get(parent) ?? []), i]);
   });
+  const shown: T[] = [];
+  for (let next = after.get(null)?.at(-1); next !== undefined && shown.length < turns.length; next = after.get(key(next))?.at(-1)) shown.push(turns[next]);
+  return shown;
 }
 
-/** Turns read back from the server. An answer saved mid-stream (it shouldn't be) shows as interrupted. */
-export function fromSaved(turns: Turn[]): Turn[] {
-  return turns.map((saved, i) => {
+/** The newest stored answer to the question numbered ``question``: the one it follows (``parent``), or, for turns the
+ *  chat UI saved whole, the turn after it. */
+export function answerTo(turns: unknown[], question: number): number | undefined {
+  const stored = turns as Stored[];
+  const answers = stored.filter((t, i) => t.role === "assistant"
+    && ("parent" in t ? t.parent === question : stored[i - 1]?.seq === question));
+  return answers.at(-1)?.seq;
+}
+
+/** A turn the server stored, as the screen shows it: a question with the documents it showed (by id: their names
+ *  as the documents here know them, or taken out when deleted), an answer as it ended. ``conversationId``/``seq`` is
+ *  its id: the mark of its Word file, and what a document saved from it names (its provenance's ``message``). */
+function fromServer(turn: Stored, question: Stored | undefined, conversationId: string, nameOf: (id: string) => string | undefined): Turn {
+  const id = `${conversationId}/${turn.seq}`;
+  const ids = (key: string, of: Stored = turn) => (Array.isArray(of[key]) ? (of[key] as string[]) : []);
+  const named = (documentId: string) => {
+    const filename = nameOf(documentId);
+    return filename === undefined ? { documentId, filename: "", removed: true } : { documentId, filename };
+  };
+  if (turn.role === "user") {
+    const about = ids("about").map(named);
+    return { id, seq: turn.seq, byServer: true, role: "user", text: turn.text ?? "",
+             attachments: ids("attached").map((d) => ({ key: d, status: "ready" as const, ...named(d) })),
+             ...(about.length ? { about } : {}) };
+  }
+  const done = { answer: turn.text ?? "", ...(turn as object) } as unknown as ChatResponse;
+  const asked: Stored = question ?? { role: "user" };
+  const answer: AssistantTurn = {
+    id, seq: turn.seq, byServer: true, role: "assistant", citations: [], grounded: ids("document_ids", asked).length > 0,
+    ...answerPatch(done, { thought: "", partial: ids("about", asked).length > 0 && turn.complete === false }),
+    ...(asked.thinking ? { thinking: true } : {}),
+  } as AssistantTurn;
+  const narrowed = typeof turn.narrowed_to === "string" ? nameOf(turn.narrowed_to) : undefined;
+  if (narrowed) answer.narrowedTo = narrowed;
+  else delete answer.narrowedTo;
+  if (turn.outcome === "stopped") return { ...answer, status: "stopped", supportSpans: undefined };
+  if (turn.outcome === "failed") {
+    const failure = turn.failure as Message | undefined;
+    return { ...answer, text: "", status: "error", ...(failure ? { failure, error: messageText(failure, t()) } : {}) };
+  }
+  return answer;
+}
+
+/** Turns read back from the server: the branch shown (``shownBranch``), each as the screen keeps it. An answer saved
+ *  mid-stream (it shouldn't be) shows as interrupted. */
+export function fromSaved(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
+  const shown = shownBranch(stored as unknown as Stored[]);
+  const bySeq = new Map(shown.map((s) => [s.seq, s]));
+  return shown.map((saved) => saved.kind === "question" || saved.kind === "answer"
+    ? fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf)
+    : saved as unknown as Turn).map((saved, i) => {
     // A turn saved without the UI's own fields (through the API) opens all the same:
     // the lists default to empty, the id and status to something usable (VM regression of 29 October, finding 10).
     const turn = { ...saved, id: saved.id || `saved-${i}`, text: saved.text ?? "" } as Turn;

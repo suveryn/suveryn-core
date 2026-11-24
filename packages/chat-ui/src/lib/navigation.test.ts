@@ -65,7 +65,7 @@ describe("conversations", () => {
     expect(pinHintDue(inCases, "new", true, false)).toBe(false);                  // a case's don't count
   });
 
-  it("reopened: with its Ask about choice, Fast or Thorough, and the saved form to compare with", () => {
+  it("reopened: with its Ask about choice, and Fast or Thorough", () => {
     const question: UserTurn = { id: "u", role: "user", text: "Wat is de prijs?", attachments: [],
                                  about: [{ documentId: "d1", filename: "akte.pdf" }] };
     const answer: AssistantTurn = { id: "a", role: "assistant", text: "EUR 1.275.000,00", citations: [], status: "done", grounded: true, thinking: true };
@@ -73,7 +73,6 @@ describe("conversations", () => {
     expect(r.about).toEqual([{ documentId: "d1", filename: "akte.pdf" }]);
     expect(r.thinking).toBe(true);
     expect(r.turns.map((t) => t.id)).toEqual(["u", "a"]);
-    expect(JSON.parse(r.lastSaved).map((t: Turn) => t.id)).toEqual(["u", "a"]);
     expect(reopened([], false)).toMatchObject({ turns: [], about: [], thinking: false });
   });
 

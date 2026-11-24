@@ -46,6 +46,13 @@
   "body": [
    {
     "data": {
+     "answer": null,
+     "question": 1
+    },
+    "event": "stored"
+   },
+   {
+    "data": {
      "complete": null,
      "model": null,
      "passages": null,
@@ -58,6 +65,13 @@
      "text": "De koopprijs is EUR 412.500,00 [1]."
     },
     "event": "delta"
+   },
+   {
+    "data": {
+     "answer": 2,
+     "question": 1
+    },
+    "event": "stored"
    },
    {
     "data": {

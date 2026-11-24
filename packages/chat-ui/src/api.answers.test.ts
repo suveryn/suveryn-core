@@ -8,18 +8,11 @@ import auth from "../../api-gateway/tests/auth_answers.json";
 import { ANSWER_EVENTS, getMe, HttpError, signOut, streamChat, StreamFailure, type Citation, type StreamStatus } from "./api";
 import { messageText } from "./lib/messages";
 import { t } from "./i18n";
-import { gatewayAnswers } from "./test/gateway";
+import { eventStream, gatewayAnswers } from "./test/gateway";
 
 const failure = async (call: Promise<unknown>) => call.then(() => { throw new Error("it didn't fail"); }, (e) => e);
 const asked = (method: string, path: string, body: unknown = null) => ({ method, path, body, cache: "default" });
-type KeptEvent = { event: string; data: unknown };
-/** A stream as the gateway sent it, event by event (`text/event-stream`), in pieces that don't end where an event does. */
-function stream(events: KeptEvent[]): Response {
-  const text = events.map((e) => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`).join("");
-  const pieces = text.match(/[\s\S]{1,37}/g) ?? [];
-  const body = new ReadableStream({ start(c) { for (const piece of pieces) c.enqueue(new TextEncoder().encode(piece)); c.close(); } });
-  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
-}
+const stream = eventStream;
 const QUESTION = [{ role: "user" as const, content: "Wat is de koopprijs?" }];
 
 afterEach(() => vi.unstubAllGlobals());

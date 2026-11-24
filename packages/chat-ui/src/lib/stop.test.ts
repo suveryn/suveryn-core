@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { streamChat, type Citation } from "../api";
 import type { AssistantTurn, Turn } from "../types";
-import { fromSaved, toSaved } from "./conversations";
+import { fromSaved } from "./conversations";
 import { conversationHistory } from "./history";
 
 const citation: Citation = { text: "The price is EUR 300,000.", source: { document_id: "d1", page: 2, location: "p. 2" } };
@@ -43,7 +43,7 @@ describe("stopping an answer (docs/design/chat-ui.md §5)", () => {
   it("keeps a stopped answer when saved, and leaves it out of what the model is sent next", () => {
     const stopped: AssistantTurn = { id: "a1", role: "assistant", text: "The price is [1]", citations: [citation], status: "stopped", grounded: true };
     const turns: Turn[] = [{ id: "u1", role: "user", text: "What is the price?", attachments: [] }, stopped];
-    expect(fromSaved(toSaved(turns))).toEqual(turns);
+    expect(fromSaved(turns)).toEqual(turns);
     // cut off mid-sentence: the next question stands on its own
     expect(conversationHistory(turns)).toEqual([]);
   });

@@ -9,7 +9,7 @@ import { conversationHistory, HISTORY_CHARS } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
-import { conversationTitle, dayLabel, fromSaved, newConversationId, toSaved, usesDocument, withoutDocument } from "./conversations";
+import { conversationTitle, dayLabel, fromSaved, newConversationId, usesDocument, withoutDocument } from "./conversations";
 import { rangeFor, today } from "./usage";
 import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { httpErrorText, reviewPages } from "../api";
@@ -215,10 +215,7 @@ describe("saved conversations (suveryn-tracker#5)", () => {
     expect(conversationTitle([{ ...turns[0], text: "x".repeat(120) } as Turn])).toHaveLength(80);
     expect(conversationTitle([])).toBe("Conversation");
   });
-  it("saves without streaming and upload state, and restores interrupted answers as errors", () => {
-    const saved = toSaved(turns);
-    expect(saved[0].role === "user" && saved[0].attachments[0]).not.toHaveProperty("progress");
-    expect(saved[1]).not.toHaveProperty("step");
+  it("restores an answer saved while it streamed as interrupted", () => {
     const back = fromSaved([turns[0], { ...turns[1], status: "streaming" } as Turn]);
     expect(back[1]).toMatchObject({ status: "error", text: "", error: "This answer was interrupted." });
   });

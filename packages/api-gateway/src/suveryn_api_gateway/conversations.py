@@ -53,7 +53,8 @@ follows the one before it. Looked at: Claude's and ChatGPT's conversations, and 
 APIs (a response names the one before it, ``previous_response_id``), which keep a conversation this way; a flat list
 with versions of the last answer only (built first, and set aside in review) can't carry on from an earlier version.
 The routes and codes are this gateway's own, since none of these is a standard to follow by the letter. The screens
-move to it, and the chat UI's whole saves go, in the steps after this one.
+ask through it; the stream says the numbers the server gave the question and its answer (event ``stored``). The chat
+UI's whole saves (``save``) go in the next step.
 
 **A playbook run is a conversation** (decision, 30 October 2026; docs/design/playbooks.md, "The chat UI"):
 starting one makes a conversation in the case (``run_id`` set), titled with the playbook, its
@@ -254,6 +255,16 @@ class QuestionIn(BaseModel):
         return self
 
 
+class StoredTurns(Answer):
+    """Event ``stored`` of an answer in a saved conversation: the numbers (``seq``) the server gave the question, first,
+    then with the answer's too, once it is stored, before ``done`` or ``error``. What the next question follows
+    (``after``), what *Regenerate* asks again (``again``) and what *Save to case* names: told, as chat APIs return the
+    ids of the messages they store, never guessed from the conversation read back (review of #251, step 3a, finding 1)."""
+
+    question: int
+    answer: int | None
+
+
 class AskedTurn(Answer):
     """What a question's row keeps beside its text (``meta``), as the server writes it: the turn it follows, the
     documents it was about, by id only, so a deleted one leaves no name behind; how it was asked."""
@@ -317,15 +328,15 @@ class SavedAnswer(Answer):
 
 
 def search_text(question: str, answer: str) -> str:
-    """What search finds of a saved answer: the question and the answer, without its markers (as the chat UI's
-    ``stripMarkers``)."""
+    """What search finds of a saved answer: the question and the answer, without its markers (the same words as the
+    chat UI's ``stripMarkers`` leaves when it copies an answer)."""
     return f"{question}\n\n{re.sub(r'[ \t]+([.,;:])', r'\1', MARKER.sub('', answer))}".strip()
 
 
 def file_name(question: str) -> str:
     """A saved answer's Word file name: its question, on one line, without characters a file name can't hold, at most
-    80 characters, "answer" when nothing of it is left (as the chat UI's ``answerFileName``; copied until the chat UI
-    stops saving answers itself, suveryn-tracker#251 step 4)."""
+    80 characters, "answer" when nothing of it is left. The only place a saved answer is named (the chat UI named
+    them itself until it saved answers by naming the stored turn, suveryn-tracker#251)."""
     name = re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", question)).strip()
     name = re.sub(r"[. ]+$", "", name)
     return f"{(name[:80].rstrip() if len(name) > 80 else name) or 'answer'}.docx"

@@ -166,7 +166,12 @@ def test_a_question_and_its_answer_are_stored_by_the_server_and_read_back_to_the
     with c:
         with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is  de\nkoopprijs?"}, headers=alice) as r:
             assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
-            assert [name for name, _ in events(r)][-1] == "done"
+            said = events(r)
+            assert [name for name, _ in said][-1] == "done"
+        # the numbers the server gave the question, first, and the answer, once stored, before done (review, step 3a)
+        stored_events = [data for name, data in said if name == "stored"]
+        assert said[0] == ("stored", {"question": 1, "answer": None}) and said[-2] == ("stored", {"question": 1, "answer": 2})
+        assert stored_events == [{"question": 1, "answer": None}, {"question": 1, "answer": 2}]
         got = c.get(f"/v1/conversations/{cid}", headers=alice).json()
         assert got["title"] == "Wat is de koopprijs?" and got["messages"] == 2 and got["case_id"] is None
         (q_role, q_text, q_meta), (a_role, a_text, a_meta) = stored(store, cid)
@@ -178,6 +183,7 @@ def test_a_question_and_its_answer_are_stored_by_the_server_and_read_back_to_the
         assert r.status_code == 409 and r.json()["code"] == "request.conflict"  # which answer it follows: said
         with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?", "after": answer}, headers=alice) as r:
             events(r)
+        assert captured[-1]["max_tokens"] == 3000  # as long an answer as the chat UI asked for (routes/conversations.py)
         sent = [m for m in captured[-1]["messages"] if m["role"] != "system"]
         assert [m["role"] for m in sent] == ["user", "assistant", "user"]
         assert sent[1]["content"] == "€ 345.000" and sent[2]["content"].endswith("En de datum?")
@@ -461,8 +467,8 @@ def test_a_question_shows_only_documents_the_caller_may_see(store):
 
 # Saving an answer the server stored to its case (step 2).
 
-def test_a_saved_answers_file_name_and_search_text_are_the_chat_uis():
-    """As the chat UI's ``answerFileName`` and ``searchText`` make them for an answer it saves itself."""
+def test_a_saved_answers_file_name_and_search_text():
+    """Named after its question, as a file name can hold it; found by its question and its words, without markers."""
     from suveryn_api_gateway.conversations import file_name, search_text
 
     assert file_name("Wat is: de prijs?/..  ") == "Wat is de prijs.docx"
@@ -561,3 +567,60 @@ def test_an_answer_saved_to_its_case_keeps_its_passages_checks_and_a_deleted_sou
         r = c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice)
         content = docs.contents[r.json()["id"]][2]
         assert content["citations"][0]["removed"] is True and content["citations"][0]["text"] == "" and content["filenames"] == {}
+
+
+@needs_db
+def test_the_answer_is_stored_before_its_last_event_goes_out(store):
+    """The browser reads the conversation back once the answer has ended, for the numbers of the question and its
+    answer: the answer must be there by then, so it is stored before ``done`` is sent. (By hand, as the Stop test:
+    Starlette's test client reads the whole answer before it gives any of it.)"""
+    application = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([])),
+                             load_documents=False, auth=Authenticator.disabled(), conversations=store)
+    cid = str(uuid.uuid4())
+    path = f"/v1/conversations/{cid}/questions"
+    when_done: list[list[str]] = []
+
+    async def ask() -> None:
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": json.dumps({"text": "Wat is de koopprijs?"}).encode(), "more_body": False}
+            await anyio.sleep(30)
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            if message["type"] == "http.response.body" and b"event: done" in message.get("body", b""):
+                when_done.append([t.role for t in await run_in_threadpool(store.turns_of, uuid.UUID(cid))])
+
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.4"}, "http_version": "1.1",
+                 "method": "POST", "scheme": "http", "path": path, "raw_path": path.encode(), "query_string": b"",
+                 "root_path": "", "headers": [(b"content-type", b"application/json"), (b"host", b"test")],
+                 "client": ("127.0.0.1", 1), "server": ("test", 80)}
+        with anyio.fail_after(10):
+            await application(scope, receive, send)
+
+    import anyio
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        with TestClient(application) as c:
+            c.portal.call(ask)
+        assert when_done == [["user", "assistant"]]
+    finally:
+        store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))
+
+
+def test_an_answer_is_as_long_as_the_chat_asks_for_without_saved_conversations():
+    """One length for an answer, wherever it is asked: the gateway's for a saved conversation, the chat UI's for
+    ``POST /v1/chat`` (its api.ts ``ANSWER_TOKENS``). Two numbers in two languages: held together here."""
+    import re
+    from pathlib import Path
+
+    from suveryn_api_gateway.routes.conversations import ANSWER_TOKENS
+
+    api = Path(__file__).parents[2] / "chat-ui" / "src" / "api.ts"
+    assert re.search(r"const ANSWER_TOKENS = (\d+);", api.read_text(encoding="utf-8")).group(1) == str(ANSWER_TOKENS)
+

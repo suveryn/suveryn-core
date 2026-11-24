@@ -2,18 +2,17 @@
  *  sends, and what the gateway's real answers become for the screen. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import conversations from "../../api-gateway/tests/conversations_answers.json";
-import { deleteAllConversations, deleteConversation, getConversation, HttpError, listAllConversations, listConversations, moveConversation,
-  pinConversation, renameConversation, saveConversation, shareConversation } from "./api";
+import { readFileSync } from "node:fs";
+import { askInConversation, CONVERSATION_EVENTS, deleteAllConversations, deleteConversation, getConversation, HttpError, listAllConversations, listConversations,
+  moveConversation, pinConversation, renameConversation, shareConversation } from "./api";
 import { messageText } from "./lib/messages";
 import { t } from "./i18n";
-import { gatewayAnswers, type KeptAnswer } from "./test/gateway";
-import type { Turn } from "./types";
+import { eventStream, gatewayAnswers, type KeptAnswer } from "./test/gateway";
 
 const failure = async (call: Promise<unknown>) => call.then(() => { throw new Error("it didn't fail"); }, (e) => e);
 const asked = (method: string, path: string, body: unknown = null) => ({ method, path, body, cache: "default" });
 const ID = "00000000-0000-4000-8000-0000000000a1";
 const CASE = "00000000-0000-4000-8000-0000000000c1";
-const TURNS = [{ id: "t1", role: "user", text: "Wat is de koopprijs?" }, { id: "t2", role: "assistant", text: "€ 345.000 [1]", status: "done" }] as Turn[];
 const refused = async (answer: KeptAnswer, call: () => Promise<unknown>, status: number, code: string) => {
   gatewayAnswers(answer);
   const e = await failure(call());
@@ -34,14 +33,24 @@ describe("the conversations", () => {
     expect(sent).toEqual([asked("GET", "/v1/conversations"), asked("GET", `/v1/conversations?case=${CASE}`), asked("GET", "/v1/conversations?all=true")]);
   });
 
-  it("saves one whole, in a case or not, and opens it with its turns", async () => {
-    const sent = gatewayAnswers(conversations.done, conversations.done, conversations.one);
-    expect(await saveConversation(ID, "Wat is de koopprijs?", TURNS)).toBeUndefined();
-    expect(await saveConversation(ID, "Wat is de koopprijs?", TURNS, CASE)).toBeUndefined();
+  it("asks in one, which the server keeps (#251), and opens it with its turns", async () => {
+    const sent = gatewayAnswers(eventStream(conversations.asked.body as { event: string; data: unknown }[]), conversations.one);
+    const words: string[] = [];
+    const numbers: unknown[] = [];
+    const done = await askInConversation(ID, { text: "Wat is de koopprijs?", after: 2 },
+                                         { onDelta: (w) => words.push(w), onStored: (n) => numbers.push(n) });
+    expect([words.join(""), done.answer]).toEqual([done.answer, "De koopprijs is EUR 412.500,00 [1]."]);
+    expect(numbers).toEqual([{ question: 1, answer: null }, { question: 1, answer: 2 }]);  // as the server stored them
     const opened = await getConversation(ID);
-    expect([opened.title, opened.turns.map((turn) => [turn.role, turn.text])]).toEqual(["Wat is de koopprijs?", TURNS.map((turn) => [turn.role, turn.text])]);
-    expect(sent).toEqual([asked("PUT", `/v1/conversations/${ID}`, { title: "Wat is de koopprijs?", turns: TURNS }),
-      asked("PUT", `/v1/conversations/${ID}`, { title: "Wat is de koopprijs?", turns: TURNS, case_id: CASE }), asked("GET", `/v1/conversations/${ID}`)]);
+    expect([opened.title, opened.turns.map((turn) => turn.role)]).toEqual(["Wat is de koopprijs?", ["user", "assistant"]]);
+    expect(sent).toEqual([asked("POST", `/v1/conversations/${ID}/questions`, { text: "Wat is de koopprijs?", after: 2 }),
+      asked("GET", `/v1/conversations/${ID}`)]);
+  });
+
+  it("an answer in a conversation has the events the gateway's description names (#251)", () => {
+    const described = JSON.parse(readFileSync(new URL("../../api-gateway/openapi.json", import.meta.url), "utf8"));
+    const one = described.paths["/v1/conversations/{conversation_id}/questions"].post.responses["200"].content["text/event-stream"].itemSchema.oneOf;
+    expect((one as { properties: { event: { const: string } } }[]).map((event) => event.properties.event.const)).toEqual(CONVERSATION_EVENTS);
   });
 
   it("renames, pins, shares and moves one", async () => {
@@ -73,7 +82,8 @@ describe("the conversations", () => {
   it("each refusal is thrown with its status, its code and the code's words", async () => {
     await refused(conversations.no_such_conversation, () => getConversation(ID), 404, "request.not_found");
     await refused(conversations.not_a_conversation_id, () => getConversation("not-an-id"), 422, "request.invalid");
-    await refused(conversations.too_long, () => saveConversation(ID, "T", TURNS), 413, "conversation.too_long");
+    await refused(conversations.too_long_to_ask_in, () => askInConversation(ID, { text: "?" }, { onDelta: () => {} }), 413, "conversation.too_long");
+    await refused(conversations.nothing_to_ask_again, () => askInConversation(ID, { again: 1 }, { onDelta: () => {} }), 409, "request.conflict");
     await refused(conversations.in_a_case, () => pinConversation(ID, true), 409, "conversation.in_case");
     await refused(conversations.in_a_case, () => moveConversation(ID, CASE), 409, "conversation.in_case");
     await refused(conversations.not_allowed, () => shareConversation(ID, true), 403, "case.not_allowed");

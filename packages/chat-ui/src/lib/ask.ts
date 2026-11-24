@@ -10,7 +10,7 @@
  * - ``canRegenerate``: whether the last question can be asked again.
  */
 import { HttpError, type ChatResponse, type StoredDocument } from "../api";
-import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn } from "../types";
+import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "../types";
 import { questionDocuments } from "./questionDocuments";
 
 /** The documents attached to the conversation's questions so far, read and (once the list is known) still there:
@@ -91,3 +91,30 @@ export function canRegenerate(turns: Turn[], busy: boolean, disabled: boolean): 
   const last = turns[turns.length - 1];
   return !busy && !disabled && last?.role === "assistant" && last.status === "error" && turns[turns.length - 2]?.role === "user";
 }
+
+/** The numbers the server gave a question and, once stored, its answer (event ``stored``, suveryn-tracker#251), on the
+ *  turns this page shows for them: what the next question follows, what Regenerate asks again, what Save to case names.
+ *  Only turns the server stored this way get them: a refused question never does. */
+export function withStored(turns: Turn[], user: string, reply: string, stored: { question: number; answer: number | null }): Turn[] {
+  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question, byServer: true }
+    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer, byServer: true } : t) as Turn);
+}
+
+/** Regenerate: the stored question (its number) the server asks once more as it was asked; none for a question the
+ *  chat UI saved whole before, or without saved conversations, which is asked as a new one. */
+export const askedAgain = (question: UserTurn, savedConversations: boolean): number | undefined =>
+  savedConversations && question.byServer ? question.seq : undefined;
+
+/** What a new question in a saved conversation follows: the newest answer on screen the server numbered (``after``),
+ *  skipping what it refused, which it never stored. ``lookUp``: the newest numbered question whose answer this page
+ *  has no number for (stopped before it was stored: it is stored as the connection closes), to find by that question
+ *  (``answerTo``); ``otherwise``, the turns before it, if it isn't there. Null: nothing numbered, the first question. */
+export function toFollow(turns: Turn[]): { after: number } | { lookUp: number; otherwise: Turn[] } | null {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const seq = turns[i].seq;
+    if (seq === undefined) continue;
+    return turns[i].role === "assistant" ? { after: seq } : { lookUp: seq, otherwise: turns.slice(0, i) };
+  }
+  return null;
+}
+

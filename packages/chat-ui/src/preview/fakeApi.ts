@@ -7,8 +7,8 @@
 import { routes, UPLOADS, type Route } from "./sample";
 
 /** Requests the preview should leave unanswered (a screen kept in its loading state). */
-const held = new Set<string>();
-export const hold = (pattern: string) => held.add(pattern);
+const held = new Set<string | RegExp>();
+export const hold = (pattern: string | RegExp) => held.add(pattern);
 /** Requests that fail as a dropped connection does ("/health": the server can't be reached). */
 const failing = new Map<string, number>();  // pattern → the moment it starts failing
 /** `afterMs`: answer normally for that long first (the page loads, then the server goes away, board G09). */
@@ -46,7 +46,7 @@ export function useSampleData(): void {
     const method = (init?.method ?? "GET").toUpperCase();
     const path = url.pathname + url.search;
     for (const [f, from] of failing) if (path.startsWith(f) && Date.now() >= from) throw new TypeError("Failed to fetch");
-    if ([...held].some((h) => path.startsWith(h))) return new Promise<Response>(() => {});
+    if ([...held].some((h) => (typeof h === "string" ? path.startsWith(h) : h.test(path)))) return new Promise<Response>(() => {});
     let body: unknown = null;
     try { body = typeof init?.body === "string" ? JSON.parse(init.body) : null; } catch { /* not JSON */ }
     for (const [m, pattern, answer] of [...first, ...routes]) {

@@ -29,10 +29,15 @@ export type Attachment = {
 export type Chosen = { documentId: string; filename: string; removed?: boolean };
 
 /** ``about``: in a case, the documents the question was asked about; absent: the whole case. */
-export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[] };
+/** ``seq``: the turn's number in its conversation on the server, once stored (suveryn-tracker#251): what the next
+ *  question follows. ``byServer``: a turn the server wrote as it answered (not one the chat UI saved whole before),
+ *  which is what Regenerate asks again and Save to case names. */
+export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[]; seq?: number; byServer?: boolean };
 
 export type AssistantTurn = {
   id: string;
+  seq?: number;
+  byServer?: boolean;
   role: "assistant";
   text: string;
   citations: Citation[];

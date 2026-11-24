@@ -13,8 +13,7 @@ import * as gateway from "./generated/gateway";
 import type { Answer } from "./lib/gateway";
 
 /** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
- *  have it. A saved turn is the chat UI's own data (for now: the server will store each turn, suveryn-tracker#251):
- *  the screens read its passages, calculations and marks through these. */
+ *  have it. The screens read a turn's passages, calculations and marks through these. */
 type Kept<Shape, Lacking extends keyof Shape> = Omit<Shape, Lacking> & Partial<Pick<Shape, Lacking>>;
 type SourceRef = Kept<gateway.SourceRef, "decimals">;
 /** A passage an answer was written from. ``removed``: its document was deleted, so the passage was taken out of the
@@ -85,6 +84,9 @@ type AnswerEvents = { status: gateway.StreamStatus; sources: gateway.StreamSourc
                       done: gateway.ChatResponse; error: gateway.StreamError };
 const EVERY_EVENT: Record<keyof AnswerEvents, true> = { status: true, sources: true, thinking: true, delta: true, done: true, error: true };
 export const ANSWER_EVENTS = Object.keys(EVERY_EVENT);
+/** An answer in a saved conversation says the numbers the server gave its question and itself too (`stored`, #251). */
+type ConversationEvents = AnswerEvents & { stored: gateway.StoredTurns };
+export const CONVERSATION_EVENTS = ["stored", ...ANSWER_EVENTS];
 /** An installed model; only one is in GPU memory at a time. `thinks`: the model can think before it answers, so
  *  *Thorough* is possible (docs/design/chat-ui.md §5). */
 export type { ModelInfo } from "./generated/gateway";
@@ -218,7 +220,8 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
 /**
  * Streams an answer. Calls `onDelta` with each piece of text, then resolves with the complete
  * answer (including citations). Rejects if the stream ends in an `error` event or breaks off;
- * any partial text must then be discarded (gateway contract).
+ * any partial text must then be discarded (gateway contract). Without saved conversations (their store down): the
+ * history goes with the question, and nothing is stored (`askInConversation` otherwise).
  */
 export async function streamChat(
   messages: WireMessage[],
@@ -232,21 +235,49 @@ export async function streamChat(
   thinking?: { on: boolean; onText: (text: string) => void },  // *Thorough*: think first; the reasoning as it comes
 ): Promise<ChatResponse> {
   // An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence
-  // at about 5,000 (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments).
+  // at about 5,000 (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments). A question
+  // in a saved conversation has the same limit, set by the gateway (routes/conversations.py, ANSWER_TOKENS).
   // The generated call reads an answer whole; a stream is read as it comes, here. What is asked, and where, are the
   // generated code's.
   const asked: gateway.ChatRequest = { messages, document_ids: documentIds, stream: true, max_tokens: ANSWER_TOKENS, ...(model ? { model } : {}),
                                        ...(caseId ? { case_id: caseId } : {}), ...(thinking?.on ? { thinking: true } : {}) };
   const r = await fetch(gateway.getAskQuestionUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(asked), signal });
+  return readAnswer(r, { onDelta, onStatus, onSources, onThinking: thinking?.onText });
+}
+
+/** What a streamed answer says as it comes. */
+export type AnswerHandlers = {
+  onDelta: (text: string) => void;
+  onStatus?: (status: StreamStatus) => void;
+  onSources?: (citations: Citation[]) => void;  // a grounded answer's passages, before its first word
+  onThinking?: (text: string) => void;          // *Thorough*: the reasoning as it comes
+  /** In a saved conversation: the numbers the server gave the question, first, then the answer too, once stored. */
+  onStored?: (stored: gateway.StoredTurns) => void;
+};
+
+/**
+ * A question asked in a saved conversation (suveryn-tracker#251): the server stores it, reads the model what it stored
+ * of the conversation on the way to it (the answer it follows, `after`), and stores the answer as it is written,
+ * however it ends. `again`: Regenerate, the question (its `seq`) once more as it was asked. Streamed as `streamChat`.
+ */
+export async function askInConversation(conversationId: string, question: gateway.QuestionIn, handlers: AnswerHandlers,
+                                        signal?: AbortSignal): Promise<ChatResponse> {
+  const r = await fetch(gateway.getAskInConversationUrl(encodeURIComponent(conversationId)), {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(question), signal });
+  return readAnswer(r, handlers);
+}
+
+async function readAnswer(r: Response, h: AnswerHandlers): Promise<ChatResponse> {
   if (!r.ok || !r.body) throw await responseError(r);
   let done: ChatResponse | null = null;
   let failure: Message | null = null;
-  const said = <Name extends keyof AnswerEvents>(_: Name, data: string) => JSON.parse(data) as AnswerEvents[Name];
+  const said = <Name extends keyof ConversationEvents>(_: Name, data: string) => JSON.parse(data) as ConversationEvents[Name];
   const parser = createSSEParser(({ event, data }) => {
-    if (event === "status") onStatus?.(said(event, data));
-    else if (event === "sources") onSources?.(said(event, data).citations);
-    else if (event === "thinking") thinking?.onText(said(event, data).text);
-    else if (event === "delta") onDelta(said(event, data).text);
+    if (event === "stored") h.onStored?.(said(event, data));
+    else if (event === "status") h.onStatus?.(said(event, data));
+    else if (event === "sources") h.onSources?.(said(event, data).citations);
+    else if (event === "thinking") h.onThinking?.(said(event, data).text);
+    else if (event === "delta") h.onDelta(said(event, data).text);
     else if (event === "done") done = said(event, data);
     else if (event === "error") {
       // What failed, as every message is said: a code with its kind and values (docs/design/messages.md), worded
@@ -285,8 +316,8 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
-/** A conversation with its turns. A turn is the chat UI's own data, its type the chat UI's (`Turn`; for now: the
- *  server will store each turn, suveryn-tracker#251): the gateway keeps it as it is. */
+/** A conversation with its turns, as the gateway gives them back: ones the server stored as it answered (suveryn-tracker
+ *  #251) and ones the chat UI saved whole before, both read into the chat UI's `Turn` (lib/conversations.ts, `fromSaved`). */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
@@ -549,10 +580,6 @@ export const listConversations = (caseId?: string | null) => answered(gateway.li
  *  most recently changed first: the sidebar's "Conversations" (docs/design/chat-ui.md). */
 export const listAllConversations = () => answered(gateway.listConversations({ all: true }));
 export const getConversation = (id: string) => answered(gateway.getConversation(encodeURIComponent(id))) as Promise<SavedConversation>;
-/** Saves the whole conversation, replacing an earlier save under the same id. A new conversation goes into the case
- *  `caseId` (or the personal space); a saved one stays where it was first saved. */
-export const saveConversation = (id: string, title: string, turns: Turn[], caseId?: string | null): Promise<void> =>
-  answered(gateway.saveConversation(encodeURIComponent(id), { title, turns, ...(caseId ? { case_id: caseId } : {}) }));
 /** Renames one of the signed-in user's conversations; the title is kept over later saves (§4). */
 export const renameConversation = (id: string, title: string) => answered(gateway.updateConversation(encodeURIComponent(id), { title }));
 /** Pins one of the signed-in user's personal conversations in their sidebar, or unpins it (§3). */
@@ -627,11 +654,11 @@ export const documentConversations = (id: string, caseId?: string | null) =>
 export const confirmAsSource = async (documentId: string, caseId?: string | null): Promise<void> => {
   await answered(gateway.useDocumentAsSource(encodeURIComponent(documentId), inCase(caseId)));
 };
-/** An answer saved to its case (docs/design/chat-ui.md §5): a document with origin answer, never a source. Saving the
- *  same answer again gives the document already saved (`created` false). What it holds (`content`) is the chat UI's
- *  own data (`SavedAnswer`; for now: the server will store each turn, suveryn-tracker#251). */
-export const saveAnswerToCase = (caseId: string, body: Omit<gateway.SaveAnswerIn, "content"> & { content: SavedAnswer }) =>
-  answered(gateway.saveAnswerAsDocument(encodeURIComponent(caseId), body));
+/** An answer the server stored, saved to its conversation's case (docs/design/chat-ui.md §5): the server copies it as it
+ *  was written (suveryn-tracker#251), a document with origin answer, never a source, its content in the shape of
+ *  `SavedAnswer`. Saving the same answer again gives the document already saved (`created` false). */
+export const saveTurnAsDocument = (conversationId: string, seq: number) =>
+  answered(gateway.saveTurnAsDocument(encodeURIComponent(conversationId), seq));
 /** What rebuilds a document sūveryn made (a saved answer's Word file). */
 export const documentContent = (documentId: string, caseId?: string | null) =>
   answered(gateway.getDocumentContent(encodeURIComponent(documentId), inCase(caseId))) as

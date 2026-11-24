@@ -378,6 +378,16 @@ bounce in turn; they stand still under `prefers-reduced-motion`.
 
 *Stop* (Esc) takes the send button's place, and the input stays usable for the next question.
 
+**Kept by the server** (suveryn-tracker#251). A question goes to `POST /v1/conversations/{id}/questions` with the answer
+it follows; the server stores the question and the answer as it is written, however it ends, and the model reads what
+the server stored. The screen saves nothing itself: the answer's stream says the numbers the server gave the question
+and, once stored, the answer (event `stored`), which the next question, *Regenerate* and *Save to case* name; a
+refused question gets none. *Regenerate* and *Save to case* need a turn the server stored; on a question the screen
+saved whole before, *Regenerate* asks it as a new question. The server keeps a
+conversation as a tree (each turn names the one it follows), and a reopened conversation shows the newest answer of
+each question; the arrows between an answer's versions wait for their board. Without saved conversations (their store
+down) the question goes to `POST /v1/chat` with the history, and nothing is kept.
+
 **Stopping, failing and asking again.**
 
 - A stopped answer keeps what was written, with "Stopped. Incomplete and not checked." Its markers still open their passages, because a grounded answer's passages are sent before its first word (SSE `sources`). Checks run only on a finished answer, and Word export is offered for finished answers only. A stopped answer is saved, but not sent to the model as history.
@@ -473,8 +483,9 @@ source per row; amounts become numbers, and anything ambiguous stays text.
 - Afterwards the toolbar reads "✓ Saved to case 123 as *title*.docx", with *Open* (Documents,
   filtered on the case) and *Undo*.
 - *Undo* deletes the document, and is offered until the person leaves the conversation.
-- `POST /v1/cases/{id}/documents` takes the answer's text and content with the conversation and
-  message ids, so the document leads back to the answer.
+- The screen names the answer (`POST /v1/conversations/{id}/turns/{seq}/document`) and the server copies the one it
+  stored, as it was written (suveryn-tracker#251); the document's provenance names the conversation and the answer,
+  so it leads back to it, and a reopened conversation knows the answer was saved.
 - Personal conversations have no *Save to case*; download stays.
 - What is stored: the question, the answer, its sources with their file names as they were, its checks and the answer's id (`documents.content`). The file is built again in the browser on download, mark included. The question and answer are also stored as text, so search finds them.
 - The file is named after the answer's own question, so several answers from one conversation can be told apart. Saving the same answer again gives the document already saved.
