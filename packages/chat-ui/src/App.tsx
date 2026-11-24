@@ -4,10 +4,10 @@
  * - Nothing is shown before sign-in (App → SignIn); once signed in, Chat mounts.
  * - Server state (health, stored documents, upload jobs) is polled; uploads are tracked per
  *   attachment until their job is ready.
- * - Conversations are saved on the server, per user (suveryn-tracker#5): after each answer the
- *   whole conversation is saved, and the sidebar lists earlier ones to open again. Nothing is
+ * - Conversations are kept on the server, per user (suveryn-tracker#5, #251): it stores each
+ *   question and answer as it answers, and the sidebar lists earlier ones to open again. Nothing is
  *   written to browser storage. Signing out asks whether to keep the history (the default) or
- *   delete it. Without a database on the server, the conversation lives only in memory.
+ *   delete it. Without the server's conversation store, nothing is asked until it is back.
  * - Cases (suveryn-tracker#10): the sidebar opens a case or the personal space; documents,
  *   uploads, conversations and questions are then that case's (the gateway checks the right),
  *   and switching starts a new chat there. The personal space is the user's own, as before cases.
@@ -472,7 +472,7 @@ function Chat({ me }: { me: Me }) {
     closed ? m.caseIsClosed :
     currentCase && role === "reader" ? m.readerCantAsk :
     // the server keeps every turn as it answers (#251): with its conversation store down, nothing is asked
-    !historyReady ? (health.history?.status === "failed" ? m.historyFailed : m.historyUnavailable) : null;
+    !historyReady ? m.historyFailed : null;
 
   // ---------------------------------------------------------------- actions
   const attachFiles = async (files: File[]) => {
@@ -679,6 +679,7 @@ function Chat({ me }: { me: Me }) {
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
     refreshConversations();  // a new conversation is listed, a known one moves up
+    if (deletedHere.current.size > 0) readOpenAgain();  // a document deleted while this answer was written
     // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
     // found by its question, so it counts among the question's versions (board 81)
     const stored = numbered as { question: number; answer: number | null } | null;
@@ -877,6 +878,7 @@ function Chat({ me }: { me: Me }) {
     setOpenRunId(null);
     abort.current?.abort();
     setConversation(NO_CONVERSATION);
+    deletedHere.current.clear();
     setPending([]);
     setProblem(null);
     setConversationId(newConversationId());
@@ -1020,6 +1022,7 @@ function Chat({ me }: { me: Me }) {
       setConversationId(id);
       setSavedHere(new Set());
       setConversation(opened.conversation);
+      deletedHere.current.clear();
       setAbout(opened.about);
       setThinking(opened.thinking);
       setAboutGone(false);
@@ -1110,6 +1113,21 @@ function Chat({ me }: { me: Me }) {
     setView("chat");
     remove(d, target);
   };
+  // The open conversation read again from the server, which took the documents deleted here out of every turn: still
+  // on the branch shown. Not readable now: never shown with their passages, and said why.
+  const deletedHere = useRef(new Set<string>());
+  const readOpenAgain = () => {
+    const id = conversationId, gone = new Set(deletedHere.current);
+    deletedHere.current.clear();
+    getConversation(id).then((c) => {
+      const read = savedConversation(c.turns, id, (doc) => (gone.has(doc) ? undefined : documentName(doc)));
+      setConversation((was) => (id === conversationIdNow.current ? readAgain(was, read) : was));
+    }).catch((e) => {
+      if (id !== conversationIdNow.current) return;
+      newChat();
+      setProblem(m.openFailed({ why: (e as Error).message }));
+    });
+  };
   const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[], where: string | null = caseId) => {
     await deleteDocument(d.id, conversations, where);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
@@ -1118,11 +1136,9 @@ function Chat({ me }: { me: Me }) {
     const open = afterDelete({ documentId: d.id, turns: conversation.turns, conversationId, conversations, deleted: using });
     if (open === "new") newChat();
     else if (open === "clean") {
-      const id = conversationId;
-      getConversation(id).then((c) => {
-        const read = savedConversation(c.turns, id, (doc) => (doc === d.id ? undefined : documentName(doc)));
-        setConversation((was) => (id === conversationIdNow.current ? readAgain(was, read) : was));
-      }).catch(() => { if (id === conversationIdNow.current) newChat(); });  // not readable now: never shown with the passages
+      deletedHere.current.add(d.id);
+      // an answer being written: read again once it is (review of step 4a), or it would be lost from the screen
+      if (!abort.current) readOpenAgain();
     }
     setDeleting(null);
     refreshDocuments();

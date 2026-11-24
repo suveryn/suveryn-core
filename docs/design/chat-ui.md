@@ -385,8 +385,9 @@ and, once stored, the answer (event `stored`), which the next question, *Regener
 refused question gets none, and *Regenerate* on it asks it anew. The server keeps a conversation as a tree (each turn
 names the one it follows), as ChatGPT and Claude do. With the conversation store down nothing is asked: the question
 box says conversations can't be saved right now, as the sidebar does, until it is back. After a document is deleted,
-the open conversation is read again from the server, which took the document's passages and name out of every turn:
-one clean-up, the server's.
+the open conversation is read again from the server, which took the document's passages and name out of every turn
+(one clean-up, the server's); while an answer is written, once it ends. If it can't be read, a new conversation starts
+and the page says why: it is never shown with the passages.
 
 **An answer's versions** (board 81). *Regenerate*, last in every finished, stopped or failed answer's actions, asks
 the same question again; the new answer is shown at once and the earlier one is kept, with what followed it. An answer
@@ -435,7 +436,7 @@ Clicking a citation opens a 440 px panel on the right. The panel holds:
 - The source panel replaces a card under the answer. It is not modal; the focus moves into it when a citation opens it and back when it closes; Esc closes it from inside it. Below 768 px it is a modal drawer from the right. *Open document at p. 3* opens the file as uploaded in a new tab, a PDF at the cited page (`#page=3`); a Word or Markdown file has no page, so it reads *Open document*. It sits next to *Copy passage* and replaces the passage's download (board G11, 6 November 2026). A playbook fact's passage whose document was deleted since offers the passage's download instead.
 - The verdict in words: for a marker, whether its sentence's names, dates and figures are in the passage; for an item of the sources line, whether everything the answer takes from that source is; "not checked" for a stopped answer.
 - Above every sourced answer a quiet line names the documents it rests on ("Based on akte-verkoop.pdf"): it is the one cue that shows an answer mixing documents.
-- **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`, `withoutDocument`).
+- **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`).
 
 **Attachments** (artboard 13) are cards inside the question box (above it on a narrow screen), one shape for every state, with × at the
 top right to remove:
